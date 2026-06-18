@@ -1,0 +1,1777 @@
+import XCTest
+@testable import InsideCoverCore
+
+final class WorldSystemsTests: XCTestCase {
+    private var utcCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar
+    }
+
+    private func date(_ year: Int, _ month: Int, _ day: Int, hour: Int, calendar: Calendar) -> Date {
+        calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour))!
+    }
+
+    // MARK: Moon
+
+    func testMoonPhaseAtReferenceNewMoonIsNew() {
+        var components = DateComponents(year: 2000, month: 1, day: 6, hour: 18, minute: 14)
+        components.timeZone = TimeZone(identifier: "UTC")
+        let reference = Calendar(identifier: .gregorian).date(from: components)!
+        let phase = MoonPhaseCalendar.phase(on: reference)
+        XCTAssertEqual(phase.name, "New Moon")
+        XCTAssertLessThan(phase.illuminatedFraction, 0.02)
+    }
+
+    func testMoonPhaseHalfCycleLaterIsFull() {
+        var components = DateComponents(year: 2000, month: 1, day: 6, hour: 18, minute: 14)
+        components.timeZone = TimeZone(identifier: "UTC")
+        let reference = Calendar(identifier: .gregorian).date(from: components)!
+        let halfCycle = reference.addingTimeInterval(MoonPhaseCalendar.synodicMonthDays / 2 * 86_400)
+        let phase = MoonPhaseCalendar.phase(on: halfCycle)
+        XCTAssertEqual(phase.name, "Full Moon")
+        XCTAssertGreaterThan(phase.illuminatedFraction, 0.98)
+    }
+
+    // MARK: Academy schedule
+
+    func testMondayMorningIsArtOfTheGlint() {
+        let calendar = utcCalendar
+        // 2026-06-08 is a Monday.
+        let monday = date(2026, 6, 8, hour: 9, calendar: calendar)
+        let session = AcademyScheduleRegistry.sessionInProgress(at: monday, calendar: calendar)
+        XCTAssertEqual(session?.session.id, "art-of-the-glint")
+        XCTAssertEqual(session?.block, "morning")
+    }
+
+    func testMondayEveningIsInkwrightSociety() {
+        let calendar = utcCalendar
+        let monday = date(2026, 6, 8, hour: 19, calendar: calendar)
+        let session = AcademyScheduleRegistry.sessionInProgress(at: monday, calendar: calendar)
+        XCTAssertEqual(session?.session.id, "inkwright-society")
+        XCTAssertEqual(session?.session.kind, .club)
+    }
+
+    func testSundayAfternoonHasNoSession() {
+        let calendar = utcCalendar
+        // 2026-06-07 is a Sunday; no afternoon class on Sundays.
+        let sunday = date(2026, 6, 7, hour: 13, calendar: calendar)
+        XCTAssertNil(AcademyScheduleRegistry.sessionInProgress(at: sunday, calendar: calendar))
+    }
+
+    func testWednesdayHasNoClub() {
+        let calendar = utcCalendar
+        // 2026-06-10 is a Wednesday.
+        let wednesday = date(2026, 6, 10, hour: 20, calendar: calendar)
+        XCTAssertNil(AcademyScheduleRegistry.sessionInProgress(at: wednesday, calendar: calendar))
+    }
+
+    func testEveryScheduledSessionExists() {
+        for (_, plan) in AcademyScheduleRegistry.week {
+            if let id = plan.morning {
+                XCTAssertNotNil(AcademyScheduleRegistry.classes[id], "missing class \(id)")
+            }
+            if let id = plan.afternoon {
+                XCTAssertNotNil(AcademyScheduleRegistry.classes[id], "missing class \(id)")
+            }
+            if let id = plan.club {
+                XCTAssertNotNil(AcademyScheduleRegistry.clubs[id], "missing club \(id)")
+            }
+        }
+    }
+
+    func testGlintClassCarriesLessonModuleAndProfessorIdentity() {
+        let session = AcademyScheduleRegistry.classes["art-of-the-glint"]
+
+        XCTAssertEqual(session?.leader, "Professor Lydia Boggle")
+        XCTAssertEqual(session?.leaderEntityID, "lydia-boggle")
+        XCTAssertEqual(session?.subjectThreadID, "notice-north")
+
+        let lesson = AcademyScheduleRegistry.lessonModules["art-of-the-glint"]
+        XCTAssertEqual(lesson?.sessionID, "art-of-the-glint")
+        XCTAssertEqual(lesson?.title, "Specificity Breaks the Rut")
+        XCTAssertFalse(lesson?.lectureBeats.isEmpty ?? true)
+        XCTAssertTrue(lesson?.realWorldPractice.contains("observable facts") ?? false)
+    }
+
+    func testEveryScheduledSessionHasALessonModule() {
+        let sessions = Array(AcademyScheduleRegistry.classes.values) + Array(AcademyScheduleRegistry.clubs.values)
+
+        for session in sessions {
+            let lesson = AcademyScheduleRegistry.lessonModules[session.id]
+            XCTAssertNotNil(lesson, "missing lesson module for \(session.id)")
+            XCTAssertEqual(lesson?.sessionID, session.id)
+            XCTAssertFalse(lesson?.title.isEmpty ?? true, "missing title for \(session.id)")
+            XCTAssertFalse(lesson?.realSubject.isEmpty ?? true, "missing real subject for \(session.id)")
+            XCTAssertFalse(lesson?.concept.isEmpty ?? true, "missing concept for \(session.id)")
+            XCTAssertGreaterThanOrEqual(lesson?.lectureBeats.count ?? 0, 3, "needs at least three lecture beats for \(session.id)")
+            XCTAssertFalse(lesson?.demonstration.isEmpty ?? true, "missing demonstration for \(session.id)")
+            XCTAssertFalse(lesson?.interactionPrompt.isEmpty ?? true, "missing interaction prompt for \(session.id)")
+            XCTAssertFalse(lesson?.realWorldPractice.isEmpty ?? true, "missing real-world practice for \(session.id)")
+        }
+    }
+
+    func testEveryScheduledClassProfessorIsInTheNarrativeCast() {
+        let professorNames = Set(AcademyScheduleRegistry.classes.values.map(\.leader))
+        let castNames = Set(NarrativePackRegistry.entities.filter { $0.kind == .character }.map(\.name))
+
+        XCTAssertTrue(
+            professorNames.isSubset(of: castNames),
+            "Missing scheduled professors: \(professorNames.subtracting(castNames).sorted().joined(separator: ", "))"
+        )
+    }
+
+    func testEveryScheduledClassProfessorHasAnIllustrationDossier() {
+        let professorNames = Set(AcademyScheduleRegistry.classes.values.map(\.leader))
+        let dossierNames = Set(BookReferenceCatalog.characterIllustrations.map(\.characterName))
+
+        XCTAssertTrue(
+            professorNames.isSubset(of: dossierNames),
+            "Missing professor dossiers: \(professorNames.subtracting(dossierNames).sorted().joined(separator: ", "))"
+        )
+    }
+
+    // MARK: Page pack templates
+
+    func testTemplateRendererSubstitutesSignals() {
+        var inputs = BookSourceInputs.empty
+        inputs.weather = WeatherSourceSignal(phrase: "light rain, 54F", source: "test")
+        inputs.selfFacts = [
+            SelfFact(
+                id: "f1",
+                questionID: "onboarding-name",
+                question: "What should the Book call you?",
+                answer: "Avery",
+                bookTranslation: "Avery",
+                sensitivity: .delight,
+                usePermission: .privateContext,
+                tags: ["name"],
+                createdAt: Date(),
+                updatedAt: Date()
+            )
+        ]
+        let day = BookDay.today()
+        let rendered = PageTemplateRenderer.render(
+            "Hello {playerName}: {weather} under a {moon}.",
+            day: day,
+            inputs: inputs
+        )
+        XCTAssertTrue(rendered.contains("Avery"))
+        XCTAssertTrue(rendered.contains("light rain, 54F"))
+        XCTAssertFalse(rendered.contains("{moon}"))
+        XCTAssertFalse(rendered.contains("{playerName}"))
+    }
+
+    func testBundledPackArchetypesAreWellFormed() {
+        let archetypes = PageArchetypePackRegistry.bundledPacks.flatMap(\.archetypes)
+        XCTAssertFalse(archetypes.isEmpty)
+        for archetype in archetypes {
+            XCTAssertFalse(archetype.id.isEmpty)
+            XCTAssertFalse(archetype.bodyTemplate.isEmpty)
+            XCTAssertGreaterThan(archetype.cadenceHours, 0)
+            if let hours = archetype.activeHours {
+                XCTAssertTrue(hours.allSatisfy { (0..<24).contains($0) })
+            }
+        }
+    }
+
+    // MARK: Margin tutor
+
+    func testMarginTutorLedgerRoundTrips() {
+        let seen: Set<String> = ["glow-menu", "seal-body"]
+        let decoded = MarginTutorLedger.seenIDs(from: MarginTutorLedger.encode(seen))
+        XCTAssertEqual(decoded, seen)
+        XCTAssertEqual(MarginTutorLedger.seenIDs(from: "not json"), [])
+    }
+
+    func testMarginTutorCatalogCoversCoreTouches() {
+        for id in ["glow-menu", "seal-body", "seal-weather", "seal-location", "keep-page", "story-page", "flyleaf"] {
+            XCTAssertNotNil(MarginTutorCatalog.note(for: id), "missing tutor note \(id)")
+        }
+    }
+
+    // MARK: Stable hashing
+
+    func testStableHashIsDeterministic() {
+        XCTAssertEqual("wonder".stableHash, "wonder".stableHash)
+        XCTAssertNotEqual("wonder".stableHash, "wander".stableHash)
+        XCTAssertEqual(42.stableScramble, 42.stableScramble)
+        XCTAssertNotEqual(42.stableScramble, 43.stableScramble)
+    }
+
+    // MARK: Memory consolidation
+
+    func testConsolidatorMergesNearDuplicates() {
+        func memory(_ id: String, _ summary: String, daysAgo: Double, weight: Int = 2) -> NarrativeEntityMemory {
+            NarrativeEntityMemory(
+                id: id,
+                entityID: "penny-blackletter",
+                sourceEventID: "e-\(id)",
+                sourcePageID: nil,
+                summary: summary,
+                tags: [],
+                narrativeWeight: weight,
+                createdAt: Date().addingTimeInterval(-daysAgo * 86_400)
+            )
+        }
+        let memories = [
+            memory("a", "Penny Blackletter remembers: you mentioned the harbor lights", daysAgo: 6),
+            memory("b", "Penny Blackletter remembers: you mentioned the harbor lights again", daysAgo: 2),
+            memory("c", "Penny Blackletter remembers: the photograph of the kettle", daysAgo: 1)
+        ]
+        let consolidated = NarrativeEntityMemoryConsolidator.consolidate(memories)
+        XCTAssertEqual(consolidated.count, 2)
+        let harbor = consolidated.first { $0.summary.contains("harbor") }
+        XCTAssertNotNil(harbor)
+        XCTAssertGreaterThan(harbor?.narrativeWeight ?? 0, 2)
+    }
+
+    func testConsolidatorKeepsDistinctMemoriesApart() {
+        func memory(_ id: String, entity: String, _ summary: String) -> NarrativeEntityMemory {
+            NarrativeEntityMemory(
+                id: id,
+                entityID: entity,
+                sourceEventID: "e-\(id)",
+                sourcePageID: nil,
+                summary: summary,
+                tags: [],
+                narrativeWeight: 2,
+                createdAt: Date()
+            )
+        }
+        let memories = [
+            memory("a", entity: "penny-blackletter", "Penny remembers: the harbor lights"),
+            memory("b", entity: "dr-inkrest", "Inkrest remembers: the harbor lights")
+        ]
+        XCTAssertEqual(NarrativeEntityMemoryConsolidator.consolidate(memories).count, 2)
+    }
+
+    // MARK: The knock
+
+    func testKnockNotesKnowThings() {
+        // Persistence gets dry treatment.
+        XCTAssertTrue(BannerKnockNotes.note(greyLevel: 0, ascendantChapterName: nil, hour: 12, moonName: "New Moon", knocksThisSession: 7, roll: 0).contains("whole shelf"))
+        // Grey days get kindness first.
+        XCTAssertTrue(BannerKnockNotes.note(greyLevel: 2, ascendantChapterName: nil, hour: 12, moonName: "New Moon", knocksThisSession: 1, roll: 0).contains("knock helps"))
+        // Deep night knows about the Nocturne.
+        XCTAssertTrue(BannerKnockNotes.note(greyLevel: 0, ascendantChapterName: nil, hour: 2, moonName: "New Moon", knocksThisSession: 1, roll: 1).contains("Nocturne"))
+        // Daytime pool rotates by roll.
+        let a = BannerKnockNotes.note(greyLevel: 0, ascendantChapterName: nil, hour: 12, moonName: "New Moon", knocksThisSession: 1, roll: 1)
+        let b = BannerKnockNotes.note(greyLevel: 0, ascendantChapterName: nil, hour: 12, moonName: "New Moon", knocksThisSession: 1, roll: 2)
+        XCTAssertNotEqual(a, b)
+    }
+
+    // MARK: Fuel arithmetic
+
+    func testFuelParserSplitsAndQuantifies() {
+        let items = FuelParser.items(from: "Two eggs, toast with butter and coffee")
+        XCTAssertEqual(items.count, 4)
+        XCTAssertEqual(items[0], FuelItem(name: "eggs", quantity: 2))
+        XCTAssertEqual(items[1].name, "toast")
+        XCTAssertEqual(items[2].name, "butter")
+        XCTAssertEqual(items[3].name, "coffee")
+    }
+
+    func testFuelParserHandlesNumberWordsAndFiller() {
+        let items = FuelParser.items(from: "a bowl of oatmeal, half banana")
+        XCTAssertEqual(items.first?.name, "oatmeal")
+        XCTAssertEqual(items.first?.quantity, 1)
+        XCTAssertEqual(items.last, FuelItem(name: "banana", quantity: 0.5))
+    }
+
+    func testPortionScalingUsesCommonPortions() {
+        // Eggs: 50g portion, so two eggs = 100g = exactly the per-100g values.
+        let per100g = NutritionEstimate(kilocalories: 143, protein: 12.4, carbohydrates: 0.96, fat: 9.96)
+        let scaled = FuelParser.scale(per100g: per100g, item: FuelItem(name: "eggs", quantity: 2))
+        XCTAssertEqual(scaled.kilocalories, 143, accuracy: 0.1)
+        // Unknown food defaults to 100g.
+        let unknown = FuelParser.scale(per100g: per100g, item: FuelItem(name: "mystery casserole", quantity: 1))
+        XCTAssertEqual(unknown.kilocalories, 143, accuracy: 0.1)
+    }
+
+    func testEstimateChartLineIsHonestAboutRoughness() {
+        let estimate = NutritionEstimate(kilocalories: 412.4, protein: 21.6, carbohydrates: 38.2, fat: 17.8)
+        XCTAssertTrue(estimate.chartLine.contains("412 kcal"))
+        XCTAssertTrue(estimate.chartLine.contains("rough"))
+    }
+
+    // MARK: Nocturne Folio
+
+    func testNocturneFolioUnlocksContentAndSparks() {
+        defer { PackEntitlements.ownedPackIDs = [] }
+        PackEntitlements.ownedPackIDs = []
+        XCTAssertFalse(PageArchetypePackRegistry.archetypes().contains { $0.id == "last-light" })
+        let baseCount = WonderSparkRegistry.sparks.count
+        PackEntitlements.ownedPackIDs = ["nocturne-folio"]
+        XCTAssertTrue(PageArchetypePackRegistry.archetypes().contains { $0.id == "last-light" })
+        XCTAssertEqual(WonderSparkRegistry.sparks.count, baseCount + WonderSparkRegistry.nocturneSparks.count)
+    }
+
+    // MARK: The Nothing
+
+    func testGreyLevelRespectsTheKindnessRules() {
+        XCTAssertEqual(NothingTide.greyLevel(quietDays: 5, narrativeHeat: 0, distressActive: true), 0, "distress silences the Nothing absolutely")
+        XCTAssertEqual(NothingTide.greyLevel(quietDays: 0, narrativeHeat: 0, distressActive: false), 0)
+        XCTAssertEqual(NothingTide.greyLevel(quietDays: 1, narrativeHeat: 0, distressActive: false), 1)
+        XCTAssertEqual(NothingTide.greyLevel(quietDays: 3, narrativeHeat: 0, distressActive: false), 2)
+        XCTAssertEqual(NothingTide.greyLevel(quietDays: 5, narrativeHeat: 0, distressActive: false), 3)
+        XCTAssertEqual(NothingTide.greyLevel(quietDays: 3, narrativeHeat: 8, distressActive: false), 1, "a hot story field pushes the grey back")
+    }
+
+    func testGreyStorySignalsExistOnlyWhenGreyIsUp() {
+        XCTAssertNil(NothingTide.storySignal(forGreyLevel: 0))
+        XCTAssertNil(NothingTide.storySignal(forGreyLevel: 1))
+        XCTAssertNotNil(NothingTide.storySignal(forGreyLevel: 2))
+        XCTAssertNotNil(NothingTide.returnLine(forGreyLevel: 2))
+        XCTAssertNil(NothingTide.returnLine(forGreyLevel: 0))
+    }
+
+    // MARK: Story Arcs
+
+    private func threadEvent(_ threadID: String, hoursAgo: Double) -> NarrativeEvent {
+        NarrativeEvent(
+            id: "arc-test-\(threadID)-\(hoursAgo)",
+            kind: .pageKept,
+            sourcePageType: .diary,
+            sourcePageID: nil,
+            createdAt: Date().addingTimeInterval(-hoursAgo * 3600),
+            summary: "test",
+            tags: [],
+            effect: NarrativeEventEffect(threadWeightDeltas: [threadID: 2])
+        )
+    }
+
+    func testArcPromotionNeedsSustainedHeat() {
+        let threadID = NarrativePackRegistry.threads.first { !ArcKeeper.ambientThreadIDs.contains($0.id) }!.id
+        let cold = ArcKeeper.evaluate(current: nil, events: [threadEvent(threadID, hoursAgo: 2)], lastCompletedThreadID: nil)
+        XCTAssertNil(cold.arc)
+        let hotEvents = [threadEvent(threadID, hoursAgo: 2), threadEvent(threadID, hoursAgo: 20), threadEvent(threadID, hoursAgo: 40)]
+        let hot = ArcKeeper.evaluate(current: nil, events: hotEvents, lastCompletedThreadID: nil)
+        XCTAssertEqual(hot.arc?.threadID, threadID)
+        XCTAssertEqual(hot.arc?.phase, .rising)
+        XCTAssertNotNil(hot.announcement)
+        let cooled = ArcKeeper.evaluate(current: nil, events: hotEvents, lastCompletedThreadID: threadID)
+        XCTAssertNil(cooled.arc, "the just-completed arc thread is on cooldown")
+    }
+
+    func testArcAdvancesOnlyWithTimeAndActivity() {
+        let threadID = NarrativePackRegistry.threads.first { !ArcKeeper.ambientThreadIDs.contains($0.id) }!.id
+        let now = Date()
+        var arc = StoryArc(threadID: threadID, title: "T", phase: .rising, startedAt: now.addingTimeInterval(-5 * 86_400), phaseAdvancedAt: now.addingTimeInterval(-3 * 86_400))
+        // Time but no activity: holds.
+        let held = ArcKeeper.evaluate(current: arc, events: [], lastCompletedThreadID: nil, now: now)
+        XCTAssertEqual(held.arc?.phase, .rising)
+        // Time and activity: climax.
+        let active = [threadEvent(threadID, hoursAgo: 10), threadEvent(threadID, hoursAgo: 30)]
+        let advanced = ArcKeeper.evaluate(current: arc, events: active, lastCompletedThreadID: nil, now: now)
+        XCTAssertEqual(advanced.arc?.phase, .climax)
+        // Fading completes by time alone.
+        arc.phase = .fading
+        arc.phaseAdvancedAt = now.addingTimeInterval(-3 * 86_400)
+        let done = ArcKeeper.evaluate(current: arc, events: [], lastCompletedThreadID: nil, now: now)
+        XCTAssertNil(done.arc)
+        XCTAssertNotNil(done.announcement)
+    }
+
+    func testPacketCarriesTheCurrentArc() {
+        let threadID = NarrativePackRegistry.threads.first { !ArcKeeper.ambientThreadIDs.contains($0.id) }!.id
+        var inputs = BookSourceInputs.empty
+        inputs.currentArc = StoryArc(threadID: threadID, title: "Test Arc", phase: .climax, startedAt: Date(), phaseAdvancedAt: Date())
+        let packet = StoryScenePacketBuilder.packet(for: BookDay.today(), inputs: inputs)
+        XCTAssertEqual(packet.selectedThreads.first?.id, threadID, "the arc thread leads the scene")
+        XCTAssertTrue(packet.realSignals.contains { $0.contains("CURRENT ARC") && $0.contains("CLIMAX") })
+    }
+
+    // MARK: The BookShop
+
+    func testCatalogListingsAreWellFormed() {
+        var seenProducts = Set<String>()
+        for listing in BookShopCatalog.listings {
+            XCTAssertTrue(listing.productID.hasPrefix("com.openclaw.enchantify.insidecover.pack."), listing.id)
+            XCTAssertTrue(seenProducts.insert(listing.productID).inserted, "duplicate product \(listing.productID)")
+            XCTAssertFalse(listing.goblinPitch.isEmpty)
+            XCTAssertFalse(listing.contents.isEmpty)
+        }
+    }
+
+    func testEntitlementsUnlockLockedPacks() {
+        defer { PackEntitlements.ownedPackIDs = [] }
+        let locked = StoryFormPack(
+            id: "test-locked-looms", displayName: "Test", version: 1, author: "t",
+            availability: "locked", forms: [], genres: []
+        )
+        XCTAssertTrue(locked.isLocked)
+        PackEntitlements.ownedPackIDs = []
+        XCTAssertFalse(PackEntitlements.isUnlocked(locked.id))
+        PackEntitlements.ownedPackIDs.insert(locked.id)
+        XCTAssertTrue(PackEntitlements.isUnlocked(locked.id))
+    }
+
+    func testVaultCarriesOwnedPacks() throws {
+        var data = PlayerVaultData()
+        data.ownedPacks = ["nocturne-folio"]
+        let decoded = try JSONDecoder().decode(PlayerVaultData.self, from: JSONEncoder().encode(data))
+        XCTAssertEqual(decoded.ownedPacks, ["nocturne-folio"])
+    }
+
+    // MARK: Wonder sparks
+
+    func testSparkPoolIsLargeAndWellFormed() {
+        XCTAssertGreaterThanOrEqual(WonderSparkRegistry.sparks.count, 60)
+        var seen = Set<String>()
+        for spark in WonderSparkRegistry.sparks {
+            XCTAssertTrue(spark.text.lowercased().hasPrefix("i wonder"), spark.id)
+            XCTAssertTrue(spark.text.hasSuffix("?"), spark.id)
+            XCTAssertFalse(spark.modes.isEmpty, spark.id)
+            XCTAssertTrue(seen.insert(spark.id).inserted, "duplicate spark id \(spark.id)")
+        }
+        // Every concierge mode has a real pool to draw from.
+        for mode in WonderConciergeMode.allCases {
+            let pool = WonderSparkRegistry.sparks.filter { $0.modes.contains(mode) }
+            XCTAssertGreaterThanOrEqual(pool.count, 8, "mode \(mode) pool too small")
+        }
+    }
+
+    func testSparksRotateAcrossSlots() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let morning = calendar.date(from: DateComponents(year: 2026, month: 6, day: 11, hour: 8))!
+        var picks = Set<String>()
+        for dayOffset in 0..<5 {
+            let when = calendar.date(byAdding: .day, value: dayOffset, to: morning)!
+            picks.insert(WonderSparkRegistry.spark(for: .closeToHome, inputs: .empty, now: when, dayID: "day-\(dayOffset)"))
+        }
+        XCTAssertGreaterThanOrEqual(picks.count, 3, "five days should yield several different sparks")
+    }
+
+    func testRainLeansTowardRainSparks() {
+        var inputs = BookSourceInputs.empty
+        inputs.weather = WeatherSourceSignal(phrase: "steady rain, 52F", source: "test")
+        // Across several days, rain context should surface a rain-tagged
+        // spark at least once for the modes that carry them.
+        var sawRainSpark = false
+        let morning = date(2026, 6, 10, hour: 9, calendar: utcCalendar)
+        for day in 0..<8 {
+            let text = WonderSparkRegistry.spark(for: .vibe, inputs: inputs, now: morning, dayID: "rain-day-\(day)")
+            if text.contains("rain") || text.contains("percussion") {
+                sawRainSpark = true
+            }
+        }
+        XCTAssertTrue(sawRainSpark)
+    }
+
+    // MARK: Compass venture reading
+
+    func testDepletedEnergyStaysHome() {
+        XCTAssertEqual(
+            CompassVenture.decide(energyText: "10% - exhausted", considerations: "", timeLimit: "2 hours", hasPlaces: true, roll: 0.99),
+            .homebound
+        )
+        XCTAssertEqual(
+            CompassVenture.decide(energyText: "completely wiped", considerations: "", timeLimit: "an hour", hasPlaces: true, roll: 0.01),
+            .homebound
+        )
+    }
+
+    func testConsiderationsForceHomeRegardlessOfEnergy() {
+        XCTAssertEqual(
+            CompassVenture.decide(energyText: "90% - great", considerations: "kids napping, can't leave", timeLimit: "2 hours", hasPlaces: true, roll: 0.01),
+            .homebound
+        )
+    }
+
+    func testSteadyEnergySometimesVenturesSometimesNot() {
+        let out = CompassVenture.decide(energyText: "60% - okay", considerations: "", timeLimit: "an hour", hasPlaces: true, roll: 0.2)
+        let home = CompassVenture.decide(energyText: "60% - okay", considerations: "", timeLimit: "an hour", hasPlaces: true, roll: 0.9)
+        XCTAssertEqual(out, .destination)
+        XCTAssertEqual(home, .neighborhood)
+    }
+
+    func testShortTimeLimitCapsTheVenture() {
+        XCTAssertEqual(
+            CompassVenture.decide(energyText: "85% - energized", considerations: "", timeLimit: "10 minutes", hasPlaces: true, roll: 0.01),
+            .neighborhood
+        )
+    }
+
+    func testNoPlacesMeansNoNamedDestination() {
+        XCTAssertEqual(
+            CompassVenture.decide(energyText: "85% - energized", considerations: "", timeLimit: "2 hours", hasPlaces: false, roll: 0.01),
+            .neighborhood
+        )
+    }
+
+    // MARK: Story forms
+
+    func testStoryFormRegistryIsWellFormed() {
+        XCTAssertGreaterThanOrEqual(StoryFormRegistry.forms.count, 6)
+        XCTAssertGreaterThanOrEqual(StoryFormRegistry.genres.count, 8)
+        for form in StoryFormRegistry.forms {
+            XCTAssertGreaterThanOrEqual(form.beats.count, 3, "\(form.id) needs at least 3 beats")
+        }
+        for genre in StoryFormRegistry.genres {
+            XCTAssertFalse(genre.lens.isEmpty)
+        }
+    }
+
+    func testStoryFormSelectionAvoidsRecentForm() {
+        let now = Date()
+        let first = StoryFormRegistry.select(
+            tags: [], surfaceHistory: [:], ascendantChapterID: nil,
+            dayID: "2026-06-11", slot: "slot-a", now: now
+        )
+        var history: [String: SurfaceHistoryRecord] = [:]
+        history["form:\(first.form.id)"] = SurfaceHistoryRecord(lastShownAt: now, recentShowCount: 2)
+        let second = StoryFormRegistry.select(
+            tags: [], surfaceHistory: history, ascendantChapterID: nil,
+            dayID: "2026-06-11", slot: "slot-a", now: now
+        )
+        XCTAssertNotEqual(first.form.id, second.form.id, "the just-used form should step back")
+    }
+
+    func testPacketCarriesFormAndGenre() {
+        let packet = StoryScenePacketBuilder.packet(for: BookDay.today(), inputs: .empty)
+        XCTAssertNotNil(packet.storyFormID)
+        XCTAssertFalse(packet.storyFormBeats?.isEmpty ?? true)
+        XCTAssertNotNil(packet.storyGenreLens)
+    }
+
+    func testGenreSelectionFollowsMoodTags() {
+        let pick = StoryFormRegistry.select(
+            tags: ["rain", "evening", "tea"], surfaceHistory: [:],
+            ascendantChapterID: nil, dayID: "d", slot: "s"
+        )
+        XCTAssertEqual(pick.genre.id, "cozy-mystery", "rainy evening tea should brew a cozy mystery")
+    }
+
+    // MARK: Real-place electives
+
+    func testOfferSurfaceCarriesNearbyPlaces() {
+        let adapter = ElectivePageSourceAdapter()
+        var inputs = BookSourceInputs.empty
+        inputs.nearbyPlaces = [
+            LocalPlaceSignal(id: "p1", name: "Tom's Diner", category: "diner", distanceLabel: "1.2 km", locality: "Riverside")
+        ]
+        inputs.selfFacts = []
+        let day = BookDay.today()
+        let noon = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
+        let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: noon)
+        if let offer = pages.first(where: { $0.payload.metadata["electiveOffer"] == "true" }) {
+            XCTAssertTrue(offer.payload.metadata["nearbyPlaces"]?.contains("Tom's Diner") == true)
+        }
+        // Either an offer surfaced carrying the place, or none surfaced
+        // (cadence-gated) — but never an offer without the places line.
+        for offer in pages where offer.payload.metadata["electiveOffer"] == "true" {
+            XCTAssertNotNil(offer.payload.metadata["nearbyPlaces"])
+        }
+    }
+
+    func testElectiveOfferCoolsDownRecentDestination() {
+        let adapter = ElectivePageSourceAdapter()
+        let now = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
+        var inputs = BookSourceInputs.empty
+        inputs.nearbyPlaces = [
+            LocalPlaceSignal(id: "youngs", name: "Young's Lobster Pound", category: "seafood", distanceLabel: "1.2 km", locality: "Belfast"),
+            LocalPlaceSignal(id: "co-op", name: "Belfast Co-op", category: "grocery", distanceLabel: "900 m", locality: "Belfast")
+        ]
+        inputs.electives = [
+            UnwrittenElective(
+                id: "recent-youngs",
+                characterID: "old-sender",
+                characterName: "Old Sender",
+                title: "A Visit to Young's Lobster Pound",
+                ask: "Go to Young's Lobster Pound this week.",
+                whyItMatters: "It matters",
+                practiceShape: "One sentence",
+                createdAt: now.addingTimeInterval(-3 * 86_400),
+                completedAt: now.addingTimeInterval(-2 * 86_400),
+                proof: "Done."
+            )
+        ]
+
+        let pages = adapter.candidates(for: BookDay.today(), context: CuratorContext.make(for: BookDay.today()), inputs: inputs, now: now)
+        let offer = pages.first { $0.payload.metadata["electiveOffer"] == "true" }
+
+        XCTAssertFalse((offer?.payload.metadata["nearbyPlaces"] ?? "").contains("Young's Lobster Pound"))
+        XCTAssertTrue((offer?.payload.metadata["nearbyPlaces"] ?? "").contains("Belfast Co-op"))
+        XCTAssertEqual(offer?.payload.metadata["cooledDestinationCount"], "1")
+    }
+
+    func testElectiveOfferAllowsDestinationAfterCooldown() {
+        let adapter = ElectivePageSourceAdapter()
+        let now = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
+        var inputs = BookSourceInputs.empty
+        inputs.nearbyPlaces = [
+            LocalPlaceSignal(id: "youngs", name: "Young's Lobster Pound", category: "seafood", distanceLabel: "1.2 km", locality: "Belfast")
+        ]
+        inputs.electives = [
+            UnwrittenElective(
+                id: "old-youngs",
+                characterID: "old-sender",
+                characterName: "Old Sender",
+                title: "A Visit to Young's Lobster Pound",
+                ask: "Go to Young's Lobster Pound this week.",
+                whyItMatters: "It matters",
+                practiceShape: "One sentence",
+                createdAt: now.addingTimeInterval(-45 * 86_400),
+                completedAt: now.addingTimeInterval(-44 * 86_400),
+                proof: "Done."
+            )
+        ]
+
+        let pages = adapter.candidates(for: BookDay.today(), context: CuratorContext.make(for: BookDay.today()), inputs: inputs, now: now)
+        let offer = pages.first { $0.payload.metadata["electiveOffer"] == "true" }
+
+        XCTAssertTrue((offer?.payload.metadata["nearbyPlaces"] ?? "").contains("Young's Lobster Pound"))
+        XCTAssertEqual(offer?.payload.metadata["cooledDestinationCount"], "0")
+    }
+
+    func testCharacterLetterUsesOnboardingPlayerName() {
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = [
+            SelfFact(
+                id: "onboarding:onboarding-name",
+                questionID: "onboarding-name",
+                question: "What should the Book call you?",
+                answer: "Beej",
+                bookTranslation: "Beej",
+                sensitivity: .delight,
+                usePermission: .privateContext,
+                tags: ["name", "identity", "onboarding"],
+                createdAt: Date(),
+                updatedAt: Date()
+            ),
+            SelfFact(
+                id: "core-self-knowledge:called",
+                questionID: "called",
+                question: "What do you like to be called?",
+                answer: "The Later Name",
+                bookTranslation: "The Book may call you The Later Name.",
+                sensitivity: .identity,
+                usePermission: .quoteAllowed,
+                tags: ["name", "identity"],
+                createdAt: Date(),
+                updatedAt: Date()
+            )
+        ]
+        let entity = NarrativePackRegistry.entities.first { $0.id == "penny-blackletter" }!
+        let surface = CharacterLetterPageGenerator.draftCandidate(
+            for: entity,
+            source: BookPageSourceRegistry.source(for: .letter),
+            day: BookDay.today(),
+            inputs: inputs,
+            now: Date()
+        )
+
+        XCTAssertEqual(surface.payload.metadata["playerName"], "Beej")
+        XCTAssertTrue(surface.payload.body.contains("Address the player as: Beej"))
+        XCTAssertFalse(surface.payload.body.contains("[Player Name]"))
+    }
+
+    func testChapterTalismanBeliefMovesTargetOwnAndRivalTalismans() {
+        let penny = NarrativePackRegistry.entities.first { $0.id == "penny-blackletter" }!
+        let give = ChapterTalismanBeliefMoves.giveMove(for: penny)
+        XCTAssertEqual(give?.targetTalismanID, "wind-cipher")
+        XCTAssertEqual(give?.ledgerDelta, 1)
+        XCTAssertEqual(give?.ledgerToken, "wind-cipher:1")
+
+        let take = ChapterTalismanBeliefMoves.takeMove(for: penny, seed: 42)
+        XCTAssertNotNil(take)
+        XCTAssertNotEqual(take?.targetTalismanID, "wind-cipher")
+        if take?.succeeded == true {
+            XCTAssertEqual(take?.ledgerDelta, -1)
+            XCTAssertTrue(take?.ledgerToken?.hasSuffix(":-1") == true)
+        } else {
+            XCTAssertEqual(take?.ledgerDelta, 0)
+            XCTAssertNil(take?.ledgerToken)
+        }
+    }
+
+    func testCharacterLetterCanCarryCountingChapterTalismanDelta() throws {
+        let entity = NarrativePackRegistry.entities.first { $0.id == "penny-blackletter" }!
+        let source = BookPageSourceRegistry.source(for: .letter)
+        let candidate = (0..<80).compactMap { index -> SurfacePage? in
+            let now = Calendar(identifier: .gregorian).date(
+                from: DateComponents(year: 2026, month: 6, day: 11, hour: 9)
+            )!
+            let day = BookDay(id: "test-day-\(index)", date: now, pages: [])
+            let surface = CharacterLetterPageGenerator.draftCandidate(
+                for: entity,
+                source: source,
+                day: day,
+                inputs: .empty,
+                now: now
+            )
+            return surface.payload.metadata["chapterTalismanDeltas"]?.isEmpty == false ? surface : nil
+        }.first
+
+        let surface = try XCTUnwrap(candidate)
+        XCTAssertTrue(surface.payload.body.contains("Chapter talisman move:"))
+        XCTAssertFalse(surface.payload.metadata["chapterTalismanMoves"]?.isEmpty ?? true)
+        XCTAssertFalse(surface.payload.metadata["chapterTalismanDeltas"]?.isEmpty ?? true)
+    }
+
+    func testAttentionMissionsJoinPlayfulMissionRegistry() {
+        XCTAssertGreaterThanOrEqual(PlayfulMissionRegistry.attentionMissions.count, 40)
+        XCTAssertTrue(PlayfulMissionRegistry.missions.contains { $0.id == "body-heartbeat-location" })
+        XCTAssertTrue(PlayfulMissionRegistry.missions.contains { $0.id == "light-route" })
+        XCTAssertTrue(PlayfulMissionRegistry.missions.contains { $0.id == "strange-technical-miracle" })
+    }
+
+    func testPlayfulMissionRegistryStillReturnsSenseMission() {
+        let mission = PlayfulMissionRegistry.mission(
+            for: BookDay.today(),
+            inputs: .empty,
+            now: Date(timeIntervalSinceReferenceDate: 123_456)
+        )
+
+        XCTAssertFalse(mission.id.isEmpty)
+        XCTAssertFalse(mission.prompt.isEmpty)
+        XCTAssertFalse(mission.proofPrompt.isEmpty)
+    }
+
+    func testFallbackOfferUsesRealPlaceWhenAvailable() {
+        let surface = SurfacePage(
+            id: "offer", type: .elective, sourceID: "unwritten-elective",
+            prompt: "p", detail: "d",
+            payload: BookPagePayload(headline: "h", body: "b", metadata: [
+                "senderName": "Penny Blackletter",
+                "senderInterest": "household loyalty",
+                "nearbyPlaces": "Tom's Diner (diner, 1.2 km, Riverside)\nMarigold's Bakery (bakery, 800 m, Riverside)"
+            ])
+        )
+        let offer = ElectiveOfferFallback.offer(surface: surface)
+        XCTAssertTrue(offer.ask.contains("Tom's Diner"), offer.ask)
+        XCTAssertTrue(offer.title.contains("Tom's Diner"))
+    }
+
+    func testFallbackOfferStaysGenericWithoutPlaces() {
+        let surface = SurfacePage(
+            id: "offer", type: .elective, sourceID: "unwritten-elective",
+            prompt: "p", detail: "d",
+            payload: BookPagePayload(headline: "h", body: "b", metadata: ["senderName": "Zara Finch"])
+        )
+        let offer = ElectiveOfferFallback.offer(surface: surface)
+        XCTAssertFalse(offer.ask.contains("(")) // no leaked formatting
+        XCTAssertTrue(offer.ask.contains("your town"))
+    }
+
+    // MARK: Curator awareness
+
+    func testFatiguePenaltyDecaysOverTime() {
+        let now = Date()
+        var history: [String: SurfaceHistoryRecord] = [:]
+        history["cast:compassion"] = SurfaceHistoryRecord(lastShownAt: now.addingTimeInterval(-3600), recentShowCount: 1)
+        let fresh = CuratorVarietyGovernor.fatiguePenalty(forKey: "cast:compassion", history: history, now: now)
+        history["cast:compassion"] = SurfaceHistoryRecord(lastShownAt: now.addingTimeInterval(-5 * 86_400), recentShowCount: 1)
+        let stale = CuratorVarietyGovernor.fatiguePenalty(forKey: "cast:compassion", history: history, now: now)
+        XCTAssertGreaterThan(fresh, 25)
+        XCTAssertLessThan(stale, 8)
+        XCTAssertEqual(CuratorVarietyGovernor.fatiguePenalty(forKey: "never-shown", history: history, now: now), 0)
+    }
+
+    func testRepeatedlyShownContentLosesToFreshContent() {
+        let now = Date()
+        func candidate(_ id: String, entityID: String, score: Int) -> SurfacePage {
+            SurfacePage(
+                id: id, type: .castMember, sourceID: "cast-member-page",
+                score: score, prompt: id, detail: "",
+                payload: BookPagePayload(headline: id, body: "", metadata: ["entityID": entityID])
+            )
+        }
+        let tired = candidate("a", entityID: "compassion", score: 70)
+        let fresh = candidate("b", entityID: "serenity-brown", score: 60)
+        var mood = CuratorMood.neutral
+        mood.surfaceHistory = ["cast:compassion": SurfaceHistoryRecord(lastShownAt: now.addingTimeInterval(-3600), recentShowCount: 4)]
+        let ranked = BookCurator.rankedPages(from: [tired, fresh], limit: 2, mood: mood, now: now)
+        XCTAssertEqual(ranked.first?.page.id, "b", "fatigued content should yield to fresh content")
+    }
+
+    func testFinalPickPrefersTypeDiversity() {
+        func page(_ id: String, _ type: BookPageType, score: Int) -> SurfacePage {
+            SurfacePage(id: id, type: type, sourceID: nil, score: score, prompt: id, detail: "",
+                        payload: BookPagePayload(headline: id, body: ""))
+        }
+        let ranked = BookCurator.rankedPages(
+            from: [page("q1", .quip, score: 90), page("q2", .quip, score: 88), page("d1", .diary, score: 60)],
+            limit: 2
+        )
+        XCTAssertEqual(Set(ranked.map(\.page.type)).count, 2, "two card slots should hold two kinds")
+    }
+
+    func testCastRotationExcludesRecentlySeenMember() {
+        let adapter = CastMemberPageSourceAdapter()
+        var inputs = BookSourceInputs.empty
+        func member(_ id: String, belief: Int) -> CustomCastMember {
+            CustomCastMember(
+                id: id, name: id, kind: .motif, meaning: "m", description: "d",
+                traits: [], beliefs: [], goals: [], tags: [],
+                baseBelief: belief, narrativeWeight: 20,
+                createdAt: Date(), updatedAt: Date(), imageAsset: nil
+            )
+        }
+        inputs.customCastMembers = [member("compassion", belief: 90), member("quiet-shelf", belief: 10)]
+        inputs.surfaceHistory = ["cast:compassion": SurfaceHistoryRecord(lastShownAt: Date().addingTimeInterval(-3600), recentShowCount: 2)]
+        let day = BookDay.today()
+        let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: Date())
+        // The recently-seen favorite steps back; someone else from the cast pool
+        // (custom or bundled) takes the page instead.
+        XCTAssertNotNil(pages.first?.payload.metadata["entityID"])
+        XCTAssertNotEqual(pages.first?.payload.metadata["entityID"], "compassion",
+                          "the favorite steps back after being seen")
+    }
+
+    func testCastPoolIncludesBundledCharacters() {
+        let adapter = CastMemberPageSourceAdapter()
+        var inputs = BookSourceInputs.empty
+        // No custom cast at all — a bundled character should still surface.
+        inputs.customCastMembers = []
+        let day = BookDay.today()
+        let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: Date())
+        XCTAssertEqual(pages.first?.type, .castMember)
+        XCTAssertFalse(pages.first?.payload.metadata["entityID"]?.isEmpty ?? true)
+    }
+
+    func testInkedHourSurfacesBeforeEvent() {
+        let adapter = CalendarPageSourceAdapter()
+        var inputs = BookSourceInputs.empty
+        let now = Date()
+        inputs.calendarEvents = [
+            CalendarEventSignal(id: "e1", title: "Dentist", startsAt: now.addingTimeInterval(30 * 60), isAllDay: false),
+            CalendarEventSignal(id: "e2", title: "Far away", startsAt: now.addingTimeInterval(5 * 3600), isAllDay: false)
+        ]
+        let day = BookDay.today()
+        let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
+        XCTAssertTrue(pages.contains { $0.payload.metadata["eventTitle"] == "Dentist" })
+        XCTAssertFalse(pages.contains { $0.payload.metadata["eventTitle"] == "Far away" })
+    }
+
+    func testHourPageBeforeEventCarriesQuestionAndSupport() {
+        let adapter = CalendarPageSourceAdapter()
+        var inputs = BookSourceInputs.empty
+        let now = Date()
+        inputs.calendarEvents = [
+            CalendarEventSignal(id: "e1", title: "Dentist", startsAt: now.addingTimeInterval(30 * 60), isAllDay: false)
+        ]
+        let day = BookDay.today()
+        let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
+        let page = pages.first { $0.payload.metadata["eventTitle"] == "Dentist" }
+
+        XCTAssertEqual(page?.payload.metadata["hourPhase"], "before")
+        XCTAssertEqual(page?.payload.metadata["hourPhaseTitle"], "Before the Hour")
+        XCTAssertFalse(page?.payload.metadata["hourQuestion"]?.isEmpty ?? true)
+        XCTAssertFalse(page?.payload.metadata["hourSupportTip"]?.isEmpty ?? true)
+        XCTAssertTrue(page?.payload.metadata["tags"]?.contains("hour-page") ?? false)
+    }
+
+    func testHourPageSurfacesAfterEventForSouvenir() {
+        let adapter = CalendarPageSourceAdapter()
+        var inputs = BookSourceInputs.empty
+        let now = Date()
+        let endedAt = now.addingTimeInterval(-35 * 60)
+        inputs.calendarEvents = [
+            CalendarEventSignal(
+                id: "e1",
+                title: "Therapy",
+                startsAt: endedAt.addingTimeInterval(-60 * 60),
+                endsAt: endedAt,
+                isAllDay: false
+            )
+        ]
+        let day = BookDay.today()
+        let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
+        let page = pages.first { $0.payload.metadata["eventTitle"] == "Therapy" }
+
+        XCTAssertEqual(page?.payload.metadata["hourPhase"], "after")
+        XCTAssertEqual(page?.payload.metadata["hourPhaseTitle"], "After the Hour")
+        XCTAssertTrue(page?.payload.metadata["tags"]?.contains("one-sentence-souvenir") ?? false)
+        XCTAssertTrue(page?.payload.metadata["placeholder"]?.contains("One sentence") ?? false)
+    }
+
+    func testCalendarPressureQuietsHeavyPages() {
+        var mood = CuratorMood.neutral
+        mood.minutesToNextCalendarEvent = 20
+        let story = SurfacePage(id: "s", type: .narrativeOS, sourceID: nil, score: 80, prompt: "s", detail: "",
+                                payload: BookPagePayload(headline: "s", body: ""))
+        XCTAssertLessThan(mood.adjustment(for: story), 0)
+    }
+
+    // MARK: Search the Stacks
+
+    private func searchDay(id: String, pages: [BookPage]) -> BookDay {
+        var day = BookDay.today()
+        day = BookDay(id: id, date: Date().addingTimeInterval(-86_400), pages: pages)
+        return day
+    }
+
+    func testGlowTierQueryFindsMatchingCast() {
+        var dataset = StacksSearchDataset()
+        dataset.entities = NarrativePackRegistry.entities
+        let results = StacksSearchEngine.search("Show me everything with Small Glow", in: dataset)
+        XCTAssertFalse(results.isEmpty)
+        for result in results where result.kind == .castMember {
+            XCTAssertTrue(result.snippet.contains("Small Glow"), result.snippet)
+        }
+    }
+
+    func testTiredCorrelationFindsCoKeptPages() {
+        let moodPage = BookPage(
+            type: .mood,
+            promptText: "What is the weather inside?",
+            userInput: "Completely exhausted, heavy fog",
+            tags: ["heavy"]
+        )
+        let souvenirPage = BookPage(
+            type: .souvenir,
+            promptText: "One sentence",
+            userInput: "The porch light buzzed like a patient wasp.",
+            tags: ["porch"]
+        )
+        var dataset = StacksSearchDataset()
+        dataset.days = [searchDay(id: "2026-06-10", pages: [moodPage, souvenirPage])]
+        let results = StacksSearchEngine.search("What did I keep when I was tired?", in: dataset)
+        XCTAssertTrue(results.contains { $0.referenceID == souvenirPage.id }, "co-kept page should surface")
+    }
+
+    func testNameQueryFindsPagesAndMemories() {
+        let page = BookPage(
+            type: .diary,
+            promptText: "Right now",
+            userInput: "Morgan laughed at the crooked shelf again.",
+            tags: []
+        )
+        var dataset = StacksSearchDataset()
+        dataset.days = [searchDay(id: "2026-06-10", pages: [page])]
+        dataset.memories = [
+            NarrativeEntityMemory(
+                id: "m1", entityID: "penny-blackletter", sourceEventID: "e1", sourcePageID: nil,
+                summary: "Penny remembers: Morgan's shelf joke", tags: [], narrativeWeight: 3, createdAt: Date()
+            )
+        ]
+        let results = StacksSearchEngine.search("pages about Morgan", in: dataset)
+        XCTAssertTrue(results.contains { $0.kind == .keptPage })
+        XCTAssertTrue(results.contains { $0.kind == .memory })
+    }
+
+    func testTypeWordFiltersToFamily() {
+        let photo = BookPage(type: .illuminatedPhoto, promptText: "Found in the margins", userInput: "kettle", tags: [])
+        let diary = BookPage(type: .diary, promptText: "Now", userInput: "kettle", tags: [])
+        var dataset = StacksSearchDataset()
+        dataset.days = [searchDay(id: "2026-06-10", pages: [photo, diary])]
+        let results = StacksSearchEngine.search("photos of kettle", in: dataset)
+        let pageResults = results.filter { $0.kind == .keptPage }
+        XCTAssertEqual(pageResults.count, 1)
+        XCTAssertEqual(pageResults.first?.referenceID, photo.id)
+    }
+
+    // MARK: Player vault
+
+    func testPlayerVaultDataRoundTrips() throws {
+        var data = PlayerVaultData()
+        data.entityBelief = ["tide-glass": 12]
+        data.tutorSeen = ["glow-menu"]
+        data.beliefEconomy = BeliefEconomyState(lastDailyTickDayID: "2026-02-03")
+        data.bookJump = BookJumpState(returned: [
+            ReturnedBookJump(
+                id: "return-alice",
+                bookID: "alice-wonderland",
+                title: "Alice's Adventures in Wonderland",
+                author: "Lewis Carroll",
+                returnedAt: date(2026, 6, 12, hour: 21, calendar: utcCalendar),
+                depth: 2,
+                degradation: 0,
+                souvenir: "The door was smaller than the worry.",
+                outcome: "Found the Spine."
+            )
+        ])
+        let decoded = try JSONDecoder().decode(PlayerVaultData.self, from: JSONEncoder().encode(data))
+        XCTAssertEqual(decoded, data)
+        XCTAssertEqual(decoded.version, PlayerVaultData.currentVersion)
+    }
+
+    // MARK: Support Guild prose
+
+    func testSupportGuildParserKeepsDraftLabelsOutOfVisibleScene() {
+        let raw = """
+        SCENE:
+        Try: Dr. Vellum smoothed the edge of her parchment.
+
+        Try: Dr. Inkrest looked at the weather in the margins.
+
+        VELLUM:
+        Try: Read the plate as context, not judgment.
+        INKREST:
+        Try: Read the mood as weather, not a verdict.
+        CONNECTIONS:
+        Try: The late page and short sleep are sharing a corner.
+        EXPERIMENT:
+        Try: Pair the next fuel note with one inner-weather word.
+        SAFETY:
+        This is not diagnosis or treatment. It is a low-shame pattern note for deciding what to observe next.
+        """
+
+        let parsed = SupportGuildProseParser.parse(raw)
+
+        XCTAssertFalse(parsed.scene.contains("Try:"))
+        XCTAssertFalse(parsed.vellum.contains("Try:"))
+        XCTAssertEqual(parsed.experiment, "Pair the next fuel note with one inner-weather word.")
+    }
+
+    func testSupportGuildParserDropsDanglingCutOffTail() {
+        let raw = """
+        Dr. Vellum closed the chart softly. Dr. Inkrest nodded.
+
+        The useful thing was not certainty. It was the place where the notes touched.
+
+        Try: Dr. Sel
+        """
+
+        let parsed = SupportGuildProseParser.parse(raw, fallbackBody: "Fallback.")
+
+        XCTAssertFalse(parsed.scene.contains("Try:"))
+        XCTAssertFalse(parsed.scene.hasSuffix("Dr. Sel"))
+        XCTAssertTrue(parsed.scene.contains("The useful thing was not certainty."))
+    }
+
+    // MARK: Belief economy
+
+    func testBeliefEconomyDailyTickRunsOnceAndDoesNotFeedWholeCast() {
+        let now = date(2026, 2, 3, hour: 9, calendar: utcCalendar)
+        let yesterday = date(2026, 2, 2, hour: 9, calendar: utcCalendar)
+        let page = BookPage(type: .souvenir, createdAt: yesterday, promptText: "One sentence", sourceID: BookPageSourceRegistry.source(for: .souvenir).id)
+        let day = BookDay(id: BookDay.id(for: yesterday, calendar: utcCalendar), date: utcCalendar.startOfDay(for: yesterday), pages: [page])
+        let event = NarrativeEvent(
+            id: "touch-zara",
+            kind: .pageKept,
+            sourcePageType: .souvenir,
+            sourcePageID: page.id,
+            createdAt: yesterday,
+            summary: "Zara was present.",
+            tags: ["entity:zara-finch"],
+            effect: NarrativeEventEffect(entityWeightDeltas: ["zara-finch": 1])
+        )
+
+        let first = BeliefEconomyEngine.dailyTick(BeliefEconomyDailyContext(
+            now: now,
+            days: [day],
+            entities: NarrativePackRegistry.entities,
+            entityBelief: [:],
+            pageBelief: [:],
+            readerBelief: 40,
+            events: [event],
+            state: BeliefEconomyState()
+        ))
+
+        XCTAssertEqual(first.readerDelta, 1)
+        XCTAssertEqual(first.entityDeltas["zara-finch"], 1)
+        XCTAssertLessThanOrEqual(first.entityDeltas.count, 2)
+
+        let second = BeliefEconomyEngine.dailyTick(BeliefEconomyDailyContext(
+            now: now,
+            days: [day],
+            entities: NarrativePackRegistry.entities,
+            entityBelief: first.entityDeltas,
+            pageBelief: [:],
+            readerBelief: 41,
+            events: [event],
+            state: first.state
+        ))
+
+        XCTAssertEqual(second.readerDelta, 0)
+        XCTAssertTrue(second.entityDeltas.isEmpty)
+        XCTAssertTrue(second.pageDeltas.isEmpty)
+    }
+
+    func testBeliefEconomySettlesHighUntouchedGlow() {
+        let now = date(2026, 2, 3, hour: 9, calendar: utcCalendar)
+        let source = BookPageSourceRegistry.source(for: .twoReadings)
+        let result = BeliefEconomyEngine.dailyTick(BeliefEconomyDailyContext(
+            now: now,
+            days: [],
+            entities: NarrativePackRegistry.entities,
+            entityBelief: ["zara-finch": 70],
+            pageBelief: [source.id: 60],
+            readerBelief: 92,
+            events: [],
+            state: BeliefEconomyState()
+        ))
+
+        XCTAssertEqual(result.readerDelta, -3)
+        XCTAssertEqual(result.entityDeltas["zara-finch"], -2)
+        XCTAssertEqual(result.pageDeltas[source.id], -2)
+    }
+
+    func testBeliefEconomyWarmsKeptSourceOncePerDay() {
+        let now = date(2026, 2, 3, hour: 9, calendar: utcCalendar)
+        let source = BookPageSourceRegistry.source(for: .souvenir)
+        let dayID = BookDay.id(for: now, calendar: utcCalendar)
+        let first = BeliefEconomyEngine.sourceKeep(source: source, dayID: dayID, now: now, pageBelief: [:], state: BeliefEconomyState())
+        let second = BeliefEconomyEngine.sourceKeep(source: source, dayID: dayID, now: now, pageBelief: [source.id: first.delta], state: first.state)
+
+        XCTAssertEqual(first.delta, 1)
+        XCTAssertEqual(second.delta, 0)
+    }
+
+    func testBeliefEconomyCoolsAfterRepeatedDismissals() {
+        let now = date(2026, 2, 3, hour: 9, calendar: utcCalendar)
+        let source = BookPageSourceRegistry.source(for: .twoReadings)
+        let dayID = BookDay.id(for: now, calendar: utcCalendar)
+        let first = BeliefEconomyEngine.sourceDismissed(source: source, dayID: dayID, now: now, pageBelief: [:], state: BeliefEconomyState())
+        let second = BeliefEconomyEngine.sourceDismissed(source: source, dayID: dayID, now: now, pageBelief: [:], state: first.state)
+
+        XCTAssertEqual(first.delta, 0)
+        XCTAssertEqual(second.delta, -1)
+    }
+
+    func testCastSpendDeltaNeverSpendsBelowFloor() {
+        XCTAssertEqual(BeliefEconomyEngine.castSpendDelta(actorBelief: 40, requested: 3), -3)
+        XCTAssertEqual(BeliefEconomyEngine.castSpendDelta(actorBelief: 19, requested: 3), -1)
+        XCTAssertEqual(BeliefEconomyEngine.castSpendDelta(actorBelief: 18, requested: 3), 0)
+    }
+
+    // MARK: Chapters and Talismans
+
+    func testEveryChapterHasItsTalismanInThePack() {
+        XCTAssertEqual(AcademyChapterRegistry.chapters.count, 5)
+        XCTAssertEqual(AcademyChapterRegistry.publicChapters.count, 5)
+        XCTAssertTrue(AcademyChapterRegistry.publicChapters.contains { $0.id == "duskthorn" })
+        for chapter in AcademyChapterRegistry.chapters {
+            let talisman = NarrativePackRegistry.entities.first { $0.id == chapter.talismanID }
+            XCTAssertNotNil(talisman, "missing talisman \(chapter.talismanID)")
+            XCTAssertEqual(talisman?.kind, .talisman)
+            XCTAssertEqual(talisman?.chapter, chapter.name)
+        }
+    }
+
+    func testEveryCharacterHasAChapter() {
+        let chapterNames = Set(AcademyChapterRegistry.chapters.map(\.name))
+        for entity in NarrativePackRegistry.entities where entity.kind == .character {
+            let chapter = entity.chapter ?? ""
+            XCTAssertTrue(chapterNames.contains(chapter), "\(entity.id) has no valid chapter (\(chapter))")
+        }
+    }
+
+    func testAscendancyFollowsBelief() {
+        let entities = NarrativePackRegistry.entities
+        let unmoved = TalismanAscendancy.ascendant(entities: entities, beliefOffsets: [:])
+        XCTAssertEqual(unmoved?.id, "dusk-thorn", "Dusk Thorn ships with the most Belief")
+        let talismanBelief = Dictionary(
+            uniqueKeysWithValues: entities
+                .filter { $0.kind == .talisman }
+                .map { ($0.id, $0.belief) }
+        )
+        XCTAssertEqual(talismanBelief["dusk-thorn"], 11)
+        XCTAssertEqual(talismanBelief["ember-seal"], 10)
+        XCTAssertEqual(talismanBelief["wind-cipher"], 10)
+        XCTAssertEqual(talismanBelief["tide-glass"], 10)
+        XCTAssertEqual(talismanBelief["moss-clasp"], 10)
+
+        let flipped = TalismanAscendancy.ascendant(
+            entities: entities,
+            beliefOffsets: ["moss-clasp": 90]
+        )
+        XCTAssertEqual(flipped?.id, "moss-clasp", "player Belief can flip ascendancy")
+    }
+
+    func testChapterBindingWaitsThenSurfacesChosenChapterUntilBound() {
+        let adapter = AboutYouPageSourceAdapter()
+        let calendar = Calendar.current
+        let now = date(2026, 6, 8, hour: 12, calendar: calendar)
+        let days = [
+            bindingDay(1, text: "Amanda and I walked by the harbor and the water made the whole day feel shared."),
+            bindingDay(2, text: "A letter from the margins made the room feel less lonely."),
+            bindingDay(3, text: "We talked about the small adventure and kept laughing about the coffee sign."),
+            bindingDay(4, text: "Together was the word that kept returning to the page."),
+            bindingDay(5, text: "The Book noticed companionship before it noticed courage.")
+        ]
+        let day = days.last!
+        var inputs = BookSourceInputs.empty
+        inputs.days = days
+        inputs.selfFacts = [fact("onboarding-name", tags: ["name"])]
+        let unbound = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
+        let binding = unbound.first { $0.payload.metadata["chapterBinding"] == "true" }
+        XCTAssertNotNil(binding)
+        XCTAssertEqual(binding?.payload.metadata["chosenChapterID"], "riddlewind")
+        XCTAssertEqual(binding?.payload.metadata["chosenChapterName"], "Riddlewind")
+        XCTAssertTrue(binding?.payload.body.contains("No questionnaire") == true)
+        XCTAssertTrue(binding?.payload.body.contains("Chapter Riddlewind") == true)
+
+        inputs.selfFacts.append(fact("chapter-binding", tags: ["chapter"]))
+        let bound = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
+        XCTAssertFalse(bound.contains { $0.payload.metadata["chapterBinding"] == "true" })
+    }
+
+    func testChapterPrimerSurfacesBeforeBindingIsReady() {
+        let adapter = AboutYouPageSourceAdapter()
+        let now = date(2026, 6, 4, hour: 12, calendar: Calendar.current)
+        let days = [
+            bindingDay(1, text: "The rain made the morning quiet."),
+            bindingDay(2, text: "A small sentence stayed in the margins.")
+        ]
+        let day = days.last!
+        var inputs = BookSourceInputs.empty
+        inputs.days = days
+        inputs.selfFacts = [fact("onboarding-name", tags: ["name"])]
+
+        let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
+
+        XCTAssertNil(pages.first { $0.payload.metadata["chapterBinding"] == "true" })
+        let primer = pages.first { $0.payload.metadata["chapterPrimer"] == "true" }
+        XCTAssertNotNil(primer)
+        XCTAssertTrue(primer?.payload.body.contains("The Binding") == true)
+    }
+
+    func testChapterBindingOracleHonorsTalismanBeliefInvestment() {
+        let days = [
+            bindingDay(1, text: "A quiet page about rain."),
+            bindingDay(2, text: "A quiet page about moss."),
+            bindingDay(3, text: "A quiet page about rest.")
+        ]
+        let choice = ChapterBindingOracle.chooseChapter(
+            days: days,
+            selfFacts: [],
+            entityBeliefOffsets: ["ember-seal": 30]
+        )
+
+        XCTAssertEqual(choice.chapter.id, "emberheart")
+        XCTAssertTrue(choice.evidenceLines.contains { $0.contains("Ember Seal") })
+    }
+
+    func testChapterBindingOracleCanChooseDuskthorn() {
+        let days = [
+            bindingDay(1, text: "The honest hard truth was that I needed a boundary."),
+            bindingDay(2, text: "I protected the day by naming the difficult thing instead of avoiding it."),
+            bindingDay(3, text: "The page kept the conflict because smoothing it away would have made the story false."),
+            bindingDay(4, text: "A thorn can be protection, not cruelty."),
+            bindingDay(5, text: "The Nothing loses ground when the sentence is interesting enough to stay.")
+        ]
+        let selfFacts = [
+            SelfFact(
+                id: "dusk-self",
+                questionID: "belief-style",
+                question: "What kind of truth matters?",
+                answer: "Honest boundaries and difficult protection.",
+                bookTranslation: "Honest boundaries and difficult protection.",
+                sensitivity: .delight,
+                usePermission: .privateContext,
+                tags: ["honest", "boundary", "protection"],
+                createdAt: Date(),
+                updatedAt: Date()
+            )
+        ]
+
+        let choice = ChapterBindingOracle.chooseChapter(days: days, selfFacts: selfFacts)
+
+        XCTAssertEqual(choice.chapter.id, "duskthorn")
+        XCTAssertTrue(choice.evidenceLines.contains { $0.contains("difficult") || $0.contains("protection") })
+    }
+
+    func testWelcomePageGreetsNamedReaderBeforeChapterBinding() {
+        let day = BookDay.today()
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = [
+            SelfFact(
+                id: "onboarding-name",
+                questionID: "onboarding-name",
+                question: "What should the Book call you?",
+                answer: "Beej",
+                bookTranslation: "Beej",
+                sensitivity: .delight,
+                usePermission: .privateContext,
+                tags: ["name", "identity", "onboarding"],
+                createdAt: Date(),
+                updatedAt: Date()
+            )
+        ]
+
+        let welcome = LabyrinthWelcomePageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        ).first
+
+        XCTAssertEqual(welcome?.type, .welcome)
+        XCTAssertEqual(welcome?.payload.metadata["playerName"], "Beej")
+        XCTAssertTrue(welcome?.payload.body.contains("Hello, Beej") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("Pages will surface") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("Chapter Binding can wait") == true)
+        XCTAssertGreaterThan(welcome?.score ?? 0, 80)
+    }
+
+    func testWelcomePageDoesNotRepeatAfterBeingServed() {
+        let day = BookDay.today()
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = [
+            SelfFact(
+                id: "onboarding-name",
+                questionID: "onboarding-name",
+                question: "What should the Book call you?",
+                answer: "Beej",
+                bookTranslation: "Beej",
+                sensitivity: .delight,
+                usePermission: .privateContext,
+                tags: ["name", "identity", "onboarding"],
+                createdAt: Date(),
+                updatedAt: Date()
+            )
+        ]
+        inputs.surfaceHistory = [
+            "source:labyrinth-welcome": SurfaceHistoryRecord(lastShownAt: Date(), recentShowCount: 1)
+        ]
+
+        let pages = LabyrinthWelcomePageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        )
+
+        XCTAssertTrue(pages.isEmpty)
+    }
+
+    private func fact(_ questionID: String, tags: [String]) -> SelfFact {
+        SelfFact(
+            id: questionID, questionID: questionID, question: "q", answer: "a",
+            bookTranslation: "a", sensitivity: .delight, usePermission: .privateContext,
+            tags: tags, createdAt: Date(), updatedAt: Date()
+        )
+    }
+
+    private func bindingDay(_ day: Int, text: String) -> BookDay {
+        let calendar = Calendar.current
+        let dayDate = date(2026, 6, day, hour: 0, calendar: calendar)
+        return BookDay(
+            id: String(format: "2026-06-%02d", day),
+            date: dayDate,
+            pages: [
+                BookPage(
+                    id: "binding-\(day)-souvenir",
+                    type: .souvenir,
+                    createdAt: date(2026, 6, day, hour: 12, calendar: calendar),
+                    promptText: "Keep one true thing.",
+                    userInput: text,
+                    tags: ["souvenir"]
+                )
+            ]
+        )
+    }
+
+    // MARK: Save file
+
+    func testSaveFileRoundTrips() throws {
+        let save = ReEnchantedSaveFile(
+            exportedAt: Date(),
+            days: [BookDay.today()],
+            selfFacts: [],
+            narrativeEvents: [],
+            entityMemories: [],
+            facultyEntries: [],
+            customCastMembers: [],
+            anchors: [],
+            electives: [],
+            beliefScore: 42,
+            entityBeliefLedger: ["penny-blackletter": 3],
+            pageBeliefLedger: ["inner-weather": -3],
+            marginTutorSeen: ["glow-menu"],
+            didCompleteStoryOnboarding: true,
+            sourcePreferences: ["quip-page": false]
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(ReEnchantedSaveFile.self, from: encoder.encode(save))
+        XCTAssertEqual(decoded.version, ReEnchantedSaveFile.currentVersion)
+        XCTAssertEqual(decoded.beliefScore, 42)
+        XCTAssertEqual(decoded.entityBeliefLedger["penny-blackletter"], 3)
+        XCTAssertEqual(decoded.marginTutorSeen, ["glow-menu"])
+        XCTAssertEqual(decoded.days.count, 1)
+    }
+
+    func testDefaultAnchorsShipEmpty() {
+        XCTAssertTrue(AnchorRegistry.defaultAnchors.isEmpty, "Anchors are save data, never binary data")
+    }
+
+    // MARK: Margins Atlas
+
+    func testMarginsAtlasLayoutIsDeterministicAndBounded() {
+        let graph = NarrativeGraphData.loom(
+            entities: NarrativePackRegistry.entities,
+            relationships: NarrativePackRegistry.relationships,
+            threads: NarrativePackRegistry.threads,
+            beliefOffsets: [:]
+        )
+
+        let first = GraphLayoutEngine.layout(data: graph, width: 320, height: 390, seed: "test-atlas")
+        let second = GraphLayoutEngine.layout(data: graph, width: 320, height: 390, seed: "test-atlas")
+
+        XCTAssertEqual(first, second)
+        XCTAssertFalse(first.isEmpty)
+        for point in first.values {
+            XCTAssertGreaterThanOrEqual(point.x, 40)
+            XCTAssertLessThanOrEqual(point.x, 280)
+            XCTAssertGreaterThanOrEqual(point.y, 40)
+            XCTAssertLessThanOrEqual(point.y, 350)
+        }
+    }
+
+    func testMarginsAtlasAdapterBuildsConstellationFromBeliefLedgerEvents() {
+        var inputs = BookSourceInputs.empty
+        inputs.recentNarrativeEvents = [
+            NarrativeEvent(
+                id: "belief-penny",
+                kind: .beliefInvested,
+                sourcePageType: nil,
+                sourcePageID: nil,
+                createdAt: Date(),
+                summary: "The reader gave Penny Belief.",
+                tags: ["belief"],
+                effect: NarrativeEventEffect(entityWeightDeltas: ["penny-blackletter": 3])
+            )
+        ]
+        inputs.narrative = NarrativeSourceSnapshotBuilder.snapshot(from: inputs.recentNarrativeEvents, beliefWeight: 40)
+
+        let pages = MarginsAtlasPageSourceAdapter().candidates(
+            for: BookDay.today(),
+            context: CuratorContext.make(for: BookDay.today()),
+            inputs: inputs,
+            now: Date()
+        )
+        let constellation = pages.first { $0.payload.metadata["graphVariant"] == MarginsAtlasVariant.constellation.rawValue }
+
+        XCTAssertNotNil(constellation)
+        XCTAssertTrue(constellation?.payload.metadata["graphNodes"]?.contains("the-reader") == true)
+        XCTAssertTrue(constellation?.payload.metadata["graphEdges"]?.contains("flow-penny-blackletter") == true)
+    }
+
+    // MARK: Electives
+
+    func testElectiveOfferRespectsFiveActiveCap() {
+        let adapter = ElectivePageSourceAdapter()
+        var inputs = BookSourceInputs.empty
+        var calendar = utcCalendar
+        calendar.timeZone = TimeZone.current
+        let noon = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date().addingTimeInterval(-86_400))!
+        inputs.electives = (0..<5).map { index in
+            UnwrittenElective(
+                id: "e\(index)",
+                characterID: "char-\(index)",
+                characterName: "Character \(index)",
+                title: "Favor \(index)",
+                ask: "Do the thing",
+                whyItMatters: "It matters",
+                practiceShape: "One sentence",
+                createdAt: noon.addingTimeInterval(Double(index) * -3600)
+            )
+        }
+        let day = BookDay.today()
+        let pages = adapter.candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
+        )
+        XCTAssertFalse(pages.contains { $0.payload.metadata["electiveOffer"] == "true" })
+        XCTAssertTrue(pages.contains { $0.payload.metadata["electiveFlyleaf"] == "true" })
+    }
+
+    // MARK: Literary continuity
+
+    func testLiteraryContinuityFindsRepeatedPatternAndAbsence() {
+        let calendar = utcCalendar
+        let now = date(2026, 6, 12, hour: 12, calendar: calendar)
+        let oldOne = BookPage(
+            id: "old-harbor-1",
+            type: .souvenir,
+            createdAt: date(2026, 3, 1, hour: 9, calendar: calendar),
+            promptText: "Souvenir",
+            userInput: "The harbor kept its minutes.",
+            tags: ["harbor", "water"]
+        )
+        let oldTwo = BookPage(
+            id: "old-harbor-2",
+            type: .diary,
+            createdAt: date(2026, 3, 8, hour: 9, calendar: calendar),
+            promptText: "Diary",
+            userInput: "I walked near the harbor again.",
+            tags: ["harbor"]
+        )
+        let oldThree = BookPage(
+            id: "old-harbor-3",
+            type: .weather,
+            createdAt: date(2026, 3, 15, hour: 9, calendar: calendar),
+            promptText: "Weather",
+            userInput: "Fog over the harbor.",
+            tags: ["harbor", "fog"]
+        )
+        let recent = BookPage(
+            id: "recent-porch",
+            type: .souvenir,
+            createdAt: date(2026, 6, 10, hour: 9, calendar: calendar),
+            promptText: "Souvenir",
+            userInput: "The porch light stayed warm.",
+            tags: ["porch"]
+        )
+        let digest = LiteraryContinuityProjector.digest(
+            days: [BookDay(id: "d1", date: date(2026, 6, 12, hour: 0, calendar: calendar), pages: [oldOne, oldTwo, oldThree, recent])],
+            events: [],
+            entityMemories: [],
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertTrue(digest.signals.contains { $0.kind == .pattern && $0.subjectID == "harbor" })
+        XCTAssertTrue(digest.signals.contains { $0.kind == .absence && $0.subjectID == "harbor" })
+    }
+
+    func testBookNoticesPageSurfacesContinuitySignals() {
+        let calendar = utcCalendar
+        let now = date(2026, 6, 12, hour: 12, calendar: calendar)
+        var inputs = BookSourceInputs.empty
+        inputs.continuity = LiteraryContinuityDigest(
+            signals: [
+                LiteraryContinuitySignal(
+                    id: "pattern-water",
+                    kind: .pattern,
+                    subjectID: "water",
+                    subjectName: "Water",
+                    line: "Water has gathered across four kept pages.",
+                    evidencePageIDs: ["a", "b", "c"],
+                    relatedEntityIDs: [],
+                    tags: ["water", "pattern"],
+                    firstSeenAt: date(2026, 5, 1, hour: 9, calendar: calendar),
+                    lastSeenAt: now,
+                    strength: 78
+                ),
+                LiteraryContinuitySignal(
+                    id: "duration-book",
+                    kind: .duration,
+                    subjectID: "book",
+                    subjectName: "The Book",
+                    line: "The oldest kept page has been in the Book for 42 days.",
+                    evidencePageIDs: ["a"],
+                    relatedEntityIDs: [],
+                    tags: ["duration"],
+                    firstSeenAt: date(2026, 5, 1, hour: 9, calendar: calendar),
+                    lastSeenAt: now,
+                    strength: 70
+                )
+            ],
+            beliefLifecycles: []
+        )
+
+        let day = BookDay(id: "today", date: date(2026, 6, 12, hour: 0, calendar: calendar), pages: [])
+        let surfaces = BookNoticesPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertEqual(surfaces.first?.type, .bookNotices)
+        XCTAssertTrue(surfaces.first?.payload.body.contains("I have noticed") == true)
+        XCTAssertEqual(surfaces.first?.payload.metadata["source"], "the-book-notices")
+    }
+
+    func testBookJumpShelfUsesPublicDomainProfiles() {
+        XCTAssertGreaterThanOrEqual(BookJumpEngine.publicDomainShelf.count, 8)
+        XCTAssertTrue(BookJumpEngine.publicDomainShelf.allSatisfy { !$0.gutenbergID.isEmpty })
+        XCTAssertTrue(BookJumpEngine.publicDomainShelf.allSatisfy { $0.gutenbergURL.hasPrefix("https://www.gutenberg.org/ebooks/") })
+        XCTAssertFalse(BookJumpEngine.publicDomainShelf.contains { $0.title.lowercased().contains("enchantify") })
+    }
+
+    func testBookJumpStateAdvancesAndReturnsWithSouvenir() {
+        let calendar = utcCalendar
+        let now = date(2026, 6, 12, hour: 20, calendar: calendar)
+        let day = BookDay(id: "today", date: now, pages: [
+            BookPage(type: .souvenir, promptText: "Souvenir", userInput: "Fog on the window.", tags: ["fog"])
+        ])
+        let start = BookJumpEngine.surface(
+            for: BookJumpState(),
+            day: day,
+            context: CuratorContext.make(for: day),
+            inputs: .empty,
+            now: now,
+            manual: true
+        )
+
+        var state = BookJumpEngine.start(from: start, now: now)
+        XCTAssertEqual(state.active?.depth, 1)
+        XCTAssertEqual(state.active?.title, start.payload.metadata["bookTitle"])
+
+        state = BookJumpEngine.advance(state, line: "The page turned.", now: now.addingTimeInterval(60))
+        XCTAssertEqual(state.active?.depth, 2)
+        XCTAssertEqual(state.active?.souvenirDue, true)
+
+        state = BookJumpEngine.return(state, souvenir: "The fog knew the way home.", outcome: "Found the Spine.", now: now.addingTimeInterval(120))
+        XCTAssertNil(state.active)
+        XCTAssertEqual(state.returned.first?.souvenir, "The fog knew the way home.")
+    }
+
+    private func activeJumpFixture(
+        work: BookJumpWork,
+        depth: Int,
+        degradation: Int,
+        now: Date
+    ) -> ActiveBookJump {
+        ActiveBookJump(
+            id: "jump-test",
+            bookID: work.id,
+            title: work.title,
+            author: work.author,
+            gutenbergID: work.gutenbergID,
+            world: work.world,
+            arrival: work.arrival,
+            nothing: work.nothing,
+            rules: work.rules,
+            resonances: work.resonances,
+            anchor: "fog on the window",
+            intention: "bring back one sentence",
+            guide: "the Book",
+            startedAt: now.addingTimeInterval(-300),
+            updatedAt: now.addingTimeInterval(-60),
+            depth: depth,
+            returnCount: 0,
+            degradation: degradation,
+            souvenirDue: depth >= 2,
+            beats: []
+        )
+    }
+
+    func testBookJumpProgressionForcesStabilizeAndReturn() {
+        let now = date(2026, 6, 12, hour: 21, calendar: utcCalendar)
+        let work = BookJumpEngine.publicDomainShelf[0]
+        let day = BookDay(id: "today", date: now, pages: [])
+
+        // High Nothing pressure forces a stabilize beat.
+        var inputs = BookSourceInputs.empty
+        inputs.bookJump = BookJumpState(active: activeJumpFixture(work: work, depth: 3, degradation: 3, now: now))
+        let unstable = BookJumpPageSourceAdapter().candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now).first
+        XCTAssertEqual(unstable?.payload.metadata["bookJumpAction"], "stabilize")
+
+        // At max depth, the book offers the way home.
+        inputs.bookJump = BookJumpState(active: activeJumpFixture(work: work, depth: BookJumpEngine.maxDepth, degradation: 0, now: now))
+        let deepest = BookJumpPageSourceAdapter().candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now).first
+        XCTAssertEqual(deepest?.payload.metadata["bookJumpAction"], "return")
+    }
+
+    func testBookJumpReturnGrantsBorrowedRuleOnlyWithSouvenir() {
+        let now = date(2026, 6, 12, hour: 21, calendar: utcCalendar)
+        let work = BookJumpEngine.work(id: "sherlock-holmes") ?? BookJumpEngine.publicDomainShelf[0]
+        let state = BookJumpState(active: activeJumpFixture(work: work, depth: 2, degradation: 1, now: now))
+
+        let empty = BookJumpEngine.return(state, souvenir: "   ", outcome: "back", now: now)
+        XCTAssertTrue(empty.borrowedRules.isEmpty, "no souvenir, no rule")
+
+        let granted = BookJumpEngine.return(state, souvenir: "The smallest detail was loudest.", outcome: "back", now: now)
+        XCTAssertEqual(granted.borrowedRules.count, 1)
+        XCTAssertEqual(granted.borrowedRules.first?.bookID, work.id)
+        XCTAssertTrue(granted.borrowedRules.first?.isActive(at: now) ?? false)
+        // Sherlock's attention resonances sharpen the reader's notice.
+        XCTAssertEqual(granted.borrowedRules.first?.effect, .sharpenNotices)
+        XCTAssertFalse(BookJumpEngine.surfaceBoosts(state: granted, now: now).isEmpty)
+    }
+
+    func testBookJumpCollapseGoesColdAndCostsBelief() {
+        let now = date(2026, 6, 12, hour: 21, calendar: utcCalendar)
+        let work = BookJumpEngine.publicDomainShelf[0]
+        let state = BookJumpState(active: activeJumpFixture(work: work, depth: 3, degradation: 2, now: now))
+        let result = BookJumpEngine.collapse(state, now: now)
+        XCTAssertNil(result.state.active)
+        XCTAssertGreaterThan(result.lostBelief, 0)
+        XCTAssertTrue(result.state.isCold(work.id, at: now))
+        XCTAssertEqual(result.state.returned.first?.souvenir, "")
+    }
+
+    func testBookJumpDailyDecayCollapsesWhenLongUnstable() {
+        let start = date(2026, 6, 10, hour: 21, calendar: utcCalendar)
+        let later = date(2026, 6, 12, hour: 21, calendar: utcCalendar)
+        let work = BookJumpEngine.publicDomainShelf[0]
+        // Already at the brink, untouched for a day -> the Nothing overruns it.
+        let state = BookJumpState(active: activeJumpFixture(work: work, depth: 3, degradation: 4, now: start))
+        let result = BookJumpEngine.dailyDecay(state, now: later)
+        XCTAssertTrue(result.collapsed)
+        XCTAssertNil(result.state.active)
+        XCTAssertTrue(result.state.isCold(work.id, at: later))
+    }
+
+    func testBookJumpColdBooksAreNotSelected() {
+        let now = date(2026, 6, 12, hour: 21, calendar: utcCalendar)
+        let day = BookDay(id: "today", date: now, pages: [
+            BookPage(type: .souvenir, promptText: "S", userInput: "curiosity and play and small adventures")
+        ])
+        var inputs = BookSourceInputs.empty
+        // Make Alice cold; selection must pick a different open book.
+        var jump = BookJumpState()
+        jump.coldBooks["alice-wonderland"] = now.addingTimeInterval(3 * 86_400)
+        inputs.bookJump = jump
+        let picked = BookJumpEngine.selectWork(day: day, inputs: inputs, now: now)
+        XCTAssertNotEqual(picked.id, "alice-wonderland")
+    }
+
+    func testBookJumpAdvanceCostEscalatesWithDepth() {
+        XCTAssertEqual(BookJumpEngine.advanceCost(depth: 1), 0)
+        XCTAssertEqual(BookJumpEngine.advanceCost(depth: 3), 2)
+        XCTAssertEqual(BookJumpEngine.returnReward(depth: 1, hasSouvenir: true), BookJumpEngine.returnReward)
+        XCTAssertGreaterThan(BookJumpEngine.returnReward(depth: 4, hasSouvenir: true), BookJumpEngine.returnReward)
+        XCTAssertEqual(BookJumpEngine.returnReward(depth: 4, hasSouvenir: false), 1)
+    }
+
+    func testBookJumpCompanionConstellationFormsOnRepeatVisits() {
+        let now = date(2026, 6, 12, hour: 21, calendar: utcCalendar)
+        func returned(_ bookID: String, _ title: String) -> ReturnedBookJump {
+            ReturnedBookJump(id: "r-\(bookID)-\(title)", bookID: bookID, title: title, author: "a", returnedAt: now, depth: 2, degradation: 0, souvenir: "a kept sentence", outcome: "back")
+        }
+        // One visit: no constellation yet.
+        XCTAssertNil(BookJumpEngine.companionLine(state: BookJumpState(returned: [returned("wizard-oz", "Oz")])))
+        // Two returns to the same book: a bond names itself.
+        let repeated = BookJumpState(returned: [returned("wizard-oz", "Oz"), returned("wizard-oz", "Oz")])
+        XCTAssertTrue(BookJumpEngine.companionLine(state: repeated)?.contains("Oz") ?? false)
+    }
+
+    func testBookJumpOpenShelfImprovisesADoor() {
+        let work = BookJumpEngine.improvisedWork(title: "The Voyage of the Dawn Treader", author: "C. S. Lewis", gutenbergID: "")
+        XCTAssertNotNil(work)
+        XCTAssertEqual(work?.resonances.contains("water"), true)
+        let state = BookJumpEngine.startCustom(work: work!, anchor: "", intention: "", guide: "", into: BookJumpState())
+        XCTAssertEqual(state.active?.title, "The Voyage of the Dawn Treader")
+        XCTAssertEqual(state.active?.depth, 1)
+    }
+
+    // MARK: Radio held-station effects
+
+    private func heldRadio(stationID: String, days: Int, calendar: Calendar) -> RadioPlaybackState {
+        var state = RadioPlaybackState(activeStationID: stationID)
+        for day in 1...days {
+            state.recordListening(stationID: stationID, now: date(2026, 6, day, hour: 12, calendar: calendar), calendar: calendar)
+        }
+        return state
+    }
+
+    func testHeldStationRequiresEnoughDaysAndBeingTuned() {
+        let cal = utcCalendar
+        XCTAssertNil(RadioStationRegistry.heldStationID(state: heldRadio(stationID: "thornwave", days: 3, calendar: cal)))
+        XCTAssertEqual(RadioStationRegistry.heldStationID(state: heldRadio(stationID: "thornwave", days: 4, calendar: cal)), "thornwave")
+
+        // Heard enough, but no longer the tuned station → no held effect.
+        var untuned = heldRadio(stationID: "thornwave", days: 4, calendar: cal)
+        untuned.activeStationID = nil
+        XCTAssertNil(RadioStationRegistry.heldStationID(state: untuned))
+    }
+
+    func testHeldThornwavePullsGreyNearerAndFaeFiPushesItBack() {
+        let cal = utcCalendar
+        XCTAssertEqual(RadioStationRegistry.greyShift(state: heldRadio(stationID: "thornwave", days: 4, calendar: cal)), 1)
+        XCTAssertEqual(RadioStationRegistry.greyShift(state: heldRadio(stationID: "fae-fi", days: 4, calendar: cal)), -1)
+        XCTAssertEqual(RadioStationRegistry.greyShift(state: heldRadio(stationID: "thornwave", days: 2, calendar: cal)), 0)
+        XCTAssertEqual(RadioStationRegistry.greyShift(state: .off), 0)
+    }
+
+    func testHeldMothlightDeepensRemembering() {
+        let cal = utcCalendar
+        XCTAssertEqual(RadioStationRegistry.heldSurfaceBoosts(state: heldRadio(stationID: "mothlight-beats", days: 4, calendar: cal)), [.bookRemembered: 8])
+        XCTAssertTrue(RadioStationRegistry.heldSurfaceBoosts(state: heldRadio(stationID: "mothlight-beats", days: 3, calendar: cal)).isEmpty)
+        XCTAssertTrue(RadioStationRegistry.heldSurfaceBoosts(state: heldRadio(stationID: "thornwave", days: 4, calendar: cal)).isEmpty)
+    }
+}

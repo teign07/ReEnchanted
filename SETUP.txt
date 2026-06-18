@@ -1,0 +1,36 @@
+ReEnchanted iOS App
+
+This is a small SwiftUI companion app. It can import a compact state file
+exported by:
+
+  python3 scripts/widget-state.py <player>
+
+The exporter writes:
+
+  hooks/widget-state.json
+  hooks/widget-image.png
+
+The JSON embeds the image data, so the iOS app only needs to import the JSON.
+
+Install path:
+
+1. Open ios/InsideCover/EnchantifyInsideCover.xcodeproj in Xcode.
+2. Select the InsideCoverApp scheme and an iOS simulator to run without signing
+   changes.
+3. For a physical device, select the InsideCoverApp target, set your Team, and
+   change the bundle id if Xcode asks.
+4. Run InsideCoverApp on the simulator, iPhone, or iPad.
+5. On the device, open the app and import hooks/widget-state.json by AirDrop,
+   iCloud Drive, or Files.
+
+Refresh path:
+
+1. Run python3 scripts/widget-state.py <player> on the Mac.
+2. Send hooks/widget-state.json to the device.
+3. Open it in InsideCoverApp.
+
+Prototype note:
+
+This is intentionally local and private. Later, the app can fetch the widget
+state from iCloud Drive or a private endpoint so manual import is no longer
+needed.

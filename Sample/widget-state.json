@@ -1,0 +1,28 @@
+{
+  "generatedAt": "2026-06-01T09:00:00",
+  "player": "Avery",
+  "title": "ReEnchanted",
+  "day": "Monday · Day 1 · Opening",
+  "block": "Morning",
+  "now": "The Book is waking up",
+  "next": "Art of the Glint · 9:00 AM",
+  "club": "No club tonight",
+  "practice": "Notice Page",
+  "practicePrompt": "Look around the room and write down one true detail.",
+  "classroom": {
+    "className": "Art of the Glint",
+    "professor": "Professor Liora Fen",
+    "lesson": "How Small Things Catch Light",
+    "segment": "opening",
+    "active": false
+  },
+  "health": {
+    "status": "OK",
+    "score": 72,
+    "phrase": "The shelves are steady."
+  },
+  "note": "A clean sample state for local development.",
+  "image": "",
+  "imageData": null,
+  "openURL": ""
+}

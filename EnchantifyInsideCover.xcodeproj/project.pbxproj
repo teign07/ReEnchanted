@@ -1,0 +1,632 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		010000000000000000000001 /* InsideCoverApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000101 /* InsideCoverApp.swift */; };
+		010000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000102 /* ContentView.swift */; };
+		010000000000000000000003 /* InsideCoverState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000103 /* InsideCoverState.swift */; };
+		010000000000000000000004 /* InsideCoverStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000104 /* InsideCoverStore.swift */; };
+		010000000000000000000005 /* widget-state.json in Resources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000105 /* widget-state.json */; };
+		010000000000000000000011 /* BookDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010B /* BookDatabase.swift */; };
+		010000000000000000000012 /* BookReferenceLibrary.json in Resources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010C /* BookReferenceLibrary.json */; };
+		010000000000000000000014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010D /* Assets.xcassets */; };
+		010000000000000000000015 /* BookArchiveDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010E /* BookArchiveDatabase.swift */; };
+		010000000000000000000017 /* AppSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010F /* AppSupport.swift */; };
+		010000000000000000000018 /* LocalBrainServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000110 /* LocalBrainServices.swift */; };
+		010000000000000000000019 /* BookStatusCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000111 /* BookStatusCards.swift */; };
+		01000000000000000000001A /* CapturePageSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000112 /* CapturePageSheet.swift */; };
+		01000000000000000000001B /* BookSurfaceViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000113 /* BookSurfaceViews.swift */; };
+		01000000000000000000001C /* CustomCastMemberSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000114 /* CustomCastMemberSheet.swift */; };
+		01000000000000000000001D /* ContentViewFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000115 /* ContentViewFeatures.swift */; };
+		01000000000000000000001E /* BookSounds in Resources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000116 /* BookSounds */; };
+		0100000000000000000002A1 /* RadioAudio in Resources */ = {isa = PBXBuildFile; fileRef = 0100000000000000000002A2 /* RadioAudio */; };
+		01000000000000000000001F /* CapturePageSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000117 /* CapturePageSections.swift */; };
+		010000000000000000000020 /* SentenceBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000118 /* SentenceBuilder.swift */; };
+		010000000000000000000021 /* LivingTextInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000119 /* LivingTextInput.swift */; };
+		020000000000000000000200 /* PageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000100 /* PageModel.swift */; };
+		020000000000000000000201 /* SurfaceAndCurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000101 /* SurfaceAndCurator.swift */; };
+		020000000000000000000202 /* NarrativeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000102 /* NarrativeCore.swift */; };
+		020000000000000000000203 /* StoryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000103 /* StoryEngine.swift */; };
+		020000000000000000000204 /* ReferenceLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000104 /* ReferenceLibrary.swift */; };
+		020000000000000000000205 /* Illumination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000105 /* Illumination.swift */; };
+		020000000000000000000206 /* WorldSystems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000106 /* WorldSystems.swift */; };
+		020000000000000000000207 /* PagePacks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000107 /* PagePacks.swift */; };
+		020000000000000000000208 /* SourceAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000108 /* SourceAdapters.swift */; };
+		020000000000000000000209 /* LiteraryContinuity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000109 /* LiteraryContinuity.swift */; };
+		02000000000000000000020A /* MonthlyEdition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010A /* MonthlyEdition.swift */; };
+		02000000000000000000020B /* Constellations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010B /* Constellations.swift */; };
+		02000000000000000000020C /* TheBleed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010C /* TheBleed.swift */; };
+		02000000000000000000020D /* WorldEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010D /* WorldEvents.swift */; };
+		030000000000000000000200 /* StacksSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000100 /* StacksSearch.swift */; };
+		030000000000000000000201 /* SearchTheStacksSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000101 /* SearchTheStacksSheet.swift */; };
+		030000000000000000000202 /* BookShopSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000102 /* BookShopSheet.swift */; };
+		030000000000000000000203 /* MonthlyEditionPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000103 /* MonthlyEditionPDF.swift */; };
+		030000000000000000000204 /* DictationInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000104 /* DictationInput.swift */; };
+		2047CBE42FDEF60C00A6B7E4 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001002 /* MLXLLM */; };
+		2047CBE52FDEF60C00A6B7E4 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001003 /* MLXLMCommon */; };
+		2047CBE62FDEF60C00A6B7E4 /* MLXLMTokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001006 /* MLXLMTokenizers */; };
+		2047CBE72FDEF60C00A6B7E4 /* MLXLMHFAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001007 /* MLXLMHFAPI */; };
+		2047CBE82FDEF60C00A6B7E4 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = 01000000000000000000100A /* MLX */; };
+		2047CBE92FDEF60C00A6B7E4 /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = 01000000000000000000100B /* MLXVLM */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		010000000000000000000101 /* InsideCoverApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverApp.swift; sourceTree = "<group>"; };
+		010000000000000000000102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		010000000000000000000103 /* InsideCoverState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverState.swift; sourceTree = "<group>"; };
+		010000000000000000000104 /* InsideCoverStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverStore.swift; sourceTree = "<group>"; };
+		010000000000000000000105 /* widget-state.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "widget-state.json"; sourceTree = "<group>"; };
+		010000000000000000000109 /* InsideCoverApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = InsideCoverApp.entitlements; sourceTree = "<group>"; };
+		01000000000000000000010B /* BookDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookDatabase.swift; sourceTree = "<group>"; };
+		01000000000000000000010C /* BookReferenceLibrary.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = BookReferenceLibrary.json; sourceTree = "<group>"; };
+		01000000000000000000010D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		01000000000000000000010E /* BookArchiveDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookArchiveDatabase.swift; sourceTree = "<group>"; };
+		01000000000000000000010F /* AppSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupport.swift; sourceTree = "<group>"; };
+		010000000000000000000110 /* LocalBrainServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBrainServices.swift; sourceTree = "<group>"; };
+		010000000000000000000111 /* BookStatusCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookStatusCards.swift; sourceTree = "<group>"; };
+		010000000000000000000112 /* CapturePageSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePageSheet.swift; sourceTree = "<group>"; };
+		010000000000000000000113 /* BookSurfaceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookSurfaceViews.swift; sourceTree = "<group>"; };
+		010000000000000000000114 /* CustomCastMemberSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomCastMemberSheet.swift; sourceTree = "<group>"; };
+		010000000000000000000115 /* ContentViewFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewFeatures.swift; sourceTree = "<group>"; };
+		010000000000000000000116 /* BookSounds */ = {isa = PBXFileReference; lastKnownFileType = folder; path = BookSounds; sourceTree = "<group>"; };
+		0100000000000000000002A2 /* RadioAudio */ = {isa = PBXFileReference; lastKnownFileType = folder; path = RadioAudio; sourceTree = "<group>"; };
+		010000000000000000000117 /* CapturePageSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePageSections.swift; sourceTree = "<group>"; };
+		010000000000000000000118 /* SentenceBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentenceBuilder.swift; sourceTree = "<group>"; };
+		010000000000000000000119 /* LivingTextInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivingTextInput.swift; sourceTree = "<group>"; };
+		010000000000000000000201 /* InsideCoverApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InsideCoverApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		020000000000000000000100 /* PageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageModel.swift; sourceTree = "<group>"; };
+		020000000000000000000101 /* SurfaceAndCurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfaceAndCurator.swift; sourceTree = "<group>"; };
+		020000000000000000000102 /* NarrativeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NarrativeCore.swift; sourceTree = "<group>"; };
+		020000000000000000000103 /* StoryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryEngine.swift; sourceTree = "<group>"; };
+		020000000000000000000104 /* ReferenceLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceLibrary.swift; sourceTree = "<group>"; };
+		020000000000000000000105 /* Illumination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Illumination.swift; sourceTree = "<group>"; };
+		020000000000000000000106 /* WorldSystems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldSystems.swift; sourceTree = "<group>"; };
+		020000000000000000000107 /* PagePacks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagePacks.swift; sourceTree = "<group>"; };
+		020000000000000000000108 /* SourceAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceAdapters.swift; sourceTree = "<group>"; };
+		020000000000000000000109 /* LiteraryContinuity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteraryContinuity.swift; sourceTree = "<group>"; };
+		02000000000000000000010A /* MonthlyEdition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEdition.swift; sourceTree = "<group>"; };
+		02000000000000000000010B /* Constellations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constellations.swift; sourceTree = "<group>"; };
+		02000000000000000000010C /* TheBleed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheBleed.swift; sourceTree = "<group>"; };
+		02000000000000000000010D /* WorldEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldEvents.swift; sourceTree = "<group>"; };
+		030000000000000000000100 /* StacksSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StacksSearch.swift; sourceTree = "<group>"; };
+		030000000000000000000101 /* SearchTheStacksSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchTheStacksSheet.swift; sourceTree = "<group>"; };
+		030000000000000000000102 /* BookShopSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookShopSheet.swift; sourceTree = "<group>"; };
+		030000000000000000000103 /* MonthlyEditionPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEditionPDF.swift; sourceTree = "<group>"; };
+		030000000000000000000104 /* DictationInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationInput.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		010000000000000000000701 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2047CBE92FDEF60C00A6B7E4 /* MLXVLM in Frameworks */,
+				2047CBE82FDEF60C00A6B7E4 /* MLX in Frameworks */,
+				2047CBE72FDEF60C00A6B7E4 /* MLXLMHFAPI in Frameworks */,
+				2047CBE62FDEF60C00A6B7E4 /* MLXLMTokenizers in Frameworks */,
+				2047CBE52FDEF60C00A6B7E4 /* MLXLMCommon in Frameworks */,
+				2047CBE42FDEF60C00A6B7E4 /* MLXLLM in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		010000000000000000000801 = {
+			isa = PBXGroup;
+			children = (
+				010000000000000000000802 /* InsideCoverApp */,
+				010000000000000000000804 /* Shared */,
+				010000000000000000000805 /* Sample */,
+				010000000000000000000806 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		010000000000000000000802 /* InsideCoverApp */ = {
+			isa = PBXGroup;
+			children = (
+				010000000000000000000101 /* InsideCoverApp.swift */,
+				010000000000000000000102 /* ContentView.swift */,
+				01000000000000000000010F /* AppSupport.swift */,
+				010000000000000000000110 /* LocalBrainServices.swift */,
+				010000000000000000000111 /* BookStatusCards.swift */,
+				010000000000000000000112 /* CapturePageSheet.swift */,
+				010000000000000000000113 /* BookSurfaceViews.swift */,
+				010000000000000000000114 /* CustomCastMemberSheet.swift */,
+				010000000000000000000115 /* ContentViewFeatures.swift */,
+				010000000000000000000116 /* BookSounds */,
+				0100000000000000000002A2 /* RadioAudio */,
+				010000000000000000000117 /* CapturePageSections.swift */,
+				030000000000000000000101 /* SearchTheStacksSheet.swift */,
+				030000000000000000000102 /* BookShopSheet.swift */,
+				030000000000000000000103 /* MonthlyEditionPDF.swift */,
+				030000000000000000000104 /* DictationInput.swift */,
+				010000000000000000000119 /* LivingTextInput.swift */,
+				01000000000000000000010B /* BookDatabase.swift */,
+				010000000000000000000109 /* InsideCoverApp.entitlements */,
+				01000000000000000000010D /* Assets.xcassets */,
+			);
+			path = InsideCoverApp;
+			sourceTree = "<group>";
+		};
+		010000000000000000000804 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				010000000000000000000103 /* InsideCoverState.swift */,
+				010000000000000000000118 /* SentenceBuilder.swift */,
+				030000000000000000000100 /* StacksSearch.swift */,
+				020000000000000000000100 /* PageModel.swift */,
+				020000000000000000000101 /* SurfaceAndCurator.swift */,
+				020000000000000000000102 /* NarrativeCore.swift */,
+				020000000000000000000103 /* StoryEngine.swift */,
+				020000000000000000000104 /* ReferenceLibrary.swift */,
+				020000000000000000000105 /* Illumination.swift */,
+				020000000000000000000106 /* WorldSystems.swift */,
+				02000000000000000000010D /* WorldEvents.swift */,
+				020000000000000000000107 /* PagePacks.swift */,
+				020000000000000000000108 /* SourceAdapters.swift */,
+				020000000000000000000109 /* LiteraryContinuity.swift */,
+				02000000000000000000010B /* Constellations.swift */,
+				02000000000000000000010C /* TheBleed.swift */,
+				02000000000000000000010A /* MonthlyEdition.swift */,
+				010000000000000000000104 /* InsideCoverStore.swift */,
+				01000000000000000000010C /* BookReferenceLibrary.json */,
+				01000000000000000000010E /* BookArchiveDatabase.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		010000000000000000000805 /* Sample */ = {
+			isa = PBXGroup;
+			children = (
+				010000000000000000000105 /* widget-state.json */,
+			);
+			path = Sample;
+			sourceTree = "<group>";
+		};
+		010000000000000000000806 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				010000000000000000000201 /* InsideCoverApp.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		010000000000000000000501 /* InsideCoverApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 010000000000000000000901 /* Build configuration list for PBXNativeTarget "InsideCoverApp" */;
+			buildPhases = (
+				010000000000000000000A01 /* Sources */,
+				010000000000000000000701 /* Frameworks */,
+				010000000000000000000B01 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = InsideCoverApp;
+			packageProductDependencies = (
+				010000000000000000001002 /* MLXLLM */,
+				010000000000000000001003 /* MLXLMCommon */,
+				010000000000000000001006 /* MLXLMTokenizers */,
+				010000000000000000001007 /* MLXLMHFAPI */,
+				01000000000000000000100A /* MLX */,
+				01000000000000000000100B /* MLXVLM */,
+			);
+			productName = InsideCoverApp;
+			productReference = 010000000000000000000201 /* InsideCoverApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		010000000000000000000401 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1540;
+				LastUpgradeCheck = 1540;
+				TargetAttributes = {
+					010000000000000000000501 = {
+						CreatedOnToolsVersion = 15.4;
+					};
+				};
+			};
+			buildConfigurationList = 010000000000000000000900 /* Build configuration list for PBXProject "EnchantifyInsideCover" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 010000000000000000000801;
+			packageReferences = (
+				010000000000000000001001 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
+				010000000000000000001004 /* XCRemoteSwiftPackageReference "swift-tokenizers-mlx" */,
+				010000000000000000001005 /* XCRemoteSwiftPackageReference "swift-hf-api-mlx" */,
+				010000000000000000001008 /* XCRemoteSwiftPackageReference "swift-tokenizers" */,
+				010000000000000000001009 /* XCRemoteSwiftPackageReference "mlx-swift" */,
+			);
+			productRefGroup = 010000000000000000000806 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				010000000000000000000501 /* InsideCoverApp */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		010000000000000000000B01 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				010000000000000000000005 /* widget-state.json in Resources */,
+				010000000000000000000012 /* BookReferenceLibrary.json in Resources */,
+				010000000000000000000014 /* Assets.xcassets in Resources */,
+				01000000000000000000001E /* BookSounds in Resources */,
+				0100000000000000000002A1 /* RadioAudio in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		010000000000000000000A01 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				010000000000000000000001 /* InsideCoverApp.swift in Sources */,
+				010000000000000000000002 /* ContentView.swift in Sources */,
+				010000000000000000000011 /* BookDatabase.swift in Sources */,
+				010000000000000000000017 /* AppSupport.swift in Sources */,
+				010000000000000000000018 /* LocalBrainServices.swift in Sources */,
+				010000000000000000000019 /* BookStatusCards.swift in Sources */,
+				01000000000000000000001A /* CapturePageSheet.swift in Sources */,
+				01000000000000000000001B /* BookSurfaceViews.swift in Sources */,
+				01000000000000000000001C /* CustomCastMemberSheet.swift in Sources */,
+				01000000000000000000001D /* ContentViewFeatures.swift in Sources */,
+				01000000000000000000001F /* CapturePageSections.swift in Sources */,
+				010000000000000000000021 /* LivingTextInput.swift in Sources */,
+				030000000000000000000201 /* SearchTheStacksSheet.swift in Sources */,
+				030000000000000000000202 /* BookShopSheet.swift in Sources */,
+				030000000000000000000203 /* MonthlyEditionPDF.swift in Sources */,
+				030000000000000000000204 /* DictationInput.swift in Sources */,
+				010000000000000000000003 /* InsideCoverState.swift in Sources */,
+				010000000000000000000020 /* SentenceBuilder.swift in Sources */,
+				030000000000000000000200 /* StacksSearch.swift in Sources */,
+				020000000000000000000200 /* PageModel.swift in Sources */,
+				020000000000000000000201 /* SurfaceAndCurator.swift in Sources */,
+				020000000000000000000202 /* NarrativeCore.swift in Sources */,
+				020000000000000000000203 /* StoryEngine.swift in Sources */,
+				020000000000000000000204 /* ReferenceLibrary.swift in Sources */,
+				020000000000000000000205 /* Illumination.swift in Sources */,
+				020000000000000000000206 /* WorldSystems.swift in Sources */,
+				02000000000000000000020D /* WorldEvents.swift in Sources */,
+				020000000000000000000207 /* PagePacks.swift in Sources */,
+				020000000000000000000208 /* SourceAdapters.swift in Sources */,
+				020000000000000000000209 /* LiteraryContinuity.swift in Sources */,
+				02000000000000000000020B /* Constellations.swift in Sources */,
+				02000000000000000000020C /* TheBleed.swift in Sources */,
+				02000000000000000000020A /* MonthlyEdition.swift in Sources */,
+				010000000000000000000004 /* InsideCoverStore.swift in Sources */,
+				010000000000000000000015 /* BookArchiveDatabase.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		010000000000000000000C01 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG NATIVE_LOCAL_BRAIN";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		010000000000000000000C02 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = NATIVE_LOCAL_BRAIN;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		010000000000000000000D01 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = InsideCoverApp/InsideCoverApp.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3YH7862K4Q;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = InsideCoverApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ReEnchanted;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "ReEnchanted can take a photo for a Page, an Enchantment, or a Cast Member. Photos stay private on your phone.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "ReEnchanted reads a few HealthKit signals to gently translate your body state into private, local Body Pages.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ReEnchanted uses your current location only when you ask for local weather or nearby Anchors, so pages can translate the place without showing raw coordinates.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ReEnchanted uses the microphone only when you tap a voice input button, so you can speak notes, answers, and page text into the Book.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "ReEnchanted saves only the finished illuminated artifact to Photos when you ask it to.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "ReEnchanted can look through recent photos on this device for pages worth keeping. Nothing leaves your phone, and you decide what becomes part of the Book.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "ReEnchanted can set a Reminder when you ask it to — like a Fae bargain's deadline — so the world can gently reach you outside the app.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ReEnchanted uses speech recognition only when you tap a voice input button, turning your spoken words into local page text.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.openclaw.enchantify.insidecover;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		010000000000000000000D02 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = InsideCoverApp/InsideCoverApp.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3YH7862K4Q;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = InsideCoverApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ReEnchanted;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "ReEnchanted can take a photo for a Page, an Enchantment, or a Cast Member. Photos stay private on your phone.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "ReEnchanted reads a few HealthKit signals to gently translate your body state into private, local Body Pages.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ReEnchanted uses your current location only when you ask for local weather or nearby Anchors, so pages can translate the place without showing raw coordinates.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ReEnchanted uses the microphone only when you tap a voice input button, so you can speak notes, answers, and page text into the Book.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "ReEnchanted saves only the finished illuminated artifact to Photos when you ask it to.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "ReEnchanted can look through recent photos on this device for pages worth keeping. Nothing leaves your phone, and you decide what becomes part of the Book.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "ReEnchanted can set a Reminder when you ask it to — like a Fae bargain's deadline — so the world can gently reach you outside the app.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ReEnchanted uses speech recognition only when you tap a voice input button, turning your spoken words into local page text.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.openclaw.enchantify.insidecover;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		010000000000000000000900 /* Build configuration list for PBXProject "EnchantifyInsideCover" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				010000000000000000000C01 /* Debug */,
+				010000000000000000000C02 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		010000000000000000000901 /* Build configuration list for PBXNativeTarget "InsideCoverApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				010000000000000000000D01 /* Debug */,
+				010000000000000000000D02 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		010000000000000000001001 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.31.3;
+			};
+		};
+		010000000000000000001004 /* XCRemoteSwiftPackageReference "swift-tokenizers-mlx" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/DePasqualeOrg/swift-tokenizers-mlx";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.1.0;
+			};
+		};
+		010000000000000000001005 /* XCRemoteSwiftPackageReference "swift-hf-api-mlx" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/DePasqualeOrg/swift-hf-api-mlx";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.1.0;
+			};
+		};
+		010000000000000000001008 /* XCRemoteSwiftPackageReference "swift-tokenizers" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/DePasqualeOrg/swift-tokenizers.git";
+			requirement = {
+				kind = exactVersion;
+				version = 0.5.0;
+			};
+		};
+		010000000000000000001009 /* XCRemoteSwiftPackageReference "mlx-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.31.3;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		010000000000000000001002 /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 010000000000000000001001 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLLM;
+		};
+		010000000000000000001003 /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 010000000000000000001001 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLMCommon;
+		};
+		010000000000000000001006 /* MLXLMTokenizers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 010000000000000000001004 /* XCRemoteSwiftPackageReference "swift-tokenizers-mlx" */;
+			productName = MLXLMTokenizers;
+		};
+		010000000000000000001007 /* MLXLMHFAPI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 010000000000000000001005 /* XCRemoteSwiftPackageReference "swift-hf-api-mlx" */;
+			productName = MLXLMHFAPI;
+		};
+		01000000000000000000100A /* MLX */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 010000000000000000001009 /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLX;
+		};
+		01000000000000000000100B /* MLXVLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 010000000000000000001001 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXVLM;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 010000000000000000000401 /* Project object */;
+}

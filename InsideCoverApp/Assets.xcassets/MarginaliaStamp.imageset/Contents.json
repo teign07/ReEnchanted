@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "MarginaliaStamp.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

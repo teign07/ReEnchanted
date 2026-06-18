@@ -1,0 +1,1848 @@
+import SwiftUI
+import OSLog
+import Darwin.Mach
+#if canImport(AudioToolbox)
+import AudioToolbox
+#endif
+#if canImport(UIKit)
+import UIKit
+#endif
+#if canImport(Photos)
+import Photos
+#endif
+#if canImport(PhotosUI)
+import PhotosUI
+#endif
+#if canImport(CoreLocation)
+import CoreLocation
+#endif
+#if canImport(HealthKit)
+import HealthKit
+#endif
+#if canImport(Vision)
+import Vision
+#endif
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLLM)
+import MLXLLM
+#endif
+#if NATIVE_LOCAL_BRAIN && canImport(MLXVLM)
+import MLXVLM
+#endif
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLMCommon)
+import MLXLMCommon
+#endif
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLMTokenizers)
+import MLXLMTokenizers
+#endif
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLMHFAPI)
+import MLXLMHFAPI
+#endif
+#if NATIVE_LOCAL_BRAIN && canImport(MLX)
+import MLX
+#endif
+
+struct LabStatusCard: View {
+    let report: LocalModelReport
+    let storeReport: BookStore.Report
+    let databaseReport: BookDatabase.Report
+    let lastBraidDuration: TimeInterval?
+
+    private var durationText: String {
+        guard let lastBraidDuration else {
+            return "no dry ink yet"
+        }
+        return "\(Int(lastBraidDuration.rounded()))s to dry"
+    }
+
+    private var archiveText: String {
+        "\(storeReport.dayCount)d / \(storeReport.pageCount)p kept"
+    }
+
+    private var shelfStatusText: String {
+        let backupText = databaseReport.backupCount > 0 ? " · \(databaseReport.backupCount) backup\(databaseReport.backupCount == 1 ? "" : "s")" : ""
+        return "the shelves are holding · v\(databaseReport.schemaVersion) · \(databaseReport.loadSource.rawValue)\(backupText)"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Label(report.state == .ready ? "local brain awake" : "local brain dreaming", systemImage: report.state == .ready ? "checkmark.circle" : "hourglass")
+                Spacer(minLength: 8)
+                Label(durationText, systemImage: "timer")
+            }
+
+            HStack(spacing: 10) {
+                Label(archiveText, systemImage: "archivebox")
+                Spacer(minLength: 8)
+                Label("today \(storeReport.todayPageCount)p", systemImage: "calendar")
+            }
+
+            if let lastError = databaseReport.lastError ?? storeReport.lastError {
+                Text(lastError)
+                    .lineLimit(2)
+                    .foregroundStyle(.red.opacity(0.88))
+            } else {
+                Text(shelfStatusText)
+                    .lineLimit(1)
+                    .foregroundStyle(.white.opacity(0.62))
+            }
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.white.opacity(0.82))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(.white.opacity(0.12), lineWidth: 1)
+        }
+    }
+}
+
+
+struct BodySourceCard: View {
+    let bodySignal: BodySourceSignal?
+    let message: String
+    let isRequesting: Bool
+    let hasRequested: Bool
+    let isAvailable: Bool
+    let onRequest: () -> Void
+
+    private var title: String {
+        bodySignal == nil ? "Body Doorway" : "Body Page awake"
+    }
+
+    private var statusText: String {
+        if let bodySignal {
+            return bodySignal.status.capitalized
+        }
+        if !isAvailable {
+            return "no doorway"
+        }
+        if isRequesting {
+            return "listening"
+        }
+        return hasRequested ? "tap to listen again" : "door unopened"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: bodySignal == nil ? "heart.text.square" : "checkmark.seal")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(BookPalette.teal)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(statusText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.56))
+                }
+
+                Spacer()
+
+                if isRequesting {
+                    ProgressView()
+                        .tint(BookPalette.teal)
+                } else {
+                    Button {
+                        onRequest()
+                    } label: {
+                        Image(systemName: bodySignal == nil ? "heart.circle" : "arrow.clockwise.circle")
+                            .font(.title3.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(BookPalette.teal)
+                    .disabled(!isAvailable)
+                    .accessibilityLabel(bodySignal == nil ? "Open the body doorway" : "Listen again")
+                }
+            }
+
+            if let bodySignal {
+                Text(bodySignal.phrase)
+                    .font(.system(.body, design: .serif))
+                    .foregroundStyle(BookPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.62))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .parchmentSurface(accent: BookPalette.teal, isActive: bodySignal != nil)
+    }
+}
+
+struct WeatherSourceCard: View {
+    let weatherSignal: WeatherSourceSignal?
+    let message: String
+    let isRequesting: Bool
+    let hasRequested: Bool
+    let isAvailable: Bool
+    let onRequest: () -> Void
+
+    private var title: String {
+        weatherSignal == nil ? "Weather Doorway" : "Weather Page awake"
+    }
+
+    private var statusText: String {
+        if let weatherSignal {
+            return weatherSignal.currentTemperature ?? "sky read"
+        }
+        if !isAvailable {
+            return "no window"
+        }
+        if isRequesting {
+            return "listening"
+        }
+        return hasRequested ? "tap to listen again" : "door unopened"
+    }
+
+    private var iconName: String {
+        weatherSignal?.conditionSymbolName ?? "cloud.sun"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: iconName)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(BookPalette.gold)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(statusText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.56))
+                }
+
+                Spacer()
+
+                if isRequesting {
+                    ProgressView()
+                        .tint(BookPalette.teal)
+                } else {
+                    Button {
+                        onRequest()
+                    } label: {
+                        Image(systemName: weatherSignal == nil ? "location.circle" : "arrow.clockwise.circle")
+                            .font(.title3.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(BookPalette.teal)
+                    .disabled(!isAvailable)
+                    .accessibilityLabel(weatherSignal == nil ? "Open the weather doorway" : "Listen to the sky again")
+                }
+            }
+
+            if let weatherSignal {
+                Text(weatherSignal.phrase)
+                    .font(.system(.body, design: .serif))
+                    .foregroundStyle(BookPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.62))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .parchmentSurface(accent: BookPalette.gold, isActive: weatherSignal != nil)
+    }
+}
+
+struct AnchorSourceCard: View {
+    let proximity: AnchorProximity?
+    let message: String
+    let isChecking: Bool
+    let hasRequested: Bool
+    let isAvailable: Bool
+    let onRequest: () -> Void
+
+    private var title: String {
+        proximity == nil ? "Outer Stacks Doorway" : "Anchor awake"
+    }
+
+    private var statusText: String {
+        if let proximity {
+            return "\(Int(proximity.distanceMeters.rounded()))m · \(proximity.anchor.kind.title)"
+        }
+        if !isAvailable {
+            return "no ley reading"
+        }
+        if isChecking {
+            return "listening"
+        }
+        return hasRequested ? "tap to check again" : "door unopened"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "mappin.and.ellipse")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(BookPalette.teal)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(statusText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.56))
+                }
+
+                Spacer()
+
+                if isChecking {
+                    ProgressView()
+                        .tint(BookPalette.teal)
+                } else {
+                    Button {
+                        onRequest()
+                    } label: {
+                        Image(systemName: proximity == nil ? "location.magnifyingglass" : "arrow.clockwise.circle")
+                            .font(.title3.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(BookPalette.teal)
+                    .disabled(!isAvailable)
+                    .accessibilityLabel(proximity == nil ? "Check nearby Anchors" : "Check nearby Anchors again")
+                }
+            }
+
+            if let proximity {
+                Text(proximity.anchor.name)
+                    .font(.system(.body, design: .serif).weight(.semibold))
+                    .foregroundStyle(BookPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.62))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .parchmentSurface(accent: BookPalette.teal, isActive: proximity != nil)
+    }
+}
+
+struct StoryFieldStatusCard: View {
+    let surface: SurfacePage?
+    let events: [NarrativeEvent]
+    let isPreparing: Bool
+
+    private var metadata: [String: String] {
+        surface?.payload.metadata ?? [:]
+    }
+
+    private var title: String {
+        surface == nil ? "Story Field" : "Story Page ready"
+    }
+
+    private var statusText: String {
+        if isPreparing {
+            return "ink moving"
+        }
+        if surface != nil {
+            return "page waiting"
+        }
+        return "listening"
+    }
+
+    private var packetText: String {
+        guard let packetID = metadata["packetID"]?.nonEmpty else {
+            return "no packet chosen yet"
+        }
+        return "packet \(String(packetID.prefix(8)))"
+    }
+
+    private var bookGlowText: String {
+        let glow = metadata["bookGlow"]?.nonEmpty ?? metadata["playerBelief"]?.nonEmpty
+        return glow.map { "glow \($0)" } ?? "glow unread"
+    }
+
+    private var threads: [String] {
+        metadataList("selectedThreads")
+    }
+
+    private var entities: [String] {
+        metadataList("selectedEntities")
+    }
+
+    private var relationships: [String] {
+        metadataList("selectedRelationships")
+    }
+
+    private var signals: [String] {
+        metadataLines("realSignals")
+    }
+
+    private var pressures: [String] {
+        metadataLines("relationshipPressures")
+    }
+
+    private var recentChoiceEvents: [NarrativeEvent] {
+        Array(events
+            .filter { $0.kind == .choiceSelected || $0.sourcePageType == .narrativeOS }
+            .sorted { $0.createdAt > $1.createdAt }
+            .prefix(3))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "point.3.connected.trianglepath.dotted")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(BookPalette.violet)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(statusText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.56))
+                }
+
+                Spacer()
+
+                if isPreparing {
+                    ProgressView()
+                        .tint(BookPalette.violet)
+                } else {
+                    Text(bookGlowText)
+                        .font(.caption.monospacedDigit().weight(.bold))
+                        .foregroundStyle(BookPalette.violet)
+                }
+            }
+
+            Text(surface == nil
+                 ? "The Book has not laid a Story Page in the margin yet."
+                 : "The next Story Page has enough weight to open.")
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 8) {
+                StoryFieldDebugLine(icon: "number", label: "packet", value: packetText)
+                if let proseStatus = metadata["proseStatus"]?.nonEmpty {
+                    StoryFieldDebugLine(icon: "pencil.and.scribble", label: "ink", value: proseStatus)
+                }
+                if !threads.isEmpty {
+                    StoryFieldDebugLine(icon: "point.3.connected.trianglepath.dotted", label: "thread", value: threads.prefix(2).joined(separator: " / "))
+                }
+                if !entities.isEmpty {
+                    StoryFieldDebugLine(icon: "person.text.rectangle", label: "entities", value: entities.prefix(3).joined(separator: ", "))
+                }
+                if !relationships.isEmpty {
+                    StoryFieldDebugLine(icon: "arrow.triangle.branch", label: "ties", value: relationships.prefix(2).joined(separator: ", "))
+                }
+            }
+
+            if !signals.isEmpty || !pressures.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(signals.prefix(2).enumerated()), id: \.offset) { _, signal in
+                        Text(signal)
+                            .storyFieldSmallText()
+                    }
+                    ForEach(Array(pressures.prefix(1).enumerated()), id: \.offset) { _, pressure in
+                        Text(pressure)
+                            .storyFieldSmallText()
+                    }
+                }
+            }
+
+            if !recentChoiceEvents.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("recent turns")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.54))
+                    ForEach(recentChoiceEvents, id: \.id) { event in
+                        Text(event.summary)
+                            .storyFieldSmallText()
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .parchmentSurface(accent: BookPalette.violet, isActive: surface != nil || isPreparing)
+    }
+
+    private func metadataList(_ key: String) -> [String] {
+        metadata[key]?
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
+    }
+
+    private func metadataLines(_ key: String) -> [String] {
+        metadata[key]?
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
+    }
+}
+
+private struct StoryFieldDebugLine: View {
+    let icon: String
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(BookPalette.ink.opacity(0.5))
+                .frame(width: 18)
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(BookPalette.ink.opacity(0.52))
+                .frame(width: 54, alignment: .leading)
+            Text(value)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(BookPalette.ink.opacity(0.72))
+                .lineLimit(2)
+        }
+    }
+}
+
+struct StatusBanner: View {
+    let message: String
+    var actionTitle: String?
+    var action: (() -> Void)?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(message)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.86))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 8)
+
+            if let actionTitle, let action {
+                Button(actionTitle) {
+                    action()
+                }
+                .font(.footnote.weight(.bold))
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.teal)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(.white.opacity(0.12), lineWidth: 1)
+        }
+    }
+}
+
+struct BeliefScoreBadge: View {
+    let score: Int
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isBreathing = false
+
+    private var clampedScore: Int {
+        min(100, max(0, score))
+    }
+
+    private var normalized: Double {
+        Double(clampedScore) / 100
+    }
+
+    private var tierName: String {
+        BeliefLexicon.glowName(for: clampedScore)
+    }
+
+    private var glowRadius: CGFloat {
+        4 + normalized * 18
+    }
+
+    private var glowOpacity: Double {
+        0.22 + normalized * 0.48
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "sparkle")
+                .font(.caption.weight(.bold))
+                .symbolEffect(.pulse, options: .speed(0.55), value: isBreathing)
+
+            Text(tierName)
+                .font(.caption.weight(.black))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+        .foregroundStyle(BookPalette.lampGold)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 7)
+        .frame(minWidth: 86, maxWidth: 132)
+        .background(
+            Capsule(style: .continuous)
+                .fill(BookPalette.nightPanel.opacity(0.72))
+        )
+        .overlay {
+            Capsule(style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.34 + normalized * 0.38), lineWidth: 1)
+        }
+        .shadow(
+            color: BookPalette.lampGold.opacity(glowOpacity * (isBreathing ? 1.0 : 0.62)),
+            radius: glowRadius * (isBreathing ? 1.08 : 0.78),
+            x: 0,
+            y: 0
+        )
+        .scaleEffect(isBreathing && !reduceMotion ? 1.025 : 1.0)
+        .animation(
+            reduceMotion ? nil : .easeInOut(duration: 2.4 - normalized * 0.7).repeatForever(autoreverses: true),
+            value: isBreathing
+        )
+        .onAppear {
+            guard !reduceMotion else { return }
+            isBreathing = true
+        }
+        .accessibilityLabel("Belief \(tierName), \(clampedScore) out of 100")
+        .help("Belief \(clampedScore) out of 100")
+    }
+}
+
+struct GlowEntityMenuItem: Identifiable, Equatable {
+    var id: String
+    var name: String
+    var kind: String
+    var glow: Int
+    var line: String
+
+    var glowName: String {
+        BeliefLexicon.glowName(for: glow)
+    }
+}
+
+struct GlowPageMenuItem: Identifiable, Equatable {
+    var id: String
+    var type: BookPageType
+    var sourceID: String
+    var title: String
+    var detail: String
+    var symbolName: String
+    var glow: Int
+    var narrativeWeight: Int
+
+    var glowName: String {
+        BeliefLexicon.glowName(for: glow)
+    }
+
+    var curationWeight: Int {
+        glow + narrativeWeight
+    }
+}
+
+struct GlowBookSectionMenuItem: Identifiable, Equatable {
+    var id: String
+    var title: String
+    var detail: String
+}
+
+struct GlowEnchantmentMenuItem: Identifiable, Equatable {
+    var id: String
+    var title: String
+    var detail: String
+}
+
+enum GlowBeliefMode {
+    case give
+    case take
+}
+
+enum GlowMenuAction {
+    case giveBelief(GlowEntityMenuItem)
+    case takeBelief(GlowEntityMenuItem)
+    case givePageBelief(GlowPageMenuItem)
+    case takePageBelief(GlowPageMenuItem)
+    case spellCompass
+    case openEnchantment(GlowEnchantmentMenuItem)
+    case openPage(BookPageType)
+    case openBookSection(String)
+    case openBookShop
+    case openPactMap
+}
+
+private enum GlowMenuSection: String, CaseIterable, Identifiable {
+    case belief
+    case spells
+    case pages
+    case book
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .belief:
+            return "The Cast"
+        case .spells:
+            return "Spells"
+        case .pages:
+            return "Pages"
+        case .book:
+            return "Book"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .belief:
+            return "Give or take Belief among characters."
+        case .spells:
+            return "Open a Compass Run or Enchantment."
+        case .pages:
+            return "Tune which Pages the Book notices."
+        case .book:
+            return "Read the Wonder Compass source."
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .belief:
+            return "sparkle.magnifyingglass"
+        case .spells:
+            return "wand.and.stars"
+        case .pages:
+            return "book.pages"
+        case .book:
+            return "book.closed"
+        }
+    }
+
+    var assetName: String {
+        switch self {
+        case .belief:
+            return "MarginaliaLavender"
+        case .spells:
+            return "MarginaliaCompass"
+        case .pages:
+            return "MarginaliaScrap"
+        case .book:
+            return "MarginaliaStar"
+        }
+    }
+
+    var rowOffset: CGFloat {
+        switch self {
+        case .belief:
+            return 192
+        case .spells:
+            return 300
+        case .pages:
+            return 408
+        case .book:
+            return 516
+        }
+    }
+
+}
+
+struct GlowCommandMenu: View {
+    let score: Int
+    let surfaceCount: Int
+    let capturedPageCount: Int
+    let entities: [GlowEntityMenuItem]
+    let pageTypes: [GlowPageMenuItem]
+    let bookSections: [GlowBookSectionMenuItem]
+    let enchantments: [GlowEnchantmentMenuItem]
+    let onCreateCastMember: () -> Void
+    let onClose: () -> Void
+    let onSelectAction: (GlowMenuAction) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var selectedSection: GlowMenuSection?
+    @State private var beliefMode: GlowBeliefMode = .give
+    @State private var selectedEntity: GlowEntityMenuItem?
+    @State private var selectedPage: GlowPageMenuItem?
+    @State private var isLit = false
+
+    private var tierName: String {
+        BeliefLexicon.glowName(for: score)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let panelWidth = min(430, max(294, proxy.size.width * 0.76))
+            let panelTop = max(proxy.safeAreaInsets.top + 74, 98)
+            let panelHeight = min(proxy.size.height - panelTop - 30, selectedSection == nil ? 500 : 690)
+            let isCompact = proxy.size.width < 720
+            let submenuWidth = isCompact ? panelWidth - 28 : min(280, max(232, panelWidth * 0.68))
+            let submenuTop = panelTop + (selectedSection?.rowOffset ?? 0) + 44
+            let submenuTrailing = isCompact ? 26 : panelWidth + 22
+
+            ZStack {
+                Color.black.opacity(0.48)
+                    .ignoresSafeArea()
+                    .onTapGesture(perform: onClose)
+
+                ambientRings
+                    .allowsHitTesting(false)
+
+                VStack(spacing: 0) {
+                    headerBadge
+                        .frame(width: min(250, panelWidth * 0.72))
+                        .offset(y: 12)
+                        .zIndex(3)
+
+                    mainPanel(width: panelWidth, height: panelHeight)
+                }
+                .position(
+                    x: proxy.size.width - (panelWidth / 2) - 14,
+                    y: panelTop + (panelHeight / 2)
+                )
+                .zIndex(1)
+
+                if let selectedSection, !isCompact {
+                    submenu(width: submenuWidth, section: selectedSection)
+                        .position(
+                            x: proxy.size.width - (submenuWidth / 2) - submenuTrailing,
+                            y: submenuTop + 58
+                        )
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.86, anchor: .trailing)
+                                .combined(with: .move(edge: .trailing))
+                                .combined(with: .opacity),
+                            removal: .opacity
+                        ))
+                        .zIndex(2)
+                }
+            }
+        }
+        .onAppear {
+            BookFeedback.play(.sourceRefresh)
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                isLit = true
+            }
+        }
+    }
+
+    private func mainPanel(width: CGFloat, height: CGFloat) -> some View {
+        VStack(spacing: 10) {
+            crest
+
+            VStack(spacing: 5) {
+                Text(tierName)
+                    .font(.system(.title2, design: .serif, weight: .semibold))
+                    .foregroundStyle(BookPalette.ink)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.72)
+
+                Text("The current belief state is steady\nand gently luminous.")
+                    .font(.system(.caption, design: .serif).italic())
+                    .foregroundStyle(BookPalette.ink.opacity(0.76))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 20)
+
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 8) {
+                    ForEach(GlowMenuSection.allCases) { section in
+                        glowMenuRow(section)
+                        if selectedSection == section {
+                            inlineSubmenu(section)
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 4)
+                .padding(.bottom, 30)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(maxHeight: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .padding(.top, 17)
+        .padding(.bottom, 10)
+        .frame(width: width, height: height)
+        .background {
+            outerFrame
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(alignment: .bottomTrailing) {
+            closeSeal
+                .offset(x: -20, y: 18)
+        }
+        .overlay(alignment: .top) {
+            topNotch
+                .offset(y: -23)
+        }
+        .shadow(color: .black.opacity(0.50), radius: 30, x: 0, y: 20)
+    }
+
+    private var headerBadge: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkle")
+                .font(.headline.weight(.bold))
+            Text(tierName)
+                .font(.headline.weight(.black))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .foregroundStyle(BookPalette.lampGold)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background(BookPalette.nightPanel.opacity(0.96), in: Capsule(style: .continuous))
+        .overlay {
+            Capsule(style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.72), lineWidth: 1)
+        }
+        .overlay {
+            Capsule(style: .continuous)
+                .stroke(.white.opacity(0.08), lineWidth: 3)
+                .padding(4)
+        }
+        .shadow(color: BookPalette.lampGold.opacity(isLit ? 0.62 : 0.26), radius: isLit ? 18 : 8)
+    }
+
+    private var crest: some View {
+        Color.clear
+        .frame(height: 44)
+        .padding(.top, 4)
+        .accessibilityHidden(true)
+    }
+
+    private func glowMenuRow(_ section: GlowMenuSection) -> some View {
+        let isSelected = section == selectedSection
+
+        return Button {
+            BookFeedback.play(.select)
+            withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
+                selectedSection = selectedSection == section ? nil : section
+            }
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    Image("ParchmentFiber")
+                        .resizable()
+                        .scaledToFill()
+                        .opacity(0.42)
+                    Image(section.assetName)
+                        .resizable()
+                        .scaledToFit()
+                        .padding(section == .book ? 7 : 6)
+                        .opacity(isSelected ? 0.96 : 0.76)
+                        .shadow(color: BookPalette.lampGold.opacity(0.22), radius: 7)
+                }
+                .frame(width: 58, height: 58)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.lampGold.opacity(isSelected ? 0.58 : 0.22), lineWidth: 1)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(section.title)
+                        .font(.system(.headline, design: .serif, weight: .bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(section.subtitle)
+                        .font(.system(.caption, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.74))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.right")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.38))
+                    .rotationEffect(.degrees(isSelected ? 90 : 0))
+            }
+            .padding(9)
+            .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                BookPalette.paper.opacity(isSelected ? 0.99 : 0.92),
+                                BookPalette.page.opacity(isSelected ? 0.96 : 0.86)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(BookPalette.ink.opacity(isSelected ? 0.20 : 0.10), lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .scaleEffect(isSelected && !reduceMotion ? 1.012 : 1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(section.title). \(section.subtitle)")
+    }
+
+    private func inlineSubmenu(_ section: GlowMenuSection) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label(section.title, systemImage: section.symbolName)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+                Spacer()
+                Text("\(surfaceCount) rising · \(capturedPageCount) kept")
+                    .font(.caption2.monospacedDigit().weight(.bold))
+                    .foregroundStyle(BookPalette.teal)
+            }
+
+            submenuContent(section: section, compact: true)
+        }
+        .padding(10)
+        .background {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(BookPalette.page.opacity(0.96))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.34), lineWidth: 1)
+        }
+        .transition(.scale(scale: 0.96, anchor: .top).combined(with: .opacity))
+    }
+
+    private func submenu(width: CGFloat, section: GlowMenuSection) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label(section.title, systemImage: section.symbolName)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(BookPalette.ink.opacity(0.64))
+                Spacer()
+                Text("\(surfaceCount) rising · \(capturedPageCount) kept")
+                    .font(.caption2.monospacedDigit().weight(.bold))
+                    .foregroundStyle(BookPalette.teal)
+            }
+
+            ScrollView(.vertical, showsIndicators: true) {
+                submenuContent(section: section, compact: false)
+            }
+            .frame(maxHeight: 390)
+        }
+        .padding(12)
+        .frame(width: width)
+        .background {
+            ZStack {
+                Image("ParchmentFiber")
+                    .resizable()
+                    .scaledToFill()
+                    .opacity(0.22)
+                BookPalette.page.opacity(0.96)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.36), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 10)
+        .id(section.id)
+    }
+
+    @ViewBuilder
+    private func submenuContent(section: GlowMenuSection, compact: Bool) -> some View {
+        switch section {
+        case .belief:
+            beliefSubmenu(compact: compact)
+        case .spells:
+            menuButton(
+                title: "Compass Run",
+                detail: "Start a Compass Run Page.",
+                systemImage: "safari",
+                compact: compact
+            ) {
+                onSelectAction(.spellCompass)
+            }
+            Text("Enchantment")
+                .font(.caption2.weight(.black))
+                .foregroundStyle(BookPalette.ink.opacity(0.58))
+                .padding(.top, 2)
+            ForEach(enchantments) { enchantment in
+                menuButton(
+                    title: enchantment.title,
+                    detail: enchantment.detail,
+                    systemImage: "wand.and.stars",
+                    compact: compact
+                ) {
+                    onSelectAction(.openEnchantment(enchantment))
+                }
+            }
+        case .pages:
+            pageBeliefSubmenu(compact: compact)
+            menuButton(
+                title: "The BookShop",
+                detail: "The Marginalia Goblins' living market: pay in coin, Attention, or Belief — plus your standing with the Fae.",
+                systemImage: "books.vertical.fill",
+                compact: compact
+            ) {
+                onSelectAction(.openBookShop)
+            }
+            menuButton(
+                title: "The Pact Map",
+                detail: "Watch the Talismans contest the Book's shelves and your real-world doors.",
+                systemImage: "map",
+                compact: compact
+            ) {
+                onSelectAction(.openPactMap)
+            }
+        case .book:
+            ForEach(bookSections) { section in
+                menuButton(
+                    title: section.title,
+                    detail: section.detail,
+                    systemImage: "text.book.closed",
+                    compact: compact
+                ) {
+                    onSelectAction(.openBookSection(section.id))
+                }
+            }
+        }
+    }
+
+    private func pageBeliefSubmenu(compact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Page belief action", selection: $beliefMode) {
+                Text("Give Belief").tag(GlowBeliefMode.give)
+                Text("Take Belief").tag(GlowBeliefMode.take)
+            }
+            .pickerStyle(.segmented)
+
+            ForEach(pageTypes) { page in
+                Button {
+                    BookFeedback.play(.select)
+                    selectedPage = page
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: page.symbolName)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(BookPalette.lampGold)
+                            .frame(width: 18)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(page.title)
+                                .font((compact ? Font.caption : Font.subheadline).weight(.bold))
+                                .foregroundStyle(BookPalette.ink)
+                            Text(page.detail)
+                                .font(compact ? .caption2 : .caption)
+                                .foregroundStyle(BookPalette.ink.opacity(0.66))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Spacer()
+
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(page.glowName)
+                                .font(.caption2.weight(.black))
+                                .foregroundStyle(BookPalette.teal)
+                                .multilineTextAlignment(.trailing)
+                                .lineLimit(2)
+                        }
+                    }
+                    .padding(.horizontal, compact ? 10 : 12)
+                    .padding(.vertical, compact ? 8 : 10)
+                    .background(.white.opacity(0.28), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(page.title), \(page.glowName)")
+            }
+        }
+        .confirmationDialog(
+            selectedPage.map { confirmationTitle(for: $0) } ?? "Move Page Belief?",
+            isPresented: Binding(
+                get: { selectedPage != nil },
+                set: { if !$0 { selectedPage = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let selectedPage {
+                Button("Open \(selectedPage.title)") {
+                    onSelectAction(.openPage(selectedPage.type))
+                    self.selectedPage = nil
+                }
+                Button(confirmationButtonTitle(for: selectedPage), role: beliefMode == .take ? .destructive : nil) {
+                    let action: GlowMenuAction = beliefMode == .give
+                        ? .givePageBelief(selectedPage)
+                        : .takePageBelief(selectedPage)
+                    onSelectAction(action)
+                    self.selectedPage = nil
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                selectedPage = nil
+            }
+        }
+    }
+
+    private func beliefSubmenu(compact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Belief action", selection: $beliefMode) {
+                Text("Give Belief").tag(GlowBeliefMode.give)
+                Text("Take Belief").tag(GlowBeliefMode.take)
+            }
+            .pickerStyle(.segmented)
+
+            Button {
+                onCreateCastMember()
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(BookPalette.violet)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Give Belief to a new Cast Member")
+                            .font((compact ? Font.caption : Font.subheadline).weight(.bold))
+                            .foregroundStyle(BookPalette.ink)
+                        Text("State what it is, or give the Book a photo.")
+                            .font(compact ? .caption2 : .caption)
+                            .foregroundStyle(BookPalette.ink.opacity(0.66))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.38))
+                }
+                .padding(.horizontal, compact ? 10 : 12)
+                .padding(.vertical, compact ? 8 : 10)
+                .background(BookPalette.violet.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.violet.opacity(0.22), lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Give Belief to a new Cast Member")
+
+            ForEach(entities) { entity in
+                Button {
+                    BookFeedback.play(.select)
+                    selectedEntity = entity
+                } label: {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(entity.name)
+                                .font((compact ? Font.caption : Font.subheadline).weight(.bold))
+                                .foregroundStyle(BookPalette.ink)
+                            Text(entity.line)
+                                .font(compact ? .caption2 : .caption)
+                                .foregroundStyle(BookPalette.ink.opacity(0.66))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        Text(entity.glowName)
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(BookPalette.teal)
+                            .multilineTextAlignment(.trailing)
+                            .lineLimit(2)
+                    }
+                    .padding(.horizontal, compact ? 10 : 12)
+                    .padding(.vertical, compact ? 8 : 10)
+                    .background(.white.opacity(0.28), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(entity.name), \(entity.glowName)")
+            }
+        }
+        .confirmationDialog(
+            selectedEntity.map { confirmationTitle(for: $0) } ?? "Move Belief?",
+            isPresented: Binding(
+                get: { selectedEntity != nil },
+                set: { if !$0 { selectedEntity = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let selectedEntity {
+                Button(confirmationButtonTitle(for: selectedEntity), role: beliefMode == .take ? .destructive : nil) {
+                    let action: GlowMenuAction = beliefMode == .give
+                        ? .giveBelief(selectedEntity)
+                        : .takeBelief(selectedEntity)
+                    onSelectAction(action)
+                    self.selectedEntity = nil
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                selectedEntity = nil
+            }
+        }
+    }
+
+    private func confirmationTitle(for entity: GlowEntityMenuItem) -> String {
+        switch beliefMode {
+        case .give:
+            return "Are you sure you want to give belief to \(entity.name)?"
+        case .take:
+            return "Are you sure you want to take belief from \(entity.name)?"
+        }
+    }
+
+    private func confirmationTitle(for page: GlowPageMenuItem) -> String {
+        switch beliefMode {
+        case .give:
+            return "Give belief to \(page.title)?"
+        case .take:
+            return "Take belief from \(page.title)?"
+        }
+    }
+
+    private func confirmationButtonTitle(for entity: GlowEntityMenuItem) -> String {
+        switch beliefMode {
+        case .give:
+            return "Give \(entity.name) +3 Belief"
+        case .take:
+            return "Try to Take Belief"
+        }
+    }
+
+    private func confirmationButtonTitle(for page: GlowPageMenuItem) -> String {
+        switch beliefMode {
+        case .give:
+            return "Give \(page.title) +3 Belief"
+        case .take:
+            return "Take \(page.title) -3 Belief"
+        }
+    }
+
+    private func menuButton(
+        title: String,
+        detail: String,
+        systemImage: String,
+        compact: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            BookFeedback.play(.openPage)
+            action()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold)
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font((compact ? Font.caption : Font.subheadline).weight(.bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(detail)
+                        .font(compact ? .caption2 : .caption)
+                        .foregroundStyle(BookPalette.ink.opacity(0.66))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold)
+            }
+            .padding(.horizontal, compact ? 10 : 12)
+            .padding(.vertical, compact ? 8 : 10)
+            .background(.white.opacity(0.30), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var closeSeal: some View {
+        Button(action: onClose) {
+            ZStack {
+                Circle()
+                    .fill(BookPalette.nightPanel)
+                Circle()
+                    .stroke(BookPalette.lampGold.opacity(0.72), lineWidth: 1.4)
+                Image(systemName: "xmark")
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(BookPalette.lampGold)
+            }
+            .frame(width: 54, height: 54)
+            .shadow(color: .black.opacity(0.32), radius: 10, x: 0, y: 6)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Close Glow menu")
+    }
+
+    private var topNotch: some View {
+        ZStack {
+            Circle()
+                .fill(BookPalette.nightPanel)
+                .frame(width: 74, height: 74)
+            Circle()
+                .stroke(BookPalette.lampGold.opacity(0.80), lineWidth: 1.5)
+                .frame(width: 74, height: 74)
+            Image(systemName: "sparkle")
+                .font(.title.weight(.bold))
+                .foregroundStyle(BookPalette.lampGold)
+                .shadow(color: BookPalette.lampGold.opacity(isLit ? 0.78 : 0.32), radius: isLit ? 14 : 7)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var outerFrame: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(BookPalette.nightPanel)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.78), lineWidth: 1.4)
+
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        BookPalette.paper,
+                        BookPalette.page.opacity(0.99),
+                        BookPalette.lampGold.opacity(0.12)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(8)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    private var ambientRings: some View {
+        ZStack {
+            ForEach(0..<4, id: \.self) { index in
+                Circle()
+                    .stroke(BookPalette.lampGold.opacity(0.08), lineWidth: 1)
+                    .frame(width: CGFloat(360 + index * 160), height: CGFloat(360 + index * 160))
+                    .offset(x: 150, y: -180)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+    }
+}
+
+struct BraidingStatusCard: View {
+    let quip: String
+    let startedAt: Date?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .tint(BookPalette.teal)
+                Text("The braid is taking ink")
+                    .font(.headline)
+                    .foregroundStyle(BookPalette.ink)
+                Spacer()
+                if let startedAt {
+                    Text(startedAt, style: .timer)
+                        .font(.caption.monospacedDigit().weight(.bold))
+                        .foregroundStyle(BookPalette.teal)
+                }
+            }
+
+            Text(quip)
+                .font(.system(.body, design: .serif, weight: .semibold))
+                .lineSpacing(3)
+                .foregroundStyle(BookPalette.ink.opacity(0.82))
+                .id(quip)
+                .transition(.opacity)
+
+            Text("You may leave the page open. The Book will keep its place and finish the line.")
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.62))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .parchmentSurface(accent: BookPalette.teal, isActive: true)
+    }
+}
+
+struct LocalBrainWorkingStatusCard: View {
+    let label: String
+    let quip: String
+    let startedAt: Date?
+    let queuedCount: Int
+
+    private var title: String {
+        switch label {
+        case "braid":
+            return "The braid is taking ink"
+        case "weather", "weather-page":
+            return "The Weather Page is finding its words"
+        case "story-page":
+            return "The Story Page is being written"
+        case "photo-illumination":
+            return "Penny is illuminating the photograph"
+        case "wonder-compass":
+            return "The Compass is choosing a passage"
+        default:
+            return "The local brain is writing"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .tint(BookPalette.violet)
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(BookPalette.ink)
+                Spacer()
+                if queuedCount > 0 {
+                    Text("\(queuedCount) waiting")
+                        .font(.caption.monospacedDigit().weight(.bold))
+                        .foregroundStyle(BookPalette.violet)
+                } else if let startedAt {
+                    Text(startedAt, style: .timer)
+                        .font(.caption.monospacedDigit().weight(.bold))
+                        .foregroundStyle(BookPalette.violet)
+                }
+            }
+
+            Text(quip)
+                .font(.system(.body, design: .serif, weight: .semibold))
+                .lineSpacing(3)
+                .foregroundStyle(BookPalette.ink.opacity(0.82))
+                .id(quip)
+                .transition(.opacity)
+
+            Text("Only one local-brain page can write at a time. The Book is keeping the shelf steady.")
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.62))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .parchmentSurface(accent: BookPalette.violet, isActive: true)
+    }
+}
+
+struct ModelStatusCard: View {
+    let report: LocalModelReport
+    let isInstalling: Bool
+    let installMessage: String
+    let installProgress: Double?
+    let onRefresh: () -> Void
+    let onInstall: () -> Void
+
+    private var statusColor: Color {
+        switch report.state {
+        case .missing:
+            return BookPalette.gold
+        case .ready:
+            return BookPalette.teal
+        case .unavailable:
+            return .red.opacity(0.78)
+        }
+    }
+
+    private var iconName: String {
+        switch report.state {
+        case .missing:
+            return "brain.head.profile"
+        case .ready:
+            return "checkmark.seal"
+        case .unavailable:
+            return "exclamationmark.triangle"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: iconName)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(statusColor)
+                    .frame(width: 34, height: 34)
+                    .background(statusColor.opacity(0.14), in: Circle())
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Book Brain")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.52))
+                    Text(report.title)
+                        .font(.headline)
+                        .foregroundStyle(BookPalette.ink)
+                }
+
+                Spacer(minLength: 12)
+
+                Button {
+                    onRefresh()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.body.weight(.bold))
+                        .frame(width: 34, height: 34)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.teal)
+                .accessibilityLabel("Ask whether the local brain is awake")
+            }
+
+            Text(report.detail)
+                .font(.callout)
+                .foregroundStyle(BookPalette.ink.opacity(0.70))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Label(mlxRuntimeLinked ? "the model shelf is reachable" : "the model shelf is missing", systemImage: "cpu")
+                Label("this device: \(report.deviceSummary)", systemImage: "iphone")
+                Label("the Book chose: \(report.preferredModelID)", systemImage: "sparkles")
+                Label("small fallback: \(report.fallbackModelID)", systemImage: "arrow.triangle.2.circlepath")
+                Link(destination: URL(string: report.preferredModelSource) ?? URL(string: "https://huggingface.co/mlx-community")!) {
+                    Label("model source", systemImage: "link")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(BookPalette.ink.opacity(0.58))
+            .lineLimit(2)
+            .minimumScaleFactor(0.82)
+
+            if report.state == .missing {
+                Button {
+                    onInstall()
+                } label: {
+                    Label(isInstalling ? "The Book is fetching its brain..." : "Fetch the local brain", systemImage: "arrow.down.circle")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isInstalling || !mlxRuntimeLinked)
+            }
+
+            if isInstalling {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let installProgress {
+                        ProgressView(value: installProgress)
+                            .tint(BookPalette.teal)
+                        Text("\(Int(installProgress * 100))%")
+                            .font(.caption.monospacedDigit().weight(.semibold))
+                            .foregroundStyle(BookPalette.teal)
+                    } else {
+                        ProgressView()
+                            .tint(BookPalette.teal)
+                        Text("Opening the model shelf")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(BookPalette.teal)
+                    }
+                }
+            }
+
+            if !installMessage.isEmpty {
+                Text(installMessage)
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.ink.opacity(0.64))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(16)
+        .parchmentSurface(accent: statusColor, isActive: report.state == .ready)
+    }
+}
+
+struct FaeGiftCard: View {
+    let gift: FaeGift
+    let now: Date
+    @State private var isReadingLoosePage = false
+    @State private var loosePageSalt = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Label(gift.name, systemImage: gift.isCold ? "snowflake" : "gift")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(gift.isCold ? BookPalette.ink.opacity(0.45) : BookPalette.lampGold)
+                Spacer()
+                Text(gift.isActive ? gift.effect.title : (gift.isCold ? "Cold" : "Spent"))
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background((gift.isActive ? BookPalette.teal : BookPalette.ink).opacity(0.14), in: Capsule())
+                    .foregroundStyle(gift.isActive ? BookPalette.teal : BookPalette.ink.opacity(0.5))
+            }
+            Text(gift.isCold ? "\(gift.effect.effectLine) — dormant until the debt is repaid." : gift.effect.effectLine)
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.65))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if gift.effect == .loosePage, gift.isActive {
+                Button {
+                    loosePageSalt += 1
+                    isReadingLoosePage.toggle()
+                } label: {
+                    Label(isReadingLoosePage ? "Turn the page" : "Read the loose page", systemImage: "book.pages")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.teal)
+                if isReadingLoosePage {
+                    Text(loosePageText)
+                        .font(.system(.callout, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.85))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(10)
+                        .background(BookPalette.page.opacity(0.7), in: RoundedRectangle(cornerRadius: 6))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+        .overlay { RoundedRectangle(cornerRadius: 8).stroke(BookPalette.ink.opacity(0.12), lineWidth: 1) }
+    }
+
+    private var loosePageText: String {
+        // Local salt lets "turn the page" reveal a different fragment immediately.
+        LoosePageReader.fragments.isEmpty
+            ? ""
+            : LoosePageReader.fragments[abs("\(gift.id)-\(loosePageSalt)".stableHash) % LoosePageReader.fragments.count]
+    }
+}
+
+// MARK: - The Pact Map (the Talismans' territory war)
+
+struct PactMapSheet: View {
+    let pactWar: PactWarState
+    let boundTalismanID: String?
+    var onPressClaim: (String) -> Void = { _ in }   // territoryID
+    @Environment(\.dismiss) private var dismiss
+
+    private var boundChapterName: String? {
+        boundTalismanID.flatMap { AcademyChapterRegistry.chapter(forTalismanID: $0)?.name }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    if let boundChapterName {
+                        Text("You are Bound to \(boundChapterName). Pressing a claim invests Belief in its Talisman.")
+                            .font(.footnote)
+                            .foregroundStyle(BookPalette.ink.opacity(0.6))
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text("You are not yet Bound to a Chapter. The Talismans fight over your margins regardless.")
+                            .font(.footnote.italic())
+                            .foregroundStyle(BookPalette.ink.opacity(0.6))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    frontSection("The Book's Shelves", territories: PactTerritoryRegistry.shelves)
+                    frontSection("The Real-World Doors", territories: PactTerritoryRegistry.integrations)
+
+                    if !pactWar.log.isEmpty {
+                        sectionTitle("Recent Moves")
+                        ForEach(pactWar.log.prefix(6)) { record in
+                            Text("• \(record.line)")
+                                .font(.caption)
+                                .foregroundStyle(BookPalette.ink.opacity(0.6))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(BookPalette.page.ignoresSafeArea())
+            .navigationTitle("The Pact Map")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+        }
+    }
+
+    private func frontSection(_ title: String, territories: [PactTerritory]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionTitle(title)
+            ForEach(territories) { territory in
+                territoryCard(territory)
+            }
+        }
+    }
+
+    private func territoryCard(_ territory: PactTerritory) -> some View {
+        let controller = pactWar.controller(of: territory.id)
+        let controllerChapter = controller.flatMap { AcademyChapterRegistry.chapter(forTalismanID: $0) }
+        let tier = pactWar.tier(of: territory.id)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(territory.name)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(BookPalette.ink)
+                Spacer()
+                Text(tier.label)
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background((controller == nil ? BookPalette.ink : BookPalette.lampGold).opacity(0.14), in: Capsule())
+                    .foregroundStyle(controller == nil ? BookPalette.ink.opacity(0.5) : BookPalette.lampGold)
+            }
+            Text(territory.blurb)
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.6))
+                .fixedSize(horizontal: false, vertical: true)
+            if let controllerChapter {
+                HStack(spacing: 8) {
+                    CharacterPortraitView(name: controllerChapter.talismanName, size: 30)
+                    Text("Held by \(controllerChapter.talismanName)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.teal)
+                }
+            }
+            ForEach(AcademyChapterRegistry.chapters, id: \.id) { chapter in
+                let value = pactWar.control(chapter.talismanID, territory.id)
+                if value > 0 {
+                    HStack(spacing: 6) {
+                        Text(chapter.talismanName)
+                            .font(.caption2)
+                            .foregroundStyle(BookPalette.ink.opacity(0.7))
+                            .frame(width: 96, alignment: .leading)
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(BookPalette.ink.opacity(0.08))
+                                Capsule()
+                                    .fill((controller == chapter.talismanID ? BookPalette.lampGold : BookPalette.teal).opacity(0.5))
+                                    .frame(width: max(4, geo.size.width * CGFloat(min(100, value)) / 100))
+                            }
+                        }
+                        .frame(height: 8)
+                        Text("\(value)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(BookPalette.ink.opacity(0.55))
+                            .frame(width: 24, alignment: .trailing)
+                    }
+                }
+            }
+            if boundTalismanID != nil {
+                Button {
+                    onPressClaim(territory.id)
+                } label: {
+                    Label("Press your claim", systemImage: "hand.point.up.left")
+                        .font(.caption.weight(.bold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.teal)
+                .padding(.top, 2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+        .overlay { RoundedRectangle(cornerRadius: 8).stroke(BookPalette.ink.opacity(0.12), lineWidth: 1) }
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.caption.weight(.bold))
+            .foregroundStyle(BookPalette.ink.opacity(0.5))
+    }
+}

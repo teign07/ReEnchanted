@@ -1,0 +1,14 @@
+# Xcode build output
+.DerivedData/
+DerivedData/
+build/
+
+# macOS
+.DS_Store
+
+# SwiftPM
+.build/
+
+# Node / Remotion
+node_modules/
+RemotionPromo/out/

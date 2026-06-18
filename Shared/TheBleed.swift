@@ -1,0 +1,404 @@
+import Foundation
+
+// MARK: - The Bleed (distilled edition)
+//
+// The Academy's student newspaper, edited by Penny Blackletter, Records
+// Clerk, Department of Attestation. The full broadsheet lives on the Mac;
+// this is the pocket edition: a morning paper to start the day (weather,
+// today's calendar, the latest from the Book, and a researched column on
+// one of the reader's own interests) and an evening paper that looks at
+// tomorrow and opens a second interest column.
+//
+// Delivery is two-stage on purpose: the Book surfaces an in-character
+// announcement first ("the newest edition is here"), and opening it sets
+// the presses running - several local-brain calls composited into one page.
+
+enum BleedEditionKind: String, Codable, Equatable, CaseIterable {
+    case morning
+    case evening
+
+    var mastheadTitle: String {
+        switch self {
+        case .morning: return "The Bleed - Morning Edition"
+        case .evening: return "The Bleed - Evening Edition"
+        }
+    }
+
+    var focusLine: String {
+        switch self {
+        case .morning: return "the day ahead"
+        case .evening: return "tomorrow, seen from tonight"
+        }
+    }
+
+    var announcementLine: String {
+        switch self {
+        case .morning:
+            return "Hot off the press: Penny Blackletter has put the Morning Edition to bed. Weather, the day's hinges, what the Book noticed overnight, and a column on one of your own shelves."
+        case .evening:
+            return "The Evening Edition is set in type. Tomorrow's shape, tonight's margins, the latest from the Book, and a fresh column from your own shelf of interests."
+        }
+    }
+}
+
+struct BleedColumnBrief: Codable, Equatable {
+    var id: String
+    var title: String
+    var byline: String
+    /// Pre-written column text (deterministic columns), or empty when the
+    /// column needs the local brain.
+    var composedBody: String
+    /// The structured packet a model call should write from. Empty for
+    /// deterministic columns.
+    var packet: String
+    var maxTokens: Int
+
+    var needsLocalBrain: Bool { composedBody.isEmpty }
+}
+
+enum TheBleedEditionBuilder {
+    /// Which edition the presses would run right now. Mornings before 13:00,
+    /// evenings from 16:00. The quiet afternoon belongs to the reader.
+    static func editionKind(for now: Date, calendar: Calendar = .current) -> BleedEditionKind? {
+        let hour = calendar.component(.hour, from: now)
+        if hour >= 4 && hour < 13 { return .morning }
+        if hour >= 16 { return .evening }
+        return nil
+    }
+
+    static func slotID(for kind: BleedEditionKind, day: BookDay) -> String {
+        "bleed-\(day.id)-\(kind.rawValue)"
+    }
+
+    // MARK: Announcement
+
+    static func announcementSurface(
+        for day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> SurfacePage? {
+        guard let kind = editionKind(for: now, calendar: calendar) else { return nil }
+        let slot = slotID(for: kind, day: day)
+        guard !day.pages.contains(where: { $0.tags.contains(slot) }) else { return nil }
+        let source = BookPageSourceRegistry.source(for: .theBleed)
+        let issueNumber = inputs.bleedIssueNumber
+        let interest = selectedInterest(from: inputs.selfFacts, dayID: day.id, kind: kind)
+        let briefs = columnBriefs(kind: kind, day: day, inputs: inputs, interest: interest, now: now, calendar: calendar)
+
+        return SurfacePage(
+            id: "\(source.id)-\(slot)",
+            type: .theBleed,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: kind == .morning ? 90 : 86,
+            reason: "Issue #\(issueNumber) is waiting under the door.",
+            prompt: "The newest edition of The Bleed is here.",
+            detail: "Open it - Penny Blackletter is holding the presses.",
+            payload: BookPagePayload(
+                headline: "\(kind.mastheadTitle) - Issue #\(issueNumber)",
+                body: kind.announcementLine,
+                metadata: [
+                    "source": source.id,
+                    "bleedEditionKind": kind.rawValue,
+                    "bleedSlotID": slot,
+                    "bleedIssueNumber": "\(issueNumber)",
+                    "bleedInterest": interest ?? "",
+                    "bleedBriefs": encodedBriefs(briefs),
+                    "placeholder": "The presses are inked and waiting. Open the edition to set them running.",
+                    "tags": "the-bleed,\(slot),bleed-\(kind.rawValue)"
+                ]
+            )
+        )
+    }
+
+    // MARK: Column briefs
+
+    static func columnBriefs(
+        kind: BleedEditionKind,
+        day: BookDay,
+        inputs: BookSourceInputs,
+        interest: String?,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> [BleedColumnBrief] {
+        var briefs: [BleedColumnBrief] = []
+
+        briefs.append(BleedColumnBrief(
+            id: "weather-desk",
+            title: "Casement Weather",
+            byline: "from the window ledge, attested",
+            composedBody: weatherColumn(kind: kind, inputs: inputs),
+            packet: "",
+            maxTokens: 0
+        ))
+
+        briefs.append(BleedColumnBrief(
+            id: "almanac",
+            title: kind == .morning ? "Today at the Academy" : "Tomorrow, Posted Early",
+            byline: "the corridor noticeboard",
+            composedBody: almanacColumn(kind: kind, inputs: inputs, now: now, calendar: calendar),
+            packet: "",
+            maxTokens: 0
+        ))
+
+        briefs.append(BleedColumnBrief(
+            id: "front-page",
+            title: kind == .morning ? "The Morning Ledger" : "The Evening Ledger",
+            byline: "by Penny Blackletter, Records Clerk, Department of Attestation",
+            composedBody: "",
+            packet: frontPagePacket(kind: kind, day: day, inputs: inputs),
+            maxTokens: 380
+        ))
+
+        briefs.append(BleedColumnBrief(
+            id: "corridor-whispers",
+            title: "Corridor Whispers",
+            byline: "compiled from signed corridor sources",
+            composedBody: "",
+            packet: whispersPacket(day: day, inputs: inputs, now: now),
+            maxTokens: 280
+        ))
+
+        if let interest {
+            briefs.append(BleedColumnBrief(
+                id: "interest-desk",
+                title: "The Reader's Shelf: \(interest.capitalized)",
+                byline: "by Penny Blackletter, filed from beyond the casement",
+                composedBody: "",
+                packet: interestPacket(interest: interest, kind: kind),
+                maxTokens: 380
+            ))
+        }
+
+        return briefs
+    }
+
+    /// Morning and evening pick different interests on the same day, so the
+    /// two editions never repeat a shelf.
+    static func selectedInterest(from facts: [SelfFact], dayID: String, kind: BleedEditionKind) -> String? {
+        let candidates = facts
+            .filter { fact in
+                fact.questionID.hasPrefix("interest-")
+                    && fact.usePermission != .doNotUse
+                    && !fact.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            .flatMap { fact in
+                fact.answer
+                    .components(separatedBy: CharacterSet(charactersIn: ",;\n"))
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty && $0.count >= 3 && $0.count <= 80 }
+            }
+            .reduce(into: [String]()) { unique, interest in
+                if !unique.contains(where: { $0.localizedCaseInsensitiveCompare(interest) == .orderedSame }) {
+                    unique.append(interest)
+                }
+            }
+        guard !candidates.isEmpty else { return nil }
+        let offset = kind == .morning ? 0 : 1
+        let index = (ConstellationKeeper.stableIndex(for: "bleed-interest-\(dayID)", count: candidates.count) + offset) % candidates.count
+        return candidates[index]
+    }
+
+    // MARK: Deterministic columns
+
+    static func weatherColumn(kind: BleedEditionKind, inputs: BookSourceInputs) -> String {
+        guard let weather = inputs.weather?.phrase.nonEmpty else {
+            return "The casement reports nothing today; the sky declined to file. The clerk notes the omission and moves on, as clerks must."
+        }
+        let enchanted = inputs.enchantedWeather?.enchantified.nonEmpty
+        let opening = kind == .morning
+            ? "The window ledge files the following, sworn and stamped: \(weather)."
+            : "As the lamps come up, the casement's last deposition reads: \(weather)."
+        let translation = enchanted.map { " The Academy's own translation: \($0)" } ?? ""
+        return opening + translation
+    }
+
+    static func almanacColumn(
+        kind: BleedEditionKind,
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> String {
+        let targetDayStart: Date
+        let dayWord: String
+        switch kind {
+        case .morning:
+            targetDayStart = calendar.startOfDay(for: now)
+            dayWord = "Today"
+        case .evening:
+            targetDayStart = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 1, to: now) ?? now)
+            dayWord = "Tomorrow"
+        }
+        let targetDayEnd = calendar.date(byAdding: .day, value: 1, to: targetDayStart) ?? targetDayStart
+        let events = inputs.calendarEvents
+            .filter { $0.startsAt >= targetDayStart && $0.startsAt < targetDayEnd }
+            .sorted { $0.startsAt < $1.startsAt }
+
+        guard !events.isEmpty else {
+            return "\(dayWord)'s noticeboard is bare. The corridor reads an empty board as either freedom or an ambush; the clerk recommends treating it as the former until proven otherwise."
+        }
+
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.dateFormat = "h:mm a"
+        let lines = events.prefix(6).map { event in
+            "\u{2022} \(event.isAllDay ? "All day" : formatter.string(from: event.startsAt)) - \(event.title)"
+        }.joined(separator: "\n")
+        let count = events.count
+        let pressure = count >= 4
+            ? "A crowded board. The clerk advises guarding one unclaimed hour the way one guards a window seat."
+            : "A reasonable board, by Registry standards."
+        return "\(dayWord)'s hinges, as posted:\n\(lines)\n\(pressure)"
+    }
+
+    // MARK: Model packets
+
+    static func frontPagePacket(kind: BleedEditionKind, day: BookDay, inputs: BookSourceInputs) -> String {
+        let signals = inputs.continuity.strongestSignals.prefix(4).map { "- \($0.line)" }.joined(separator: "\n")
+        let constellations = ConstellationKeeper.namedConstellations(inputs.constellations).prefix(3)
+            .map { "- \($0.displayName): \($0.latestLine)" }
+            .joined(separator: "\n")
+        let wagers = inputs.wagers.filter(\.isSealed).prefix(2).map { "- \($0.promptLine)" }.joined(separator: "\n")
+        let theme = inputs.themes.max { $0.monthKey < $1.monthKey }.map(\.promptLine) ?? "No named theme yet."
+        let arc = inputs.currentArc.map { "Current story arc: \($0.title), phase \($0.phase.rawValue)." } ?? "No arc currently promoted."
+        let recentPages = day.capturedPages.suffix(5)
+            .map { "- \($0.promptText): \($0.userInput.bookPreviewSentenceLimit(1))" }
+            .joined(separator: "\n")
+        return """
+        EDITION: \(kind.mastheadTitle), focused on \(kind.focusLine).
+
+        What the Book has noticed (literary observations, not verdicts):
+        \(signals.nonEmpty ?? "- The margins are quiet.")
+
+        Named constellations the Book keeps about the reader:
+        \(constellations.nonEmpty ?? "- None named yet.")
+
+        Sealed wagers pending:
+        \(wagers.nonEmpty ?? "- None.")
+
+        \(theme)
+        \(arc)
+
+        The reader's own kept pages today:
+        \(recentPages.nonEmpty ?? "- No pages kept yet today.")
+        """
+    }
+
+    static func whispersPacket(day: BookDay, inputs: BookSourceInputs, now: Date) -> String {
+        let gossip = GossipSimulationBuilder.surface(for: day, inputs: inputs, now: now)
+        let packet = gossip.payload.metadata["simulationPacket"] ?? gossip.payload.body
+        return """
+        Raw simulation turns from the margins (mechanics to preserve, prose to replace):
+
+        \(packet)
+        """
+    }
+
+    static func interestPacket(interest: String, kind: BleedEditionKind) -> String {
+        """
+        READER INTEREST: \(interest)
+        EDITION: \(kind.rawValue)
+
+        Live web clippings (filled in at press time):
+        {{CLIPPINGS}}
+        """
+    }
+
+    // MARK: Compositing
+
+    /// Assembles written columns into the final page body. Columns appear
+    /// in brief order; the masthead and colophon are the builder's.
+    static func compositedBody(
+        kind: BleedEditionKind,
+        issueNumber: Int,
+        columns: [(brief: BleedColumnBrief, body: String)],
+        now: Date,
+        calendar: Calendar = .current
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.dateStyle = .full
+        formatter.timeStyle = .none
+
+        var parts: [String] = [
+            """
+            \(kind.mastheadTitle.uppercased())
+            Issue #\(issueNumber) \u{00B7} \(formatter.string(from: now))
+            Where the Labyrinth meets the page. Where the page bleeds into the world.
+            """
+        ]
+        for column in columns {
+            let body = column.body.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !body.isEmpty else { continue }
+            parts.append("""
+            \u{2014} \(column.brief.title.uppercased()) \u{2014}
+            \(column.brief.byline)
+
+            \(body)
+            """)
+        }
+        parts.append("Set in type by P. Blackletter, who attests every word and regrets several.")
+        return parts.joined(separator: "\n\n")
+    }
+
+    static func preparedCopy(
+        of announcement: SurfacePage,
+        body: String,
+        interestSources: String
+    ) -> SurfacePage {
+        var metadata = announcement.payload.metadata
+        metadata["bleedProse"] = body
+        metadata["bleedInterestSources"] = interestSources
+        metadata.removeValue(forKey: "placeholder")
+        return SurfacePage(
+            id: announcement.id,
+            type: announcement.type,
+            sourceID: announcement.sourceID,
+            intent: announcement.intent,
+            renderStyle: announcement.renderStyle,
+            score: announcement.score,
+            reason: announcement.reason,
+            prompt: announcement.payload.metadata["bleedEditionKind"] == BleedEditionKind.morning.rawValue
+                ? "The Morning Edition, unfolded."
+                : "The Evening Edition, unfolded.",
+            detail: "Read by lamplight; keep what deserves the archive.",
+            payload: BookPagePayload(
+                headline: announcement.payload.headline,
+                body: body,
+                metadata: metadata
+            )
+        )
+    }
+
+    static func decodedBriefs(_ encoded: String) -> [BleedColumnBrief] {
+        guard let data = encoded.data(using: .utf8),
+              let briefs = try? JSONDecoder().decode([BleedColumnBrief].self, from: data) else {
+            return []
+        }
+        return briefs
+    }
+
+    private static func encodedBriefs(_ briefs: [BleedColumnBrief]) -> String {
+        guard let data = try? JSONEncoder().encode(briefs) else { return "" }
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+}
+
+struct TheBleedPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .theBleed)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        if let prepared = inputs.preparedBleedEditionSurface,
+           let kind = TheBleedEditionBuilder.editionKind(for: now),
+           prepared.payload.metadata["bleedSlotID"] == TheBleedEditionBuilder.slotID(for: kind, day: day),
+           !day.pages.contains(where: { $0.tags.contains(TheBleedEditionBuilder.slotID(for: kind, day: day)) }) {
+            return [prepared]
+        }
+        guard let announcement = TheBleedEditionBuilder.announcementSurface(for: day, inputs: inputs, now: now) else {
+            return []
+        }
+        return [announcement]
+    }
+}
