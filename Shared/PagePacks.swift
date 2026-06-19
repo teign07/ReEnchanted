@@ -491,6 +491,7 @@ struct BookShopListing: Identifiable, Codable, Equatable {
         case lorePack
         case marginaliaPack
         case soundPack
+        case eventPack
 
         var shelfLabel: String {
             switch self {
@@ -500,6 +501,23 @@ struct BookShopListing: Identifiable, Codable, Equatable {
             case .lorePack: return "Lore Crates"
             case .marginaliaPack: return "Marginalia Sets"
             case .soundPack: return "Sound Bindings"
+            case .eventPack: return "World Events"
+            }
+        }
+    }
+
+    enum SaleState: String, Codable, Equatable {
+        case standard
+        case liveEvent
+        case archivedEvent
+        case comingSoon
+
+        var shelfLabel: String {
+            switch self {
+            case .standard: return "Available"
+            case .liveEvent: return "Live Event"
+            case .archivedEvent: return "Archived Event"
+            case .comingSoon: return "Being Printed"
             }
         }
     }
@@ -512,6 +530,12 @@ struct BookShopListing: Identifiable, Codable, Equatable {
     var contents: String        // honest plain description of what's inside
     var productID: String       // App Store Connect product identifier
     var comingSoon: Bool = false
+    var saleState: SaleState? = nil
+
+    var resolvedSaleState: SaleState {
+        if comingSoon { return .comingSoon }
+        return saleState ?? .standard
+    }
 }
 
 enum BookShopCatalog {
@@ -555,6 +579,16 @@ enum BookShopCatalog {
             goblinPitch: "Two after-hours stations recorded on equipment the Goblins claim was never stolen from the Broadcast Stair.",
             contents: "The Midnight Bindery and Goblin Market Jazz: two radio frequencies with local track slots, broadcast interludes, and live curation effects.",
             productID: "com.openclaw.enchantify.insidecover.pack.academy-night-band"
+        ),
+        BookShopListing(
+            id: "listing-starlit-paper-trial-archive",
+            packID: "starlit-paper-trial-archive",
+            family: .eventPack,
+            title: "The Starlit Paper Trial Archive",
+            goblinPitch: "A past event, boxed carefully enough that the night can unfold again when you open it.",
+            contents: "One archived world event with phases, fieldwork, lexical pressure, outcomes, and monthly-edition traces.",
+            productID: "com.openclaw.enchantify.insidecover.pack.starlit-paper-trial-archive",
+            saleState: .archivedEvent
         )
     ]
 

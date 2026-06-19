@@ -5,204 +5,608 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="ReEnchanted turns ordinary days into kept pages, living patterns, and a personal book you can return to."
+      content="ReEnchanted turns the day you actually lived into pages you can keep. Open the book, page through real screens, keep what's true, and watch your choices braid into a Book of You."
     >
-    <title>ReEnchanted - Real Life, ReEnchanted</title>
+    <meta name="theme-color" content="#070611">
+    <title>ReEnchanted — Real Life, ReEnchanted</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
     <canvas id="spell-field" aria-hidden="true"></canvas>
 
-    <header class="site-header" aria-label="Primary navigation">
+    <header class="site-header">
       <a class="brand" href="#top" aria-label="ReEnchanted home">
-        <span class="brand-mark">✦</span>
-        <span>ReEnchanted</span>
+        <span class="brand-mark" aria-hidden="true">✦</span>
+        <span class="brand-name">ReEnchanted</span>
       </a>
-      <nav class="nav-links" aria-label="Page sections">
-        <a href="#pages">Pages</a>
-        <a href="#keep">Keep</a>
-        <a href="#story">Story</a>
+      <nav class="nav-links" aria-label="Sections">
+        <a href="#book">The Book</a>
+        <a href="#how">How it works</a>
+        <a href="#mechanics">Inside</a>
+        <a href="#academy">Academy</a>
+        <a href="#packs">Packs</a>
         <a href="#privacy">Privacy</a>
       </nav>
-      <a class="header-cta" href="#download">Open the Book</a>
+      <a class="header-cta" href="#book">Open the Book</a>
     </header>
 
     <main id="top">
-      <section class="hero" aria-labelledby="hero-title">
+      <!-- ───────────────────────── HERO ───────────────────────── -->
+      <section class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">A magical memory app for ordinary days</p>
-          <h1 id="hero-title">Real Life,<br>ReEnchanted</h1>
-          <p class="hero-line">Play with Pages. Keep Some. Read Your Story.</p>
-          <p class="hero-body">
-            ReEnchanted turns the day you actually lived into pages you can keep:
-            moods, photos, weather, walks, questions, music, places, and the little
-            true things that would otherwise slip through the margin.
+          <p class="eyebrow">A living book for ordinary days</p>
+          <h1>Real Life,<br><span class="accent">ReEnchanted</span></h1>
+          <p class="hero-tagline">Play with Pages. <span>Keep Some.</span> Read Your Story.</p>
+          <p class="hero-lede">
+            An iPhone book that turns the day you actually lived — weather, walks,
+            moods, music, the people who pass through — into pages you can keep.
+            Keep what's true. Let the rest wait. Watch it braid into a story only you could write.
           </p>
-          <div class="hero-actions" aria-label="Calls to action">
-            <a class="button primary" href="#download">Open the Book</a>
-            <a class="button secondary" href="#pages">See how it works</a>
+          <div class="hero-actions">
+            <a class="button primary" href="#book">Open the Book ↓</a>
+            <a class="button ghost" href="#how">See how it works</a>
           </div>
-          <div class="trust-row" aria-label="Product principles">
-            <span>Private by design</span>
-            <span>Local-first memory</span>
-            <span>Built for iPhone and iPad</span>
-          </div>
+          <ul class="trust-row" aria-label="Principles">
+            <li>Open source</li>
+            <li>Private by design</li>
+            <li>Local-first memory</li>
+            <li>iPhone &amp; iPad</li>
+          </ul>
         </div>
 
-        <div class="hero-stage" aria-label="A living book made from real app pages">
-          <div class="orbit-ring one"></div>
-          <div class="orbit-ring two"></div>
-          <div class="book-scene">
-            <div class="book-cover">
-              <div class="cover-glow"></div>
-              <span class="cover-kicker">The Book turns when you do.</span>
-              <span class="cover-title">ReEnchanted</span>
-            </div>
-            <div class="book-page left-page">
-              <img src="./assets/screens/real-life-kept.jpg" alt="">
-            </div>
-            <div class="book-page right-page">
-              <img src="./assets/screens/home.jpg" alt="">
-            </div>
-          </div>
-
-          <div class="floating-note note-a">The frame is fictional.<br>The attention is real.</div>
-          <div class="floating-note note-b">Keep this page</div>
-          <div class="floating-note note-c">The Book is listening.</div>
-          <img class="floating-shot shot-a" src="./assets/screens/margins.jpg" alt="ReEnchanted margins screen showing rising pages">
-          <img class="floating-shot shot-b" src="./assets/screens/keep-page.jpg" alt="A kept page in ReEnchanted">
+        <div class="hero-art" aria-hidden="true">
+          <div class="hero-glow"></div>
+          <img class="hero-phone" src="./assets/screens/home.jpg" alt="">
+          <figure class="hero-float float-1">
+            <img src="./assets/screens/keep-page.jpg" alt="">
+          </figure>
+          <figure class="hero-float float-2">
+            <img src="./assets/screens/margins.jpg" alt="">
+          </figure>
+          <span class="hero-chip chip-1">Keep this page</span>
+          <span class="hero-chip chip-2">The Book is listening</span>
         </div>
       </section>
 
-      <section class="proof-strip" aria-label="Product preview">
-        <img src="./assets/screens/home.jpg" alt="ReEnchanted home screen">
-        <img src="./assets/screens/margins.jpg" alt="Today margin cards in ReEnchanted">
-        <img src="./assets/screens/spells.jpg" alt="Spells and Compass Run options in ReEnchanted">
-        <img src="./assets/screens/radio.jpg" alt="ReEnchanted Radio page">
-      </section>
-
-      <section id="pages" class="section split">
-        <div class="section-copy">
-          <p class="eyebrow">Play with Pages</p>
-          <h2>The day arrives as little doors.</h2>
-          <p>
-            The Book offers pages from real life: weather, body signals, places,
-            one-sentence souvenirs, questions, research notes, music, and photos.
-            It does not demand a perfect diary. It gives you playable fragments.
+      <!-- ──────────────────── INTERACTIVE BOOK ──────────────────── -->
+      <section id="book" class="book-section">
+        <div class="section-head">
+          <p class="eyebrow">Play with it</p>
+          <h2>Open the book. Keep what's true.</h2>
+          <p class="section-sub">
+            This is the real thing, in miniature. Turn the pages, keep the ones that
+            catch a real edge, let the others wait — then bind your choices into a
+            <em>Book of You</em>.
           </p>
         </div>
-        <div class="page-stack" aria-label="Examples of pages rising">
-          <article class="rising-card weather">
-            <span>Weather</span>
-            <strong>The sky holds a clear promise.</strong>
-            <small>Public reference</small>
+
+        <div class="book-stage">
+          <!-- progress -->
+          <div class="book-progress" aria-hidden="true">
+            <div class="book-progress-fill"></div>
+          </div>
+
+          <!-- the book -->
+          <div class="book" id="the-book" data-state="closed">
+            <!-- closed cover -->
+            <button class="book-cover" id="book-cover" type="button" aria-label="Open the book">
+              <div class="cover-inner">
+                <span class="cover-kicker">The Book turns when you do</span>
+                <span class="cover-title">The Labyrinth<br>of Stories</span>
+                <span class="cover-mark">✦</span>
+                <span class="cover-open">Tap to open</span>
+              </div>
+            </button>
+
+            <!-- open spread -->
+            <div class="spread" id="spread" aria-live="polite">
+              <!-- left: the decision page -->
+              <div class="leaf leaf-left">
+                <div class="leaf-paper">
+                  <p class="leaf-kicker" id="page-kicker">Weather</p>
+                  <h3 class="leaf-title" id="page-title">The Weather Page has opened.</h3>
+                  <p class="leaf-body" id="page-body">
+                    Outer weather is translated into story mood while keeping the
+                    actual forecast legible.
+                  </p>
+                  <p class="leaf-source" id="page-source">Public reference</p>
+
+                  <div class="keep-controls" id="keep-controls">
+                    <button class="keep-btn wait" id="btn-wait" type="button">Let it wait</button>
+                    <button class="keep-btn keep" id="btn-keep" type="button">Keep this page ✦</button>
+                  </div>
+                  <p class="keep-status" id="keep-status">7 pages rising · keep the ones that are true</p>
+                </div>
+              </div>
+
+              <!-- right: the screen (flips on turn) -->
+              <div class="leaf leaf-right" id="leaf-right">
+                <div class="leaf-screen">
+                  <img id="page-shot" src="./assets/screens/home.jpg" alt="ReEnchanted screen">
+                  <span class="kept-stamp" id="kept-stamp">Kept</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- final braid page -->
+            <div class="spread braid" id="braid" hidden>
+              <div class="leaf leaf-left">
+                <div class="leaf-paper braid-paper">
+                  <p class="leaf-kicker">Your binding</p>
+                  <h3 class="leaf-title braid-title">The Book of You</h3>
+                  <p class="braid-intro" id="braid-intro">Braided from the pages you kept.</p>
+                  <p class="braid-text" id="braid-text"></p>
+                  <div class="constellation" aria-hidden="true">
+                    <span></span><span></span><span></span><span></span><span></span>
+                  </div>
+                </div>
+              </div>
+              <div class="leaf leaf-right">
+                <div class="leaf-screen braid-screen">
+                  <img
+                    id="book-of-you-shot"
+                    src="./assets/screens/book-of-you.jpg"
+                    alt="A real Book of You page, written from kept days"
+                    onerror="this.closest('.braid-screen').classList.add('no-shot')"
+                  >
+                  <div class="braid-screen-cap">
+                    <p class="braid-end-line">A real Book of You page.</p>
+                    <p class="braid-end-sub">This is one month. A year of kept pages becomes an edition you can hold.</p>
+                    <a class="button primary" href="#download">Start your own →</a>
+                    <button class="braid-replay" id="braid-replay" type="button">↺ Turn back to the start</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- nav -->
+          <div class="book-nav" id="book-nav" hidden>
+            <button class="nav-btn" id="btn-prev" type="button" aria-label="Previous page">‹ Back</button>
+            <span class="nav-count" id="nav-count">Page 1 of 7</span>
+            <button class="nav-btn primary" id="btn-next" type="button" aria-label="Next page">Next ›</button>
+          </div>
+          <p class="book-hint" id="book-hint">Tip: keep a few, let some wait — your choices change the ending.</p>
+        </div>
+      </section>
+
+      <!-- ──────────────────── HOW IT WORKS ──────────────────── -->
+      <section id="how" class="how-section">
+        <div class="section-head">
+          <p class="eyebrow">How it works</p>
+          <h2>Three honest steps.</h2>
+        </div>
+        <div class="how-grid">
+          <article class="how-card">
+            <span class="how-num">01</span>
+            <h3>Pages arrive</h3>
+            <p>
+              The day shows up as little doors: weather, body signals, places, music,
+              questions, one-sentence souvenirs, photos. No blank page, no streak to defend.
+            </p>
           </article>
-          <article class="rising-card souvenir">
-            <span>Souvenir</span>
-            <strong>One true thing from the walk.</strong>
-            <small>Kept from the margins</small>
+          <article class="how-card">
+            <span class="how-num">02</span>
+            <h3>You keep some</h3>
+            <p>
+              Keep a page when it catches a real edge. Let the rest wait. The Book is
+              built on consent and taste — you choose what becomes part of the story.
+            </p>
           </article>
-          <article class="rising-card compass">
-            <span>Compass</span>
-            <strong>Walk. Notice. Record. Return.</strong>
-            <small>Real-world wonder</small>
+          <article class="how-card">
+            <span class="how-num">03</span>
+            <h3>It braids</h3>
+            <p>
+              Kept pages don't vanish into a feed. They gather into patterns, characters,
+              and monthly and annual bindings you can return to and hold.
+            </p>
           </article>
         </div>
       </section>
 
-      <section id="keep" class="section keep-section">
-        <div class="keep-device">
-          <img src="./assets/screens/keep-page.jpg" alt="A ReEnchanted page with Keep this page and Let it wait controls">
-          <div class="choice-pills" aria-label="Keep or wait demonstration">
-            <button class="choice-pill muted" type="button">Let it wait</button>
-            <button class="choice-pill active" type="button">Keep this page</button>
+      <!-- ──────────────────── MECHANICS ──────────────────── -->
+      <section id="mechanics" class="mechanics-section">
+        <div class="section-head">
+          <p class="eyebrow">Inside the Book</p>
+          <h2>Attention, given a shape.</h2>
+        </div>
+        <div class="mechanics-grid">
+          <article class="mechanic">
+            <div class="mechanic-shot"><img src="./assets/screens/spells.jpg" alt="Spells and Enchantments screen"></div>
+            <h3>Spells &amp; Glow</h3>
+            <p>A steady belief state, gently luminous. Open a Compass Run or an Enchantment and let an ordinary subject speak.</p>
+          </article>
+          <article class="mechanic">
+            <div class="mechanic-shot"><img src="./assets/screens/wonder-compass.jpg" alt="Wonder Compass screen"></div>
+            <h3>Wonder Compass</h3>
+            <p>Reframe familiar streets and routines until they're legible again. Walk. Notice. Record. Return.</p>
+          </article>
+          <article class="mechanic">
+            <div class="mechanic-shot"><img src="./assets/screens/radio.jpg" alt="ReEnchanted Radio screen"></div>
+            <h3>Radio</h3>
+            <p>Music, broadcasts, and world effects become weather in the stacks — atmosphere you can keep.</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ──────────────────── LIVING SYSTEMS ──────────────────── -->
+      <section id="systems" class="systems-section">
+        <div class="section-head">
+          <p class="eyebrow">The book remembers</p>
+          <h2>Systems that make it feel alive.</h2>
+          <p class="section-sub">
+            Underneath the pages, three quiet mechanics decide what returns, what
+            looms, and what the Book keeps. They run on device, on real life.
+          </p>
+        </div>
+        <div class="anchor-showcase" id="anchor-showcase">
+          <div class="anchor-phone" id="anchor-phone" aria-label="The anchoring loop, in motion">
+            <img class="anchor-slide is-active" src="./assets/screens/anchor-1.jpg"
+                 alt="Anchoring a real place in ReEnchanted"
+                 onerror="document.getElementById('anchor-showcase').classList.add('no-shot')">
+            <img class="anchor-slide" src="./assets/screens/anchor-2.jpg" alt="" aria-hidden="true">
+            <img class="anchor-slide" src="./assets/screens/anchor-3.jpg" alt="" aria-hidden="true">
+            <img class="anchor-slide" src="./assets/screens/anchor-4.jpg" alt="" aria-hidden="true">
+            <img class="anchor-slide" src="./assets/screens/anchor-5.jpg" alt="" aria-hidden="true">
+            <img class="anchor-slide" src="./assets/screens/anchor-6.jpg" alt="" aria-hidden="true">
+          </div>
+          <div class="anchor-showcase-copy">
+            <p class="eyebrow">Watch the loop</p>
+            <h3>Anchor a place. The Book grows a room.</h3>
+            <p>
+              Stand somewhere real, name what it holds, and choose how it points.
+              The Book writes that spot its own room in the Outer Stacks, remembers
+              the weather and the moon — and every time you return, it adds Belief.
+            </p>
+            <ol class="anchor-steps" id="anchor-steps">
+              <li>Stand somewhere real and open an anchor</li>
+              <li>Point it — Notice, Embark, Sense, Write, Rest</li>
+              <li>Name what it holds, in your own words</li>
+              <li>It rises into today's margins, on device</li>
+              <li>The Book writes its Outer Stacks room</li>
+              <li>Keep it — and it adds Belief to the place</li>
+            </ol>
           </div>
         </div>
-        <div class="section-copy">
-          <p class="eyebrow">Keep Some</p>
-          <h2>Not everything has to become part of the story.</h2>
-          <p>
-            ReEnchanted is built around consent and taste. The Book may offer a page,
-            but you choose what stays. Keep what feels true. Let the rest wait.
+
+        <div class="systems-grid">
+          <article class="system-card">
+            <span class="system-glyph" aria-hidden="true">⚓︎</span>
+            <h3>Anchoring</h3>
+            <p>
+              Bind a real place — a blue mailbox, a back stair, a shoreline — as an
+              anchor you <em>Notice, Embark, Sense, Write,</em> or <em>Rest</em> at.
+              Return to it and the Book remembers the weather, the moon, the season,
+              and the small rule that place taught you.
+            </p>
+          </article>
+          <article class="system-card">
+            <span class="system-glyph" aria-hidden="true">✦</span>
+            <h3>Belief</h3>
+            <p>
+              A gentle economy, not a score. Kept pages and visited anchors feed it;
+              it warms and cools day to day. Belief is how the Book decides something
+              has started to matter to you.
+            </p>
+          </article>
+          <article class="system-card">
+            <span class="system-glyph" aria-hidden="true">◍</span>
+            <h3>Narrative Weight</h3>
+            <p>
+              Every person, place, and motif carries a weight. Belief and weight
+              together decide what rises, how large a figure looms in your
+              constellation, and which thread the Book pulls forward next.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ──────────────────── THE ACADEMY (narrative sim) ──────────────────── -->
+      <section id="academy" class="academy-section">
+        <div class="section-head">
+          <p class="eyebrow">Not a chatbot — a world</p>
+          <h2>An entire school, running without you.</h2>
+          <p class="section-sub">
+            Underneath the Book is a narrative simulation: a magical Academy in an
+            infinite library, with classes, clubs, faculty, professors — and a
+            headmistress you probably shouldn't fully trust.
           </p>
-          <ul class="clean-list">
-            <li>Keep a page when it catches a real edge.</li>
-            <li>Fold away fragments that are not ready.</li>
-            <li>Add one true thing in your own words.</li>
+        </div>
+
+        <div class="academy-feature">
+          <div class="academy-gallery" aria-label="The cast and Belief economy">
+            <figure class="academy-phone back">
+              <img src="./assets/screens/belief-cast.jpg"
+                   alt="The Belief menu — give or take Belief among the cast"
+                   onerror="this.closest('.academy-phone').classList.add('no-shot')">
+            </figure>
+            <figure class="academy-phone front">
+              <img src="./assets/screens/cast-roster.jpg"
+                   alt="Giving Belief to a cast member in ReEnchanted"
+                   onerror="this.closest('.academy-phone').classList.add('no-shot')">
+            </figure>
+          </div>
+
+          <div class="academy-copy">
+            <p>
+              The cast have personalities, quirks, faults, beliefs, goals, and
+              secrets — and a real interest in the actual places and things in your
+              life. They aren't waiting for a prompt.
+            </p>
+            <p class="academy-lead">They act <em>with or without you</em>:</p>
+            <ul class="academy-acts">
+              <li>Invest Belief in what they love</li>
+              <li>Attack Belief they distrust</li>
+              <li>Write you letters</li>
+              <li>Do their own research</li>
+              <li>Argue with each other</li>
+              <li>Chart your moods and health</li>
+              <li>Keep — and trade — secrets</li>
+            </ul>
+            <p class="academy-note">
+              You can invest Belief right back, take sides, and tip the balance. Or
+              just watch the Headmistress watch you.
+            </p>
+          </div>
+        </div>
+
+        <figure class="academy-illus">
+          <img src="./assets/screens/dorm.jpg"
+               alt="An illustrated dorm room from inside ReEnchanted's Academy"
+               onerror="this.closest('.academy-illus').remove()">
+          <figcaption>
+            Every figure, place, and object is illustrated and annotated — the
+            Academy keeps its own almanac of your world.
+          </figcaption>
+        </figure>
+
+        <div class="weave-grid">
+          <article class="weave-card">
+            <h3>Story Pages</h3>
+            <p>
+              Playable scenes the Book writes by braiding what actually happened with
+              the choices you make — finding relation between separate lives until a
+              day takes on shape, shelter, or mischief.
+            </p>
+          </article>
+          <article class="weave-card">
+            <h3>Fae Bargains</h3>
+            <p>
+              Pages with another hand in them. The old-law Fae offer terms; you pay in
+              Belief. Take the deal and something moves — but a bargain is never quite
+              free, and it remembers.
+            </p>
+          </article>
+          <article class="weave-card">
+            <h3>Parleys</h3>
+            <p>
+              Not every meeting is a bargain. You can parley with the Fae of the
+              margins — though they may answer with rules instead of manners, and the
+              rules tend to stick.
+            </p>
+          </article>
+        </div>
+
+        <p class="weave-thesis">
+          Story Pages weave your ordinary life with your fictional choices until the
+          whole thing reads like a <span>faerie tale</span> — not the Disney kind, but
+          the older, more dangerous one, where the woods keep what you promise them.
+        </p>
+      </section>
+
+      <!-- ──────────────────── THESIS BAND ──────────────────── -->
+      <section class="thesis-band" aria-label="The thesis">
+        <p class="thesis-kicker">The whole point</p>
+        <blockquote class="thesis-quote">
+          The best-written chapter in the entire book — the most sensory, the most
+          alive — is <span>your own ordinary life.</span>
+        </blockquote>
+        <p class="thesis-sub">
+          Everything else is rails and atmosphere. You are the text.
+        </p>
+      </section>
+
+      <!-- ──────────────────── RADIO ──────────────────── -->
+      <section id="radio" class="radio-section">
+        <div class="section-head">
+          <p class="eyebrow">ReEnchanted Radio</p>
+          <h2>Dial in. Let the signal color the day.</h2>
+          <p class="section-sub">
+            An analog station page for Academy broadcasts, music packs, and world
+            effects. Turn the dial, find a frequency, and go <em>on air</em>.
+          </p>
+        </div>
+
+        <div class="radio-cabinet">
+          <div class="radio-top">
+            <div class="radio-emblem" aria-hidden="true">📻</div>
+            <div class="radio-readout">
+              <span class="radio-freq" id="radio-freq">88.3 FM</span>
+              <span class="radio-name" id="radio-name">Fae-Fi</span>
+            </div>
+            <button class="onair-btn" id="onair-btn" type="button" aria-pressed="false">
+              <span class="onair-dot" aria-hidden="true"></span>
+              <span class="onair-label">Tune In</span>
+            </button>
+          </div>
+
+          <div class="radio-dial">
+            <div class="dial-ticks" id="dial-ticks" aria-hidden="true"></div>
+            <input
+              id="dial"
+              class="dial-input"
+              type="range"
+              min="88" max="108" step="0.1" value="88.3"
+              aria-label="Radio frequency dial"
+            >
+            <div class="dial-scale" id="dial-scale" aria-hidden="true"></div>
+          </div>
+
+          <div class="radio-card" id="radio-card">
+            <p class="radio-signal" id="radio-signal">
+              <span class="signal-icon" aria-hidden="true">⌇</span>
+              <span id="radio-signal-text">The signal arrives giggling, tasting of clover honey and warm afternoons.</span>
+            </p>
+            <p class="radio-tagline" id="radio-tagline">
+              Sun-dappled beats and dandelion synths from faeries who have plainly had too much nectar.
+            </p>
+            <p class="radio-effect" id="radio-effect">World effect · Wonder Compass +8 · Souvenir +8 · Festival +6</p>
+
+            <ul class="track-list" id="track-list"></ul>
+            <p class="radio-note" id="radio-note"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ──────────────────── WONDER COMPASS EBOOK ──────────────────── -->
+      <section id="ebook" class="ebook-section">
+        <div class="ebook-copy">
+          <p class="eyebrow">Included free</p>
+          <h2>Feeling grey?</h2>
+          <p class="ebook-prompts">
+            Routine got you bored? Lonely? Have a dentist appointment?
+          </p>
+          <p class="ebook-body">
+            The full <strong>Wonder Compass</strong> ebook comes with the app — free.
+            Twenty-six chapters on how to live in wonder again, woven right into the
+            shelves so it's there the moment the day goes flat.
+          </p>
+          <ul class="ebook-facts">
+            <li><strong>26</strong><span>chapters</span></li>
+            <li><strong>Free</strong><span>with the app</span></li>
+            <li><strong>Offline</strong><span>read anywhere</span></li>
+          </ul>
+        </div>
+        <figure class="ebook-art">
+          <div class="ebook-cover">
+            <span class="ebook-kicker">The complete</span>
+            <span class="ebook-title">Wonder<br>Compass</span>
+            <span class="ebook-sub">Twenty-six ways back into wonder</span>
+            <span class="ebook-mark">✦</span>
+            <img
+              class="ebook-cover-img"
+              src="./assets/screens/wonder-compass-cover.jpg"
+              alt="The Wonder Compass — A Practical Field Guide to Finding Magic in the Mess"
+              onerror="this.remove()"
+            >
+          </div>
+        </figure>
+      </section>
+
+      <!-- ──────────────────── CONTENT PACKS ──────────────────── -->
+      <section id="packs" class="packs-section">
+        <div class="section-head">
+          <p class="eyebrow">The shelf keeps growing</p>
+          <h2>Content packs: new everything.</h2>
+          <p class="section-sub">
+            Themed expansions that drop a whole world into the Book at once — and the
+            Academy itself shifts week to week. The base game stays whole; packs are
+            for when you want more to keep.
+          </p>
+        </div>
+
+        <ul class="packs-grid">
+          <li class="pack-chip"><span aria-hidden="true">🎭</span>Themes</li>
+          <li class="pack-chip"><span aria-hidden="true">🎵</span>Music &amp; radio stations</li>
+          <li class="pack-chip"><span aria-hidden="true">🖼️</span>Illustrations</li>
+          <li class="pack-chip"><span aria-hidden="true">👥</span>Cast members</li>
+          <li class="pack-chip"><span aria-hidden="true">📜</span>Lore</li>
+          <li class="pack-chip"><span aria-hidden="true">🎏</span>Festivals</li>
+          <li class="pack-chip"><span aria-hidden="true">🧭</span>Playful missions</li>
+          <li class="pack-chip"><span aria-hidden="true">✨</span>I-Wonder prompts</li>
+          <li class="pack-chip"><span aria-hidden="true">🗒️</span>Photo marginalia</li>
+          <li class="pack-chip"><span aria-hidden="true">⚡</span>Events</li>
+        </ul>
+
+        <div class="packs-feature">
+          <div class="packs-feature-copy">
+            <h3>A living Academy.</h3>
+            <p>
+              New happenings arrive week to week and month to month — visiting
+              faculty, festivals, weather in the stacks, bargains that tap at the
+              glass. Open the Book on a Tuesday and something is different.
+            </p>
+          </div>
+          <ul class="packs-events" aria-label="Example evolving events">
+            <li><span class="event-when">This week</span> The Goblin Market sets up in the lower stacks.</li>
+            <li><span class="event-when">New moon</span> Thornwave runs an all-night broadcast.</li>
+            <li><span class="event-when">This month</span> Professor Villanelle opens office hours.</li>
+            <li><span class="event-when">Season turn</span> The Annual Edition begins to bind itself.</li>
           </ul>
         </div>
       </section>
 
-      <section class="section mechanics">
-        <div class="mechanic-card">
-          <img src="./assets/screens/spells.jpg" alt="Compass Runs and Enchantments screen">
-          <h3>Compass Runs</h3>
-          <p>Turn attention into a real walk, a real object, a real act of noticing.</p>
-        </div>
-        <div class="mechanic-card">
-          <img src="./assets/screens/wonder-compass.jpg" alt="Wonder Compass page">
-          <h3>Wonder Compass</h3>
-          <p>Reframe familiar streets, rooms, and routines until they become legible again.</p>
-        </div>
-        <div class="mechanic-card">
-          <img src="./assets/screens/radio.jpg" alt="ReEnchanted Radio page">
-          <h3>Radio</h3>
-          <p>Music, broadcasts, and world effects become weather in the stacks.</p>
-        </div>
-      </section>
-
-      <section id="story" class="section story-section">
-        <div class="binding-preview" aria-label="The Book of You concept preview">
-          <div class="binding-cover">
-            <span>Future Binding</span>
-            <h2>The Book of You</h2>
-            <p>Built from kept pages.</p>
-          </div>
-          <div class="binding-spread">
-            <div class="spread-note">A clear promise in the weather.</div>
-            <div class="spread-note">The walk at Moose Point.</div>
-            <div class="spread-note">The code came together.</div>
-            <div class="constellation" aria-hidden="true">
-              <span></span><span></span><span></span><span></span><span></span>
-            </div>
-          </div>
-        </div>
-        <div class="section-copy">
-          <p class="eyebrow">Read Your Story</p>
-          <h2>The pages you keep gather into a book.</h2>
-          <p>
-            Kept pages do not disappear into a feed. They braid into patterns,
-            characters, chapters, talismans, and editions you can return to.
-          </p>
-          <p class="fine-print">
-            Monthly and annual bindings are built from kept pages. This preview shows
-            the destination without pretending your development device already has a
-            finished archive.
-          </p>
-        </div>
-      </section>
-
-      <section id="privacy" class="section privacy-section">
-        <div class="section-copy">
-          <p class="eyebrow">Real Device Magic</p>
+      <!-- ──────────────────── PRIVACY ──────────────────── -->
+      <section id="privacy" class="privacy-section">
+        <div class="privacy-copy">
+          <p class="eyebrow">Real device magic</p>
           <h2>Your save is yours.</h2>
           <p>
-            The most personal app on your phone should not feel like a surveillance
-            product. ReEnchanted uses explicit doorways for body, weather, location,
-            calendar, and sources. It can run with a local brain and export your
-            continuity when you want the shelves in your own hands.
+            The most personal app on your phone shouldn't feel like a surveillance product.
+            ReEnchanted uses explicit doorways for body, weather, location, calendar, and sources.
+            It can run on a local brain, on device — and export your continuity whenever you want
+            the shelves in your own hands.
           </p>
+          <ul class="privacy-list">
+            <li>Open source — read, audit, or fork the whole thing</li>
+            <li>Local-first memory — private material stays on device</li>
+            <li>Explicit, revocable permissions for every source</li>
+            <li>Export your archive any time</li>
+          </ul>
         </div>
-        <img class="privacy-shot" src="./assets/screens/local-brain.jpg" alt="Local brain ready and privacy settings in ReEnchanted">
+        <figure class="privacy-art">
+          <img src="./assets/screens/local-brain.jpg" alt="Local brain and privacy settings in ReEnchanted">
+        </figure>
       </section>
 
+      <!-- ──────────────────── PROMISES ──────────────────── -->
+      <section class="promises-section" aria-label="What ReEnchanted refuses to do">
+        <ul class="promises">
+          <li>No cloud</li>
+          <li>No accounts</li>
+          <li>No ads<span class="promise-star">*</span></li>
+          <li>No streaks</li>
+          <li>No guilt</li>
+        </ul>
+        <p class="promises-positive">And it's <strong>open source</strong> — read it, audit it, fork it. The whole Book is yours.</p>
+        <p class="promises-note">
+          <span class="promise-star">*</span> The only thing we'll ever surface is our own
+          <a href="https://www.patreon.com/thedoobaleedoos" target="_blank" rel="noopener">Patreon page</a>,
+          quietly pointing to the newest articles. Nothing else is for sale in here.
+        </p>
+        <a class="patreon-card" href="https://www.patreon.com/thedoobaleedoos" target="_blank" rel="noopener">
+          <figure class="patreon-shot">
+            <img
+              src="./assets/screens/patreon.jpg"
+              alt="The Patreon public shelf inside ReEnchanted"
+              onerror="this.closest('.patreon-card').classList.add('no-shot')"
+            >
+          </figure>
+          <span class="patreon-cap">
+            <strong>The public shelf is open.</strong>
+            Read free Wonder Compass and Clubhouse posts — newest articles surface right in the Book.
+          </span>
+        </a>
+      </section>
+
+      <!-- ──────────────────── FINAL CTA ──────────────────── -->
       <section id="download" class="final-cta">
-        <p class="eyebrow">The margin is already listening.</p>
-        <h2>Open the Book.</h2>
-        <p>Play with Pages. Keep Some. Read Your Story.</p>
-        <a class="button primary" href="#top">Real Life, ReEnchanted</a>
+        <div class="cta-inner">
+          <p class="eyebrow">The margin is already listening</p>
+          <h2>Open the Book.</h2>
+          <p class="cta-sub">Play with pages. Keep some. Read your story.</p>
+          <a class="button primary large" href="#book">Real Life, ReEnchanted</a>
+        </div>
       </section>
     </main>
+
+    <footer class="site-footer">
+      <span>✦ ReEnchanted</span>
+      <span>Private by design · Made for iPhone &amp; iPad</span>
+    </footer>
 
     <script src="./app.js"></script>
   </body>

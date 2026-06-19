@@ -31,30 +31,53 @@ struct WorldEventCalendar: Codable, Equatable {
     var startDay: Int
     var durationDays: Int
     var recurrence: WorldEventRecurrence
+    var startYear: Int? = nil
 
     func interval(containing date: Date, calendar: Calendar = .current) -> DateInterval? {
         let components = calendar.dateComponents([.year], from: date)
         guard let year = components.year else { return nil }
-        let candidateYears: [Int] = recurrence == .annual ? [year - 1, year, year + 1] : [year]
+        let candidateYears: [Int]
+        switch recurrence {
+        case .annual:
+            candidateYears = [year - 1, year, year + 1]
+        case .oneShot:
+            candidateYears = [startYear ?? year]
+        }
         for candidateYear in candidateYears {
-            var startComponents = DateComponents()
-            startComponents.calendar = calendar
-            startComponents.year = candidateYear
-            startComponents.month = startMonth
-            startComponents.day = startDay
-            guard let rawStart = startComponents.date else {
+            guard let interval = interval(in: candidateYear, calendar: calendar) else {
                 continue
             }
-            let start = calendar.startOfDay(for: rawStart)
-            guard let end = calendar.date(byAdding: .day, value: max(1, durationDays), to: start) else {
-                continue
-            }
-            let interval = DateInterval(start: start, end: end)
             if interval.contains(date) {
                 return interval
             }
         }
         return nil
+    }
+
+    func archivedInterval(asOf date: Date, calendar: Calendar = .current) -> DateInterval? {
+        guard recurrence == .oneShot,
+              let startYear,
+              let interval = interval(in: startYear, calendar: calendar),
+              interval.end <= date else {
+            return nil
+        }
+        return interval
+    }
+
+    private func interval(in year: Int, calendar: Calendar) -> DateInterval? {
+        var startComponents = DateComponents()
+        startComponents.calendar = calendar
+        startComponents.year = year
+        startComponents.month = startMonth
+        startComponents.day = startDay
+        guard let rawStart = startComponents.date else {
+            return nil
+        }
+        let start = calendar.startOfDay(for: rawStart)
+        guard let end = calendar.date(byAdding: .day, value: max(1, durationDays), to: start) else {
+            return nil
+        }
+        return DateInterval(start: start, end: end)
     }
 }
 
@@ -170,6 +193,16 @@ enum WorldEventRegistry {
             availability: .bundledFree,
             events: [
                 dictionaryRebellion
+            ]
+        ),
+        WorldEventPack(
+            id: "starlit-paper-trial-archive",
+            displayName: "The Starlit Paper Trial Archive",
+            version: 1,
+            author: "The Book",
+            availability: .locked,
+            events: [
+                starlitPaperTrial
             ]
         )
     ]
@@ -316,6 +349,82 @@ enum WorldEventRegistry {
             fieldworkRewardLine: "A kept definition becomes testimony. The rebellion will remember that you did not let the word go back unchanged."
         )
     )
+
+    static let starlitPaperTrial = WorldEvent(
+        id: "starlit-paper-trial",
+        title: "The Starlit Paper Trial",
+        subtitle: "An archived midnight hearing where receipts, lists, and loose notes are called to testify.",
+        calendar: WorldEventCalendar(startMonth: 5, startDay: 3, durationDays: 7, recurrence: .oneShot, startYear: 2026),
+        phases: [
+            WorldEventPhase(
+                id: "summons",
+                title: "Summons in the Margins",
+                startsAtProgress: 0,
+                packetLine: "Small papers begin arranging themselves into evidence piles.",
+                intensity: 4,
+                lexicalRules: [
+                    WorldEventLexicalRule(id: "evidence-words", words: ["receipt", "list", "note"], instruction: "Treat ordinary paper as testimony with a memory of being handled.")
+                ]
+            ),
+            WorldEventPhase(
+                id: "hearing",
+                title: "The Midnight Hearing",
+                startsAtProgress: 0.35,
+                packetLine: "The Book asks neglected scraps what they saw before they were folded away.",
+                intensity: 7,
+                lexicalRules: [
+                    WorldEventLexicalRule(id: "accounting-words", words: ["proof", "owed", "kept"], instruction: "Let evidence feel practical, intimate, and a little luminous.")
+                ]
+            ),
+            WorldEventPhase(
+                id: "verdict",
+                title: "Verdict in Blue Ink",
+                startsAtProgress: 0.78,
+                packetLine: "The trial resolves into annotations: what mattered, what was missed, what may return.",
+                intensity: 5,
+                lexicalRules: [
+                    WorldEventLexicalRule(id: "verdict-words", words: ["remember", "return", "true"], instruction: "Let the final note leave a useful mark rather than a punishment.")
+                ]
+            )
+        ],
+        triggers: [.calendar, .keptRelatedPage, .letterKept],
+        outcomes: [
+            WorldEventOutcome(
+                id: "filed-away",
+                title: "Filed Away",
+                minimumTouchCount: 0,
+                packetLine: "The archive can remain atmospheric until the player chooses a scrap worth hearing.",
+                monthlyEditionLine: "The Starlit Paper Trial passed as a quiet archive of ordinary evidence.",
+                effects: []
+            ),
+            WorldEventOutcome(
+                id: "witness-for-paper",
+                title: "Witness for Paper",
+                minimumTouchCount: 2,
+                packetLine: "The player has given paper a witness. Let small records answer with surprising dignity.",
+                monthlyEditionLine: "The player stood as Witness for Paper, letting one ordinary record become part of the month.",
+                effects: [
+                    WorldEventEffect(id: "paper-witness-letters", target: .pageType, targetID: BookPageType.letter.rawValue, tags: ["paper", "witness"], boost: 4, reason: "Letters know how to testify.")
+                ]
+            )
+        ],
+        effects: [
+            WorldEventEffect(id: "paper-trial-notices", target: .pageType, targetID: BookPageType.bookNotices.rawValue, tags: ["archive", "paper"], boost: 8, reason: "The Book is docketing scraps."),
+            WorldEventEffect(id: "paper-trial-letters", target: .pageType, targetID: BookPageType.letter.rawValue, tags: ["archive", "letters"], boost: 6, reason: "Letters are admissible evidence.")
+        ],
+        packet: EventInfluencePacket(
+            logline: "An archived paper trial is open: ordinary scraps are being treated as witnesses to the reader's real life.",
+            atmosphere: "blue-black ink, folded receipts, moonlit paper clips, a docket written in cramped marginalia",
+            storyInstruction: "Let the scene notice practical paper without turning it into bureaucracy; every scrap remembers a hand.",
+            classInstruction: "Frame the lesson around evidence, attention, and the difference between proof and meaning.",
+            letterInstruction: "Let the sender mention one ordinary record they kept longer than expected.",
+            monthlyEditionLine: "The Starlit Paper Trial left a few scraps glowing in the month's binding.",
+            visualTreatment: "blue ink rulings, exhibit tags, moonlit paper edges",
+            fieldworkPrompt: "Find one scrap of paper nearby. What does it prove happened?",
+            fieldworkPlaceholder: "Example: A receipt proves I crossed town for soup and came home with thyme.",
+            fieldworkRewardLine: "A scrap admitted into evidence becomes part of the archive. The Book will not treat it as trash."
+        )
+    )
 }
 
 enum WorldEventResolver {
@@ -328,27 +437,52 @@ enum WorldEventResolver {
     ) -> [ResolvedWorldEvent] {
         WorldEventRegistry.enabledEvents(fileManager: fileManager).compactMap { packID, event in
             guard let interval = event.calendar.interval(containing: now, calendar: calendar) else { return nil }
-            let duration = max(1, interval.duration)
-            let rawProgress = now.timeIntervalSince(interval.start) / duration
-            let progress = min(1, max(0, rawProgress))
-            let phase = phase(for: event, progress: progress)
-            let touchCount = playerTouchCount(for: event, interval: interval, day: day, inputs: inputs)
-            let outcome = outcome(for: event, touchCount: touchCount)
-            return ResolvedWorldEvent(
-                id: event.id,
-                packID: packID,
-                title: event.title,
-                subtitle: event.subtitle,
-                phase: phase,
-                startedAt: interval.start,
-                endsAt: interval.end,
-                progress: progress,
-                playerTouchCount: touchCount,
-                outcome: outcome,
-                effects: event.effects + (outcome?.effects ?? []),
-                packet: event.packet
-            )
+            return resolvedEvent(packID: packID, event: event, interval: interval, now: now, day: day, inputs: inputs)
         }
+    }
+
+    static func archivedEvents(
+        now: Date,
+        day: BookDay? = nil,
+        inputs: BookSourceInputs = .empty,
+        calendar: Calendar = .current,
+        fileManager: FileManager = .default
+    ) -> [ResolvedWorldEvent] {
+        WorldEventRegistry.enabledEvents(fileManager: fileManager).compactMap { packID, event in
+            guard let interval = event.calendar.archivedInterval(asOf: now, calendar: calendar) else { return nil }
+            return resolvedEvent(packID: packID, event: event, interval: interval, now: interval.end, day: day, inputs: inputs)
+        }
+        .sorted { $0.endsAt > $1.endsAt }
+    }
+
+    private static func resolvedEvent(
+        packID: String,
+        event: WorldEvent,
+        interval: DateInterval,
+        now: Date,
+        day: BookDay?,
+        inputs: BookSourceInputs
+    ) -> ResolvedWorldEvent {
+        let duration = max(1, interval.duration)
+        let rawProgress = now.timeIntervalSince(interval.start) / duration
+        let progress = min(1, max(0, rawProgress))
+        let phase = phase(for: event, progress: progress)
+        let touchCount = playerTouchCount(for: event, interval: interval, day: day, inputs: inputs)
+        let outcome = outcome(for: event, touchCount: touchCount)
+        return ResolvedWorldEvent(
+            id: event.id,
+            packID: packID,
+            title: event.title,
+            subtitle: event.subtitle,
+            phase: phase,
+            startedAt: interval.start,
+            endsAt: interval.end,
+            progress: progress,
+            playerTouchCount: touchCount,
+            outcome: outcome,
+            effects: event.effects + (outcome?.effects ?? []),
+            packet: event.packet
+        )
     }
 
     private static func phase(for event: WorldEvent, progress: Double) -> WorldEventPhase {

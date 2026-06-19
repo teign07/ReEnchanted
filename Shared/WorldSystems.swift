@@ -157,6 +157,14 @@ enum RadioStationRegistry {
                     assetName: "RadioFaeFiFolktronica",
                     durationSeconds: 116,
                     moodTags: ["bright", "playful", "folktronica"]
+                ),
+                RadioTrack(
+                    id: "fae-fi-mossy-groove",
+                    title: "Mossy Groove",
+                    artist: "Fae-Fi",
+                    assetName: "RadioFaeFiMossyGroove",
+                    durationSeconds: 146,
+                    moodTags: ["bright", "playful"]
                 )
             ],
             interludeTitles: [
@@ -180,6 +188,22 @@ enum RadioStationRegistry {
             moodTags: ["fae", "lo-fi", "wistful", "bittersweet", "memory", "dusk"],
             signalLine: "The static flutters at the glass like it remembers being a summer you lost.",
             tracks: [
+                RadioTrack(
+                    id: "mothlight-the-page-came-through",
+                    title: "The Page Came Through",
+                    artist: "Mothlight Beats",
+                    assetName: "RadioMothlightThePageCameThrough",
+                    durationSeconds: 245,
+                    moodTags: ["wistful", "memory"]
+                ),
+                RadioTrack(
+                    id: "mothlight-fae-dust",
+                    title: "Fae Dust",
+                    artist: "Mothlight Beats",
+                    assetName: "RadioMothlightFaeDust",
+                    durationSeconds: 93,
+                    moodTags: ["wistful", "dusk"]
+                ),
                 RadioTrack(
                     id: "mothlight-porchlight-fading",
                     title: "Porchlight, Fading",
@@ -215,7 +239,15 @@ enum RadioStationRegistry {
                     title: "Bramble Bass",
                     artist: "Thornwave",
                     assetName: "RadioThornwaveBrambleBass",
-                    durationSeconds: nil,
+                    durationSeconds: 162,
+                    moodTags: ["dark", "night"]
+                ),
+                RadioTrack(
+                    id: "thornwave-nocturnal-faerie-lounge",
+                    title: "Nocturnal Faerie Lounge",
+                    artist: "Thornwave",
+                    assetName: "RadioThornwaveNocturnalFaerieLounge",
+                    durationSeconds: 123,
                     moodTags: ["dark", "night"]
                 )
             ],
@@ -2743,7 +2775,7 @@ extension FaeEconomy {
 // MARK: - The Goblin Market (the living BookShop)
 //
 // The BookShop is a place the Marginalia Goblins run, not a menu. It carries
-// three economies at once: real content packs (money, via StoreKit), in-world
+// three economies at once: real content packs (StoreKit), in-world
 // wares bought with Attention earned from Fae bargains, and consumable goods
 // bought with Belief — which makes the shop the central SINK the rest of the
 // economy was missing. Stock rotates with the day and the moon; an
@@ -2757,7 +2789,7 @@ enum MarketCurrency: String, Codable, Equatable {
         switch self {
         case .attention: return "Attention"
         case .belief: return "Belief"
-        case .money: return "coin"
+        case .money: return "App Store"
         }
     }
 }
@@ -2889,7 +2921,7 @@ enum GoblinMarketEngine {
         } else if open {
             windowLine = "The window is shut, but your calling card props a side door open. A thin stall, tonight."
         } else {
-            windowLine = "The in-world stalls are dark until the new moon — or a calling card. The coin shelf is always open."
+            windowLine = "The in-world stalls are dark until the new moon — or a calling card. The paid shelf is always open."
         }
 
         return GoblinStall(

@@ -1,36 +1,56 @@
-ReEnchanted iOS App
+ReEnchanted iOS App Setup
 
-This is a small SwiftUI companion app. It can import a compact state file
-exported by:
+This repository contains the current InsideCover/ReEnchanted iOS app, its
+shared SwiftPM core, tests, a static landing page, and a separate Remotion promo
+project.
 
-  python3 scripts/widget-state.py <player>
+Quick start:
 
-The exporter writes:
+1. Open EnchantifyInsideCover.xcodeproj in Xcode.
+2. Select the InsideCoverApp scheme.
+3. Choose an iOS simulator to run without signing changes, or choose a physical
+   iPhone/iPad and set your Apple development team.
+4. Run the app.
 
-  hooks/widget-state.json
-  hooks/widget-image.png
+Command-line checks from the repository root:
 
-The JSON embeds the image data, so the iOS app only needs to import the JSON.
+  CLANG_MODULE_CACHE_PATH=/private/tmp/insidecover-module-cache \
+  SWIFTPM_MODULECACHE_OVERRIDE=/private/tmp/insidecover-spm-module-cache \
+  swift test
 
-Install path:
+  xcodebuild \
+    -project EnchantifyInsideCover.xcodeproj \
+    -scheme InsideCoverApp \
+    -configuration Debug \
+    -destination 'generic/platform=iOS Simulator' \
+    -derivedDataPath /private/tmp/InsideCoverDerivedData \
+    build
 
-1. Open ios/InsideCover/EnchantifyInsideCover.xcodeproj in Xcode.
-2. Select the InsideCoverApp scheme and an iOS simulator to run without signing
-   changes.
-3. For a physical device, select the InsideCoverApp target, set your Team, and
-   change the bundle id if Xcode asks.
-4. Run InsideCoverApp on the simulator, iPhone, or iPad.
-5. On the device, open the app and import hooks/widget-state.json by AirDrop,
-   iCloud Drive, or Files.
+If SwiftPM/XCTest provenance or signing causes local test trouble, use:
 
-Refresh path:
+  scripts/swift-test-resigned.sh
 
-1. Run python3 scripts/widget-state.py <player> on the Mac.
-2. Send hooks/widget-state.json to the device.
-3. Open it in InsideCoverApp.
+Useful paths:
 
-Prototype note:
+  PROJECT_OVERVIEW.md                 product and architecture guide
+  InsideCoverApp/                     SwiftUI app target files
+  Shared/                             shared models, curation, story systems
+  Tests/InsideCoverCoreTests/         shared core tests
+  Sample/                             bundled/sample payloads
+  scripts/                            local validation and generation helpers
+  LandingPage/                        static marketing page
+  RemotionPromo/                      standalone promo video project
 
-This is intentionally local and private. Later, the app can fetch the widget
-state from iCloud Drive or a private endpoint so manual import is no longer
-needed.
+Local brain note:
+
+The app has resilient fake/fallback paths when local model assets are missing.
+Simulator builds compile and exercise those fallbacks. The native local-brain
+path is intended for physical devices when the optional MLX/Gemma pieces are
+available.
+
+Data note:
+
+The app is local-first. Personal continuity can be exported/imported as a
+.reenchanted-save.json file. The old widget-state import workflow is no longer
+the primary setup path, and the widget source is intentionally detached from this
+app target.

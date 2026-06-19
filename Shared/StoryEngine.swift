@@ -2684,7 +2684,7 @@ enum CharacterLetterPageGenerator {
             score: min(84, 54 + entity.belief / 4 + entity.narrativeWeight / 4),
             reason: "\(entity.name) has a researched letter gathering in the margins.",
             prompt: "A letter from \(entity.name)",
-            detail: "A researched note about \(interest) and home.",
+            detail: "A researched note about \(interest).",
             payload: BookPagePayload(
                 headline: "Letter from \(entity.name)",
                 body: body,

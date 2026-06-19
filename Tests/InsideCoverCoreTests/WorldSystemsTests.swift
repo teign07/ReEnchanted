@@ -392,6 +392,8 @@ final class WorldSystemsTests: XCTestCase {
             XCTAssertFalse(listing.goblinPitch.isEmpty)
             XCTAssertFalse(listing.contents.isEmpty)
         }
+        let eventListing = BookShopCatalog.listings.first { $0.family == .eventPack }
+        XCTAssertEqual(eventListing?.resolvedSaleState, .archivedEvent)
     }
 
     func testEntitlementsUnlockLockedPacks() {
@@ -405,6 +407,36 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertFalse(PackEntitlements.isUnlocked(locked.id))
         PackEntitlements.ownedPackIDs.insert(locked.id)
         XCTAssertTrue(PackEntitlements.isUnlocked(locked.id))
+    }
+
+    func testEventArchivesUsePackEntitlements() {
+        defer { PackEntitlements.ownedPackIDs = [] }
+        PackEntitlements.ownedPackIDs = []
+        XCTAssertFalse(WorldEventRegistry.enabledEvents().contains { $0.packID == "starlit-paper-trial-archive" })
+
+        PackEntitlements.ownedPackIDs.insert("starlit-paper-trial-archive")
+
+        XCTAssertTrue(WorldEventRegistry.enabledEvents().contains { $0.packID == "starlit-paper-trial-archive" })
+    }
+
+    func testArchivedEventsResolveOnlyAfterTheirWindow() {
+        defer { PackEntitlements.ownedPackIDs = [] }
+        PackEntitlements.ownedPackIDs = ["starlit-paper-trial-archive"]
+        let calendar = Calendar(identifier: .gregorian)
+        let during = calendar.date(from: DateComponents(year: 2026, month: 5, day: 4, hour: 12))!
+        let after = calendar.date(from: DateComponents(year: 2026, month: 6, day: 1, hour: 12))!
+
+        XCTAssertTrue(WorldEventResolver.archivedEvents(now: during, calendar: calendar).isEmpty)
+        XCTAssertEqual(WorldEventResolver.archivedEvents(now: after, calendar: calendar).first?.id, "starlit-paper-trial")
+    }
+
+    func testOneShotWorldEventsCanBeBoundToARealYear() {
+        let calendar = Calendar(identifier: .gregorian)
+        let inYear = calendar.date(from: DateComponents(year: 2026, month: 5, day: 4, hour: 12))!
+        let nextYear = calendar.date(from: DateComponents(year: 2027, month: 5, day: 4, hour: 12))!
+
+        XCTAssertNotNil(WorldEventRegistry.starlitPaperTrial.calendar.interval(containing: inYear, calendar: calendar))
+        XCTAssertNil(WorldEventRegistry.starlitPaperTrial.calendar.interval(containing: nextYear, calendar: calendar))
     }
 
     func testVaultCarriesOwnedPacks() throws {

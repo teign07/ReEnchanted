@@ -2,9 +2,9 @@ import SwiftUI
 
 /// The BookShop: the Marginalia Goblins' living market tucked into the Stacks.
 /// One place, three economies — Attention earned from Fae bargains, Belief spent
-/// as the world's main sink, and real coin for content packs. Stock rotates with
-/// the day and the moon; an under-the-counter shelf appears only when the world
-/// leans in.
+/// as the world's main sink, and App Store purchases for content packs. Stock
+/// rotates with the day and the moon; an under-the-counter shelf appears only
+/// when the world leans in.
 struct BookShopSheet: View {
     let stall: GoblinStall
     let fae: FaePlayerState
@@ -12,7 +12,7 @@ struct BookShopSheet: View {
     let belief: Int
     let goblinWarmth: Int
     let onBuyWare: (MarketWare) -> Void   // in-world purchase (Attention/Belief)
-    let onUnlock: (String) -> Void        // packID, after a verified coin purchase
+    let onUnlock: (String) -> Void        // packID, after a verified App Store purchase
     var onHaggle: (MarketWare) -> Int? = { _ in nil }   // spends 1 Warmth; returns discount, or nil if refused
     var onClerkBanter: () async -> String? = { nil }
     var onOpenBargain: (FaeBargain) -> Void = { _ in }
@@ -65,7 +65,7 @@ struct BookShopSheet: View {
                             }
                         }
 
-                        shelfBlock(title: "The Coin Shelf", subtitle: merchantName.isEmpty ? "The till is waking." : merchantName, symbol: "seal.fill", accent: BookPalette.teal) {
+                        shelfBlock(title: "The Paid Shelf", subtitle: merchantName.isEmpty ? "The till is waking." : merchantName, symbol: "creditcard.fill", accent: BookPalette.teal) {
                             if isLoading {
                                 ProgressView("The Goblins are unlocking the till...")
                                     .tint(BookPalette.lampGold)
@@ -90,7 +90,7 @@ struct BookShopSheet: View {
 
                         ledgerActions
 
-                        Text("Coin packs travel with your save. Attention and Belief are spent here — the Goblins keep the only ledger that matters.")
+                        Text("Paid packs use App Store prices and travel with your save. Attention and Belief are only spent inside the Book.")
                             .font(.system(.caption2, design: .serif).italic())
                             .foregroundStyle(BookPalette.nightText.opacity(0.55))
                     }
@@ -587,7 +587,7 @@ struct BookShopSheet: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(BookPalette.teal.opacity(0.16))
-                    Image(systemName: offer.listing.family == .soundPack ? "radio.fill" : "shippingbox.fill")
+                    Image(systemName: offerSymbol(for: offer.listing))
                         .font(.headline.weight(.black))
                         .foregroundStyle(BookPalette.teal)
                 }
@@ -596,13 +596,13 @@ struct BookShopSheet: View {
                     Text(offer.listing.title)
                         .font(.system(.headline, design: .serif, weight: .bold))
                         .foregroundStyle(BookPalette.ink)
-                    Text(offer.listing.family.shelfLabel.uppercased())
+                    Text(offerShelfLine(for: offer.listing).uppercased())
                         .font(.caption2.weight(.black))
                         .kerning(0.8)
                         .foregroundStyle(BookPalette.teal.opacity(0.82))
                 }
                 Spacer()
-                priceTag(offer.displayPrice, label: "coin", tint: BookPalette.teal)
+                priceTag(offer.displayPrice, label: nil, tint: BookPalette.teal)
             }
             Text("\u{201C}\(offer.listing.goblinPitch)\u{201D}")
                 .font(.system(.caption, design: .serif).italic())
@@ -639,16 +639,32 @@ struct BookShopSheet: View {
         }
     }
 
-    private func priceTag(_ value: String, label: String, tint: Color) -> some View {
+    private func offerSymbol(for listing: BookShopListing) -> String {
+        switch listing.family {
+        case .soundPack: return "radio.fill"
+        case .eventPack: return listing.resolvedSaleState == .liveEvent ? "sparkles.rectangle.stack.fill" : "archivebox.fill"
+        default: return "shippingbox.fill"
+        }
+    }
+
+    private func offerShelfLine(for listing: BookShopListing) -> String {
+        let family = listing.family.shelfLabel
+        let state = listing.resolvedSaleState
+        return state == .standard ? family : "\(family) · \(state.shelfLabel)"
+    }
+
+    private func priceTag(_ value: String, label: String?, tint: Color) -> some View {
         VStack(spacing: 1) {
             Text(value)
                 .font(.caption.weight(.black))
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
-            Text(label.uppercased())
-                .font(.caption2.weight(.black))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+            if let label {
+                Text(label.uppercased())
+                    .font(.caption2.weight(.black))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
         }
         .foregroundStyle(tint)
         .padding(.horizontal, 8)
@@ -709,7 +725,7 @@ struct BookShopSheet: View {
             clerkLine = "The clerk stamps the ledger twice. \u{201C}\(offer.listing.title) is bound to you. No refunds; the ink remembers.\u{201D}"
             BookFeedback.play(.braidComplete)
         case .pending:
-            clerkLine = "The clerk squints at the till. \u{201C}The coins are in transit. Come back shortly.\u{201D}"
+            clerkLine = "The clerk squints at the till. \u{201C}The App Store says this purchase is pending. Come back shortly.\u{201D}"
         case .cancelled:
             clerkLine = "The clerk shrugs and re-shelves it without judgment. Mostly without judgment."
             BookFeedback.play(.dismissPage)

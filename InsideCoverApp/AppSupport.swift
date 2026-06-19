@@ -520,8 +520,13 @@ final class BookRadioManager {
     func restore(state: RadioPlaybackState, unlockedPackIDs: Set<String>) {
         playback = state
         activeStation = RadioStationRegistry.station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs)
+        // Remember which station was last tuned for display, but do not resume
+        // playback on launch — the dial stays silent until the reader tunes in.
+        isPlaying = false
         if let station = activeStation, state.isTuned {
-            tune(to: station, unlockedPackIDs: unlockedPackIDs, persist: false)
+            activeTrack = selectTrack(for: station)
+            statusLine = "\(station.displayFrequency) \(station.title) — tap to tune in."
+            sourceLine = "No broadcast is tuned."
         }
     }
 
@@ -2109,8 +2114,8 @@ enum LocalPlacesScout {
 import StoreKit
 #endif
 
-/// What the BookShop needs from a payment system. The Goblins do not care
-/// which till the coins land in.
+/// What the BookShop needs from a payment system. Real purchases always use
+/// StoreKit prices; in-world currencies stay separate.
 struct BookShopOffer: Identifiable, Equatable {
     var id: String          // productID
     var listing: BookShopListing
@@ -2214,7 +2219,7 @@ struct ScrivenersCounterMerchant: BookShopMerchant {
             BookShopOffer(
                 id: listing.productID,
                 listing: listing,
-                displayPrice: "0 coins (dev)",
+                displayPrice: "$0.00 dev",
                 isPurchasable: true
             )
         }

@@ -112,4 +112,101 @@ final class SentenceBuilderTests: XCTestCase {
         XCTAssertEqual(engine.hasAvoidWord("A cosmic tapestry of feeling."), "cosmic")
         XCTAssertNil(engine.hasAvoidWord("The cup clicked on the table."))
     }
+
+    // MARK: - Scaffold (grammar-safe transform model)
+
+    func testScaffoldRoundTripsTheUsersOwnText() {
+        let engine = SentenceBuilderEngine()
+        let original = "The mug waited on the cold table."
+
+        XCTAssertEqual(engine.scaffold(for: original).rendered, original)
+    }
+
+    func testScaffoldRoundTripsLeadingAndIrregularSpacing() {
+        let engine = SentenceBuilderEngine()
+        let original = "  The rain  clicked, twice.  "
+
+        XCTAssertEqual(engine.scaffold(for: original).rendered, original)
+    }
+
+    func testScaffoldTagsCraftRolesFromPackVocabulary() {
+        let engine = SentenceBuilderEngine()
+        let scaffold = engine.scaffold(for: "The cold mug waited.")
+
+        func role(_ word: String) -> SentenceRole? {
+            scaffold.tokens.first { $0.word == word }?.role
+        }
+        XCTAssertEqual(role("cold"), .sense)
+        XCTAssertEqual(role("mug"), .thing)
+        XCTAssertEqual(role("waited"), .motion)
+        XCTAssertEqual(role("The"), .plain)
+    }
+
+    func testScaffoldTagsMistyAndSmokeWords() {
+        let engine = SentenceBuilderEngine()
+        let scaffold = engine.scaffold(for: "Dinner was nice and cosmic.")
+
+        XCTAssertEqual(scaffold.tokens.first { $0.word == "nice" }?.role, .misty)
+        XCTAssertEqual(scaffold.tokens.first { $0.word == "cosmic" }?.role, .smoke)
+    }
+
+    func testReplacingTokenIsGrammarSafeAndPreservesPunctuation() {
+        let engine = SentenceBuilderEngine()
+        let scaffold = engine.scaffold(for: "Dinner was nice.")
+        guard let misty = scaffold.tokens.first(where: { $0.role == .misty }) else {
+            return XCTFail("expected a misty token")
+        }
+
+        let healed = scaffold.replacing(tokenID: misty.id, with: "warm", using: .core)
+
+        XCTAssertEqual(healed.rendered, "Dinner was warm.")
+        XCTAssertEqual(healed.tokens.first { $0.word == "warm" }?.role, .sense)
+    }
+
+    func testMovesGroundMistyWordsIntoSenses() {
+        let engine = SentenceBuilderEngine()
+        let scaffold = engine.scaffold(for: "Dinner was tired.")
+        let misty = scaffold.tokens.first { $0.role == .misty }!
+
+        let moves = engine.moves(for: misty)
+
+        XCTAssertFalse(moves.isEmpty)
+        XCTAssertTrue(moves.allSatisfy { $0.group == "ground" })
+        // Applying any move heals the sentence in place.
+        let healed = scaffold.replacing(tokenID: misty.id, with: moves[0].word, using: .core)
+        XCTAssertEqual(healed.rendered, "Dinner was \(moves[0].word).")
+    }
+
+    func testMovesOnSenseOfferCrossedSenseLeap() {
+        let engine = SentenceBuilderEngine()
+        let scaffold = engine.scaffold(for: "The cold mug waited.")
+        let sense = scaffold.tokens.first { $0.word == "cold" }!
+
+        let moves = engine.moves(for: sense)
+
+        XCTAssertTrue(moves.contains { $0.group == "cross" })
+        XCTAssertFalse(moves.contains { $0.word == "cold" })
+    }
+
+    func testPlainWordsOfferNoMoves() {
+        let engine = SentenceBuilderEngine()
+        let scaffold = engine.scaffold(for: "The mug waited.")
+        let plain = scaffold.tokens.first { $0.word == "The" }!
+
+        XCTAssertTrue(engine.moves(for: plain).isEmpty)
+    }
+
+    func testReplacingTokenRetagsSoHighlightingStaysHonest() {
+        let engine = SentenceBuilderEngine()
+        let scaffold = engine.scaffold(for: "The cup sat there.")
+        guard let cup = scaffold.tokens.first(where: { $0.word == "cup" }) else {
+            return XCTFail("expected an anchor token")
+        }
+
+        // Swapping one craft word for another keeps the sentence intact — no jumble possible.
+        let swapped = scaffold.replacing(tokenID: cup.id, with: "kettle", using: .core)
+
+        XCTAssertEqual(swapped.rendered, "The kettle sat there.")
+        XCTAssertTrue(swapped.presentRoles.contains(.thing))
+    }
 }

@@ -307,7 +307,7 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertTrue(notes.contains("The Book kept the page"))
         XCTAssertTrue(notes.contains("old-tale turn"))
         XCTAssertTrue(notes.contains("ordinary enchanted objects"))
-        XCTAssertTrue(notes.contains("Avoid generic reflection words"))
+        XCTAssertTrue(notes.contains("clinical diction"))
     }
 
     func testBraidPromptCarriesLearnedGuidance() {
@@ -365,7 +365,7 @@ final class BraidPromptContextTests: XCTestCase {
 
         XCTAssertNotNil(context.learnedGuidance)
         XCTAssertTrue(prompt.contains("LEARNED BRAID TASTE"))
-        XCTAssertTrue(prompt.contains("Avoid generic reflection words"))
+        XCTAssertTrue(prompt.contains("clinical diction"))
     }
 
     func testBraidContextDoesNotLearnPressureFromLovedPriorPages() {

@@ -12,3 +12,6 @@ build/
 # Node / Remotion
 node_modules/
 RemotionPromo/out/
+
+.claude/settings.local.json
+*.xcuserstate

@@ -1489,6 +1489,21 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(eventDoor.payload.metadata["tags"]?.contains("event-outcome:definition-binder") == true)
     }
 
+    func testWorldEventDoorCanOpenPurchasedArchivedEvent() throws {
+        defer { PackEntitlements.ownedPackIDs = [] }
+        PackEntitlements.ownedPackIDs = ["starlit-paper-trial-archive"]
+        let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
+
+        let manual = BookPageSourceAdapters.active
+            .first { $0.source.id == "world-event-door" }?
+            .manualSurface(for: emptyDay(), context: .make(for: emptyDay()), inputs: richInputs(), now: now)
+
+        let eventDoor = try XCTUnwrap(manual)
+        XCTAssertEqual(eventDoor.payload.metadata["worldEventIDs"], "starlit-paper-trial")
+        XCTAssertTrue(eventDoor.payload.body.contains("The Starlit Paper Trial"))
+        XCTAssertTrue(eventDoor.payload.metadata["tags"]?.contains("event-fieldwork") == true)
+    }
+
     func testMonthlyEditionBindsWorldEventTracesFromKeptTags() throws {
         let eventPage = BookPage(
             type: .letter,

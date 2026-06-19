@@ -186,7 +186,7 @@ struct BookShopPreviewPageSourceAdapter: BookPageSourceAdapter {
 
         let detail: String
         if marketOpen {
-            detail = "The side door is open. The Marginalia Goblins are accepting Attention, Belief, and coin."
+            detail = "The side door is open. The Marginalia Goblins are accepting Attention, Belief, and App Store purchases."
         } else if availablePacks > 0 {
             detail = "The moonlit stalls are sleeping, but the folio shelf is open."
         } else {
@@ -3974,6 +3974,9 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
         let inputs = inputs.resolvingWorldEvents(for: day, now: now)
         if let event = inputs.activeWorldEvents.first {
             return surface(for: event, day: day, now: now, manual: true)
+        }
+        if let archivedEvent = WorldEventResolver.archivedEvents(now: now, day: day, inputs: inputs).first {
+            return surface(for: archivedEvent, day: day, now: now, manual: true)
         }
         return SurfacePage(
             id: "\(source.id)-quiet-\(Int(now.timeIntervalSince1970))",

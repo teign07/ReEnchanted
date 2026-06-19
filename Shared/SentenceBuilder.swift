@@ -185,6 +185,162 @@ struct SentenceBuilderPack: Identifiable, Codable, Equatable {
     }
 }
 
+/// The grammatical job a word is doing inside a sentence.
+///
+/// The scaffold owns grammar so the user can never assemble a jumble: chips edit
+/// real words in place (a single-token swap can't break a sentence) rather than
+/// stamping bare vocabulary onto the end of a blob.
+enum SentenceRole: String, Codable, Equatable {
+    case thing      // concrete anchor noun
+    case sense      // sensory quality
+    case motion     // animate verb
+    case crossing   // crossed-sense phrase
+    case misty      // vague word the engine wants grounded
+    case smoke      // "avoid" / stage-smoke word
+    case plain      // grammar glue: articles, pronouns, untagged words
+
+    /// Roles that carry the craft of a memory-sticky sentence (vs. glue or warnings).
+    var isCraft: Bool {
+        switch self {
+        case .thing, .sense, .motion, .crossing: return true
+        case .misty, .smoke, .plain: return false
+        }
+    }
+}
+
+/// One word (plus any trailing punctuation) lifted from the user's own sentence,
+/// tagged with the grammatical job it is doing.
+struct ScaffoldToken: Identifiable, Equatable {
+    var id: Int                 // stable index position in the sentence
+    var word: String            // the bare word, no surrounding punctuation
+    var leadingWhitespace: String
+    var trailingPunctuation: String
+    var role: SentenceRole
+
+    /// Faithful reconstruction of the original surface text for this token.
+    var surface: String {
+        leadingWhitespace + word + trailingPunctuation
+    }
+
+    /// A token carrying a craft role can be transformed in place by a chip.
+    var isTransformable: Bool {
+        role.isCraft || role == .misty || role == .smoke
+    }
+}
+
+/// A parse of the user's sentence into tagged tokens. Built from their own words,
+/// it round-trips faithfully and only ever changes one token at a time, so any
+/// edit it produces is grammatical by construction.
+struct SentenceScaffold: Equatable {
+    var tokens: [ScaffoldToken]
+
+    /// The original sentence, rebuilt from tokens. Round-trips the input text.
+    var rendered: String {
+        tokens.map(\.surface).joined()
+    }
+
+    /// Craft roles currently present in the sentence.
+    var presentRoles: Set<SentenceRole> {
+        Set(tokens.map(\.role).filter(\.isCraft))
+    }
+
+    /// Replace one token's word in place, preserving its punctuation and spacing.
+    /// Re-tags the swapped word so role highlighting stays honest.
+    func replacing(tokenID: Int, with newWord: String, using pack: SentenceBuilderPack) -> SentenceScaffold {
+        guard let index = tokens.firstIndex(where: { $0.id == tokenID }) else { return self }
+        var updated = tokens
+        let cleaned = newWord.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return self }
+        updated[index].word = cleaned
+        updated[index].role = SentenceScaffold.role(for: cleaned, using: pack)
+        return SentenceScaffold(tokens: updated)
+    }
+}
+
+extension SentenceScaffold {
+    /// Tag a user sentence into roled tokens using the active pack's vocabulary.
+    static func tag(_ text: String, using pack: SentenceBuilderPack) -> SentenceScaffold {
+        var tokens: [ScaffoldToken] = []
+        var index = 0
+        let scanner = Scanner(string: text)
+        scanner.charactersToBeSkipped = nil
+
+        let lower = text.lowercased()
+        // Pre-mark spans covered by multi-word crossing phrases so their words read as `.crossing`.
+        var crossingSpans = false
+        for phrase in pack.crossingWords where lower.contains(phrase.lowercased()) {
+            crossingSpans = true
+            break
+        }
+
+        while !scanner.isAtEnd {
+            let leading = scanner.scanCharacters(from: .whitespacesAndNewlines) ?? ""
+            guard let chunk = scanner.scanUpToCharacters(from: .whitespacesAndNewlines), !chunk.isEmpty else {
+                if !leading.isEmpty, var last = tokens.popLast() {
+                    last.trailingPunctuation += leading
+                    tokens.append(last)
+                }
+                break
+            }
+
+            let (word, trailing) = splitTrailingPunctuation(chunk)
+            var role = role(for: word, using: pack)
+            if role == .plain, crossingSpans, isWordInCrossingPhrase(word, pack: pack, lowerText: lower) {
+                role = .crossing
+            }
+            tokens.append(ScaffoldToken(
+                id: index,
+                word: word,
+                leadingWhitespace: leading,
+                trailingPunctuation: trailing,
+                role: role
+            ))
+            index += 1
+        }
+        return SentenceScaffold(tokens: tokens)
+    }
+
+    /// Classify a single bare word against the pack's vocabulary lists.
+    /// Order encodes priority: warnings first, then craft roles, else glue.
+    static func role(for word: String, using pack: SentenceBuilderPack) -> SentenceRole {
+        let key = word.lowercased()
+        if pack.avoidWords.contains(where: { $0.lowercased() == key }) { return .smoke }
+        if pack.vagueWords.contains(where: { $0.lowercased() == key }) { return .misty }
+        if pack.concreteWords.contains(where: { $0.lowercased() == key }) { return .thing }
+        if pack.sensoryWords.contains(where: { $0.lowercased() == key }) { return .sense }
+        if pack.animateVerbs.contains(where: { $0.lowercased() == key }) { return .motion }
+        return .plain
+    }
+
+    private static func isWordInCrossingPhrase(_ word: String, pack: SentenceBuilderPack, lowerText: String) -> Bool {
+        let key = word.lowercased()
+        for phrase in pack.crossingWords where lowerText.contains(phrase.lowercased()) {
+            let parts = phrase.lowercased().components(separatedBy: " ")
+            if parts.contains(key) { return true }
+        }
+        return false
+    }
+
+    /// Peel trailing punctuation (.,;:!?…"')) off a chunk so the bare word can be tagged.
+    private static func splitTrailingPunctuation(_ chunk: String) -> (word: String, trailing: String) {
+        let punctuation = CharacterSet(charactersIn: ".,;:!?…\"')]}")
+        var word = chunk
+        var trailing = ""
+        while let last = word.unicodeScalars.last, punctuation.contains(last) {
+            trailing = String(word.removeLast()) + trailing
+        }
+        return (word, trailing)
+    }
+}
+
+/// One grammar-safe transmutation a chip can apply to a tapped word.
+struct SentenceMove: Identifiable, Equatable {
+    var id: String
+    var label: String   // text shown on the chip
+    var word: String    // the replacement word dropped into the slot
+    var group: String   // "ground" | "thing" | "sense" | "motion" | "cross"
+}
+
 struct SentenceBuilderNudge: Equatable {
     var step: SentenceBuilderStep
     var highlightedWord: String?
@@ -370,6 +526,48 @@ struct SentenceBuilderEngine {
             craftMarks: marks,
             diagnostics: diagnostics
         )
+    }
+
+    /// Parse the user's current text into a grammar-safe scaffold of tagged tokens.
+    func scaffold(for text: String) -> SentenceScaffold {
+        SentenceScaffold.tag(text, using: pack)
+    }
+
+    /// The transmutations offered when the user taps a word in their sentence.
+    /// Every move is a grammar-safe in-place swap, so the sentence can never break.
+    func moves(for token: ScaffoldToken, limit: Int = 6) -> [SentenceMove] {
+        let current = token.word.lowercased()
+        func swaps(_ pool: [String], group: String) -> [SentenceMove] {
+            pool.filter { $0.lowercased() != current }
+                .prefix(limit)
+                .map { SentenceMove(id: "\(group)-\($0)", label: $0, word: $0, group: group) }
+        }
+
+        switch token.role {
+        case .misty:
+            return swaps(alternatives(for: token.word), group: "ground")
+        case .smoke:
+            // Stage-smoke words become a plain physical quality the room can carry.
+            return swaps(alternatives(for: token.word) + pack.sensoryWords, group: "ground")
+        case .thing:
+            return swaps(pack.concreteWords, group: "thing")
+        case .sense:
+            // Offer sharper senses, then always reserve room for a crossed-sense leap.
+            let crossings = pack.crossingWords.prefix(2).map {
+                SentenceMove(id: "cross-\($0)", label: $0, word: $0, group: "cross")
+            }
+            let senseRoom = max(1, limit - crossings.count)
+            let senses = Array(swaps(pack.sensoryWords, group: "sense").prefix(senseRoom))
+            return senses + crossings
+        case .motion:
+            return swaps(pack.animateVerbs, group: "motion")
+        case .crossing:
+            return pack.crossingWords.filter { $0.lowercased() != current }
+                .prefix(limit)
+                .map { SentenceMove(id: "cross-\($0)", label: $0, word: $0, group: "cross") }
+        case .plain:
+            return []
+        }
     }
 
     func chips(for step: SentenceBuilderStep, text: String) -> [String] {

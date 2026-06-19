@@ -169,6 +169,7 @@ enum BraidPromptBuilder {
         - The "Once" is where the day truly began. The "Because" is the real pressure or hunger gathering. The "Until" is the turn, and it must be something that actually happened, not a mood shift. The "And so" is the small change left behind.
         - Make it feel narrated, not listed. Do not mention page types like "Weather Page" or "Lore Page" unless the player wrote those words.
         - End with one closing sentence that begins: "The Book kept the page:"
+        - Let that final line loop back to the spine: carry one concrete thing from how the day began into how it is kept, so the page closes the circle it opened.
         - On a phone, the braid should feel like a full page of the Book without becoming a scroll chore.
 
         VOICE:
@@ -182,6 +183,16 @@ enum BraidPromptBuilder {
         - No diagnosis, no flattery, no moralizing, no corporate/app language.
         - Do not invent completed actions, locations, people, feelings, or tasks.
         - Avoid vague wonder, generic inspiration, journey, profound, tapestry, echoes, hidden meaning, and abstract emotional summary.
+
+        REGISTER LOCK (the most common way this braid fails):
+        - Never use clinical, scientific, or report diction. Banish words like: nascent, precipitation, observation, observed, reckoning, currents, structure, inner landscape, transfer, exchange, documented, noted, the report. These break the spell harder than purple words do.
+        - Do not narrate the braid about itself. Forbidden moves: "the observation of this shift followed", "a quiet transfer of something fragile", "this weather pressed against the inner landscape". Name the thing, do not name the noticing of the thing.
+        - Lean on concrete nouns and plain strong verbs, not abstract nouns. If a sentence's subject is an idea (a shift, a moment, a reckoning, a structure, a brightness), rewrite it so the subject is something you could touch, hold, or hear.
+        - Transmute numbers and data. Never quote a raw forecast ("sixty degrees, a high of sixty-one and a low of fifty-five"). Turn measurements into weather felt on the skin: a gray sky, a cold that gets in at the collar, rain the air keeps promising.
+
+        ONE LENS:
+        - Choose a single point of view for the whole braid and hold it. If the reader is "you", stay "you"; if the day belongs to a named person, stay with them. Do not drift between "you", "a mortal", a name, and an unnamed "figure" in the same page.
+        - Do not turn the reader into a distant "a mortal" or "a figure" partway through. The Book is writing one person's day to that person.
 
         ANTI-PARROT RULE:
         - Do not copy any supplied sentence longer than seven words.
@@ -610,7 +621,7 @@ enum BraidLearningLoop {
         case "concreteMagic":
             return "Trade abstract wonder for ordinary enchanted objects: cups, keys, windows, chargers, coats, receipts, doors."
         case "penalties":
-            return "Avoid generic reflection words and repeat beats: no journey, profound, tapestry, hidden meaning, or doubled explanation."
+            return "Drop report and clinical diction (nascent, precipitation, observation, reckoning, currents), quote no raw forecast numbers, hold one point of view, and avoid generic reflection words or doubled explanation."
         default:
             return "Prefer concrete, specific Book of You prose over generic summary."
         }
@@ -683,7 +694,7 @@ enum BraidTastingRoom {
             storyShape: storyShapeScore(paragraphs: paragraphs, normalized: normalized),
             priorEcho: priorEchoScore(normalized: normalized, context: context),
             themeAndChapter: themeAndChapterScore(normalized: normalized, context: context),
-            keeperSentence: keeperSentenceScore(closingSentences),
+            keeperSentence: keeperSentenceScore(closingSentences, opening: paragraphs.first),
             concreteMagic: concreteMagicScore(normalized: normalized),
             penalties: penaltyScore(normalized: normalized, sentences: sentences)
         )
@@ -756,11 +767,26 @@ enum BraidTastingRoom {
         return max(0, min(score, 12))
     }
 
-    private static func keeperSentenceScore(_ closingSentences: [String]) -> Int {
+    private static func keeperSentenceScore(_ closingSentences: [String], opening: String?) -> Int {
         guard closingSentences.count == 1, let closing = closingSentences.first else { return 0 }
         let words = closing.split { $0.isWhitespace }.count
         guard (8...28).contains(words) else { return 5 }
-        return 14
+        return 14 + callbackBonus(closing: closing, opening: opening)
+    }
+
+    /// Reward the opening->closing loop: when the kept line carries a concrete
+    /// word back from where the day began, the braid feels deliberately kept
+    /// rather than merely ended. Bonus is capped so it can lift a strong braid
+    /// without letting the keeper sentence dominate the whole score.
+    private static func callbackBonus(closing: String, opening: String?) -> Int {
+        guard let opening, !opening.isEmpty else { return 0 }
+        let openingWords = Set(significantWords(opening))
+        guard !openingWords.isEmpty else { return 0 }
+        // Drop the fixed "the book kept the page" stem so it can't self-match.
+        let keeperStem = significantWords("the book kept the page")
+        let echoes = significantWords(closing)
+            .filter { !keeperStem.contains($0) && openingWords.contains($0) }
+        return min(Set(echoes).count * 3, 6)
     }
 
     private static func concreteMagicScore(normalized: String) -> Int {
@@ -774,6 +800,22 @@ enum BraidTastingRoom {
     private static func penaltyScore(normalized: String, sentences: [String]) -> Int {
         let banned = ["journey", "profound", "tapestry", "hidden meaning", "generic inspiration"]
         var penalties = banned.filter { normalized.contains($0) }.count * 4
+
+        // Clinical / report diction breaks the spell as badly as purple words do.
+        let clinical = [
+            "nascent", "precipitation", "observation", "observed", "reckoning",
+            "currents", "inner landscape", "the report", "transfer of", "documented"
+        ]
+        penalties += clinical.filter { normalized.contains($0) }.count * 4
+
+        // Raw forecast figures should be transmuted into felt weather, not quoted.
+        let temperatureWords = ["degrees", "high of", "low of", "overcast at", "forecast"]
+        penalties += temperatureWords.filter { normalized.contains($0) }.count * 3
+
+        // Point-of-view drift: distancing the reader into a specimen mid-braid.
+        let distancing = ["a mortal", "the mortal", "a figure", "the figure"]
+        penalties += distancing.filter { normalized.contains($0) }.count * 2
+
         if sentences.count < 4 { penalties += 6 }
         let repeatedStarts = Dictionary(grouping: sentences.compactMap { $0.split(separator: " ").first?.lowercased() }, by: { $0 })
             .values

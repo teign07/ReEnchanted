@@ -20,7 +20,7 @@ final class GoblinMarketTests: XCTestCase {
 
     func testMoneyShelfAlwaysBrowseableEvenWhenStallsAreDark() {
         // An ordinary date with an empty Fae state: the in-world stalls are shut,
-        // but the coin shelf still lists unowned, shipping packs.
+        // but the paid shelf still lists unowned, shipping packs.
         let stall = GoblinMarketEngine.stall(on: date(2026, 7, 7), fae: FaePlayerState(),
                                              belief: 40, greyLevel: 0, calendar: cal)
         XCTAssertFalse(stall.open || !stall.wares.isEmpty, "closed stalls show no in-world wares")
@@ -28,7 +28,7 @@ final class GoblinMarketTests: XCTestCase {
         XCTAssertTrue(stall.packs.allSatisfy { !$0.comingSoon })
     }
 
-    func testOwnedPacksDropOffTheCoinShelf() {
+    func testOwnedPacksDropOffThePaidShelf() {
         let pack = BookShopCatalog.listings.first { !$0.comingSoon }!
         let stall = GoblinMarketEngine.stall(on: date(2026, 7, 7), fae: FaePlayerState(),
                                              belief: 40, greyLevel: 0,

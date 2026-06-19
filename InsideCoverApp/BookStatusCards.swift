@@ -1091,7 +1091,7 @@ struct GlowCommandMenu: View {
             pageBeliefSubmenu(compact: compact)
             menuButton(
                 title: "The BookShop",
-                detail: "The Marginalia Goblins' living market: pay in coin, Attention, or Belief — plus your standing with the Fae.",
+                detail: "The Marginalia Goblins' living market: App Store packs, Attention, Belief, and your standing with the Fae.",
                 systemImage: "books.vertical.fill",
                 compact: compact
             ) {
