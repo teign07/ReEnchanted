@@ -1234,6 +1234,9 @@ struct ContentView: View {
         case .spellCompass:
             selectedSurface = compassRunSurface()
             closeGlowMenu()
+        case .openAlmanac:
+            selectedSurface = almanacSurface()
+            closeGlowMenu()
         case let .openEnchantment(enchantment):
             selectedSurface = enchantmentSurface(enchantment)
             closeGlowMenu()
@@ -1594,6 +1597,25 @@ struct ContentView: View {
             inputs: sourceInputs,
             now: Date()
         )
+    }
+
+    /// The Living Almanac door. Shows the real active/archived world event (or
+    /// the "quiet" card). In DEBUG, when nothing is in season, falls back to a
+    /// season-agnostic preview so the full event machinery is always reachable.
+    func almanacSurface() -> SurfacePage {
+        let adapter = WorldEventPageSourceAdapter()
+        let context = CuratorContext.make(for: today)
+        let now = Date()
+        let real = adapter.manualSurface(for: today, context: context, inputs: sourceInputs, now: now)
+        #if DEBUG
+        let hasReal = !WorldEventResolver.activeEvents(now: now, day: today, inputs: sourceInputs).isEmpty
+            || !WorldEventResolver.archivedEvents(now: now, day: today, inputs: sourceInputs).isEmpty
+        if !hasReal,
+           let preview = adapter.previewSurface(for: today, context: context, inputs: sourceInputs, now: now) {
+            return preview
+        }
+        #endif
+        return real
     }
 
     func enchantmentSurface(_ enchantment: GlowEnchantmentMenuItem) -> SurfacePage {

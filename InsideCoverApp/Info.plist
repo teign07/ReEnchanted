@@ -14,9 +14,6 @@
 	<array>
 		<string>audio</string>
 		<string>processing</string>
-		<string>location</string>
-		<string>remote-notification</string>
-		<string>fetch</string>
 	</array>
 	<key>UIFileSharingEnabled</key>
 	<true/>

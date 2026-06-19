@@ -1,0 +1,34 @@
+ReEnchanted / InsideCover
+Copyright (c) 2026 teign (github.com/teign07)
+
+This product's SOURCE CODE is licensed under the Mozilla Public License,
+version 2.0 (MPL-2.0). A copy of the license is in the LICENSE file at the root
+of this repository, and is also available at https://mozilla.org/MPL/2.0/.
+
+What MPL-2.0 covers (the engine):
+  - All Swift source under InsideCoverApp/, Shared/, Tests/, and scripts/.
+  - The project/build configuration needed to compile the app.
+  You may read, audit, modify, and redistribute this code under the terms of
+  MPL-2.0. If you modify an MPL-licensed source file, your changes to that file
+  must remain available under MPL-2.0. You may combine it with your own files
+  under a different license.
+
+What is NOT covered by MPL-2.0 (proprietary content — All Rights Reserved):
+  - Artwork and illustrations (character portraits, talismans, illuminated
+    pages, icons, textures, marginalia, and any image assets).
+  - Audio (radio tracks, sound effects, and any bundled audio).
+  - Paid content packs, world-event packs, and the prose/data that ship in them.
+  - The "ReEnchanted" and "Enchantify" names, logos, and visual branding.
+  These assets are NOT open source. They are proprietary and may not be copied,
+  redistributed, resold, or used to produce a competing or derivative product
+  without express written permission. The MPL does not grant trademark rights
+  (see MPL-2.0 sec. 2.3), so any fork must use its own name and branding.
+
+Trademarks:
+  "ReEnchanted" and "Enchantify" are trademarks of the project owner. Forks and
+  derivatives must be clearly renamed and rebranded.
+
+Your data:
+  Reader save data created by the app (the archive, kept pages, Belief ledgers,
+  custom cast, and exports) belongs to the reader. It is not part of this
+  repository and is not covered by either license above.

@@ -165,6 +165,14 @@ enum RadioStationRegistry {
                     assetName: "RadioFaeFiMossyGroove",
                     durationSeconds: 146,
                     moodTags: ["bright", "playful"]
+                ),
+                RadioTrack(
+                    id: "fae-fi-to-the-adventure",
+                    title: "To the Adventure",
+                    artist: "Fae-Fi",
+                    assetName: "RadioFaeFiToTheAdventure",
+                    durationSeconds: 126,
+                    moodTags: ["bright", "playful", "adventure"]
                 )
             ],
             interludeTitles: [

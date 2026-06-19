@@ -44,7 +44,10 @@ InsideCover/
 ├── Tests/InsideCoverCoreTests/         Unit tests for shared policy and systems
 ├── Sample/                             Sample payloads
 ├── scripts/                            Local validation/generation helpers
-└── RemotionPromo/                      Separate promo-video project, not app core
+├── LandingPage/                        Static marketing site (index.html, app.js,
+│                                       styles.css, screenshots, radio audio previews)
+├── RemotionPromo/                      Separate promo-video project, not app core
+└── DetachedInsideCoverWidget/          Loose widget source, intentionally out of target
 ```
 
 ## Philosophy
@@ -108,40 +111,82 @@ surface -> keep/dismiss -> archive -> event/memory -> curation -> return
 
 ## First Run And Onboarding
 
-The onboarding flow lives in `BookSurfaceViews.swift` as **The Flyleaf Ritual**,
-a nine-step first-run sequence that introduces the app as an Academy threshold,
-not a settings wizard. It now teaches the actual loop before dropping the reader
-into the home shelf.
+> **This system is complete and shipped. Do not propose building a new
+> onboarding flow, tutorial, or welcome wizard — one already exists, is
+> load-bearing, and is wired into first-run gating, Self Facts, Belief, the
+> custom cast, and the Glow-pill reveal.** Changes here should refine the
+> existing **Flyleaf Ritual**, not replace it.
 
-Current onboarding beats:
+### Where it lives and how it is gated
 
-- **The Cover Opens** - the reader falls through the app into Enchantify Academy.
-- **The Chapter Without an Ending** - the reader is introduced as someone from
-  "The Great Unwritten"; ordinary life is framed as a living chapter.
-- **The Guide** - Zara Finch appears and asks for the reader's favorite snack.
-- **The Name the Book Knows** - the preferred reader name is collected for
-  Welcome pages, letters, and generated text.
-- **Belief and the Grey** - The Nothing, Belief, and Glow are explained through
-  a core-belief prompt. The reader may optionally plant 3 Belief immediately.
-- **The School's Argument** - the five Chapters are introduced, while Chapter
-  Binding is explicitly deferred until later and based on kept pages.
-- **The First Page Rises** - the reader practices keeping or waiting, and may
-  write a first souvenir sentence.
-- **The Cast Notices** - characters, letters, memory, and real-world actions are
-  explained as systems that respond to what the reader actually keeps and does.
-- **The Academy Opens** - the final step previews the first loop and hands the
-  reader to the home shelf.
+The onboarding flow is **`OnboardingFlowView`** in
+`InsideCoverApp/BookSurfaceViews.swift` (around line 3361), branded in-world as
+**The Flyleaf Ritual**. It is a full-screen story sequence — parchment reading
+card with a stage pill, animated header, step dots, shimmer/page-tilt, and a
+sparkle aura — not a settings wizard.
 
-Completing onboarding stores self facts for snack, preferred name, core belief,
-and optional first souvenir. If the reader plants Belief, `completeOnboarding`
-subtracts 3 Belief and mints a custom cast member/motif from that belief with
-starting Glow and onboarding tags. The Book still explains itself as a living
-book of kept pages, not as a productivity app.
+`ContentView` presents it as an overlay only when
+`!didCompleteStoryOnboarding && !isOpeningMovieVisible` (i.e. after the opening
+movie, on a fresh install). The gate is **`@AppStorage("didCompleteStoryOnboarding")`**
+(`ContentView.swift:199`); `completeOnboarding` flips it to `true`, so the ritual
+runs exactly once per install and never again until that flag is cleared. While
+it is up, the Glow menu is suppressed.
+
+`OnboardingFlowView` is initialized with two callbacks:
+
+- `onGlowUnlocked` → `ContentView.revealGlowPillIfNeeded` — fired **mid-flow**
+  (`notifyGlowUnlockedIfNeeded`: once `step >= 4` and the belief field is
+  non-empty) so the Glow pill animates into the chrome the moment the reader
+  names a first belief, before the ritual even ends.
+- `onFinished` → `completeOnboarding(result)`.
+
+### The nine beats
+
+`stepCount = 9` (steps 0–8). Each carries a stage name, header line, SF Symbol,
+and in-world prose. Steps that collect input gate their continue button until the
+field is filled.
+
+| # | Stage | Title | What happens / collects |
+|---|-------|-------|--------------------------|
+| 0 | Arrival | **The Cover Opens** | The reader falls through the app's own screen into Enchantify Academy (long cinematic prose; "they came through the Unwritten"). |
+| 1 | The Unwritten | **The Chapter Without an Ending** | Zara Finch frames the reader's ordinary life as the Great Unwritten Chapter — the one book no one in the Academy can jump into. |
+| 2 | Guide | **The Guide** | Zara introduces herself (portrait) and asks the reader's **favorite reading snack** → `snack`. |
+| 3 | Name | **The Name the Book Knows** | Collects the **preferred reader name** → `name` (used in letters, Welcome, generated text). |
+| 4 | Belief | **Belief and the Grey** | The Nothing, Belief, and Glow are explained via a **core-belief** prompt → `belief`. Once non-empty, an inline panel offers **Plant 3 Belief** vs **Keep it for now** → `investedBelief`. (This is where the Glow pill reveals.) |
+| 5 | Chapters | **The School's Argument** | The five Academy Chapters are introduced (rendered from `AcademyChapterRegistry.publicChapters`). Chapter **Binding is explicitly deferred** — it later recognizes where Belief has lived, based on kept pages. |
+| 6 | First Page | **The First Page Rises** | A **practice page**: the reader chooses **Keep** or **Let it wait** (`rehearsalChoice`); choosing Keep reveals a one-sentence field → `firstSouvenir`. Teaches the core keep/dismiss loop in a no-stakes sandbox. |
+| 7 | Cast | **The Cast Notices** | Letters, memory, disagreement, and the weight of real-world action are explained. Shows a tappable cast glimpse (Zara, Finn, Penny, Orion) that opens portraits via QuickLook. |
+| 8 | Threshold | **The Academy Opens** | Closing prose + a "your first loop" preview card, then hands the reader to the home shelf. |
+
+### What completion does
+
+`completeOnboarding(_ result:)` (`ContentViewFeatures.swift:166`) consumes an
+`OnboardingFlowView.Result { snack, name, belief, investedBelief, firstSouvenir }`:
+
+- Persists **Self Facts** for snack, name, belief, and (if written) the first
+  souvenir via `saveOnboardingFact` — each a `SelfFact` with id
+  `onboarding:<questionID>`, `sensitivity: .delight`, and
+  `usePermission: .privateContext`, tagged `onboarding` plus topic tags.
+- If `investedBelief` is true: subtracts **3** from `beliefScore` and mints a
+  **custom cast member** (`saveCustomCastMember`) of kind `.motif` from the
+  stated belief — `startingGlow: 34`, tags `["core-belief","onboarding",
+  "belief-invested","glow-bright"]` — so the reader's first belief enters the
+  world model as a real, Glowing entity that can recur and pull story toward
+  itself.
+- Sets `didCompleteStoryOnboarding = true` and a name-aware status message
+  ("The Academy doors are open, <name>.").
+
+The ritual teaches the actual loop (offer → keep/wait → archive → the Book
+remembers) and the core vocabulary (the Nothing, Belief, Glow, Chapters), and it
+explains the app as a living book of kept pages — never as a productivity app.
 
 Relevant files:
 
-- `InsideCoverApp/BookSurfaceViews.swift`
-- `InsideCoverApp/ContentView.swift`
+- `InsideCoverApp/BookSurfaceViews.swift` (`OnboardingFlowView`, the nine beats)
+- `InsideCoverApp/ContentView.swift` (presentation, `didCompleteStoryOnboarding`
+  gate, `revealGlowPillIfNeeded`)
+- `InsideCoverApp/ContentViewFeatures.swift` (`completeOnboarding`,
+  `saveOnboardingFact`)
 - `Shared/SourceAdapters.swift`
 - `Shared/PageModel.swift`
 
@@ -268,8 +313,19 @@ Core pieces:
 - `SentenceBuilderStepKind` - anchor, sense, motion, crossing, cutMist, and
   groundGlow.
 
+- `SentenceScaffold` / `ScaffoldToken` - a tokenized view of the reader's own
+  sentence, with grammar-safe per-word **transmutations** so tapping a word can
+  swap it for a more living alternative in place.
+
 This system supports the product thesis directly: the Book helps the reader
 write a better kept page before any model has to embellish it.
+
+The craft helper is surfaced in-app through **`LivingTextEditor`**
+(`InsideCoverApp/LivingTextInput.swift`), the writing field used on capture
+pages (`CapturePageSheet`). It wraps the plain editor with the live nudge, a
+collapsible builder, tappable scaffold tokens, the transmutation chips, and a
+shimmer/alchemy treatment as the sentence strengthens — all driven by
+`SentenceBuilderEngine`, no model call.
 
 ### Book Of You
 
@@ -286,6 +342,32 @@ Related pieces:
 The polisher removes repeated sentences, repeated ideas, motif echoes, and
 overlong output. The braid only becomes canonical after it is successfully kept
 and captured in the archive.
+
+**Braid prompt context (continuity, not material).** `BraidPromptBuilder.context`
+(in `Shared/LiteraryContinuity.swift`) now hands the braider a structured
+`Context`: the two most recent earlier braids (continuity rule — at most one
+returning image, never repeated sentences), the **month's theme** (used like a
+faint watermark), the **ascendant Chapter** (from `TalismanAscendancy`), the
+station currently playing (`nowPlaying`, from the living radio), and a
+reader-taught `BraidLearningGuidance`.
+
+**The braid quality/learning loop.** `BraidTastingRoom` scores a braid across six
+deterministic dimensions — title, story shape, prior-braid echo, theme/Chapter
+fit, keeper sentence, and concrete magic — minus penalties, and can `taste` and
+rank candidates. `BraidLearningLoop` turns weak dimensions and reader feedback
+into prompt guidance:
+
+- The reader can mark a kept braid **"This is a true page"** (`braid-loved-it`) so
+  the loop stops tugging the next braid away from what worked, or **"This missed
+  me"** (`braid-missed-me`), which both records the lesson and offers a rewrite.
+- "Read it another way" runs a **refereed rewrite**: the local brain rewrites the
+  page from the weak-dimension notes, and the result is kept **only if it tastes
+  better** than the original (`ContentViewFeatures`); otherwise the Book keeps the
+  original and says so.
+- Reader-taught notes persist in `vault.data.learnedBraidNotes` and sort ahead of
+  the deterministic heuristics when building the next prompt.
+
+Covered by `BraidPromptContextTests`.
 
 ### The Book Remembered
 
@@ -784,12 +866,17 @@ metadata, mood tags, and explicit page-type boosts.
 Core stations ship in `RadioStationRegistry`:
 
 - Fae-Fi (88.3) - bright/playful faerie lo-fi; leans toward Wonder Compass,
-  souvenirs, and festivals. It currently ships with bundled local tracks
-  **Mossy Footsteps** and **Folktronica**.
+  souvenirs, and festivals. Bundled tracks: **Mossy Footsteps**, **Folktronica**,
+  and **Mossy Groove**.
 - Mothlight Beats (90.9) - bittersweet wistful fae-fi; leans toward remembered
-  pages, inner weather, and diary.
+  pages, inner weather, and diary. Bundled tracks: **The Page Came Through**,
+  **Fae Dust**, and **Porchlight Fading**.
 - Thornwave (103.7) - dark faerie lo-fi / trip-hop / future garage; leans toward
-  Book Fae, story, and gossip.
+  Book Fae, story, and gossip. Bundled tracks: **Bramble Bass** and
+  **Nocturnal Faerie Lounge**.
+
+Two further stations ship behind pack entitlements: **The Midnight Bindery** and
+**Goblin Market Jazz** (with their own bundled tracks).
 
 Radio can also load user or pack stations from `.reenchantedradio.json` files.
 `RadioPlaybackState` persists the active station and tuning state in the vault,
@@ -1062,12 +1149,32 @@ The model is structured:
 - `WorldEventPageSourceAdapter` surfaces active fieldwork prompts as keepable
   pages.
 
-The bundled pack is **The Living Almanac**, currently including **The Dictionary
-Rebellion**, a September event where words peel away from their definitions.
+The bundled pack is **The Living Almanac**, currently including two events:
+**The Dictionary Rebellion**, a September event where words peel away from their
+definitions; and **The Starlit Paper Trial**, an archived midnight hearing where
+receipts, lists, and loose notes are called to testify to the day's overlooked
+kindnesses. Each runs through authored phases (summons → hearing → verdict, etc.).
 Touches from related kept pages, class answers, letters, Compass Runs,
 Enchantments, and other triggers can move the event toward an outcome. Monthly
 editions bind world-event traces from kept tags, so temporary physics become
 part of the archive rather than disappearing after the event window.
+
+**Reader-facing narration vs. generation material.** Each `WorldEventPhase` now
+carries an optional `scene` — in-character prose in the Book's voice describing
+what is happening this phase — distinct from `packetLine` (a generation
+instruction). The adapter's `narrativeBody` composes the player-facing page from
+the logline, the lived scene, the packet atmosphere, a derived **standing line**
+(how far the reader has stepped in, from outcome + `playerTouchCount`), and the
+fieldwork invitation — deliberately keeping lexical rules and generation
+instructions out of view. User-imported packs without `scene` fall back to the
+logline.
+
+**The Living Almanac door (Glow menu).** A `GlowMenuAction.openAlmanac` entry
+opens the world-event door directly (`ContentView.almanacSurface`): the active or
+archived event, or the quiet card. In DEBUG, when nothing is in season,
+`WorldEventResolver.previewEvents` / `WorldEventPageSourceAdapter.previewSurface`
+resolve an event against a synthetic window so the full machinery (phases,
+outcomes, packets) is always reachable for development.
 
 ## The Almanac (Wheel of the Year + lunar esbats)
 
@@ -1542,8 +1649,8 @@ The app has several kinds of memory, each with a different job:
 - `PlayerVaultData` - anchors, electives, Belief ledgers, tutor progress, owned
   packs, surface history, current arc, constellations, wagers, themes, Fae
   standing (`fae`), Pact War control (`pactWar`), Book Jump state (`bookJump`),
-  radio playback (`radio`), and the living relationship field
-  (`relationshipField`).
+  radio playback (`radio`), the living relationship field (`relationshipField`),
+  and reader-taught braid notes (`learnedBraidNotes`).
 - `ReEnchantedSaveFile` - complete portable export/import container.
 
 Memory is intentionally typed. Generated prose should be an expression of these
@@ -1773,8 +1880,11 @@ Important app files:
 - `InsideCoverApp/LocalBrainServices.swift` - MLX/Gemma services, prompt
   builders, photo/Vision helpers, web/research helpers, optional Reddit OAuth
   search, and fallbacks.
-- `InsideCoverApp/RadioAudio/` - bundled local radio assets, including Fae-Fi's
-  Mossy Footsteps and Folktronica tracks.
+- `InsideCoverApp/LivingTextInput.swift` - `LivingTextEditor`, the
+  Sentence-Builder-integrated writing field (nudges, scaffold tokens,
+  transmutation chips, alchemy shimmer) used on capture pages.
+- `InsideCoverApp/RadioAudio/` - bundled local radio assets across all three
+  core stations (Fae-Fi, Mothlight Beats, Thornwave) plus pack stations.
 - `InsideCoverApp/BookDatabase.swift` - app wrapper over the shared archive.
 - `InsideCoverApp/SearchTheStacksSheet.swift` - local archive search UI.
 - `InsideCoverApp/CustomCastMemberSheet.swift` - custom cast creation UI.
@@ -1845,7 +1955,8 @@ Coverage areas include:
 - local-brain telemetry state,
 - work-blocking policy,
 - prepared-page and braid recovery,
-- Book of You polish,
+- Book of You polish, braid prompt context (theme/Chapter/earlier-braid/
+  now-playing carry) and the braid tasting/learning loop,
 - story field, entities, relationships, Chapter Talismans,
 - letters, gossip, story choices, class schedules,
 - margins atlas layout,
@@ -1854,8 +1965,9 @@ Coverage areas include:
 - Inventory, BookShop listings, owned packs, radio stations, and manual radio
   surfaces,
 - weather, moon, body/fuel helpers, anchors, playful missions,
-- world event packs, active event influence, Dictionary Rebellion outcomes, and
-  monthly-event traces,
+- world event packs, active event influence, Dictionary Rebellion and Starlit
+  Paper Trial outcomes, out-of-season preview resolution, and monthly-event traces,
+- the Goblin Market (calling-card access, mood pricing, new-moon window),
 - Sentence Builder nudges, diagnostics, chips, and alchemy levels,
 - Dr. Inkrest's Office Hours (window, rotating prompts, adapter),
 - the Fae economy (bargains, gifts, lapse/repair, market, marginalia),

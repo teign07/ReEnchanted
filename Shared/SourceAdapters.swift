@@ -3996,30 +3996,63 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
         )
     }
 
-    private func surface(for event: ResolvedWorldEvent, day: BookDay, now: Date, manual: Bool) -> SurfacePage {
+    /// A door into a resolved event regardless of season. Returns nil only if
+    /// there are no enabled events at all. Intended for development previews.
+    func previewSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage? {
+        let resolved = WorldEventResolver.previewEvents(now: now, day: day, inputs: inputs)
+        guard let event = resolved.first else { return nil }
+        return surface(for: event, day: day, now: now, manual: true, preview: true)
+    }
+
+    /// Builds the reader-facing page in the Book's voice: an in-world dispatch
+    /// describing what the event is and what is happening right now, the player's
+    /// standing so far, and a closing invitation to fieldwork. Deliberately keeps
+    /// the generator-facing material (packetLines, lexical rules) out of view.
+    private func narrativeBody(for event: ResolvedWorldEvent) -> String {
+        var paragraphs: [String] = []
+
+        // What the event is, in-world.
+        paragraphs.append(event.packet.logline)
+
+        // The current phase as a lived scene.
+        let phaseScene = event.phase.scene?.trimmingCharacters(in: .whitespacesAndNewlines)
+        paragraphs.append((phaseScene?.isEmpty == false ? phaseScene! : event.phase.packetLine))
+
+        // Sensory weather, woven from the packet's atmosphere images.
+        let atmosphere = event.packet.atmosphere.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !atmosphere.isEmpty {
+            paragraphs.append("Everywhere you turn: \(atmosphere).")
+        }
+
+        // The player's standing so far, in character — derived rather than
+        // leaking the outcome's generation instruction.
+        paragraphs.append(standingLine(for: event))
+
+        // The invitation to act.
+        paragraphs.append("⸻")
+        paragraphs.append("The Book turns a fresh page toward you. \(event.packet.fieldworkPrompt)")
+        let reward = event.packet.fieldworkRewardLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !reward.isEmpty {
+            paragraphs.append(reward)
+        }
+
+        return paragraphs.joined(separator: "\n\n")
+    }
+
+    /// An in-character line describing how far the reader has stepped into the
+    /// event, based on the resolved outcome and how many related pages they kept.
+    private func standingLine(for event: ResolvedWorldEvent) -> String {
+        let touches = event.playerTouchCount
+        guard let outcome = event.outcome, touches > 0 else {
+            return "You have only glanced at this so far. To the Book you are still a passerby — the event has not yet caught hold of you, and is waiting to see if it will."
+        }
+        let times = touches == 1 ? "once" : "\(touches) times"
+        return "You have reached into this \(times). The Book has begun to regard you as \(outcome.title.lowercased())."
+    }
+
+    private func surface(for event: ResolvedWorldEvent, day: BookDay, now: Date, manual: Bool, preview: Bool = false) -> SurfacePage {
         let outcomeTitle = event.outcome?.title ?? "Unresolved"
-        let lexicalLines = event.phase.lexicalRules.map { rule in
-            "- \(rule.words.joined(separator: ", ")): \(rule.instruction)"
-        }.joined(separator: "\n")
-        let body = """
-        \(event.title)
-
-        \(event.packet.logline)
-
-        Phase: \(event.phase.title)
-        \(event.phase.packetLine)
-
-        Current outcome: \(outcomeTitle)
-        \(event.outcome?.packetLine ?? "The Book is still deciding what role the player has taken.")
-
-        Fieldwork:
-        \(event.packet.fieldworkPrompt)
-
-        Lexical rules in force:
-        \(lexicalLines.isEmpty ? "No lexical rules are exposed yet." : lexicalLines)
-
-        \(event.packet.fieldworkRewardLine)
-        """
+        let body = narrativeBody(for: event)
         let tags = [
             "world-event",
             "event:\(event.id)",
@@ -4034,9 +4067,11 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
             intent: .capture,
             renderStyle: .loreLetter,
             score: manual ? 84 : 74 + min(12, event.phase.intensity),
-            reason: manual
-                ? "You opened the event door yourself."
-                : "\(event.title) is changing the rules of the Book.",
+            reason: preview
+                ? "Almanac preview — \(event.title) shown out of season."
+                : (manual
+                    ? "You opened the event door yourself."
+                    : "\(event.title) is changing the rules of the Book."),
             prompt: "\(event.title): \(event.phase.title)",
             detail: "\(outcomeTitle). \(event.packet.fieldworkPrompt)",
             payload: BookPagePayload(

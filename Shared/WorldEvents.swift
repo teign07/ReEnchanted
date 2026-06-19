@@ -93,6 +93,11 @@ struct WorldEventPhase: Codable, Identifiable, Equatable {
     var packetLine: String
     var intensity: Int
     var lexicalRules: [WorldEventLexicalRule]
+    /// Reader-facing, in-character narration of what is happening during this
+    /// phase, in the Book's voice. Unlike `packetLine` (a generation
+    /// instruction), this is shown to the player. Optional so user-imported
+    /// packs without it fall back to the packet logline.
+    var scene: String? = nil
 }
 
 struct WorldEventLexicalRule: Codable, Identifiable, Equatable {
@@ -253,7 +258,8 @@ enum WorldEventRegistry {
                 intensity: 3,
                 lexicalRules: [
                     WorldEventLexicalRule(id: "ordinary-slips", words: ["ordinary", "fine", "later"], instruction: "Let these words feel unstable, as if they are considering resignation.")
-                ]
+                ],
+                scene: "The trouble begins quietly, the way most uprisings do. In the lower stacks the small words have started to hesitate — pausing a half-second before they agree to mean what they meant yesterday. A junior librarian reports that the word *later* slid clean off a timetable and would not say when. The Book has felt this weather before. It is the particular static in the air when language decides it has had enough of being taken for granted."
             ),
             WorldEventPhase(
                 id: "outbreak",
@@ -263,7 +269,8 @@ enum WorldEventRegistry {
                 intensity: 7,
                 lexicalRules: [
                     WorldEventLexicalRule(id: "rebellious-abstractions", words: ["should", "normal", "useful"], instruction: "When these ideas appear, notice who benefits from the old definition.")
-                ]
+                ],
+                scene: "Now it is unmistakable. Definitions are lifting away from their words like old paint, curling at the edges and drifting up toward the rafters. *Should* has shed three of its meanings in a single afternoon and looks lighter for it. The dictionaries lie open on the reading desks with their spines bandaged, margins thick with argument. The Academy has declared a quiet lexical emergency. The Book has simply started taking notes, because someone ought to record which definitions were worth keeping."
             ),
             WorldEventPhase(
                 id: "assembly",
@@ -273,7 +280,8 @@ enum WorldEventRegistry {
                 intensity: 8,
                 lexicalRules: [
                     WorldEventLexicalRule(id: "synonym-politics", words: ["meaning", "memory", "promise"], instruction: "Let near-meanings disagree without collapsing into a single answer.")
-                ]
+                ],
+                scene: "In the great reading hall the synonyms have organised. They sit in factions — the soft words along one bench, the sharp ones opposite — and they will not be reconciled. *Meaning* and *memory* and *promise* trade speeches that very nearly agree and then, at the final word, refuse to. The antonyms exchange letters of furious courtesy across the aisle. The Book finds the whole assembly rather moving: language arguing, at long last, about what it is actually for."
             ),
             WorldEventPhase(
                 id: "afterimage",
@@ -283,7 +291,8 @@ enum WorldEventRegistry {
                 intensity: 4,
                 lexicalRules: [
                     WorldEventLexicalRule(id: "afterimage-vocabulary", words: ["attention", "wonder", "home"], instruction: "Let one familiar word carry a new, earned shade of meaning.")
-                ]
+                ],
+                scene: "The uprising is settling. The liberated words are being coaxed back toward their margins, though a stubborn few refuse to return unchanged — and the Book does not blame them. Fresh ink dries in the revised entries; the hall smells of paper and aftermath. Somewhere on a quiet shelf a single ordinary word, newly defined, is testing the unfamiliar weight of its better meaning, deciding whether it can carry it home."
             )
         ],
         triggers: [.calendar, .keptRelatedPage, .classAnswered, .letterKept],
@@ -364,7 +373,8 @@ enum WorldEventRegistry {
                 intensity: 4,
                 lexicalRules: [
                     WorldEventLexicalRule(id: "evidence-words", words: ["receipt", "list", "note"], instruction: "Treat ordinary paper as testimony with a memory of being handled.")
-                ]
+                ],
+                scene: "It begins after midnight, when the Book is meant to be closed. Small papers — receipts, lists, the backs of envelopes — start arranging themselves into neat evidence piles on the reading desk. None of them were summoned aloud. Each one seems to remember the hand that folded it away and is waiting, quite politely, to be asked what it saw before it was filed into the dark."
             ),
             WorldEventPhase(
                 id: "hearing",
@@ -374,7 +384,8 @@ enum WorldEventRegistry {
                 intensity: 7,
                 lexicalRules: [
                     WorldEventLexicalRule(id: "accounting-words", words: ["proof", "owed", "kept"], instruction: "Let evidence feel practical, intimate, and a little luminous.")
-                ]
+                ],
+                scene: "The hearing is underway. One by one the Book lifts a neglected scrap into the lamplight and asks it, gently, what it witnessed before it was folded and forgotten. A grocery list testifies to a kindness no one wrote down. A ticket stub remembers a particular doorway, and the weather behind it. The evidence is practical, intimate, and faintly luminous — quiet proof that an ordinary day was, in fact, attended by someone."
             ),
             WorldEventPhase(
                 id: "verdict",
@@ -384,7 +395,8 @@ enum WorldEventRegistry {
                 intensity: 5,
                 lexicalRules: [
                     WorldEventLexicalRule(id: "verdict-words", words: ["remember", "return", "true"], instruction: "Let the final note leave a useful mark rather than a punishment.")
-                ]
+                ],
+                scene: "The trial resolves not into punishment but annotation. In careful blue ink the Book writes its findings in the margins: what mattered, what was missed, what may yet return. The scraps are released back into the world, each carrying a small mark that means *seen*. The lamp gutters low over the desk. Court, for tonight, is adjourned — though the Book leaves the ledger open, in case you have evidence of your own."
             )
         ],
         triggers: [.calendar, .keptRelatedPage, .letterKept],
@@ -453,6 +465,27 @@ enum WorldEventResolver {
             return resolvedEvent(packID: packID, event: event, interval: interval, now: interval.end, day: day, inputs: inputs)
         }
         .sorted { $0.endsAt > $1.endsAt }
+    }
+
+    /// Resolves enabled events against a synthetic interval centered on `now`,
+    /// ignoring the calendar window. Lets the full event machinery (phases,
+    /// outcomes, packets) be surfaced out of season — primarily for development
+    /// previews so the Almanac is never structurally invisible.
+    static func previewEvents(
+        now: Date,
+        day: BookDay? = nil,
+        inputs: BookSourceInputs = .empty,
+        progress: Double = 0.5,
+        calendar: Calendar = .current,
+        fileManager: FileManager = .default
+    ) -> [ResolvedWorldEvent] {
+        let clamped = min(1, max(0, progress))
+        return WorldEventRegistry.enabledEvents(fileManager: fileManager).map { packID, event in
+            let duration = TimeInterval(max(1, event.calendar.durationDays)) * 86_400
+            let start = now.addingTimeInterval(-duration * clamped)
+            let interval = DateInterval(start: start, duration: duration)
+            return resolvedEvent(packID: packID, event: event, interval: interval, now: now, day: day, inputs: inputs)
+        }
     }
 
     private static func resolvedEvent(

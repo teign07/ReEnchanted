@@ -239,6 +239,7 @@ const STATIONS = [
       { title: "Mossy Footsteps", artist: "Fae-Fi", src: "./assets/audio/fae-fi-mossy-footsteps.m4a" },
       { title: "Folktronica", artist: "Fae-Fi", src: "./assets/audio/fae-fi-folktronica.m4a" },
       { title: "Mossy Groove", artist: "Fae-Fi", src: "./assets/audio/fae-fi-mossy-groove.m4a" },
+      { title: "To the Adventure", artist: "Fae-Fi", src: "./assets/audio/fae-fi-to-the-adventure.m4a" },
     ],
   },
   {
@@ -441,67 +442,94 @@ const STATIONS = [
   }
 })();
 
-/* ───────────────────────── ambient gold-dust field (three.js) ───────────────────────── */
-async function initField() {
+/* ───────────────────────── ambient letter field ───────────────────────── */
+function initField() {
   if (reduceMotion) return;
   const canvas = document.querySelector("#spell-field");
   if (!canvas) return;
-  try {
-    const THREE = await import("https://unpkg.com/three@0.161.0/build/three.module.js");
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
-    camera.position.z = 9;
 
-    const count = 220;
-    const positions = new Float32Array(count * 3);
-    const colors = new Float32Array(count * 3);
-    const gold = new THREE.Color("#ffc874");
-    const teal = new THREE.Color("#4cc0bd");
-    const violet = new THREE.Color("#8a72c4");
-
-    for (let i = 0; i < count; i++) {
-      const r = 2.4 + Math.random() * 7;
-      const a = Math.random() * Math.PI * 2;
-      positions[i * 3] = Math.cos(a) * r;
-      positions[i * 3 + 1] = Math.sin(a) * r * 0.7;
-      positions[i * 3 + 2] = -Math.random() * 6;
-      const roll = Math.random();
-      const c = roll > 0.84 ? teal : roll > 0.74 ? violet : gold;
-      colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
-    }
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-    const mat = new THREE.PointsMaterial({
-      size: 0.05, vertexColors: true, transparent: true,
-      opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending,
-    });
-    const points = new THREE.Points(geo, mat);
-    scene.add(points);
-
-    function resize() {
-      const w = window.innerWidth, h = window.innerHeight;
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.setSize(w, h, false);
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-    }
-    function tick(t) {
-      points.rotation.z = t * 0.00004 + window.scrollY * 0.00006;
-      points.rotation.x = Math.sin(t * 0.00016) * 0.06;
-      camera.position.x = parseFloat(root.style.getPropertyValue("--mx") || 0) * 0.8;
-      camera.position.y = -parseFloat(root.style.getPropertyValue("--my") || 0) * 0.8;
-      camera.lookAt(0, 0, 0);
-      renderer.render(scene, camera);
-      requestAnimationFrame(tick);
-    }
-    window.addEventListener("resize", resize);
-    resize();
-    requestAnimationFrame(tick);
-  } catch {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
     canvas.remove();
+    return;
   }
+
+  const glyphs = "REENCHANTEDBOOKOFYOUPAGESKEPTSTORY";
+  const colors = [
+    [255, 200, 116],
+    [255, 216, 154],
+    [76, 192, 189],
+    [138, 114, 196],
+  ];
+  const letters = [];
+  let width = 0;
+  let height = 0;
+  let dpr = 1;
+
+  function makeLetter() {
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    return {
+      glyph: glyphs[Math.floor(Math.random() * glyphs.length)],
+      x: Math.random(),
+      y: Math.random(),
+      depth: 0.35 + Math.random() * 0.9,
+      size: 5 + Math.random() * 7,
+      drift: 0.04 + Math.random() * 0.1,
+      orbit: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 0.22,
+      alpha: 0.08 + Math.random() * 0.18,
+      color,
+    };
+  }
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const target = Math.min(180, Math.max(80, Math.floor((width * height) / 12000)));
+    while (letters.length < target) letters.push(makeLetter());
+    letters.length = target;
+  }
+
+  function draw(t) {
+    ctx.clearRect(0, 0, width, height);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    const mx = parseFloat(root.style.getPropertyValue("--mx") || 0);
+    const my = parseFloat(root.style.getPropertyValue("--my") || 0);
+    const scrollDrift = window.scrollY * 0.018;
+    const time = t * 0.001;
+
+    for (const letter of letters) {
+      const orbitX = Math.cos(time * letter.drift + letter.orbit) * 28 * letter.depth;
+      const orbitY = Math.sin(time * letter.drift * 0.8 + letter.orbit) * 18 * letter.depth;
+      const x = ((letter.x * width + orbitX + mx * 42 * letter.depth) % (width + 80)) - 40;
+      const y = ((letter.y * height + orbitY + scrollDrift * letter.depth - my * 34 * letter.depth) % (height + 80)) - 40;
+      const [r, g, b] = letter.color;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(Math.sin(time * letter.drift + letter.orbit) * letter.spin);
+      ctx.font = `${letter.size * letter.depth}px Fraunces, Georgia, serif`;
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${letter.alpha})`;
+      ctx.shadowColor = `rgba(${r}, ${g}, ${b}, ${letter.alpha * 0.35})`;
+      ctx.shadowBlur = 4 * letter.depth;
+      ctx.fillText(letter.glyph, 0, 0);
+      ctx.restore();
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener("resize", resize, { passive: true });
+  resize();
+  requestAnimationFrame(draw);
 }
 initField();

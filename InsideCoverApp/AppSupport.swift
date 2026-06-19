@@ -2235,15 +2235,19 @@ struct ScrivenersCounterMerchant: BookShopMerchant {
 }
 
 enum BookShopTill {
-    /// StoreKit when it has real offers; the dev counter otherwise. When
-    /// the membership lands and products exist, the shop flips itself live.
+    /// StoreKit in distribution builds. Debug builds keep the dev counter so the
+    /// shop can be exercised before App Store Connect products exist.
     static func resolveMerchant() async -> BookShopMerchant {
         let storeKit = StoreKitMerchant()
+        #if DEBUG
         let live = await storeKit.offers()
         if !live.isEmpty {
             return storeKit
         }
         return ScrivenersCounterMerchant()
+        #else
+        return storeKit
+        #endif
     }
 }
 

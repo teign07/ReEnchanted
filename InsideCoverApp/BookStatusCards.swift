@@ -675,6 +675,7 @@ enum GlowMenuAction {
     case givePageBelief(GlowPageMenuItem)
     case takePageBelief(GlowPageMenuItem)
     case spellCompass
+    case openAlmanac
     case openEnchantment(GlowEnchantmentMenuItem)
     case openPage(BookPageType)
     case openBookSection(String)
@@ -1072,6 +1073,14 @@ struct GlowCommandMenu: View {
                 compact: compact
             ) {
                 onSelectAction(.spellCompass)
+            }
+            menuButton(
+                title: "The Living Almanac",
+                detail: "Open the world event door: active or archived temporary physics, phases, and fieldwork.",
+                systemImage: "calendar.badge.clock",
+                compact: compact
+            ) {
+                onSelectAction(.openAlmanac)
             }
             Text("Enchantment")
                 .font(.caption2.weight(.black))

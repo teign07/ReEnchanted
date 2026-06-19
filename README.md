@@ -18,6 +18,23 @@ The short version of the architecture:
 
 For the full product and architecture map, read `PROJECT_OVERVIEW.md`.
 
+## License
+
+The **source code** is open source under the **Mozilla Public License 2.0**
+(MPL-2.0) — see `LICENSE`. You're free to read, audit, modify, and redistribute
+it; changes to MPL-licensed files stay open under the same license, but you can
+combine the code with your own files under another license. MPL is also
+App Store–friendly, unlike GPL/AGPL.
+
+The app's **content is proprietary and not open source**: artwork, illustrations,
+talismans, audio/radio tracks, paid content packs and world-event packs, and the
+"ReEnchanted"/"Enchantify" names and branding are All Rights Reserved. MPL grants
+no trademark rights, so any fork must be renamed and rebranded. Reader save data
+belongs to the reader. See `NOTICE` for the full code-vs-content breakdown.
+
+In short: the engine is open; the art, audio, and content are ours; your saves
+are yours.
+
 ## Requirements
 
 - macOS with Xcode installed
@@ -80,6 +97,8 @@ one.
 - App target: `InsideCoverApp`
 - Shared package: `InsideCoverCore`
 - Supported runtime target: iOS 17+
+- App Store readiness notes live in `docs/AppStoreReviewPacket.md`,
+  `docs/PrivacyPolicyDraft.md`, and `docs/AppPrivacyInventory.md`.
 - The old widget source is intentionally detached from this project and lives
   outside the app target.
 - The app should remain usable when optional local model assets are missing,

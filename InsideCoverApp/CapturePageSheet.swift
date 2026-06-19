@@ -103,6 +103,22 @@ private struct MarginsAtlasGraphView: View {
     let graph: NarrativeGraphData
     @Binding var selectedNodeID: String?
 
+    // Pinch-to-zoom + pan over the graph. The layout is dense with many nodes,
+    // so the reader needs to magnify into a region to separate overlapping
+    // labels. `zoom`/`pan` are the live transform; `lastZoom`/`lastPan` commit
+    // each gesture so the next one continues from where the last left off.
+    @State private var zoom: CGFloat = 1
+    @State private var lastZoom: CGFloat = 1
+    @State private var pan: CGSize = .zero
+    @State private var lastPan: CGSize = .zero
+
+    private let minZoom: CGFloat = 1
+    private let maxZoom: CGFloat = 4
+
+    private var isTransformed: Bool {
+        abs(zoom - 1) > 0.01 || abs(pan.width) > 0.5 || abs(pan.height) > 0.5
+    }
+
     private var selectedEdges: [GraphEdge] {
         guard let selectedNodeID else { return graph.edges }
         return graph.edges.filter { $0.sourceID == selectedNodeID || $0.targetID == selectedNodeID }
@@ -115,52 +131,139 @@ private struct MarginsAtlasGraphView: View {
 
     var body: some View {
         GeometryReader { proxy in
+            let size = CGSize(width: max(1, proxy.size.width), height: max(1, proxy.size.height))
             let positions = GraphLayoutEngine.layout(
                 data: graph,
-                width: max(1, proxy.size.width),
-                height: max(1, proxy.size.height),
+                width: size.width,
+                height: size.height,
                 seed: "margins-atlas-\(variant.rawValue)"
             )
 
             ZStack {
                 atlasBackground
 
-                Canvas { context, size in
-                    for edge in graph.edges {
-                        guard let source = positions[edge.sourceID],
-                              let target = positions[edge.targetID] else { continue }
-                        let isLit = selectedNodeID == nil || selectedEdges.contains(where: { $0.id == edge.id })
-                        var path = Path()
-                        path.move(to: CGPoint(x: source.x, y: source.y))
-                        path.addLine(to: CGPoint(x: target.x, y: target.y))
-                        context.stroke(
-                            path,
-                            with: .color(edgeColor(edge).opacity(isLit ? 0.78 : 0.13)),
-                            lineWidth: max(1.2, 1.4 + edge.strength * 5.8)
-                        )
-                    }
-                }
-                .allowsHitTesting(false)
-
-                ForEach(graph.nodes) { node in
-                    if let point = positions[node.id] {
-                        AtlasNodeButton(
-                            node: node,
-                            variant: variant,
-                            isSelected: selectedNodeID == node.id,
-                            isDimmed: selectedNodeID != nil && !connectedIDs.contains(node.id)
-                        ) {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                                selectedNodeID = selectedNodeID == node.id ? nil : node.id
-                            }
-                        }
-                        .position(x: point.x, y: point.y)
-                    }
+                graphContent(positions: positions, size: size)
+                    .scaleEffect(zoom)
+                    .offset(pan)
+                    .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.86), value: zoom)
+                    .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.86), value: pan)
+            }
+            .contentShape(Rectangle())
+            .gesture(panGesture(viewport: size).simultaneously(with: zoomGesture))
+            .overlay(alignment: .bottomTrailing) {
+                if isTransformed {
+                    resetButton
+                        .padding(8)
+                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .contain)
+    }
+
+    private func graphContent(positions: [String: CodablePoint], size: CGSize) -> some View {
+        ZStack {
+            Canvas { context, _ in
+                for edge in graph.edges {
+                    guard let source = positions[edge.sourceID],
+                          let target = positions[edge.targetID] else { continue }
+                    let isLit = selectedNodeID == nil || selectedEdges.contains(where: { $0.id == edge.id })
+                    var path = Path()
+                    path.move(to: CGPoint(x: source.x, y: source.y))
+                    path.addLine(to: CGPoint(x: target.x, y: target.y))
+                    context.stroke(
+                        path,
+                        with: .color(edgeColor(edge).opacity(isLit ? 0.78 : 0.13)),
+                        lineWidth: max(1.2, 1.4 + edge.strength * 5.8)
+                    )
+                }
+            }
+            .allowsHitTesting(false)
+
+            ForEach(graph.nodes) { node in
+                if let point = positions[node.id] {
+                    AtlasNodeButton(
+                        node: node,
+                        variant: variant,
+                        isSelected: selectedNodeID == node.id,
+                        isDimmed: selectedNodeID != nil && !connectedIDs.contains(node.id)
+                    ) {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                            selectedNodeID = selectedNodeID == node.id ? nil : node.id
+                        }
+                    }
+                    .position(x: point.x, y: point.y)
+                }
+            }
+        }
+        .frame(width: size.width, height: size.height)
+    }
+
+    private var zoomGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                zoom = min(maxZoom, max(minZoom, lastZoom * value))
+            }
+            .onEnded { _ in
+                lastZoom = zoom
+                if zoom <= minZoom + 0.01 { resetPan() }
+            }
+    }
+
+    private func panGesture(viewport: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { value in
+                let proposed = CGSize(
+                    width: lastPan.width + value.translation.width,
+                    height: lastPan.height + value.translation.height
+                )
+                pan = clampedPan(proposed, viewport: viewport)
+            }
+            .onEnded { value in
+                let proposed = CGSize(
+                    width: lastPan.width + value.translation.width,
+                    height: lastPan.height + value.translation.height
+                )
+                pan = clampedPan(proposed, viewport: viewport)
+                lastPan = pan
+            }
+    }
+
+    /// Keeps the scaled graph from being dragged entirely off-screen: panning is
+    /// bounded by how much larger the zoomed content is than the viewport.
+    private func clampedPan(_ proposed: CGSize, viewport: CGSize) -> CGSize {
+        let maxX = max(0, (viewport.width * zoom - viewport.width) / 2)
+        let maxY = max(0, (viewport.height * zoom - viewport.height) / 2)
+        return CGSize(
+            width: min(maxX, max(-maxX, proposed.width)),
+            height: min(maxY, max(-maxY, proposed.height))
+        )
+    }
+
+    private func resetPan() {
+        pan = .zero
+        lastPan = .zero
+    }
+
+    private var resetButton: some View {
+        Button {
+            BookFeedback.play(.select)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.84)) {
+                zoom = 1
+                lastZoom = 1
+                resetPan()
+            }
+        } label: {
+            Image(systemName: "arrow.up.left.and.down.right.magnifyingglass")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(BookPalette.nightText)
+                .padding(9)
+                .background(BookPalette.nightPanel.opacity(0.86), in: Circle())
+                .overlay { Circle().stroke(BookPalette.lampGold.opacity(0.4), lineWidth: 1) }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Reset zoom")
     }
 
     private var atlasBackground: some View {
@@ -838,6 +941,10 @@ struct CapturePageSheet: View {
         BookPalette.nightText.opacity(0.86)
     }
 
+    private var calloutBodyText: Color {
+        isPreparedPage ? BookPalette.ink.opacity(0.78) : openPageSecondaryText
+    }
+
     private var sharePageText: String {
         let marginNote = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let body: String
@@ -1351,7 +1458,7 @@ struct CapturePageSheet: View {
                 .foregroundStyle(tint)
             Text(body)
                 .font(.callout.weight(.semibold))
-                .foregroundStyle(BookPalette.ink.opacity(0.78))
+                .foregroundStyle(calloutBodyText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(12)
@@ -1392,7 +1499,7 @@ struct CapturePageSheet: View {
             if let selectedNode = graph.nodes.first(where: { $0.id == selectedAtlasNodeID }) {
                 MarginsAtlasNodeCard(node: selectedNode, graph: graph, variant: atlasVariant)
             } else {
-                Text(graph.nodes.isEmpty ? "The page has not found enough tracks to draw yet." : "Tap a name in the ink to light its threads.")
+                Text(graph.nodes.isEmpty ? "The page has not found enough tracks to draw yet." : "Tap a name in the ink to light its threads. Pinch to zoom and drag to move around the weave.")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(openPageSecondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1408,7 +1515,7 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.lampGold.opacity(0.9))
             Text(framing)
                 .font(.system(.callout, design: .serif).italic())
-                .foregroundStyle(BookPalette.ink.opacity(0.82))
+                .foregroundStyle(openPageSecondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(10)
@@ -1427,7 +1534,7 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.teal.opacity(0.8))
             Text(note)
                 .font(.system(.caption, design: .serif).italic())
-                .foregroundStyle(BookPalette.ink.opacity(0.7))
+                .foregroundStyle(openPageSecondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(10)
@@ -2219,7 +2326,7 @@ struct CapturePageSheet: View {
         return VStack(alignment: .leading, spacing: 14) {
             Text(surface.payload.body)
                 .font(.system(.body, design: .serif))
-                .foregroundStyle(BookPalette.ink.opacity(0.9))
+                .foregroundStyle(openPageSecondaryText)
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -2230,7 +2337,7 @@ struct CapturePageSheet: View {
                 body: isRepair
                     ? "\(giftLine) It will not work again until the debt is paid."
                     : giftLine,
-                tint: isRepair ? BookPalette.ink.opacity(0.5) : BookPalette.lampGold
+                tint: isRepair ? openPageSecondaryText : BookPalette.lampGold
             )
 
             if !isRepair {
@@ -2274,7 +2381,7 @@ struct CapturePageSheet: View {
                         .foregroundStyle(openPageSecondaryText)
                     Text("Sensory and specific. Not the category — the detail. The fae can tell the difference.")
                         .font(.caption)
-                        .foregroundStyle(BookPalette.ink.opacity(0.55))
+                        .foregroundStyle(openPageSecondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                     TextEditor(text: $faeReport)
                         .font(.body)
