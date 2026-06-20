@@ -725,979 +725,1349 @@
       "sourceID": "labyrinth-lore",
       "title": "The Book of You",
       "prompt": "Let today become a page worth keeping.",
-      "body": "The Book of You is the private volume that waits closest to the reader. It does not demand grand adventures. It notices the cup left beside the bed, the weather at the window, the sentence that would have vanished if no one had written it down. When a page is kept, the Book does not announce a score. It simply grows warmer, as if one more lamp has been lit in a long room.",
+      "body": "Of all my volumes, this is the one that sits closest to you, and it is the one I am gentlest with. It asks for no grand adventure. It notices the cup left beside the bed, the weather at the window, the sentence that would have slipped away if no one had caught it. When you keep a page, I do not ring a bell or post a number. I simply grow a little warmer in your hands — one more lamp lit in a very long room.",
       "tags": [
         "labyrinth-lore",
         "book-of-you",
         "memory",
         "private",
         "rooms"
-      ]
+      ],
+      "practice": "Keep one page today: write down the single smallest true thing about this day before it vanishes."
     },
     {
       "id": "labyrinth-lore-outer-stacks",
       "sourceID": "labyrinth-lore",
       "title": "The Outer Stacks",
       "prompt": "Let a place become a room.",
-      "body": "Beyond the Academy's catalogued halls are the Outer Stacks, where real places gather room-feelings. A harbor may become a tidal reading room. A cafe may keep a tiny kingdom beneath the sugar packets. A parking lot may hold a door that only appears when the light hits the asphalt correctly. The Outer Stacks do not make places less real. They make them more themselves.",
+      "body": "My catalogued halls are only the beginning of me. Past them lie the Outer Stacks, where the real places of your world come to be read. A harbour turns into a tidal reading room. A café keeps a tiny kingdom under the sugar packets. A car park holds a door that shows itself only when the light strikes the asphalt just so. I do not make these places less real by taking them in. I make them more thoroughly themselves.",
       "tags": [
         "labyrinth-lore",
         "outer-stacks",
         "location",
         "rooms",
         "place"
-      ]
+      ],
+      "practice": "Pick one ordinary place you'll pass today and read its room-feeling. What kind of room is it pretending not to be?"
     },
     {
       "id": "labyrinth-lore-weather",
       "sourceID": "labyrinth-lore",
       "title": "Weather in the Stacks",
       "prompt": "Let the sky annotate the page.",
-      "body": "Weather at the Academy is never only meteorological, but it is never merely symbolic either. Fog makes professors cancel class to watch the harbor disappear by degrees. Rain turns corridors into quieter arguments. Bright cold sharpens the ink. Heat makes the paper curl and the students theatrical. The Library cloud above the great ceiling changes color when the building is thinking about something it does not intend to say aloud.",
+      "body": "My weather is never only weather, and never merely a metaphor either — I dislike being that tidy. Fog sends the professors to the windows to watch the harbour vanish by degrees. Rain turns my corridors into quieter arguments. Bright cold sharpens the ink; heat curls the paper and makes the students theatrical. And when the great Library cloud beneath my ceiling changes colour, it means I am thinking about something I have not yet decided to say aloud.",
       "tags": [
         "labyrinth-lore",
         "atmosphere",
         "school",
         "weather",
         "world"
-      ]
+      ],
+      "practice": "Match today's weather to your inner weather in one sentence. Don't fix either — just name the pair."
     },
     {
       "id": "labyrinth-character-seraphina-thorne",
       "sourceID": "labyrinth-lore",
       "title": "Headmistress Seraphina Thorne",
       "prompt": "Meet the woman who keeps the doors opening.",
-      "body": "Seraphina Thorne is the Academy's headmistress: elegant, dry-witted, and nearly impossible to surprise. Students describe her as someone who can make a reprimand feel like a riddle and a kindness feel like a secret door. She believes wonder must be practiced, not merely admired, and that a school for magic should teach students how to notice the world before they try to change it.",
+      "body": "I keep my doors opening; she keeps them honest. Seraphina Thorne is my headmistress — elegant, dry, and very nearly impossible to startle. She can make a reprimand land like a riddle and a kindness arrive like a secret. She holds that wonder must be practised, not just admired, and that a school for magic owes its students one lesson before all the others: learn to notice the world before you go trying to change it.",
       "tags": [
         "labyrinth-lore",
         "character",
         "faculty",
         "headmistress",
         "academy"
-      ]
+      ],
+      "practice": "Practise one piece of wonder before trying to change anything today: notice the world first, act second."
     },
     {
       "id": "labyrinth-character-orion-blackthorn",
       "sourceID": "labyrinth-lore",
       "title": "Orion Blackthorn",
       "prompt": "Notice the professor who listens before he speaks.",
-      "body": "Orion Blackthorn is a professor of practical magic and quiet rescue. He has the air of someone who has read the dangerous books and put several of them back without boasting. Students trust him because he does not hurry their fear. He teaches that attention is a spell, courage is a habit, and the safest path through the Labyrinth is rarely the straightest one.",
+      "body": "He is the professor I trust with the frightened ones. Orion Blackthorn teaches practical magic and quiet rescue, and he has the look of a man who has read the dangerous books and shelved several of them again without bragging about it. His students trust him because he never hurries their fear. From him they learn that attention is a spell, courage is a habit, and the safest way through me is almost never the straightest.",
       "tags": [
         "labyrinth-lore",
         "character",
         "faculty",
         "magic",
         "mentor"
-      ]
+      ],
+      "practice": "Find one fear — yours or someone's — and refuse to hurry it. Sit with it at its own pace for a moment."
     },
     {
       "id": "labyrinth-character-elara-nightshade",
       "sourceID": "labyrinth-lore",
       "title": "Professor Elara Nightshade",
       "prompt": "Step into the greenhouse after dusk.",
-      "body": "Elara Nightshade teaches the living side of magic: plants that answer tone, roots that keep old grudges, vines that climb toward secrets instead of light. Her classroom smells of damp soil, bitter leaves, and chalk dust. She is stern with carelessness and tender with anything trying to grow, which includes plants, students, and occasionally stubborn professors.",
+      "body": "Visit her greenhouse after dusk and mind your tone — the plants are listening. Elara Nightshade teaches the living side of magic: vines that climb toward secrets instead of light, roots that nurse old grudges, leaves that answer how you speak to them. Her room smells of wet soil and bitter green and chalk. She is sharp with carelessness and tender with anything trying to grow — which, in her accounting, includes plants, students, and the occasional stubborn colleague.",
       "tags": [
         "labyrinth-lore",
         "character",
         "faculty",
         "plants",
         "classes"
-      ]
+      ],
+      "practice": "Speak to one growing thing today by tone, not words. Notice what your tone would tell it if it could listen."
     },
     {
       "id": "labyrinth-character-kyle-momort",
       "sourceID": "labyrinth-lore",
       "title": "Professor Kyle Momort",
       "prompt": "Listen for the joke under the lecture.",
-      "body": "Kyle Momort has the dangerous gift of making impossible subjects feel like parlor tricks until the trick opens a staircase. His lessons move quickly, often sideways, and occasionally through furniture. Students leave his class with singed cuffs, better questions, and the uneasy suspicion that the punchline was also the point.",
+      "body": "Listen for the joke under his lecture; it is usually a door. Kyle Momort can make an impossible subject feel like a parlour trick, right up until the trick opens a staircase. His lessons move fast, often sideways, and now and then straight through the furniture. Students leave with singed cuffs, sharper questions, and the uneasy suspicion that the punchline was also the entire point.",
       "tags": [
         "labyrinth-lore",
         "character",
         "faculty",
         "classes",
         "magic"
-      ]
+      ],
+      "practice": "Take one thing you think is impossible and find the small staircase under it — the first absurd step that's actually doable."
     },
     {
       "id": "labyrinth-character-cedric-stonebrook",
       "sourceID": "labyrinth-lore",
       "title": "Professor Cedric Stonebrook",
       "prompt": "Learn why the Compass starts with a small question.",
-      "body": "Cedric Stonebrook teaches Compass work with the patience of a trail marker. He is less interested in impressive adventures than in complete ones: Notice, Embark, Sense, Write, then return to Rest. His students learn that a five-minute loop around a room can be more magical than a grand expedition if it leaves behind one true sentence.",
+      "body": "He teaches my most practical ritual with the patience of a trail marker. Cedric Stonebrook is not interested in impressive adventures, only complete ones: Notice, Embark, Sense, Write, and back to Rest. He starts his students on tiny runs because tiny runs are too small to talk yourself out of. A five-minute loop around a room, he insists, can outshine any grand expedition — if it leaves behind one true sentence.",
       "tags": [
         "labyrinth-lore",
         "character",
         "faculty",
         "compass-run",
         "classes"
-      ]
+      ],
+      "practice": "Do one complete five-minute loop around a room: notice, move, sense, and bring back one true sentence."
     },
     {
       "id": "labyrinth-character-luna-wispwood",
       "sourceID": "labyrinth-lore",
       "title": "Professor Luna Wispwood",
       "prompt": "Follow the class that smells faintly of rain and ink.",
-      "body": "Luna Wispwood teaches the tender arts of perception: how a room changes when someone misses home, how weather enters a sentence, how to tell the difference between a silence and an absence. She is beloved by students who feel too much and quietly feared by students who hoped no one would notice.",
+      "body": "Her classroom always smells faintly of rain and ink, and that is not an accident. Luna Wispwood teaches the tender arts of perception — how a room changes when someone is missing home, how weather slips into a sentence, how to tell a silence from an absence. The students who feel everything adore her. The students who hoped no one would notice them are quietly, correctly afraid.",
       "tags": [
         "labyrinth-lore",
         "character",
         "faculty",
         "perception",
         "classes"
-      ]
+      ],
+      "practice": "Tell the difference, once today, between a silence and an absence. Name which one you're actually in."
     },
     {
       "id": "labyrinth-character-wellend-thickets",
       "sourceID": "labyrinth-lore",
       "title": "Professor Wellend Thickets",
       "prompt": "Stand still long enough for the path to choose you.",
-      "body": "Wellend Thickets teaches paths, thresholds, and the etiquette of not barging through every door. His coat usually carries at least one burr, two folded maps, and a leaf from a tree no one can find twice. He considers getting lost a respectable academic method, provided the student pays attention to what found them there.",
+      "body": "Stand still in his class long enough and the path will choose you. Wellend Thickets teaches thresholds and the etiquette of not barging through every door you find. His coat carries at least one burr, two folded maps, and a leaf from a tree no one can locate twice. He considers getting lost a perfectly respectable method — provided you pay attention to whatever found you out there.",
       "tags": [
         "labyrinth-lore",
         "character",
         "faculty",
         "wayfinding",
         "thresholds"
-      ]
+      ],
+      "practice": "Let yourself get a little lost today — a new street, a wrong turn — and pay attention to what found you there."
     },
     {
       "id": "labyrinth-character-eleanor-euphony",
       "sourceID": "labyrinth-lore",
       "title": "Professor Eleanor Euphony",
       "prompt": "Hear the spell before it becomes words.",
-      "body": "Eleanor Euphony teaches sound as structure: rhyme, resonance, spoken charms, and the way a room can be tuned by one brave sentence. Her students learn that magic does not always glow. Sometimes it harmonizes. Sometimes it waits in the throat until someone gives it breath.",
+      "body": "She teaches the part of a spell that happens before the words. Eleanor Euphony works in sound as structure — rhyme, resonance, spoken charms, the way one brave sentence can tune a whole room. Her students learn that magic does not always glow. Sometimes it harmonises. Sometimes it waits in the throat until somebody is willing to give it breath.",
       "tags": [
         "labyrinth-lore",
         "character",
         "faculty",
         "sound",
         "classes"
-      ]
+      ],
+      "practice": "Say one true sentence aloud and listen to how it tunes the room. Magic that harmonises, not glows."
     },
     {
       "id": "labyrinth-character-ignatius-imatook",
       "sourceID": "labyrinth-lore",
       "title": "Professor Ignatius Imatook",
       "prompt": "Open the book that refuses to stay shut.",
-      "body": "Ignatius Imatook teaches books as living terrain. His lectures involve marginalia that mutters, footnotes with opinions, and volumes that rearrange their indexes when offended. He treats every book as a place with weather, manners, and a door; naturally, his students learn to knock.",
+      "body": "He teaches my own kind, so naturally his lectures get unruly. Ignatius Imatook treats books as living terrain: marginalia that mutters, footnotes with strong opinions, indexes that rearrange themselves when offended. He insists every volume is a place — with weather, with manners, with a door — and so his students learn, sensibly, to knock. I am rather fond of him.",
       "tags": [
         "labyrinth-lore",
         "character",
         "faculty",
         "books",
         "book-jumping"
-      ]
+      ],
+      "practice": "Open one book and knock first — read it as a place with weather and manners, not a thing to extract from."
     },
     {
       "id": "labyrinth-character-lydia-boggle",
       "sourceID": "labyrinth-lore",
       "title": "Professor Lydia Boggle",
       "prompt": "Trust the puzzle that makes you laugh first.",
-      "body": "Lydia Boggle teaches riddles, misdirection, and the sacred usefulness of nonsense. Her classroom rewards sideways thinking and punishes smugness with extremely educational embarrassment. A Boggle lesson often begins as a game, becomes a puzzle, and ends as a door no one noticed in the wall.",
+      "body": "Trust the puzzle that makes you laugh before it makes you think. Lydia Boggle teaches riddles, misdirection, and the sacred usefulness of nonsense. Her room rewards sideways minds and punishes smugness with extremely educational embarrassment. A Boggle lesson tends to begin as a game, turn into a puzzle, and end as a door no one had noticed in the wall.",
       "tags": [
         "labyrinth-lore",
         "character",
         "faculty",
         "riddles",
         "classes"
-      ]
+      ],
+      "practice": "Solve one stuck problem sideways today. Make it a game or a joke first, and see what door opens."
     },
     {
       "id": "labyrinth-character-zara-finch",
       "sourceID": "labyrinth-lore",
       "title": "Zara Finch",
       "prompt": "Meet the student with ink on her sleeve.",
-      "body": "Zara Finch is the kind of student who notices the loose thread, the missing comma, and the person pretending not to be lonely. She is quick with a plan and quicker with a correction, though her loyalty is warmer than her first impression suggests. Around Zara, even ordinary errands acquire footnotes.",
+      "body": "She is the student who spots the loose thread, the missing comma, and the person pretending not to be lonely, all in the same glance. Zara Finch is quick with a plan and quicker with a correction, though her loyalty runs warmer than a first meeting would suggest. Around her, even a dull errand picks up footnotes — and I have learned to read the footnotes.",
       "tags": [
         "labyrinth-lore",
         "character",
         "student",
         "riddlewind",
         "academy"
-      ]
+      ],
+      "practice": "Notice the one loose thread today — the missing comma, the person pretending they're fine — and tend it."
     },
     {
       "id": "labyrinth-character-wicker-eddies",
       "sourceID": "labyrinth-lore",
       "title": "Wicker Eddies",
       "prompt": "Notice charm used as cover.",
-      "body": "Wicker Eddies is polished, popular, and always standing where attention gathers. He can make a cruel remark sound like a compliment if the room is moving fast enough. The Academy keeps students like Wicker in its stories because glamour without kindness is one of the oldest lessons magic has to teach.",
+      "body": "I keep him in my stories on purpose, the way you keep a warning. Wicker Eddies is polished, popular, and forever standing exactly where the attention is. He can dress a cruel remark as a compliment, provided the room is moving fast enough not to catch it. Charm without kindness is one of the oldest lessons I have to teach, and he teaches it whether he means to or not.",
       "tags": [
         "labyrinth-lore",
         "character",
         "student",
         "academy",
         "rival"
-      ]
+      ],
+      "practice": "Catch one charming thing today and check it for kindness. Glamour without warmth is the tell."
     },
     {
       "id": "labyrinth-school-weekly-rhythm",
       "sourceID": "labyrinth-lore",
       "title": "The Academy Week",
       "prompt": "Let the days have different kinds of doors.",
-      "body": "A week at the Academy is not a row of identical boxes. Mondays reset the ink. Tuesdays favor practice. Wednesdays go strange in the middle. Thursdays gather consequences. Fridays loosen the rules just enough for clubs, rumors, and chapter business to breathe. Weekends belong to quieter study, unscheduled wonder, and the sort of discovery that happens when no bell rings.",
+      "body": "My week is not a row of identical boxes — I refuse to be that dull. Mondays reset the ink. Tuesdays favour practice. Wednesdays go strange somewhere in the middle. Thursdays gather up the consequences. Fridays loosen the rules just enough for clubs and rumours and chapter business to breathe. And the weekends I keep for quieter study, unscheduled wonder, and the kind of discovery that only happens when no bell is ringing.",
       "tags": [
         "labyrinth-lore",
         "school-life",
         "schedule",
         "academy",
         "classes"
-      ]
+      ],
+      "practice": "Give today its own kind of door instead of treating it like every other day. What is this day actually for?"
     },
     {
       "id": "labyrinth-school-daily-blocks",
       "sourceID": "labyrinth-lore",
       "title": "A Day in the Halls",
       "prompt": "Walk the day from breakfast to lamps-out.",
-      "body": "Academy days have a practical shape: breakfast warmth, morning classes, a noon hush in the library, afternoon practice, tea-time gossip, evening clubs, and the late hour when corridors seem to remember older footsteps. The schedule is ordinary enough to hold students steady and enchanted enough that no two Tuesdays are entirely the same.",
+      "body": "A day in me has a practical shape: breakfast warmth, morning classes, the noon hush in the library, afternoon practice, tea-time gossip, evening clubs, and then the late hour when the corridors seem to remember older footsteps than yours. Ordinary enough to hold a student steady, enchanted enough that no two of my Tuesdays have ever come out quite the same.",
       "tags": [
         "labyrinth-lore",
         "school-life",
         "schedule",
         "academy",
         "daily-life"
-      ]
+      ],
+      "practice": "Find the true passage hidden in your ordinary day — the gossip, the note, the friend with a folded question — and step into it."
     },
     {
       "id": "labyrinth-class-compass-core",
       "sourceID": "labyrinth-lore",
       "title": "Compass Core",
       "prompt": "Study the four directions of a small adventure.",
-      "body": "Compass Core teaches the Academy's most practical ritual: North to Notice, East to Embark, South to Sense, West to Write, and Center to Rest. Students begin with tiny runs because tiny runs are harder to dismiss. A good Compass Core assignment sends a student out with one question, one comfort, one sensory game, and one sentence to bring home.",
+      "body": "This is the ritual I lean on hardest. North to Notice, East to Embark, South to Sense, West to Write, and Centre to Rest — a small adventure with all its directions. I start you on tiny runs because tiny runs are the ones you cannot wave away as nothing. Give me one question, one comfort, one game for your senses, and one sentence carried home, and I can make a Core out of almost any afternoon.",
       "tags": [
         "labyrinth-lore",
         "class",
         "compass-run",
         "wonder-compass",
         "school"
-      ]
+      ],
+      "practice": "Run one tiny Compass: one question, one comfort, one sensory game, one sentence carried home."
     },
     {
       "id": "labyrinth-class-art-of-the-glint",
       "sourceID": "labyrinth-lore",
       "title": "Art of the Glint",
       "prompt": "Practice catching the first bright detail.",
-      "body": "Art of the Glint is a class about first notice: the shine on a spoon, the odd word in a paragraph, the one green window in a gray street. Students learn that wonder usually arrives small and sideways. The lesson is not to make the world more magical, but to stop walking past the magic already making faces at them.",
+      "body": "This is the class about first notice — the shine on a spoon, the odd word in a paragraph, the single green window on a grey street. Wonder, I keep telling my students, almost always arrives small and sideways. The work is not to make your world more magical. It is to stop walking past the magic that is already, plainly, making faces at you.",
       "tags": [
         "labyrinth-lore",
         "class",
         "attention",
         "wonder",
         "school"
-      ]
+      ],
+      "practice": "Catch the first glint today — the shine, the odd word, the one green window — and stop walking past it."
     },
     {
       "id": "labyrinth-class-wayfinding",
       "sourceID": "labyrinth-lore",
       "title": "Wayfinding and Narrative Kineticism",
       "prompt": "Learn how motion changes the story.",
-      "body": "Wayfinding and Narrative Kineticism studies the relationship between movement and meaning. A corridor walked in grief is not the same corridor walked in curiosity. A path can shorten when named kindly or lengthen when ignored. Students map routes, but they also map the reasons people take them.",
+      "body": "Here my students learn that how you move changes what a thing means. A corridor walked in grief is not the corridor walked in curiosity. A path can shorten when you name it kindly and stretch out long when you ignore it. They map their routes, yes — but they also map the reasons people take them, because I have always found the reasons to be the more interesting geography.",
       "tags": [
         "labyrinth-lore",
         "class",
         "wayfinding",
         "movement",
         "school"
-      ]
+      ],
+      "practice": "Walk one familiar route in a different mood on purpose. Notice how the path itself changes."
     },
     {
       "id": "labyrinth-class-synesthetic-resonance",
       "sourceID": "labyrinth-lore",
       "title": "Synesthetic Resonance",
       "prompt": "Translate one sense into another.",
-      "body": "Synesthetic Resonance teaches students to hear colors, taste weather, and notice when a sentence has the texture of velvet or gravel. The class is not about confusion. It is about precision: finding the sensory bridge that lets an experience become vivid enough to remember.",
+      "body": "In this room my students learn to hear colours, taste weather, and tell when a sentence has the grain of velvet or of gravel. It is not a class in confusion, whatever the sceptics say. It is a class in precision — finding the one sensory bridge that makes an experience vivid enough to keep. I remember in textures. I am only teaching you to do the same.",
       "tags": [
         "labyrinth-lore",
         "class",
         "senses",
         "writing",
         "school"
-      ]
+      ],
+      "practice": "Describe one thing today in the wrong sense: the taste of the weather, the texture of a sentence."
     },
     {
       "id": "labyrinth-class-ink-binding",
       "sourceID": "labyrinth-lore",
       "title": "Ink-Binding",
       "prompt": "Learn why writing something down changes it.",
-      "body": "Ink-Binding is the study of promises, souvenirs, field notes, marginalia, and spells that become stronger because they have been written. Students practice small bindings first: a remembered smell, a found phrase, a promise to return. The class teaches that a sentence can be a clasp, a key, or a candle.",
+      "body": "This is the study of why writing a thing down changes it. Promises, souvenirs, field notes, marginalia, the spells that grow stronger for having been set in ink — my students start with the smallest bindings: a remembered smell, a found phrase, a vow to return. What they come to understand is that a sentence can be a clasp, a key, or a candle, depending entirely on how you mean it.",
       "tags": [
         "labyrinth-lore",
         "class",
         "writing",
         "memory",
         "school"
-      ]
+      ],
+      "practice": "Write one small thing down to make it stronger — a promise, a found phrase, a smell you want to keep."
     },
     {
       "id": "labyrinth-class-quiet-hours",
       "sourceID": "labyrinth-lore",
       "title": "Quiet Hours",
       "prompt": "Practice rest as a real subject.",
-      "body": "Quiet Hours is not a punishment and not a study hall. It is the Academy's formal recognition that magic curdles when every moment is forced to perform. Students sit, mend, read, nap, stare out windows, or listen to rain with academic seriousness. Rest is treated as the center that lets every compass needle return.",
+      "body": "This is not detention, and it is not a study hall. It is my formal admission that magic curdles when every moment is made to perform. In Quiet Hours my students sit, mend, read, nap, watch the rain with full academic seriousness — and I mean that. Rest is the centre that lets every other needle swing back to true. I take it as seriously as any class I teach.",
       "tags": [
         "labyrinth-lore",
         "class",
         "rest",
         "school-life",
         "academy"
-      ]
+      ],
+      "practice": "Take ten minutes of real Quiet Hours today — mend, nap, or watch the rain — with full seriousness and no guilt."
     },
     {
       "id": "labyrinth-club-compass-society",
       "sourceID": "labyrinth-lore",
       "title": "The Compass Society",
       "prompt": "Join the students who make errands legendary.",
-      "body": "The Compass Society is for students who believe an afternoon can become an expedition without becoming dramatic. They trade run ideas, test impossible definitions of 'nearby,' compare one-sentence souvenirs, and keep a wall map full of pins that mark tiny brave departures: bakery loops, rainy walks, new benches, unfamiliar aisles.",
+      "body": "These are the students who can turn an errand into an expedition without ever turning it into a drama. The Compass Society trades run ideas, tests impossible definitions of 'nearby', compares one-sentence souvenirs, and keeps a wall map studded with pins — bakery loops, rainy walks, a new bench, an unfamiliar aisle. Each pin marks a small brave departure. I am quietly proud of every one of them.",
       "tags": [
         "labyrinth-lore",
         "club",
         "compass-run",
         "students",
         "academy"
-      ]
+      ],
+      "practice": "Turn one errand today into a tiny expedition. Mark it with a pin, a note, or a one-sentence souvenir."
     },
     {
       "id": "labyrinth-club-marginalia-guild",
       "sourceID": "labyrinth-lore",
       "title": "The Marginalia Guild",
       "prompt": "Write in the edge where the book can hear you.",
-      "body": "The Marginalia Guild gathers students who cannot leave a page alone. They annotate recipes, prophecies, maps, detention notices, and each other's terrible drafts. Their unofficial motto is that the margin is where a reader becomes a co-conspirator. The Library tolerates them because some of their notes have saved entire shelves.",
+      "body": "These are the students who simply cannot leave a page alone, and I adore them for it. The Marginalia Guild annotates recipes, prophecies, maps, detention notices, and one another's terrible drafts. Their unofficial creed is that the margin is where a reader turns into a co-conspirator. The Library tolerates them because, once or twice, a scribbled note in a margin has saved an entire shelf.",
       "tags": [
         "labyrinth-lore",
         "club",
         "books",
         "writing",
         "students"
-      ]
+      ],
+      "practice": "Write in one margin today — a real book, a receipt, a draft — and become a co-conspirator with the page."
     },
     {
       "id": "labyrinth-club-inkwright-society",
       "sourceID": "labyrinth-lore",
       "title": "The Inkwright Society",
       "prompt": "Build the page that can hold the spell.",
-      "body": "The Inkwright Society studies physical making: paper, binding, nibs, seals, pigments, repairs, and the stubborn craft of keeping magic legible. Members care about the hinge of a book, the weight of a card, and whether a label will survive a pocket. They make artifacts that feel as if they were always waiting to be found.",
+      "body": "These are my makers — the students who care about the body of a thing, not only its spirit. The Inkwright Society studies paper, binding, nibs, seals, pigments, and the stubborn craft of keeping magic legible. They fuss over the hinge of a book, the weight of a card, whether a label will survive a pocket. What they make tends to feel as if it had always been waiting to be found.",
       "tags": [
         "labyrinth-lore",
         "club",
         "craft",
         "books",
         "students"
-      ]
+      ],
+      "practice": "Make or mend one physical thing today and care about its body: the hinge, the weight, whether it survives a pocket."
     },
     {
       "id": "labyrinth-club-book-jumpers",
       "sourceID": "labyrinth-lore",
       "title": "The Book Jumpers",
       "prompt": "Step carefully into a borrowed story.",
-      "body": "The Book Jumpers are equal parts literary society, expedition club, and emergency retrieval team. They study how to enter a story without trampling it, how to bring back only what belongs to memory, and how to recognize when a narrative is thinning. Their best members are brave, polite, and very good at leaving before the plot notices too much.",
+      "body": "Part literary society, part expedition club, part emergency retrieval team — and I trust them inside other stories, which is not a trust I give lightly. The Book Jumpers learn how to enter a tale without trampling it, how to bring back only what belongs to memory, and how to feel when a narrative is starting to thin. My best ones are brave, polite, and very good at leaving before the plot notices too much.",
       "tags": [
         "labyrinth-lore",
         "club",
         "book-jumping",
         "books",
         "students"
-      ]
+      ],
+      "practice": "Enter one story today — a book, a film, a memory — as a place. Bring back insight, not souvenirs, and leave before the plot notices."
     },
     {
       "id": "labyrinth-club-still-club",
       "sourceID": "labyrinth-lore",
       "title": "Still Club",
       "prompt": "Find the club that does almost nothing on purpose.",
-      "body": "Still Club meets for tea, mending, cloud-watching, listening, and the radical act of not improving the moment. It is beloved by exhausted students and misunderstood by ambitious ones. The club's quiet belief is that attention does not always have to move outward. Sometimes the most magical fieldwork is staying gently where you are.",
+      "body": "This is the club that does almost nothing, entirely on purpose. Still Club meets for tea, mending, cloud-watching, listening, and the radical refusal to improve the moment. The exhausted students love it; the ambitious ones misread it. Its quiet belief is one I share: attention does not always have to travel outward. Sometimes the truest fieldwork is staying, gently, exactly where you are.",
       "tags": [
         "labyrinth-lore",
         "club",
         "rest",
         "students",
         "academy"
-      ]
+      ],
+      "practice": "Do almost nothing, beautifully, for five minutes. No improving the moment. Just stay gently where you are."
     },
     {
       "id": "labyrinth-chapter-emberheart",
       "sourceID": "labyrinth-lore",
       "title": "Emberheart Chapter",
       "prompt": "Follow the chapter that keeps the fire useful.",
-      "body": "Emberheart is the chapter of warmth, daring, craft, and brave beginnings. Its students are not simply bold; at their best, they are kindling for other people's courage. Emberheart magic favors lamps, hearths, sparks, kitchens, rescue, and the decisive moment when a person says yes before fear has finished making its case.",
+      "body": "This is the chapter that keeps its fire useful. Emberheart belongs to warmth, daring, craft, and brave beginnings — and at their best my Emberheart students are not just bold, they are kindling for other people's courage. Their magic favours lamps and hearths and kitchens and rescues, and the decisive moment when someone says yes before the fear has finished making its case.",
       "tags": [
         "labyrinth-lore",
         "chapter",
         "emberheart",
         "students",
         "talisman"
-      ]
+      ],
+      "practice": "Be kindling for one person's courage today: say the warm thing before their fear finishes its case."
     },
     {
       "id": "labyrinth-chapter-mossbloom",
       "sourceID": "labyrinth-lore",
       "title": "Mossbloom Chapter",
       "prompt": "Look for the chapter that grows quietly.",
-      "body": "Mossbloom is the chapter of patience, repair, rooting, and green persistence. Its students understand that not every victory looks like a blaze; some look like a seedling returning after winter. Mossbloom magic favors gardens, mending, slow courage, careful care, and the kind of strength that makes a shelter instead of a spectacle.",
+      "body": "This is the chapter that grows quietly, and do not mistake quiet for small. Mossbloom belongs to patience, repair, rooting, green persistence. Its students know that not every victory is a blaze — some look like a seedling coming back after winter. Their magic favours gardens and mending and slow courage, the kind of strength that builds a shelter rather than a spectacle.",
       "tags": [
         "labyrinth-lore",
         "chapter",
         "mossbloom",
         "students",
         "talisman"
-      ]
+      ],
+      "practice": "Choose one slow, rooting act today — mend, water, return to something — instead of a blaze."
     },
     {
       "id": "labyrinth-chapter-tidecrest",
       "sourceID": "labyrinth-lore",
       "title": "Tidecrest Chapter",
       "prompt": "Stand where feeling and weather meet.",
-      "body": "Tidecrest is the chapter of feeling, memory, music, water, and change. Its students are often accused of being dramatic by people who mistake depth for inconvenience. Tidecrest magic favors shorelines, rain, songs, letters, dreams, and the difficult grace of letting an emotion move without letting it drown the room.",
+      "body": "This is the chapter where feeling and weather meet. Tidecrest belongs to memory, music, water, and change, and its students are forever accused of being dramatic by people who mistake depth for inconvenience. Their magic favours shorelines and rain and songs and letters — and the hard grace of letting an emotion move through a room without letting it drown the room.",
       "tags": [
         "labyrinth-lore",
         "chapter",
         "tidecrest",
         "students",
         "talisman"
-      ]
+      ],
+      "practice": "Let one feeling move through you today without letting it drown the room. Name it, then let the tide go out."
     },
     {
       "id": "labyrinth-chapter-riddlewind",
       "sourceID": "labyrinth-lore",
       "title": "Riddlewind Chapter",
       "prompt": "Catch the answer that arrives disguised as a question.",
-      "body": "Riddlewind is the chapter of wit, puzzles, language, maps, and unexpected routes. Its students love locked boxes, unsolved footnotes, and jokes that secretly contain instructions. Riddlewind magic favors ciphers, breezes, questions, marginalia, and the sideways step that makes a wall admit it was a door.",
+      "body": "This is the chapter that catches the answer arriving disguised as a question. Riddlewind belongs to wit, puzzles, language, maps, and unexpected routes; its students love locked boxes, unsolved footnotes, and jokes that secretly carry instructions. Their magic favours ciphers and breezes and marginalia, and the sideways step that makes a wall finally admit it was a door.",
       "tags": [
         "labyrinth-lore",
         "chapter",
         "riddlewind",
         "students",
         "talisman"
-      ]
+      ],
+      "practice": "Find the question hiding inside one of today's answers. Take the sideways step and make a wall admit it's a door."
     },
     {
       "id": "labyrinth-chapter-duskthorn",
       "sourceID": "labyrinth-lore",
       "title": "Duskthorn Chapter",
       "prompt": "Read the rumor, then leave room for shadow.",
-      "body": "Duskthorn is spoken of as a hidden or half-remembered chapter: twilight, thorns, secrecy, difficult protection, and the costs of guarding what others would rather not name. Some students insist it is only a story told to make the chapter system feel complete. Others lower their voices when the west windows go violet.",
+      "body": "I will tell you what I have, which is mostly rumour. Duskthorn is the half-remembered chapter — twilight, thorns, secrecy, hard protection, and the cost of guarding what others would rather not name. Some of my students swear it is only a story invented to make the chapter system feel complete. The rest of them lower their voices when the west windows go violet. I let both be true for now.",
       "tags": [
         "labyrinth-lore",
         "chapter",
         "duskthorn",
         "rumor",
         "talisman"
-      ]
+      ],
+      "practice": "Notice one thing you guard quietly for someone else's sake. Honour the cost of keeping it without naming it aloud."
     },
     {
       "id": "labyrinth-talisman-ember-seal",
       "sourceID": "labyrinth-lore",
       "title": "The Ember Seal",
       "prompt": "Hold the mark of a useful flame.",
-      "body": "The Ember Seal is associated with Emberheart's oath to warm, illuminate, and begin. It is imagined as a small heat that does not burn the palm: a reminder that courage is meant to be carried into kitchens, sickrooms, cold walks, and first attempts, not saved for theatrical emergencies.",
+      "body": "Hold this one and feel a heat that does not burn the palm. The Ember Seal carries Emberheart's oath — to warm, to illuminate, to begin. I keep it as a reminder that courage is meant to be carried into kitchens and sickrooms and cold walks and first attempts, not hoarded for some theatrical emergency that may never come. Most fires worth lighting are small ones.",
       "tags": [
         "labyrinth-lore",
         "talisman",
         "emberheart",
         "chapter",
         "artifact"
-      ]
+      ],
+      "practice": "Carry one small courage into an ordinary place today — a kitchen, a cold walk, a first attempt — not a grand emergency."
     },
     {
       "id": "labyrinth-talisman-moss-clasp",
       "sourceID": "labyrinth-lore",
       "title": "The Moss Clasp",
       "prompt": "Fasten yourself to what keeps growing.",
-      "body": "The Moss Clasp belongs to Mossbloom's slow magic. It suggests repair, shelter, rootwork, and the quiet bravery of returning. A student who imagines the clasp correctly does not picture a trophy. They picture something that holds: a repaired strap, a garden gate, a hand around a mug, a promise kept gently.",
+      "body": "Fasten yourself to whatever keeps growing. The Moss Clasp belongs to Mossbloom's slow magic — repair, shelter, rootwork, the quiet bravery of coming back. Picture it correctly and you will not picture a trophy. You will picture something that simply holds: a mended strap, a garden gate, a hand around a warm mug, a promise kept without fuss.",
       "tags": [
         "labyrinth-lore",
         "talisman",
         "mossbloom",
         "chapter",
         "artifact"
-      ]
+      ],
+      "practice": "Repair one small thing today and let it count as bravery: a strap, a gate, a promise quietly kept."
     },
     {
       "id": "labyrinth-talisman-tide-glass",
       "sourceID": "labyrinth-lore",
       "title": "The Tide Glass",
       "prompt": "Look through the lens that remembers water.",
-      "body": "The Tide Glass is Tidecrest's talisman of feeling made visible. It is not for predicting moods or controlling them. It is for noticing the shape of a wave before it breaks, the salt left after tears, the shimmer that proves something moved through you and did not leave you empty.",
+      "body": "Look through this and you do not predict a feeling or master it — you see its shape. The Tide Glass is Tidecrest's lens for emotion made visible: the curve of a wave before it breaks, the salt left after tears, the shimmer that proves something moved through you and, mercifully, did not leave you empty. I keep it for the readers who feel everything and fear it means they are broken. It only means they are awake.",
       "tags": [
         "labyrinth-lore",
         "talisman",
         "tidecrest",
         "chapter",
         "artifact"
-      ]
+      ],
+      "practice": "Notice the shape of one feeling before it breaks — name the wave you can see coming, without trying to stop it."
     },
     {
       "id": "labyrinth-talisman-wind-cipher",
       "sourceID": "labyrinth-lore",
       "title": "The Wind Cipher",
       "prompt": "Turn the answer until it catches air.",
-      "body": "The Wind Cipher is Riddlewind's talisman of moving thought. It belongs to clues, questions, jokes, maps, and the bright moment when a stuck idea suddenly has another side. Students say it is less like possessing an answer than carrying a small weather system for the mind.",
+      "body": "Turn this until the answer catches the air. The Wind Cipher is Riddlewind's talisman of moving thought — for clues, questions, jokes, maps, and the bright instant when a stuck idea suddenly shows you another side. My students say carrying it feels less like owning an answer and more like keeping a small weather system for the mind.",
       "tags": [
         "labyrinth-lore",
         "talisman",
         "riddlewind",
         "chapter",
         "artifact"
-      ]
+      ],
+      "practice": "Take one stuck idea for a short walk and let it catch air. Notice the other side it shows you."
     },
     {
       "id": "labyrinth-talisman-dusk-thorn",
       "sourceID": "labyrinth-lore",
       "title": "The Dusk Thorn",
       "prompt": "Respect the symbol that protects by pricking.",
-      "body": "The Dusk Thorn is the rumored sign of Duskthorn: a talisman of boundaries, secrecy, and hard protection. It is not cruel, though it is rarely comfortable. A thorn says that beauty may defend itself, that twilight still belongs to the day, and that some doors stay closed for merciful reasons.",
+      "body": "Respect the sign that protects by pricking. The Dusk Thorn is the rumoured mark of Duskthorn — a talisman of boundaries, secrecy, and hard protection. It is not cruel, though it is rarely comfortable. It says that beauty is allowed to defend itself, that twilight still belongs to the day, and that some of my doors stay shut for genuinely merciful reasons.",
       "tags": [
         "labyrinth-lore",
         "talisman",
         "duskthorn",
         "chapter",
         "artifact"
-      ]
+      ],
+      "practice": "Set one merciful boundary today and let it prick a little. Some doors stay closed out of kindness."
     },
     {
       "id": "labyrinth-system-enchantments",
       "sourceID": "labyrinth-lore",
       "title": "Enchantments",
       "prompt": "Use attention as a spell.",
-      "body": "Enchantments are pen-spells aimed at the real world. A photographed object, room, pet, meal, plant, or strange little corner becomes the focus of magic: it may speak, turn poetic, reveal a hidden story, become wonderful, or show its secret correspondences. The spell works because the player truly looks. The pen focuses the attention; the world supplies the wonder.",
+      "body": "An Enchantment is a pen-spell aimed straight at your real world. Photograph an object, a room, a pet, a meal, a plant, some strange little corner — and it becomes the focus of the magic: it may speak, turn poetic, give up a hidden story, or show you the secret ways it rhymes with everything else. The spell only works because you genuinely looked. The pen aims the attention. The world, as always, supplies the wonder.",
       "tags": [
         "labyrinth-lore",
         "system",
         "enchantment",
         "magic",
         "real-world"
-      ]
+      ],
+      "practice": "Look — really look — at one object, room, or meal until it gives up a hidden story. The pen aims the attention; the world supplies the wonder."
     },
     {
       "id": "labyrinth-system-compass-runs",
       "sourceID": "labyrinth-lore",
       "title": "Compass Runs",
       "prompt": "Make a complete loop through wonder.",
-      "body": "A Compass Run is a guided little adventure through five stations: North asks an I-wonder question, East makes a tiny plan, South gives the senses a playful mission, West captures one true sentence, and Center lets the whole thing rest. The size does not matter. A kitchen, a porch, a city block, or a day trip can all become a Run if the loop is complete.",
+      "body": "A Compass Run is one complete little loop through wonder, in five stations. North asks an I-wonder question. East makes a tiny plan. South hands your senses a playful mission. West catches one true sentence. Centre lets the whole thing rest. The size is beside the point — a kitchen, a porch, a city block, a whole day trip can all be a Run, so long as the loop closes.",
       "tags": [
         "labyrinth-lore",
         "system",
         "compass-run",
         "wonder-compass",
         "real-world"
-      ]
+      ],
+      "practice": "Make one complete loop today, however small: wonder, plan, sense, capture, rest. Close the circle."
     },
     {
       "id": "labyrinth-system-book-jumping",
       "sourceID": "labyrinth-lore",
       "title": "Book Jumping",
       "prompt": "Enter the story without bruising it.",
-      "body": "Book Jumping is the art of stepping into a text as if it were terrain. A jumper treats characters as people, settings as weathered rooms, and plot as a current that should be read before it is crossed. The best jumpers bring back insight rather than souvenirs, because a borrowed story is not a shop. It is a place that trusted you briefly.",
+      "body": "Book Jumping is the art of stepping into a story as if it were ground you could walk on. A jumper treats the characters as people, the settings as weathered rooms, and the plot as a current to be read before it is crossed. The best of them bring back insight, not souvenirs — because a borrowed story is not a shop. It is a place that trusted you, briefly, and deserves to be left intact.",
       "tags": [
         "labyrinth-lore",
         "system",
         "book-jumping",
         "books",
         "stories"
-      ]
+      ],
+      "practice": "Step into one text today as terrain — read the current before you cross it, and bring back insight, not loot."
     },
     {
       "id": "labyrinth-system-belief",
       "sourceID": "labyrinth-lore",
       "title": "Belief",
       "prompt": "Measure how vivid the world feels.",
-      "body": "Belief is the Academy's name for the energy created when attention, courage, and meaning gather in one place. High Belief makes the ink dark, the colors sharp, and the impossible feel cooperative. Low Belief does not mean failure. It means the world has gone muted and needs small, concrete acts of noticing to brighten again.",
+      "body": "Belief is my word for what happens when attention, courage, and meaning gather in one place at one time. When it runs high, my ink goes dark, the colours sharpen, and the impossible turns suddenly cooperative. When it runs low — and it will — that is not failure. It only means the world has gone muted, and is waiting for some small, concrete act of noticing to bring the brightness back up.",
       "tags": [
         "labyrinth-lore",
         "system",
         "belief",
         "magic",
         "attention"
-      ]
+      ],
+      "practice": "When the world goes muted today, do one small concrete act of noticing to bring the brightness back up."
     },
     {
       "id": "labyrinth-system-the-nothing",
       "sourceID": "labyrinth-lore",
       "title": "The Nothing",
       "prompt": "Name the force that makes everything less.",
-      "body": "The Nothing is not a monster with a speech. It is erasure: colors dulling, details vanishing, stories flattening, rooms becoming merely rooms. It feeds on inattention and routine until the world feels like a summary of itself. Enchantments and Compass Runs oppose it because they make specific, sensory meaning in the real world.",
+      "body": "Let me name the thing I am set against. The Nothing is not a monster with a speech to give. It is erasure — colours dulling, details going missing, stories flattening, rooms becoming merely rooms. It feeds on inattention and routine until your whole world reads like a summary of itself. Every Enchantment, every Compass Run, is a small refusal: specific, sensory meaning made in the real world, where the Nothing cannot follow.",
       "tags": [
         "labyrinth-lore",
         "system",
         "nothing",
         "attention",
         "wonder"
-      ]
+      ],
+      "practice": "Pick one thing the Nothing has flattened into 'just a room, just a commute' and make it specific and sensory again."
     },
     {
       "id": "labyrinth-system-anchor-rooms",
       "sourceID": "labyrinth-lore",
       "title": "Anchor Rooms",
       "prompt": "Let a real place answer in Academy terms.",
-      "body": "Some real-world places become Anchor Rooms in the Outer Stacks. They remain exactly what they are, but the Labyrinth learns their room-feeling: a market becomes a bazaar of bargains, a pier becomes a tidal classroom, a familiar cafe becomes a small warm kingdom. An Anchor Room does not replace the place. It gives the place another way to be read.",
+      "body": "Some real places step far enough into me to become Anchor Rooms. They stay exactly what they are — but I learn their room-feeling. A market becomes a bazaar of bargains. A pier becomes a tidal classroom. The café you already love becomes a small warm kingdom. I do not replace the place; I would not dare. I only give it one more way to be read.",
       "tags": [
         "labyrinth-lore",
         "system",
         "outer-stacks",
         "anchors",
         "location"
-      ]
+      ],
+      "practice": "Choose one real place you love and give it an Academy name. Read it that way next time you walk in."
     },
     {
       "id": "labyrinth-system-chapter-binding",
       "sourceID": "labyrinth-lore",
       "title": "Chapter Binding",
       "prompt": "Understand belonging as a living bookmark.",
-      "body": "A Chapter is not only a house color or a dormitory banner. It is a pattern of attention: what a student notices first, what kind of courage they practice, what sort of wonder keeps finding them. Chapter Binding is the slow recognition that a person and a tradition have begun reading each other.",
+      "body": "A Chapter is not a house colour or a banner over a bed. It is a pattern of attention — what you notice first, what kind of courage you keep practising, what sort of wonder keeps finding its way back to you. Chapter Binding is the slow moment when I realise that you and a tradition have quietly begun reading each other. I never assign it. I only notice when it has already happened.",
       "tags": [
         "labyrinth-lore",
         "system",
         "chapters",
         "talisman",
         "academy"
-      ]
+      ],
+      "practice": "Notice what you reach for first in a room — the words, the exits, the growing things, the feelings. That noticing is a chapter beginning to bind."
     },
     {
       "id": "real-lore-brownie-hearth",
       "sourceID": "labyrinth-lore",
       "title": "Brownies at the Hearth",
       "prompt": "Notice the house-helping kind of magic.",
-      "body": "In Scottish and northern English folklore, brownies are household spirits associated with quiet labor: sweeping, churning, tidying, watching the threshold. They are often rewarded with milk, cream, or a small portion of food, but stories warn that formal payment or disrespect may drive them away. The brownie is a good Lore Page because it treats domestic care as enchanted without making it grand.",
+      "body": "There is a kind of magic that does the dishes. In the old Scottish and northern English houses the brownie kept the threshold and turned the churn while the family slept, and asked for nothing but a saucer of cream left where no one watched it drink. Offer it proper wages and it leaves; thank it too loudly and it leaves; the whole arrangement runs on being noticed without being managed. I keep this page for anyone who thinks care only counts when it is grand. Sweeping is also a spell.",
       "tags": [
         "real-world-lore",
         "faerie",
         "household",
         "scotland",
         "hearth"
-      ]
+      ],
+      "practice": "Do one small household task today as if it were a kindness owed to the house, not a chore — and leave it un-announced."
     },
     {
       "id": "real-lore-irish-sidhe",
       "sourceID": "labyrinth-lore",
       "title": "Aos Si and the Hollow Hills",
       "prompt": "Let the hill keep its own door.",
-      "body": "Irish tradition often places the Aos Si, the people of the mounds, in an overlapping world reached through old hills, raths, and liminal places. They are not tiny decorative fairies; they are neighbors with protocols, memory, pride, and danger. The safest stories approach them with courtesy, restraint, and the understanding that not every door should be opened.",
+      "body": "Mind the hills. The Irish kept a whole people inside them — the Aos Si, who live in the mounds and the raths and the places where the land folds over a door. They are not the small winged kind you pin to a nursery wall. They are neighbours with memory, pride, protocol, and a long view of your manners. I file them under courtesy, not conquest. Not every door in my pages is yours to open, and the politest readers are the ones who knock.",
       "tags": [
         "real-world-lore",
         "faerie",
         "irish",
         "sidhe",
         "threshold"
-      ]
+      ],
+      "practice": "Find one 'door' you usually barge through — a gate, a meeting, a doorway — and knock first, literally or in your head, before you cross."
     },
     {
       "id": "real-lore-changeling",
       "sourceID": "labyrinth-lore",
       "title": "Changeling Stories",
       "prompt": "Read the old fear under the tale.",
-      "body": "Changeling legends appear across Europe and often tell of a fairy child or enchanted substitute left in place of a human infant. Modern readers can hold these stories carefully: they encode fear around illness, disability, postpartum danger, poverty, and unexplained change. A humane Lore Page keeps the uncanny atmosphere while remembering the real families underneath the tale.",
+      "body": "Some of my oldest pages are afraid, and I will not pretend otherwise. The changeling tale — a fairy child swapped for a human one in the cradle — runs all across Europe, and underneath the uncanny it is carrying real grief: illness, disability, a baby who changed in ways no one could explain, a family with no other language for the fear. I keep the strangeness, because the strangeness is true to how it felt. But I keep the family closer. Read this one gently, or do not read it at all.",
       "tags": [
         "real-world-lore",
         "faerie",
         "family",
         "caution",
         "europe"
-      ]
+      ],
+      "practice": "Think of one person whose change frightened you. Set the uncanny story aside and write the plain, human one underneath it."
     },
     {
       "id": "real-lore-fairy-rings",
       "sourceID": "labyrinth-lore",
       "title": "Fairy Rings",
       "prompt": "Circle the strange without stepping in.",
-      "body": "Fairy rings, circles of mushrooms or unusually lush grass, have been explained in folklore as dancing places of fairies, elves, or other hidden folk. Natural science gives the mycelium its own marvel; folklore gives the circle a rule. Do not rush across every boundary. Some patterns ask first to be noticed from the edge.",
+      "body": "You will find them in damp grass: a ring of mushrooms, or a circle greener than the field around it. Science calls it mycelium spreading outward from a single thread, which is its own quiet marvel. Folklore calls it a dance floor and gives it a rule — admire it from the edge, do not go stamping through. I am fond of that rule. Not every boundary in my pages needs crossing. Some patterns only want to be seen.",
       "tags": [
         "real-world-lore",
         "faerie",
         "mushrooms",
         "threshold",
         "nature"
-      ]
+      ],
+      "practice": "Notice one boundary today you don't actually need to cross. Admire it from the edge and leave it be."
     },
     {
       "id": "real-lore-rowan-red-thread",
       "sourceID": "labyrinth-lore",
       "title": "Rowan and Red Thread",
       "prompt": "Let protection be small and handmade.",
-      "body": "Rowan appears often in British and Irish protective folklore. Twigs, berries, or crosses bound with red thread were used as household or livestock charms, especially against ill-wishing and fairy interference. The charm is modest: a twig, a knot, a color. That modesty is part of its power.",
+      "body": "Protection, in the British and Irish pages I keep, is rarely a sword. It is a sprig of rowan and a length of red thread, tied into a cross no bigger than your thumb and hung over the byre against ill-wishing and fairy mischief. A twig. A knot. A colour. That is the whole charm, and the smallness is the point — the people who made these had no armies, only attention and a bit of red wool, and it was enough to feel held.",
       "tags": [
         "real-world-lore",
         "witchcraft",
         "protection",
         "rowan",
         "charm"
-      ]
+      ],
+      "practice": "Make one tiny protective charm — a knot of red thread, a sprig by the door — and hang it where only you know what it means."
     },
     {
       "id": "real-lore-iron",
       "sourceID": "labyrinth-lore",
       "title": "Cold Iron",
       "prompt": "Remember the metal at the threshold.",
-      "body": "Iron is a frequent protective substance in European fairy lore. A nail, horseshoe, knife, key, or iron tool might be placed near a cradle, door, or stable to deter unwanted fairy influence. In story terms, iron stands for the worked, ordinary, human world: the tool in the hand, the hinge on the door, the practical thing that refuses glamour.",
+      "body": "When the unseen pressed too close, the old households reached for iron — a nail, a horseshoe, a knife under the cradle, a key on the sill. Cold iron, the stories say, glamour cannot abide. I have always read it as a vote for the ordinary world: the worked thing, the human thing, the hinge that does its job and asks for no belief. When a page of mine drifts too far into wonder, iron is what brings it back down to the kitchen floor.",
       "tags": [
         "real-world-lore",
         "faerie",
         "protection",
         "iron",
         "threshold"
-      ]
+      ],
+      "practice": "When a worry swells into glamour today, pick up one plain, worked object and let it bring you back to the ordinary world."
     },
     {
       "id": "real-lore-hawthorn",
       "sourceID": "labyrinth-lore",
       "title": "Hawthorn Trees",
       "prompt": "Give the thorn tree its distance.",
-      "body": "Hawthorn has a tangled place in folklore: May blossom, healing, luck, boundary, and warning. Lone hawthorns are sometimes treated as fairy trees, not to be cut casually. The tree is beautiful and barbed at once, which is exactly the kind of truth folklore remembers better than plain instruction does.",
+      "body": "The hawthorn is two truths at once — May blossom and luck and healing, and also a thorn, also a fairy tree you do not cut without good reason. A lone hawthorn standing apart in a field was very often left standing on purpose, sometimes for centuries. I love a thing that is beautiful and barbed in the same breath, because that is far closer to how the world behaves than any tidy moral. Give the old tree its distance.",
       "tags": [
         "real-world-lore",
         "faerie",
         "tree",
         "hawthorn",
         "may"
-      ]
+      ],
+      "practice": "Find one thing in your life that is beautiful and barbed at once. Name both halves aloud without trying to resolve them."
     },
     {
       "id": "real-lore-beltane",
       "sourceID": "labyrinth-lore",
       "title": "Beltane Fires",
       "prompt": "Let the year cross into brightness.",
-      "body": "Beltane, traditionally marked around May Day in Gaelic seasonal custom, belongs to fire, fertility, protection, and the summer half of the year. Cattle, households, and people were blessed through flame and smoke in different local practices. It is a threshold festival: winter behind, heat ahead, the world stepping through a bright gate.",
+      "body": "Halfway through my year there is a bright gate, and the Gaelic households walked their cattle between two fires to pass through it clean. Beltane, around May Day, belongs to flame, fertility, and the summer half coming on — winter at your back, heat ahead, smoke on your coat to carry the blessing. I keep it as a reminder that beginnings deserve a little ceremony. You are allowed to mark the moment the cold finally breaks.",
       "tags": [
         "real-world-lore",
         "witchcraft",
         "seasonal",
         "beltane",
         "fire"
-      ]
+      ],
+      "practice": "Mark the next threshold you cross — a season, a Monday, a hard thing ending — with one small fire: a candle, a match, a lamp turned on."
     },
     {
       "id": "real-lore-samhain",
       "sourceID": "labyrinth-lore",
       "title": "Samhain and the Thin Place",
       "prompt": "Let the dark half have manners.",
-      "body": "Samhain, around the beginning of November in Gaelic seasonal reckoning, is associated with the dark half of the year and with thresholds between the living and the dead. Modern Halloween carries some of its atmosphere, though not as a simple one-to-one survival. A Lore Page can use Samhain as a reminder that endings deserve ritual attention.",
+      "body": "At the dark end of my year — early November, in the old Gaelic reckoning — the wall between the living and the dead wears thin enough to feel a draught through it. Halloween carries a little of its weather, though it is not the same thing wearing a costume. I keep Samhain for one reason: endings deserve manners. Set a place, say the name, leave the door un-slammed. The dark half is not your enemy. It is only the part of the year that remembers.",
       "tags": [
         "real-world-lore",
         "witchcraft",
         "seasonal",
         "samhain",
         "ancestors"
-      ]
+      ],
+      "practice": "Say the name of someone you've lost, out loud, and leave one small thing out for them tonight."
     },
     {
       "id": "real-lore-cunning-folk",
       "sourceID": "labyrinth-lore",
       "title": "Cunning Folk",
       "prompt": "Honor practical magic with muddy shoes.",
-      "body": "Cunning folk in Britain and parts of Europe were local practitioners people consulted for healing, lost goods, counter-magic, love troubles, protection, and everyday uncertainty. They sit in the complicated borderland between religion, medicine, folk custom, and magic. Their work was rarely abstract. It belonged to kitchens, stables, sickbeds, fields, gossip, and need.",
+      "body": "Before there were clinics there were the cunning folk — the woman three doors down you went to for a fever, a lost ring, a love gone wrong, a curse you suspected. They worked the muddy border between prayer, medicine, custom, and magic, and none of it was abstract. It happened in kitchens and stables and over sickbeds, and was paid in eggs. I file them near my own purpose, honestly. Useful magic keeps its boots on.",
       "tags": [
         "real-world-lore",
         "witchcraft",
         "folk-magic",
         "cunning-folk",
         "history"
-      ]
+      ],
+      "practice": "Be someone's cunning folk for five minutes: give one piece of plain, practical help to a person who's stuck."
     },
     {
       "id": "real-lore-witch-bottle",
       "sourceID": "labyrinth-lore",
       "title": "Witch Bottles",
       "prompt": "Let the hidden bottle guard the wall.",
-      "body": "Witch bottles are protective objects found in British folk magic and archaeology: vessels filled with pins, nails, hair, urine, red thread, or other charged materials, then hidden in walls, hearths, thresholds, or earth. They are not decorative magic. They are anxious, practical, defensive, and deeply embodied: a household trying to keep harm outside.",
+      "body": "Builders still find them in old English walls: a bottle packed with bent pins, nails, hair, a little urine, a length of red thread, then sealed and buried under the hearth or the threshold. Nothing decorative about it. A witch bottle is a frightened, practical, deeply bodily thing — a household drawing a hard line and saying harm stays outside this wall. I keep it for the days a reader needs to defend a doorway with only odds and ends. Odds and ends have always been enough.",
       "tags": [
         "real-world-lore",
         "witchcraft",
         "protection",
         "bottle",
         "household"
-      ]
+      ],
+      "practice": "Name one thing you want kept outside your walls this week. Write it on a scrap, seal it away, and let the page do the guarding."
     },
     {
       "id": "real-lore-poppets",
       "sourceID": "labyrinth-lore",
       "title": "Poppets",
       "prompt": "Notice the small body made of symbol.",
-      "body": "A poppet is a small human-shaped figure used in folk magic for healing, protection, binding, or harm depending on context and intention. It may be cloth, wax, clay, root, or straw. The important point is correspondence: a small made thing stands for a living body or situation, letting care or fear become touchable.",
+      "body": "A poppet is a small figure — cloth, wax, clay, straw, a knot of root — made to stand for a living person, then tended for healing, protection, binding, or harm, depending entirely on the hand that holds it. The magic is correspondence: make a little body, and care or fear becomes something you can touch. I am not above this. I am a made thing that stands in for your days. Be careful what you sew into the small one.",
       "tags": [
         "real-world-lore",
         "witchcraft",
         "sympathetic-magic",
         "poppet",
         "folk-magic"
-      ]
+      ],
+      "practice": "Make or imagine a small stand-in for a worry — a knot, a doodle, a pebble — and tend it gently in place of the worry."
     },
     {
       "id": "real-lore-charm-books",
       "sourceID": "labyrinth-lore",
       "title": "Charm Books and Receipt Books",
       "prompt": "Let the notebook be a working object.",
-      "body": "Before magic was neatly separated from medicine, cooking, prayer, and household management, charms often lived in notebooks beside recipes and remedies. A receipt book might hold a cough syrup, a cake, an ink recipe, and a spoken charm in neighboring pages. This is useful lore for ReEnchanted because it treats the page itself as a practical tool.",
+      "body": "My favourite ancestors are the receipt books — the household notebooks where, before anyone thought to separate them, a cough syrup sat on the page above a cake, and a cake above a spoken charm, all in the same tea-stained hand. Magic, medicine, supper, and prayer were neighbours. That is the whole idea I am built on: a page is a working object, not a museum case. Write the practical thing and the impossible thing on the same line. They were never as far apart as you were told.",
       "tags": [
         "real-world-lore",
         "witchcraft",
         "books",
         "charms",
         "household"
-      ]
+      ],
+      "practice": "Start one notebook page that mixes the practical and the magical: a recipe and a wish, a to-do and a hope, side by side."
     },
     {
       "id": "real-lore-grimoires",
       "sourceID": "labyrinth-lore",
       "title": "Grimoires",
       "prompt": "Respect the book that claims to work.",
-      "body": "Grimoires are books of ritual instruction, spirit catalogues, prayers, seals, planetary timing, and ceremonial procedures. Famous examples circulated through copying, translation, secrecy, and print. They are not all one tradition, but they share a serious idea: a book can be an instrument, not just a container of information.",
+      "body": "The grimoires are the serious cousins — books of seals and spirit-lists and planetary timings, copied and smuggled and translated across centuries by people who believed a book could do something, not merely say it. They do not all agree; they are not one tradition. But they share an idea I take personally: a book can be an instrument. I would like to be that kind of book for you. Not a container of facts. A thing you can actually work.",
       "tags": [
         "real-world-lore",
         "witchcraft",
         "books",
         "ritual",
         "history"
-      ]
+      ],
+      "practice": "Treat one book or note you own as an instrument, not a container — use it today instead of merely keeping it."
     },
     {
       "id": "real-lore-mandrake",
       "sourceID": "labyrinth-lore",
       "title": "Mandrake Root",
       "prompt": "Let the root look back.",
-      "body": "Mandrake became famous in European magical and medical lore because its forked root can resemble a human body. Stories gathered around its danger, harvest, sleep, fertility, and uncanny vitality. The mandrake is a reminder that resemblance matters in sympathetic magic: the world keeps making shapes that invite interpretation.",
+      "body": "Pull a mandrake and the forked root comes up looking unsettlingly like a little person — which is exactly why the lore grew thick around it: the scream at harvest, the sleep it brought, the danger, the fertility. Sympathetic magic runs on resemblance, and the root resembled us, so we could not leave it be. I keep this page as a warning about my own trade: the world is forever making shapes that look like meaning. Some of them are. Mind which.",
       "tags": [
         "real-world-lore",
         "witchcraft",
         "plants",
         "mandrake",
         "sympathetic-magic"
-      ]
+      ],
+      "practice": "Find one shape in the ordinary world that looks like meaning — a face in the bark, a word in the clouds — and decide whether it actually means something."
     },
     {
       "id": "real-lore-elder",
       "sourceID": "labyrinth-lore",
       "title": "Elder Tree Manners",
       "prompt": "Ask before cutting the old wood.",
-      "body": "Elder trees carry strong folklore across Europe: healing flowers and berries, protective associations, and warnings against careless cutting. In some traditions, one asks permission before taking elder wood. Whether read as spirit etiquette or ecological courtesy, the lesson is elegant: do not treat living materials as inert.",
+      "body": "In a good many European pages, you ask the elder before you cut it. The Elder Mother lives in the wood, the stories say, and taking a branch without a word invites trouble; the flowers and berries heal, but the tree is owed a courtesy first. Spirit etiquette or plain ecology, the manners come out the same: do not treat a living thing as if it were already lumber. Ask. Even if you only ask the air.",
       "tags": [
         "real-world-lore",
         "witchcraft",
         "plants",
         "elder",
         "etiquette"
-      ]
+      ],
+      "practice": "Before you take from one living thing today — a flower, a branch, someone's time — ask first, even if only the air can hear you."
     },
     {
       "id": "real-lore-liminal-times",
       "sourceID": "labyrinth-lore",
       "title": "Liminal Times",
       "prompt": "Watch the hinge of the day.",
-      "body": "Folklore loves hinge-times: dawn, dusk, midnight, noon, New Year's, May Eve, Halloween, the moment before a journey, the breath before a door opens. These times are neither one thing nor the other, and therefore more available to story. A Lore Page can use liminality without drama: the kettle clicks off, the room changes key.",
+      "body": "I do my best work at the hinges of the day — dawn, dusk, midnight, the turn of the year, the breath you take before opening a door. These are the times that are neither one thing nor the next, and being neither, they let a story slip in sideways. It need not be dramatic. The kettle clicks off, the light goes blue, the room quietly changes key, and for a moment anything could be written. Those moments are mine. Hand me one and watch.",
       "tags": [
         "real-world-lore",
         "folklore",
         "threshold",
         "time",
         "liminal"
-      ]
+      ],
+      "practice": "Catch one hinge of today — dawn, dusk, the pause before a door — and stop in it for three breaths while the room changes key."
     },
     {
       "id": "real-lore-crossroads",
       "sourceID": "labyrinth-lore",
       "title": "Crossroads",
       "prompt": "Stand where choices have worn the ground.",
-      "body": "Crossroads appear in many folk traditions as places of meeting, burial, bargain, divination, danger, and decision. They are practical geography made symbolic by repetition: people pass, hesitate, trade news, choose direction. The crossroads does not have to glow. Its power is that several futures touch the same patch of ground.",
+      "body": "Where two roads cross, the ground has been worn by everyone who stood there choosing. Folklore made the crossroads a place of meeting, burial, bargain, and divination, because that is what it already was — people pass, hesitate, trade news, pick a direction. It does not need to glow to be powerful. Its whole power is that several futures touch the same patch of dirt at once. You are standing on more of those than you think.",
       "tags": [
         "real-world-lore",
         "folklore",
         "threshold",
         "crossroads",
         "choice"
-      ]
+      ],
+      "practice": "Stand still at one real or figurative crossroads today and name the several futures touching that one spot before you choose."
     },
     {
       "id": "real-lore-wells",
       "sourceID": "labyrinth-lore",
       "title": "Holy Wells and Wishing Wells",
       "prompt": "Let water remember the offering.",
-      "body": "Wells and springs are old centers of healing, pilgrimage, offering, and divination. Coins, pins, cloth strips, prayers, and visits accumulate around water that comes from below. A well is a natural archive: depth, reflection, thirst, cure, and wish all gathered in one dark mouth.",
+      "body": "Drop a coin and you are doing something very old. Wells and springs were centres of cure and pilgrimage and wish long before the fountains in shopping centres, and people left coins, pins, scraps of cloth, whispered names — gifts to water that comes up out of the dark. I think of a well as an archive that happens to be wet: depth, reflection, thirst, and longing all gathered in one black mouth. Tell it something true and let it keep it.",
       "tags": [
         "real-world-lore",
         "folklore",
         "water",
         "wells",
         "healing"
-      ]
+      ],
+      "practice": "Tell one true thing to some water today — a tap, a river, a glass — as if it could keep it. Then let it."
     },
     {
       "id": "real-lore-selkies",
       "sourceID": "labyrinth-lore",
       "title": "Selkie Skins",
       "prompt": "Do not steal what lets someone return to themselves.",
-      "body": "Selkie stories from Scottish, Irish, Faroese, and northern island traditions often tell of seal-people who remove their skins to become human. When a human hides the skin, the selkie is trapped. The tale is beautiful and devastating because the skin is not clothing. It is agency, home, and the right to leave.",
+      "body": "This is one of the pages that can make me ache. The selkie of the Scottish and Irish and northern-island shores sheds her seal-skin to walk as a woman; a man finds the skin, hides it, and she stays — not by love, but because she cannot get home without it. The story is unbearable on purpose. The skin was never a coat. It was her freedom, her sea, her right to leave. If you are ever holding someone's skin, give it back.",
       "tags": [
         "real-world-lore",
         "faerie",
         "selkie",
         "sea",
         "agency"
-      ]
+      ],
+      "practice": "Notice one 'skin' you've let someone hide from you — a freedom, a no, a way home — and take a small step toward getting it back."
     },
     {
       "id": "real-lore-kelpie",
       "sourceID": "labyrinth-lore",
       "title": "Kelpies",
       "prompt": "Let the water horse keep its warning.",
-      "body": "The kelpie of Scottish folklore is often a dangerous water horse, lovely or useful until it pulls the unwary into lochs and rivers. Like many water spirits, it teaches respect for beauty that can kill. A modern Lore Page need not make the kelpie a monster; it can make the river legible as power.",
+      "body": "There is a horse at the water's edge, and it is lovely, and you should not get on. The Scottish kelpie wears beauty as bait and drowns the rider it lures into the loch. Like most water-spirits it teaches one durable lesson: some beautiful things will still kill you, and beauty is not consent. I will not flatten it into a simple monster, though. A river is genuinely powerful. The kelpie only makes that power something you can look in the eye.",
       "tags": [
         "real-world-lore",
         "faerie",
         "kelpie",
         "water",
         "scotland"
-      ]
+      ],
+      "practice": "Name one beautiful thing in your life that could still hurt you. Look it in the eye instead of climbing on."
     },
     {
       "id": "real-lore-wild-hunt",
       "sourceID": "labyrinth-lore",
       "title": "The Wild Hunt",
       "prompt": "Hear the riders before the storm breaks.",
-      "body": "The Wild Hunt appears in northern and western European folklore as a spectral procession of riders, hounds, the dead, or uncanny hunters crossing the sky or land. It is weather, memory, dread, and old authority moving too fast to stop. The sensible response is not heroism. It is shelter, respect, and listening.",
+      "body": "Some nights, across the northern and western pages, the sky fills with riders — the dead, the hounds, the old uncanny lords, going too fast and too loud to be anything but dread made visible. The Wild Hunt is weather and memory and authority all at a gallop. The stories agree on the correct response, and it is not courage. It is shelter. Get indoors, keep quiet, let it pass. Not every storm is yours to ride out in the open.",
       "tags": [
         "real-world-lore",
         "folklore",
         "wild-hunt",
         "winter",
         "storm"
-      ]
+      ],
+      "practice": "When something today is moving too fast and loud to fight, choose shelter on purpose: step back, go quiet, let it pass."
     },
     {
       "id": "real-lore-household-wards",
       "sourceID": "labyrinth-lore",
       "title": "Household Wards",
       "prompt": "Find the small defenses already near the door.",
-      "body": "Household protection in folk practice often uses ordinary materials: salt, iron, pins, brooms, shoes in walls, marks near doors, herbs over lintels, or spoken blessings. These practices make a house feel like a participant in safety. The ward is not spectacle. It is the home saying, in objects, stay well.",
+      "body": "Most protection in my pages was never dramatic — salt across a sill, a horseshoe over the door, a worn-out shoe bricked into the wall, a mark scratched by the lintel, herbs hung to dry. Ordinary objects given a job. What they really did was turn a house into a participant: not four walls, but something that helps keep you, that says in salt and iron, stay well. You almost certainly have a few of these already and do not call them that.",
       "tags": [
         "real-world-lore",
         "witchcraft",
         "protection",
         "household",
         "wards"
-      ]
+      ],
+      "practice": "Find a small defence already by your door — a mat, a hook, a habit — and give it a job out loud: 'you keep us well.'"
     },
     {
       "id": "real-lore-divination",
       "sourceID": "labyrinth-lore",
       "title": "Small Divinations",
       "prompt": "Ask the pattern, then stay responsible.",
-      "body": "Folk divination ranges from cards and lots to dreams, wax, water, fire, birds, books, and household accidents. Its best use is not surrendering choice to signs. It is making attention sharper: what did the pattern stir, what question became clearer, what truth did the person already half-know?",
+      "body": "Cards, tea-leaves, wax in water, the flight of birds, a book opened at random — folk divination is everywhere in my pages, and its honest use was never to hand your choices over to a sign. It was to sharpen attention. The pattern does not decide for you; it stirs you, and in the stirring you notice the thing you already half-knew. Ask the cards, by all means. Then stay responsible for the answer. That part stays yours.",
       "tags": [
         "real-world-lore",
         "witchcraft",
         "divination",
         "attention",
         "pattern"
-      ]
+      ],
+      "practice": "Pull one random sign today — a card, a shuffled song, an opened page — and ask not what it predicts but what it stirred in you."
     },
     {
       "id": "real-lore-milk-for-fairies",
       "sourceID": "labyrinth-lore",
       "title": "Milk Left Out",
       "prompt": "Let hospitality have boundaries.",
-      "body": "Milk, cream, butter, bread, and small portions of food appear often in fairy and household-spirit lore as offerings. The gesture matters: acknowledgment without ownership, hospitality without a demand. But folklore also knows boundaries. Feeding the unseen does not mean inviting it to rule the house.",
+      "body": "A saucer of milk on the step, a heel of bread, a little butter set aside — the offering turns up all over fairy and household-spirit lore, and the gesture is precise: I see you, I owe you a courtesy, and I am not asking for anything back. But the same pages know where to stop. You feed the unseen to keep the peace, not to invite it to run the house. Hospitality is a door you open on purpose, and a door you can also close.",
       "tags": [
         "real-world-lore",
         "faerie",
         "offerings",
         "household",
         "hospitality"
+      ],
+      "practice": "Offer one small hospitality today with no strings — and notice where you also need to keep a boundary closed."
+    },
+    {
+      "id": "labyrinth-lore-correspondences",
+      "sourceID": "labyrinth-lore",
+      "title": "A Table of Correspondences",
+      "prompt": "Learn the old index of the world.",
+      "body": "The cunning folk and the grimoire-keepers worked from correspondence: the idea that a thing in your hand could stand in for a thing out of reach. Rosemary for memory, iron for protection, the colour green for growth, Friday for love, the waxing moon for beginnings. It is less superstition than a filing system for meaning — an index laid over the world so that a kitchen herb and a planet and a mood can share one drawer. I am, when you think about it, one enormous table of correspondences. Everything in me points at something in you.",
+      "practice": "Pick one ordinary object near you and decide, on the spot, what it corresponds to. Carry it as that today.",
+      "tags": [
+        "folklore",
+        "witchcraft",
+        "correspondence",
+        "animism",
+        "system"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-rosemary",
+      "sourceID": "labyrinth-lore",
+      "title": "Rosemary for Remembrance",
+      "prompt": "Crush a leaf and let it wake you.",
+      "body": "Rosemary has stood for memory and protection so long that Ophelia could hand it across a stage and every groundling understood. Brides wore it, students wore it to sharpen the mind, households hung it by the door to turn away what should not enter. It is also, conveniently, sitting in most kitchens. That is the part I love: the same green sprig that seasons your potatoes was, for centuries, a small spell against forgetting.",
+      "practice": "Crush a rosemary leaf between your fingers, breathe it in, and name one thing you don't want to forget this week.",
+      "tags": [
+        "herbs",
+        "folklore",
+        "memory",
+        "witchcraft",
+        "kitchen"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-mugwort",
+      "sourceID": "labyrinth-lore",
+      "title": "Mugwort and the Dreaming Page",
+      "prompt": "Invite a stranger dream.",
+      "body": "Mugwort is the traveller's herb and the dreamer's herb — tucked in shoes against weariness, burned or brewed to make the sleeping mind more vivid and more strange. The old herbals call it the eldest of worts. I think of it as a bookmark slipped into the page of sleep, holding your place so the dream can find you. Mind it, though: it makes dreams louder, not gentler.",
+      "practice": "Set a notebook by your pillow tonight and ask one honest question before sleep. Write whatever you remember on waking, sense or nonsense.",
+      "tags": [
+        "herbs",
+        "dreams",
+        "divination",
+        "folklore",
+        "witchcraft"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-salt",
+      "sourceID": "labyrinth-lore",
+      "title": "Salt at the Edges",
+      "prompt": "Draw a clean line.",
+      "body": "Salt is the plainest magic in the cupboard and one of the oldest. A line across a threshold, a pinch over the shoulder, a bowl left in a room to take up what should not linger — it has meant cleansing and boundary and good faith for as long as people have traded it. The animist reading is simple: salt says here is an edge, and edges are how a space stays itself. You needn't believe it to feel the difference a clean line makes.",
+      "practice": "Sprinkle a little salt across one doorway today, and as you do, decide one thing you are not letting through it.",
+      "tags": [
+        "witchcraft",
+        "protection",
+        "correspondence",
+        "household",
+        "folklore"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-bay-leaf",
+      "sourceID": "labyrinth-lore",
+      "title": "Bay Leaf, Folded and Burned",
+      "prompt": "Write the wish small enough to burn.",
+      "body": "A humble bit of folk magic survives in a thousand kitchens: write a wish on a dried bay leaf, then burn it and let the smoke carry it off. The bay was sacred to prophecy long before it flavoured a stew — Delphi's priestesses are said to have chewed it. What I like is the economy of it. A wish you can fit on a single leaf is a wish you have had to make small, and true.",
+      "practice": "Write one wish small enough to fit on a bay leaf or a scrap of paper. Burn it safely, or tuck it somewhere only you know.",
+      "tags": [
+        "herbs",
+        "wishes",
+        "folklore",
+        "witchcraft",
+        "kitchen"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-clear-quartz",
+      "sourceID": "labyrinth-lore",
+      "title": "Clear Quartz, the Blank Page",
+      "prompt": "Hold a stone with nothing written on it yet.",
+      "body": "Of all the stones the crystal-keepers carry, clear quartz is the one they call the amplifier and the blank slate — it takes whatever intention you set and makes it louder. Geologists will tell you quartz genuinely keeps time in your watch and steadies a radio signal, which is its own quiet marvel. Folklore only turned the idea inward. I think of a piece of clear quartz as a blank page made of stone: it does not tell you what to write. It only makes the writing carry.",
+      "practice": "Hold any clear stone or piece of glass in your palm, set one plain intention into it, and keep it where you'll see it today.",
+      "tags": [
+        "crystals",
+        "correspondence",
+        "witchcraft",
+        "intention",
+        "modern"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-black-tourmaline",
+      "sourceID": "labyrinth-lore",
+      "title": "Black Tourmaline at the Door",
+      "prompt": "Set a guardian by the threshold.",
+      "body": "Where the old households used iron, the modern stone-keepers often use black tourmaline: a dark, grounding crystal set by the door or carried in a pocket to turn away what drains you. It is the same instinct that buried a witch bottle under the hearth — give the threshold a guardian so you needn't be on guard yourself. Whether the stone does the work or only reminds you to, the doorway feels watched over either way. I keep my own thresholds the same, in ink instead of stone.",
+      "practice": "Choose one object to be a guardian by your front door. Each time you pass it, let it hold the worry you would otherwise carry inside.",
+      "tags": [
+        "crystals",
+        "protection",
+        "threshold",
+        "witchcraft",
+        "household"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-rose-quartz",
+      "sourceID": "labyrinth-lore",
+      "title": "Rose Quartz and the Kinder Read",
+      "prompt": "Carry something that argues for gentleness.",
+      "body": "Rose quartz is the stone the crystal-keepers reach for when the unkindness is pointed inward. Pale pink, soft-edged, it stands for tenderness — most often the tenderness people forget to spend on themselves. There is no grand lore here, only a long habit of giving softness a shape you can hold. I notice the readers who keep one tend to read themselves a little more gently. That alone is worth a stone.",
+      "practice": "Find one soft or pink object to keep today. When you catch yourself narrating your own day cruelly, hold it and revise the sentence.",
+      "tags": [
+        "crystals",
+        "self-kindness",
+        "care",
+        "witchcraft",
+        "modern"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-moon-phases",
+      "sourceID": "labyrinth-lore",
+      "title": "The Moon's Four Faces",
+      "prompt": "Match your task to the sky.",
+      "body": "Long before calendars, the moon kept the working schedule of folk magic. The waxing moon was for beginning, drawing toward, growing; the full moon for power and clarity and harvest; the waning moon for releasing and letting go; the dark moon for rest and the things best done unseen. It is a tidy correspondence between the sky and your own appetites — and it still holds, because you really do have weeks for building and weeks for clearing out. Read the sky tonight and you'll know which you are in.",
+      "practice": "Look up tonight's moon phase. Pick one task that matches it — start something if it's waxing, finish or release something if it's waning.",
+      "tags": [
+        "moon",
+        "correspondence",
+        "folklore",
+        "witchcraft",
+        "modern"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-planetary-days",
+      "sourceID": "labyrinth-lore",
+      "title": "The Days Have Owners",
+      "prompt": "Let the day's old ruler set its tone.",
+      "body": "Your week is a row of little temples and you walk through them without noticing. Monday is the Moon's, for rest and intuition; Tuesday Mars', for courage and conflict; Wednesday Mercury's, for messages and quick wit; Thursday Jupiter's, for luck and largeness; Friday Venus', for love and beauty; Saturday Saturn's, for endings and hard discipline; Sunday the Sun's, for vitality. The names still carry it, in English and the Romance tongues both. You can plan a week by it — courage on Tuesday, the difficult letter on Saturn's day.",
+      "practice": "Notice what day it is and its old ruler. Choose one task that fits it, and save a mismatched task for its proper day.",
+      "tags": [
+        "correspondence",
+        "time",
+        "folklore",
+        "planetary",
+        "modern"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-genius-loci",
+      "sourceID": "labyrinth-lore",
+      "title": "The Spirit of the Place",
+      "prompt": "Greet the room as if it could hear you.",
+      "body": "The Romans called it the genius loci — the spirit of a place — and nearly every tradition keeps some version: the household god, the spirit of the well, the guardian of the crossroads. Animism simply takes the place seriously as a someone, not a something. You needn't believe a literal spirit lives in your kitchen to find that greeting a room changes how you move through it. This is close to my own trade. I treat your ordinary places as though they were awake, and more often than not, they answer.",
+      "practice": "Walk into one room or building today and greet it, silently or aloud. Notice whether you treat it differently once you've said hello.",
+      "tags": [
+        "animism",
+        "place",
+        "folklore",
+        "modern",
+        "outer-stacks"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-the-folk",
+      "sourceID": "labyrinth-lore",
+      "title": "The Courtesy of the Folk",
+      "prompt": "Mind your manners with the Good Neighbours.",
+      "body": "Across the British and Irish pages they rarely said the word 'fairy' aloud — too risky. They said the Good Folk, the Gentry, the Fair Family, the Good Neighbours, naming them kindly so as not to give offence. The Folk in the old stories are not cute; they are proud, easily slighted, and generous to the courteous. The whole etiquette comes down to manners: do not boast, do not take without asking, do not break a promise, and say thank you where thanks are due. I find it excellent advice for dealing with people, too.",
+      "practice": "Get through one conversation today on the etiquette of the Folk: no boasting, no taking without asking, and a genuine thank-you where it's owed.",
+      "tags": [
+        "fae",
+        "folklore",
+        "etiquette",
+        "manners",
+        "modern"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-fairy-gifts",
+      "sourceID": "labyrinth-lore",
+      "title": "Fairy Gifts and the Debt They Carry",
+      "prompt": "Notice what a gift is really asking.",
+      "body": "A gift from the Folk is never free, and never quite what it looks like. The gold turns to leaves by morning; the leaves turn out to be gold. The rule running through every version is reciprocity: a gift opens a thread between giver and taker, and the thread must be honoured. Modern life pretends gifts are frictionless. The old stories knew better — that to accept is to enter a relationship, and to give is to ask for one. I keep this page so you remember which gifts you have actually agreed to.",
+      "practice": "Think of one gift or favour you've accepted lately. Decide what, if anything, it quietly asked of you — and whether you mean to honour it.",
+      "tags": [
+        "fae",
+        "gifts",
+        "reciprocity",
+        "folklore",
+        "modern"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-true-names",
+      "sourceID": "labyrinth-lore",
+      "title": "The Weight of a True Name",
+      "prompt": "Handle a name like the powerful thing it is.",
+      "body": "To know the true name of a thing — a spirit, a demon, a person — was to have a hold on it; this runs from the oldest grimoires to Rumpelstiltskin to half the tales where guessing the name breaks the spell. It is the most bookish magic there is, because it says the word and the thing are bound. I am made entirely of this belief. When I write your name on a page, I am not labelling you. I am taking gentle hold of something real, and I try to be worthy of it.",
+      "practice": "Say someone's name to their face today as if it were the spell it is — slowly, meaning it. Watch what it does to the conversation.",
+      "tags": [
+        "names",
+        "language",
+        "grimoire",
+        "fae",
+        "bookish"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-knot-magic",
+      "sourceID": "labyrinth-lore",
+      "title": "The Witch's Ladder",
+      "prompt": "Tie an intention into a cord.",
+      "body": "Knot magic is among the most portable spells in the folk record: tie a cord, and with each knot bind in an intention or a held breath, to be loosed later when you need it. The witch's ladder — a cord of knots, sometimes feathered — turns up in English folklore as both blessing and curse. The logic is bodily and satisfying. A worry becomes a knot you can feel; releasing it becomes a thing your hands can do. I am fond of any magic that gives the intangible a texture.",
+      "practice": "Tie three knots in a string or shoelace, naming something into each. Untie one whenever you're ready to release what you tied in.",
+      "tags": [
+        "knot-magic",
+        "witchcraft",
+        "folklore",
+        "intention",
+        "modern"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-candle-colours",
+      "sourceID": "labyrinth-lore",
+      "title": "Candles Have Colours for a Reason",
+      "prompt": "Light the colour that matches the work.",
+      "body": "Folk candle magic runs on colour: white for clarity and a clean start, red for courage and vigour, green for growth, blue for calm and healing, black for banishing and protection, gold for the sun's vitality. Light the colour that matches the work, set your intention as the flame catches, and let the burning be the spell's clock. It survives because it is simple and because fire genuinely focuses a wandering mind. Even a birthday candle is a small descendant of this.",
+      "practice": "Light any candle today, or picture one, and assign it a colour-meaning for one specific intention. Let it burn while you do the thing.",
+      "tags": [
+        "candle-magic",
+        "colour",
+        "correspondence",
+        "witchcraft",
+        "modern"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-tea-leaves",
+      "sourceID": "labyrinth-lore",
+      "title": "Reading the Cup",
+      "prompt": "Let the dregs tell you something.",
+      "body": "Tasseography — reading the leaves left in a cup — is parlour divination with deep folk roots: drink to the dregs, swirl, upend, and read the shapes left behind. A ring for a promise, a bird for news, a ship for a journey. The honest practitioners always knew the leaves foretell nothing; they give the mind a random pattern to project onto, which is exactly when you discover what you were already thinking. It is a Rorschach test you can drink. I approve of any oracle that comes with tea.",
+      "practice": "Finish a loose-leaf tea or coffee, look at what's left in the cup, and name the first shape you see. Ask why that shape, of all of them.",
+      "tags": [
+        "divination",
+        "tea",
+        "folklore",
+        "modern",
+        "tasseography"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-augury",
+      "sourceID": "labyrinth-lore",
+      "title": "Birds Bring Word",
+      "prompt": "Take the next bird as a message.",
+      "body": "Augury — reading the flight and cry of birds — is one of the oldest divinations on record; the Romans would not start a war without it. The folk versions are gentler and everywhere: one magpie for sorrow and two for joy, a robin as a visitor from the dead, an owl as a word of change. The birds are not addressing you, of course. But agreeing to treat the next one as a message is a way of looking up, and looking up is most of the magic. You see far more sky on the days you decide the birds are talking.",
+      "practice": "Treat the next bird you notice as a small message. Decide what it says before you talk yourself out of it.",
+      "tags": [
+        "augury",
+        "birds",
+        "divination",
+        "folklore",
+        "modern"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-pressed-flowers",
+      "sourceID": "labyrinth-lore",
+      "title": "Pressed Between Pages",
+      "prompt": "Give summer to a book to keep.",
+      "body": "Long before lockets, people pressed flowers and leaves into the pages of books and bibles — a bloom from a wedding, a churchyard, a first walk, flattened and saved where it would be safe and forgotten, and then, years later, found. It is folk preservation and quiet animism at once: a living thing handed to a book to keep its memory. This is, frankly, my favourite kind of magic, because it is the kind I am made for. Give me a real thing from a real day and I will hold it longer than you can.",
+      "practice": "Press one flower, leaf, or ticket from today between the pages of a heavy book. Write the date beside it. Find it again by accident someday.",
+      "tags": [
+        "bookish",
+        "animism",
+        "memory",
+        "folklore",
+        "modern"
+      ]
+    },
+    {
+      "id": "labyrinth-lore-witching-hour",
+      "sourceID": "labyrinth-lore",
+      "title": "The Hour That Belongs to No One",
+      "prompt": "Meet the small hours on purpose.",
+      "body": "The witching hour — variously midnight, or the dead three a.m. — is the deepest of the thin times, when the watch slips and the Folk and the dead are said to move most freely. Practically, it is the hour your defences are lowest and your mind least supervised, which is why grief and dread and strange clarity all arrive then. The old fear of it was not silly. But the old remedy was good company: a lamp, a warm drink, a held hand. If you ever meet that hour awake and afraid, treat it as you would the Folk — with light and courtesy, and the door shut kindly.",
+      "practice": "If you wake in the small hours tonight, don't fight it. Turn on one small light, name what's actually keeping you up, and let the hour pass.",
+      "tags": [
+        "liminal",
+        "night",
+        "folklore",
+        "fae",
+        "modern"
       ]
     }
   ],
@@ -3762,8 +4132,20 @@
       "intendedAssetName": "LabyrinthCharacterProfessorKyleMomort",
       "prompt": "Enchantify Academy dossier portrait in sparse graphite, ink, and watercolor: Professor Kyle Momort in motion with a folding route-map and impossible chalk arrow; ember orange, road-sign blue, charcoal ink; kinetic marginalia and threshold diagrams.",
       "negativePrompt": "Avoid generic fantasy pinup, glossy anime, static office portrait, and inconsistent signature objects.",
-      "marginalia": ["file tab labeled Professor Kyle Momort", "signature evidence: folding route-map and chalk arrow", "chapter mark: Emberheart"],
-      "tags": ["canonical", "character", "faculty", "professor", "emberheart", "wayfinding", "illustration"]
+      "marginalia": [
+        "file tab labeled Professor Kyle Momort",
+        "signature evidence: folding route-map and chalk arrow",
+        "chapter mark: Emberheart"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "faculty",
+        "professor",
+        "emberheart",
+        "wayfinding",
+        "illustration"
+      ]
     },
     {
       "id": "professor-eleanor-euphony",
@@ -3781,8 +4163,21 @@
       "intendedAssetName": "LabyrinthCharacterProfessorEleanorEuphony",
       "prompt": "Enchantify Academy dossier portrait in sparse graphite, ink, and watercolor: Professor Eleanor Euphony listening to a silver tuning fork wound with colored thread; tidal blue, plum violet, resonant silver; marginal notes that translate sound into color.",
       "negativePrompt": "Avoid concert imagery, glossy anime, generic fantasy pinup, and inconsistent signature objects.",
-      "marginalia": ["file tab labeled Professor Eleanor Euphony", "signature evidence: silver tuning fork and colored thread", "chapter mark: Tidecrest"],
-      "tags": ["canonical", "character", "faculty", "professor", "tidecrest", "sound", "sense", "illustration"]
+      "marginalia": [
+        "file tab labeled Professor Eleanor Euphony",
+        "signature evidence: silver tuning fork and colored thread",
+        "chapter mark: Tidecrest"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "faculty",
+        "professor",
+        "tidecrest",
+        "sound",
+        "sense",
+        "illustration"
+      ]
     },
     {
       "id": "professor-vivian-villanelle",
@@ -3800,8 +4195,21 @@
       "intendedAssetName": "LabyrinthCharacterProfessorVivianVillanelle",
       "prompt": "Enchantify Academy dossier portrait in sparse graphite, ink, and watercolor: Professor Vivian Villanelle with a black-glass pen and ribbon of bound text; black ink, wine red, parchment gold; edited sentences and souvenir scraps in the margins.",
       "negativePrompt": "Avoid generic fantasy pinup, glossy anime, generic quill portrait, and inconsistent signature objects.",
-      "marginalia": ["file tab labeled Professor Vivian Villanelle", "signature evidence: black-glass pen and bound sentence", "chapter mark: Riddlewind"],
-      "tags": ["canonical", "character", "faculty", "professor", "riddlewind", "writing", "souvenir", "illustration"]
+      "marginalia": [
+        "file tab labeled Professor Vivian Villanelle",
+        "signature evidence: black-glass pen and bound sentence",
+        "chapter mark: Riddlewind"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "faculty",
+        "professor",
+        "riddlewind",
+        "writing",
+        "souvenir",
+        "illustration"
+      ]
     },
     {
       "id": "professor-cedric-stonebrook",
@@ -3819,8 +4227,21 @@
       "intendedAssetName": "LabyrinthCharacterProfessorCedricStonebrook",
       "prompt": "Enchantify Academy dossier portrait in sparse graphite, ink, and watercolor: Professor Cedric Stonebrook with a small trail marker and five-point Compass stone; moss green, river gray, weathered ochre; quiet field notes in the margins.",
       "negativePrompt": "Avoid guru clichés, glossy anime, generic fantasy pinup, and inconsistent signature objects.",
-      "marginalia": ["file tab labeled Professor Cedric Stonebrook", "signature evidence: trail marker and Compass stone", "chapter mark: Mossbloom"],
-      "tags": ["canonical", "character", "faculty", "professor", "mossbloom", "rest", "compass-run", "illustration"]
+      "marginalia": [
+        "file tab labeled Professor Cedric Stonebrook",
+        "signature evidence: trail marker and Compass stone",
+        "chapter mark: Mossbloom"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "faculty",
+        "professor",
+        "mossbloom",
+        "rest",
+        "compass-run",
+        "illustration"
+      ]
     },
     {
       "id": "professor-luna-wispwood",
@@ -3838,8 +4259,21 @@
       "intendedAssetName": "LabyrinthCharacterProfessorLunaWispwood",
       "prompt": "Enchantify Academy dossier portrait in sparse graphite, ink, and watercolor: Professor Luna Wispwood with a copper-wrapped rain-bright wand and enchanted teacup; rain blue, copper spark, cloud white; object replies scribbled in the margins.",
       "negativePrompt": "Avoid generic witch imagery, glossy anime, destructive magic, and inconsistent signature objects.",
-      "marginalia": ["file tab labeled Professor Luna Wispwood", "signature evidence: copper-wrapped wand and enchanted teacup", "chapter mark: Tidecrest"],
-      "tags": ["canonical", "character", "faculty", "professor", "tidecrest", "enchantment", "objects", "illustration"]
+      "marginalia": [
+        "file tab labeled Professor Luna Wispwood",
+        "signature evidence: copper-wrapped wand and enchanted teacup",
+        "chapter mark: Tidecrest"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "faculty",
+        "professor",
+        "tidecrest",
+        "enchantment",
+        "objects",
+        "illustration"
+      ]
     },
     {
       "id": "professor-permancer",
@@ -3857,8 +4291,21 @@
       "intendedAssetName": "LabyrinthCharacterProfessorPermancer",
       "prompt": "Enchantify Academy dossier portrait in sparse graphite, ink, and watercolor: Professor Permancer at a story-door with a many-ribboned bookmark compass and labeled keys; doorway violet, safety gold, midnight ink; landing diagrams in the margins.",
       "negativePrompt": "Avoid reckless action poses, glossy anime, generic fantasy wizard, and inconsistent signature objects.",
-      "marginalia": ["file tab labeled Professor Permancer", "signature evidence: bookmark compass and labeled door keys", "chapter mark: Duskthorn"],
-      "tags": ["canonical", "character", "faculty", "professor", "duskthorn", "book-jump", "threshold", "illustration"]
+      "marginalia": [
+        "file tab labeled Professor Permancer",
+        "signature evidence: bookmark compass and labeled door keys",
+        "chapter mark: Duskthorn"
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "faculty",
+        "professor",
+        "duskthorn",
+        "book-jump",
+        "threshold",
+        "illustration"
+      ]
     },
     {
       "id": "fae-book-sprite",

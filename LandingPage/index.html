@@ -26,6 +26,7 @@
         <a href="#book">The Book</a>
         <a href="#how">How it works</a>
         <a href="#mechanics">Inside</a>
+        <a href="#radio">Radio</a>
         <a href="#academy">Academy</a>
         <a href="#chapters">Chapters</a>
         <a href="#packs">Packs</a>
@@ -39,6 +40,7 @@
       <section class="hero">
         <div class="hero-copy">
           <p class="eyebrow">A living book for ordinary days</p>
+          <p class="return-note" id="return-note" role="status" hidden></p>
           <h1>Real Life,<br><span class="accent">ReEnchanted</span></h1>
           <p class="hero-tagline">Play with Pages. <span>Keep Some.</span> Read Your Story.</p>
           <p class="hero-lede">
@@ -108,25 +110,30 @@
               <div class="leaf leaf-left">
                 <div class="leaf-paper">
                   <p class="leaf-kicker" id="page-kicker">Weather</p>
-                  <h3 class="leaf-title" id="page-title">The Weather Page has opened.</h3>
+                  <h3 class="leaf-title" id="page-title">Fog over the Stacks.</h3>
                   <p class="leaf-body" id="page-body">
-                    Outer weather is translated into story mood while keeping the
-                    actual forecast legible.
+                    <span class="weather-facts" aria-label="Weather details">
+                      <span><strong>Now</strong> 60° · fog</span>
+                      <span><strong>High / Low</strong> 71° / 56°</span>
+                      <span><strong>Wind</strong> E 4 mph</span>
+                      <span><strong>Humidity</strong> 92%</span>
+                    </span>
+                    <span class="weather-omen"><strong>The Book reads it:</strong> Fog has softened the edges of the Stacks. Hidden doors are likelier today; move slowly, carry one warm detail, and let unclear things stay gently unclear.</span>
                   </p>
-                  <p class="leaf-source" id="page-source">Public reference</p>
+                  <p class="leaf-source" id="page-source">Weather doorway · public forecast</p>
 
                   <div class="keep-controls" id="keep-controls">
                     <button class="keep-btn wait" id="btn-wait" type="button">Let it wait</button>
                     <button class="keep-btn keep" id="btn-keep" type="button">Keep this page ✦</button>
                   </div>
-                  <p class="keep-status" id="keep-status">7 pages rising · keep the ones that are true</p>
+                  <p class="keep-status" id="keep-status">8 pages rising · keep the ones that are true</p>
                 </div>
               </div>
 
               <!-- right: the screen (flips on turn) -->
               <div class="leaf leaf-right" id="leaf-right">
                 <div class="leaf-screen">
-                  <img id="page-shot" src="./assets/screens/home.jpg" alt="ReEnchanted screen">
+                  <img id="page-shot" src="./assets/screens/story-page-weather-prose.png" alt="ReEnchanted screen">
                   <span class="kept-stamp" id="kept-stamp">Kept</span>
                 </div>
               </div>
@@ -155,7 +162,7 @@
                   >
                   <div class="braid-screen-cap">
                     <p class="braid-end-line">A real Book of You page.</p>
-                    <p class="braid-end-sub">This is one month. A year of kept pages becomes an edition you can hold.</p>
+                    <p class="braid-end-sub">This is one day. Kept pages gather into editions you can hold.</p>
                     <a class="button primary" href="#download">Start your own →</a>
                     <button class="braid-replay" id="braid-replay" type="button">↺ Turn back to the start</button>
                   </div>
@@ -167,7 +174,7 @@
           <!-- nav -->
           <div class="book-nav" id="book-nav" hidden>
             <button class="nav-btn" id="btn-prev" type="button" aria-label="Previous page">‹ Back</button>
-            <span class="nav-count" id="nav-count">Page 1 of 7</span>
+            <span class="nav-count" id="nav-count">Page 1 of 8</span>
             <button class="nav-btn primary" id="btn-next" type="button" aria-label="Next page">Next ›</button>
           </div>
           <p class="book-hint" id="book-hint">Tip: keep a few, let some wait — your choices change the ending.</p>
@@ -296,7 +303,7 @@
           <article class="mechanic">
             <div class="mechanic-shot"><img src="./assets/screens/spells.jpg" alt="Spells and Enchantments screen"></div>
             <h3>Spells &amp; Glow</h3>
-            <p>A steady belief state, gently luminous. Open a Compass Run or an Enchantment and let an ordinary subject speak.</p>
+            <p>A steady belief state, gently luminous. Open Compass Runs, a noticing game, or an Enchantment and let an ordinary subject speak.</p>
           </article>
           <article class="mechanic">
             <div class="mechanic-shot"><img src="./assets/screens/wonder-compass.jpg" alt="Wonder Compass screen"></div>
@@ -376,9 +383,11 @@
             <p>
               A gentle economy, not a score. You can give or take Belief from
               anything in the Book — a character, an object, a recurring motif, even
-              a single page. What you believe in <em>glows</em>: the more Belief a
-              thing holds, the more often it appears, writes to you, and shapes what
-              the Book surfaces next. It's how you tell the Book what matters.
+              a single page. Cast members can fight over those Pages too, warming
+              what they love or cooling what they distrust. What you believe in
+              <em>glows</em>: the more Belief a thing holds, the more often it
+              appears, writes to you, and shapes what the Book surfaces next. It's
+              how everyone tells the Book what matters.
             </p>
           </article>
           <article class="system-card">
@@ -431,15 +440,17 @@
             <ul class="academy-acts">
               <li>Invest Belief in what they love</li>
               <li>Attack Belief they distrust</li>
+              <li>Give and take Belief from actual Pages</li>
               <li>Write you letters</li>
               <li>Do their own research</li>
+              <li>Send you on Quests to real places in your own town, with one clear action to complete</li>
               <li>Argue with each other</li>
               <li>Chart your moods and health</li>
               <li>Keep — and trade — secrets</li>
             </ul>
             <p class="academy-note">
-              You can invest Belief right back, take sides, and tip the balance. Or
-              just watch the Headmistress watch you.
+              You can invest Belief right back, take it from Pages or people, take
+              sides, and tip the balance. Or just watch the Headmistress watch you.
             </p>
           </div>
         </div>
@@ -449,7 +460,7 @@
             <p class="eyebrow">The five Chapters</p>
             <h3 id="chapters-title">Five wagers about the story of life.</h3>
             <p>
-              The Academy calls them Chapters, but they are not clubs or teams.
+              The Academy calls them Chapters, but they are not simply Houses, clubs, or teams.
               Each one is a living philosophy with students, faculty, rivalries,
               a talisman, and a theory about what your life is doing when no one is
               explaining it. Their Belief shifts the game board and the stories the
@@ -458,10 +469,11 @@
           </div>
 
           <div class="chapter-grid" aria-label="The five Academy Chapters">
-            <article class="chapter-card emberheart">
-              <figure class="chapter-talisman">
+            <article class="chapter-card emberheart" data-chapter-card="emberheart">
+              <button class="chapter-talisman" type="button" data-chapter="emberheart" aria-label="Give Belief to Emberheart">
                 <img src="./assets/art/LabyrinthTalismanEmberSeal.png" alt="The Ember Seal talisman of Emberheart">
-              </figure>
+                <span class="chapter-belief-count" aria-hidden="true">Give Belief</span>
+              </button>
               <div class="chapter-copy">
                 <p class="chapter-kicker">The Ember Seal</p>
                 <h4>Emberheart</h4>
@@ -470,10 +482,11 @@
               </div>
             </article>
 
-            <article class="chapter-card mossbloom">
-              <figure class="chapter-talisman">
+            <article class="chapter-card mossbloom" data-chapter-card="mossbloom">
+              <button class="chapter-talisman" type="button" data-chapter="mossbloom" aria-label="Give Belief to Mossbloom">
                 <img src="./assets/art/LabyrinthTalismanMossClasp.png" alt="The Moss Clasp talisman of Mossbloom">
-              </figure>
+                <span class="chapter-belief-count" aria-hidden="true">Give Belief</span>
+              </button>
               <div class="chapter-copy">
                 <p class="chapter-kicker">The Moss Clasp</p>
                 <h4>Mossbloom</h4>
@@ -482,22 +495,24 @@
               </div>
             </article>
 
-            <article class="chapter-card tidecrest">
-              <figure class="chapter-talisman">
+            <article class="chapter-card tidecrest" data-chapter-card="tidecrest">
+              <button class="chapter-talisman" type="button" data-chapter="tidecrest" aria-label="Give Belief to Tidecrest">
                 <img src="./assets/art/LabyrinthTalismanTideGlass.png" alt="The Tide Glass talisman of Tidecrest">
-              </figure>
+                <span class="chapter-belief-count" aria-hidden="true">Give Belief</span>
+              </button>
               <div class="chapter-copy">
                 <p class="chapter-kicker">The Tide Glass</p>
                 <h4>Tidecrest</h4>
-                <p class="chapter-belief">Life arrives moment by moment: beautiful, surprising, complete.</p>
-                <p>Tidecrest favors spontaneity, sudden weather, lively interruptions, and pages where the present matters more than the arc.</p>
+                <p class="chapter-belief">Life is a poem, not a story: no plot to solve, only moments to inhabit.</p>
+                <p>Tidecrest favors spontaneity, sudden weather, lively interruptions, and pages where the present matters more than any arc.</p>
               </div>
             </article>
 
-            <article class="chapter-card riddlewind">
-              <figure class="chapter-talisman">
+            <article class="chapter-card riddlewind" data-chapter-card="riddlewind">
+              <button class="chapter-talisman" type="button" data-chapter="riddlewind" aria-label="Give Belief to Riddlewind">
                 <img src="./assets/art/LabyrinthTalismanWindCipher.png" alt="The Wind Cipher talisman of Riddlewind">
-              </figure>
+                <span class="chapter-belief-count" aria-hidden="true">Give Belief</span>
+              </button>
               <div class="chapter-copy">
                 <p class="chapter-kicker">The Wind Cipher</p>
                 <h4>Riddlewind</h4>
@@ -506,10 +521,11 @@
               </div>
             </article>
 
-            <article class="chapter-card duskthorn">
-              <figure class="chapter-talisman">
+            <article class="chapter-card duskthorn" data-chapter-card="duskthorn">
+              <button class="chapter-talisman" type="button" data-chapter="duskthorn" aria-label="Give Belief to Duskthorn">
                 <img src="./assets/art/LabyrinthTalismanDuskThorn.png" alt="The Dusk Thorn talisman of Duskthorn">
-              </figure>
+                <span class="chapter-belief-count" aria-hidden="true">Give Belief</span>
+              </button>
               <div class="chapter-copy">
                 <p class="chapter-kicker">The Dusk Thorn</p>
                 <h4>Duskthorn</h4>
@@ -519,9 +535,22 @@
             </article>
           </div>
 
+          <p class="chapter-whisper" id="chapter-whisper" aria-live="polite">
+            The talismans are listening. Belief can be given, deepened, or released.
+          </p>
+
+          <aside class="binding-page" id="binding-page" aria-live="polite" hidden>
+            <p class="eyebrow">A page no one put here</p>
+            <p class="binding-mark" id="binding-mark" aria-hidden="true">✦</p>
+            <h4 id="binding-title">The Binding has noticed you.</h4>
+            <p id="binding-copy"></p>
+          </aside>
+
           <div class="chapter-rules">
             <p>
-              Whichever talisman holds the most Belief becomes ascendant. That
+              Whichever talisman holds the most Belief becomes ascendant. You can
+              give Belief to a talisman or try to take it away; so can every member
+              of the Cast. Everyone is fighting for what's real in the Book. That
               Chapter colors both the game and the narrative: what scenes surface,
               how characters act, what kind of choices glow, and the tone the
               Labyrinth takes when it writes back.
@@ -529,7 +558,8 @@
             <p>
               You do not pick a Chapter from a quiz. Eventually the Binding reads
               the evidence: the Pages you kept, the Belief you gave, and the small
-              things you preserved. Then it recognizes where you belong.
+              things you preserved. Then it recognizes where you belong in a
+              surprising one-time page of its own.
             </p>
           </div>
         </section>
@@ -653,6 +683,25 @@
               <span class="onair-dot" aria-hidden="true"></span>
               <span class="onair-label">Tune In</span>
             </button>
+            <label class="radio-volume-control" id="radio-volume-control" for="radio-volume">
+              <span class="radio-volume-label">Vol <output id="radio-volume-output" for="radio-volume">72</output></span>
+              <span class="radio-volume-dial">
+                <input
+                  class="radio-volume-input"
+                  id="radio-volume"
+                  type="range"
+                  min="0" max="100" step="1" value="72"
+                  aria-label="Radio volume"
+                  aria-valuetext="72 percent"
+                >
+                <span class="radio-volume-knob" aria-hidden="true">
+                  <span class="radio-volume-pointer"></span>
+                </span>
+              </span>
+            </label>
+            <button class="radio-power-btn" id="radio-power-btn" type="button" aria-label="Turn broadcast off" title="Turn broadcast off">
+              <span aria-hidden="true">⏻</span>
+            </button>
           </div>
 
           <div class="radio-dial">
@@ -676,6 +725,10 @@
               Sun-dappled beats and dandelion synths from faeries who have plainly had too much nectar.
             </p>
             <p class="radio-effect" id="radio-effect">World effect · Wonder Compass +8 · Souvenir +8 · Festival +6</p>
+
+            <div class="radio-wave-shell" aria-hidden="true">
+              <canvas class="radio-wave" id="radio-wave" width="640" height="120"></canvas>
+            </div>
 
             <ul class="track-list" id="track-list"></ul>
             <p class="radio-note" id="radio-note"></p>
@@ -755,7 +808,7 @@
           <ul class="packs-events" aria-label="Example evolving events">
             <li><span class="event-when">This week</span> The Goblin Market sets up in the lower stacks.</li>
             <li><span class="event-when">New moon</span> Thornwave runs an all-night broadcast.</li>
-            <li><span class="event-when">This month</span> Professor Villanelle opens office hours.</li>
+            <li><span class="event-when">This month</span> The Dictionary Rebellion begins; words lift off the page and refuse their meanings. Chaos.</li>
             <li><span class="event-when">Season turn</span> Another chapter is ready to <a href="#editions">bind into your editions</a>.</li>
           </ul>
         </div>
@@ -843,11 +896,50 @@
 
     <footer class="site-footer">
       <span>✦ ReEnchanted</span>
+      <span>Developed by an Obsessed Guy with an awesome wife, 2 cats, and a happy, small life.</span>
       <span>Private by design · Made for iPhone &amp; iPad</span>
       <span class="footer-license">Code <a href="https://github.com/teign07/ReEnchanted/blob/main/LICENSE" target="_blank" rel="noopener">MPL-2.0</a> · Art &amp; content © ReEnchanted</span>
+      <button class="footer-dedication" id="dedication-open" type="button">Dedication</button>
+      <button class="footer-cats" id="footer-cats" type="button" aria-expanded="false" aria-controls="cat-note">
+        <span class="cat-eyes" aria-hidden="true"><i></i><i></i></span>
+        <span class="sr-only">Meet Ron and Hermione, the two cats in the colophon</span>
+      </button>
       <a href="https://github.com/teign07/ReEnchanted" target="_blank" rel="noopener">GitHub</a>
+      <aside class="cat-note" id="cat-note" aria-live="polite" aria-label="Ron and Hermione, Assistant Archivists" hidden>
+        <figure class="cat-portrait">
+          <img
+            src="./assets/art/ron-and-hermione-archivists.jpeg"
+            alt="Ron and Hermione resting together in a ReEnchanted field-note collage"
+            width="1290"
+            height="1800"
+            loading="lazy"
+            decoding="async"
+          >
+          <figcaption>
+            <strong>Ron &amp; Hermione</strong>
+            <span>Assistant Archivists · sitting on drafts, inspecting margins, and knowing exactly when supper is late.</span>
+          </figcaption>
+        </figure>
+      </aside>
     </footer>
 
+    <div class="dedication-modal" id="dedication-modal" role="dialog" aria-modal="true" aria-labelledby="dedication-title" hidden>
+      <div class="dedication-backdrop" data-dedication-close></div>
+      <section class="dedication-panel" aria-describedby="dedication-copy">
+        <button class="dedication-close" type="button" data-dedication-close aria-label="Close dedication">×</button>
+        <p class="eyebrow">Hidden in the colophon</p>
+        <h2 id="dedication-title">A quiet dedication.</h2>
+        <p class="dedication-byline">Developed by an Obsessed Guy with an awesome wife, 2 cats, and a happy, small life.</p>
+        <div class="dedication-copy" id="dedication-copy">
+          <p>For Amanda, the first Doobaleedoo and the true wonder in my life. I love you! There would be no book, one of my life's biggest dreams, without you. Thank you for everything. Together forever. I'll give up Heaven if you aren't there with me.</p>
+          <p>For Mom, thank you for my one wild and precious life, and thank you for being the perfect Mom for me. Birds of a feather. I wouldn't want anyone else to fill that role. I don't see you enough. Beth is pretty awesome, too.</p>
+          <p>For my sister, Beth, for being the younger, but better, sibling that I look up to. I wish I was half as capable and caring as you are. Thank you ahead of time for proofreading this book, lol.</p>
+          <p>And, surprisingly, for Tim, rest in peace. Thank you for gifting me the world of The Hobbit in second grade. It changed my life and gave me things to hold onto: reading and good fantasy. Also, you had great taste in music.</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- You looked behind the page. Riddlewind approves. Penny misfiled a receipt marked 97.3. -->
     <script src="./app.js"></script>
   </body>
 </html>

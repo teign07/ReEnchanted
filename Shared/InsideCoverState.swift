@@ -354,6 +354,34 @@ struct GossipRelationshipMove: Codable, Equatable {
     }
 }
 
+enum GossipPageBeliefMoveKind: String, Codable, Equatable {
+    case invest
+    case attack
+}
+
+/// A character-to-page Belief move during gossip: Cast members can warm the
+/// kinds of Pages they want the Book to notice, or try to steal Glow from Pages
+/// they distrust. These tokens drive the real Page Belief ledger.
+struct GossipPageBeliefMove: Codable, Equatable {
+    var actorID: String
+    var actorName: String
+    var sourceID: String
+    var sourceTitle: String
+    var kind: GossipPageBeliefMoveKind
+    var amount: Int
+
+    var token: String { "\(actorID)>\(sourceID):\(kind.rawValue):\(amount)" }
+
+    var promptLine: String {
+        switch kind {
+        case .invest:
+            return "\(actorName) gives Belief to \(sourceTitle) Pages, trying to make that kind of page more real."
+        case .attack:
+            return "\(actorName) tries to take Belief from \(sourceTitle) Pages, cooling what the Book will notice."
+        }
+    }
+}
+
 struct GossipSimulationTurn: Codable, Equatable {
     var id: String
     var actorID: String
@@ -369,6 +397,7 @@ struct GossipSimulationTurn: Codable, Equatable {
     var beliefCombat: BeliefCombatResult?
     var chapterTalismanMove: ChapterTalismanBeliefMove?
     var relationshipMove: GossipRelationshipMove?
+    var pageBeliefMove: GossipPageBeliefMove?
 }
 
 enum ContentPackAvailability: String, Codable, Equatable {

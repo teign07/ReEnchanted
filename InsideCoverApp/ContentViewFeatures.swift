@@ -677,25 +677,81 @@ extension ContentView {
         }
     }
 
+    /// The months that actually kept pages, newest first — what the player can
+    /// choose to bind. Each entry carries the month's first instant, a readable
+    /// label, and how many pages it holds.
+    var bindableEditionMonths: [(start: Date, label: String, pageCount: Int)] {
+        let calendar = Calendar.current
+        var counts: [Date: Int] = [:]
+        for day in days where !day.pages.isEmpty {
+            guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: day.date)) else { continue }
+            counts[monthStart, default: 0] += day.pages.count
+        }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        return counts.keys.sorted(by: >).map { start in
+            (start: start, label: formatter.string(from: start), pageCount: counts[start] ?? 0)
+        }
+    }
+
+    /// What the month-picker chip reads: the chosen month, or the auto choice.
+    var selectedEditionMonthLabel: String {
+        guard let chosen = selectedEditionMonth else { return "Most recent month" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter.string(from: chosen)
+    }
+
     @MainActor
     func exportMonthlyEdition() {
         do {
             let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 5000)) ?? narrativeEvents
             let archiveMemories = (try? BookDatabase.entityMemories(limit: 5000)) ?? entityMemories
-            let edition = MonthlyEditionBuilder.previousMonth(
-                from: days,
-                events: archiveEvents,
-                entityMemories: archiveMemories,
-                entityBelief: entityBeliefLedger,
-                pageBelief: pageBeliefLedger,
-                constellations: vault.data.constellations ?? [],
-                wagers: vault.data.wagers ?? [],
-                themes: vault.data.themes ?? [],
-                readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
-                now: Date()
-            )
+            let now = Date()
+            func buildMonth(starting monthStart: Date) -> MonthlyEdition {
+                let calendar = Calendar.current
+                let end = calendar.date(byAdding: DateComponents(month: 1, second: -1), to: monthStart) ?? now
+                return MonthlyEditionBuilder.edition(
+                    from: days,
+                    events: archiveEvents,
+                    entityMemories: archiveMemories,
+                    entityBelief: entityBeliefLedger,
+                    pageBelief: pageBeliefLedger,
+                    constellations: vault.data.constellations ?? [],
+                    wagers: vault.data.wagers ?? [],
+                    themes: vault.data.themes ?? [],
+                    readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
+                    startDate: monthStart,
+                    endDate: end,
+                    generatedAt: now
+                )
+            }
+            let edition: MonthlyEdition
+            if let chosen = selectedEditionMonth {
+                // The player named a month from the shelf — bind exactly that one.
+                edition = buildMonth(starting: chosen)
+            } else {
+                // No choice made: prefer the previous calendar month, then fall back
+                // to the most recent month that actually kept pages.
+                var auto = MonthlyEditionBuilder.previousMonth(
+                    from: days,
+                    events: archiveEvents,
+                    entityMemories: archiveMemories,
+                    entityBelief: entityBeliefLedger,
+                    pageBelief: pageBeliefLedger,
+                    constellations: vault.data.constellations ?? [],
+                    wagers: vault.data.wagers ?? [],
+                    themes: vault.data.themes ?? [],
+                    readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
+                    now: now
+                )
+                if auto.isEmpty, let latestMonth = bindableEditionMonths.first?.start {
+                    auto = buildMonth(starting: latestMonth)
+                }
+                edition = auto
+            }
             guard !edition.isEmpty else {
-                statusMessage = "The previous month has no kept pages to bind yet."
+                colophonBindingNote = "I turned to that month and found the leaves still blank. Keep a page or two there first, and I'll have something to sew."
                 BookFeedback.play(.error)
                 return
             }
@@ -705,10 +761,10 @@ extension ContentView {
                 .appendingPathComponent("ReEnchanted-Monthly-\(formatter.string(from: edition.startDate)).pdf")
             try MonthlyEditionPDFWriter.write(edition, to: url)
             preparedMonthlyEditionURL = url
-            statusMessage = "The monthly edition is bound and ready to share."
+            colophonBindingNote = "\(edition.monthName) is bound — \(edition.pageCount) \(edition.pageCount == 1 ? "page" : "pages") sewn between covers, waiting under the share mark."
             BookFeedback.play(.braidComplete)
         } catch {
-            statusMessage = "The monthly edition would not bind: \(error.localizedDescription)"
+            colophonBindingNote = "The thread snapped mid-stitch — the month would not bind. (\(error.localizedDescription))"
             BookFeedback.play(.error)
         }
     }

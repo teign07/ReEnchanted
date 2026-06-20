@@ -499,7 +499,7 @@ private final class BookHapticEngine {
 #if canImport(AVFoundation)
 @Observable
 @MainActor
-final class BookRadioManager {
+final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     static let shared = BookRadioManager()
 
     private let engine = AVAudioEngine()
@@ -514,11 +514,48 @@ final class BookRadioManager {
     private(set) var isPlaying = false
     private(set) var statusLine = "The dial is cold."
     private(set) var sourceLine = "No broadcast is tuned."
+    /// The DJ break currently on air, if any (for UI; nil while a song plays).
+    private(set) var nowPlayingBanter: RadioBanter?
 
-    private init() {}
+    /// Packs unlocked when the current station was tuned — needed to re-resolve
+    /// the station for banter selection as the playout loop advances.
+    private var currentPackIDs: Set<String> = []
+    /// Songs played since this station was tuned, drives the banter cadence.
+    private var tracksSinceTune = 0
+    /// Songs since the last spoken break. Alive cadence varies between one and
+    /// two rather than marching on a fixed modulo.
+    private var tracksSinceBanter = 0
+    /// True while a spoken break is on air (so the finish handler knows to
+    /// resume music rather than count another song).
+    private var isPlayingBanter = false
+    /// Invalidates pending caption-only advances when the dial changes.
+    private var playoutToken = UUID()
+    /// Song queued to play once the current DJ break finishes.
+    private var pendingTrack: RadioTrack?
+
+    /// Optional hook so the app can feed live world-state (the Nothing's grey,
+    /// an active festival) into banter selection without coupling the manager to
+    /// the broader state graph. Time-of-day and the listening streak are derived
+    /// locally. Returns (grey 0–100, festivalActive).
+    var worldContextProvider: (() -> (grey: Int, festivalActive: Bool))?
+
+    /// Latest world snapshot pushed by the app (see `updateWorldState`). Takes
+    /// precedence over `worldContextProvider`; both fall back to calm.
+    private var liveWorld: (grey: Int, festivalActive: Bool)?
+
+    /// Push the current world-state in. Cheap to call often (e.g. on appear, on
+    /// tune, on scene-active) — grey/festival change at most daily. `grey` is on
+    /// the 0–100 scale the banter conditions use.
+    func updateWorldState(grey: Int, festivalActive: Bool) {
+        liveWorld = (max(0, min(100, grey)), festivalActive)
+    }
+
+    private override init() { super.init() }
 
     func restore(state: RadioPlaybackState, unlockedPackIDs: Set<String>) {
         playback = state
+        tracksSinceTune = 0
+        tracksSinceBanter = 0
         activeStation = RadioStationRegistry.station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs)
         // Remember which station was last tuned for display, but do not resume
         // playback on launch — the dial stays silent until the reader tunes in.
@@ -532,7 +569,47 @@ final class BookRadioManager {
 
     func tune(to station: RadioStation, unlockedPackIDs: Set<String>, persist: Bool = true) {
         configureAudioSession()
+        currentPackIDs = unlockedPackIDs
+        tracksSinceTune = 0
+        tracksSinceBanter = 0
+        isPlayingBanter = false
+        nowPlayingBanter = nil
+        playoutToken = UUID()
+        pendingTrack = nil
+
         let track = selectTrack(for: station)
+        isPlaying = true
+        activeStation = station
+        playback = RadioPlaybackState(
+            activeStationID: station.id,
+            startedAt: playback.activeStationID == station.id ? playback.startedAt ?? Date() : Date(),
+            lastTunedAt: Date(),
+            lastTrackID: track?.id,
+            tuningNoise: 0,
+            listening: playback.listening,
+            recentBanterIDs: playback.activeStationID == station.id ? playback.recentBanterIDs : nil,
+            recentTrackIDs: playback.activeStationID == station.id ? playback.recentTrackIDs : nil
+        )
+        // A real tune (not a silent restore) counts as listening today — the
+        // substrate for listening constellations and held-station effects.
+        if persist {
+            playback.recordListening(stationID: station.id)
+        }
+
+        beginTrack(track, for: station)
+
+        if persist {
+            PlayerVault.shared.data.radio = playback
+            PlayerVault.shared.save()
+        }
+    }
+
+    /// Play one song. Real assets play once (numberOfLoops = 0) so the delegate
+    /// can advance the playout loop and slip DJ breaks between songs; the
+    /// procedural fallback still loops (no sequencing without bundled audio).
+    private func beginTrack(_ track: RadioTrack?, for station: RadioStation) {
+        isPlayingBanter = false
+        nowPlayingBanter = nil
         player.stop()
         filePlayer?.stop()
         filePlayer = nil
@@ -540,8 +617,9 @@ final class BookRadioManager {
         if let track, let url = resolvedAudioURL(for: track) {
             do {
                 let audioPlayer = try AVAudioPlayer(contentsOf: url)
-                audioPlayer.numberOfLoops = -1
+                audioPlayer.numberOfLoops = 0
                 audioPlayer.volume = station.id == "thornwave" ? 0.48 : 0.42
+                audioPlayer.delegate = self
                 audioPlayer.prepareToPlay()
                 audioPlayer.play()
                 filePlayer = audioPlayer
@@ -556,30 +634,101 @@ final class BookRadioManager {
             playProceduralFallback(for: station, track: track)
         }
 
-        isPlaying = true
-        activeStation = station
-        playback = RadioPlaybackState(
-            activeStationID: station.id,
-            startedAt: playback.activeStationID == station.id ? playback.startedAt ?? Date() : Date(),
-            lastTunedAt: Date(),
-            lastTrackID: track?.id,
-            tuningNoise: 0,
-            listening: playback.listening
-        )
-        // A real tune (not a silent restore) counts as listening today — the
-        // substrate for listening constellations and held-station effects.
-        if persist {
-            playback.recordListening(stationID: station.id)
+        if let trackID = track?.id {
+            let historyLimit = max(1, (station.tracks.count - 1) / 2)
+            playback.recordTrack(trackID, historyLimit: historyLimit)
         }
-        if let interlude = RadioStationRegistry.currentInterlude(state: playback, unlockedPackIDs: unlockedPackIDs) {
-            statusLine = "\(station.displayFrequency) \(station.title): \(interlude)"
+        statusLine = "\(station.displayFrequency) \(station.title) — \(track?.title ?? "broadcasting")."
+    }
+
+    // MARK: - Playout loop (songs interleaved with DJ breaks)
+
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor in self.handlePlayoutItemFinished() }
+    }
+
+    private func handlePlayoutItemFinished() {
+        guard isPlaying, let station = activeStation else { return }
+        if isPlayingBanter {
+            // A break just ended — play whatever song was queued behind it (an
+            // intro's bound song, or the next in rotation) so the order holds.
+            resumeAfterBanter(for: station)
+            return
+        }
+        // A song just ended. Look both ways: the song that just finished (for
+        // outro transitions) and the song queued next (for intros).
+        tracksSinceTune += 1
+        tracksSinceBanter += 1
+        let justFinishedID = activeTrack?.id
+        let upcoming = selectNextTrack(for: station)
+        let context = makeWorldContext(for: station)
+        if RadioStationRegistry.shouldBanter(
+            songsSinceLastBanter: tracksSinceBanter,
+            state: playback,
+            context: context,
+            justFinishedTrackID: justFinishedID,
+            upcomingTrackID: upcoming?.id,
+            unlockedPackIDs: currentPackIDs
+        ),
+           let banter = RadioStationRegistry.nextBanter(
+                state: playback,
+                context: context,
+                unlockedPackIDs: currentPackIDs,
+                justFinishedTrackID: justFinishedID,
+                upcomingTrackID: upcoming?.id
+           ) {
+            // Hold the upcoming song so it plays right after the break — this is
+            // what makes an intro ("Coming up, Folktronica…") land on its song.
+            pendingTrack = upcoming
+            playBanter(banter, for: station)
         } else {
-            statusLine = "\(station.displayFrequency) \(station.title) is broadcasting."
+            pendingTrack = nil
+            beginTrack(upcoming, for: station)
         }
-        if persist {
-            PlayerVault.shared.data.radio = playback
-            PlayerVault.shared.save()
+    }
+
+    private func playBanter(_ banter: RadioBanter, for station: RadioStation) {
+        playback.recordBanter(banter.id)
+        tracksSinceBanter = 0
+        nowPlayingBanter = banter
+        statusLine = "\(station.displayFrequency) \(station.title): \(banter.caption)"
+        PlayerVault.shared.data.radio = playback
+        PlayerVault.shared.save()
+
+        if let asset = banter.assetName, let url = resolvedAudioURL(forAssetName: asset) {
+            do {
+                let voice = try AVAudioPlayer(contentsOf: url)
+                voice.numberOfLoops = 0
+                voice.volume = 1.0
+                voice.delegate = self
+                voice.prepareToPlay()
+                player.stop()      // duck any procedural bed
+                filePlayer?.stop()
+                voice.play()
+                filePlayer = voice
+                isPlayingBanter = true
+                sourceLine = "On air: \(station.title) — \(banter.category)."
+                return
+            } catch {
+                appLog.error("Banter asset failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
+        // Caption-only (no audio yet): hold the line a beat, then resume music.
+        isPlayingBanter = false
+        sourceLine = "On air: \(station.title) — \(banter.category) (caption)."
+        let token = playoutToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            guard let self, self.isPlaying, self.playoutToken == token else { return }
+            self.resumeAfterBanter(for: station)
+        }
+    }
+
+    /// After a DJ break, play the song held behind it (the intro's bound song or
+    /// the next in rotation), then clear the hold.
+    private func resumeAfterBanter(for station: RadioStation) {
+        let track = pendingTrack ?? selectNextTrack(for: station)
+        pendingTrack = nil
+        beginTrack(track, for: station)
     }
 
     func tune(stationID: String, unlockedPackIDs: Set<String>) {
@@ -596,6 +745,12 @@ final class BookRadioManager {
         filePlayer?.stop()
         filePlayer = nil
         isPlaying = false
+        isPlayingBanter = false
+        nowPlayingBanter = nil
+        tracksSinceTune = 0
+        tracksSinceBanter = 0
+        playoutToken = UUID()
+        pendingTrack = nil
         playback = .off
         activeStation = nil
         activeTrack = nil
@@ -629,13 +784,52 @@ final class BookRadioManager {
     }
 
     private func selectTrack(for station: RadioStation) -> RadioTrack? {
+        let previous = playback.activeStationID == station.id ? playback.lastTrackID : nil
+        return selectCuratedTrack(for: station, previousTrackID: previous, playTurn: 0)
+    }
+
+    /// Next song for the playout loop: score the station's candidates from the
+    /// current time slot, prior track, and play turn so the broadcast feels
+    /// curated rather than linear while still avoiding immediate repeats.
+    private func selectNextTrack(for station: RadioStation) -> RadioTrack? {
         guard !station.tracks.isEmpty else { return nil }
-        let index = abs(station.id.stableHash + Int(Date().timeIntervalSince1970 / 1800)) % station.tracks.count
-        return station.tracks[index]
+        return selectCuratedTrack(for: station, previousTrackID: playback.lastTrackID, playTurn: tracksSinceTune)
+    }
+
+    private func selectCuratedTrack(for station: RadioStation, previousTrackID: String?, playTurn: Int, now: Date = Date()) -> RadioTrack? {
+        let sameStation = playback.activeStationID == station.id
+        let sessionDate = sameStation ? playback.startedAt ?? now : now
+        return RadioStationRegistry.curatedTrack(
+            station: station,
+            previousTrackID: previousTrackID,
+            recentTrackIDs: sameStation ? playback.recentTrackIDs ?? [] : [],
+            playTurn: playTurn,
+            context: makeWorldContext(for: station, now: now),
+            sessionSeed: String(sessionDate.timeIntervalSince1970),
+            now: now
+        )
+    }
+
+    /// Snapshot of live world-state for banter conditions. Time-of-day and the
+    /// listening streak are derived here; grey/festival come from the app via
+    /// `worldContextProvider` when wired (defaults to calm).
+    private func makeWorldContext(for station: RadioStation, now: Date = Date()) -> RadioWorldContext {
+        let world = liveWorld ?? worldContextProvider?() ?? (grey: 0, festivalActive: false)
+        return RadioWorldContext(
+            timeOfDay: RadioWorldContext.band(for: now),
+            grey: world.grey,
+            festivalActive: world.festivalActive,
+            listeningDays: playback.daysHeard(stationID: station.id),
+            weekday: Calendar.current.component(.weekday, from: now)
+        )
     }
 
     private func resolvedAudioURL(for track: RadioTrack) -> URL? {
-        guard let assetName = track.assetName?.trimmingCharacters(in: .whitespacesAndNewlines),
+        resolvedAudioURL(forAssetName: track.assetName)
+    }
+
+    private func resolvedAudioURL(forAssetName rawName: String?) -> URL? {
+        guard let assetName = rawName?.trimmingCharacters(in: .whitespacesAndNewlines),
               !assetName.isEmpty else {
             return nil
         }

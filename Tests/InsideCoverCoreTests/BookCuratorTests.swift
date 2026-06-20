@@ -100,6 +100,17 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(RadioStationRegistry.station(id: "thornwave")).displayFrequency, "103.7")
     }
 
+    func testPirateStationIsUnlistedButExactDialCanFindIt() throws {
+        XCTAssertFalse(RadioStationRegistry.stations().contains { $0.id == "the-bleed" })
+
+        let pirate = try XCTUnwrap(RadioStationRegistry.station(id: "the-bleed"))
+        XCTAssertEqual(pirate.displayFrequency, "97.3")
+        XCTAssertEqual(pirate.tracks.first?.assetName, "RadioTheBleedPirateSignal")
+        XCTAssertEqual(RadioStationRegistry.nearestStation(to: 97.3)?.id, "the-bleed")
+        XCTAssertNotEqual(RadioStationRegistry.nearestStation(to: 97.2)?.id, "the-bleed")
+        XCTAssertNotEqual(RadioStationRegistry.nearestStation(to: 97.4)?.id, "the-bleed")
+    }
+
     func testUnlockedRadioSoundPackAddsStationsToDial() throws {
         let lockedStations = RadioStationRegistry.stations()
         let unlockedStations = RadioStationRegistry.stations(unlockedPackIDs: ["academy-night-band"])
@@ -1347,11 +1358,15 @@ final class BookCuratorTests: XCTestCase {
         let title = LabyrinthIllustrationPageSourceAdapter.bookPageTitle(for: profile)
         let body = LabyrinthIllustrationPageSourceAdapter.bookPageBody(for: profile)
 
-        XCTAssertEqual(title, "The Book Remembers: Dr. Elowen Vellum")
-        XCTAssertTrue(body.contains("where the ink begins"))
+        // The title is one of the Book's voiced variants and always names the character.
+        XCTAssertTrue(title.contains("Dr. Elowen Vellum"))
+        // The body speaks in the Book's voice and carries the character's real
+        // signature, without ever leaking the dossier production metadata.
+        XCTAssertTrue(body.contains("a silver bookmark-caliper and red marginal notes"))
         XCTAssertFalse(body.localizedCaseInsensitiveContains("dossier"))
         XCTAssertFalse(body.localizedCaseInsensitiveContains("marginalia:"))
         XCTAssertFalse(body.localizedCaseInsensitiveContains("silhouette:"))
+        XCTAssertFalse(body.localizedCaseInsensitiveContains("production"))
         XCTAssertFalse(body.contains("|"))
     }
 

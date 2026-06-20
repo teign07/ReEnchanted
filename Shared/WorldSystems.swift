@@ -8,12 +8,140 @@ struct RadioTrack: Codable, Equatable, Identifiable {
     var assetName: String?
     var durationSeconds: Int?
     var moodTags: [String]
+    /// Optional authoring hooks for alive curation. Existing catalogs decode
+    /// without them; future stations can favor or gate tracks by world state.
+    var weight: Int? = nil
+    var conditions: RadioBanter.Conditions? = nil
+
+    var resolvedWeight: Int { max(1, weight ?? 1) }
 }
 
 struct RadioStationEffect: Codable, Equatable {
     var pageType: BookPageType
     var boost: Int
     var reason: String
+}
+
+/// A spoken DJ break between songs. Audio-backed (via `assetName`, resolved the
+/// same way tracks are) with a `caption` fallback so the dial still "talks" as
+/// text when no audio is bundled yet. Categories let the playout clock rotate so
+/// you never hear two sponsor reads back to back; `conditions` let a clip wait
+/// for the right world-state (dusk, the grey rising, a festival, a long streak)
+/// so the station feels alive instead of shuffled.
+struct RadioBanter: Codable, Equatable, Identifiable {
+    enum Category: String, Codable, CaseIterable {
+        case stationID      // callsign / "you're listening to…"
+        case transition     // song-to-song hand-off (may reference track names)
+        case sponsor        // fae brand read
+        case gossip         // The Bleed / cast rumor
+        case news           // world-state "current events"
+        case network        // cross-station hand-off
+    }
+
+    /// All-optional gate. A banter only plays when every set condition is met,
+    /// so authoring is additive: leave a field nil to "don't care."
+    struct Conditions: Codable, Equatable {
+        /// Restrict to parts of the day: "dawn", "day", "dusk", "night".
+        var timeOfDay: [String]?
+        /// Only when the Nothing's grey is at/above this 0–100 pressure.
+        var minGrey: Int?
+        /// Only when the grey is at/below this (bright-day lines).
+        var maxGrey: Int?
+        /// Only during an active festival window.
+        var festivalOnly: Bool?
+        /// Only after the reader has listened this many distinct days.
+        var minListeningDays: Int?
+        /// Calendar weekday numbers (1 = Sunday ... 7 = Saturday).
+        var weekdays: [Int]?
+
+        var isUnconditional: Bool {
+            timeOfDay == nil && minGrey == nil && maxGrey == nil
+                && festivalOnly == nil && minListeningDays == nil && weekdays == nil
+        }
+    }
+
+    /// Where a song-bound transition sits relative to its track.
+    enum Placement: String, Codable {
+        case intro   // plays right BEFORE the bound song ("Coming up, Folktronica…")
+        case outro   // plays right AFTER the bound song ("That was Mossy Footsteps…")
+    }
+
+    var id: String
+    var category: Category
+    /// Spoken-audio asset (e.g. "DJ_thornwave_id_03"); nil = caption-only.
+    var assetName: String?
+    /// Text shown in the status line and used as the spoken fallback.
+    var caption: String
+    var conditions: Conditions?
+    /// Relative likelihood within its category (default 1). Higher = more often.
+    var weight: Int?
+    /// If set, this break is bound to a specific song (a `RadioTrack.id`) and
+    /// only plays adjacent to it. Used for song-aware transitions.
+    var trackID: String? = nil
+    /// For a bound break, whether it leads into the song (`intro`) or follows it
+    /// (`outro`). nil + a `trackID` means "either side is fine."
+    var placement: Placement? = nil
+
+    var resolvedWeight: Int { max(1, weight ?? 1) }
+    var isBound: Bool { trackID != nil }
+
+    /// Is this break allowed to play given the song that just ended and the one
+    /// queued next? Unbound breaks are always allowed; bound ones must sit on the
+    /// correct side of their song.
+    func placementFits(justFinishedTrackID: String?, upcomingTrackID: String?) -> Bool {
+        guard let trackID else { return true }
+        switch placement {
+        case .intro: return trackID == upcomingTrackID
+        case .outro: return trackID == justFinishedTrackID
+        case nil:    return trackID == justFinishedTrackID || trackID == upcomingTrackID
+        }
+    }
+}
+
+/// Live world snapshot the banter selector reads to decide what's appropriate
+/// right now. Built by the app from existing systems (NothingTide, festival
+/// windows, the clock, the listening streak) — pure data, no app types.
+struct RadioWorldContext: Equatable {
+    /// "dawn" | "day" | "dusk" | "night"
+    var timeOfDay: String
+    /// The Nothing's grey pressure, 0–100.
+    var grey: Int
+    var festivalActive: Bool
+    /// Distinct days the active station has been heard.
+    var listeningDays: Int
+    /// Calendar weekday number (1 = Sunday ... 7 = Saturday), when known.
+    var weekday: Int?
+
+    init(timeOfDay: String = "day", grey: Int = 0, festivalActive: Bool = false, listeningDays: Int = 0, weekday: Int? = nil) {
+        self.timeOfDay = timeOfDay
+        self.grey = grey
+        self.festivalActive = festivalActive
+        self.listeningDays = listeningDays
+        self.weekday = weekday
+    }
+
+    /// Convenience: derive the time-of-day band from a date.
+    static func band(for date: Date, calendar: Calendar = .current) -> String {
+        switch calendar.component(.hour, from: date) {
+        case 5..<8:   return "dawn"
+        case 8..<17:  return "day"
+        case 17..<21: return "dusk"
+        default:      return "night"
+        }
+    }
+
+    func satisfies(_ conditions: RadioBanter.Conditions?) -> Bool {
+        guard let conditions else { return true }
+        if let times = conditions.timeOfDay, !times.contains(timeOfDay) { return false }
+        if let minGrey = conditions.minGrey, grey < minGrey { return false }
+        if let maxGrey = conditions.maxGrey, grey > maxGrey { return false }
+        if conditions.festivalOnly == true, !festivalActive { return false }
+        if let minDays = conditions.minListeningDays, listeningDays < minDays { return false }
+        if let weekdays = conditions.weekdays {
+            guard let weekday, weekdays.contains(weekday) else { return false }
+        }
+        return true
+    }
 }
 
 struct RadioStation: Codable, Equatable, Identifiable {
@@ -29,9 +157,28 @@ struct RadioStation: Codable, Equatable, Identifiable {
     var tracks: [RadioTrack]
     var interludeTitles: [String]
     var effects: [RadioStationEffect]
+    /// Rich DJ breaks. Optional + defaulted so existing stations and older
+    /// `.reenchantedradio.json` packs (which predate banters) still decode.
+    var banters: [RadioBanter]? = nil
 
     var displayFrequency: String {
         String(format: "%.1f", frequency)
+    }
+
+    /// Banters if authored; otherwise synthesize lightweight ones from the
+    /// legacy `interludeTitles` so the playout clock always has something to say.
+    var resolvedBanters: [RadioBanter] {
+        if let banters, !banters.isEmpty { return banters }
+        return interludeTitles.enumerated().map { index, line in
+            RadioBanter(
+                id: "\(id)-interlude-\(index)",
+                category: .transition,
+                assetName: nil,
+                caption: line,
+                conditions: nil,
+                weight: nil
+            )
+        }
     }
 
     var isCore: Bool {
@@ -85,6 +232,16 @@ struct RadioPlaybackState: Codable, Equatable {
     var tuningNoise: Double
     // Optional so older saved states (without this key) still decode.
     var listening: [String: StationListening]?
+    /// Recently played banter ids (newest last), so the selector avoids
+    /// repeating a break the reader just heard. Optional for back-compat.
+    var recentBanterIDs: [String]?
+    /// Recently heard songs (newest last), used to prevent ABAB loops and
+    /// source-order playback. Optional so older saves continue to decode.
+    var recentTrackIDs: [String]?
+
+    /// How many recent banters to remember. Kept small so fresh stations with
+    /// few clips don't starve.
+    static let banterHistoryLimit = 6
 
     static let off = RadioPlaybackState()
 
@@ -94,7 +251,9 @@ struct RadioPlaybackState: Codable, Equatable {
         lastTunedAt: Date? = nil,
         lastTrackID: String? = nil,
         tuningNoise: Double = 0,
-        listening: [String: StationListening]? = nil
+        listening: [String: StationListening]? = nil,
+        recentBanterIDs: [String]? = nil,
+        recentTrackIDs: [String]? = nil
     ) {
         self.activeStationID = activeStationID
         self.startedAt = startedAt
@@ -102,6 +261,31 @@ struct RadioPlaybackState: Codable, Equatable {
         self.lastTrackID = lastTrackID
         self.tuningNoise = max(0, min(1, tuningNoise))
         self.listening = listening
+        self.recentBanterIDs = recentBanterIDs
+        self.recentTrackIDs = recentTrackIDs
+    }
+
+    /// Record a banter as just played, trimming the ring buffer.
+    mutating func recordBanter(_ banterID: String) {
+        var history = recentBanterIDs ?? []
+        history.removeAll { $0 == banterID }
+        history.append(banterID)
+        if history.count > RadioPlaybackState.banterHistoryLimit {
+            history.removeFirst(history.count - RadioPlaybackState.banterHistoryLimit)
+        }
+        recentBanterIDs = history
+    }
+
+    mutating func recordTrack(_ trackID: String, historyLimit: Int = 3) {
+        var history = recentTrackIDs ?? []
+        history.removeAll { $0 == trackID }
+        history.append(trackID)
+        let limit = max(1, historyLimit)
+        if history.count > limit {
+            history.removeFirst(history.count - limit)
+        }
+        recentTrackIDs = history
+        lastTrackID = trackID
     }
 
     /// Record that the reader is listening to a station today (idempotent per day).
@@ -136,7 +320,7 @@ enum RadioStationRegistry {
             title: "Fae-Fi",
             frequency: 88.3,
             subtitle: "Sun-dappled beats and dandelion synths from faeries who have plainly had too much nectar.",
-            hostEntityID: nil,
+            hostEntityID: "penny-blackletter",
             packID: nil,
             unlockRule: "core",
             moodTags: ["fae", "lo-fi", "bright", "playful", "daydream"],
@@ -173,6 +357,14 @@ enum RadioStationRegistry {
                     assetName: "RadioFaeFiToTheAdventure",
                     durationSeconds: 126,
                     moodTags: ["bright", "playful", "adventure"]
+                ),
+                RadioTrack(
+                    id: "fae-fi-pages-rising",
+                    title: "Pages Rising",
+                    artist: "Fae-Fi",
+                    assetName: "RadioFaeFiPagesRising",
+                    durationSeconds: 94,
+                    moodTags: ["bright", "playful", "pages"]
                 )
             ],
             interludeTitles: [
@@ -183,6 +375,92 @@ enum RadioStationRegistry {
                 RadioStationEffect(pageType: .wonderCompass, boost: 8, reason: "Fae-Fi makes small adventures easier to notice."),
                 RadioStationEffect(pageType: .souvenir, boost: 8, reason: "Bright loops help catch one true particular."),
                 RadioStationEffect(pageType: .festival, boost: 6, reason: "The station is always a little in a feasting mood.")
+            ],
+            // DJ'd by Penny Blackletter. Drop matching audio (any of m4a/mp3/wav)
+            // into the RadioAudio bundle folder or Documents/RadioPacks; until
+            // then the captions play as on-screen breaks. See
+            // docs/RadioDJBanters.md for the full scripts.
+            banters: [
+                RadioBanter(
+                    id: "faefi-id-01", category: .stationID,
+                    assetName: "DJ_faefi_id_01",
+                    caption: "You've reached Fae-Fi. Eighty-eight point three on the Academy band. I keep the records here. Today's record is: the pixies are fine, the pixies are too fine, please send help. Anyway. Music.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-id-02", category: .stationID,
+                    assetName: "DJ_faefi_id_02",
+                    caption: "This is Penny Blackletter, and against my professional judgment, Fae-Fi — eighty-eight three — sun-dappled beats from faeries who have plainly had too much nectar. I'm taking notes. For The Bleed. It's mostly exclamation points.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-id-03", category: .stationID,
+                    assetName: "DJ_faefi_id_03",
+                    caption: "Fae-Fi, eighty-eight point three. One honest detail can save a day. Today's, filed for the record: the light came back. Here's a song about it.",
+                    conditions: nil, weight: nil
+                ),
+                // Song-bound transitions. An OUTRO plays right after its song;
+                // an INTRO plays right before its song. Record the audio to the
+                // matching assetName and it slots into the correct seam.
+                RadioBanter(
+                    id: "faefi-outro-mossyfootsteps", category: .transition,
+                    assetName: "DJ_faefi_transition_mossyfootsteps_outro",
+                    caption: "That was \"Mossy Footsteps.\" I checked — there was no one there. There is never anyone there. I've started a folder.",
+                    conditions: nil, weight: nil,
+                    trackID: "fae-fi-mossy-footsteps", placement: .outro
+                ),
+                RadioBanter(
+                    id: "faefi-intro-folktronica", category: .transition,
+                    assetName: "DJ_faefi_transition_folktronica_intro",
+                    caption: "Coming up — \"Folktronica.\" A bird wrote the hook. The bird has filed a complaint. I have filed the complaint. We're all very busy here.",
+                    conditions: nil, weight: nil,
+                    trackID: "fae-fi-folktronica", placement: .intro
+                ),
+                RadioBanter(
+                    id: "faefi-outro-mossygroove", category: .transition,
+                    assetName: "DJ_faefi_transition_mossygroove_outro",
+                    caption: "You just heard \"Mossy Groove.\" A patch of clover is dancing and will not stop, and I have, regrettably, transcribed all of it.",
+                    conditions: nil, weight: nil,
+                    trackID: "fae-fi-mossy-groove", placement: .outro
+                ),
+                RadioBanter(
+                    id: "faefi-sponsor-thistledown", category: .sponsor,
+                    assetName: "DJ_faefi_sponsor_01",
+                    caption: "Fae-Fi runs on dandelion synths and Thistledown & Co., purveyors of pocket-sized weather. Caught in the grey? A Thistledown sunbeam fits in any coat. That part, I checked. It's true.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-sponsor-cloverhoney", category: .sponsor,
+                    assetName: "DJ_faefi_sponsor_02",
+                    caption: "Today's brightness is brought to you by the Clover Honey Collective. Their slogan arrived far too polished, so I rewrote it: the afternoon's only as warm as you bothered to taste. Ask at the Goblin Market for the jar that hums. It does hum. I have the recording.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dawn", "day"]), weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-gossip-tuesday", category: .gossip,
+                    assetName: "DJ_faefi_gossip_01",
+                    caption: "You get this before the edition goes to press: somebody in your year traded a perfectly good Tuesday for one more loop of this exact song. Filed under \"evidence the music is working.\" Flawless decision. No notes.",
+                    conditions: RadioBanter.Conditions(weekdays: [3]), weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-gossip-window", category: .gossip,
+                    assetName: "DJ_faefi_gossip_02",
+                    caption: "From my desk at The Bleed — the Wonder Compass has pointed at the same window all week. I don't print speculation. But if it's your window… that's not speculation. That's a fact you've been avoiding. Go see.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-news-grey", category: .news,
+                    assetName: "DJ_faefi_news_01",
+                    caption: "Filed this morning, off Today's Sky: the grey lost three feet of ground. Cause — and I checked twice — somebody noticed one true particular and wrote it down. That's the whole arithmetic of this place. Here's a song.",
+                    conditions: RadioBanter.Conditions(maxGrey: 60),
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-news-festival", category: .news,
+                    assetName: "DJ_faefi_news_02",
+                    caption: "Festival weather incoming; the Academy's in a feasting mood. I'll be the one in the corner, cataloguing joy as it happens, which is, I'm told, not the point of joy. Bring a souvenir. Catch one real thing. Don't tell the grey where you keep it.",
+                    conditions: RadioBanter.Conditions(festivalOnly: true),
+                    weight: nil
+                )
             ]
         ),
         RadioStation(
@@ -190,7 +468,7 @@ enum RadioStationRegistry {
             title: "Mothlight Beats",
             frequency: 90.9,
             subtitle: "Dusk-soft loops for the ache of lovely things ending, lit by wings against the lamp.",
-            hostEntityID: nil,
+            hostEntityID: "professor-eleanor-euphony",
             packID: nil,
             unlockRule: "core",
             moodTags: ["fae", "lo-fi", "wistful", "bittersweet", "memory", "dusk"],
@@ -219,6 +497,14 @@ enum RadioStationRegistry {
                     assetName: "RadioMothlightPorchlightFading",
                     durationSeconds: nil,
                     moodTags: ["wistful", "memory"]
+                ),
+                RadioTrack(
+                    id: "mothlight-afternoon-chapters",
+                    title: "Afternoon Chapters",
+                    artist: "Mothlight Beats",
+                    assetName: "RadioMothlightAfternoonChapters",
+                    durationSeconds: 152,
+                    moodTags: ["wistful", "memory"]
                 )
             ],
             interludeTitles: [
@@ -229,6 +515,66 @@ enum RadioStationRegistry {
                 RadioStationEffect(pageType: .bookRemembered, boost: 10, reason: "Mothlight Beats coaxes old pages back into the light."),
                 RadioStationEffect(pageType: .mood, boost: 7, reason: "The station listens for the bittersweet inner weather."),
                 RadioStationEffect(pageType: .diary, boost: 6, reason: "Wistful loops draw the day's quieter pages out.")
+            ],
+            // DJ'd by Professor Eleanor Euphony. Drop matching audio into the
+            // RadioAudio bundle folder; captions play until the files land.
+            banters: [
+                RadioBanter(
+                    id: "mothlight-id-01", category: .stationID,
+                    assetName: "DJ_mothlight_id_01",
+                    caption: "…there. Now the room's in tune. This is Mothlight Beats, ninety point nine — Professor Euphony, holding the lamp for the ache of lovely things ending.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "mothlight-id-02", category: .stationID,
+                    assetName: "DJ_mothlight_id_02",
+                    caption: "You're listening in the key of dusk. Mothlight, ninety point nine on the Academy band. I hear what you walked in carrying. We'll set it to music and it'll weigh less.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "mothlight-id-03", category: .stationID,
+                    assetName: "DJ_mothlight_id_03",
+                    caption: "Mothlight Beats. The static remembers being a summer you lost — listen, it's a minor seventh. Stay in it with me a while.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "mothlight-outro-thepagecamethrough", category: .transition,
+                    assetName: "DJ_mothlight_transition_thepagecamethrough_outro",
+                    caption: "That was \"The Page Came Through\"… they always do, in the end. The ones you thought were gone. Here's something to let settle on you.",
+                    conditions: nil, weight: nil,
+                    trackID: "mothlight-the-page-came-through", placement: .outro
+                ),
+                RadioBanter(
+                    id: "mothlight-outro-faedust", category: .transition,
+                    assetName: "DJ_mothlight_transition_faedust_outro",
+                    caption: "\"Fae Dust,\" just then — yes, that itch behind your eyes is on purpose. Breathe. Mothlight has you.",
+                    conditions: nil, weight: nil,
+                    trackID: "mothlight-fae-dust", placement: .outro
+                ),
+                RadioBanter(
+                    id: "mothlight-sponsor-porchlightmoth", category: .sponsor,
+                    assetName: "DJ_mothlight_sponsor_01",
+                    caption: "Mothlight glows by the grace of Porchlight & Moth, keepers of the lamp left on — for everyone you're still waiting up for. Find them at dusk, where the diary opens. Their bell rings in B-flat. I checked. Of course I checked.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "mothlight-sponsor-theremembering", category: .sponsor,
+                    assetName: "DJ_mothlight_sponsor_02",
+                    caption: "Tonight's hush is held by The Remembering, a small shop in the Book Remembered. Bring them a page you thought you'd lost. They'll coax it back into the light — no charge. They simply like to hear it ring again.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "mothlight-gossip-innerweather", category: .gossip,
+                    assetName: "DJ_mothlight_gossip_01",
+                    caption: "Penny's edition posted early tonight. She files it dry, so let me sing it: somebody's inner weather finally broke into rain. And where you come from, that's not a storm. That's how the garden gets watered. If it's you — it's allowed. It resolves.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "mothlight-gossip-inkrestlamp", category: .gossip,
+                    assetName: "DJ_mothlight_gossip_02",
+                    caption: "A note carried in on the dusk: Dr. Inkrest left her office lamp on past hours again. If the day sat heavy as a low note, her door is the kind that opens. No appointment. Just weather, and a chair, and a lamp.",
+                    conditions: nil, weight: nil
+                )
             ]
         ),
         RadioStation(
@@ -236,7 +582,7 @@ enum RadioStationRegistry {
             title: "Thornwave",
             frequency: 103.7,
             subtitle: "Bramble bass, broken-glass garage, and bargains struck in the low end after midnight.",
-            hostEntityID: nil,
+            hostEntityID: "wicker-eddies",
             packID: nil,
             unlockRule: "core",
             moodTags: ["fae", "trip-hop", "future-garage", "dark", "night", "thorn"],
@@ -257,6 +603,14 @@ enum RadioStationRegistry {
                     assetName: "RadioThornwaveNocturnalFaerieLounge",
                     durationSeconds: 123,
                     moodTags: ["dark", "night"]
+                ),
+                RadioTrack(
+                    id: "thornwave-mossy-night",
+                    title: "Mossy Night",
+                    artist: "Thornwave",
+                    assetName: "RadioThornwaveMossyNight",
+                    durationSeconds: 193,
+                    moodTags: ["dark", "night", "moss", "fae"]
                 )
             ],
             interludeTitles: [
@@ -267,6 +621,123 @@ enum RadioStationRegistry {
                 RadioStationEffect(pageType: .bookFae, boost: 10, reason: "Thornwave is the dark fae's own frequency."),
                 RadioStationEffect(pageType: .narrativeOS, boost: 8, reason: "The low end pulls story-bearing pages forward after dark."),
                 RadioStationEffect(pageType: .gossip, boost: 6, reason: "Rumor travels well under a bassline this deep.")
+            ],
+            // Worked example of the banter system — DJ'd by Wicker Eddies.
+            // Audio assets follow the DJ_<station>_<type>_NN naming from
+            // docs/RadioDJBanters.md; captions double as the spoken fallback.
+            banters: [
+                RadioBanter(
+                    id: "thornwave-id-01", category: .stationID,
+                    assetName: "DJ_thornwave_id_01",
+                    caption: "Thornwave. One-oh-three point seven, after dark. Wicker Eddies, here to test whether anything you believe survives the bassline. Most of it won't. The stuff that does? That's the real magic. Stay tuned.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "thornwave-id-02", category: .stationID,
+                    assetName: "DJ_thornwave_id_02",
+                    caption: "You found Thornwave — one-oh-three seven, the frequency the dark fae kept for themselves. I puncture false magic for sport. This station isn't false. Felt that in your chest, didn't you. Good.",
+                    conditions: nil,
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "thornwave-id-03", category: .stationID,
+                    assetName: "DJ_thornwave_id_03",
+                    caption: "It's the hour rumors travel best, so I'm exactly where I belong. Wicker, on Thornwave. Keep your name to yourself. I collect those.",
+                    conditions: nil,
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "thornwave-outro-bramble-bass", category: .transition,
+                    assetName: "DJ_thornwave_transition_bramble_bass_outro",
+                    caption: "That was \"Bramble Bass.\" No theatrics, no glamour — just a thing that's actually true at a hundred and three point seven. Rare. Coming up, \"Nocturnal Faerie Lounge.\" Last call at the only bar the grey won't enter.",
+                    conditions: nil, weight: nil,
+                    trackID: "thornwave-bramble-bass", placement: .outro
+                ),
+                RadioBanter(
+                    id: "thornwave-outro-nocturnal-faerie-lounge", category: .transition,
+                    assetName: "DJ_thornwave_transition_nocturnal_faerie_lounge_outro",
+                    caption: "\"Nocturnal Faerie Lounge,\" just now. Somebody in that crowd is making a deal they'll keep for thirty years. I'd talk them out of it — testing it, you understand — but the song's too good. Here's more.",
+                    conditions: nil, weight: nil,
+                    trackID: "thornwave-nocturnal-faerie-lounge", placement: .outro
+                ),
+                RadioBanter(
+                    id: "thornwave-intro-bramble-bass", category: .transition,
+                    assetName: "DJ_thornwave_transition_bramble_bass_intro",
+                    caption: "The drop sounds like a door you were warned about, opening. I've never met a warning I didn't want to test. So — after this, let's open it. \"Bramble Bass.\"",
+                    conditions: nil, weight: nil,
+                    trackID: "thornwave-bramble-bass", placement: .intro
+                ),
+                RadioBanter(
+                    id: "thornwave-sponsor-bramblewine", category: .sponsor,
+                    assetName: "DJ_thornwave_sponsor_01",
+                    caption: "Thornwave runs on favors owed and Bramblewine — aged in the dark, priced in the morning. One sip and the night belongs to you; two, and you belong to it. I've read the small print. There's always small print. That's the only honest thing at the Goblin Market — they tell you, then watch you not listen.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "thornwave-sponsor-goblin-market", category: .sponsor,
+                    assetName: "DJ_thornwave_sponsor_02",
+                    caption: "Tonight's low end is sponsored by the Goblin Market. Open after hours. No refunds. All bargains binding. Tell Melisande over on one-oh-five that Wicker sent you, and she'll overcharge you with a straight face. Respect her for it. I do.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "thornwave-gossip-pact", category: .gossip,
+                    assetName: "DJ_thornwave_gossip_01",
+                    caption: "Penny wouldn't print this — too unproven for the record — so I'll say it, because I prefer my truths a little dangerous: a pact came due this week. Somebody paid. The grey leaned one shade closer to whoever let it. Don't be that somebody. Plant the Belief. I'll wait. I'm patient when it matters.",
+                    conditions: RadioBanter.Conditions(minGrey: 40),
+                    weight: 2
+                ),
+                RadioBanter(
+                    id: "thornwave-gossip-unwritten", category: .gossip,
+                    assetName: "DJ_thornwave_gossip_02",
+                    caption: "Rumor under the bassline. There's a chapter in this building nobody can jump into — yours, the Unwritten one. Everybody wants a look. They'd test it, pick it apart, like I would. Don't let us. Write it yourself first.",
+                    conditions: nil,
+                    weight: 2
+                ),
+                RadioBanter(
+                    id: "thornwave-news-nothing", category: .news,
+                    assetName: "DJ_thornwave_news_01",
+                    caption: "Tonight's reading off Today's Sky: the Nothing made a move at the edges. We held. We always hold — barely, on purpose, which is the only kind of holding worth anything. Believe something out loud. I dare you. That's not mockery. That's the assignment.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dusk", "night"],
+                        minGrey: 35
+                    ),
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "thornwave-news-pact-dispatch", category: .news,
+                    assetName: "DJ_thornwave_news_02",
+                    caption: "Pact Dispatch is busy tonight. Three bargains struck, two already regretted, one that'll change a life. I can usually tell which is which — it's my whole talent. Tonight? Can't call it. That's how you know it's real. More Thornwave, after this.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: nil
+                )
+            ]
+        ),
+        RadioStation(
+            id: "the-bleed",
+            title: "The Bleed // Unauthorized",
+            frequency: 97.3,
+            subtitle: "An unlisted transmission leaking through the Academy band without permission or plausible innocence.",
+            hostEntityID: "penny-blackletter",
+            packID: nil,
+            unlockRule: "hidden-frequency",
+            moodTags: ["pirate", "gossip", "secret", "margins", "intercept"],
+            signalLine: "The static parts around a voice that was not cleared for broadcast.",
+            tracks: [
+                RadioTrack(
+                    id: "the-bleed-intercept",
+                    title: "Intercept 97.3",
+                    artist: "Unknown Correspondent",
+                    assetName: "RadioTheBleedPirateSignal",
+                    durationSeconds: 137,
+                    moodTags: ["pirate", "gossip", "intercept"]
+                )
+            ],
+            interludeTitles: [],
+            effects: [
+                RadioStationEffect(pageType: .gossip, boost: 12, reason: "The Bleed puts unauthorized truths into circulation."),
+                RadioStationEffect(pageType: .narrativeOS, boost: 8, reason: "A compromised signal wakes the machinery behind the margins."),
+                RadioStationEffect(pageType: .bookFae, boost: 5, reason: "Book Fae notice frequencies the Academy refuses to list.")
             ]
         )
     ]
@@ -286,7 +757,7 @@ enum RadioStationRegistry {
                     title: "The Midnight Bindery",
                     frequency: 99.3,
                     subtitle: "Thread, glue, moonlit knives, and pages learning how to hold together.",
-                    hostEntityID: "penny-blackletter",
+                    hostEntityID: "professor-vivian-villanelle",
                     packID: "academy-night-band",
                     unlockRule: "sound-pack",
                     moodTags: ["night", "binding", "archive", "memory", "book-of-you"],
@@ -316,7 +787,7 @@ enum RadioStationRegistry {
                     title: "Goblin Market Jazz",
                     frequency: 105.1,
                     subtitle: "Bent brass, laughing ledgers, and bargains with too many teeth in the margins.",
-                    hostEntityID: "marginalia-goblin",
+                    hostEntityID: "melisande-blackwood",
                     packID: "academy-night-band",
                     unlockRule: "sound-pack",
                     moodTags: ["fae", "market", "mischief", "bargain", "risk"],
@@ -371,21 +842,39 @@ enum RadioStationRegistry {
             }
     }
 
-    static func stations(unlockedPackIDs: Set<String> = []) -> [RadioStation] {
+    /// Frequencies that exist on the receiver but are intentionally absent
+    /// from preset buttons, station lists, and generated dial instructions.
+    static let hiddenStationIDs: Set<String> = ["the-bleed"]
+
+    private static func availableStations(unlockedPackIDs: Set<String>) -> [RadioStation] {
         (bundledPacks + userPacks())
             .flatMap(\.stations)
             .filter { station in
-            station.packID.map { unlockedPackIDs.contains($0) } ?? true
-        }
+                station.packID.map { unlockedPackIDs.contains($0) } ?? true
+            }
+    }
+
+    /// Listed presets only. Hidden frequencies remain resolvable by ID and by
+    /// landing on their exact dial step through `nearestStation`.
+    static func stations(unlockedPackIDs: Set<String> = []) -> [RadioStation] {
+        availableStations(unlockedPackIDs: unlockedPackIDs)
+            .filter { !hiddenStationIDs.contains($0.id) }
     }
 
     static func station(id: String?, unlockedPackIDs: Set<String> = []) -> RadioStation? {
         guard let id else { return nil }
-        return stations(unlockedPackIDs: unlockedPackIDs).first { $0.id == id }
+        return availableStations(unlockedPackIDs: unlockedPackIDs).first { $0.id == id }
     }
 
     static func nearestStation(to frequency: Double, unlockedPackIDs: Set<String> = []) -> RadioStation? {
-        stations(unlockedPackIDs: unlockedPackIDs)
+        let available = availableStations(unlockedPackIDs: unlockedPackIDs)
+        if let hidden = available.first(where: {
+            hiddenStationIDs.contains($0.id) && abs($0.frequency - frequency) < 0.051
+        }) {
+            return hidden
+        }
+        return available
+            .filter { !hiddenStationIDs.contains($0.id) }
             .min { abs($0.frequency - frequency) < abs($1.frequency - frequency) }
     }
 
@@ -480,6 +969,163 @@ enum RadioStationRegistry {
         let slot = Int(now.timeIntervalSince(seedDate) / 900)
         let index = abs(station.id.stableHash + slot) % station.interludeTitles.count
         return station.interludeTitles[index]
+    }
+
+    // MARK: - Alive playout curation
+
+    /// Pick a song without walking catalog order. The selector honors optional
+    /// world gates, cools recently heard tracks, avoids immediate repeats, and
+    /// uses weighted rendezvous scoring so adding a track does not reshuffle the
+    /// whole catalog into a new disguised sequence.
+    static func curatedTrack(
+        station: RadioStation,
+        previousTrackID: String?,
+        recentTrackIDs: [String] = [],
+        playTurn: Int,
+        context: RadioWorldContext,
+        sessionSeed: String,
+        now: Date = Date()
+    ) -> RadioTrack? {
+        guard !station.tracks.isEmpty else { return nil }
+        let contextual = station.tracks.filter { context.satisfies($0.conditions) }
+        let eligible = contextual.isEmpty ? station.tracks : contextual
+        let recent = Set(recentTrackIDs)
+        let fresh = eligible.filter { $0.id != previousTrackID && !recent.contains($0.id) }
+        let nonRepeating = eligible.filter { $0.id != previousTrackID }
+        let pool = !fresh.isEmpty ? fresh : !nonRepeating.isEmpty ? nonRepeating : eligible
+        let slot = Int(now.timeIntervalSince1970 / 1_800)
+        return pool.min { left, right in
+            aliveScore(
+                seed: "\(sessionSeed)|track|\(station.id)|\(previousTrackID ?? "start")|\(playTurn)|\(slot)|\(context.timeOfDay)|\(left.id)",
+                weight: Double(left.resolvedWeight)
+            ) < aliveScore(
+                seed: "\(sessionSeed)|track|\(station.id)|\(previousTrackID ?? "start")|\(playTurn)|\(slot)|\(context.timeOfDay)|\(right.id)",
+                weight: Double(right.resolvedWeight)
+            )
+        }
+    }
+
+    /// DJ cadence breathes: usually one or two songs between breaks, with a
+    /// song-bound transition more likely to speak. Two quiet songs force the
+    /// next eligible break, so randomness never becomes a silent station.
+    static func shouldBanter(
+        songsSinceLastBanter: Int,
+        state: RadioPlaybackState,
+        context: RadioWorldContext,
+        justFinishedTrackID: String?,
+        upcomingTrackID: String?,
+        unlockedPackIDs: Set<String> = [],
+        now: Date = Date()
+    ) -> Bool {
+        guard songsSinceLastBanter > 0,
+              let station = station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs),
+              !station.resolvedBanters.isEmpty else {
+            return false
+        }
+        if songsSinceLastBanter >= 2 { return true }
+        let hasBoundMoment = station.resolvedBanters.contains {
+            $0.isBound
+                && context.satisfies($0.conditions)
+                && $0.placementFits(
+                    justFinishedTrackID: justFinishedTrackID,
+                    upcomingTrackID: upcomingTrackID
+                )
+        }
+        let probability = hasBoundMoment ? 0.82 : 0.58
+        let session = state.startedAt?.timeIntervalSince1970 ?? now.timeIntervalSince1970
+        let slot = Int(now.timeIntervalSince1970 / 300)
+        let roll = stableUnit("\(station.id)|cadence|\(session)|\(slot)|\(state.lastTrackID ?? "none")")
+        return roll < probability
+    }
+
+    /// Pick the next DJ break from the whole eligible catalog. Clip and category
+    /// cooldowns prevent loops; world state changes the weights; song-bound
+    /// transitions still land on the correct side. No category order exists.
+    static func nextBanter(
+        state: RadioPlaybackState,
+        context: RadioWorldContext,
+        unlockedPackIDs: Set<String> = [],
+        justFinishedTrackID: String? = nil,
+        upcomingTrackID: String? = nil,
+        now: Date = Date()
+    ) -> RadioBanter? {
+        guard let station = station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs) else {
+            return nil
+        }
+        let all = station.resolvedBanters
+        guard !all.isEmpty else { return nil }
+
+        // Eligible = world conditions satisfied AND (for song-bound transitions)
+        // sitting on the correct side of the right song.
+        let eligible = all.filter {
+            context.satisfies($0.conditions)
+                && $0.placementFits(justFinishedTrackID: justFinishedTrackID, upcomingTrackID: upcomingTrackID)
+        }
+        guard !eligible.isEmpty else { return nil }
+
+        let recentIDs = state.recentBanterIDs ?? []
+        let recent = Set(recentIDs)
+        let seedDate = state.lastTunedAt ?? state.startedAt ?? now
+        let slot = Int(now.timeIntervalSince(seedDate) / 900)
+        let fresh = eligible.filter { !recent.contains($0.id) }
+        var pool = !fresh.isEmpty
+            ? fresh
+            : eligible.filter { $0.id != recentIDs.last }
+        if pool.isEmpty { pool = eligible }
+
+        let recentCategories = Set(recentIDs.suffix(2).compactMap { id in
+            all.first(where: { $0.id == id })?.category
+        })
+        let categoryFresh = pool.filter { !recentCategories.contains($0.category) }
+        if !categoryFresh.isEmpty { pool = categoryFresh }
+
+        let session = seedDate.timeIntervalSince1970
+        return pool.min { left, right in
+            aliveScore(
+                seed: "\(station.id)|banter|\(session)|\(slot)|\(justFinishedTrackID ?? "none")|\(upcomingTrackID ?? "none")|\(left.id)",
+                weight: banterCurationWeight(left, state: state, context: context, now: now)
+            ) < aliveScore(
+                seed: "\(station.id)|banter|\(session)|\(slot)|\(justFinishedTrackID ?? "none")|\(upcomingTrackID ?? "none")|\(right.id)",
+                weight: banterCurationWeight(right, state: state, context: context, now: now)
+            )
+        }
+    }
+
+    private static func banterCurationWeight(
+        _ banter: RadioBanter,
+        state: RadioPlaybackState,
+        context: RadioWorldContext,
+        now: Date
+    ) -> Double {
+        var weight = Double(banter.resolvedWeight)
+        switch banter.category {
+        case .stationID:
+            weight *= (state.recentBanterIDs?.isEmpty ?? true) ? 2.2 : 0.65
+        case .transition:
+            if banter.isBound { weight *= 2.1 }
+        case .sponsor:
+            weight *= 0.72
+        case .gossip:
+            if context.timeOfDay == "dusk" || context.timeOfDay == "night" || context.grey >= 35 {
+                weight *= 1.45
+            }
+        case .news:
+            if Calendar.current.component(.minute, from: now) < 12 || context.festivalActive {
+                weight *= 1.75
+            }
+        case .network:
+            weight *= 1.1
+        }
+        return weight
+    }
+
+    private static func aliveScore(seed: String, weight: Double) -> Double {
+        -log(max(stableUnit(seed), 0.000_001)) / max(weight, 0.05)
+    }
+
+    private static func stableUnit(_ seed: String) -> Double {
+        let bucket = UInt(bitPattern: seed.stableHash) % 9_007_199_254_740_991
+        return Double(bucket + 1) / 9_007_199_254_740_992.0
     }
 }
 

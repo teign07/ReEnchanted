@@ -216,6 +216,11 @@ struct ContentView: View {
     @State var preparedContinuityURL: URL?
     @State var preparedMonthlyEditionURL: URL?
     @State var preparedAnnualEditionURL: URL?
+    /// The month the player has chosen to bind. `nil` means "let the Book choose"
+    /// — the most recent month that kept pages.
+    @State var selectedEditionMonth: Date?
+    /// An in-character line the Colophon's binding desk speaks back to the player.
+    @State var colophonBindingNote: String?
     @State var bookJumpCustomTitle: String = ""
     @State var preparedBleedPDFURL: URL?
     @State var isSaveImporterPresented = false
@@ -1658,6 +1663,7 @@ struct ContentView: View {
     }
 
     func restoreRadioIfNeeded() {
+        refreshRadioWorld()
         guard !radioManager.isPlaying else { return }
         radioManager.restore(
             state: vault.data.radio ?? .off,
@@ -1665,7 +1671,25 @@ struct ContentView: View {
         )
     }
 
+    /// Push the live Nothing-grey and festival state into the radio so banter
+    /// conditions (e.g. Penny's festival-only news) respond to the real world.
+    /// Cheap; grey/festival change at most daily. Grey is mapped to the 0–100
+    /// scale the banter conditions use.
+    func refreshRadioWorld() {
+        let inputs = sourceInputs
+        let hemisphere = Hemisphere.from(latitude: lastAnchorReadingLatitude)
+        let greyLevel = NothingTide.greyLevel(
+            quietDays: inputs.quietDays,
+            narrativeHeat: narrativeEvents.prefix(24).count,
+            distressActive: DistressSignals.evaluate(day: today).isActive,
+            celebrationGreyShift: Almanac.greyShift(on: Date(), hemisphere: hemisphere)
+        )
+        let festival = Almanac.active(on: Date(), hemisphere: hemisphere) != nil
+        radioManager.updateWorldState(grey: greyLevel * 33, festivalActive: festival)
+    }
+
     func tuneRadio(stationID: String) {
+        refreshRadioWorld()
         radioManager.tune(
             stationID: stationID,
             unlockedPackIDs: Set(vault.data.ownedPacks ?? [])
@@ -2535,6 +2559,8 @@ struct ContentView: View {
                         lastBraidDuration: generation.lastBraidDuration
                     )
 
+                    ColophonDedicationCard()
+
                     HStack {
                         Text("Doorway settings live here now.")
                             .font(.caption.weight(.semibold))
@@ -2800,30 +2826,81 @@ struct ContentView: View {
                         }
                     }
 
-                    HStack(spacing: 10) {
-                        Text("Bind last month.")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(BookPalette.nightText.opacity(0.62))
-                        Spacer()
-                        if let preparedMonthlyEditionURL {
-                            ShareLink(item: preparedMonthlyEditionURL) {
-                                Label("Share monthly edition", systemImage: "square.and.arrow.up")
-                                    .font(.caption.weight(.bold))
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 10) {
+                            Text("Bind a month.")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                            Spacer()
+                            if let preparedMonthlyEditionURL {
+                                ShareLink(item: preparedMonthlyEditionURL) {
+                                    Label("Share monthly edition", systemImage: "square.and.arrow.up")
+                                        .font(.caption.weight(.bold))
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(BookPalette.lampGold)
+                            } else {
+                                Button {
+                                    BookFeedback.play(.sourceRefresh)
+                                    exportMonthlyEdition()
+                                } label: {
+                                    Label("Bind monthly edition", systemImage: "book.pages")
+                                        .font(.caption.weight(.bold))
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(BookPalette.lampGold)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .tint(BookPalette.lampGold)
-                        } else {
-                            Button {
-                                BookFeedback.play(.sourceRefresh)
-                                exportMonthlyEdition()
+                        }
+
+                        let months = bindableEditionMonths
+                        if !months.isEmpty {
+                            Menu {
+                                Button {
+                                    selectedEditionMonth = nil
+                                    preparedMonthlyEditionURL = nil
+                                    colophonBindingNote = nil
+                                } label: {
+                                    if selectedEditionMonth == nil {
+                                        Label("Most recent month", systemImage: "checkmark")
+                                    } else {
+                                        Text("Most recent month")
+                                    }
+                                }
+                                Divider()
+                                ForEach(months, id: \.start) { month in
+                                    Button {
+                                        selectedEditionMonth = month.start
+                                        preparedMonthlyEditionURL = nil
+                                        colophonBindingNote = nil
+                                    } label: {
+                                        let title = "\(month.label) · \(month.pageCount) \(month.pageCount == 1 ? "page" : "pages")"
+                                        if selectedEditionMonth == month.start {
+                                            Label(title, systemImage: "checkmark")
+                                        } else {
+                                            Text(title)
+                                        }
+                                    }
+                                }
                             } label: {
-                                Label("Bind monthly edition", systemImage: "book.pages")
-                                    .font(.caption.weight(.bold))
+                                HStack(spacing: 6) {
+                                    Image(systemName: "calendar")
+                                        .font(.caption2.weight(.bold))
+                                    Text(selectedEditionMonthLabel)
+                                        .font(.caption2.weight(.bold))
+                                        .lineLimit(1)
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.system(size: 9, weight: .bold))
+                                }
+                                .foregroundStyle(BookPalette.lampGold.opacity(0.9))
                             }
-                            .buttonStyle(.bordered)
-                            .tint(BookPalette.lampGold)
+                        }
+
+                        if let colophonBindingNote {
+                            StatusBanner(message: colophonBindingNote)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
+                    .animation(.spring(response: 0.45, dampingFraction: 0.85), value: colophonBindingNote)
 
                     HStack(spacing: 10) {
                         Text("Bind the year.")
@@ -3010,6 +3087,7 @@ struct ContentView: View {
         recordNarrativeEvent(for: page)
         weaveRelationshipField(for: page)
         applyGossipRelationshipMoves(from: surface)
+        applyGossipPageBeliefMoves(from: surface)
         saveSelfFactIfNeeded(surface: surface, answer: input)
         saveFacultyEntryIfNeeded(surface: surface, page: page, answer: input, tags: tags, dayID: day.id)
         awardBelief(for: surface)
@@ -3473,6 +3551,70 @@ struct ContentView: View {
             }
         }
         vault.data.relationshipField = field
+        vault.save()
+    }
+
+    /// Apply the Cast-to-Page Belief moves a gossip page recorded. Cast members
+    /// can now contest actual Page sources: investing spends their Glow into a
+    /// Page kind, while attacking cools that Page kind and can feed the actor.
+    func applyGossipPageBeliefMoves(from surface: SurfacePage) {
+        guard surface.type == .gossip,
+              let raw = surface.payload.metadata["pageBeliefMoves"]?.nonEmpty else { return }
+        for token in raw.split(separator: "|") {
+            // format: actorID>sourceID:kind:amount
+            let halves = token.split(separator: ":")
+            guard halves.count == 3,
+                  let amount = Int(halves[2]) else { continue }
+            let pair = halves[0].split(separator: ">").map(String.init)
+            guard pair.count == 2 else { continue }
+            let (actorID, sourceID) = (pair[0], pair[1])
+            let kind = String(halves[1])
+            let actorName = castName(for: actorID)
+            let source = BookPageSourceRegistry.source(id: sourceID)
+
+            if kind == GossipPageBeliefMoveKind.invest.rawValue {
+                let actorGlow = effectiveCastBelief(for: actorID)
+                let actorSpend = BeliefEconomyEngine.castSpendDelta(actorBelief: actorGlow, requested: amount)
+                let offered = -actorSpend
+                guard offered > 0 else { continue }
+                let applied = applyPageEconomyDelta(
+                    sourceID: source.id,
+                    name: source.title,
+                    delta: offered,
+                    sourcePageType: surface.type,
+                    note: "\(actorName) gave \(offered) Belief to \(source.title) Pages.",
+                    actorID: actorID
+                )
+                if applied > 0 {
+                    applyEntityEconomyDelta(
+                        entityID: actorID,
+                        name: actorName,
+                        delta: -applied,
+                        sourcePageType: surface.type,
+                        note: "\(actorName) spent \(applied) Belief making \(source.title) Pages more real."
+                    )
+                }
+            } else {
+                let applied = applyPageEconomyDelta(
+                    sourceID: source.id,
+                    name: source.title,
+                    delta: -amount,
+                    sourcePageType: surface.type,
+                    note: "\(actorName) tried to take \(amount) Belief from \(source.title) Pages.",
+                    actorID: actorID
+                )
+                let taken = -applied
+                if taken > 0 {
+                    applyEntityEconomyDelta(
+                        entityID: actorID,
+                        name: actorName,
+                        delta: taken,
+                        sourcePageType: surface.type,
+                        note: "\(actorName) took \(taken) Belief from \(source.title) Pages."
+                    )
+                }
+            }
+        }
         vault.save()
     }
 
@@ -4030,13 +4172,16 @@ struct ContentView: View {
         }
     }
 
-    func applyPageBeliefLedgerDelta(sourceID: String, delta: Int) {
-        guard delta != 0 else { return }
+    @discardableResult
+    func applyPageBeliefLedgerDelta(sourceID: String, delta: Int) -> Int {
+        guard delta != 0 else { return 0 }
         var ledger = pageBeliefLedger
         let source = BookPageSourceRegistry.source(id: sourceID)
         let base = BookPageSourceRegistry.defaultBelief(for: source)
         let current = max(0, min(100, base + (ledger[sourceID] ?? 0)))
         let next = max(0, min(100, current + delta))
+        let applied = next - current
+        guard applied != 0 else { return 0 }
         ledger[sourceID] = next - base
         if ledger[sourceID] == 0 {
             ledger[sourceID] = nil
@@ -4045,6 +4190,7 @@ struct ContentView: View {
            let encoded = String(data: data, encoding: .utf8) {
             pageBeliefLedgerData = encoded
         }
+        return applied
     }
 
     func applyEntityEconomyDelta(entityID: String, name: String, delta: Int, sourcePageType: BookPageType?, note: String) {
@@ -4066,6 +4212,39 @@ struct ContentView: View {
         } catch {
             statusMessage = "The Belief moved, but the hidden ledger missed a line: \(error.localizedDescription)"
         }
+    }
+
+    @discardableResult
+    func applyPageEconomyDelta(
+        sourceID: String,
+        name: String,
+        delta: Int,
+        sourcePageType: BookPageType?,
+        note: String,
+        actorID: String? = nil
+    ) -> Int {
+        let applied = applyPageBeliefLedgerDelta(sourceID: sourceID, delta: delta)
+        guard applied != 0 else { return 0 }
+        let source = BookPageSourceRegistry.source(id: sourceID)
+        let actorTags = actorID.map { ["actor:\($0)"] } ?? []
+        let event = NarrativeEvent(
+            id: "belief-economy-page-\(sourceID)-\(UUID().uuidString)",
+            kind: applied > 0 ? .beliefInvested : .beliefAttacked,
+            sourcePageType: sourcePageType ?? source.type,
+            sourcePageID: nil,
+            createdAt: Date(),
+            summary: note,
+            tags: ["belief", "belief-economy", "page:\(sourceID)", "page-type:\(source.type.rawValue)"] + actorTags,
+            effect: NarrativeEventEffect()
+        )
+        do {
+            try BookDatabase.upsertNarrativeEvent(event)
+            narrativeEvents = try BookDatabase.narrativeEvents(limit: 160)
+        } catch {
+            statusMessage = "The Page Belief moved, but the hidden ledger missed a line: \(error.localizedDescription)"
+        }
+        surfaceRefreshDate = Date()
+        return applied
     }
 
     func completeCompassRunIfNeeded(_ surface: SurfacePage) {
@@ -5739,6 +5918,46 @@ private struct LocalBrainReadingRoom: View {
                 glow = true
             }
         }
+    }
+}
+
+private struct ColophonDedicationCard: View {
+    private let dedicationLines = [
+        "For Amanda, the first Doobaleedoo and the true wonder in my life. I love you! There would be no book, one of my life's biggest dreams, without you. Thank you for everything. Together forever. I'll give up Heaven if you aren't there with me.",
+        "For Mom, thank you for my one wild and precious life, and thank you for being the perfect Mom for me. Birds of a feather. I wouldn't want anyone else to fill that role. I don't see you enough. Beth is pretty awesome, too.",
+        "For my sister, Beth, for being the younger, but better, sibling that I look up to. I wish I was half as capable and caring as you are. Thank you ahead of time for proofreading this book, lol.",
+        "And, surprisingly, for Tim, rest in peace. Thank you for gifting me the world of The Hobbit in second grade. It changed my life and gave me things to hold onto: reading and good fantasy. Also, you had great taste in music."
+    ]
+
+    var body: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(dedicationLines, id: \.self) { line in
+                    Text(line)
+                }
+            }
+            .font(.caption2)
+            .foregroundStyle(BookPalette.nightText.opacity(0.68))
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 6)
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("A quiet dedication")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                Text("Developed by an Obsessed Guy with an awesome wife, 2 cats, and a happy, small life.")
+                    .font(.caption2)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.58))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .tint(BookPalette.teal)
+        .padding(12)
+        .background(BookPalette.page.opacity(0.42), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(BookPalette.gold.opacity(0.18), lineWidth: 1)
+        )
     }
 }
 

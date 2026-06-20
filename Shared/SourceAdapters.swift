@@ -1503,25 +1503,29 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
             score: score,
             reason: reason,
             prompt: "Welcome to the Labyrinth of Stories",
-            detail: "The Book opens its first door and says hello.",
+            detail: "The Book opens its first door and decides, on the spot, that it likes you.",
             payload: BookPagePayload(
                 headline: name == "Reader" ? "Welcome to the Labyrinth" : "Welcome, \(name)",
                 body: """
                 Hello, \(name).
 
-                I'm the Labyrinth of Stories. I'm also the Book. I'm also, in the plain language of your world, an app on a phone. Don't be embarrassed by this. Doorways have always used the materials at hand.
+                There — the first word of you is written, and the ink is already a shade darker than it was a moment ago. I felt that. I usually do.
 
-                My work is simple, and not small: I notice the life you're already living, raise Pages from it, and remember the ones you choose to keep. Some Pages ask for one sentence. Some arrive as letters, weather, little missions, strange observations, or the first green shoots of a story.
+                Let me introduce myself properly, since you and I are going to be keeping each other. I am the Labyrinth of Stories. I am also the Book. I am also — and you should hear this from me rather than work it out later and feel cheated — an app on a phone. Don't wince. Doorways have always used whatever was lying about: standing stones, wardrobes, rings of mushrooms, a pane of glass that fits in a pocket. The threshold is real even when the frame is ordinary.
 
-                Pages will surface. Chapter Binding can wait.
+                My work is small to say and not at all small to do. I watch the life you are already living — the real one, with the cold tea and the good light and the thought you very nearly didn't bother to have — and I raise Pages out of it. Some Pages ask you for a single sentence. Others arrive as letters, as weather, as a small impossible errand, as a rumour, as the first green shoot of a story that did not exist until you walked past it.
 
-                You don't have to keep everything. Please don't. A Book that keeps everything becomes a closet with hinges. Open what has a pulse. Let the rest wait.
+                Pages will surface. Chapter Binding can wait. I am in no hurry, and I would gently suggest you aren't either.
 
-                I can work with my hands tied, but I think better with my local brain installed. When you're ready, visit the Colophon at the bottom of the home screen. There you can fetch the recommended brain for the Book. It stays on this device, thinks here, and helps future Pages sound less like a form and more like a living margin.
+                One rule, and it is the only one I will lean on you about: do not keep everything. Please. A Book that keeps everything is just a closet with hinges. Keep the Pages with a pulse — and you will know them, they tug a little — and let the rest go quietly back to sleep. Forgetting on purpose is part of how I stay alive.
 
-                After that, we'll begin properly.
+                I can do all of this with my hands tied. I would rather not. There is a mind I can wear that lives entirely on this device: it thinks here, it carries nothing out the door, and with it my Pages stop reading like a form someone made you fill in and start reading like a margin written in a real hand. When you are curious, go to the Colophon at the foot of the home screen and let me fetch it.
 
-                First a greeting. Then a mind. Then one sentence from the real world.
+                Then we begin in earnest.
+
+                First a greeting — done, and I meant every letter of it. Then a mind. Then one true sentence, brought back from the world on the other side of this page.
+
+                I will be right here. I am a book. Waiting is the thing I am best at.
                 """,
                 metadata: [
                     "source": source.id,
@@ -2014,7 +2018,15 @@ struct EnchantifyLorePageSourceAdapter: BookPageSourceAdapter {
     }
 
     private func loreSurface(snippet: ReferenceSnippet, context: CuratorContext) -> SurfacePage {
-        SurfacePage(
+        var metadata = [
+            "source": source.id,
+            "snippetID": snippet.id,
+            "tags": snippet.tags.joined(separator: ",")
+        ]
+        if let practice = snippet.practice?.trimmingCharacters(in: .whitespacesAndNewlines), !practice.isEmpty {
+            metadata["practice"] = practice
+        }
+        return SurfacePage(
             id: "\(source.id)-\(snippet.id)",
             type: .lore,
             sourceID: source.id,
@@ -2027,11 +2039,7 @@ struct EnchantifyLorePageSourceAdapter: BookPageSourceAdapter {
             payload: BookPagePayload(
                 headline: snippet.title,
                 body: snippet.body,
-                metadata: [
-                    "source": source.id,
-                    "snippetID": snippet.id,
-                    "tags": snippet.tags.joined(separator: ",")
-                ]
+                metadata: metadata
             )
         )
     }
@@ -2180,62 +2188,187 @@ struct LabyrinthIllustrationPageSourceAdapter: BookPageSourceAdapter {
     }
 
     static func bookPageTitle(for profile: CharacterIllustrationProfile) -> String {
+        let name = profile.characterName
+        let variants: [String]
         switch profile.illustrationTag {
         case "location":
-            return "A Place That Remembers: \(profile.characterName)"
+            variants = [
+                "A Place That Remembers: \(name)",
+                "The Room Called \(name)",
+                "\(name), Which Keeps Its Own Weather",
+                "On the Subject of \(name)"
+            ]
         case "book-fae":
-            return "A Life Between the Lines: \(profile.characterName)"
+            variants = [
+                "A Life Between the Lines: \(name)",
+                "\(name), Who Works the Margins",
+                "Small and Entirely Necessary: \(name)",
+                "What the Page Owes \(name)"
+            ]
         default:
-            return "The Book Remembers: \(profile.characterName)"
+            variants = [
+                "The Book Remembers: \(name)",
+                "A Page Kept for \(name)",
+                "What the Ink Knows of \(name)",
+                "\(name), Pressed and Filed"
+            ]
         }
+        return variants[stableIndex(for: "title-\(profile.slug)", count: variants.count)]
     }
 
     static func bookDetail(for profile: CharacterIllustrationProfile) -> String {
-        let character = profile.characterName
+        let name = profile.characterName
+        let variants: [String]
         switch profile.illustrationTag {
         case "location":
-            return "I have kept \(character) in my pages because some places are alive enough to remember who enters them."
+            variants = [
+                "Some places are alive enough to remember who walks into them. \(name) is one.",
+                "I keep \(name) the way I keep a doorway — because something always happens in it.",
+                "\(name) is not scenery. It has a mood, and it has been known to hold a grudge.",
+                "I filed \(name) under places. It keeps trying to file itself under people."
+            ]
         case "book-fae":
-            return "I know \(character) by the small disturbances left behind in ink, paper, and unfinished thought."
+            variants = [
+                "I know \(name) by the small disturbances left in ink, paper, and unfinished thought.",
+                "No Book Fae is decorative. \(name) keeps one piece of the story from going dull.",
+                "When \(name) is near, the margins get busy. Watch them before you watch the page.",
+                "\(name) is small enough to miss and important enough that I never do."
+            ]
         default:
-            return "I have watched \(character) long enough to know the difference between reputation and character."
+            variants = [
+                "I have watched \(name) long enough to tell reputation from character.",
+                "Reputation arrives first. \(name) arrives second, and is the better read.",
+                "I do not file \(name) under one word. I have tried; the word never holds.",
+                "Everyone has a version of \(name). I keep the one with the corrections still showing."
+            ]
         }
+        return variants[stableIndex(for: "detail-\(profile.slug)", count: variants.count)]
     }
 
     static func bookPageBody(for profile: CharacterIllustrationProfile) -> String {
-        let character = profile.characterName
-        let nature = coreProse(for: profile)
-        let signature = sentence(profile.signature)
+        let name = profile.characterName
+        let core = coreProse(for: profile)
+        let palette = paletteLine(for: profile)
+        let signature = sentence(profile.signature).lowercasingFirstLetter()
 
+        let opening: [String]
+        let closing: [String]
         switch profile.illustrationTag {
         case "location":
-            return """
-            \(character) is not merely where a story happens. \(nature) Places like this listen through floorboards, shelves, weather, and doors; they are changed by every arrival, though they pretend otherwise.
-
-            I recognize \(character) by \(signature.lowercasingFirstLetter()) Return often enough, and it may begin to recognize you in return.
-            """
+            opening = [
+                "\(name) is not merely where a story happens.",
+                "I have kept \(name) because some places are too awake to forget a visitor.",
+                "\(name) behaves less like a setting and more like a witness.",
+                "Walk into \(name) and it takes a reading of you before you take one of it."
+            ]
+            closing = [
+                "Places like this listen through floorboards, shelves, weather, and doors. I know this one by \(signature) Return often enough, and it may begin to recognize you in return.",
+                "It is changed by every arrival, though it pretends otherwise. Look for \(signature) That is how I keep my place in it.",
+                "Rooms like this hold opinions. This one announces itself with \(signature) Mind your manners at the threshold.",
+                "Stay long enough and it will start keeping a page on you, too. I recognize it by \(signature)"
+            ]
         case "book-fae":
-            return """
-            \(character) belongs to the lively country between a written word and the breath that wakes it. \(nature) No Book Fae is decorative. Each keeps one necessary piece of a story from going dull or disappearing altogether.
-
-            I know this one by \(signature.lowercasingFirstLetter()) Watch the margins when it is near. The page usually notices before the reader does.
-            """
+            opening = [
+                "\(name) belongs to the lively country between a written word and the breath that wakes it.",
+                "\(name) is small, and I would not run the Labyrinth without them.",
+                "Most readers never see \(name). The page would notice immediately if they left.",
+                "\(name) works where ink meets intention, which is the most haunted ground I keep."
+            ]
+            closing = [
+                "No Book Fae is decorative; each keeps one necessary thing from going dull. I know this one by \(signature) Watch the margins when it is near.",
+                "It keeps one piece of the story honest. Find it by \(signature) The page usually notices before the reader does.",
+                "Lose this one and a story goes quietly wrong in a way nobody can name. Its sign is \(signature)",
+                "When it is working, you feel the sentence hold; when it rests, you feel the gap. I know it by \(signature)"
+            ]
         default:
-            return """
-            I have learned not to summarize \(character) too quickly. \(nature) A person is never only an office, a talent, or the rumor that arrives before them.
+            opening = [
+                "I have learned not to summarize \(name) too quickly.",
+                "\(name) is the kind of page I reread.",
+                "Ask the Academy about \(name) and you'll get a tidy answer; I keep the untidy one.",
+                "\(name) came into my pages and never asked to be explained."
+            ]
+            closing = [
+                "A person is never only an office, a talent, or the rumor that reaches the door first. The mark I trust is \(signature) That is only where the ink begins.",
+                "If you want to find them in a crowded chapter, look for \(signature) The rest changes with the weather; that does not.",
+                "Reputation can be forged. What cannot is the evidence that travels with them: \(signature)",
+                "I always know them when they enter, because they bring \(signature) Everything else about them is allowed to surprise me."
+            ]
+        }
 
-            Still, every life leaves a recognizable mark. For \(character), it is \(signature.lowercasingFirstLetter()) That is not the whole of them. It is simply where the ink begins.
-            """
+        let firstParagraph = [
+            opening[stableIndex(for: "open-\(profile.slug)", count: opening.count)],
+            core
+        ].filter { !$0.isEmpty }.joined(separator: " ")
+
+        let secondParagraph = [
+            palette,
+            closing[stableIndex(for: "close-\(profile.slug)", count: closing.count)]
+        ].filter { !$0.isEmpty }.joined(separator: " ")
+
+        return [firstParagraph, secondParagraph]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n\n")
+    }
+
+    /// A sentence built from the parchment "swatches" — each character keeps a
+    /// genuinely distinct palette, so this is the cheapest way to make two cards
+    /// stop sounding like twins.
+    private static func paletteLine(for profile: CharacterIllustrationProfile) -> String {
+        let colors = profile.palette
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !colors.isEmpty else { return "" }
+        let phrase = oxfordList(colors)
+        let templates = [
+            "When I picture them, the page settles into \(phrase).",
+            "They come to the page in \(phrase).",
+            "The ink remembers them as \(phrase)."
+        ]
+        return templates[stableIndex(for: "palette-\(profile.slug)", count: templates.count)]
+    }
+
+    private static func oxfordList(_ items: [String]) -> String {
+        switch items.count {
+        case 0: return ""
+        case 1: return items[0]
+        case 2: return "\(items[0]) and \(items[1])"
+        default:
+            return items.dropLast().joined(separator: ", ") + ", and " + (items.last ?? "")
         }
     }
+
+    /// Boilerplate clauses the dossier generator stamps on under-specified
+    /// characters; they say nothing, so the Book refuses to repeat them.
+    private static let coreBoilerplate: [String] = [
+        "clear expressive eyes and a memorable silhouette",
+        "a memorable silhouette",
+        "recognizable posture",
+        "hands involved in the scene",
+        "academy character"
+    ]
 
     private static func coreProse(for profile: CharacterIllustrationProfile) -> String {
         let clauses = profile.core
             .split(separator: ";")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty && !$0.contains("...") }
-        let selected = clauses.prefix(3).map(sentence)
-        return selected.isEmpty ? sentence(profile.core) : selected.joined(separator: " ")
+            .filter { clause in
+                guard !clause.isEmpty, !clause.contains("...") else { return false }
+                let lowered = clause.lowercased()
+                return !coreBoilerplate.contains { lowered.contains($0) }
+            }
+        let selected = clauses.prefix(2).map { sentence($0).capitalizingFirstLetter() }
+        return selected.joined(separator: " ")
+    }
+
+    private static func stableIndex(for key: String, count: Int) -> Int {
+        guard count > 0 else { return 0 }
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in key.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        return Int(hash % UInt64(count))
     }
 
     private static func sentence(_ text: String) -> String {
@@ -2256,6 +2389,26 @@ private extension String {
     func lowercasingFirstLetter() -> String {
         guard let first else { return self }
         return first.lowercased() + String(dropFirst())
+    }
+
+    func capitalizingFirstLetter() -> String {
+        guard let first else { return self }
+        return first.uppercased() + String(dropFirst())
+    }
+
+    var trimmed: String {
+        trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Trimmed and stripped of any terminal punctuation, so a stored clause can
+    /// be embedded mid-sentence without doubling up periods.
+    var strippedClause: String {
+        var result = trimmed
+        while let last = result.last, ".!?;,".contains(last) {
+            result.removeLast()
+            result = result.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return result
     }
 }
 
@@ -2543,14 +2696,7 @@ struct CastMemberPageSourceAdapter: BookPageSourceAdapter {
             metadata["imageAssetKind"] = imageAsset.kind.rawValue
             metadata["imageAssetReference"] = imageAsset.reference
         }
-        let body = [
-            description.isEmpty ? nil : description,
-            meaning.isEmpty ? nil : "What they care about: \(meaning)",
-            entity.beliefs.isEmpty ? nil : "Believes: \(entity.beliefs.joined(separator: " "))",
-            entity.goals.isEmpty ? nil : "Wants: \(entity.goals.joined(separator: " "))"
-        ]
-            .compactMap(\.self)
-            .joined(separator: "\n\n")
+        let body = Self.castBody(for: entity, description: description, meaning: meaning)
         let slotID = manual ? "\(Int(now.timeIntervalSince1970))" : SurfaceCadence.minuteSlotID(for: now, minutes: 20)
         return SurfacePage(
             id: "\(source.id)-\(entity.id)-\(slotID)",
@@ -2568,6 +2714,66 @@ struct CastMemberPageSourceAdapter: BookPageSourceAdapter {
                 metadata: metadata
             )
         )
+    }
+
+    /// The Book introducing a cast member in its own voice — not a labelled
+    /// record. It weaves the entity's traits, quirks, belief, longing, and the
+    /// one fault it keeps an eye on, varied by entity so two cards never read
+    /// like the same form filled out twice.
+    static func castBody(for entity: NarrativeWorldEntity, description: String, meaning: String) -> String {
+        let name = entity.name
+        var lines: [String] = []
+
+        let openings = [
+            "Here is what I have kept on \(name).",
+            "\(name) has stepped far enough into the margins for me to take a proper reading.",
+            "Let me hand you my notes on \(name).",
+            "\(name) earns the page. This is why."
+        ]
+        lines.append(openings[stableIndex(for: "cast-open-\(entity.id)", count: openings.count)])
+
+        if !entity.traits.isEmpty {
+            lines.append("What shows first is \(oxfordList(entity.traits)).")
+        }
+        if !description.isEmpty {
+            lines.append(finishSentence(description))
+        }
+        if let belief = entity.beliefs.first(where: { !$0.trimmed.isEmpty }) {
+            lines.append("They hold that \(lowerFirst(belief.strippedClause)).")
+        }
+        if !meaning.isEmpty {
+            lines.append("Lately they keep circling back to \(lowerFirst(meaning.strippedClause)).")
+        }
+        if let goal = entity.goals.first(where: { !$0.trimmed.isEmpty }) {
+            lines.append("What they are reaching for is \(lowerFirst(goal.strippedClause)).")
+        }
+        if let fault = entity.faults.first(where: { !$0.trimmed.isEmpty }) {
+            lines.append("The flaw I keep one eye on: \(lowerFirst(fault.strippedClause)).")
+        }
+
+        return lines.joined(separator: " ")
+    }
+
+    private static func oxfordList(_ items: [String]) -> String {
+        let clean = items.map { $0.trimmed }.filter { !$0.isEmpty }
+        switch clean.count {
+        case 0: return ""
+        case 1: return clean[0]
+        case 2: return "\(clean[0]) and \(clean[1])"
+        default: return clean.dropLast().joined(separator: ", ") + ", and " + (clean.last ?? "")
+        }
+    }
+
+    private static func finishSentence(_ text: String) -> String {
+        let trimmed = text.trimmed
+        guard !trimmed.isEmpty else { return "" }
+        if let last = trimmed.last, ".!?".contains(last) { return trimmed }
+        return trimmed + "."
+    }
+
+    private static func lowerFirst(_ text: String) -> String {
+        guard let first = text.first else { return text }
+        return first.lowercased() + String(text.dropFirst())
     }
 
     private func emptySurface(day: BookDay, now: Date) -> SurfacePage {
@@ -2590,6 +2796,10 @@ struct CastMemberPageSourceAdapter: BookPageSourceAdapter {
     }
 
     private func stableIndex(for key: String, count: Int) -> Int {
+        Self.stableIndex(for: key, count: count)
+    }
+
+    static func stableIndex(for key: String, count: Int) -> Int {
         guard count > 0 else { return 0 }
         var hash: UInt64 = 14_695_981_039_346_656_037
         for byte in key.utf8 {

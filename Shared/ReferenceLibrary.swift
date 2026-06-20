@@ -8,6 +8,9 @@ struct ReferenceSnippet: Codable, Identifiable, Equatable {
     var prompt: String
     var body: String
     var tags: [String]
+    /// An invitation the Book hands the reader — a small thing to try, notice,
+    /// or answer in the real world. Optional so older bundles still decode.
+    var practice: String? = nil
     var url: String? = nil
     var publishedAt: String? = nil
     var preview: String? = nil

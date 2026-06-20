@@ -1296,7 +1296,11 @@ enum StoryScenePacketBuilder {
             selectedEntityMemories: selectedEntityMemories,
             relationshipPressures: relationships,
             chapterTalismanMoves: talismanMoves,
-            choices: choices(primaryThread: primaryThread, primaryEntity: primaryEntity),
+            choices: choices(
+                primaryThread: primaryThread,
+                selectedEntities: selectedEntities,
+                selectedRelationships: selectedRelationships
+            ),
             storyFormID: storyForm.id,
             storyFormName: storyForm.name,
             storyFormBeats: storyForm.beats,
@@ -1318,10 +1322,14 @@ enum StoryScenePacketBuilder {
             .filter { $0.kind != .talisman }
             .map { entity in
                 let overlap = tags.intersection(Set(entity.tags)).count
-                let narrativeBoost = entity.name == "The Book" ? 4 : 0
+                // Story Pages are about the Cast: people carry scenes, objects
+                // and places only join them. Bias the scene slots toward
+                // characters so the playable choices stay about who, not what.
+                let castBoost = entity.kind == .character ? 16 : 0
+                let narrativeBoost = entity.name == "The Book" ? 2 : 0
                 let eventBoost = inputs.narrative?.weightedEntityIDs.contains(entity.id) == true ? 18 : 0
                 let worldEventBoost = inputs.activeWorldEvents.scoreBoost(forEntityID: entity.id)
-                return (entity, entity.narrativeWeight + entity.belief / 4 + overlap * 8 + narrativeBoost + eventBoost + worldEventBoost)
+                return (entity, entity.narrativeWeight + entity.belief / 4 + overlap * 8 + castBoost + narrativeBoost + eventBoost + worldEventBoost)
             }
             .sorted { left, right in
                 if left.1 == right.1 {
@@ -1550,42 +1558,71 @@ enum StoryScenePacketBuilder {
 
     private static func choices(
         primaryThread: NarrativeStoryThread?,
-        primaryEntity: NarrativeWorldEntity?
+        selectedEntities: [NarrativeWorldEntity],
+        selectedRelationships: [NarrativeRelationshipEdge]
     ) -> [StorySceneChoice] {
-        let entityID = primaryEntity?.id ?? "the-book"
-        let entityName = primaryEntity?.name ?? "The Book"
+        // Story Pages are about the Cast. Anchor every choice to a person and,
+        // where we can, to a relationship between people — not to objects.
+        let cast = selectedEntities.filter { $0.kind == .character }
+        let primaryCharacter = cast.first ?? selectedEntities.first
+        let characterID = primaryCharacter?.id ?? "the-book"
+        let characterName = primaryCharacter?.name ?? "The Book"
         let threadID = primaryThread?.id ?? "ordinary-magic"
         let threadTitle = primaryThread?.title ?? "Ordinary Magic"
+
+        // Prefer a relationship that links two characters in the scene so the
+        // surprise lands between people rather than on a thing.
+        let castIDs = Set(cast.map(\.id))
+        let relationship = selectedRelationships.first { castIDs.contains($0.sourceEntityID) && castIDs.contains($0.targetEntityID) }
+            ?? selectedRelationships.first
+
+        let surpriseTitle: String
+        let surprisePrompt: String
+        let surpriseEffect: String
+        var surpriseEntityIDs: [String] = [characterID]
+        if let relationship,
+           let other = cast.first(where: { $0.id == relationship.targetEntityID })
+            ?? cast.first(where: { $0.id == relationship.sourceEntityID && $0.id != characterID }),
+           let anchor = cast.first(where: { $0.id == relationship.sourceEntityID }) ?? primaryCharacter {
+            surpriseTitle = "Let It Pass Between Them"
+            surprisePrompt = "Ask what's quietly shifting between \(anchor.name) and \(other.name)."
+            surpriseEffect = "Move the relationship between \(anchor.name) and \(other.name); anchor it to the scene packet."
+            surpriseEntityIDs = Array(Set([anchor.id, other.id]))
+        } else {
+            surpriseTitle = "Read \(characterName) Sideways"
+            surprisePrompt = "Ask what \(characterName) hasn't said yet but is about to."
+            surpriseEffect = "Reveal an unexpected facet of \(characterName); keep it anchored to the scene packet."
+        }
 
         return [
             StorySceneChoice(
                 id: "slice-of-life",
                 role: .sliceOfLife,
-                title: "Stay With The Small Thing",
-                prompt: "Choose the ordinary detail that still feels alive.",
-                hiddenEffect: "Deepen attention without forcing the plot; add narrative weight to \(entityName).",
+                title: "Stay With \(characterName)",
+                prompt: "Tend the ordinary moment you're sharing with \(characterName).",
+                hiddenEffect: "Deepen attention without forcing the plot; add narrative weight to \(characterName).",
                 beliefDelta: 1,
-                targetEntityIDs: [entityID],
+                targetEntityIDs: [characterID],
                 targetThreadIDs: []
             ),
             StorySceneChoice(
                 id: "progress-arc",
                 role: .progressArc,
                 title: "Follow The Thread",
-                prompt: "Let \(threadTitle) take one real step forward.",
-                hiddenEffect: "Advance the selected story thread and prepare a future consequence page.",
+                prompt: "Let \(characterName) take \(threadTitle) one real step forward.",
+                hiddenEffect: "Advance the selected story thread through \(characterName) and prepare a future consequence page.",
                 beliefDelta: 1,
-                targetEntityIDs: [],
+                targetEntityIDs: [characterID],
                 targetThreadIDs: [threadID]
             ),
             StorySceneChoice(
                 id: "surprise",
                 role: .surprise,
-                title: "Open The Side Door",
-                prompt: "Ask what unexpected thing in this scene has been waiting to matter.",
-                hiddenEffect: "Create or connect a motif; the surprise must still be anchored to the scene packet.",
+                title: surpriseTitle,
+                prompt: surprisePrompt,
+                hiddenEffect: surpriseEffect,
                 beliefDelta: 1,
-                targetEntityIDs: [entityID],
+                targetEntityIDs: surpriseEntityIDs,
                 targetThreadIDs: [threadID]
             )
         ]
@@ -1613,9 +1650,11 @@ enum GossipSimulationBuilder {
         let tags = Array(Set(turns.flatMap(\.tags))).sorted()
         let talismanMoves = turns.compactMap(\.chapterTalismanMove)
         let talismanDeltaTokens = talismanMoves.compactMap(\.ledgerToken)
+        let pageBeliefMoves = turns.compactMap(\.pageBeliefMove)
         let simulationPacket = turns.enumerated().map { index, turn in
             let talismanMove = turn.chapterTalismanMove.map { "\nChapter talisman move: \($0.summaryLine)" } ?? ""
             let relationshipMove = turn.relationshipMove.map { "\nBetween characters: \($0.promptLine)" } ?? ""
+            let pageBeliefMove = turn.pageBeliefMove.map { "\nPage Belief: \($0.promptLine)" } ?? ""
             return """
             TURN \(index + 1)
             Actor: \(turn.actorName) [\(turn.actorID)]
@@ -1623,7 +1662,7 @@ enum GossipSimulationBuilder {
             Simulation action: \(turn.actionKind.rawValue)
             Overheard line: \(turn.overheardLine)
             Visible trace: \(turn.visibleTrace)
-            \(talismanMove)\(relationshipMove)
+            \(talismanMove)\(relationshipMove)\(pageBeliefMove)
             Hidden effect to preserve: \(turn.hiddenEffect)
             Consequences:
             \(turn.consequenceLines.map { "- \($0)" }.joined(separator: "\n"))
@@ -1665,6 +1704,8 @@ enum GossipSimulationBuilder {
                     "chapterTalismanMoves": talismanMoves.map(\.summaryLine).joined(separator: " | "),
                     "chapterTalismanDeltas": talismanDeltaTokens.joined(separator: ","),
                     "relationshipMoves": turns.compactMap { $0.relationshipMove?.token }.joined(separator: "|"),
+                    "pageBeliefMoves": pageBeliefMoves.map(\.token).joined(separator: "|"),
+                    "pageBeliefMoveLines": pageBeliefMoves.map(\.promptLine).joined(separator: " | "),
                     "hiddenEffect": turns.map(\.hiddenEffect).joined(separator: " | "),
                     "consequences": turns.flatMap(\.consequenceLines).joined(separator: " | "),
                     "simulationPacket": simulationPacket,
@@ -1694,6 +1735,7 @@ enum GossipSimulationBuilder {
         let actionKind = actionKind(for: actor, thread: thread, tags: tags, seed: seed)
         let combat = beliefCombat(actor: actor, thread: thread, actionKind: actionKind, seed: seed)
         let relationshipMove = relationshipMove(actor: actor, witness: witness, inputs: inputs, seed: seed)
+        let pageBeliefMove = pageBeliefMove(actor: actor, actionKind: actionKind, tags: Array(tags), seed: seed)
         let talismanMove = ChapterTalismanBeliefMoves.move(for: actor, actionKind: actionKind, seed: seed)
         let readerEcho = readerEchoSnippet(for: day, seed: seed)
         let constellationHook = constellationHook(for: actor, thread: thread, inputs: inputs)
@@ -1714,20 +1756,44 @@ enum GossipSimulationBuilder {
                 consequences.append("\(relationshipMove.actorName) chipped \(relationshipMove.amount) Belief from \(relationshipMove.targetName); the air between them tightened.")
             }
         }
-        let turnTags = Array(Set(tags)
-            .union(actor.tags)
-            .union(thread.tags)
-            .union([
-                "gossip",
-                "simulation",
-                actionKind.rawValue,
-                "actor:\(actor.id)",
-                "thread:\(thread.id)",
-                "action:\(actionKind.rawValue)"
+        if let pageBeliefMove {
+            switch pageBeliefMove.kind {
+            case .invest:
+                consequences.append("\(pageBeliefMove.actorName) gave \(pageBeliefMove.amount) Belief to \(pageBeliefMove.sourceTitle) Pages; that kind of page brightened.")
+            case .attack:
+                consequences.append("\(pageBeliefMove.actorName) tried to take \(pageBeliefMove.amount) Belief from \(pageBeliefMove.sourceTitle) Pages; that kind of page cooled.")
+            }
+        }
+        var turnTagSet = Set(tags)
+        turnTagSet.formUnion(actor.tags)
+        turnTagSet.formUnion(thread.tags)
+        turnTagSet.formUnion([
+            "gossip",
+            "simulation",
+            actionKind.rawValue,
+            "actor:\(actor.id)",
+            "thread:\(thread.id)",
+            "action:\(actionKind.rawValue)"
+        ])
+        if let witness {
+            turnTagSet.insert("witness:\(witness.id)")
+        }
+        if let talismanMove {
+            turnTagSet.formUnion([
+                "chapter-talisman",
+                "talisman:\(talismanMove.targetTalismanID)",
+                "chapter:\(talismanMove.targetChapter.lowercased())",
+                "talisman-move:\(talismanMove.kind.rawValue)"
             ])
-            .union(witness.map { ["witness:\($0.id)"] } ?? [])
-            .union(talismanMove.map { ["chapter-talisman", "talisman:\($0.targetTalismanID)", "chapter:\($0.targetChapter.lowercased())", "talisman-move:\($0.kind.rawValue)"] } ?? [])
-        ).sorted()
+        }
+        if let pageBeliefMove {
+            turnTagSet.formUnion([
+                "page-belief",
+                "page-source:\(pageBeliefMove.sourceID)",
+                "page-belief-move:\(pageBeliefMove.kind.rawValue)"
+            ])
+        }
+        let turnTags = Array(turnTagSet).sorted()
 
         return GossipSimulationTurn(
             id: "gossip-turn-\(day.id)-\(slotID)-\(offset + 1)",
@@ -1743,7 +1809,8 @@ enum GossipSimulationBuilder {
             tags: turnTags,
             beliefCombat: combat,
             chapterTalismanMove: talismanMove,
-            relationshipMove: relationshipMove
+            relationshipMove: relationshipMove,
+            pageBeliefMove: pageBeliefMove
         )
     }
 
@@ -2037,6 +2104,64 @@ enum GossipSimulationBuilder {
     /// field: an actor undermines someone they're tense with, or talks up someone
     /// they're warm/familiar with. This is how gossip both reads and reshapes the
     /// living graph.
+    private static func pageBeliefMove(
+        actor: NarrativeWorldEntity,
+        actionKind: GossipSimulationActionKind,
+        tags: [String],
+        seed: Int
+    ) -> GossipPageBeliefMove? {
+        let candidates = BookPageSourceRegistry.activeSources
+            .filter { source in
+                source.type != .gossip
+                    && source.type != .welcome
+                    && source.type != .bookOfYou
+            }
+        guard !candidates.isEmpty else { return nil }
+
+        let actorTerms = Set((actor.tags + actor.traits + actor.beliefs + actor.goals + tags)
+            .flatMap { tokenTerms($0) })
+        let ranked = candidates.sorted { left, right in
+            let leftScore = sourceAffinity(left, actorTerms: actorTerms, seed: seed)
+            let rightScore = sourceAffinity(right, actorTerms: actorTerms, seed: seed)
+            if leftScore == rightScore { return left.id < right.id }
+            return leftScore > rightScore
+        }
+        let source = ranked[stableIndex(for: "\(actor.id)-page-belief-\(seed)", count: min(4, ranked.count))]
+
+        let kind: GossipPageBeliefMoveKind
+        if actionKind == .attackBelief || actor.tags.contains("nothing") || actor.tags.contains("challenge") {
+            kind = .attack
+        } else if actionKind == .investBelief || seed % 5 != 0 {
+            kind = .invest
+        } else {
+            kind = .attack
+        }
+        let amount = max(1, min(3, actor.belief / 24 + 1))
+        return GossipPageBeliefMove(
+            actorID: actor.id,
+            actorName: actor.name,
+            sourceID: source.id,
+            sourceTitle: source.title,
+            kind: kind,
+            amount: amount
+        )
+    }
+
+    private static func sourceAffinity(_ source: BookPageSource, actorTerms: Set<String>, seed: Int) -> Int {
+        let sourceTerms = Set(tokenTerms("\(source.title) \(source.shortTitle) \(source.type.rawValue) \(source.cadence) \(source.note)"))
+        let overlap = actorTerms.intersection(sourceTerms).count
+        return overlap * 10
+            + BookPageSourceRegistry.narrativeWeight(for: source) / 8
+            + stableIndex(for: "\(source.id)-\(seed)-page-source-affinity", count: 7)
+    }
+
+    private static func tokenTerms(_ text: String) -> [String] {
+        text.lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .filter { $0.count > 2 }
+    }
+
     private static func relationshipMove(
         actor: NarrativeWorldEntity,
         witness: NarrativeWorldEntity?,

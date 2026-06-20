@@ -3027,6 +3027,10 @@ struct CapturePageSheet: View {
                     .foregroundStyle(BookPalette.ink)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            if let practiceText {
+                tryThisCallout(practiceText)
+            }
         }
         .padding(14)
         .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -3034,6 +3038,46 @@ struct CapturePageSheet: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
         }
+    }
+
+    /// The Book's invitation for this page — a small real-world thing to try.
+    /// Only lore pages currently carry one, and it reveals when the page opens.
+    private var practiceText: String? {
+        guard let practice = surface.payload.metadata["practice"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !practice.isEmpty else { return nil }
+        return practice
+    }
+
+    private func tryThisCallout(_ practice: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "sparkles")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(BookPalette.teal)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Try this")
+                    .font(.caption.weight(.bold))
+                    .textCase(.uppercase)
+                    .kerning(0.6)
+                    .foregroundStyle(BookPalette.teal)
+                Text(practice)
+                    .font(.system(.callout, design: .serif))
+                    .italic()
+                    .foregroundStyle(BookPalette.ink.opacity(0.88))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(BookPalette.teal.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.teal.opacity(0.34), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+        )
+        .padding(.top, 4)
     }
 
     private var inventoryFae: FaePlayerState {
