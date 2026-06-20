@@ -1474,7 +1474,8 @@ final class BookCuratorTests: XCTestCase {
 
         XCTAssertEqual(eventDoor.type, .bookNotices)
         XCTAssertEqual(eventDoor.intent, .capture)
-        XCTAssertTrue(eventDoor.payload.body.contains("Fieldwork:"))
+        // The body weaves the fieldwork invitation into the Book's dispatch.
+        XCTAssertTrue(eventDoor.payload.body.contains("ordinary word"))
         XCTAssertTrue(eventDoor.payload.metadata["fieldworkPrompt"]?.contains("ordinary word") == true)
         XCTAssertTrue(eventDoor.payload.metadata["tags"]?.contains("event-fieldwork") == true)
     }
@@ -1499,7 +1500,8 @@ final class BookCuratorTests: XCTestCase {
             .manualSurface(for: emptyDay(), context: .make(for: emptyDay()), inputs: inputs, now: now)
 
         let eventDoor = try XCTUnwrap(manual)
-        XCTAssertTrue(eventDoor.payload.body.contains("Definition Binder"))
+        // The reader's standing surfaces the resolved outcome in the Book's voice.
+        XCTAssertTrue(eventDoor.payload.body.range(of: "definition binder", options: .caseInsensitive) != nil)
         XCTAssertEqual(eventDoor.payload.metadata["worldEventOutcome"], "definition-binder")
         XCTAssertTrue(eventDoor.payload.metadata["tags"]?.contains("event-outcome:definition-binder") == true)
     }
@@ -1515,7 +1517,9 @@ final class BookCuratorTests: XCTestCase {
 
         let eventDoor = try XCTUnwrap(manual)
         XCTAssertEqual(eventDoor.payload.metadata["worldEventIDs"], "starlit-paper-trial")
-        XCTAssertTrue(eventDoor.payload.body.contains("The Starlit Paper Trial"))
+        // The title heads the page; the body carries the in-world dispatch.
+        XCTAssertEqual(eventDoor.payload.headline, "The Starlit Paper Trial")
+        XCTAssertTrue(eventDoor.prompt.contains("The Starlit Paper Trial"))
         XCTAssertTrue(eventDoor.payload.metadata["tags"]?.contains("event-fieldwork") == true)
     }
 
