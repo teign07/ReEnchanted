@@ -39,6 +39,7 @@
 		020000000000000000000208 /* SourceAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000108 /* SourceAdapters.swift */; };
 		020000000000000000000209 /* LiteraryContinuity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000109 /* LiteraryContinuity.swift */; };
 		02000000000000000000020A /* MonthlyEdition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010A /* MonthlyEdition.swift */; };
+		02000000000000000000020E /* EditionCurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010E /* EditionCurator.swift */; };
 		02000000000000000000020B /* Constellations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010B /* Constellations.swift */; };
 		02000000000000000000020C /* TheBleed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010C /* TheBleed.swift */; };
 		02000000000000000000020D /* WorldEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010D /* WorldEvents.swift */; };
@@ -47,6 +48,13 @@
 		030000000000000000000202 /* BookShopSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000102 /* BookShopSheet.swift */; };
 		030000000000000000000203 /* MonthlyEditionPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000103 /* MonthlyEditionPDF.swift */; };
 		030000000000000000000204 /* DictationInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000104 /* DictationInput.swift */; };
+		041000000000000000000201 /* ReEnchantedWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040000000000000000000101 /* ReEnchantedWidgetSnapshot.swift */; };
+		041000000000000000000202 /* ReEnchantedWidgetSnapshotWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040000000000000000000102 /* ReEnchantedWidgetSnapshotWriter.swift */; };
+		041000000000000000000203 /* ReEnchantedWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040000000000000000000103 /* ReEnchantedWidgets.swift */; };
+		041000000000000000000204 /* ReEnchantedWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040000000000000000000101 /* ReEnchantedWidgetSnapshot.swift */; };
+		041000000000000000000205 /* ReEnchantedWidgetsExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 040000000000000000000201 /* ReEnchantedWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		041000000000000000000206 /* ReEnchantedWidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040000000000000000000106 /* ReEnchantedWidgetIntents.swift */; };
+		041000000000000000000207 /* ReEnchantedWidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040000000000000000000106 /* ReEnchantedWidgetIntents.swift */; };
 		2047CBE42FDEF60C00A6B7E4 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001002 /* MLXLLM */; };
 		2047CBE52FDEF60C00A6B7E4 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001003 /* MLXLMCommon */; };
 		2047CBE62FDEF60C00A6B7E4 /* MLXLMTokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001006 /* MLXLMTokenizers */; };
@@ -54,6 +62,30 @@
 		2047CBE82FDEF60C00A6B7E4 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = 01000000000000000000100A /* MLX */; };
 		2047CBE92FDEF60C00A6B7E4 /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = 01000000000000000000100B /* MLXVLM */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		040000000000000000000301 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 010000000000000000000401 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 040000000000000000000501;
+			remoteInfo = ReEnchantedWidgetsExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		040000000000000000000B02 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				041000000000000000000205 /* ReEnchantedWidgetsExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		010000000000000000000101 /* InsideCoverApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverApp.swift; sourceTree = "<group>"; };
@@ -90,6 +122,7 @@
 		020000000000000000000108 /* SourceAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceAdapters.swift; sourceTree = "<group>"; };
 		020000000000000000000109 /* LiteraryContinuity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteraryContinuity.swift; sourceTree = "<group>"; };
 		02000000000000000000010A /* MonthlyEdition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEdition.swift; sourceTree = "<group>"; };
+		02000000000000000000010E /* EditionCurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionCurator.swift; sourceTree = "<group>"; };
 		02000000000000000000010B /* Constellations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constellations.swift; sourceTree = "<group>"; };
 		02000000000000000000010C /* TheBleed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheBleed.swift; sourceTree = "<group>"; };
 		02000000000000000000010D /* WorldEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldEvents.swift; sourceTree = "<group>"; };
@@ -98,6 +131,13 @@
 		030000000000000000000102 /* BookShopSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookShopSheet.swift; sourceTree = "<group>"; };
 		030000000000000000000103 /* MonthlyEditionPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEditionPDF.swift; sourceTree = "<group>"; };
 		030000000000000000000104 /* DictationInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationInput.swift; sourceTree = "<group>"; };
+		040000000000000000000101 /* ReEnchantedWidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReEnchantedWidgetSnapshot.swift; sourceTree = "<group>"; };
+		040000000000000000000102 /* ReEnchantedWidgetSnapshotWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReEnchantedWidgetSnapshotWriter.swift; sourceTree = "<group>"; };
+		040000000000000000000103 /* ReEnchantedWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReEnchantedWidgets.swift; sourceTree = "<group>"; };
+		040000000000000000000104 /* ReEnchantedWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ReEnchantedWidgets.entitlements; sourceTree = "<group>"; };
+		040000000000000000000105 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		040000000000000000000106 /* ReEnchantedWidgetIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReEnchantedWidgetIntents.swift; sourceTree = "<group>"; };
+		040000000000000000000201 /* ReEnchantedWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ReEnchantedWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -114,6 +154,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		040000000000000000000701 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -121,6 +168,7 @@
 			isa = PBXGroup;
 			children = (
 				010000000000000000000802 /* InsideCoverApp */,
+				040000000000000000000802 /* ReEnchantedWidgets */,
 				010000000000000000000804 /* Shared */,
 				010000000000000000000805 /* Sample */,
 				010000000000000000000806 /* Products */,
@@ -132,6 +180,7 @@
 			children = (
 				010000000000000000000101 /* InsideCoverApp.swift */,
 				010000000000000000000102 /* ContentView.swift */,
+				040000000000000000000102 /* ReEnchantedWidgetSnapshotWriter.swift */,
 				01000000000000000000010F /* AppSupport.swift */,
 				010000000000000000000110 /* LocalBrainServices.swift */,
 				010000000000000000000111 /* BookStatusCards.swift */,
@@ -158,6 +207,7 @@
 			isa = PBXGroup;
 			children = (
 				010000000000000000000103 /* InsideCoverState.swift */,
+				040000000000000000000101 /* ReEnchantedWidgetSnapshot.swift */,
 				010000000000000000000118 /* SentenceBuilder.swift */,
 				030000000000000000000100 /* StacksSearch.swift */,
 				020000000000000000000100 /* PageModel.swift */,
@@ -174,6 +224,8 @@
 				02000000000000000000010B /* Constellations.swift */,
 				02000000000000000000010C /* TheBleed.swift */,
 				02000000000000000000010A /* MonthlyEdition.swift */,
+				02000000000000000000010E /* EditionCurator.swift */,
+				040000000000000000000106 /* ReEnchantedWidgetIntents.swift */,
 				010000000000000000000104 /* InsideCoverStore.swift */,
 				01000000000000000000010C /* BookReferenceLibrary.json */,
 				01000000000000000000010E /* BookArchiveDatabase.swift */,
@@ -193,8 +245,19 @@
 			isa = PBXGroup;
 			children = (
 				010000000000000000000201 /* InsideCoverApp.app */,
+				040000000000000000000201 /* ReEnchantedWidgetsExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		040000000000000000000802 /* ReEnchantedWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				040000000000000000000103 /* ReEnchantedWidgets.swift */,
+				040000000000000000000104 /* ReEnchantedWidgets.entitlements */,
+				040000000000000000000105 /* Info.plist */,
+			);
+			path = ReEnchantedWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -207,10 +270,12 @@
 				010000000000000000000A01 /* Sources */,
 				010000000000000000000701 /* Frameworks */,
 				010000000000000000000B01 /* Resources */,
+				040000000000000000000B02 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				040000000000000000000601 /* PBXTargetDependency */,
 			);
 			name = InsideCoverApp;
 			packageProductDependencies = (
@@ -225,6 +290,25 @@
 			productReference = 010000000000000000000201 /* InsideCoverApp.app */;
 			productType = "com.apple.product-type.application";
 		};
+		040000000000000000000501 /* ReEnchantedWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 040000000000000000000901 /* Build configuration list for PBXNativeTarget "ReEnchantedWidgetsExtension" */;
+			buildPhases = (
+				040000000000000000000A01 /* Sources */,
+				040000000000000000000701 /* Frameworks */,
+				040000000000000000000B01 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ReEnchantedWidgetsExtension;
+			packageProductDependencies = (
+			);
+			productName = ReEnchantedWidgetsExtension;
+			productReference = 040000000000000000000201 /* ReEnchantedWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -236,6 +320,9 @@
 				LastUpgradeCheck = 1540;
 				TargetAttributes = {
 					010000000000000000000501 = {
+						CreatedOnToolsVersion = 15.4;
+					};
+					040000000000000000000501 = {
 						CreatedOnToolsVersion = 15.4;
 					};
 				};
@@ -261,6 +348,7 @@
 			projectRoot = "";
 			targets = (
 				010000000000000000000501 /* InsideCoverApp */,
+				040000000000000000000501 /* ReEnchantedWidgetsExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -278,6 +366,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		040000000000000000000B01 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -287,6 +382,7 @@
 			files = (
 				010000000000000000000001 /* InsideCoverApp.swift in Sources */,
 				010000000000000000000002 /* ContentView.swift in Sources */,
+				041000000000000000000202 /* ReEnchantedWidgetSnapshotWriter.swift in Sources */,
 				010000000000000000000011 /* BookDatabase.swift in Sources */,
 				010000000000000000000017 /* AppSupport.swift in Sources */,
 				010000000000000000000018 /* LocalBrainServices.swift in Sources */,
@@ -302,6 +398,8 @@
 				030000000000000000000203 /* MonthlyEditionPDF.swift in Sources */,
 				030000000000000000000204 /* DictationInput.swift in Sources */,
 				010000000000000000000003 /* InsideCoverState.swift in Sources */,
+				041000000000000000000201 /* ReEnchantedWidgetSnapshot.swift in Sources */,
+				041000000000000000000206 /* ReEnchantedWidgetIntents.swift in Sources */,
 				010000000000000000000020 /* SentenceBuilder.swift in Sources */,
 				030000000000000000000200 /* StacksSearch.swift in Sources */,
 				020000000000000000000200 /* PageModel.swift in Sources */,
@@ -318,12 +416,31 @@
 				02000000000000000000020B /* Constellations.swift in Sources */,
 				02000000000000000000020C /* TheBleed.swift in Sources */,
 				02000000000000000000020A /* MonthlyEdition.swift in Sources */,
+				02000000000000000000020E /* EditionCurator.swift in Sources */,
 				010000000000000000000004 /* InsideCoverStore.swift in Sources */,
 				010000000000000000000015 /* BookArchiveDatabase.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		040000000000000000000A01 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				041000000000000000000203 /* ReEnchantedWidgets.swift in Sources */,
+				041000000000000000000204 /* ReEnchantedWidgetSnapshot.swift in Sources */,
+				041000000000000000000207 /* ReEnchantedWidgetIntents.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		040000000000000000000601 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 040000000000000000000501 /* ReEnchantedWidgetsExtension */;
+			targetProxy = 040000000000000000000301 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		010000000000000000000C01 /* Debug */ = {
@@ -454,6 +571,14 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = InsideCoverApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ReEnchanted;
+				INFOPLIST_KEY_CFBundleURLTypes = (
+					{
+						CFBundleURLName = com.openclaw.enchantify.insidecover;
+						CFBundleURLSchemes = (
+							reenchanted,
+						);
+					},
+				);
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.";
@@ -497,6 +622,14 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = InsideCoverApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ReEnchanted;
+				INFOPLIST_KEY_CFBundleURLTypes = (
+					{
+						CFBundleURLName = com.openclaw.enchantify.insidecover;
+						CFBundleURLSchemes = (
+							reenchanted,
+						);
+					},
+				);
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.";
@@ -529,6 +662,62 @@
 			};
 			name = Release;
 		};
+		040000000000000000000D01 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ReEnchantedWidgets/ReEnchantedWidgets.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3YH7862K4Q;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ReEnchantedWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.openclaw.enchantify.insidecover.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		040000000000000000000D02 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ReEnchantedWidgets/ReEnchantedWidgets.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3YH7862K4Q;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ReEnchantedWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.openclaw.enchantify.insidecover.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -546,6 +735,15 @@
 			buildConfigurations = (
 				010000000000000000000D01 /* Debug */,
 				010000000000000000000D02 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		040000000000000000000901 /* Build configuration list for PBXNativeTarget "ReEnchantedWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				040000000000000000000D01 /* Debug */,
+				040000000000000000000D02 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

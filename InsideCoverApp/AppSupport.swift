@@ -4,6 +4,9 @@ import Darwin.Mach
 #if canImport(AVFoundation)
 import AVFoundation
 #endif
+#if canImport(MediaPlayer)
+import MediaPlayer
+#endif
 #if canImport(LocalAuthentication)
 import LocalAuthentication
 #endif
@@ -274,6 +277,18 @@ enum BookFeedback {
         #endif
     }
 
+    /// A whisper-light haptic with no sound, for press-down feedback on tap
+    /// targets. Safe to fire on every button: it carries no audio, and lands
+    /// on touch-down so it layers under (rather than collides with) any cue a
+    /// button plays on release. Respects the reader's haptic-mode setting.
+    static func pressTick() {
+        #if canImport(UIKit)
+        guard hapticMode != .off else { return }
+        let intensity = hapticMode == .gentle ? 0.18 : 0.3
+        UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: intensity)
+        #endif
+    }
+
     static var hapticMode: HapticMode {
         get { HapticMode(rawValue: UserDefaults.standard.string(forKey: "bookHapticMode") ?? "full") ?? .full }
         set {
@@ -507,11 +522,16 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     private var filePlayer: AVAudioPlayer?
     private var activeBuffer: AVAudioPCMBuffer?
     private var didAttachPlayer = false
+    private var didConfigureRemoteCommands = false
+    private var systemNowPlayingStartedAt: Date?
+    private var systemNowPlayingPausedElapsed: TimeInterval?
+    private var systemNowPlayingDuration: TimeInterval?
 
     private(set) var playback = RadioPlaybackState.off
     private(set) var activeStation: RadioStation?
     private(set) var activeTrack: RadioTrack?
     private(set) var isPlaying = false
+    private(set) var isPlayingTuningNoise = false
     private(set) var statusLine = "The dial is cold."
     private(set) var sourceLine = "No broadcast is tuned."
     /// The DJ break currently on air, if any (for UI; nil while a song plays).
@@ -528,6 +548,9 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     /// True while a spoken break is on air (so the finish handler knows to
     /// resume music rather than count another song).
     private var isPlayingBanter = false
+    /// A lock-screen pause is reversible. The in-app power/Quiet controls still
+    /// call `stop`, which clears the station and removes Now Playing metadata.
+    private var isPausedByRemoteControl = false
     /// Invalidates pending caption-only advances when the dial changes.
     private var playoutToken = UUID()
     /// Song queued to play once the current DJ break finishes.
@@ -553,6 +576,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     private override init() { super.init() }
 
     func restore(state: RadioPlaybackState, unlockedPackIDs: Set<String>) {
+        configureSystemNowPlayingIfNeeded()
         playback = state
         tracksSinceTune = 0
         tracksSinceBanter = 0
@@ -569,10 +593,13 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
 
     func tune(to station: RadioStation, unlockedPackIDs: Set<String>, persist: Bool = true) {
         configureAudioSession()
+        configureSystemNowPlayingIfNeeded()
         currentPackIDs = unlockedPackIDs
         tracksSinceTune = 0
         tracksSinceBanter = 0
         isPlayingBanter = false
+        isPausedByRemoteControl = false
+        isPlayingTuningNoise = false
         nowPlayingBanter = nil
         playoutToken = UUID()
         pendingTrack = nil
@@ -626,6 +653,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                 activeBuffer = nil
                 activeTrack = track
                 sourceLine = "Playing \(track.title) from local radio assets."
+                updateSystemNowPlayingSong(track, station: station, duration: audioPlayer.duration)
             } catch {
                 appLog.error("Radio asset failed: \(error.localizedDescription, privacy: .public)")
                 playProceduralFallback(for: station, track: track)
@@ -691,7 +719,10 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         playback.recordBanter(banter.id)
         tracksSinceBanter = 0
         nowPlayingBanter = banter
-        statusLine = "\(station.displayFrequency) \(station.title): \(banter.caption)"
+        statusLine = "\(station.displayFrequency) \(station.title) — \(station.hostDisplayName) on air."
+        player.stop()
+        filePlayer?.stop()
+        filePlayer = nil
         PlayerVault.shared.data.radio = playback
         PlayerVault.shared.save()
 
@@ -702,12 +733,11 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                 voice.volume = 1.0
                 voice.delegate = self
                 voice.prepareToPlay()
-                player.stop()      // duck any procedural bed
-                filePlayer?.stop()
                 voice.play()
                 filePlayer = voice
                 isPlayingBanter = true
                 sourceLine = "On air: \(station.title) — \(banter.category)."
+                updateSystemNowPlayingBanter(banter, station: station, duration: voice.duration)
                 return
             } catch {
                 appLog.error("Banter asset failed: \(error.localizedDescription, privacy: .public)")
@@ -716,6 +746,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         // Caption-only (no audio yet): hold the line a beat, then resume music.
         isPlayingBanter = false
         sourceLine = "On air: \(station.title) — \(banter.category) (caption)."
+        updateSystemNowPlayingBanter(banter, station: station, duration: 5)
         let token = playoutToken
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
             guard let self, self.isPlaying, self.playoutToken == token else { return }
@@ -740,12 +771,83 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         BookFeedback.radioLocked()
     }
 
+    func tuneDial(frequency: Double, unlockedPackIDs: Set<String>) {
+        if let station = RadioStationRegistry.tunedStation(to: frequency, unlockedPackIDs: unlockedPackIDs) {
+            if activeStation?.id == station.id, isPlaying, !isPlayingTuningNoise { return }
+            tune(to: station, unlockedPackIDs: unlockedPackIDs)
+            BookFeedback.radioLocked()
+        } else {
+            playTuningNoise(frequency: frequency)
+        }
+    }
+
+    func playTuningNoise(frequency: Double, persist: Bool = true) {
+        configureAudioSession()
+        configureSystemNowPlayingIfNeeded()
+        currentPackIDs = []
+        tracksSinceTune = 0
+        tracksSinceBanter = 0
+        isPlaying = true
+        isPlayingBanter = false
+        isPausedByRemoteControl = false
+        isPlayingTuningNoise = true
+        nowPlayingBanter = nil
+        activeStation = nil
+        activeTrack = nil
+        pendingTrack = nil
+        playoutToken = UUID()
+
+        let noise = min(1, max(0.18, abs(sin(frequency)) * 0.82))
+        playback = RadioPlaybackState(
+            activeStationID: nil,
+            startedAt: nil,
+            lastTunedAt: Date(),
+            lastTrackID: nil,
+            tuningNoise: noise,
+            listening: playback.listening,
+            recentBanterIDs: playback.recentBanterIDs,
+            recentTrackIDs: playback.recentTrackIDs
+        )
+        statusLine = String(format: "%.1f FM — static between stations.", frequency)
+        sourceLine = staticSourceLine(for: frequency)
+
+        filePlayer?.stop()
+        filePlayer = nil
+        attachPlayerIfNeeded()
+        if !player.isPlaying || activeBuffer == nil {
+            let buffer = makeTuningNoiseBuffer(seedFrequency: frequency)
+            activeBuffer = buffer
+            player.stop()
+            player.scheduleBuffer(buffer, at: nil, options: [.loops])
+            if !engine.isRunning {
+                do {
+                    try engine.start()
+                } catch {
+                    statusLine = "The static sparked but would not hold: \(error.localizedDescription)"
+                    appLog.error("Radio static engine failed: \(error.localizedDescription, privacy: .public)")
+                    return
+                }
+            }
+            player.volume = 0.20
+            player.play()
+        }
+
+        if persist {
+            PlayerVault.shared.data.radio = playback
+            PlayerVault.shared.save()
+        }
+        updateSystemNowPlayingStatic(frequency: frequency)
+    }
+
     func stop(persist: Bool = true) {
         player.stop()
         filePlayer?.stop()
         filePlayer = nil
+        activeBuffer = nil
         isPlaying = false
         isPlayingBanter = false
+        isPausedByRemoteControl = false
+        isPlayingTuningNoise = false
         nowPlayingBanter = nil
         tracksSinceTune = 0
         tracksSinceBanter = 0
@@ -760,6 +862,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             PlayerVault.shared.data.radio = playback
             PlayerVault.shared.save()
         }
+        clearSystemNowPlaying()
     }
 
     func hapticTick() {
@@ -769,11 +872,283 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     private func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try session.setCategory(.playback, mode: .default)
             try session.setActive(true)
         } catch {
             appLog.error("Radio audio session failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    private func configureSystemNowPlayingIfNeeded() {
+        #if canImport(MediaPlayer)
+        guard !didConfigureRemoteCommands else {
+            updateRemoteCommandAvailability()
+            return
+        }
+        didConfigureRemoteCommands = true
+        let commandCenter = MPRemoteCommandCenter.shared()
+        commandCenter.playCommand.addTarget { [weak self] _ in
+            Task { @MainActor in _ = self?.resumeFromRemoteControl() }
+            return .success
+        }
+        commandCenter.pauseCommand.addTarget { [weak self] _ in
+            Task { @MainActor in _ = self?.pauseFromRemoteControl() }
+            return .success
+        }
+        commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
+            Task { @MainActor in self?.toggleRemotePlayback() }
+            return .success
+        }
+        commandCenter.nextTrackCommand.addTarget { [weak self] _ in
+            Task { @MainActor in _ = self?.skipToNextRadioItemFromRemoteControl() }
+            return .success
+        }
+        commandCenter.previousTrackCommand.isEnabled = false
+        commandCenter.changePlaybackPositionCommand.isEnabled = false
+        commandCenter.skipForwardCommand.isEnabled = false
+        commandCenter.skipBackwardCommand.isEnabled = false
+        #if canImport(UIKit)
+        UIApplication.shared.beginReceivingRemoteControlEvents()
+        #endif
+        updateRemoteCommandAvailability()
+        #endif
+    }
+
+    private func pauseFromRemoteControl() -> Bool {
+        guard isPlaying else { return false }
+        systemNowPlayingPausedElapsed = currentSystemNowPlayingElapsed()
+        filePlayer?.pause()
+        if player.isPlaying {
+            player.pause()
+        }
+        isPlaying = false
+        isPausedByRemoteControl = true
+        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title) — paused." } ?? "Radio static paused."
+        setSystemNowPlayingPlaybackRate(0)
+        return true
+    }
+
+    private func resumeFromRemoteControl() -> Bool {
+        guard isPausedByRemoteControl else { return false }
+        configureAudioSession()
+        if let elapsed = systemNowPlayingPausedElapsed {
+            systemNowPlayingStartedAt = Date().addingTimeInterval(-elapsed)
+        }
+        systemNowPlayingPausedElapsed = nil
+        if filePlayer == nil, nowPlayingBanter != nil, let station = activeStation {
+            resumeAfterBanter(for: station)
+        } else if let filePlayer {
+            filePlayer.play()
+        } else if activeBuffer != nil {
+            attachPlayerIfNeeded()
+            if !engine.isRunning {
+                do {
+                    try engine.start()
+                } catch {
+                    appLog.error("Radio engine resume failed: \(error.localizedDescription, privacy: .public)")
+                    return false
+                }
+            }
+            player.play()
+        } else if let station = activeStation {
+            beginTrack(activeTrack ?? selectTrack(for: station), for: station)
+        } else {
+            return false
+        }
+        isPlaying = true
+        isPausedByRemoteControl = false
+        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title) — on air." } ?? "Radio static on air."
+        setSystemNowPlayingPlaybackRate(1)
+        return true
+    }
+
+    private func toggleRemotePlayback() {
+        if isPlaying {
+            _ = pauseFromRemoteControl()
+        } else {
+            _ = resumeFromRemoteControl()
+        }
+    }
+
+    private func skipToNextRadioItemFromRemoteControl() -> Bool {
+        guard let station = activeStation else { return false }
+        configureAudioSession()
+        configureSystemNowPlayingIfNeeded()
+        pendingTrack = nil
+        isPlaying = true
+        isPausedByRemoteControl = false
+        isPlayingBanter = false
+        tracksSinceTune += 1
+        beginTrack(selectNextTrack(for: station), for: station)
+        PlayerVault.shared.data.radio = playback
+        PlayerVault.shared.save()
+        return true
+    }
+
+    private func updateSystemNowPlayingSong(_ track: RadioTrack?, station: RadioStation, duration: TimeInterval?) {
+        #if canImport(MediaPlayer)
+        configureSystemNowPlayingIfNeeded()
+        systemNowPlayingStartedAt = Date()
+        systemNowPlayingPausedElapsed = nil
+        systemNowPlayingDuration = duration ?? track?.durationSeconds.map(TimeInterval.init)
+
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: track?.title ?? station.title,
+            MPMediaItemPropertyArtist: track?.artist ?? station.title,
+            MPMediaItemPropertyAlbumTitle: "\(station.displayFrequency) \(station.title)",
+            MPNowPlayingInfoPropertyIsLiveStream: duration == nil,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: 0,
+            MPNowPlayingInfoPropertyPlaybackRate: 1,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: 1,
+            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue
+        ]
+        if let duration = systemNowPlayingDuration, duration > 0 {
+            info[MPMediaItemPropertyPlaybackDuration] = duration
+        }
+        if let artwork = makeRadioArtwork(title: station.title) {
+            info[MPMediaItemPropertyArtwork] = artwork
+        }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        MPNowPlayingInfoCenter.default().playbackState = .playing
+        updateRemoteCommandAvailability()
+        #endif
+    }
+
+    private func updateSystemNowPlayingBanter(_ banter: RadioBanter, station: RadioStation, duration: TimeInterval?) {
+        #if canImport(MediaPlayer)
+        configureSystemNowPlayingIfNeeded()
+        systemNowPlayingStartedAt = Date()
+        systemNowPlayingPausedElapsed = nil
+        systemNowPlayingDuration = duration
+
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: "DJ: \(station.hostDisplayName)",
+            MPMediaItemPropertyArtist: station.title,
+            MPMediaItemPropertyAlbumTitle: "\(station.displayFrequency) \(station.title)",
+            MPMediaItemPropertyComments: banter.caption,
+            MPNowPlayingInfoPropertyIsLiveStream: duration == nil,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: 0,
+            MPNowPlayingInfoPropertyPlaybackRate: 1,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: 1,
+            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue
+        ]
+        if let duration, duration > 0 {
+            info[MPMediaItemPropertyPlaybackDuration] = duration
+        }
+        if let artwork = makeRadioArtwork(title: station.hostDisplayName) {
+            info[MPMediaItemPropertyArtwork] = artwork
+        }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        MPNowPlayingInfoCenter.default().playbackState = .playing
+        updateRemoteCommandAvailability()
+        #endif
+    }
+
+    private func updateSystemNowPlayingStatic(frequency: Double) {
+        #if canImport(MediaPlayer)
+        configureSystemNowPlayingIfNeeded()
+        systemNowPlayingStartedAt = Date()
+        systemNowPlayingPausedElapsed = nil
+        systemNowPlayingDuration = nil
+
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: "Static between stations",
+            MPMediaItemPropertyArtist: "ReEnchanted Radio",
+            MPMediaItemPropertyAlbumTitle: String(format: "%.1f FM", frequency),
+            MPMediaItemPropertyComments: sourceLine,
+            MPNowPlayingInfoPropertyIsLiveStream: true,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: 0,
+            MPNowPlayingInfoPropertyPlaybackRate: 1,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: 1,
+            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue
+        ]
+        if let artwork = makeRadioArtwork(title: "Static") {
+            info[MPMediaItemPropertyArtwork] = artwork
+        }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        MPNowPlayingInfoCenter.default().playbackState = .playing
+        updateRemoteCommandAvailability()
+        #endif
+    }
+
+    private func setSystemNowPlayingPlaybackRate(_ rate: Double) {
+        #if canImport(MediaPlayer)
+        var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentSystemNowPlayingElapsed()
+        info[MPNowPlayingInfoPropertyPlaybackRate] = rate
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        MPNowPlayingInfoCenter.default().playbackState = rate == 0 ? .paused : .playing
+        updateRemoteCommandAvailability()
+        #endif
+    }
+
+    private func clearSystemNowPlaying() {
+        #if canImport(MediaPlayer)
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        MPNowPlayingInfoCenter.default().playbackState = .stopped
+        systemNowPlayingStartedAt = nil
+        systemNowPlayingPausedElapsed = nil
+        systemNowPlayingDuration = nil
+        updateRemoteCommandAvailability()
+        #endif
+    }
+
+    private func currentSystemNowPlayingElapsed() -> TimeInterval {
+        if let filePlayer {
+            return filePlayer.currentTime
+        }
+        if let paused = systemNowPlayingPausedElapsed {
+            return paused
+        }
+        guard let startedAt = systemNowPlayingStartedAt else { return 0 }
+        let elapsed = max(0, Date().timeIntervalSince(startedAt))
+        if let duration = systemNowPlayingDuration, duration > 0 {
+            return elapsed.truncatingRemainder(dividingBy: duration)
+        }
+        return elapsed
+    }
+
+    private func updateRemoteCommandAvailability() {
+        #if canImport(MediaPlayer)
+        let commandCenter = MPRemoteCommandCenter.shared()
+        commandCenter.playCommand.isEnabled = isPausedByRemoteControl
+        commandCenter.pauseCommand.isEnabled = isPlaying
+        commandCenter.togglePlayPauseCommand.isEnabled = isPlaying || isPausedByRemoteControl
+        commandCenter.nextTrackCommand.isEnabled = activeStation != nil
+        commandCenter.previousTrackCommand.isEnabled = false
+        commandCenter.changePlaybackPositionCommand.isEnabled = false
+        commandCenter.skipForwardCommand.isEnabled = false
+        commandCenter.skipBackwardCommand.isEnabled = false
+        #endif
+    }
+
+    private func makeRadioArtwork(title: String) -> Any? {
+        #if canImport(MediaPlayer) && canImport(UIKit)
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 512, height: 512))
+        let image = renderer.image { context in
+            let rect = CGRect(x: 0, y: 0, width: 512, height: 512)
+            UIColor(red: 0.05, green: 0.05, blue: 0.09, alpha: 1).setFill()
+            context.fill(rect)
+            UIColor(red: 0.96, green: 0.73, blue: 0.36, alpha: 1).setStroke()
+            let outer = CGRect(x: 64, y: 64, width: 384, height: 384)
+            UIBezierPath(ovalIn: outer).stroke()
+            let icon = UIImage(systemName: "radio.fill")?
+                .withTintColor(UIColor(red: 0.96, green: 0.73, blue: 0.36, alpha: 1), renderingMode: .alwaysOriginal)
+            icon?.draw(in: CGRect(x: 166, y: 128, width: 180, height: 180))
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .center
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 34, weight: .bold),
+                .foregroundColor: UIColor(red: 0.93, green: 0.88, blue: 0.76, alpha: 1),
+                .paragraphStyle: paragraph
+            ]
+            let displayTitle = String(title.prefix(28))
+            displayTitle.draw(in: CGRect(x: 46, y: 326, width: 420, height: 92), withAttributes: attributes)
+        }
+        return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        #else
+        return nil
+        #endif
     }
 
     private func attachPlayerIfNeeded() {
@@ -864,6 +1239,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     }
 
     private func playProceduralFallback(for station: RadioStation, track: RadioTrack?) {
+        isPlayingTuningNoise = false
         attachPlayerIfNeeded()
         let buffer = makeStationBuffer(for: station)
         activeBuffer = buffer
@@ -883,6 +1259,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         player.play()
         sourceLine = track.map { "Procedural fallback for \($0.title). Drop \($0.assetName ?? $0.id).m4a into Radio to replace it." }
             ?? "Procedural fallback broadcast."
+        updateSystemNowPlayingSong(track, station: station, duration: nil)
     }
 
     private func makeFormat() -> AVAudioFormat {
@@ -917,6 +1294,44 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         return buffer
     }
 
+    private func makeTuningNoiseBuffer(seedFrequency: Double) -> AVAudioPCMBuffer {
+        let sampleRate = 44_100.0
+        let duration = 7.0
+        let frameCount = AVAudioFrameCount(sampleRate * duration)
+        let format = makeFormat()
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount)!
+        buffer.frameLength = frameCount
+        let left = buffer.floatChannelData![0]
+        let right = buffer.floatChannelData![1]
+        var noiseSeed = UInt64(abs(Int(seedFrequency * 10_000))) + 97
+        let driftHz = 0.07 + (seedFrequency.truncatingRemainder(dividingBy: 3) * 0.02)
+        let whistleHz = 520.0 + seedFrequency * 3.0
+        for frame in 0..<Int(frameCount) {
+            let t = Double(frame) / sampleRate
+            noiseSeed = noiseSeed &* 2862933555777941757 &+ 3037000493
+            let rawNoise = Double(noiseSeed & 0xffff) / Double(UInt16.max)
+            let hiss = (rawNoise - 0.5) * 0.17
+            let drift = sin(2 * .pi * driftHz * t)
+            let whistle = sin(2 * .pi * (whistleHz + drift * 22) * t) * 0.018
+            let flutter = sin(2 * .pi * 6.0 * t + drift) * 0.012
+            let sample = Float(hiss + whistle + flutter)
+            left[frame] = sample
+            right[frame] = Float(Double(sample) * 0.78 - whistle * 0.35)
+        }
+        return buffer
+    }
+
+    private func staticSourceLine(for frequency: Double) -> String {
+        let lines = [
+            "Static, page-rustle, and a voice ducking behind the wallpaper.",
+            "A narrow-band hiss with something tapping from the other side.",
+            "Between stations: silver noise, bent bells, almost-words.",
+            "The dial is catching weather instead of music."
+        ]
+        let index = abs(Int((frequency * 10).rounded())) % lines.count
+        return lines[index]
+    }
+
     private func recipe(for stationID: String) -> (baseHz: Double, overtoneHz: Double, shimmerHz: Double, slowHz: Double, pulseHz: Double, baseGain: Double, overtoneGain: Double, shimmerGain: Double, staticAmount: Double) {
         switch stationID {
         case "mothlight-beats":
@@ -937,8 +1352,10 @@ final class BookRadioManager {
     private(set) var activeStation: RadioStation?
     private(set) var activeTrack: RadioTrack?
     private(set) var isPlaying = false
+    private(set) var isPlayingTuningNoise = false
     private(set) var statusLine = "Audio playback is unavailable on this platform."
     private(set) var sourceLine = "No broadcast is tuned."
+    private(set) var nowPlayingBanter: RadioBanter?
     private init() {}
     func restore(state: RadioPlaybackState, unlockedPackIDs: Set<String>) { playback = state }
     func tune(stationID: String, unlockedPackIDs: Set<String>) {
@@ -948,10 +1365,34 @@ final class BookRadioManager {
         PlayerVault.shared.data.radio = playback
         PlayerVault.shared.save()
     }
+    func tuneDial(frequency: Double, unlockedPackIDs: Set<String>) {
+        if let station = RadioStationRegistry.tunedStation(to: frequency, unlockedPackIDs: unlockedPackIDs) {
+            tune(stationID: station.id, unlockedPackIDs: unlockedPackIDs)
+        } else {
+            playTuningNoise(frequency: frequency)
+        }
+    }
+    func playTuningNoise(frequency: Double, persist: Bool = true) {
+        isPlaying = true
+        isPlayingTuningNoise = true
+        activeStation = nil
+        activeTrack = nil
+        nowPlayingBanter = nil
+        playback = RadioPlaybackState(activeStationID: nil, lastTunedAt: Date(), tuningNoise: 1)
+        statusLine = String(format: "%.1f FM — static between stations.", frequency)
+        sourceLine = "Between stations: silver noise, bent bells, almost-words."
+        if persist {
+            PlayerVault.shared.data.radio = playback
+            PlayerVault.shared.save()
+        }
+    }
     func stop(persist: Bool = true) {
         playback = .off
         activeStation = nil
         activeTrack = nil
+        nowPlayingBanter = nil
+        isPlaying = false
+        isPlayingTuningNoise = false
         if persist {
             PlayerVault.shared.data.radio = playback
             PlayerVault.shared.save()
@@ -1013,21 +1454,6 @@ enum BraidingQuips {
         "A little wonder has been located under the floorboards.",
         "The margins are arguing over the best adjective.",
         "Almost there. The sentence has put on its shoes."
-    ]
-}
-
-enum LocalBrainQuips {
-    static let lines = [
-        "The Book is making room for one thought at a time.",
-        "A margin clerk is holding the queue with both hands.",
-        "The ink is drying in the order it arrived.",
-        "The local brain has lit one lamp and no more.",
-        "One page is speaking. The others are waiting politely.",
-        "The shelves are staying quiet so the sentence can land.",
-        "The Book is checking the thread before turning the page.",
-        "The model is awake; the room is being kept still.",
-        "A small, stubborn paragraph is assembling itself.",
-        "No hurry. The important ink dislikes being shoved."
     ]
 }
 
@@ -2506,5 +2932,35 @@ enum VellumNutritionist {
             fat: value(["Total lipid (fat)"])
         )
         return estimate.kilocalories > 0 ? estimate : nil
+    }
+}
+
+/// A tactile press style for the Book's hand-made tap targets: a gentle scale
+/// and brightness dip while held, on a soft spring. The press response is direct
+/// manipulation (not autonomous motion), so it intentionally stays active under
+/// Reduce Motion. Purely visual — it does not fire haptics or sounds, so it is
+/// safe to layer onto buttons that already play their own `BookFeedback` cue.
+struct BookPressStyle: ButtonStyle {
+    var scale: CGFloat = 0.96
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            // A press-down scale is direct manipulation, not autonomous motion,
+            // so Apple's HIG keeps it even under Reduce Motion. We deliberately
+            // do NOT gate this on reduceMotion so taps always feel alive.
+            .scaleEffect(configuration.isPressed ? scale : 1, anchor: .center)
+            .brightness(configuration.isPressed ? 0.05 : 0)
+            .opacity(configuration.isPressed ? 0.92 : 1)
+            .animation(.spring(response: 0.26, dampingFraction: 0.6), value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, isPressed in
+                if isPressed { BookFeedback.pressTick() }
+            }
+    }
+}
+
+extension ButtonStyle where Self == BookPressStyle {
+    /// Tactile press feedback matching the Book's parchment aesthetic.
+    static func bookPress(scale: CGFloat = 0.96) -> BookPressStyle {
+        BookPressStyle(scale: scale)
     }
 }

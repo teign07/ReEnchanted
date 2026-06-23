@@ -23,12 +23,13 @@ durations, relationships, recurring Beliefs, and seasonal shape.
 - Shared SwiftPM package: `InsideCoverCore`
 - Supported runtime target: iOS 17+
 - Shared-core test target: `Tests/InsideCoverCoreTests`
-- Current verified shared suite: 415 tests, 1 skipped
+- Current verified shared suite: 482 tests, 1 skipped
 - Device builds: build/install to a physical device (the local brain only runs on
   device; the iOS Simulator compiles but exercises only the fake fallbacks).
-- Widget status: removed from this project. The old widget source has been
-  moved out to `../DetachedInsideCoverWidget/` and is intentionally not part of
-  the app target.
+- Widget status: **shipped** as a Home Screen / Lock Screen extension target,
+  `ReEnchantedWidgets`, with interactive (App Intents) radio and Wonder Compass
+  widgets. It reads a snapshot the app publishes to a shared App Group
+  (`group.com.openclaw.enchantify.insidecover`). See "Widgets" below.
 
 ## Repository Layout
 
@@ -40,14 +41,16 @@ InsideCover/
 ├── README.md                           Setup-focused readme
 ├── SETUP.txt                           Local setup notes
 ├── InsideCoverApp/                     SwiftUI app, sheets, services, PDF export
-├── Shared/                             Codable models, curation, story systems
+├── ReEnchantedWidgets/                 WidgetKit extension target (widget bundle,
+│                                       Info.plist, entitlements)
+├── Shared/                             Codable models, curation, story systems,
+│                                       widget snapshot/intents (shared with extension)
 ├── Tests/InsideCoverCoreTests/         Unit tests for shared policy and systems
 ├── Sample/                             Sample payloads
 ├── scripts/                            Local validation/generation helpers
 ├── LandingPage/                        Static marketing site (index.html, app.js,
 │                                       styles.css, screenshots, radio audio previews)
-├── RemotionPromo/                      Separate promo-video project, not app core
-└── DetachedInsideCoverWidget/          Loose widget source, intentionally out of target
+└── RemotionPromo/                      Separate promo-video project, not app core
 ```
 
 ## Philosophy
@@ -206,7 +209,7 @@ bookOfYou, askTheBook, inkrestOfficeHours, faeBargain, bookFae,
 pactDispatch, festival, twoReadings, castBond, todaysSky, radio,
 bookJump, enchantment, anchor, academyClass, elective, packPage,
 calendar, helpTips, welcome, marginsAtlas, bookConnections, bookRemembered,
-bookNotices, theBleed, inventory
+bookNotices, glowInvitation, gamePage, theBleed, inventory
 ```
 
 Important model types:
@@ -237,10 +240,10 @@ Inventory, BookShop Preview, World Event, Rest, Mood, Diary, Souvenir,
 Book of You, Book Remembered, Book Connections, Book Notices, The Bleed,
 Ask the Book, Body, Fuel, Faculty Research, Character Letter, Support Guild,
 Dr. Inkrest's Office Hours, Fae Bargain, Book Fae, Pact Dispatch, Festival,
-Today's Sky, Radio, Book Jump, Two Readings, Cast Bond, Weather, Enchantment,
+Today's Sky, Radio, Book Jump, Two Readings, Cast Bond, Glow Invitation, Weather, Enchantment,
 Welcome, Local Brain Awake, Academy Class, Elective, Pack Page, Calendar, Quip,
 About You, Wonder Compass, Lore, Help Tips, Patreon, Illustration,
-Illuminated Photo, Story Page, Margins Atlas, Gossip, Cast Member,
+Illuminated Photo, Story Page, Game Page, Margins Atlas, Gossip, Cast Member,
 Outer Stacks Anchor, Location
 ```
 
@@ -326,6 +329,29 @@ pages (`CapturePageSheet`). It wraps the plain editor with the live nudge, a
 collapsible builder, tappable scaffold tokens, the transmutation chips, and a
 shimmer/alchemy treatment as the sentence strengthens — all driven by
 `SentenceBuilderEngine`, no model call.
+
+### Game Pages: The Sentence Runner
+
+`gamePage` is the first playable arcade-like page family. Its bundled game,
+**The Sentence Runner**, turns the reader's own archive into level design:
+`GamePageSourceAdapter` extracts and deduplicates short phrases from kept pages,
+selects a stable set for each six-hour slot, and mixes them with a small pool of
+the Nothing's flattening phrases ("fine", "whatever", "nothing much", and the
+like). The page rises automatically once at least six usable archive phrases
+exist and can also be opened manually.
+
+Opening the page presents a 28-second local SwiftUI/Canvas runner. The reader
+taps to jump, catches bright archive phrases, and tries to clear grey Nothing
+phrases. The run has no punitive failure state: `SentenceRunnerResult` records
+bright catches and grey touches as evidence, then `SentenceRunnerPoem` binds the
+result deterministically as empty-hands prose, a short poem, or (at four or more
+bright catches) a miniature story. The result becomes the keepable page text.
+
+After a run, the reader may explicitly ask the local Scribe to braid it.
+`MLXSentenceRunnerProseWriter` may polish only the supplied caught/grey phrases
+and deterministic draft; it may not invent events or expose game machinery.
+`FakeSentenceRunnerProseWriter` preserves the deterministic result when the
+model is unavailable. The game itself is entirely local and makes no model call.
 
 ### Book Of You
 
@@ -464,7 +490,13 @@ the chapter number is the month's position among all months with kept pages,
 and the subtitle is the month's theme name.
 
 `Shared/MonthlyEdition.swift` builds a `MonthlyEdition` for the previous
-calendar month. It curates:
+calendar month. The binder first runs the month through `EditionCurator`, the
+binding-side counterpart to the homescreen curator. It keeps expressive and
+reader-authored pages, samples only the strongest mundane logs, collapses exact
+duplicates, and reports anything kept in the archive but set aside from the
+book as a single "Kept, Not Bound" line.
+
+The resulting edition curates:
 
 - "What The Book Noticed"
 - "Daily Braids"
@@ -477,6 +509,11 @@ Every edition opens with a **foreword written by the Book**
 (`BookForewordWriter`): what the month left in its keeping, what it noticed,
 which constellations it named, and how its wagers went. The foreword is
 deterministic - the same month always gets the same foreword.
+
+Every monthly edition also has a closing. `BookForewordWriter.closing(...)`
+writes a deterministic last word; the export UI can optionally ask Gemma for a
+richer conclusion (`Bind with Gemma's conclusion`) and falls back to the
+deterministic closing if Gemma is unavailable or returns silence.
 
 ### Volume I — The Annual
 
@@ -523,6 +560,11 @@ margin (drawn from continuity signals, named constellations, and theme
 motifs); framed image plates (including Photos-library assets resolved at
 binding time when access is already granted); and a colophon.
 
+Interior reading pages now use a deterministic **composted parchment** layer:
+tinted paper wash, faint fibres, foxing, taped torn scraps in the gutter, torn
+section labels, taped marginalia notes, and stable per-page seeds. A given
+edition re-binds with the same paper, scraps, tape, and ornaments every time.
+
 The lab/export area in `ContentView` exposes `Bind monthly edition`; once
 generated, the control becomes a `ShareLink`.
 
@@ -548,14 +590,77 @@ Related pieces:
 
 Story Pages are generated narrative scenes built from the story field. They can
 include selected entities, threads, relationships, memories, recent real-world
-signals, and a three-choice grammar.
+signals, and a three-choice grammar. Ordinary Narrative OS Story Pages now use
+three separate, recombinable content layers:
+
+- a **Form** supplies the larger arc shape (Threshold, Small Mystery,
+  Visitation, Quiet Epic, Correspondence, Nocturne);
+- a **Genre** colors diction and mood without replacing the supplied facts;
+- a **Story Recipe** decides what concretely happens in this vignette.
+
+`StoryRecipe` is data rather than a hardcoded prompt branch. It declares
+eligibility requirements, scene mode, a premise template, required beats,
+structured turn/landing templates, Form/Genre affinities, author guidance,
+cooldown/suppression rules, and optional required entity IDs or tags. Recipes
+live beside Forms and Genres in `StoryFormPack`; bundled, entitled DLC, and
+reader-imported `.storyforms.json` packs therefore unlock all three together.
+Legacy packs without a `recipes` key decode with an empty recipe list, and an
+invalid recipe/template token is discarded without invalidating its pack.
+
+Before Gemma writes anything, `StoryScenePacketBuilder` selects one eligible
+recipe and resolves a `StorySceneBlueprint`. The blueprint commits to a cast,
+one exact grounding source, a filled premise, beats, scene mode, directives, and
+a real `StoryTurn`. Grounding prefers a recent kept page, then real signals such
+as weather/body or an authorized self fact, then entity memory or active world
+evidence, with real time/season as a privacy-safe final fallback. Pack recipes
+that require their own entity IDs/tags actively pull matching cast into the
+packet and then recompute relationship and memory context.
+
+The six bundled recipes are:
+
+- **Dorm-Room Visit** — conversation, companionship, or a small reveal;
+- **Nothing in the Library Corner** — environmental erasure with concrete
+  responses;
+- **Small Discovery** — a grounded clue that changes what is understood;
+- **Odd Favor** — one bounded fictional favor tied to the current thread;
+- **Shared Quiet** — ordinary company and exact noticing without forced drama;
+- **Concrete Disagreement** — two people differ over named evidence. It has
+  one-fifth normal weight and is suppressed for 72 hours after The Two Readings.
+
+Normal recipes rest for 18 hours before repeating unless no other eligible
+recipe remains. Recipe, Form, and Genre each receive a surface-history key, so
+variety works across all three layers.
+
+`StoryRecipeSceneMode` controls the prose contract: conversation favors speech,
+balanced scenes share weight between speech/observation/action, action scenes
+may move physically, and environmental scenes allow a place, object, weather,
+or the Nothing to act. This replaces the old universal rule that every scene
+must be a mostly-dialogue interpersonal disagreement. The internal Slice of
+Life / Progress Arc / Surprise roles remain stable for mechanics, but visible
+choices may now be speech, action, exploration, protection, or exact noticing.
+
+The full blueprint is flattened into surface metadata, round-trips through
+`StoryPageSceneDraft`, and remains fixed through prepared pages, results, and
+continuations. Old saved pages and nonordinary playable pages with no recipe
+metadata keep their legacy behavior. Continuations advance the selected Form
+while honoring the recipe's mode instead of globally rejecting environment-led
+prose.
+
+`StoryRecipeValidator` objectively checks grounding overlap, required cast,
+minimum completeness, conversation-mode dialogue, and generic choices. If the
+first local-model draft misses the contract, `MLXStoryPageWriter` retries once
+with the failed requirements and keeps the better-scoring usable draft; deterministic
+recipe fallbacks remain available when neither response parses.
 
 Related pieces:
 
+- `StoryRecipe`, `StoryRecipeTurnTemplate`, `StoryRecipeSceneMode`
+- `StoryGrounding`, `StorySceneBlueprint`, `StoryFormPack`
 - `StoryScenePacketBuilder`
 - `StoryPagePromptBuilder`
 - `StoryPageResultPromptBuilder`
 - `StoryPageSceneDraft`
+- `StoryRecipeValidator`
 - `MLXStoryPageWriter`
 - `MLXStoryPageResultWriter`
 - `NarrativeEventResolver`
@@ -750,13 +855,26 @@ Key pieces:
 
 Known anchors can light within roughly 200 meters. Unanchored real places can
 be offered as future anchors. Check-ins update the anchor ledger and can reward
-Belief.
+up to `AnchorRegistry.checkInBeliefReward` Belief.
+
+Anchor visits are now playable story pages, not static room summaries.
+`OuterStacksAnchorPageSourceAdapter` writes a place-native vignette, attaches
+structured choices (Honor the Rule, Approach the Fae, Test the Threshold), and
+adds an `AnchorTurnBuilder` turn to the metadata. Keeping a choice can advance
+the anchor's rolling `miniStory` through `AnchorMiniStory.advanced(...)`, so
+each return visit carries a short memory of how the room has changed.
 
 ### Classes, Clubs, And Electives
 
 Academy classes and clubs come from schedule registries and surface at relevant
 times. Unwritten Electives let characters ask for small real-world favors tied
 to their interests and, when available, nearby real places.
+
+Classes and clubs now also carry `AcademyTurnBuilder` metadata. Ordinary classes
+use a quiet register that protects the lesson's point; clubs use a more active
+register. Both supply three distinct landings so class/club pages can
+participate in the shared playable-story machinery without losing their
+scheduled lesson.
 
 Related pieces:
 
@@ -811,6 +929,12 @@ The Glow menu lets the reader give or take Belief from page sources and world
 entities. Those changes become ledgers and narrative events, not invisible
 settings. The Glow menu is also the entry point to the BookShop, **The Margin**
 (Fae standing), and **The Pact Map** (the Talisman territory war).
+
+`GlowInvitationPageSourceAdapter` makes that spend loop visible in the feed.
+When reader Belief reaches 80 (and distress is not active), `glowInvitation`
+may rise with a direct route into the Glow menu; at 90 it warns that excess
+light will settle overnight. It grants no Belief itself and rests for two days
+after being kept, preventing an invitation-to-spend feedback loop.
 
 ### The Belief Economy Engine
 
@@ -867,13 +991,14 @@ Core stations ship in `RadioStationRegistry`:
 
 - Fae-Fi (88.3) - bright/playful faerie lo-fi; leans toward Wonder Compass,
   souvenirs, and festivals. Bundled tracks: **Mossy Footsteps**, **Folktronica**,
-  and **Mossy Groove**.
+  **Mossy Groove**, **To the Adventure**, and **Pages Rising**.
 - Mothlight Beats (90.9) - bittersweet wistful fae-fi; leans toward remembered
   pages, inner weather, and diary. Bundled tracks: **The Page Came Through**,
-  **Fae Dust**, and **Porchlight Fading**.
+  **Fae Dust**, **Lost Candy**, **Porchlight, Fading**, and
+  **Afternoon Chapters**.
 - Thornwave (103.7) - dark faerie lo-fi / trip-hop / future garage; leans toward
-  Book Fae, story, and gossip. Bundled tracks: **Bramble Bass** and
-  **Nocturnal Faerie Lounge**.
+  Book Fae, story, and gossip. Bundled tracks: **Bramble Bass**,
+  **Nocturnal Faerie Lounge**, **Whispering Shadows**, and **Mossy Night**.
 
 Two further stations ship behind pack entitlements: **The Midnight Bindery** and
 **Goblin Market Jazz** (with their own bundled tracks).
@@ -885,14 +1010,37 @@ Radio can also load user or pack stations from `.reenchantedradio.json` files.
 `RadioStationRegistry.surfaceBoosts(...)` so the active station has mechanical
 weight rather than being only ambience.
 
+The dial can now sit between stations. `BookRadioManager.tuneDial(...)` locks to
+known stations when the slider is close enough, or plays procedural tuning noise
+when it is not. `RadioPlaybackState.tuningNoise` persists that between-stations
+state, and the radio sheet shows "Between stations" with a signal meter, power
+button, static source line, and live retuning behavior.
+
 Bundled audio lives under `InsideCoverApp/RadioAudio/` and is included as a
 folder reference in the app target. `BookRadioManager` checks that bundle
 folder first, then the bundle root, then reader-writable Documents radio
 folders (`Documents`, `Documents/Radio`, and `Documents/RadioPacks`). It accepts
 common local formats (`m4a`, `mp3`, `wav`, `aac`, `caf`, `aiff`) and falls back
-to procedural synth playback if no asset resolves. Track choice rotates by a
-stable station hash and half-hour window, so a station can feel alive without
-requiring network audio.
+to procedural synth playback if no asset resolves. Track choice is session-
+seeded, weighted, condition-aware, and remembers recent tracks, so a station can
+feel alive without requiring network audio or falling into a short loop.
+
+### The DJ Playout Clock
+
+Core stations are now authored as broadcasts rather than silent playlists.
+`RadioBanter` defines spoken breaks in six categories: station ID, transition,
+sponsor, gossip, news, and network hand-off. A break may be audio-backed or use
+its caption as a resilient fallback; song-aware intros/outros can bind to a
+specific `RadioTrack` and placement.
+
+`RadioWorldContext` gates breaks by dawn/day/dusk/night, Nothing pressure,
+festival state, listening streak, and weekday. `RadioStationRegistry` rotates
+eligible categories and recent clip IDs, usually placing a break after one or
+two songs while preventing sponsor/category loops. `BookRadioManager` owns the
+playout clock, queues the next track around a bound intro/outro, persists recent
+track/banter history, and exposes the host/caption while the DJ is on air.
+Older `.reenchantedradio.json` stations without authored banter remain valid:
+their legacy interlude titles become caption-only transition breaks.
 
 ### The Living Radio (the station leaves marks)
 
@@ -1015,6 +1163,12 @@ pretending a real-world field report happened. It uses local-brain prose when
 available, with a static fallback, and is covered by `FaeBargainTests` and
 `SurfaceReadinessStateTests`.
 
+Fae Bargain variety has been expanded substantially. Each species now has a
+larger pool of old-law asks and gifts, selected by stable slot hash so the same
+kind of Fae does not feel like one repeated template. The mechanical effect
+remains species-driven (`giftEffect`), while the terms vary by sensory appetite:
+unfinished pages, warmth, pauses, precision, underlayers, and overlooked details.
+
 Supporting surfaces:
 
 - **The Margin** (Glow menu) - the hub: Attention wallet, per-species Warmth,
@@ -1130,6 +1284,54 @@ user-initiated buttons, never automatic:
 
 Calendar/Reminders writes need `NSCalendarsFullAccessUsageDescription` and
 `NSRemindersFullAccessUsageDescription` (both in `Info.plist`).
+
+## Widgets
+
+The Book reaches onto the Home Screen and Lock Screen through a WidgetKit
+extension target, **`ReEnchantedWidgets`** (`ReEnchantedWidgets/`). It is its own
+process, so it never touches SwiftData, the local brain, or the live vault
+directly — instead the app and the extension communicate through a small, typed
+**snapshot** published to a shared **App Group**
+(`group.com.openclaw.enchantify.insidecover`, declared in both targets'
+entitlements).
+
+**The shared bridge (`Shared/ReEnchantedWidgetSnapshot.swift`).** A
+`ReEnchantedWidgetSnapshot` is a Codable, privacy-aware value type carrying just
+what the widgets render: a today page, Wonder Compass prompt, a Book Remembered
+memory, Today's Sky line, radio state and station list, enchantment shortcuts,
+and a Belief reading. It honors a `ReEnchantedWidgetPrivacyMode` (`privateSafe`
+vs `personalText`) so personal prose can be held back on a glanceable surface.
+The file also defines the App-Group `UserDefaults` store and the command/queue
+types the extension and app pass back and forth.
+
+**Publishing (`InsideCoverApp/ReEnchantedWidgetSnapshotWriter.swift`).**
+`ReEnchantedWidgetSnapshotWriter.write(...)` builds a snapshot from the current
+day, surfaced pages, kept pages, radio playback, and Belief, then writes it to
+the App Group and reloads timelines. `ContentView` calls it as state changes
+(around `ContentView.swift:5391`).
+
+**The widget bundle (`ReEnchantedWidgets/ReEnchantedWidgets.swift`).** A
+`WidgetBundle` of six widgets: **Today**, **Radio**, **Enchantment**,
+**Wonder Compass**, **Returned From the Stacks** (Book Remembered), and **Glow**,
+across small → extra-large families where it makes sense.
+
+**Interactivity (App Intents).** Two of the widgets act without launching the
+app, via `Shared/ReEnchantedWidgetIntents.swift`:
+
+- **Radio** — `ReEnchantedRadioWidgetCommand`s (tune/stop) are enqueued to the
+  App Group from the widget; the app drains them on the next foreground/active
+  pass (`ContentView.handlePendingRadioWidgetCommand`, wired at
+  `ContentView.swift:1722`).
+- **Wonder Compass** — `ReEnchantedAdvanceCompassIntent` /
+  `ReEnchantedResetCompassIntent` step a `ReEnchantedCompassWidgetRun` stored in
+  the App Group entirely in-widget, reloading just that timeline.
+
+**Deep links.** Widget taps open the app with a URL handled in
+`InsideCoverApp.swift` (`onOpenURL`), which posts
+`.reEnchantedWidgetDeepLinkReceived` for `ContentView` to route to the right
+surface. This keeps the same user-initiated invariant: the widget can glance,
+queue a tune, or step the Compass, but real generation still happens in-app on an
+explicit action.
 
 ## World Event Packs
 
@@ -1566,8 +1768,6 @@ The character system is strong structurally, but there are still useful places
 to deepen it:
 
 - Characters do not yet run a full multi-party debate engine.
-- Relationship changes are present but could become more visible in letters and
-  Margins Atlas pages.
 - Long-term seasonal character arcs are not yet fully bound into monthly or
   annual editions.
 - The Book Notices layer can offer continuity to characters, but characters do
@@ -1600,6 +1800,12 @@ relationships, and overall Belief.
 
 Generated pages read that projection so the world reflects what the reader has
 actually kept and done.
+
+Story-playable pages are recognized by `SurfacePage.isStoryPlayablePage` rather
+than one-off checks for specific page types. Capture, local-brain preparation,
+margin notes, and keep/continue routing use that predicate, so Narrative OS,
+Book Fae, Academy classes/clubs, Anchor visits, and future choice-bearing pages
+share the same session-turn machinery.
 
 ## Literary Continuity
 
@@ -1649,8 +1855,9 @@ The app has several kinds of memory, each with a different job:
 - `PlayerVaultData` - anchors, electives, Belief ledgers, tutor progress, owned
   packs, surface history, current arc, constellations, wagers, themes, Fae
   standing (`fae`), Pact War control (`pactWar`), Book Jump state (`bookJump`),
-  radio playback (`radio`), the living relationship field (`relationshipField`),
-  and reader-taught braid notes (`learnedBraidNotes`).
+  radio playback including static between stations (`radio`), the living
+  relationship field (`relationshipField`), and reader-taught braid notes
+  (`learnedBraidNotes`).
 - `ReEnchantedSaveFile` - complete portable export/import container.
 
 Memory is intentionally typed. Generated prose should be an expression of these
@@ -1679,7 +1886,7 @@ Export/import:
   `.reenchanted-save.json`.
 - Import merge-upserts material and does not delete local data.
 - `BookArchiveExport` normalizes archive days for backup/export.
-- `MonthlyEditionPDFWriter` creates shareable monthly PDF editions.
+- `MonthlyEditionPDFWriter` creates shareable monthly and annual PDF editions.
 
 ## Search The Stacks
 
@@ -1731,6 +1938,7 @@ Generation services include:
 - Wonder Compass choice and mission generation,
 - Weather enchantment,
 - Story Page prose and result prose,
+- optional Sentence Runner result braiding,
 - Gossip,
 - Faculty Research,
 - Character Letters,
@@ -1738,7 +1946,8 @@ Generation services include:
 - Photo illumination analysis,
 - Playful Mission generation,
 - Elective offers,
-- Outer Stacks room writing.
+- Outer Stacks room writing,
+- monthly-edition closings, when the reader chooses Gemma's conclusion.
 
 Most generated features have fake or resilient fallbacks. The app should stay
 usable when the model is missing, busy, unavailable, or returns malformed JSON.
@@ -1785,6 +1994,25 @@ Illustration and illumination are data-driven:
 
 Assets include parchment textures, marginalia marks, illumination scraps,
 sample photos, app icons, character portraits, and sound effects.
+
+## Landing Page
+
+`LandingPage/` is a static marketing site with its own ReEnchanted-facing
+interaction layer. Beyond screenshots, radio previews, and Academy copy, it now
+has **hidden lore marginalia**:
+
+- inline `lore-link` buttons are woven through the page copy;
+- `LandingPage/app.js` owns a `LORE` registry covering folklore, systems,
+  Chapters, Talismans, Book Fae, cast, locations, and illustrations;
+- the modal can show prose, optional "Try this" prompts, and art;
+- the illustrations entry behaves like a small gallery over the new
+  `LandingPage/assets/art/` cast/Fae/location/talisman dossiers;
+- `LandingPage/styles.css` contains the parchment modal, dotted inline links,
+  gallery controls, and responsive treatment.
+
+This is not app runtime code, but it is important product surface: it teaches the
+same lore vocabulary as the app while letting curious readers open marginalia
+instead of reading another feature grid.
 
 ## Sound, Haptics, And Small Interactions
 
@@ -1864,22 +2092,24 @@ Important app files:
   hydration, curation refresh, local-brain tasks, Glow actions, persistence,
   prepared pages, monthly edition share state, and generated talisman deltas.
 - `InsideCoverApp/ContentViewFeatures.swift` - extracted feature helpers,
-  export/import, monthly edition binding, page actions, and support operations.
+  export/import, monthly/annual edition binding, optional Gemma monthly
+  conclusion, page actions, and support operations.
 - `InsideCoverApp/BookSurfaceViews.swift` - surface cards, page rendering,
   visual style, backgrounds, onboarding, archive cards, animation.
 - `InsideCoverApp/CapturePageSheet.swift` - page opening/capture/generation UI
   for capture, story, gossip, Ask, Compass, mission, enchantment, photo,
   Dr. Inkrest's Office Hours, Fae Bargain, Book Fae, Radio, Inventory, Today's
-  Sky, and Book Jump flows (and the Pact War framing card / goblin marginalia
-  shown on pages).
+  Sky, Book Jump, and the Sentence Runner Game Page (plus the Pact War framing
+  card / goblin marginalia shown on pages).
 - `InsideCoverApp/CapturePageSections.swift` - extracted sheet sections such as
   Chapter Binding, Anchor offers, electives, and support guild.
 - `InsideCoverApp/BookStatusCards.swift` - status cards, Glow menu, Belief UI,
   lab/status displays, and the Fae/Pact hub sheets (`TheMarginSheet`,
   `GoblinMarketSheet`, `PactMapSheet`).
 - `InsideCoverApp/LocalBrainServices.swift` - MLX/Gemma services, prompt
-  builders, photo/Vision helpers, web/research helpers, optional Reddit OAuth
-  search, and fallbacks.
+  builders (including Story Recipe validation/retry and optional Sentence
+  Runner braiding), photo/Vision helpers, web/research helpers, optional Reddit
+  OAuth search, and fallbacks.
 - `InsideCoverApp/LivingTextInput.swift` - `LivingTextEditor`, the
   Sentence-Builder-integrated writing field (nudges, scaffold tokens,
   transmutation chips, alchemy shimmer) used on capture pages.
@@ -1889,14 +2119,29 @@ Important app files:
 - `InsideCoverApp/SearchTheStacksSheet.swift` - local archive search UI.
 - `InsideCoverApp/CustomCastMemberSheet.swift` - custom cast creation UI.
 - `InsideCoverApp/BookShopSheet.swift` - pack/shop UI.
-- `InsideCoverApp/AppSupport.swift` - haptics, quips, radio playback,
+- `InsideCoverApp/AppSupport.swift` - haptics, quips, radio playback and the DJ
+  playout clock,
   location/weather/body readers, nutrition support, the `GenerationCoordinator`
   and `PlayerVault`,
   scheduled notifications (`BookWhispers`, recolored by the Pact War's Whisper
   Channel controller; `BookWhisperPresenter` for foreground display), real-world
   writing (`EventKitWriter` for Reminders/Calendar), the `OvernightScribe`, and
   cross-cutting helpers.
-- `InsideCoverApp/MonthlyEditionPDF.swift` - PDF rendering for monthly editions.
+- `InsideCoverApp/MonthlyEditionPDF.swift` - PDF rendering for monthly and
+  annual editions, including composted parchment interiors and closing pages.
+- `InsideCoverApp/ReEnchantedWidgetSnapshotWriter.swift` - builds the typed
+  widget snapshot from live app state and publishes it to the shared App Group.
+
+## Widget Target Files
+
+- `ReEnchantedWidgets/ReEnchantedWidgets.swift` - the `WidgetBundle` (Today,
+  Radio, Enchantment, Wonder Compass, Returned From the Stacks, Glow) and their
+  timeline provider/views.
+- `ReEnchantedWidgets/Info.plist`, `ReEnchantedWidgets.entitlements` - extension
+  metadata and the shared App Group declaration.
+- Shared with the extension: `Shared/ReEnchantedWidgetSnapshot.swift` (snapshot,
+  command/run stores, App-Group access) and `Shared/ReEnchantedWidgetIntents.swift`
+  (the interactive Compass App Intents).
 
 ## Shared Core Files
 
@@ -1911,16 +2156,18 @@ Important shared files:
   events, memories, talismans, arcs, story packets, letters, gossip, the living
   relationship field (`RelationshipTie`, `RelationshipFieldEngine`, the dynamic
   Loom), and the dynamic disagreement engine (`DisagreementEngine`).
-- `Shared/StoryEngine.swift` - story-generation contracts, scene/result
-  packets, mission logic, writer protocols, Book Jump engine/state, gossip
+- `Shared/StoryEngine.swift` - story-generation contracts, packable Story
+  Recipes/Forms/Genres, resolved scene blueprints, scene/result packets,
+  mission logic, writer protocols, Book Jump engine/state, gossip
   simulation (incl. Belief combat and `GossipRelationshipMove`), the letter
   generator and cross-letter memory.
 - `Shared/WorldSystems.swift` - body/weather signals, moon phase, anchors,
-  location math, scheduling/world helpers, radio stations/playback, the Academy
-  Chapters and Chapter Binding oracle, the Book Fae economy (bargains, gifts,
-  market, marginalia), the Pact War (territories, engine, effects, voices), the
-  Almanac (Wheel of the Year + esbats), Today's Sky, and the returning-greeting
-  composer.
+  location math, playable Anchor turns and rolling mini-stories,
+  scheduling/world helpers, radio stations/playback/static, the Academy Chapters
+  and Chapter Binding oracle, class/club turns, the Book Fae economy (bargains,
+  gifts, market, marginalia), the Pact War (territories, engine, effects,
+  voices), the Almanac (Wheel of the Year + esbats), Today's Sky, and the
+  returning-greeting composer.
 - `Shared/WorldEvents.swift` - event packs, active event resolution, phases,
   triggers, outcomes, influence packets, and event effects.
 - `Shared/InsideCoverState.swift` - remaining app state models and archive
@@ -1939,7 +2186,11 @@ Important shared files:
 - `Shared/StacksSearch.swift` - local search engine.
 - `Shared/LiteraryContinuity.swift` - patterns, absences, durations, Belief life
   cycles.
-- `Shared/MonthlyEdition.swift` - monthly edition curation model.
+- `Shared/MonthlyEdition.swift` - monthly/annual edition model, deterministic
+  forewords/closings, and archive-driven section building.
+- `Shared/EditionCurator.swift` - deterministic binding curator that samples
+  mundane logs, keeps expressive pages, collapses duplicates, and reports kept
+  pages left out of the bound edition.
 
 ## Tests
 
@@ -1963,12 +2214,15 @@ Coverage areas include:
 - literary continuity and Book Notices,
 - packs, entitlements, welcome/help behavior,
 - Inventory, BookShop listings, owned packs, radio stations, and manual radio
-  surfaces,
+  surfaces including static between stations,
 - weather, moon, body/fuel helpers, anchors, playful missions,
+- playable Anchor turns, conserved check-in rewards, and rolling mini-stories,
 - world event packs, active event influence, Dictionary Rebellion and Starlit
   Paper Trial outcomes, out-of-season preview resolution, and monthly-event traces,
 - the Goblin Market (calling-card access, mood pricing, new-moon window),
 - Sentence Builder nudges, diagnostics, chips, and alchemy levels,
+- packable Story Recipes, legacy pack decoding, blueprint grounding, and
+  recipe/Form/Genre variety keys,
 - Dr. Inkrest's Office Hours (window, rotating prompts, adapter),
 - the Fae economy (bargains, gifts, lapse/repair, market, marginalia),
 - the Pact War (tiers, controller, tick, alignment, shelf/door voice effects,
@@ -1987,7 +2241,10 @@ Coverage areas include:
   collapse + cold books, daily decay, escalating cost, open-shelf, companion
   constellations),
 - the annual edition (per-month chaptering, ordering, totals, deterministic
-  foreword).
+  foreword/closing),
+- monthly-edition binding curation (`EditionCurator`), set-aside accounting, and
+  duplicate collapse,
+- Academy class/club turn metadata.
 
 Common test command:
 
@@ -2044,8 +2301,15 @@ the **Almanac** (Wheel of the Year + esbats, with Belief/Nothing/curation/Fae an
 real-world bleed effects), **Today's Sky**, the **returning greeting**, the
 continuity **cache** (freeze fix), **The Two Readings** with reader-sided
 consequences, **cross-letter memory**, **Sentence Builder**, and the **living
-relationship field** (gossip Belief moves + an evolving Loom). Notifications are
-visible, and the world can write Reminders and Calendar events on request.
+relationship field** (gossip Belief moves + an evolving Loom), plus monthly
+edition binding curation/closings, playable Anchor/Class turns, radio static
+between stations, packable **Story Recipes**, the archive-powered **Sentence
+Runner** Game Page, the high-Belief **Glow Invitation**, and landing-page lore
+marginalia. Notifications are visible,
+and the world can write Reminders and Calendar events on request. The Book also
+now reaches onto the Home/Lock Screen through the **`ReEnchantedWidgets`**
+extension — six widgets with an App-Group snapshot bridge and interactive radio /
+Wonder Compass App Intents.
 
 The system spine is now a real **narrative simulation**: play creates events,
 events reshape Belief, the relationship field, the Pact War, and the Fae economy;
@@ -2057,10 +2321,8 @@ Open directions worth pursuing next:
 - **Two invariants to protect** in all new work: every local-model call stays
   user-initiated, and nothing heavy runs on a rendered view (read cached state).
 - richer Book Remembered returns and Belief life-cycle pages,
-- per-sabbat festival palettes and bundled-character portraits on Cast pages,
 - the Wheel woven into monthly/annual editions as a recurring structure,
-- character portraits and relationship shifts surfaced inside letters,
-- an annual **Volume I** bound from accumulated monthly/archive artifacts,
+- relationship shifts surfaced more explicitly inside letters,
 - eclipses and rarer astronomical events in the Almanac.
 
 The destination is a reader-held volume - a year of ordinary life bound into a

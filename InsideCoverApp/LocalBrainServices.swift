@@ -494,6 +494,46 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
     }
 }
 
+struct MLXSentenceRunnerProseWriter: SentenceRunnerProseWriting {
+    var maxTokens = 360
+
+    func write(context: SentenceRunnerProseContext) async throws -> String {
+        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
+            throw LocalModelError.missingModel(LocalModelManager.report())
+        }
+
+        let taskPrompt = SentenceRunnerPromptBuilder.prompt(for: context)
+
+        let response = try await LocalBrainInferenceGate.shared.run(
+            label: "sentence-runner",
+            promptCharacters: taskPrompt.count,
+            presentation: .live
+        ) {
+            try await Device.withDefaultDevice(.gpu) {
+                let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
+                let session = ChatSession(
+                    container,
+                    instructions: SentenceRunnerPromptBuilder.instructions,
+                    generateParameters: GenerateParameters(
+                        maxTokens: maxTokens,
+                        maxKVSize: 2_048,
+                        temperature: 0.8,
+                        topP: 0.92,
+                        prefillStepSize: 256
+                    )
+                )
+                return try await session.respond(to: taskPrompt)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        guard !response.isEmpty else {
+            throw LocalModelError.missingModel(LocalModelManager.report())
+        }
+        return response
+    }
+}
+
 struct MLXFaeBargainResponder: FaeBargainResponding {
     var maxTokens = 420
 
@@ -854,16 +894,43 @@ struct MLXStoryPageWriter: StoryPageWriting {
     func write(surface: SurfacePage) async throws -> StoryPageProse {
         let draft = StoryPageSceneDraft(surface: surface)
         let prompt = StoryPagePromptBuilder.prompt(for: draft, nowPlaying: RadioAtmosphereContext.current)
-        let response = try await MLXBraidTaskRunner.run(
-            prompt: prompt,
-            instructions: StoryPagePromptBuilder.instructions,
-            maxTokens: 360,
-            sourceID: "story-page",
-            tags: ["story-page"]
-        )
+        let maxTokens = surface.type == .academyClass ? 760 : 360
+        let sourceID: String
+        if surface.type == .academyClass {
+            sourceID = "academy-class-page"
+        } else if surface.type == .bookFae {
+            sourceID = "fae-parley-\(surface.payload.metadata["faeKind"] ?? "bookSprite")"
+        } else {
+            sourceID = "story-page"
+        }
+        let tags = surface.type == .academyClass
+            ? ["academy-class", surface.payload.metadata["sessionID"] ?? "unknown"]
+            : ["story-page"]
+        func generate(_ correction: String? = nil) async throws -> StoryPageProse {
+            let response = try await MLXBraidTaskRunner.run(
+                prompt: prompt + (correction.map { "\n\nREPAIR THE PREVIOUS DRAFT:\n\($0)\nReturn the full exact output format again." } ?? ""),
+                instructions: StoryPagePromptBuilder.instructions,
+                maxTokens: maxTokens,
+                sourceID: sourceID,
+                tags: tags
+            )
+            appLog.info("Story Page Gemma raw response (\(response.count, privacy: .public) chars): \(StoryPageDebugLog.preview(response), privacy: .public)")
+            return try StoryPageProseParser.parse(response, fallback: draft)
+        }
 
-        appLog.info("Story Page Gemma raw response (\(response.count, privacy: .public) chars): \(StoryPageDebugLog.preview(response), privacy: .public)")
-        return try StoryPageProseParser.parse(response, fallback: draft)
+        guard draft.blueprint != nil else { return try await generate() }
+        let first = try? await generate()
+        if let first, StoryRecipeValidator.validate(first, draft: draft).isAcceptable { return first }
+        let repair = first.map { StoryRecipeValidator.validate($0, draft: draft).failures.joined(separator: "\n- ") }
+            ?? "The response was missing or unusable. Follow the recipe and exact output format."
+        let second = try? await generate("- \(repair)")
+        switch (first, second) {
+        case let (a?, b?):
+            return StoryRecipeValidator.validate(b, draft: draft).score >= StoryRecipeValidator.validate(a, draft: draft).score ? b : a
+        case let (a?, nil): return a
+        case let (nil, b?): return b
+        case (nil, nil): return StoryPageProse(fallback: draft)
+        }
     }
 }
 
@@ -882,11 +949,14 @@ enum StoryPageDebugLog {
 struct MLXStoryPageResultWriter: StoryPageResultWriting {
     func write(context: StoryPageResultContext) async throws -> String {
         let prompt = StoryPageResultPromptBuilder.prompt(for: context)
+        let sourceID = context.draft.surface.type == .bookFae
+            ? "fae-parley-\(context.draft.surface.payload.metadata["faeKind"] ?? "bookSprite")-result"
+            : "story-page-result"
         let response = try await MLXBraidTaskRunner.run(
             prompt: prompt,
             instructions: StoryPageResultPromptBuilder.instructions,
             maxTokens: 240,
-            sourceID: "story-page-result",
+            sourceID: sourceID,
             tags: ["story-page", "story-result"]
         )
 
@@ -2752,6 +2822,10 @@ extension SurfacePage {
         metadata.removeValue(forKey: "storyResultSliceOfLife")
         metadata.removeValue(forKey: "storyResultProgressArc")
         metadata.removeValue(forKey: "storyResultSurprise")
+        metadata["storyMechanicMandateKind"] = StoryPageMechanicMandateKind.none.rawValue
+        metadata.removeValue(forKey: "storyMechanicMandateChoiceID")
+        metadata.removeValue(forKey: "storyMechanicMandateEnchantmentID")
+        metadata["storyMechanicMandateReason"] = StoryPageMechanicMandate.none.reason
         metadata["proseStatus"] = "continuing"
         return SurfacePage(
             id: "\(id)-continued-\(context.turns.count + 1)",
@@ -3170,19 +3244,19 @@ struct OuterStacksRoomEngine: OuterStacksRoomWriting {
         )
     }
 
-    func visitScene(anchor: AnchorRecord, visitCount: Int, day: BookDay) async throws -> String {
+    func visitScene(anchor: AnchorRecord, visitCount: Int, day: BookDay, memory: String) async throws -> String {
         if let prose = await LocalBrainProse.write(
-            prompt: LocalModelManager.outerStacksVisitPrompt(anchor: anchor, visitCount: visitCount, day: day),
+            prompt: LocalModelManager.outerStacksVisitPrompt(anchor: anchor, visitCount: visitCount, day: day, memory: memory),
             instructions: """
-            You are the Labyrinth of Stories narrating an Outer Stacks visit. Write prose only, no JSON, no headings.
+            You are the Labyrinth of Stories narrating an Outer Stacks visit. Write prose only, no JSON, no headings, no labeled sections.
             """,
-            maxTokens: 460,
+            maxTokens: 560,
             sourceID: "outer-stacks-anchor",
             tags: ["outer-stacks", "anchor", "visit"]
         ), !prose.hasPrefix("{") {
             return prose
         }
-        return try await FakeOuterStacksRoomWriter().visitScene(anchor: anchor, visitCount: visitCount, day: day)
+        return try await FakeOuterStacksRoomWriter().visitScene(anchor: anchor, visitCount: visitCount, day: day, memory: memory)
     }
 }
 

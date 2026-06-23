@@ -52,4 +52,32 @@ final class SurfaceReadinessStateTests: XCTestCase {
 
         XCTAssertFalse(SurfaceReadinessState(surface: surface).needsLocalBrainToOpen)
     }
+
+    func testAnchorVisitIsStoryPlayableButAnchorOfferIsNot() {
+        let visit = SurfacePage(
+            type: .anchor,
+            sourceID: "outer-stacks-anchor",
+            prompt: "Home",
+            detail: "Return visit.",
+            payload: BookPagePayload(
+                headline: "Outer Stacks: Home",
+                body: "The room is open.",
+                metadata: ["anchorID": "home", "storyScene": "The room is open."]
+            )
+        )
+        let offer = SurfacePage(
+            type: .anchor,
+            sourceID: "outer-stacks-anchor",
+            prompt: "Anchor this place?",
+            detail: "No Anchor is lit nearby.",
+            payload: BookPagePayload(
+                headline: "An Unanchored Place",
+                body: "Name this place.",
+                metadata: ["anchorOffer": "true"]
+            )
+        )
+
+        XCTAssertTrue(visit.isStoryPlayablePage)
+        XCTAssertFalse(offer.isStoryPlayablePage)
+    }
 }

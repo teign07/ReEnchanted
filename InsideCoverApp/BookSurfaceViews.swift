@@ -532,7 +532,7 @@ struct BookConnectionsSheet: View {
                             } label: {
                                 BookEvidenceMiniCard(page: page)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.bookPress())
                         }
                     }
                     .padding(.bottom, 2)
@@ -792,7 +792,7 @@ private func evidenceButtons(_ pages: [BookPage], accent: Color, onOpenPage: @es
                     .padding(8)
                     .background(BookPalette.ink.opacity(0.16), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress())
             }
         }
     }
@@ -894,6 +894,7 @@ struct SurfaceCard: View {
     let isBusy: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hasSurfaced = false
+    @State private var idle = false
 
     private var visualStyle: PageVisualStyle {
         if surface.type == .festival {
@@ -1068,6 +1069,10 @@ struct SurfaceCard: View {
                 Spacer()
                 Image(systemName: isBusy ? "circle.dotted" : "arrow.up.right")
                     .font(.caption.weight(.bold))
+                    .offset(
+                        x: (reduceMotion || isBusy || !idle) ? 0 : 3,
+                        y: (reduceMotion || isBusy || !idle) ? 0 : -3
+                    )
             }
             .foregroundStyle(visualStyle.accent)
         }
@@ -1075,6 +1080,15 @@ struct SurfaceCard: View {
         .padding(16)
         .frame(minHeight: isReadingCard ? 330 : 212, alignment: .topLeading)
         .parchmentSurface(style: visualStyle, isActive: true)
+        // A soft "breathing" accent edge so the live card reads as awake. Kept
+        // strictly inside the card's bounds (a contained inset stroke, not a
+        // drop shadow) so it can never bloom into a grey halo behind the stack.
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(visualStyle.accent.opacity(reduceMotion ? 0 : (idle ? 0.34 : 0.0)), lineWidth: 1.5)
+                .padding(1.5)
+                .allowsHitTesting(false)
+        }
         .overlay(alignment: .topTrailing) {
             PageCurl()
                 .fill(visualStyle.accent.opacity(0.16))
@@ -1118,6 +1132,10 @@ struct SurfaceCard: View {
             guard !hasSurfaced else { return }
             withAnimation(reduceMotion ? .linear(duration: 0.01) : .spring(response: 0.72, dampingFraction: 0.84)) {
                 hasSurfaced = true
+            }
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) {
+                idle = true
             }
         }
     }
@@ -1180,7 +1198,7 @@ struct SwipeDismissSurfaceCard: View {
             } label: {
                 SurfaceCard(surface: surface, isBusy: isBusy)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.bookPress())
             .offset(x: dragOffset)
             .overlay(alignment: .topTrailing) {
                 Button {
@@ -1192,7 +1210,7 @@ struct SwipeDismissSurfaceCard: View {
                         .foregroundStyle(BookPalette.ink.opacity(0.42))
                         .padding(12)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress())
                 .accessibilityLabel("Let \(surface.type.title) pass for now")
             }
             .overlay(alignment: .trailing) {
@@ -1248,6 +1266,9 @@ struct SwipeDismissSurfaceCard: View {
 }
 
 private struct SwipeDismissHandle: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hinting = false
+
     var body: some View {
         VStack(spacing: 4) {
             Image(systemName: "chevron.left")
@@ -1255,14 +1276,21 @@ private struct SwipeDismissHandle: View {
             Image(systemName: "xmark")
                 .font(.caption2.weight(.black))
         }
-        .foregroundStyle(BookPalette.ink.opacity(0.32))
+        .foregroundStyle(BookPalette.ink.opacity(reduceMotion ? 0.32 : (hinting ? 0.5 : 0.28)))
         .frame(width: 34, height: 82)
         .background(
             Capsule(style: .continuous)
                 .fill(BookPalette.paper.opacity(0.18))
         )
+        .offset(x: (reduceMotion || !hinting) ? 0 : -3)
         .contentShape(Rectangle())
         .accessibilityHidden(true)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                hinting = true
+            }
+        }
     }
 }
 
@@ -1533,7 +1561,7 @@ struct FragmentRow: View {
                         .foregroundStyle(BookPalette.ink.opacity(0.42))
                         .padding(10)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress())
                 .accessibilityLabel("Remove \(page.type.title) from Today's Margins")
             }
             .overlay(alignment: .trailing) {
@@ -2429,6 +2457,40 @@ struct PageVisualStyle {
                 smallMarginalia: "MarginaliaStar",
                 watermarkMarginalia: "MarginaliaStar",
                 watermarkOpacity: 0.10
+            )
+        case .gamePage:
+            return PageVisualStyle(
+                accent: Color(red: 0.14, green: 0.42, blue: 0.43),
+                symbolColor: Color(red: 0.14, green: 0.42, blue: 0.43),
+                paperTop: Color(red: 0.93, green: 0.91, blue: 0.78),
+                paperMiddle: Color(red: 0.82, green: 0.80, blue: 0.67),
+                paperBottom: Color(red: 0.61, green: 0.58, blue: 0.49),
+                scrapColor: Color(red: 0.87, green: 0.84, blue: 0.70),
+                sideMarginalia: "MarginaliaCompass",
+                cornerMarginalia: "IlluminationScrapS03_24",
+                smallMarginalia: "MarginaliaStar",
+                watermarkMarginalia: "MarginaliaCompass",
+                watermarkOpacity: 0.11
+            )
+        case .glowInvitation:
+            return PageVisualStyle(
+                accent: BookPalette.lampGold,
+                symbolColor: BookPalette.lampGold,
+                paperTop: Color(red: 0.98, green: 0.92, blue: 0.73),
+                paperMiddle: Color(red: 0.88, green: 0.78, blue: 0.58),
+                paperBottom: Color(red: 0.66, green: 0.54, blue: 0.40),
+                scrapColor: Color(red: 0.94, green: 0.83, blue: 0.62),
+                sideMarginalia: "MarginaliaStar",
+                cornerMarginalia: "MarginaliaCompass",
+                smallMarginalia: "MarginaliaStamp",
+                watermarkMarginalia: "MarginaliaStar",
+                sideMarginaliaWidth: 70,
+                cornerMarginaliaWidth: 84,
+                sideMarginaliaOpacity: 0.42,
+                cornerMarginaliaOpacity: 0.34,
+                watermarkOpacity: 0.12,
+                scrapWidth: 92,
+                scrapHeight: 34
             )
         case .helpTips:
             return PageVisualStyle(
@@ -3949,7 +4011,7 @@ struct OnboardingFlowView: View {
                         .stroke((selected ? BookPalette.teal : BookPalette.ink).opacity(selected ? 0.52 : 0.14), lineWidth: 1)
                 }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress())
         .foregroundStyle(selected ? BookPalette.teal : BookPalette.ink.opacity(0.72))
     }
 
@@ -4063,7 +4125,7 @@ struct OnboardingFlowView: View {
                     .padding(6)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress())
         .accessibilityLabel("Open full illustration of \(member.name)")
     }
 

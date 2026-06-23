@@ -1938,6 +1938,11 @@ enum NarrativeEventResolver {
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 2
             createdHint = "A noticed pattern can become a future letter, return, or constellation."
+        case .glowInvitation:
+            entityDeltas["the-book", default: 0] += 1
+            threadDeltas["ordinary-magic", default: 0] += 1
+            relationshipDeltas["book-authors-reader", default: 0] += 2
+            createdHint = "A kept Glow invitation records that the reader chose to steer attention deliberately."
         case .theBleed:
             entityDeltas["penny-blackletter", default: 0] += 2
             entityDeltas["the-book", default: 0] += 1
@@ -2059,6 +2064,22 @@ enum NarrativeEventResolver {
             entityDeltas["the-book", default: 0] += 1
             threadDeltas["ordinary-magic", default: 0] += 1
             createdHint = "An invoked or bound object can alter which Pages return and what the Book remembers."
+        case .gamePage:
+            entityDeltas["the-book", default: 0] += 2
+            entityDeltas["penny-blackletter", default: 0] += 1
+            threadDeltas["ordinary-magic", default: 0] += 3
+            relationshipDeltas["book-authors-reader", default: 0] += 2
+            createdHint = "A kept Game Page can return as a noticed word, a revised grey phrase, or a playable callback."
+            if tags.contains("nothing-influenced") {
+                entityDeltas["the-book", default: 0] += 1
+                threadDeltas["ordinary-magic", default: 0] += 1
+                createdHint = "A Nothing-touched run can invite a future Book Notices page to revise one vague word into a concrete detail."
+            }
+            if tags.contains("grey-rescued") {
+                entityDeltas["the-book", default: 0] += 1
+                threadDeltas["ordinary-magic", default: 0] += 1
+                createdHint = "A grey word the run restored can resurface later, re-enchanted, inside a future page."
+            }
         case .location, .lore, .patreon, .bookOfYou, .packPage, .calendar, .helpTips, .welcome:
             break
         }
@@ -2193,6 +2214,8 @@ struct NarrativeSourceSnapshot: Equatable {
     var weightedEntityIDs: [String] = []
     var weightedThreadIDs: [String] = []
     var weightedRelationshipIDs: [String] = []
+    var recentlySpotlitEntityIDs: [String] = []
+    var recentlySpotlitThreadIDs: [String] = []
     var entityMemories: [NarrativeEntityMemory] = []
 
     var isAvailable: Bool {
@@ -2204,6 +2227,8 @@ struct NarrativeSourceSnapshot: Equatable {
             || !weightedEntityIDs.isEmpty
             || !weightedThreadIDs.isEmpty
             || !weightedRelationshipIDs.isEmpty
+            || !recentlySpotlitEntityIDs.isEmpty
+            || !recentlySpotlitThreadIDs.isEmpty
             || !entityMemories.isEmpty
     }
 }
@@ -2220,6 +2245,20 @@ enum NarrativeSourceSnapshotBuilder {
         let threadIDs = projection.topThreadIDs
         let relationshipIDs = projection.topRelationshipIDs
         let tags = Array(Set(recentEvents.flatMap(\.tags))).sorted()
+        let spotlitStoryEvents = recentEvents
+            .filter { event in
+                event.sourcePageType == .narrativeOS
+                    && (event.kind == .pageKept || event.kind == .pageAnswered)
+            }
+            .prefix(6)
+        let recentlySpotlitEntityIDs = orderedSpotlightIDs(
+            in: spotlitStoryEvents,
+            prefix: "entity:"
+        )
+        let recentlySpotlitThreadIDs = orderedSpotlightIDs(
+            in: spotlitStoryEvents,
+            prefix: "thread:"
+        )
         let selectedMemories = memories
             .filter { entityIDs.contains($0.entityID) }
             .sorted { left, right in
@@ -2240,8 +2279,30 @@ enum NarrativeSourceSnapshotBuilder {
             weightedEntityIDs: entityIDs,
             weightedThreadIDs: threadIDs,
             weightedRelationshipIDs: relationshipIDs,
+            recentlySpotlitEntityIDs: recentlySpotlitEntityIDs,
+            recentlySpotlitThreadIDs: recentlySpotlitThreadIDs,
             entityMemories: selectedMemories
         )
+    }
+
+    private static func orderedSpotlightIDs<S: Sequence>(
+        in events: S,
+        prefix: String
+    ) -> [String] where S.Element == NarrativeEvent {
+        var result: [String] = []
+        var seen = Set<String>()
+        for event in events {
+            for tag in event.tags {
+                let normalized = tag.lowercased()
+                guard normalized.hasPrefix(prefix) else { continue }
+                let id = String(normalized.dropFirst(prefix.count))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !id.isEmpty, !seen.contains(id) else { continue }
+                seen.insert(id)
+                result.append(id)
+            }
+        }
+        return result
     }
 }
 

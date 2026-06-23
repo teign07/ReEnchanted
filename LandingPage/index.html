@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./styles.css?v=4">
   </head>
   <body>
     <canvas id="spell-field" aria-hidden="true"></canvas>
@@ -26,6 +26,7 @@
         <a href="#book">The Book</a>
         <a href="#how">How it works</a>
         <a href="#mechanics">Inside</a>
+        <a href="#pages">Pages</a>
         <a href="#radio">Radio</a>
         <a href="#academy">Academy</a>
         <a href="#chapters">Chapters</a>
@@ -39,12 +40,17 @@
       <!-- ───────────────────────── HERO ───────────────────────── -->
       <section class="hero">
         <div class="hero-copy">
+          <p class="hero-problem">
+            Same commute. Same gray hours. Another day slipping past
+            unnoticed — nothing that felt worth remembering.
+            <span>Your life isn't actually that ordinary…</span>
+          </p>
           <p class="eyebrow">A living book for ordinary days</p>
           <p class="return-note" id="return-note" role="status" hidden></p>
           <h1>Real Life,<br><span class="accent">ReEnchanted</span></h1>
           <p class="hero-tagline">Play with Pages. <span>Keep Some.</span> Read Your Story.</p>
           <p class="hero-lede">
-            An iPhone book that turns the day you actually lived — weather, walks,
+            A free, magical iPhone book that turns the day you actually lived — weather, walks,
             moods, music, the people who pass through — into pages you can keep.
             Keep what's true. Let the rest wait. Watch it braid into a story only you could write.
           </p>
@@ -207,7 +213,7 @@
       </section>
 
       <!-- ──────────────────── EDITIONS ──────────────────── -->
-      <section id="editions" class="systems-section">
+      <section id="editions" class="systems-section" data-drawer>
         <div class="section-head">
           <p class="eyebrow">Bound for keeps</p>
           <h2>Publish your own editions.</h2>
@@ -294,7 +300,7 @@
       </section>
 
       <!-- ──────────────────── MECHANICS ──────────────────── -->
-      <section id="mechanics" class="mechanics-section">
+      <section id="mechanics" class="mechanics-section" data-drawer>
         <div class="section-head">
           <p class="eyebrow">Inside the Book</p>
           <h2>Attention, given a shape.</h2>
@@ -303,11 +309,11 @@
           <article class="mechanic">
             <div class="mechanic-shot"><img src="./assets/screens/spells.jpg" alt="Spells and Enchantments screen"></div>
             <h3>Spells &amp; Glow</h3>
-            <p>A steady belief state, gently luminous. Open Compass Runs, a noticing game, or an Enchantment and let an ordinary subject speak.</p>
+            <p>A steady belief state, gently luminous. Open <button class="lore-link" data-lore="compass-runs" type="button">Compass Runs</button>, a noticing game, or an <button class="lore-link" data-lore="enchantments" type="button">Enchantment</button> and let an ordinary subject speak.</p>
           </article>
           <article class="mechanic">
             <div class="mechanic-shot"><img src="./assets/screens/wonder-compass.jpg" alt="Wonder Compass screen"></div>
-            <h3>Wonder Compass</h3>
+            <h3><button class="lore-link" data-lore="wonder-compass" type="button">Wonder Compass</button></h3>
             <p>Reframe familiar streets and routines until they're legible again. Walk. Notice. Record. Return.</p>
           </article>
           <article class="mechanic">
@@ -318,8 +324,125 @@
         </div>
       </section>
 
+      <!-- ──────────────────── PAGE TYPES ──────────────────── -->
+      <section id="pages" class="pagetypes-section" data-drawer>
+        <div class="section-head">
+          <p class="eyebrow">Included free — no packs required</p>
+          <h2>Over <span class="pagetypes-count">50</span> kinds of page.</h2>
+          <p class="section-sub">
+            Every day, the Book offers you a deck of different page types to play
+            with and keep. They ship in the base game, free forever — from quiet
+            logs to playful little games. Here are a few of them.
+          </p>
+        </div>
+        <ul class="pagetypes-grid">
+          <li class="pagetype">
+            <span class="pagetype-glyph" aria-hidden="true">📖</span>
+            <h3>Book Jumping</h3>
+            <p>At the Academy, students learn to physically jump into books and
+              live them as if they were real. Step into a public-domain classic —
+              <em>The Wizard of Oz</em>, <em>Dracula</em> — and explore it from
+              the inside, one controlled beat at a time. Bring back a souvenir
+              sentence. Just don't go too deep.</p>
+          </li>
+          <li class="pagetype">
+            <span class="pagetype-glyph" aria-hidden="true">✦</span>
+            <h3>Quips</h3>
+            <p>A tiny odd fact that tilts the day toward wonder, no work required.
+              <em>"An octopus is what happens when curiosity gets eight hands."</em>
+              <em>"Rust is iron remembering it used to be in the ground."</em>
+              Keep the ones that land.</p>
+          </li>
+          <li class="pagetype">
+            <span class="pagetype-glyph" aria-hidden="true">⌖</span>
+            <h3>Playful Missions</h3>
+            <p>One tiny sensory dare — the South = Sense step of a Compass Run,
+              surfaced on its own. <em>"Find the oldest thing near you and smell
+              it. What does age smell like here?"</em> or <em>"Count every blue
+              thing you can see without moving your feet."</em> Done in under
+              three minutes; keep one proof line.</p>
+          </li>
+          <li class="pagetype">
+            <span class="pagetype-glyph" aria-hidden="true">❖</span>
+            <h3>Illuminated Photos</h3>
+            <p>Choose a photo from your day — or let Penny find one — and the
+              Book illuminates it, noticing the objects, light, mood, and small
+              jokes already inside, then lettering it like a manuscript page you
+              can keep.</p>
+            <figure class="pagetype-shot">
+              <img src="./assets/screens/real-life-kept.jpg"
+                   alt="An illuminated photo of a sleeping cat's paw, framed with parchment field notes"
+                   loading="lazy" onerror="this.closest('.pagetype-shot').remove()">
+              <figcaption>An ordinary photo of Ron the cat, illuminated.</figcaption>
+            </figure>
+          </li>
+          <li class="pagetype">
+            <span class="pagetype-glyph" aria-hidden="true">☼</span>
+            <h3>Inner Weather</h3>
+            <p>How the day actually felt, in your own words and rendered as
+              weather — so a hard afternoon reads as a passing storm and a good
+              one as clear skies. The smallest honest check-in there is.</p>
+          </li>
+          <li class="pagetype">
+            <span class="pagetype-glyph" aria-hidden="true">❝</span>
+            <h3>One-Sentence Souvenir</h3>
+            <p>The whole day, distilled into a single line worth keeping —
+              a color, a sound, a tiny mercy — caught before your brain files it
+              under ordinary. The smallest page in the deck.</p>
+          </li>
+          <li class="pagetype">
+            <span class="pagetype-glyph" aria-hidden="true">✶</span>
+            <h3>Cast an Enchantment</h3>
+            <p>Take a photo, pick one of 14 spells, and the Book transforms both
+              the image and its main subject. <em>Everything Speaks</em> lets the
+              object answer in its own voice; <em>Everything's a Haiku</em>
+              distills it to three lines; <em>Mirror, Mirror</em> reads a selfie
+              for insight; <em>Everything's Roasted</em> aims a comic burn. Keep
+              the illuminated result.</p>
+          </li>
+          <li class="pagetype">
+            <span class="pagetype-glyph" aria-hidden="true">✦</span>
+            <h3>Gossip</h3>
+            <p>What moved while you were elsewhere. The Academy's cast keep
+              scheming, falling out, and warming to one another off-page — and
+              this is the word that reaches you about it.</p>
+          </li>
+          <li class="pagetype">
+            <span class="pagetype-glyph" aria-hidden="true">✉︎</span>
+            <h3>Letters</h3>
+            <p>A character who has been watching what you keep writes to you
+              through the margins — a researched, hand-written note that answers
+              something from your real days, addressed to you by name.</p>
+          </li>
+          <li class="pagetype">
+            <span class="pagetype-glyph" aria-hidden="true">✦</span>
+            <h3>A Fae Bargain</h3>
+            <p>One of the Book Fae gave you something first — and now a small
+              sensory return is owed. Pay it in the real world and the Book shifts
+              in your favor; leave it, and the debt quietly waits.</p>
+          </li>
+          <li class="pagetype">
+            <span class="pagetype-glyph" aria-hidden="true">☾</span>
+            <h3>Today's Sky</h3>
+            <p>The Book reads the night actually overhead — the Moon's real phase
+              and sign, the Sun's sign, and the nearest reason to look up tonight —
+              and keeps it as a page.</p>
+          </li>
+          <li class="pagetype">
+            <span class="pagetype-glyph" aria-hidden="true">📰</span>
+            <h3>The Bleed</h3>
+            <p>Penny Blackletter's pocket newspaper, where the outside world leaks
+              into the margins — odd headlines, an almanac, and an interest column
+              that genuinely reaches out to the live web for what's stirring today.</p>
+          </li>
+        </ul>
+        <p class="pagetypes-more">…and dozens more — Diary, Lore, Story Pages,
+          Cast Members, Outer Stacks rooms, Classes &amp; Clubs, the Book of You,
+          and the rest of the deck, all in the base game.</p>
+      </section>
+
       <!-- ──────────────────── LIVING SYSTEMS ──────────────────── -->
-      <section id="systems" class="systems-section">
+      <section id="systems" class="systems-section" data-drawer>
         <div class="section-head">
           <p class="eyebrow">The book remembers</p>
           <h2>Systems that make it feel alive.</h2>
@@ -344,11 +467,11 @@
             <h3>Anchor a place. The Book grows it a room.</h3>
             <p>
               Stand somewhere real, name what it holds, and choose how it points.
-              The Book opens that spot its own room in the Outer Stacks — the
-              faerie realm of ReEnchanted — with a story already waiting inside.
+              The Book opens that spot its own room in the <button class="lore-link" data-lore="outer-stacks" type="button">Outer Stacks</button> — the
+              <button class="lore-link" data-lore="the-folk" type="button">faerie realm</button> of ReEnchanted — with a story already waiting inside.
               It's a fairy-tale answer to Pokémon Go: instead of catching things,
               you grow places. Every time you come back, the room deepens —
-              remembering the weather, the moon, and the small rule that corner of
+              remembering the weather, <button class="lore-link" data-lore="moon-phases" type="button">the moon</button>, and <button class="lore-link" data-lore="genius-loci" type="button">the small rule</button> that corner of
               the world has been teaching you.
             </p>
             <ol class="anchor-steps" id="anchor-steps">
@@ -368,7 +491,7 @@
             <h3>Anchoring & the Outer Stacks</h3>
             <p>
               Bind a real place — a blue mailbox, a back stair, a shoreline — as an
-              anchor you <em>Notice, Embark, Sense, Write,</em> or <em>Rest</em> at,
+              <button class="lore-link" data-lore="anchor-rooms" type="button">anchor</button> you <em>Notice, Embark, Sense, Write,</em> or <em>Rest</em> at,
               and the Book grows it a room in the Outer Stacks, ReEnchanted's faerie
               realm. Anchors are pinned to your real GPS coordinates, so the Book
               knows when you've truly come back — return in person and each room
@@ -381,7 +504,7 @@
             <span class="system-glyph" aria-hidden="true">✦</span>
             <h3>Belief</h3>
             <p>
-              A gentle economy, not a score. You can give or take Belief from
+              A gentle economy, not a score. You can give or take <button class="lore-link" data-lore="belief" type="button">Belief</button> from
               anything in the Book — a character, an object, a recurring motif, even
               a single page. Cast members can fight over those Pages too, warming
               what they love or cooling what they distrust. What you believe in
@@ -405,13 +528,14 @@
       </section>
 
       <!-- ──────────────────── THE ACADEMY (narrative sim) ──────────────────── -->
-      <section id="academy" class="academy-section">
+      <section id="academy" class="academy-section" data-drawer>
         <div class="section-head">
           <p class="eyebrow">Not a chatbot — a world</p>
           <h2>An entire school, running without you.</h2>
           <p class="section-sub">
             Underneath the Book is a narrative simulation: a magical Academy in an
-            infinite library, with classes, clubs, faculty, professors — and a
+            infinite library, with classes, clubs, faculty, <button class="lore-link" data-lore="professors" type="button">professors</button>, a
+            <button class="lore-link" data-lore="great-hall" type="button">Great Hall</button> and <button class="lore-link" data-lore="kitchens" type="button">kitchens</button> that keep their own weather — and a
             headmistress you probably shouldn't fully trust.
           </p>
         </div>
@@ -439,18 +563,18 @@
             <p class="academy-lead">They act <em>with or without you</em>:</p>
             <ul class="academy-acts">
               <li>Invest Belief in what they love</li>
-              <li>Attack Belief they distrust</li>
+              <li><button class="lore-link" data-lore="melisande-blackwood" type="button">Attack Belief they distrust</button></li>
               <li>Give and take Belief from actual Pages</li>
               <li>Write you letters</li>
-              <li>Do their own research</li>
-              <li>Send you on Quests to real places in your own town, with one clear action to complete</li>
-              <li>Argue with each other</li>
-              <li>Chart your moods and health</li>
-              <li>Keep — and trade — secrets</li>
+              <li><button class="lore-link" data-lore="gwendolyn-mythwright" type="button">Do their own research</button></li>
+              <li><button class="lore-link" data-lore="lysander-mosswood" type="button">Send you on Quests</button> to real places in your own town, with one clear action to complete</li>
+              <li><button class="lore-link" data-lore="finn-bridges" type="button">Argue with each other</button></li>
+              <li>Chart your <button class="lore-link" data-lore="dr-inkrest" type="button">moods</button> and <button class="lore-link" data-lore="dr-vellum" type="button">health</button></li>
+              <li>Keep — and trade — <button class="lore-link" data-lore="damien-nights" type="button">secrets</button></li>
             </ul>
             <p class="academy-note">
               You can invest Belief right back, take it from Pages or people, take
-              sides, and tip the balance. Or just watch the Headmistress watch you.
+              sides, and tip the balance. Or just watch the <button class="lore-link" data-lore="headmistress-thorne" type="button">Headmistress</button> watch you.
             </p>
           </div>
         </div>
@@ -475,8 +599,8 @@
                 <span class="chapter-belief-count" aria-hidden="true">Give Belief</span>
               </button>
               <div class="chapter-copy">
-                <p class="chapter-kicker">The Ember Seal</p>
-                <h4>Emberheart</h4>
+                <p class="chapter-kicker"><button class="lore-link" data-lore="ember-seal" type="button">The Ember Seal</button></p>
+                <h4><button class="lore-link" data-lore="emberheart" type="button">Emberheart</button></h4>
                 <p class="chapter-belief">Life is authored. You are the protagonist, the pen, and the next door.</p>
                 <p>Emberheart pushes bold choices, self-authored quests, creative ambition, and scenes where you can decide what happens next.</p>
               </div>
@@ -488,8 +612,8 @@
                 <span class="chapter-belief-count" aria-hidden="true">Give Belief</span>
               </button>
               <div class="chapter-copy">
-                <p class="chapter-kicker">The Moss Clasp</p>
-                <h4>Mossbloom</h4>
+                <p class="chapter-kicker"><button class="lore-link" data-lore="moss-clasp" type="button">The Moss Clasp</button></p>
+                <h4><button class="lore-link" data-lore="mossbloom" type="button">Mossbloom</button></h4>
                 <p class="chapter-belief">Life is listened to. Something larger is already writing through the world.</p>
                 <p>Mossbloom slows the halls, deepens natural details, rewards patience, and turns ordinary noticing into guidance.</p>
               </div>
@@ -501,8 +625,8 @@
                 <span class="chapter-belief-count" aria-hidden="true">Give Belief</span>
               </button>
               <div class="chapter-copy">
-                <p class="chapter-kicker">The Tide Glass</p>
-                <h4>Tidecrest</h4>
+                <p class="chapter-kicker"><button class="lore-link" data-lore="tide-glass" type="button">The Tide Glass</button></p>
+                <h4><button class="lore-link" data-lore="tidecrest" type="button">Tidecrest</button></h4>
                 <p class="chapter-belief">Life is a poem, not a story: no plot to solve, only moments to inhabit.</p>
                 <p>Tidecrest favors spontaneity, sudden weather, lively interruptions, and pages where the present matters more than any arc.</p>
               </div>
@@ -514,10 +638,10 @@
                 <span class="chapter-belief-count" aria-hidden="true">Give Belief</span>
               </button>
               <div class="chapter-copy">
-                <p class="chapter-kicker">The Wind Cipher</p>
-                <h4>Riddlewind</h4>
+                <p class="chapter-kicker"><button class="lore-link" data-lore="wind-cipher" type="button">The Wind Cipher</button></p>
+                <h4><button class="lore-link" data-lore="riddlewind" type="button">Riddlewind</button></h4>
                 <p class="chapter-belief">Life is co-written. Every choice adds to a shared narrative.</p>
-                <p>Riddlewind brings dialogue, collaboration, puzzles, letters, and scenes that need more than one hand on the page.</p>
+                <p>Riddlewind brings dialogue, collaboration, <button class="lore-link" data-lore="soren-ng" type="button">puzzles</button>, letters, and scenes that need more than one hand on the page.</p>
               </div>
             </article>
 
@@ -527,8 +651,8 @@
                 <span class="chapter-belief-count" aria-hidden="true">Give Belief</span>
               </button>
               <div class="chapter-copy">
-                <p class="chapter-kicker">The Dusk Thorn</p>
-                <h4>Duskthorn</h4>
+                <p class="chapter-kicker"><button class="lore-link" data-lore="dusk-thorn" type="button">The Dusk Thorn</button></p>
+                <h4><button class="lore-link" data-lore="duskthorn" type="button">Duskthorn</button></h4>
                 <p class="chapter-belief">A story without honest conflict is too thin to protect anyone.</p>
                 <p>Duskthorn introduces friction, boundaries, rival claims, and the uncomfortable truths that make a story refuse erasure.</p>
               </div>
@@ -536,7 +660,7 @@
           </div>
 
           <p class="chapter-whisper" id="chapter-whisper" aria-live="polite">
-            The talismans are listening. Belief can be given, deepened, or released.
+            The <button class="lore-link" data-lore="correspondences" type="button">talismans</button> are listening. Belief can be given, deepened, or released.
           </p>
 
           <aside class="binding-page" id="binding-page" aria-live="polite" hidden>
@@ -569,7 +693,7 @@
                alt="An illustrated dossier of Professor Lydia Boggle from inside ReEnchanted's Academy"
                onerror="this.closest('.academy-illus').remove()">
           <figcaption>
-            Every figure, place, and object is illustrated and annotated — the
+            Every figure, place, and object is <button class="lore-link" data-lore="illustrations" type="button">illustrated and annotated</button> — the
             Academy keeps its own almanac of your world.
           </figcaption>
         </figure>
@@ -612,7 +736,7 @@
               make inside it. Your real world bleeds into the fiction: your step
               count sets how lively the Academy halls are, a poor night's sleep
               quiets the world and offers gentler, low-energy play, and the weather
-              outside your window is the weather in the Stacks. Characters read the
+              outside your window is the weather in <button class="lore-link" data-lore="the-stacks" type="button">the Stacks</button>. Characters read the
               pages you keep, comment on them, and remember what you do — warming or
               cooling toward you over time. Real world, fictional choices.
             </p>
@@ -620,7 +744,7 @@
           <article class="weave-card">
             <h3>Fae Bargains</h3>
             <p>
-              Pages with another hand in them. The old-law Fae have read every
+              Pages with another hand in them. The <button class="lore-link" data-lore="fairy-gifts" type="button">old-law Fae</button> have read every
               description of the world but never touched it — so they never want
               Belief. They want <em>noticing</em>. The price is a sensory field
               report: what does the oldest thing in the room feel like? Which sound
@@ -632,10 +756,10 @@
             <h3>Parleys</h3>
             <p>
               Not every meeting is a bargain. Six kinds of Book Fae haunt the margins
-              — sprites, sentence salamanders, punctuation pixies, lore-dwarves, and
-              marginalia goblins among them — each with its own voice and its own
+              — <button class="lore-link" data-lore="book-sprite" type="button">sprites</button>, <button class="lore-link" data-lore="sentence-salamander" type="button">sentence salamanders</button>, <button class="lore-link" data-lore="punctuation-pixie" type="button">punctuation pixies</button>, <button class="lore-link" data-lore="deep-lore-dwarf" type="button">lore-dwarves</button>, and
+              <button class="lore-link" data-lore="marginalia-goblin" type="button">marginalia goblins</button> among them — each with its own voice and its own
               hunger. A parley is a real conversation: omens stir, the Fae make an
-              offer, and you answer with choices. But they speak in old law, not
+              offer, and you answer with choices. But they speak in <button class="lore-link" data-lore="the-folk" type="button">old law</button>, not
               manners — they reply with <em>rules</em> that bend the world, and the
               rules tend to stick.
             </p>
@@ -644,7 +768,7 @@
 
         <p class="weave-thesis">
           Story Pages weave your ordinary life with your fictional choices until the
-          whole thing reads like a <span>faerie tale</span> — not the Disney kind, but
+          whole thing reads like a <button class="lore-link" data-lore="faerie-tale" type="button"><span>faerie tale</span></button> — not the Disney kind, but
           the older, more dangerous one, where the woods keep what you promise them.
         </p>
       </section>
@@ -662,7 +786,7 @@
       </section>
 
       <!-- ──────────────────── RADIO ──────────────────── -->
-      <section id="radio" class="radio-section">
+      <section id="radio" class="radio-section" data-drawer>
         <div class="section-head">
           <p class="eyebrow">ReEnchanted Radio</p>
           <h2>Dial in. Let the signal color the day.</h2>
@@ -737,10 +861,10 @@
       </section>
 
       <!-- ──────────────────── WONDER COMPASS EBOOK ──────────────────── -->
-      <section id="ebook" class="ebook-section">
+      <section id="ebook" class="ebook-section" data-drawer>
         <div class="ebook-copy">
           <p class="eyebrow">Included free</p>
-          <h2>Feeling grey?</h2>
+          <h2>Feeling <button class="lore-link" data-lore="the-nothing" type="button">grey</button>?</h2>
           <p class="ebook-prompts">
             Routine got you bored? Lonely? Have a dentist appointment?
           </p>
@@ -772,7 +896,7 @@
       </section>
 
       <!-- ──────────────────── CONTENT PACKS ──────────────────── -->
-      <section id="packs" class="packs-section">
+      <section id="packs" class="packs-section" data-drawer>
         <div class="section-head">
           <p class="eyebrow">The shelf keeps growing</p>
           <h2>Content packs: new everything.</h2>
@@ -815,7 +939,7 @@
       </section>
 
       <!-- ──────────────────── PRIVACY ──────────────────── -->
-      <section id="privacy" class="privacy-section">
+      <section id="privacy" class="privacy-section" data-drawer>
         <div class="privacy-copy">
           <p class="eyebrow">Real device magic</p>
           <h2>Your save is yours.</h2>
@@ -939,7 +1063,30 @@
       </section>
     </div>
 
+    <div class="lore-modal" id="lore-modal" role="dialog" aria-modal="true" aria-labelledby="lore-modal-title" hidden>
+      <div class="lore-backdrop" data-lore-close></div>
+      <article class="lore-panel" data-lore-kind="">
+        <button class="lore-close" type="button" data-lore-close aria-label="Close">×</button>
+        <p class="eyebrow lore-kicker" id="lore-modal-kicker"></p>
+        <h2 class="lore-modal-title" id="lore-modal-title"></h2>
+        <figure class="lore-figure" id="lore-figure" hidden>
+          <img id="lore-figure-img" alt="" decoding="async">
+          <figcaption class="lore-gallery-nav" id="lore-gallery-nav" hidden>
+            <button class="lore-gallery-button" id="lore-gallery-prev" type="button" aria-label="Previous illustration">←</button>
+            <span id="lore-gallery-status" aria-live="polite"></span>
+            <button class="lore-gallery-button" id="lore-gallery-next" type="button" aria-label="Next illustration">→</button>
+          </figcaption>
+        </figure>
+        <div class="lore-copy" id="lore-modal-copy"></div>
+        <aside class="lore-trythis" id="lore-trythis" hidden>
+          <span class="lore-trythis-label">✦ Try this</span>
+          <p id="lore-trythis-body"></p>
+        </aside>
+        <p class="lore-sign">— The Book</p>
+      </article>
+    </div>
+
     <!-- You looked behind the page. Riddlewind approves. Penny misfiled a receipt marked 97.3. -->
-    <script src="./app.js"></script>
+    <script src="./app.js?v=4"></script>
   </body>
 </html>

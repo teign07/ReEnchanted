@@ -215,6 +215,8 @@ struct SurfaceReadinessState: Codable, Equatable {
             return metadata["electiveOffer"] == "true" && !hasNonEmptyMetadata("electiveAsk")
         case .packPage:
             return hasNonEmptyMetadata("packPrompt") && !hasNonEmptyMetadata("packProse")
+        case .gamePage:
+            return false
         default:
             return false
         }
@@ -370,7 +372,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .reflect
         case .castBond:
             return .importReference
-        case .body, .fuel, .facultyResearch, .supportGuild, .weather, .letter, .academyClass, .bookConnections, .bookNotices, .theBleed, .todaysSky, .bookJump, .radio, .inventory:
+        case .body, .fuel, .facultyResearch, .supportGuild, .weather, .letter, .academyClass, .bookConnections, .bookNotices, .glowInvitation, .theBleed, .todaysSky, .bookJump, .radio, .inventory, .gamePage:
             return .reflect
         case .elective:
             return .capture
@@ -734,6 +736,18 @@ struct CalendarEventSignal: Codable, Equatable, Identifiable {
 }
 
 extension SurfacePage {
+    var isStoryPlayablePage: Bool {
+        switch type {
+        case .narrativeOS, .bookFae, .academyClass:
+            return true
+        case .anchor:
+            return payload.metadata["anchorOffer"] != "true" &&
+                payload.metadata["anchorID"]?.nonEmpty != nil
+        default:
+            return false
+        }
+    }
+
     /// What "the same page again" means to a reader: the content identity,
     /// not the surface id (which changes every slot).
     var varietyKey: String {
@@ -743,9 +757,15 @@ extension SurfacePage {
         if let id = payload.metadata["quipID"]?.nonEmpty { return "quip:\(id)" }
         if let id = payload.metadata["assetName"]?.nonEmpty { return "plate:\(id)" }
         if let id = payload.metadata["packArchetypeID"]?.nonEmpty { return "pack:\(id)" }
+        if payload.metadata["chapterPrimer"] == "true",
+           let stage = payload.metadata["primerStage"]?.nonEmpty {
+            return "chapter-primer:\(stage)"
+        }
+        if payload.metadata["chapterBinding"] == "true" { return "chapter-binding" }
         if let id = payload.metadata["sessionID"]?.nonEmpty { return "session:\(id)" }
         if let id = payload.metadata["senderID"]?.nonEmpty { return "sender:\(id)" }
         if let id = payload.metadata["anchorID"]?.nonEmpty { return "anchor:\(id)" }
+        if let id = payload.metadata["storyRecipeID"]?.nonEmpty { return "recipe:\(id)" }
         if let id = payload.metadata["storyFormID"]?.nonEmpty { return "form:\(id)" }
         if let id = payload.metadata["bookJumpID"]?.nonEmpty {
             let action = payload.metadata["bookJumpAction"]?.nonEmpty ?? "step"
@@ -753,6 +773,14 @@ extension SurfacePage {
         }
         if let id = payload.metadata["bookID"]?.nonEmpty { return "bookjump-book:\(id)" }
         return "source:\(sourceID)"
+    }
+
+    var supplementalStoryVarietyKeys: [String] {
+        guard type == .narrativeOS else { return [] }
+        var keys: [String] = []
+        if let id = payload.metadata["storyFormID"]?.nonEmpty { keys.append("form:\(id)") }
+        if let id = payload.metadata["storyGenreID"]?.nonEmpty { keys.append("genre:\(id)") }
+        return keys
     }
 }
 

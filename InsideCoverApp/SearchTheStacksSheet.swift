@@ -6,6 +6,8 @@ import SwiftUI
 struct SearchTheStacksSheet: View {
     let dataset: StacksSearchDataset
     let isLocalBrainWorking: Bool
+    let localBrainWorkLabel: String
+    let localBrainWorkStartedAt: Date?
     let onOpen: (StacksSearchResult) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -32,6 +34,20 @@ struct SearchTheStacksSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
                         searchField
+
+                        if isInterpreting {
+                            LocalBrainWorkingStatusCard(
+                                label: "stacks-search",
+                                startedAt: localBrainWorkStartedAt,
+                                presentation: .page
+                            )
+                        } else if isLocalBrainWorking {
+                            LocalBrainWorkingStatusCard(
+                                label: localBrainWorkLabel,
+                                startedAt: localBrainWorkStartedAt,
+                                presentation: .compact
+                            )
+                        }
 
                         if !interpretationNote.isEmpty {
                             Text(interpretationNote)
@@ -101,7 +117,7 @@ struct SearchTheStacksSheet: View {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(BookPalette.ink.opacity(0.35))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bookPress())
                 }
             }
             .padding(12)
@@ -117,7 +133,7 @@ struct SearchTheStacksSheet: View {
                 } label: {
                     Label(
                         isInterpreting ? "The Book is reading your question..." : "Let the Book read it",
-                        systemImage: isInterpreting ? "circle.dotted" : "text.book.closed"
+                        systemImage: isInterpreting ? "pencil.and.scribble" : "text.book.closed"
                     )
                     .font(.caption.weight(.bold))
                 }
@@ -183,7 +199,7 @@ struct SearchTheStacksSheet: View {
                                         .stroke(BookPalette.ink.opacity(0.1), lineWidth: 1)
                                 }
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.bookPress())
                         }
                     }
                 }
@@ -240,7 +256,7 @@ private struct FlowLayoutChips: View {
                             Capsule().stroke(BookPalette.teal.opacity(0.3), lineWidth: 1)
                         }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress())
             }
         }
     }

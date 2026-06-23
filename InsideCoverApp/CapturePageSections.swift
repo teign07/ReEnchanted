@@ -22,39 +22,112 @@ struct ChapterBindingFormView: View {
             .filter { !$0.isEmpty }
     }
 
+    private var memoryFragments: [String] {
+        (surface.payload.metadata["bindingMemories"] ?? "")
+            .components(separatedBy: " | ")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private var ceremony: ChapterBindingCeremonyProfile {
+        ChapterBindingCeremonyProfile(chapterID: chosenChapter?.id)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             if let chapter = chosenChapter {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: chapter.symbolName)
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(BookPalette.lampGold)
-                        Text("Chapter \(chapter.name)")
-                            .font(.system(.title3, design: .serif, weight: .bold))
-                            .foregroundStyle(BookPalette.ink)
-                        Spacer()
-                        Image(systemName: "checkmark.seal.fill")
-                            .foregroundStyle(BookPalette.teal)
+                VStack(alignment: .leading, spacing: 12) {
+                    ZStack(alignment: .bottomLeading) {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(ceremony.gradient)
+                            .overlay {
+                                GeometryReader { proxy in
+                                    ZStack {
+                                        Circle()
+                                            .fill(.white.opacity(0.14))
+                                            .frame(width: proxy.size.width * 0.58)
+                                            .blur(radius: 18)
+                                            .offset(x: proxy.size.width * 0.34, y: -proxy.size.height * 0.16)
+                                        Circle()
+                                            .strokeBorder(BookPalette.lampGold.opacity(0.26), lineWidth: 1)
+                                            .frame(width: proxy.size.width * 0.72)
+                                            .offset(x: -proxy.size.width * 0.2, y: proxy.size.height * 0.12)
+                                    }
+                                }
+                                .clipped()
+                            }
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(alignment: .center, spacing: 10) {
+                                Image(systemName: chapter.symbolName)
+                                    .font(.title.weight(.bold))
+                                    .foregroundStyle(BookPalette.lampGold)
+                                    .frame(width: 42, height: 42)
+                                    .background(.black.opacity(0.16), in: Circle())
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("The Binding Recognizes")
+                                        .font(.caption2.weight(.black))
+                                        .textCase(.uppercase)
+                                        .foregroundStyle(.white.opacity(0.74))
+                                    Text(chapter.name)
+                                        .font(.system(.largeTitle, design: .serif, weight: .bold))
+                                        .foregroundStyle(.white)
+                                }
+                                Spacer(minLength: 0)
+                            }
+
+                            Text(ceremony.heroLine)
+                                .font(.system(.callout, design: .serif).italic())
+                                .foregroundStyle(.white.opacity(0.86))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(16)
                     }
-                    Text(chapter.philosophy)
+
+                    Text("Headmistress Thorne cups the air around the page, and somehow you feel the rings at your face: old ink, cool metal, the exact pressure of being read. The Great Hall fractures. Every kept page opens at once.")
                         .font(.callout)
-                        .foregroundStyle(BookPalette.ink.opacity(0.8))
+                        .foregroundStyle(BookPalette.ink.opacity(0.76))
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(chapter.traits.joined(separator: " · "))
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(BookPalette.teal.opacity(0.85))
-                    Text("\u{201C}\(chapter.writeFraming)\u{201D}")
-                        .font(.system(.caption, design: .serif).italic())
-                        .foregroundStyle(BookPalette.ink.opacity(0.62))
-                        .fixedSize(horizontal: false, vertical: true)
+
+                    if !memoryFragments.isEmpty {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text("Your Life In The Fracture")
+                                .font(.caption2.weight(.black))
+                                .textCase(.uppercase)
+                                .foregroundStyle(BookPalette.teal.opacity(0.86))
+                            ForEach(memoryFragments.prefix(3), id: \.self) { fragment in
+                                Text("\u{201C}\(fragment)\u{201D}")
+                                    .font(.system(.caption, design: .serif).italic())
+                                    .foregroundStyle(BookPalette.ink.opacity(0.7))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(BookPalette.paper.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(ceremony.sensoryLine, systemImage: ceremony.sensorySymbol)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(ceremony.accent)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(chapter.philosophy)
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(BookPalette.ink.opacity(0.84))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("\u{201C}\(chapter.writeFraming)\u{201D}")
+                            .font(.system(.caption, design: .serif).italic())
+                            .foregroundStyle(BookPalette.ink.opacity(0.62))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(BookPalette.page.opacity(0.9), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(BookPalette.lampGold.opacity(0.45), lineWidth: 1.2)
+                        .stroke(ceremony.accent.opacity(0.48), lineWidth: 1.2)
                 }
             }
 
@@ -94,6 +167,63 @@ struct ChapterBindingFormView: View {
                 .font(.caption)
                 .foregroundStyle(BookPalette.ink.opacity(0.58))
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+private struct ChapterBindingCeremonyProfile {
+    let chapterID: String?
+
+    var accent: Color {
+        switch chapterID {
+        case "emberheart": Color(red: 0.86, green: 0.28, blue: 0.16)
+        case "mossbloom": Color(red: 0.28, green: 0.56, blue: 0.34)
+        case "tidecrest": Color(red: 0.16, green: 0.55, blue: 0.72)
+        case "riddlewind": Color(red: 0.74, green: 0.55, blue: 0.18)
+        case "duskthorn": Color(red: 0.42, green: 0.28, blue: 0.58)
+        default: BookPalette.teal
+        }
+    }
+
+    var gradient: LinearGradient {
+        let dark = Color(red: 0.12, green: 0.09, blue: 0.12)
+        return LinearGradient(
+            colors: [dark, accent.opacity(0.86), BookPalette.ink.opacity(0.88)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    var heroLine: String {
+        switch chapterID {
+        case "emberheart": "Red ink races toward the place where your hand meets the pen."
+        case "mossbloom": "Rain-dark soil breathes under the marble; something patient has been listening."
+        case "tidecrest": "Moonlit water folds through the hall, sudden and complete."
+        case "riddlewind": "A second voice finds yours in the dark and finishes the spell."
+        case "duskthorn": "Violet thorns guard the edge where the story refuses to soften."
+        default: "Ink, starlight, and impossible color gather at the binding."
+        }
+    }
+
+    var sensoryLine: String {
+        switch chapterID {
+        case "emberheart": "Heat without flame. A door waiting for your choice."
+        case "mossbloom": "Petrichor, old wood, and green persistence under the page."
+        case "tidecrest": "Salt, streetlight, laughter, and the vivid present tense."
+        case "riddlewind": "Cipher wind, shared breath, and the click of a solved lock."
+        case "duskthorn": "Thorn-shadow, black glass, and the honest edge of protection."
+        default: "The seal gathers from every story at once."
+        }
+    }
+
+    var sensorySymbol: String {
+        switch chapterID {
+        case "emberheart": "flame.fill"
+        case "mossbloom": "leaf.fill"
+        case "tidecrest": "water.waves"
+        case "riddlewind": "puzzlepiece.extension.fill"
+        case "duskthorn": "theatermasks.fill"
+        default: "seal.fill"
         }
     }
 }

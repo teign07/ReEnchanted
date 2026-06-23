@@ -262,7 +262,7 @@ private struct MarginsAtlasGraphView: View {
                 .background(BookPalette.nightPanel.opacity(0.86), in: Circle())
                 .overlay { Circle().stroke(BookPalette.lampGold.opacity(0.4), lineWidth: 1) }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress())
         .accessibilityLabel("Reset zoom")
     }
 
@@ -338,7 +338,7 @@ private struct AtlasNodeButton: View {
                     .frame(width: 96)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress())
         .opacity(isDimmed ? 0.45 : 1)
         .accessibilityLabel("\(node.label), \(node.kindLabel)")
     }
@@ -444,6 +444,9 @@ struct CapturePageSheet: View {
     let surface: SurfacePage
     let day: BookDay
     let isLocalBrainWorking: Bool
+    let localBrainWorkLabel: String
+    let localBrainWorkStartedAt: Date?
+    let localBrainQueuedCount: Int
     let onReplaceIlluminatedSurface: (SurfacePage) -> Void
     let onNavigateToSurface: (SurfacePage) -> Void
     let onCompleteCompassRun: (SurfacePage) -> Void
@@ -509,6 +512,7 @@ struct CapturePageSheet: View {
     @State private var todaysSkyMessage = ""
     @State private var radioDialFrequency = 94.1
     @State private var selectedRadioStationID: String?
+    @State private var hasTouchedRadioDial = false
     @State private var radioManager = BookRadioManager.shared
     @State private var twoReadingsSide: String?
     @State private var selectedEnchantmentID: String?
@@ -539,6 +543,13 @@ struct CapturePageSheet: View {
     @State private var bleedExportMessage = ""
     @State private var inventoryRevision = 0
     @State private var inventoryMessage = ""
+    @State private var isGamePagePresented = false
+    @State private var gameResultSurface: SurfacePage?
+    @State private var lastGameResult: SentenceRunnerResult?
+    @State private var isBraidingGameRun = false
+    @State private var gameRunBraided = false
+    @State private var gameBraidMessage = ""
+    @State private var inspectedPhraseSource: SentenceRunnerPhraseSource?
     @State private var braidFeedbackMessage = ""
     @State private var didMarkBraidMissed = false
     @State private var isImprovingBraid = false
@@ -697,7 +708,7 @@ struct CapturePageSheet: View {
     }
 
     private func tutorTouchForThisPage() {
-        if (surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass), !isLocalBrainIssuePage {
+        if surface.isStoryPlayablePage, !isLocalBrainIssuePage {
             tutorTouch("story-page")
         } else if isEnchantmentPage {
             tutorTouch("enchantment-page")
@@ -834,7 +845,7 @@ struct CapturePageSheet: View {
     }
 
     private var effectiveSurface: SurfacePage {
-        currentEnchantmentSurface ?? currentIlluminatedSurface ?? surface
+        gameResultSurface ?? currentEnchantmentSurface ?? currentIlluminatedSurface ?? surface
     }
 
     private var effectiveProofSurface: SurfacePage {
@@ -916,12 +927,24 @@ struct CapturePageSheet: View {
     }
 
     private var storySceneDraft: StoryPageSceneDraft? {
-        guard surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass else { return nil }
+        guard surface.isStoryPlayablePage else { return nil }
         return StoryPageSceneDraft(surface: surface)
     }
 
     private var activeStoryTurn: StoryPageSessionTurn? {
         storyTurns.last ?? storySceneDraft.map { StoryPageSessionTurn(draft: $0) }
+    }
+
+    private var isFaeParleyPage: Bool {
+        surface.type == .bookFae && (
+            surface.payload.metadata["storyGenreName"] == "Old Faerie Parley" ||
+            surface.payload.metadata["faeInteraction"] == "true"
+        )
+    }
+
+    private func storyScribeLabel(stage: String) -> String {
+        guard isFaeParleyPage else { return "story-page-\(stage)" }
+        return "fae-parley-\(surface.payload.metadata["faeKind"] ?? "bookSprite")-\(stage)"
     }
 
     private var sheetHasLocalBrainActions: Bool {
@@ -931,6 +954,38 @@ struct CapturePageSheet: View {
         default:
             return isEnchantmentPage
         }
+    }
+
+    private var pageOwnedScribeLabel: String? {
+        if isCastingEnchantment { return "enchantment" }
+        if isAnsweringEnchantedObject { return "everything-speaks-reply" }
+        if isLoadingManualPhoto || isChoosingBookPhoto { return "photo-illumination" }
+        if isGeneratingStoryResult { return storyScribeLabel(stage: "result") }
+        if isContinuingStoryPage { return storyScribeLabel(stage: "continuation") }
+        if isAskingTheBook { return "ask-the-book" }
+        if isInkrestSitting { return "inkrest-office-hours" }
+        if isFaePaying { return "fae-bargain" }
+        if isGeneratingCompassRun || isGeneratingPlayfulMission { return "wonder-compass-playful-mission" }
+        if isRewritingBraid { return "braid-rewrite" }
+        if isImprovingBraid { return "braid-taste-note" }
+        if isPendingLetterPage, isLocalBrainWorking, localBrainWorkLabel.lowercased().contains("letter") {
+            return localBrainWorkLabel
+        }
+        return nil
+    }
+
+    private func scribeWorkCard(
+        _ label: String,
+        quip: String? = nil,
+        presentation: ScribeWorkPresentation = .page
+    ) -> some View {
+        LocalBrainWorkingStatusCard(
+            label: label,
+            quip: quip,
+            startedAt: localBrainWorkStartedAt,
+            queuedCount: localBrainQueuedCount,
+            presentation: presentation
+        )
     }
 
     private var openPagePrimaryText: Color {
@@ -949,7 +1004,7 @@ struct CapturePageSheet: View {
         let marginNote = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let body: String
 
-        if (surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass), let activeStoryTurn {
+        if surface.isStoryPlayablePage, let activeStoryTurn {
             let choiceLines = activeStoryTurn.draft.choices.map { "• \($0.kindLabel): \($0.title)" }.joined(separator: "\n")
             let selectedResult = activeStoryTurn.selectedChoice.map { choice in
                 "\n\nChosen path: \(choice.title)\n\n\(activeStoryTurn.result(for: choice))"
@@ -1086,11 +1141,31 @@ struct CapturePageSheet: View {
                 .ignoresSafeArea()
             }
             #endif
+            .fullScreenCover(isPresented: $isGamePagePresented) {
+                SentenceRunnerGameView(
+                    phrases: gamePhrases,
+                    nothingPhrases: gameNothingPhrases,
+                    onCancel: {
+                        isGamePagePresented = false
+                    },
+                    onFinish: { result in
+                        lastGameResult = result
+                        gameRunBraided = false
+                        gameBraidMessage = ""
+                        gameResultSurface = gameResultPage(from: result)
+                        text = result.keepText
+                        isGamePagePresented = false
+                    }
+                )
+            }
+            .sheet(item: $inspectedPhraseSource) { source in
+                phraseSourceModal(source)
+            }
             .task {
                 if surface.type == .illuminatedPhoto {
                     await prepareIlluminatedArtifactIfNeeded()
                 }
-                if (surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass), !isLocalBrainIssuePage, storyTurns.isEmpty, let storySceneDraft {
+                if surface.isStoryPlayablePage, !isLocalBrainIssuePage, storyTurns.isEmpty, let storySceneDraft {
                     storyTurns = [StoryPageSessionTurn(draft: storySceneDraft)]
                 }
             }
@@ -1196,13 +1271,8 @@ struct CapturePageSheet: View {
 
             pageShareControl
 
-            if isLocalBrainWorking, sheetHasLocalBrainActions {
-                LocalBrainWorkingStatusCard(
-                    label: "this page",
-                    quip: LocalBrainQuips.lines[0],
-                    startedAt: nil,
-                    queuedCount: 0
-                )
+            if isLocalBrainWorking, sheetHasLocalBrainActions, pageOwnedScribeLabel == nil {
+                scribeWorkCard(localBrainWorkLabel)
             }
 
             if let framing = surface.payload.metadata["pactFraming"]?.nonEmpty {
@@ -1227,15 +1297,6 @@ struct CapturePageSheet: View {
 
             if canGiveBraidFeedback {
                 braidFeedbackCard
-            }
-
-            if isGeneratingCompassRun {
-                LocalBrainWorkingStatusCard(
-                    label: "Compass Run",
-                    quip: "The needle is taking your constraints seriously.",
-                    startedAt: nil,
-                    queuedCount: 0
-                )
             }
 
             if !compassGenerationMessage.isEmpty {
@@ -1324,16 +1385,361 @@ struct CapturePageSheet: View {
                 hourPageView
             }
 
-            if surface.type != .narrativeOS && surface.type != .bookFae && surface.type != .academyClass && surface.type != .askTheBook && surface.type != .calendar && surface.type != .inkrestOfficeHours && surface.type != .faeBargain && !isChapterPrimerPage && !isBookJumpPage {
+            if surface.type == .gamePage {
+                gamePageView
+            }
+
+            if !surface.isStoryPlayablePage && surface.type != .askTheBook && surface.type != .calendar && surface.type != .gamePage && surface.type != .inkrestOfficeHours && surface.type != .faeBargain && !isChapterPrimerPage && !isBookJumpPage {
                 marginNoteEditor(minHeight: isPreparedPage ? 92 : (surface.type == .souvenir ? 120 : 150))
             } else if isBookJumpActivePage {
                 // Every open beat can carry a line — a souvenir to bring home, or
                 // a real detail to steady the page — so the fork controls have it.
                 marginNoteEditor(minHeight: 118)
-            } else if (surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass) && !isLocalBrainIssuePage {
+            } else if surface.isStoryPlayablePage && !isLocalBrainIssuePage {
                 storyMarginNoteField
             }
         }
+    }
+
+    private var gamePhrases: [String] {
+        splitMetadataList(surface.payload.metadata["gamePhrases"])
+    }
+
+    private var gameNothingPhrases: [String] {
+        splitMetadataList(surface.payload.metadata["nothingPhrases"])
+    }
+
+    /// Maps each archive phrase to the exact kept page it came from, parsed from the
+    /// adapter's "phrase¶pageID¶timestamp¶label||..." sidecar, so rescued grey words
+    /// can cite — and open — their source page, dated.
+    private var gamePhraseSources: [String: SentenceRunnerPhraseSource] {
+        var map: [String: SentenceRunnerPhraseSource] = [:]
+        for entry in splitMetadataList(surface.payload.metadata["phraseSources"]) {
+            let parts = entry.components(separatedBy: "¶")
+            guard parts.count == 4, let timestamp = Double(parts[2]) else { continue }
+            let phrase = parts[0]
+            map[phrase] = SentenceRunnerPhraseSource(
+                phrase: phrase,
+                pageID: parts[1],
+                date: Date(timeIntervalSince1970: timestamp),
+                label: parts[3]
+            )
+        }
+        return map
+    }
+
+    /// The structured restored grey words for the most recent run (drives the
+    /// interactive result UI; empty when no run is loaded).
+    private var gameRescueItems: [SentenceRunnerRescueItem] {
+        guard let result = lastGameResult else { return [] }
+        return SentenceRunnerRescue.items(grey: result.nothingHits, archive: gamePhrases, provenance: gamePhraseSources)
+    }
+
+    /// The result body with the plain-text restored block stripped, so the live
+    /// panel can render the rescues interactively instead.
+    private var gameResultProseText: String {
+        guard let body = gameResultSurface?.payload.body else { return "" }
+        return (body.components(separatedBy: "\n\nThe Book restored:").first ?? body)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func splitMetadataList(_ value: String?) -> [String] {
+        (value ?? "")
+            .components(separatedBy: "||")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private var gamePageView: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if let gameResultSurface {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Run Complete", systemImage: "checkmark.seal.fill")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(BookPalette.teal)
+                    Text(gameResultProseText)
+                        .font(.system(.body, design: .serif))
+                        .foregroundStyle(openPageSecondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if !gameRescueItems.isEmpty {
+                        gameRescueSection
+                    }
+
+                    gameRunBraidControl
+
+                    if let note = GoblinMarginalia.note(forID: gameResultSurface.id, text: gameResultSurface.payload.body) {
+                        faeMarginaliaCard(note)
+                    }
+                }
+                .padding(12)
+                .background(BookPalette.teal.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            } else {
+                Button {
+                    BookFeedback.play(.openPage)
+                    isGamePagePresented = true
+                } label: {
+                    Label("Run the margin", systemImage: "figure.run")
+                        .font(.headline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(BookPalette.teal)
+                .disabled(gamePhrases.count < 6)
+
+                if gamePhrases.count < 6 {
+                    Text("The Loom needs at least six usable phrases from kept pages before this game can open.")
+                        .font(.caption)
+                        .foregroundStyle(openPageSecondaryText)
+                }
+            }
+
+            phrasePreview(title: "Archive words in motion", phrases: Array(gamePhrases.prefix(6)), tint: BookPalette.teal)
+            phrasePreview(title: "Nothing words to avoid", phrases: Array(gameNothingPhrases.prefix(6)), tint: openPageSecondaryText)
+        }
+    }
+
+    @ViewBuilder
+    private var gameRescueSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("The Book restored", systemImage: "wand.and.stars.inverse")
+                .font(.caption2.weight(.black))
+                .foregroundStyle(BookPalette.lampGold)
+
+            ForEach(gameRescueItems) { item in
+                VStack(alignment: .leading, spacing: 6) {
+                    (
+                        Text(item.grey).strikethrough().foregroundColor(openPageSecondaryText.opacity(0.65))
+                        + Text("  →  ").foregroundColor(openPageSecondaryText.opacity(0.45))
+                        + Text(item.restored).foregroundColor(BookPalette.lampGold)
+                    )
+                    .font(.callout.weight(.medium))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                    if let source = item.source {
+                        Button {
+                            BookFeedback.play(.openPage)
+                            inspectedPhraseSource = source
+                        } label: {
+                            Label(
+                                "from your \(source.label) · \(SentenceRunnerRescue.dateFormatter.string(from: source.date))",
+                                systemImage: "doc.text.magnifyingglass"
+                            )
+                            .font(.caption2.weight(.semibold))
+                        }
+                        .buttonStyle(.borderless)
+                        .tint(BookPalette.teal)
+                    }
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(BookPalette.lampGold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.lampGold.opacity(0.18), lineWidth: 1)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func phraseSourceModal(_ source: SentenceRunnerPhraseSource) -> some View {
+        let page = inventoryKeptPages.first { $0.id == source.pageID }
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("THE WORD CAME FROM")
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(BookPalette.teal)
+                        Text("\(source.label) · \(SentenceRunnerRescue.dateFormatter.string(from: source.date))")
+                            .font(.system(.title3, design: .serif, weight: .bold))
+                            .foregroundStyle(BookPalette.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Text("\u{201C}\(source.phrase)\u{201D}")
+                        .font(.system(.title2, design: .serif, weight: .semibold))
+                        .foregroundStyle(BookPalette.lampGold)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let page {
+                        if !page.promptText.isEmpty {
+                            phraseSourceField("The page asked", page.promptText)
+                        }
+                        if !page.userInput.isEmpty {
+                            phraseSourceField("What you wrote", page.userInput)
+                        }
+                    } else {
+                        Text("This page has since left the archive, but the Loom still remembers the words it loosened.")
+                            .font(.callout)
+                            .foregroundStyle(BookPalette.ink.opacity(0.7))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(22)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(BookPalette.page.ignoresSafeArea())
+            .navigationTitle("Source Page")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { inspectedPhraseSource = nil }
+                        .tint(BookPalette.lampGold)
+                }
+            }
+        }
+    }
+
+    private func phraseSourceField(_ title: String, _ body: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title.uppercased())
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(BookPalette.ink.opacity(0.55))
+            Text(body)
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var gameRunBraidControl: some View {
+        if let result = lastGameResult, !result.caught.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                if gameRunBraided {
+                    Label("Braided by the Scribe", systemImage: "sparkles")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.lampGold)
+                } else {
+                    Button {
+                        Task { await braidGameRun() }
+                    } label: {
+                        Label("Let the Scribe braid this run", systemImage: "wand.and.stars")
+                            .font(.caption.weight(.bold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(BookPalette.lampGold)
+                    .disabled(isBraidingGameRun || isLocalBrainWorking)
+                }
+
+                if isBraidingGameRun {
+                    scribeWorkCard(
+                        "sentence-runner-braid",
+                        quip: "The Scribe is re-enchanting the grey and braiding your caught words."
+                    )
+                }
+
+                if !gameBraidMessage.isEmpty {
+                    Text(gameBraidMessage)
+                        .font(.caption2)
+                        .foregroundStyle(openPageSecondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    private func braidGameRun() async {
+        guard let result = lastGameResult, !isBraidingGameRun, !gameRunBraided else { return }
+        isBraidingGameRun = true
+        gameBraidMessage = "The Scribe is reading the run."
+        let context = SentenceRunnerProseContext(
+            caught: result.caught,
+            nothingHits: result.nothingHits,
+            outcomeTitle: result.outcome.title,
+            form: SentenceRunnerPoem.form(caught: result.caught, nothingHits: result.nothingHits).rawValue,
+            deterministic: result.keepText,
+            archiveSamples: Array(gamePhrases.prefix(8)),
+            rescues: SentenceRunnerRescue.lines(gameRescueItems)
+        )
+        do {
+            let prose: String
+            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
+            prose = try await MLXSentenceRunnerProseWriter().write(context: context)
+            #else
+            prose = try await FakeSentenceRunnerProseWriter().write(context: context)
+            #endif
+            gameResultSurface = gameResultPage(from: result, braided: prose)
+            text = prose
+            gameRunBraided = true
+            gameBraidMessage = ""
+            BookFeedback.play(.braidComplete)
+        } catch {
+            gameBraidMessage = "The Scribe could not braid this run: \(error.localizedDescription)"
+            BookFeedback.play(.error)
+        }
+        isBraidingGameRun = false
+    }
+
+    private func phrasePreview(title: String, phrases: [String], tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .font(.caption2.weight(.black))
+                .foregroundStyle(tint)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], alignment: .leading, spacing: 8) {
+                ForEach(phrases, id: \.self) { phrase in
+                    Text(phrase)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.78)
+                        .foregroundStyle(openPageSecondaryText)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 7)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+            }
+        }
+    }
+
+    private func gameResultPage(from result: SentenceRunnerResult, braided: String? = nil) -> SurfacePage {
+        let source = BookPageSourceRegistry.source(for: .gamePage)
+        let form = SentenceRunnerPoem.form(caught: result.caught, nothingHits: result.nothingHits)
+        let poem = braided ?? SentenceRunnerPoem.compose(caught: result.caught, nothingHits: result.nothingHits)
+        let rescueItems = SentenceRunnerRescue.items(grey: result.nothingHits, archive: gamePhrases, provenance: gamePhraseSources)
+        let rescues = SentenceRunnerRescue.lines(rescueItems)
+        let restoredBlock = rescues.isEmpty ? nil : (["The Book restored:"] + rescues).joined(separator: "\n")
+        var tags = ["game-page", "sentence-runner", "loom-run", "outcome:\(result.outcome.rawValue)", "prose-form:\(form.rawValue)"]
+        tags.append(braided == nil ? "prose:deterministic" : "prose:gemma")
+        tags += result.caught.prefix(6).map { "caught:\($0.slugTag)" }
+        tags += result.nothingHits.prefix(4).map { "nothing-hit:\($0.slugTag)" }
+        if !result.nothingHits.isEmpty { tags.append("nothing-influenced") }
+        if !rescues.isEmpty { tags.append("grey-rescued") }
+        return SurfacePage(
+            id: "\(surface.id)-result-\(Int(Date().timeIntervalSince1970))",
+            type: .gamePage,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: 72,
+            reason: "A Game Page run made a keepable result.",
+            prompt: "The Sentence Runner Result",
+            detail: result.outcome.title,
+            payload: BookPagePayload(
+                headline: result.outcome.headline,
+                body: [
+                    result.outcome.summary,
+                    poem,
+                    restoredBlock
+                ].compactMap { $0 }.joined(separator: "\n\n"),
+                metadata: [
+                    "source": source.id,
+                    "gameID": "sentence-runner",
+                    "gameOutcome": result.outcome.rawValue,
+                    "proseForm": form.rawValue,
+                    "proseSource": braided == nil ? "deterministic" : "gemma",
+                    "proseRescued": rescues.isEmpty ? "false" : "true",
+                    "caughtWords": result.caught.joined(separator: "||"),
+                    "nothingHits": result.nothingHits.joined(separator: "||"),
+                    "tags": tags.joined(separator: ",")
+                ]
+            )
+        )
     }
 
     private var chapterPrimerView: some View {
@@ -1446,7 +1852,7 @@ struct CapturePageSheet: View {
                 placeholder: placeholder,
                 text: $text,
                 minHeight: 92,
-                builderPack: phase == "after" ? .core.merged(with: .souvenir) : .core
+                builderPack: phase == "after" ? SentenceBuilderPackRegistry.composedSouvenir() : SentenceBuilderPackRegistry.composedCore()
             )
         }
     }
@@ -1609,7 +2015,7 @@ struct CapturePageSheet: View {
                                 .stroke(BookPalette.teal.opacity(0.36), lineWidth: 1)
                         }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress())
                 .foregroundStyle(BookPalette.teal)
                 .disabled(bleedEditionText == nil)
             }
@@ -1673,7 +2079,7 @@ struct CapturePageSheet: View {
             Button {
                 Task { await askTheBook() }
             } label: {
-                Label(isAskingTheBook ? "The Book is answering" : "Ask the Book", systemImage: isAskingTheBook ? "circle.dotted" : "text.bubble")
+                Label(isAskingTheBook ? "The Book is answering" : "Ask the Book", systemImage: isAskingTheBook ? "pencil.and.scribble" : "text.bubble")
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -1683,9 +2089,13 @@ struct CapturePageSheet: View {
                             .stroke(BookPalette.teal.opacity(0.36), lineWidth: 1)
                     }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.bookPress())
             .foregroundStyle(BookPalette.teal)
             .disabled(isAskingTheBook || askPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLocalBrainWorking)
+
+            if isAskingTheBook {
+                scribeWorkCard("ask-the-book")
+            }
 
             if !askTheBookMessage.isEmpty {
                 Text(askTheBookMessage)
@@ -1744,7 +2154,7 @@ struct CapturePageSheet: View {
                 Label("Add this feast to my Calendar", systemImage: "calendar.badge.plus")
                     .font(.caption.weight(.semibold))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.bookPress())
             .foregroundStyle(BookPalette.teal)
 
             if !festivalMessage.isEmpty {
@@ -1818,7 +2228,7 @@ struct CapturePageSheet: View {
                 Label("Add a sky-watch to my Calendar", systemImage: "calendar.badge.plus")
                     .font(.caption.weight(.semibold))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.bookPress())
             .foregroundStyle(BookPalette.teal)
 
             if !todaysSkyMessage.isEmpty {
@@ -1855,9 +2265,14 @@ struct CapturePageSheet: View {
     private var radioPageView: some View {
         let unlocked = Set(PlayerVault.shared.data.ownedPacks ?? [])
         let stations = RadioStationRegistry.stations(unlockedPackIDs: unlocked)
-        let currentPlayback = radioManager.playback.isTuned ? radioManager.playback : radioPlayback
-        let activeID = selectedRadioStationID ?? currentPlayback.activeStationID ?? surface.payload.metadata["radioStationID"] ?? stations.first?.id
-        let active = RadioStationRegistry.station(id: activeID, unlockedPackIDs: unlocked) ?? stations.first
+        let currentPlayback = radioManager.isPlaying ? radioManager.playback : (radioManager.playback.isTuned ? radioManager.playback : radioPlayback)
+        let dialStation = RadioStationRegistry.tunedStation(to: radioDialFrequency, unlockedPackIDs: unlocked)
+        let liveDialIsBetweenStations = (radioManager.isPlaying || hasTouchedRadioDial) && dialStation == nil && selectedRadioStationID == nil
+        let fallbackID = liveDialIsBetweenStations ? nil : (currentPlayback.activeStationID ?? surface.payload.metadata["radioStationID"] ?? stations.first?.id)
+        let activeID = dialStation?.id ?? selectedRadioStationID ?? fallbackID
+        let active = activeID.flatMap { RadioStationRegistry.station(id: $0, unlockedPackIDs: unlocked) } ?? (liveDialIsBetweenStations ? nil : stations.first)
+        let isPowered = radioManager.isPlaying
+        let interlude = RadioStationRegistry.currentInterlude(state: currentPlayback, unlockedPackIDs: unlocked)
         return VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 12) {
                 ZStack {
@@ -1872,10 +2287,10 @@ struct CapturePageSheet: View {
                 .frame(width: 54, height: 54)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(active.map { "\($0.displayFrequency) FM" } ?? "Academy Band")
+                    Text(active.map { "\($0.displayFrequency) FM" } ?? String(format: "%.1f FM", radioDialFrequency))
                         .font(.caption.weight(.heavy))
                         .foregroundStyle(BookPalette.teal)
-                    Text(active?.title ?? "ReEnchanted Radio")
+                    Text(active?.title ?? "Between stations")
                         .font(.system(.title3, design: .serif, weight: .semibold))
                         .foregroundStyle(BookPalette.ink)
                     Text(radioManager.statusLine)
@@ -1883,11 +2298,32 @@ struct CapturePageSheet: View {
                         .foregroundStyle(BookPalette.ink.opacity(0.62))
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                Spacer()
+                Button {
+                    if isPowered {
+                        BookFeedback.play(.dismissPage)
+                        onStopRadio()
+                    } else if let station = dialStation ?? active {
+                        selectedRadioStationID = station.id
+                        radioDialFrequency = station.frequency
+                        onTuneRadio(station.id)
+                    } else {
+                        BookFeedback.play(.sourceRefresh)
+                        radioManager.playTuningNoise(frequency: radioDialFrequency)
+                    }
+                } label: {
+                    Image(systemName: isPowered ? "power.circle.fill" : "power.circle")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(isPowered ? BookPalette.teal : BookPalette.ink.opacity(0.62))
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.bookPress())
+                .accessibilityLabel(isPowered ? "Turn radio off" : "Turn radio on")
             }
 
             RadioSignalMeter(
-                stationID: active?.id ?? "radio",
-                isPlaying: radioManager.isPlaying && radioManager.playback.activeStationID == active?.id
+                stationID: active?.id ?? "static",
+                isPlaying: isPowered && (active == nil || radioManager.playback.activeStationID == active?.id)
             )
             .frame(height: 42)
 
@@ -1907,10 +2343,19 @@ struct CapturePageSheet: View {
                 Slider(value: $radioDialFrequency, in: 88...108, step: 0.1)
                     .tint(BookPalette.teal)
                     .onChange(of: radioDialFrequency) { _, value in
-                        guard let nearest = RadioStationRegistry.nearestStation(to: value, unlockedPackIDs: unlocked) else { return }
-                        if selectedRadioStationID != nearest.id, abs(nearest.frequency - value) < 0.35 {
-                            selectedRadioStationID = nearest.id
+                        hasTouchedRadioDial = true
+                        let tuned = RadioStationRegistry.tunedStation(to: value, unlockedPackIDs: unlocked)
+                        if selectedRadioStationID != tuned?.id {
+                            selectedRadioStationID = tuned?.id
                             radioManager.hapticTick()
+                        }
+                        guard radioManager.isPlaying else { return }
+                        if let tuned {
+                            if radioManager.playback.activeStationID != tuned.id || radioManager.isPlayingTuningNoise {
+                                onTuneRadio(tuned.id)
+                            }
+                        } else {
+                            radioManager.playTuningNoise(frequency: value)
                         }
                     }
             }
@@ -1922,11 +2367,22 @@ struct CapturePageSheet: View {
                     body: active.subtitle,
                     tint: BookPalette.teal
                 )
-                if let track = radioManager.activeTrack {
+                if radioManager.isPlaying,
+                   radioManager.activeStation?.id == active.id,
+                   let banter = radioManager.nowPlayingBanter {
+                    hourPageCallout(
+                        title: "DJ: \(active.hostDisplayName)",
+                        symbol: "mic.fill",
+                        body: banter.caption,
+                        tint: BookPalette.violet
+                    )
+                } else if radioManager.isPlaying,
+                          radioManager.activeStation?.id == active.id,
+                          let track = radioManager.activeTrack {
                     hourPageCallout(
                         title: "Now playing: \(track.title)",
                         symbol: "waveform",
-                        body: "\(track.artist). \(radioManager.sourceLine)",
+                        body: track.artist,
                         tint: BookPalette.lampGold
                     )
                 } else {
@@ -1935,10 +2391,7 @@ struct CapturePageSheet: View {
                         .foregroundStyle(BookPalette.ink.opacity(0.62))
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                if let interlude = RadioStationRegistry.currentInterlude(
-                    state: currentPlayback,
-                    unlockedPackIDs: unlocked
-                ) {
+                if !radioManager.isPlaying, let interlude {
                     hourPageCallout(
                         title: "Broadcast interruption",
                         symbol: "quote.bubble",
@@ -1950,6 +2403,13 @@ struct CapturePageSheet: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.66))
                     .fixedSize(horizontal: false, vertical: true)
+            } else {
+                hourPageCallout(
+                    title: "Static between frequencies",
+                    symbol: "waveform.path.ecg",
+                    body: radioManager.sourceLine,
+                    tint: BookPalette.violet
+                )
             }
 
             VStack(spacing: 8) {
@@ -1981,7 +2441,7 @@ struct CapturePageSheet: View {
                                 .stroke((currentPlayback.activeStationID == station.id ? BookPalette.teal : BookPalette.ink.opacity(0.12)), lineWidth: 1)
                         }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bookPress())
                 }
             }
 
@@ -2010,16 +2470,49 @@ struct CapturePageSheet: View {
                 .tint(BookPalette.ink)
             }
 
-            Text(surface.payload.body)
+            Text(radioPageBody(active: active, stations: stations, isPowered: isPowered, frequency: radioDialFrequency, interlude: interlude))
                 .font(.system(.callout, design: .serif))
                 .foregroundStyle(BookPalette.ink.opacity(0.76))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .onAppear {
-            let station = active ?? stations.first
-            selectedRadioStationID = station?.id
-            radioDialFrequency = station?.frequency ?? 94.1
+            if liveDialIsBetweenStations {
+                selectedRadioStationID = nil
+            } else {
+                let station = active ?? stations.first
+                selectedRadioStationID = station?.id
+                radioDialFrequency = station?.frequency ?? 94.1
+            }
         }
+    }
+
+    private func radioPageBody(active: RadioStation?, stations: [RadioStation], isPowered: Bool, frequency: Double, interlude: String?) -> String {
+        let stationLines = stations
+            .map { "\($0.displayFrequency) - \($0.title): \($0.subtitle)" }
+            .joined(separator: "\n")
+        guard let active else {
+            return """
+            The receiver is powered \(isPowered ? "on" : "off") at \(String(format: "%.1f", frequency)) FM, between stations.
+
+            Static combs the edge of the page. Now and then, a syllable almost becomes a name and thinks better of it.
+
+            Core frequencies now on the dial:
+            \(stationLines)
+            """
+        }
+        let effects = active.effects
+            .map { "\($0.pageType.shortTitle) +\($0.boost)" }
+            .joined(separator: ", ")
+        return """
+        The receiver is tuned to \(active.displayFrequency): \(active.title).
+
+        \(active.signalLine)
+
+        \(interlude.map { "Broadcast interruption: \($0)\n\n" } ?? "")While this station plays, the Book listens through it. Its signal leans toward: \(effects).
+
+        Core frequencies now on the dial:
+        \(stationLines)
+        """
     }
 
     private var bookJumpView: some View {
@@ -2193,7 +2686,7 @@ struct CapturePageSheet: View {
                         .stroke(tint.opacity(prominent ? 0.7 : 0.4), lineWidth: 1)
                 }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress())
         .foregroundStyle(tint)
     }
 
@@ -2232,7 +2725,7 @@ struct CapturePageSheet: View {
                     .stroke(tint.opacity(0.4), lineWidth: 1)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress())
         .foregroundStyle(tint)
     }
 
@@ -2295,7 +2788,7 @@ struct CapturePageSheet: View {
                         .stroke((selected ? BookPalette.teal : BookPalette.lampGold).opacity(selected ? 0.65 : 0.28), lineWidth: 1)
                 }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress())
         .foregroundStyle(selected ? BookPalette.nightText : BookPalette.nightText.opacity(0.86))
     }
 
@@ -2370,7 +2863,7 @@ struct CapturePageSheet: View {
                     Label("Remind me before it goes cold", systemImage: "bell.badge")
                         .font(.caption.weight(.semibold))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress())
                 .foregroundStyle(BookPalette.teal)
             }
 
@@ -2400,7 +2893,7 @@ struct CapturePageSheet: View {
                         Task { await payFaeBargainInSheet() }
                     } label: {
                         Label(isFaePaying ? "The Fae is considering..." : (isRepair ? "Repay the bargain" : "Pay the bargain"),
-                              systemImage: isFaePaying ? "circle.dotted" : "arrow.up.heart")
+                              systemImage: isFaePaying ? "pencil.and.scribble" : "arrow.up.heart")
                             .font(.subheadline.weight(.bold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
@@ -2410,9 +2903,13 @@ struct CapturePageSheet: View {
                                     .stroke(BookPalette.lampGold.opacity(0.4), lineWidth: 1)
                             }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bookPress())
                     .foregroundStyle(BookPalette.lampGold)
                     .disabled(isFaePaying || faeReport.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLocalBrainWorking)
+
+                    if isFaePaying {
+                        scribeWorkCard("fae-bargain")
+                    }
                 }
             } else {
                 VStack(alignment: .leading, spacing: 10) {
@@ -2481,6 +2978,10 @@ struct CapturePageSheet: View {
                     .foregroundStyle(openPageSecondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            if isInkrestSitting {
+                scribeWorkCard("inkrest-office-hours")
+            }
         }
     }
 
@@ -2508,7 +3009,7 @@ struct CapturePageSheet: View {
             Button {
                 beginInkrestSitting()
             } label: {
-                Label(isInkrestSitting ? "Knocking..." : "Knock on the door", systemImage: isInkrestSitting ? "circle.dotted" : "door.left.hand.open")
+                Label(isInkrestSitting ? "Knocking..." : "Knock on the door", systemImage: isInkrestSitting ? "pencil.and.scribble" : "door.left.hand.open")
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -2518,7 +3019,7 @@ struct CapturePageSheet: View {
                             .stroke(BookPalette.lampGold.opacity(0.4), lineWidth: 1)
                     }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.bookPress())
             .foregroundStyle(BookPalette.lampGold)
             .disabled(isInkrestSitting || !inkrestIntake.hasSomethingToOpenWith || isLocalBrainWorking)
         }
@@ -2545,7 +3046,7 @@ struct CapturePageSheet: View {
             Button {
                 continueInkrestSitting(forceClose: false)
             } label: {
-                Label(isInkrestSitting ? "Dr. Inkrest is answering" : "Continue", systemImage: isInkrestSitting ? "circle.dotted" : "arrow.right.circle")
+                Label(isInkrestSitting ? "Dr. Inkrest is answering" : "Continue", systemImage: isInkrestSitting ? "pencil.and.scribble" : "arrow.right.circle")
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -2555,7 +3056,7 @@ struct CapturePageSheet: View {
                             .stroke(BookPalette.teal.opacity(0.36), lineWidth: 1)
                     }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.bookPress())
             .foregroundStyle(BookPalette.teal)
             .disabled(isInkrestSitting || inkrestChatInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLocalBrainWorking)
 
@@ -2565,7 +3066,7 @@ struct CapturePageSheet: View {
                 Label("Let her close the sitting", systemImage: "checkmark.seal")
                     .font(.caption.weight(.semibold))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.bookPress())
             .foregroundStyle(openPageSecondaryText)
             .disabled(isInkrestSitting || isLocalBrainWorking)
         }
@@ -2675,7 +3176,7 @@ struct CapturePageSheet: View {
                             .stroke(BookPalette.ink.opacity(0.12), lineWidth: 1)
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress())
             }
         }
     }
@@ -2719,11 +3220,9 @@ struct CapturePageSheet: View {
             #endif
 
             if isCastingEnchantment {
-                LocalBrainWorkingStatusCard(
-                    label: spell.title,
-                    quip: "The spell is reading only what the photo gives it.",
-                    startedAt: nil,
-                    queuedCount: 0
+                scribeWorkCard(
+                    "enchantment-\(spell.id)",
+                    quip: "The spell is reading only what the photo gives it."
                 )
             }
 
@@ -2823,6 +3322,10 @@ struct CapturePageSheet: View {
             .buttonStyle(.bordered)
             .tint(BookPalette.teal)
             .disabled(isAnsweringEnchantedObject || enchantmentPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLocalBrainWorking)
+
+            if isAnsweringEnchantedObject {
+                scribeWorkCard("everything-speaks-reply")
+            }
         }
     }
 
@@ -3021,7 +3524,7 @@ struct CapturePageSheet: View {
                     .foregroundStyle(BookPalette.teal)
             }
 
-            if surface.type != .narrativeOS && surface.type != .bookFae && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && !isCompassPracticePage && surface.type != .supportGuild && !isPendingLetterPage {
+            if !surface.isStoryPlayablePage && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && !isCompassPracticePage && surface.type != .supportGuild && !isPendingLetterPage {
                 Text(surface.payload.body)
                     .font(.system(.body, design: .serif))
                     .foregroundStyle(BookPalette.ink)
@@ -3139,11 +3642,6 @@ struct CapturePageSheet: View {
                 .disabled(!braidFeedbackMessage.isEmpty)
             } else if !didRewriteBraid {
                 // The reader said it missed; offer to let the Book try again.
-                if isImprovingBraid {
-                    Label("The Book is listening…", systemImage: "ear")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(BookPalette.ink.opacity(0.6))
-                }
                 Button {
                     guard let keptPageID, !isRewritingBraid else { return }
                     isRewritingBraid = true
@@ -3156,18 +3654,17 @@ struct CapturePageSheet: View {
                         if !result.isEmpty { braidFeedbackMessage = result }
                     }
                 } label: {
-                    HStack {
-                        if isRewritingBraid {
-                            ProgressView().controlSize(.small)
-                        }
-                        Label("Rewrite this braid", systemImage: "arrow.triangle.2.circlepath")
-                            .font(.subheadline.weight(.bold))
-                    }
+                    Label("Rewrite this braid", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(BookPalette.teal)
                 .disabled(isRewritingBraid || isImprovingBraid)
+            }
+
+            if isImprovingBraid || isRewritingBraid {
+                scribeWorkCard(isRewritingBraid ? "braid-rewrite" : "braid-taste-note")
             }
         }
         .padding(14)
@@ -3422,13 +3919,7 @@ struct CapturePageSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if isLocalBrainWorking {
-                HStack(spacing: 10) {
-                    ProgressView()
-                        .tint(BookPalette.teal)
-                    Text("The letter is opening through the public stacks.")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(BookPalette.ink.opacity(0.64))
-                }
+                scribeWorkCard("letter-page")
             } else {
                 Button {
                     BookFeedback.play(.sourceRefresh)
@@ -3488,6 +3979,13 @@ struct CapturePageSheet: View {
             .buttonStyle(.borderedProminent)
             .tint(BookPalette.teal)
             .disabled(!canSubmitCompassRun)
+
+            if isGeneratingCompassRun {
+                scribeWorkCard(
+                    "wonder-compass",
+                    quip: "The needle is taking every constraint seriously."
+                )
+            }
         }
     }
 
@@ -3545,6 +4043,10 @@ struct CapturePageSheet: View {
             .buttonStyle(.bordered)
             .tint(BookPalette.teal)
             .disabled(isGeneratingPlayfulMission || isLocalBrainWorking)
+
+            if isGeneratingPlayfulMission {
+                scribeWorkCard("wonder-compass-playful-mission")
+            }
 
             Text("The new mission will use the same South = Sense grammar: tiny, concrete, sensory, and finishable in under three minutes.")
                 .font(.caption)
@@ -3617,7 +4119,7 @@ struct CapturePageSheet: View {
                                 .stroke(selectedWeather == option ? BookPalette.teal : BookPalette.ink.opacity(0.12), lineWidth: 1)
                         }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress())
             }
         }
     }
@@ -3825,9 +4327,20 @@ struct CapturePageSheet: View {
         let turnNumber = storyTurns.firstIndex(where: { $0.id == turn.id }).map { $0 + 1 } ?? storyTurns.count
         VStack(alignment: .leading, spacing: 14) {
             if storyTurns.count > 1 {
-                Text("Turn \(turnNumber) of \(storyTurns.count)")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(BookPalette.gold)
+                let arcLabel = StoryArcShape(
+                    beats: draft.formBeats,
+                    turnsWritten: max(turnNumber - 1, 0),
+                    formName: draft.formName
+                ).progressLabel
+                HStack(spacing: 6) {
+                    Text("Turn \(turnNumber) of \(storyTurns.count)")
+                    if !arcLabel.isEmpty {
+                        Text("·").foregroundStyle(BookPalette.gold.opacity(0.5))
+                        Text(arcLabel)
+                    }
+                }
+                .font(.caption.weight(.bold))
+                .foregroundStyle(BookPalette.gold)
             }
 
             Text(draft.scene)
@@ -3889,26 +4402,22 @@ struct CapturePageSheet: View {
                                 .stroke(selectedStoryChoice?.id == choice.id ? choice.tint.opacity(0.52) : BookPalette.ink.opacity(0.12), lineWidth: 1)
                         }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bookPress())
                     .disabled(isGeneratingStoryResult || (isLocalBrainWorking && choice.mechanic.kind == .none))
                 }
             }
 
             if let selectedStoryChoice {
+                if isGeneratingStoryResult && generatingStoryResultChoiceID == selectedStoryChoice.id {
+                    scribeWorkCard(storyScribeLabel(stage: "result"))
+                }
+
                 if selectedStoryChoice.mechanic.kind == .none || resolvedStoryMechanics[selectedStoryChoice.id] != nil {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("The page answers", systemImage: "sparkles")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(BookPalette.teal)
-                        if isGeneratingStoryResult && generatingStoryResultChoiceID == selectedStoryChoice.id {
-                            HStack(spacing: 10) {
-                                ProgressView()
-                                    .tint(BookPalette.teal)
-                                Text("The Book is answering this path in wet ink.")
-                                    .font(.callout.weight(.semibold))
-                                    .foregroundStyle(BookPalette.ink.opacity(0.72))
-                            }
-                        } else {
+                        if !isGeneratingStoryResult {
                             Text(turn.result(for: selectedStoryChoice))
                                 .font(.system(.callout, design: .serif))
                                 .foregroundStyle(BookPalette.ink)
@@ -3926,28 +4435,51 @@ struct CapturePageSheet: View {
                     storyMechanicActionCard(choice: selectedStoryChoice, draft: draft)
                 }
 
-                HStack(spacing: 10) {
-                    Button {
-                        BookFeedback.play(.braidStart)
-                        Task { await continueStoryPage(from: draft, choice: selectedStoryChoice) }
-                    } label: {
-                        Label(isContinuingStoryPage ? "Ink drying..." : "Continue the scene", systemImage: "arrow.turn.down.right")
-                            .frame(maxWidth: .infinity)
+                if currentStoryArc?.isComplete == true {
+                    VStack(spacing: 8) {
+                        Text("The story has found its ending.")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(BookPalette.gold)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button {
+                            BookFeedback.play(.select)
+                            text = "The Book should keep this thread here."
+                        } label: {
+                            Label("Keep this page", systemImage: "bookmark")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isContinuingStoryPage || isGeneratingStoryResult || isLocalBrainWorking || (selectedStoryChoice.mechanic.kind != .none && resolvedStoryMechanics[selectedStoryChoice.id] == nil))
+                    .font(.caption.weight(.bold))
+                    .tint(BookPalette.teal)
+                } else {
+                    HStack(spacing: 10) {
+                        Button {
+                            BookFeedback.play(.braidStart)
+                            Task { await continueStoryPage(from: draft, choice: selectedStoryChoice) }
+                        } label: {
+                            Label(isContinuingStoryPage ? "Ink drying..." : "Continue the scene", systemImage: "arrow.turn.down.right")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isContinuingStoryPage || isGeneratingStoryResult || isLocalBrainWorking || (selectedStoryChoice.mechanic.kind != .none && resolvedStoryMechanics[selectedStoryChoice.id] == nil))
 
-                    Button {
-                        BookFeedback.play(.select)
-                        text = "The Book should keep this thread here."
-                    } label: {
-                        Label("Keep here", systemImage: "bookmark")
-                            .frame(maxWidth: .infinity)
+                        Button {
+                            BookFeedback.play(.select)
+                            text = "The Book should keep this thread here."
+                        } label: {
+                            Label("Keep here", systemImage: "bookmark")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.bordered)
+                    .font(.caption.weight(.bold))
+                    .tint(BookPalette.teal)
                 }
-                .font(.caption.weight(.bold))
-                .tint(BookPalette.teal)
+
+                if isContinuingStoryPage {
+                    scribeWorkCard(storyScribeLabel(stage: "continuation"))
+                }
             }
 
             if !storyContinuationMessage.isEmpty {
@@ -4052,6 +4584,15 @@ struct CapturePageSheet: View {
                 }
             }
             .font(.caption.weight(.bold))
+
+            if isLoadingManualPhoto || isChoosingBookPhoto {
+                scribeWorkCard(
+                    "photo-illumination",
+                    quip: isChoosingBookPhoto
+                        ? "Penny is looking for one recent photograph worth giving margins."
+                        : "Penny is reading the photograph without letting it leave the room."
+                )
+            }
         }
         .tint(BookPalette.teal)
     }
@@ -4524,7 +5065,7 @@ struct CapturePageSheet: View {
     }
 
     private func updateActiveStoryTurn(choice: StoryPageChoiceDraft) {
-        guard surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass else { return }
+        guard surface.isStoryPlayablePage else { return }
         if storyTurns.isEmpty, let storySceneDraft {
             storyTurns = [StoryPageSessionTurn(draft: storySceneDraft, selectedChoice: choice)]
             return
@@ -4535,7 +5076,7 @@ struct CapturePageSheet: View {
 
     @MainActor
     private func generateStoryResultForActiveTurn(choiceID: String) async {
-        guard surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass else { return }
+        guard surface.isStoryPlayablePage else { return }
         guard !isGeneratingStoryResult else {
             storyContinuationMessage = "The Book is already answering one path. Let that ink dry first."
             return
@@ -4572,13 +5113,31 @@ struct CapturePageSheet: View {
             selectedChoice: choice
         )
 
-        do {
-            let result: String
+        func writeStoryResult() async throws -> String {
             #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
-            result = try await MLXStoryPageResultWriter().write(context: context)
+            return try await MLXStoryPageResultWriter().write(context: context)
             #else
-            result = try await FakeStoryPageResultWriter().write(context: context)
+            return try await FakeStoryPageResultWriter().write(context: context)
             #endif
+        }
+
+        do {
+            var result = try await writeStoryResult()
+            // Validation rail: if the result drifts back into atmosphere instead
+            // of enacting the committed landing, regenerate once, then state the
+            // change plainly so the page still moves.
+            if let landing = StoryTurnLanding.resolve(context.draft.turnLandings, choiceID: choiceID) {
+                let character = context.draft.turnCharacter
+                let names = context.draft.entities
+                func acceptable(_ text: String) -> Bool {
+                    StoryTurnValidator.asserts(text, landing: landing, character: character)
+                        && !StoryTurnValidator.isAtmosphereDominated(text, characterNames: names)
+                }
+                if !acceptable(result) {
+                    let retry = (try? await writeStoryResult()) ?? result
+                    result = acceptable(retry) ? retry : StoryTurnValidator.landed(retry, landing: landing)
+                }
+            }
             guard storyTurns.indices.contains(turnIndex) else { return }
             storyTurns[turnIndex].generatedResults[choiceID] = result
             storyContinuationMessage = "The path has answered. You can continue, or keep the page here."
@@ -4604,13 +5163,33 @@ struct CapturePageSheet: View {
         let context = StoryPageContinuationContext(turns: storyTurns, currentDraft: draft, selectedChoice: choice)
         let continuationSurface = draft.surface.storyContinuationCopy(context: context)
 
-        do {
-            let prose: StoryPageProse
+        func writeContinuation() async throws -> StoryPageProse {
             #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
-            prose = try await MLXStoryPageWriter().write(surface: continuationSurface)
+            return try await MLXStoryPageWriter().write(surface: continuationSurface)
             #else
-            prose = try await FakeStoryPageWriter().write(surface: continuationSurface)
+            return try await FakeStoryPageWriter().write(surface: continuationSurface)
             #endif
+        }
+
+        do {
+            var prose = try await writeContinuation()
+            // Anti-degradation rail: reject a turn that shrank to fragments,
+            // echoed the prior opening, or drifted to room-as-protagonist —
+            // regenerate once before accepting it.
+            let priorScene = draft.scene
+            let names = draft.entities
+            func acceptable(_ p: StoryPageProse) -> Bool {
+                let s = p.scene
+                let sentences = s.split { ".!?".contains($0) }.filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).count > 3 }.count
+                let words = s.split { $0 == " " || $0 == "\n" }.count
+                let rejectsAtmosphere = draft.blueprint.map { $0.sceneMode == .conversation } ?? true
+                return sentences >= 4 && words >= 70
+                    && !StoryTurnValidator.isNearDuplicate(s, of: priorScene)
+                    && (!rejectsAtmosphere || !StoryTurnValidator.isAtmosphereDominated(s, characterNames: names))
+            }
+            if !acceptable(prose), let retry = try? await writeContinuation(), acceptable(retry) {
+                prose = retry
+            }
             let nextSurface = continuationSurface.preparedStoryPageCopy(prose: prose, slotID: "continued-\(storyTurns.count + 1)")
             let nextDraft = StoryPageSceneDraft(surface: nextSurface)
             storyTurns.append(StoryPageSessionTurn(draft: nextDraft))
@@ -4623,6 +5202,17 @@ struct CapturePageSheet: View {
         }
     }
 
+    /// The current vignette's arc position, used to gate continuation and show
+    /// the reader where they are in the beginning/middle/end shape.
+    private var currentStoryArc: StoryArcShape? {
+        guard let draft = storyTurns.last?.draft ?? storySceneDraft else { return nil }
+        return StoryArcShape(
+            beats: draft.formBeats,
+            turnsWritten: max(storyTurns.count, 1),
+            formName: draft.formName
+        )
+    }
+
     private var canKeep: Bool {
         if isPendingLetterPage {
             return false
@@ -4630,7 +5220,7 @@ struct CapturePageSheet: View {
         if isCompassRunStartPage {
             return canSubmitCompassRun
         }
-        if surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass {
+        if surface.isStoryPlayablePage {
             guard !isGeneratingStoryResult else { return false }
             return storyTurns.contains { $0.selectedChoice != nil } || selectedStoryChoice != nil
         }
@@ -4651,6 +5241,9 @@ struct CapturePageSheet: View {
         }
         if isEnchantmentPage {
             return !isCastingEnchantment && enchantmentResult != nil
+        }
+        if surface.type == .gamePage {
+            return gameResultSurface != nil
         }
         if isAnchorOfferPage || isChapterBindingPage || isChapterPrimerPage {
             return false
@@ -4843,7 +5436,7 @@ struct CapturePageSheet: View {
         if isLocalBrainIssuePage {
             return ""
         }
-        if surface.type == .narrativeOS || surface.type == .bookFae || surface.type == .academyClass {
+        if surface.isStoryPlayablePage {
             let turns = storyTurns.isEmpty
                 ? [storySceneDraft.map { StoryPageSessionTurn(draft: $0, selectedChoice: selectedStoryChoice) }].compactMap { $0 }
                 : storyTurns
@@ -4858,6 +5451,9 @@ struct CapturePageSheet: View {
             }.joined(separator: "\n\n---\n\n")
             let marginNote = trimmed.isEmpty ? "" : "\n\nMargin note: \(trimmed)"
             return threadText + marginNote
+        }
+        if surface.type == .gamePage, let gameResultSurface {
+            return gameResultSurface.payload.body
         }
         if surface.type == .askTheBook {
             return askTurns.enumerated().map { index, turn in
@@ -5111,8 +5707,19 @@ struct CapturePageSheet: View {
                 tags.append("enchantment-turns:\(turns)")
             }
         }
-        if preparedSurface.type == .narrativeOS || preparedSurface.type == .bookFae {
-            tags.append(preparedSurface.type == .bookFae ? "book-fae" : "narrative-os")
+        if preparedSurface.isStoryPlayablePage {
+            switch preparedSurface.type {
+            case .bookFae:
+                tags.append("book-fae")
+            case .anchor:
+                tags.append("anchor")
+                tags.append("outer-stacks")
+                if let anchorID = preparedSurface.payload.metadata["anchorID"], !anchorID.isEmpty {
+                    tags.append("anchor:\(anchorID)")
+                }
+            default:
+                tags.append(preparedSurface.type == .academyClass ? "academy-class" : "narrative-os")
+            }
             if let selectedStoryChoice {
                 tags.append("choice:\(selectedStoryChoice.id)")
             }
@@ -5883,6 +6490,595 @@ struct StoryPageChoiceText: Equatable {
     }
 }
 
+private struct SentenceRunnerResult: Equatable {
+    enum Outcome: String, Equatable {
+        case brightRun
+        case mixedThread
+        case greyTouched
+        case emptyHands
+
+        var title: String {
+            switch self {
+            case .brightRun: return "Bright Run"
+            case .mixedThread: return "Mixed Thread"
+            case .greyTouched: return "Grey-Touched Run"
+            case .emptyHands: return "Empty Hands"
+            }
+        }
+
+        var headline: String {
+            switch self {
+            case .brightRun: return "The words formed a bridge."
+            case .mixedThread: return "The sentence held, with weather."
+            case .greyTouched: return "The Nothing got ink on the edge."
+            case .emptyHands: return "The page kept the attempt."
+            }
+        }
+
+        var summary: String {
+            switch self {
+            case .brightRun:
+                return "You crossed the margin on bright words. The Loom will remember which phrases carried you."
+            case .mixedThread:
+                return "You caught live words and brushed the grey. The result is not failure; it is a map of where the sentence thinned."
+            case .greyTouched:
+                return "The Nothing pressed vague language into the run, but one kept word can still hold a door open."
+            case .emptyHands:
+                return "No bright phrase stayed caught this time. The Book keeps the attempt because attempts are also evidence."
+            }
+        }
+    }
+
+    var caught: [String]
+    var nothingHits: [String]
+
+    var outcome: Outcome {
+        if caught.isEmpty { return .emptyHands }
+        if nothingHits.count >= caught.count { return .greyTouched }
+        if nothingHits.isEmpty { return .brightRun }
+        return .mixedThread
+    }
+
+    var keepText: String {
+        SentenceRunnerPoem.compose(caught: caught, nothingHits: nothingHits)
+    }
+}
+
+private enum SentenceRunnerPoem {
+    /// Catch a handful and the run condenses into a short poem; catch more and the
+    /// Loom has enough thread to weave a small story instead.
+    static let storyThreshold = 4
+
+    enum Form: String {
+        case emptyHands
+        case poem
+        case miniStory
+    }
+
+    static func form(caught: [String], nothingHits: [String]) -> Form {
+        let bright = cleaned(caught)
+        if bright.isEmpty { return .emptyHands }
+        return bright.count >= storyThreshold ? .miniStory : .poem
+    }
+
+    static func compose(caught: [String], nothingHits: [String]) -> String {
+        let bright = cleaned(caught)
+        switch form(caught: bright, nothingHits: nothingHits) {
+        case .emptyHands:
+            return emptyHands(nothingHits: nothingHits)
+        case .poem:
+            return foundPoem(caught: bright, expansive: false)
+        case .miniStory:
+            return foundPoem(caught: bright, expansive: true)
+        }
+    }
+
+    private static func cleaned(_ phrases: [String]) -> [String] {
+        var seen = Set<String>()
+        return phrases
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+    }
+
+    private static func emptyHands(nothingHits: [String]) -> String {
+        let grey = nothingHits.first ?? "nothing much"
+        return "The run came back with \(grey), grey at the edges.\nThe Book wrote down the empty space anyway."
+    }
+
+    /// The caught phrases are real but partial fragments lifted from kept pages, so
+    /// stitching them into one grammatical sentence reads as nonsense. Instead the
+    /// run becomes a found poem: each fragment kept on its own line, quoted, framed
+    /// by the Book's voice — broken grammar reads as deliberate erasure, not error.
+    private static func foundPoem(caught: [String], expansive: Bool) -> String {
+        let limit = expansive ? 8 : 3
+        let lines = caught.prefix(limit).map { "“\($0)”" }
+        let opening = expansive
+            ? "The reader crossed the margin, and the page kept what was said:"
+            : "The margin made a road out of your own words:"
+        let closing = expansive
+            ? "Bright enough to count, and counted.\nThe Loom wound them back into the book, path and all."
+            : "The Loom kept the path, not the score."
+        return ([opening, ""] + lines + ["", closing]).joined(separator: "\n")
+    }
+}
+
+/// Where a caught archive phrase originally came from — the exact kept page, dated.
+struct SentenceRunnerPhraseSource: Identifiable, Equatable {
+    var id: String { pageID }
+    let phrase: String
+    let pageID: String
+    let date: Date
+    let label: String
+}
+
+/// One restored grey word: the flat word, the concrete phrase it was hiding, and
+/// (when known) the source page that phrase came from.
+struct SentenceRunnerRescueItem: Identifiable, Equatable {
+    let id = UUID()
+    let grey: String
+    let restored: String
+    let source: SentenceRunnerPhraseSource?
+}
+
+private enum SentenceRunnerRescue {
+    static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+
+    /// Each grey word the Nothing pressed into the run is flattened language; the
+    /// Book restores it by pairing it with a concrete phrase the reader actually
+    /// kept (and, when known, the exact page it came from). Deterministic.
+    static func items(grey: [String], archive: [String], provenance: [String: SentenceRunnerPhraseSource]) -> [SentenceRunnerRescueItem] {
+        let pool = archive.filter { !$0.isEmpty }
+        guard !pool.isEmpty else { return [] }
+        var used = Set<Int>()
+        return grey.prefix(4).map { word in
+            var index = abs("\(word)-rescue".stableHash) % pool.count
+            if used.count < pool.count {
+                while used.contains(index) { index = (index + 1) % pool.count }
+            }
+            used.insert(index)
+            let phrase = pool[index]
+            return SentenceRunnerRescueItem(grey: word, restored: phrase, source: provenance[phrase])
+        }
+    }
+
+    /// Flat text form of the rescues, for the saved page body and the Gemma draft.
+    static func lines(_ items: [SentenceRunnerRescueItem]) -> [String] {
+        items.map { item in
+            let from = item.source.map { " (from your \($0.label), \(dateFormatter.string(from: $0.date)))" } ?? ""
+            return "\(item.grey) — the Nothing flattened this. What you meant: \(item.restored)\(from)."
+        }
+    }
+}
+
+private struct SentenceRunnerGameView: View {
+    let phrases: [String]
+    let nothingPhrases: [String]
+    let onCancel: () -> Void
+    let onFinish: (SentenceRunnerResult) -> Void
+
+    @State private var run = SentenceRunnerRunState()
+    @State private var startedAt = Date()
+    @State private var lastTick = Date()
+    @State private var caught: [String] = []
+    @State private var nothingHits: [String] = []
+    @State private var sparks: [CaughtSpark] = []
+    @State private var finished = false
+
+    private let runDuration: TimeInterval = 28
+
+    private var tokens: [SentenceRunnerToken] {
+        SentenceRunnerRunBuilder.tokens(phrases: phrases, nothingPhrases: nothingPhrases)
+    }
+
+    private var progress: Double {
+        min(1, max(0, Date().timeIntervalSince(startedAt) / runDuration))
+    }
+
+    var body: some View {
+        ZStack {
+            BookBackground()
+            VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("THE SENTENCE RUNNER")
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(BookPalette.lampGold)
+                        Text(caught.isEmpty ? "the margin is listening…" : caught.joined(separator: " "))
+                            .font(.system(.title2, design: .serif, weight: .bold))
+                            .foregroundStyle(caught.isEmpty ? BookPalette.nightText.opacity(0.6) : BookPalette.lampGold)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .animation(.easeOut(duration: 0.25), value: caught)
+                    }
+                    Spacer()
+                    Button("Exit") { onCancel() }
+                        .buttonStyle(.bordered)
+                        .tint(BookPalette.lampGold)
+                }
+
+                HStack(spacing: 10) {
+                    runnerStat("Caught", caught.count, BookPalette.teal)
+                    runnerStat("Grey", nothingHits.count, BookPalette.ink.opacity(0.55))
+                    runnerStat("Run", Int(progress * 100), BookPalette.lampGold, suffix: "%")
+                }
+
+                GeometryReader { proxy in
+                    TimelineView(.animation(minimumInterval: 1.0 / 40.0)) { timeline in
+                        Canvas { context, size in
+                            drawRun(context: &context, size: size)
+                        }
+                        .onChange(of: timeline.date) { _, date in
+                            tick(date: date, size: proxy.size)
+                        }
+                        .contentShape(Rectangle())
+                        .gesture(
+                            TapGesture().onEnded {
+                                jump()
+                            }
+                        )
+                    }
+                    .background(BookPalette.nightPanel.opacity(0.40), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(BookPalette.lampGold.opacity(0.22), lineWidth: 1)
+                    }
+                }
+                .frame(minHeight: 360)
+
+                Button {
+                    jump()
+                } label: {
+                    Label("Jump", systemImage: "arrow.up")
+                        .font(.headline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(BookPalette.lampGold)
+
+                Text("Bright phrases come from kept pages. Grey phrases are the Nothing trying to flatten the run. A grey touch is not failure; it is evidence.")
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.68))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(22)
+        }
+        .onAppear {
+            startedAt = Date()
+            lastTick = startedAt
+            sparks = []
+            run = SentenceRunnerRunState(tokens: tokens)
+        }
+    }
+
+    private func jump() {
+        guard !finished else { return }
+        if run.playerY <= 2 || run.coyoteTime > 0 {
+            run.velocityY = 580
+            run.coyoteTime = 0
+            BookFeedback.play(.select)
+        }
+    }
+
+    private func tick(date: Date, size: CGSize) {
+        guard !finished, size.width > 0, size.height > 0 else { return }
+        let dt = min(0.05, max(0.001, date.timeIntervalSince(lastTick)))
+        lastTick = date
+        run.advance(dt: dt, size: size)
+        collectCollisions(size: size)
+        ageSparks(dt: dt)
+        if date.timeIntervalSince(startedAt) >= runDuration || run.tokens.allSatisfy(\.wasResolved) {
+            finished = true
+            onFinish(SentenceRunnerResult(caught: caught, nothingHits: nothingHits))
+        }
+    }
+
+    private func ageSparks(dt: TimeInterval) {
+        guard !sparks.isEmpty else { return }
+        for index in sparks.indices {
+            sparks[index].age += dt
+            // drift up and toward the header, where the sentence is assembling
+            sparks[index].position.y -= CGFloat(dt) * 170
+            sparks[index].position.x -= CGFloat(dt) * 55
+        }
+        sparks.removeAll { $0.age >= CaughtSpark.lifetime }
+    }
+
+    private func collectCollisions(size: CGSize) {
+        let player = run.playerRect(in: size)
+        for token in run.tokens where !token.wasResolved {
+            let rect = run.rect(for: token, in: size)
+            guard player.intersects(rect) else { continue }
+            run.resolve(tokenID: token.id)
+            if token.isNothing {
+                nothingHits.append(token.text)
+                run.greyFlash = 0.25
+                BookFeedback.play(.undo)
+            } else {
+                caught.append(token.text)
+                run.sparkFlash = 0.25
+                sparks.append(CaughtSpark(text: token.text, position: CGPoint(x: rect.midX, y: rect.midY)))
+                BookFeedback.play(.tap)
+            }
+        }
+    }
+
+    private func drawRun(context: inout GraphicsContext, size: CGSize) {
+        let groundY = run.groundY(in: size)
+        context.fill(
+            Path(CGRect(x: 0, y: groundY + 38, width: size.width, height: max(0, size.height - groundY))),
+            with: .color(BookPalette.ink.opacity(0.18))
+        )
+        context.stroke(
+            Path { path in
+                path.move(to: CGPoint(x: 0, y: groundY + 38))
+                path.addLine(to: CGPoint(x: size.width, y: groundY + 38))
+            },
+            with: .color(BookPalette.lampGold.opacity(0.34)),
+            lineWidth: 2
+        )
+
+        for lane in 0..<3 {
+            let y = groundY - CGFloat(lane) * 72
+            context.stroke(
+                Path { path in
+                    path.move(to: CGPoint(x: 0, y: y))
+                    path.addLine(to: CGPoint(x: size.width, y: y))
+                },
+                with: .color(BookPalette.nightText.opacity(0.08)),
+                lineWidth: 1
+            )
+        }
+
+        for token in run.tokens where !token.wasResolved {
+            draw(token: token, context: &context, size: size)
+        }
+
+        drawPlayer(context: &context, size: size)
+
+        for spark in sparks {
+            let progress = spark.age / CaughtSpark.lifetime
+            let rise = 1 + progress * 0.45
+            var sparkContext = context
+            sparkContext.opacity = max(0, 1 - progress)
+            sparkContext.draw(
+                Text(spark.text)
+                    .font(.system(size: 13 * rise, weight: .bold, design: .serif))
+                    .foregroundColor(BookPalette.lampGold),
+                at: spark.position
+            )
+        }
+
+        if run.greyFlash > 0 {
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(BookPalette.ink.opacity(0.12 * run.greyFlash / 0.25)))
+        }
+        if run.sparkFlash > 0 {
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(BookPalette.lampGold.opacity(0.08 * run.sparkFlash / 0.25)))
+        }
+    }
+
+    private func draw(token: SentenceRunnerToken, context: inout GraphicsContext, size: CGSize) {
+        let rect = run.rect(for: token, in: size)
+        guard rect.maxX > -40, rect.minX < size.width + 60 else { return }
+        let path = Path(roundedRect: rect, cornerRadius: 8)
+        context.fill(path, with: .color(token.isNothing ? BookPalette.nightText.opacity(0.18) : BookPalette.lampGold.opacity(0.94)))
+        context.stroke(path, with: .color(token.isNothing ? BookPalette.nightText.opacity(0.26) : BookPalette.nightPanel.opacity(0.22)), lineWidth: 1)
+
+        let text = Text(token.text)
+            .font(.system(size: 13, weight: .bold, design: .serif))
+            .foregroundColor(token.isNothing ? BookPalette.nightText.opacity(0.62) : BookPalette.nightPanel)
+        context.draw(text, in: rect.insetBy(dx: 8, dy: 7))
+    }
+
+    private func drawPlayer(context: inout GraphicsContext, size: CGSize) {
+        let rect = run.playerRect(in: size)
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let t = run.time
+        let airborne = run.playerY > 2
+        let inkColor = BookPalette.ink
+
+        // Squash & stretch from vertical velocity: stretch rising, squash on landing.
+        let stretch = max(-0.20, min(0.34, run.velocityY / 2_600))
+        let scaleX = 1 - stretch * 0.7
+        let scaleY = 1 + stretch
+        let baseR = rect.width * 0.64
+
+        // Soft cast shadow on the ground line.
+        let groundY = run.groundY(in: size) + 38
+        let shadowW = baseR * (airborne ? 1.1 : 1.7)
+        let shadowAlpha = airborne ? 0.10 : 0.22
+        context.fill(
+            Path(ellipseIn: CGRect(x: center.x - shadowW / 2, y: groundY - 6, width: shadowW, height: 10)),
+            with: .color(inkColor.opacity(shadowAlpha))
+        )
+
+        // A trailing ink drip — a long string when airborne, a small wobble at rest.
+        let dripLen = airborne ? baseR * (1.2 + 0.3 * sin(t * 6)) : baseR * (0.42 + 0.12 * sin(t * 4))
+        let dripTop = CGPoint(x: center.x - baseR * 0.05, y: center.y + baseR * 0.45 * scaleY)
+        var drip = Path()
+        drip.move(to: CGPoint(x: dripTop.x - baseR * 0.20, y: dripTop.y))
+        drip.addQuadCurve(
+            to: CGPoint(x: dripTop.x, y: dripTop.y + dripLen),
+            control: CGPoint(x: dripTop.x - baseR * 0.30, y: dripTop.y + dripLen * 0.6)
+        )
+        drip.addQuadCurve(
+            to: CGPoint(x: dripTop.x + baseR * 0.20, y: dripTop.y),
+            control: CGPoint(x: dripTop.x + baseR * 0.30, y: dripTop.y + dripLen * 0.6)
+        )
+        drip.closeSubpath()
+        context.fill(drip, with: .color(inkColor.opacity(0.92)))
+
+        // Wobbling ink blob body.
+        let lobes: CGFloat = 7
+        let amp: CGFloat = airborne ? 0.11 : 0.06
+        let steps = 48
+        var blob = Path()
+        for i in 0...steps {
+            let a = CGFloat(i) / CGFloat(steps) * .pi * 2
+            let wobble = 1 + amp * sin(a * lobes + t * 3.4) + 0.04 * sin(a * 3 - t * 2.1)
+            let r = baseR * wobble
+            let point = CGPoint(x: center.x + cos(a) * r * scaleX, y: center.y + sin(a) * r * scaleY)
+            if i == 0 { blob.move(to: point) } else { blob.addLine(to: point) }
+        }
+        blob.closeSubpath()
+        context.fill(blob, with: .color(inkColor))
+        context.stroke(blob, with: .color(BookPalette.lampGold.opacity(0.70)), lineWidth: 1.5)
+
+        // Glossy teal sheen near the top-left to keep the brand spark on the ink.
+        let sheen = Path(ellipseIn: CGRect(
+            x: center.x - baseR * 0.52,
+            y: center.y - baseR * 0.72,
+            width: baseR * 0.72,
+            height: baseR * 0.5
+        ))
+        context.fill(sheen, with: .color(BookPalette.teal.opacity(0.45)))
+
+        // Eyes, set toward the direction of travel; pupils glance up on the jump.
+        let eyeR = baseR * 0.17
+        let eyeY = center.y - baseR * 0.06
+        let look: CGFloat = airborne ? -eyeR * 0.7 : eyeR * 0.15 * sin(t * 2)
+        for dx in [baseR * 0.16, baseR * 0.56] {
+            let eye = CGPoint(x: center.x + dx, y: eyeY)
+            context.fill(
+                Path(ellipseIn: CGRect(x: eye.x - eyeR, y: eye.y - eyeR * 1.15, width: eyeR * 2, height: eyeR * 2.4)),
+                with: .color(BookPalette.paper)
+            )
+            context.fill(
+                Path(ellipseIn: CGRect(x: eye.x - eyeR * 0.5, y: eye.y - eyeR * 0.5 + look, width: eyeR, height: eyeR)),
+                with: .color(inkColor)
+            )
+        }
+    }
+
+    private func runnerStat(_ title: String, _ value: Int, _ tint: Color, suffix: String = "") -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title.uppercased())
+                .font(.caption2.weight(.black))
+                .foregroundStyle(BookPalette.nightText.opacity(0.58))
+            Text("\(value)\(suffix)")
+                .font(.title3.weight(.black))
+                .foregroundStyle(tint)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(BookPalette.nightPanel.opacity(0.62), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct SentenceRunnerRunState {
+    var tokens: [SentenceRunnerToken] = []
+    var distance: CGFloat = 0
+    var playerY: CGFloat = 0
+    var velocityY: CGFloat = 0
+    var coyoteTime: TimeInterval = 0
+    var greyFlash: TimeInterval = 0
+    var sparkFlash: TimeInterval = 0
+    var time: TimeInterval = 0
+    let playerX: CGFloat = 74
+    let groundY: CGFloat = 0
+
+    init(tokens: [SentenceRunnerToken] = []) {
+        self.tokens = tokens
+        self.playerY = groundY
+    }
+
+    mutating func advance(dt: TimeInterval, size: CGSize) {
+        time += dt
+        distance += CGFloat(dt) * 168
+        velocityY -= CGFloat(dt) * 1_420
+        playerY += velocityY * CGFloat(dt)
+        if playerY <= groundY {
+            playerY = groundY
+            velocityY = 0
+            coyoteTime = 0.09
+        } else {
+            coyoteTime = max(0, coyoteTime - dt)
+        }
+        greyFlash = max(0, greyFlash - dt)
+        sparkFlash = max(0, sparkFlash - dt)
+    }
+
+    func groundY(in size: CGSize) -> CGFloat {
+        max(160, size.height - 94)
+    }
+
+    func playerRect(in size: CGSize) -> CGRect {
+        let h: CGFloat = 42
+        return CGRect(x: playerX, y: groundY(in: size) - playerY - h, width: 38, height: h)
+    }
+
+    func rect(for token: SentenceRunnerToken, in size: CGSize) -> CGRect {
+        let x = token.startX - distance
+        let laneY = groundY(in: size) - token.height
+        return CGRect(x: x, y: laneY - 24, width: token.width, height: 42)
+    }
+
+    mutating func resolve(tokenID: String) {
+        guard let index = tokens.firstIndex(where: { $0.id == tokenID }) else { return }
+        tokens[index].wasResolved = true
+    }
+}
+
+/// A caught word lifting off the run and settling toward the assembling sentence.
+private struct CaughtSpark: Identifiable {
+    let id = UUID()
+    let text: String
+    var position: CGPoint
+    var age: TimeInterval = 0
+    static let lifetime: TimeInterval = 0.85
+}
+
+private struct SentenceRunnerToken: Equatable {
+    var id: String
+    var text: String
+    var isNothing: Bool
+    var startX: CGFloat
+    var height: CGFloat
+    var width: CGFloat
+    var wasResolved = false
+}
+
+private enum SentenceRunnerRunBuilder {
+    static func tokens(phrases: [String], nothingPhrases: [String]) -> [SentenceRunnerToken] {
+        let bright = phrases.prefix(14).map { ($0, false) }
+        let grey = nothingPhrases.prefix(7).map { ($0, true) }
+        let pool = (bright + grey).sorted {
+            "\($0.0)-runner".stableHash < "\($1.0)-runner".stableHash
+        }
+        return pool.enumerated().map { index, item in
+            let text = item.0
+            let isNothing = item.1
+            let gap = CGFloat(150 + abs("\(text)-gap".stableHash % 92))
+            let startX = 340 + CGFloat(index) * gap
+            let lane = abs("\(text)-lane".stableHash % 3)
+            let height = CGFloat(42 + lane * 58)
+            let width = CGFloat(min(190, max(92, 42 + text.count * 7)))
+            return SentenceRunnerToken(
+                id: "\(index)-\(text.stableHash)",
+                text: text,
+                isNothing: isNothing,
+                startX: startX,
+                height: height,
+                width: width
+            )
+        }
+        .sorted { $0.startX < $1.startX }
+    }
+}
+
+private extension String {
+    var slugTag: String {
+        lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .prefix(5)
+            .joined(separator: "-")
+    }
+}
+
 struct StoryPageSessionTurn: Identifiable, Equatable {
     var id = UUID()
     var draft: StoryPageSceneDraft
@@ -5892,6 +7088,107 @@ struct StoryPageSessionTurn: Identifiable, Equatable {
     func result(for choice: StoryPageChoiceDraft) -> String {
         generatedResults[choice.id]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
             ?? draft.result(for: choice)
+    }
+}
+
+/// Maps a Story Page's authored beats onto a felt three-act arc so each
+/// continuation knows whether it is rising, turning, or closing — and so the
+/// vignette ends on a real resolution instead of an endless "door ajar" coda.
+struct StoryArcShape: Equatable {
+    enum Act {
+        case beginning, rising, turn, resolution, epilogue
+    }
+
+    var beats: [String]
+    /// Turns already written, including the opening scene (>= 1 once a session
+    /// has started).
+    var turnsWritten: Int
+    var formName: String
+    /// The concrete element planted in the opening; the resolution must return
+    /// it, changed. Empty when the page has no promise (older drafts).
+    var promiseSeed: String = ""
+    /// The committed change the whole page must enact, and the specific landing
+    /// for the path the reader took. These drive the climax/resolution so the
+    /// beat changes state instead of re-describing atmosphere.
+    var turnStatement: String = ""
+    var turnCharacter: String = ""
+    var turnLanding: String = ""
+
+    /// The beat this next turn should render, clamped to the final beat.
+    var nextBeatIndex: Int { min(max(turnsWritten, 0), max(beats.count - 1, 0)) }
+
+    /// True once the final authored beat (the resolution) has been written, so
+    /// the vignette has a definite end rather than perpetual continuation.
+    var isComplete: Bool {
+        guard !beats.isEmpty else { return false }
+        return turnsWritten >= beats.count
+    }
+
+    var act: Act {
+        guard !beats.isEmpty else { return .rising }
+        if turnsWritten >= beats.count { return .epilogue }
+        let last = beats.count - 1
+        let index = nextBeatIndex
+        if index <= 0 { return .beginning }
+        if index >= last { return .resolution }
+        if index == last - 1 { return .turn }
+        return .rising
+    }
+
+    /// Short reader-facing arc position for the page chrome.
+    var progressLabel: String {
+        guard beats.count > 1 else { return "" }
+        switch act {
+        case .beginning: return "Beginning"
+        case .rising: return "Rising"
+        case .turn: return "The turn"
+        case .resolution: return "Ending"
+        case .epilogue: return "Ended"
+        }
+    }
+
+    /// The beat directive handed to the writer for the next continuation.
+    var directive: String {
+        guard !beats.isEmpty else {
+            // Parleys and Classes carry a committed turn but no authored form
+            // beats — still drive them toward the change rather than drift.
+            if !turnLanding.isEmpty {
+                let who = turnCharacter.isEmpty ? "the character" : turnCharacter
+                return "Move one real step toward the change. By the end this is now TRUE: \(turnLanding) \(who) enacts it through speech or action — do not re-describe the scene."
+            }
+            if !turnStatement.isEmpty {
+                return "Move one real step toward: \(turnStatement). Someone acts or decides; do not merely restate the mood."
+            }
+            return "Move the thread one real step past the consequence, then let it begin to settle."
+        }
+        if isComplete {
+            return "The arc is closed. Write only a brief epilogue — one image that shows the new normal holding. No fresh conflict, no new door."
+        }
+        let beat = beats[nextBeatIndex]
+        let who = turnCharacter.isEmpty ? "the character" : turnCharacter
+        let landingLine = turnLanding.isEmpty
+            ? (turnStatement.isEmpty ? "" : "\nBy the end this is now true: \(turnStatement). \(who) enacts it through speech or action — not atmosphere.")
+            : "\nBy the end of this beat this is now TRUE: \(turnLanding)\n\(who) enacts it through what they say or do. Do not merely re-describe the scene; change it."
+        switch act {
+        case .resolution:
+            return """
+            FINAL BEAT — the RESOLUTION of "\(formName)". Close the mini-story now (felt, never labeled):
+            \(beat)\(landingLine)
+            End on a different note than the page opened. No cliffhanger.
+            """
+        case .turn:
+            return """
+            THE TURN of "\(formName)" — the hinge the whole vignette has leaned toward (felt, never labeled):
+            \(beat)\(landingLine)
+            This is where the reader's chosen path pays off or costs. \(who) reacts to that choice, not to the scenery.
+            """
+        default:
+            return """
+            NEXT BEAT of "\(formName)" — rising action (write this one now, felt not labeled):
+            \(beat)
+            Tilt the situation toward: \(turnStatement.isEmpty ? "the change still owed" : turnStatement). \(who) must react to the reader's last choice, not just the room.
+            """
+        }
     }
 }
 
@@ -5930,28 +7227,48 @@ struct StoryPageContinuationContext: Equatable {
             """
         }.joined(separator: "\n\n")
 
-        let beats = currentDraft.formBeats
-        let beatDirective: String
-        if beats.isEmpty {
-            beatDirective = "Move the thread one real step past the consequence."
-        } else if turnCount < beats.count {
-            beatDirective = """
-            NEXT BEAT of "\(currentDraft.formName)" (write this one now, felt not labeled):
-            \(beats[min(turnCount, beats.count - 1)])
+        let arc = StoryArcShape(
+            beats: currentDraft.formBeats,
+            turnsWritten: turnCount,
+            formName: currentDraft.formName,
+            promiseSeed: currentDraft.promiseSeed,
+            turnStatement: currentDraft.turnStatement,
+            turnCharacter: currentDraft.turnCharacter,
+            turnLanding: StoryTurnLanding.resolve(currentDraft.turnLandings, choiceID: selectedChoice.id) ?? ""
+        )
+        let beatDirective = arc.directive
+        let lensLine = currentDraft.genreLens.isEmpty ? "" : "\nKeep the \(currentDraft.genreName) lens: \(currentDraft.genreLens)"
+        let recipeContinuation: String
+        if let blueprint = currentDraft.blueprint {
+            let modeLine: String
+            switch blueprint.sceneMode {
+            case .conversation: modeLine = "Conversation may carry the beat, but it need not become an argument."
+            case .balanced: modeLine = "Balance speech, observation, and action."
+            case .action: modeLine = "Advance through physical consequence; dialogue is optional."
+            case .environmental: modeLine = "The setting, objects, weather, or Nothing may act and receive reactions."
+            }
+            recipeContinuation = """
+            - SAME RECIPE: \(blueprint.recipeName). \(blueprint.continuationDirective)
+            - MODE: \(modeLine)
+            - The original grounding already appeared; let its consequence continue without mechanically repeating its wording.
             """
         } else {
-            beatDirective = "The structure's beats are spent: write a CODA — short, settling, one door left ajar for another day."
+            recipeContinuation = """
+            - PEOPLE, NOT THE ROOM: the room, weather, light, dust, glass, and air are backdrop only — never the subject of a sentence's verb, never what anyone wants or reacts to. Characters react to other people.
+            - DIALOGUE FIRST: most of the new scene should be spoken lines. Actions are short interruptions, not the substance.
+            - PROP RULE: do not have characters repeatedly pick up, set down, turn, arrange, examine, carry, tap, slide, polish, fold, unfold, or move small objects.
+            """
         }
-        let lensLine = currentDraft.genreLens.isEmpty ? "" : "\nKeep the \(currentDraft.genreName) lens: \(currentDraft.genreLens)"
 
         return """
         The reader pressed Continue. Everything under "already written" has ALREADY BEEN READ — it is context, not material.
 
         THE CONTRACT FOR THE NEW SCENE:
-        - Repeating a sentence, image, object description, or piece of dialogue from earlier turns is a failure. Do not re-describe the setting; it exists.
-        - Begin in a different physical position than the last scene ended — someone moved, time visibly passed, light changed.
-        - Introduce at least ONE concrete element (object, sound, line of dialogue, or small event) that has not appeared in any earlier turn.
-        - The chosen action has consequences now: show its cost or gift through what characters do.
+        - Repeating a sentence, image, object description, or opening line from earlier turns is a failure. Do not re-describe the setting; it exists. Do NOT reopen with the same line as a prior turn.
+        - Do NOT restate the chosen action as a flat sentence ("You point toward the window."). Skip past the action and dramatize its CONSEQUENCE through what a person says next.
+        \(recipeContinuation)
+        - Write at least 4 full sentences. Begin at a new point in the conversation, not with a new object description.
+        - The chosen action has consequences now: show its cost or gift through what a character says to another character.
         \(beatDirective)\(lensLine)
 
         \(rendered)
@@ -5982,6 +7299,47 @@ struct StoryPageProse: Equatable {
     func result(for choice: StoryPageChoiceDraft) -> String {
         results[choice.id]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
             ?? choice.effectLine + " The Book records the change without making a fuss."
+    }
+}
+
+struct StoryRecipeValidation: Equatable {
+    var score: Int
+    var failures: [String]
+    var isAcceptable: Bool { failures.isEmpty }
+}
+
+enum StoryRecipeValidator {
+    static func validate(_ prose: StoryPageProse, draft: StoryPageSceneDraft) -> StoryRecipeValidation {
+        guard let blueprint = draft.blueprint else { return StoryRecipeValidation(score: 100, failures: []) }
+        let scene = prose.scene.lowercased()
+        var score = 100
+        var failures: [String] = []
+        let stop = Set(["this", "that", "with", "from", "have", "into", "page", "says", "player", "their"])
+        let groundingWords = blueprint.grounding.text.lowercased().split { !$0.isLetter && !$0.isNumber }
+            .map(String.init).filter { $0.count >= 4 && !stop.contains($0) }
+        let overlap = Set(groundingWords).filter { scene.contains($0) }.count
+        if overlap < min(2, max(1, Set(groundingWords).count)) {
+            failures.append("Use the selected grounded detail explicitly."); score -= 35
+        }
+        if !scene.contains(blueprint.leadName.split(separator: " ").first.map(String.init)?.lowercased() ?? blueprint.leadName.lowercased()) {
+            failures.append("Put \(blueprint.leadName) visibly in the scene."); score -= 25
+        }
+        if let companion = blueprint.companionName,
+           !scene.contains(companion.split(separator: " ").first.map(String.init)?.lowercased() ?? companion.lowercased()) {
+            failures.append("Put \(companion) visibly in the scene."); score -= 20
+        }
+        let words = scene.split { $0.isWhitespace }.count
+        let sentences = scene.split { ".!?".contains($0) }.count
+        if words < 90 || sentences < 4 { failures.append("Write a complete vignette of at least four sentences."); score -= 20 }
+        let dialogueMarks = prose.scene.filter { $0 == "\"" || $0 == "“" || $0 == "”" }.count
+        if blueprint.sceneMode == .conversation && dialogueMarks < 4 {
+            failures.append("Let conversation carry this conversation-mode recipe."); score -= 15
+        }
+        let generic = ["follow the thread", "stay with it", "look closer", "do something surprising"]
+        if prose.choices.contains(where: { choice in generic.contains { choice.title.lowercased().contains($0) || choice.prompt.lowercased().contains($0) } }) {
+            failures.append("Anchor every choice to this exact scene."); score -= 10
+        }
+        return StoryRecipeValidation(score: score, failures: failures)
     }
 }
 
@@ -6028,6 +7386,60 @@ private struct FakeStoryPageResultWriter: StoryPageResultWriting {
     func write(context: StoryPageResultContext) async throws -> String {
         try await Task.sleep(nanoseconds: 350_000_000)
         return context.fallbackResult
+    }
+}
+
+struct SentenceRunnerProseContext: Equatable {
+    var caught: [String]
+    var nothingHits: [String]
+    var outcomeTitle: String
+    var form: String
+    var deterministic: String
+    var archiveSamples: [String] = []
+    var rescues: [String] = []
+}
+
+protocol SentenceRunnerProseWriting {
+    func write(context: SentenceRunnerProseContext) async throws -> String
+}
+
+struct FakeSentenceRunnerProseWriter: SentenceRunnerProseWriting {
+    func write(context: SentenceRunnerProseContext) async throws -> String {
+        try await Task.sleep(nanoseconds: 350_000_000)
+        return context.deterministic
+    }
+}
+
+enum SentenceRunnerPromptBuilder {
+    static let instructions = """
+    You are The Book inside ReEnchanted, writing up the result of a Game Page called The Sentence Runner.
+    The reader just played a small runner game whose obstacles are phrases pulled from their own kept pages (bright words) and the Nothing's vague filler (grey words).
+    Your real work is RE-ENCHANTMENT: the Nothing flattens real life into grey words like "fine" or "later"; you restore the concrete thing each grey word was hiding, using only the reader's own kept phrases as the source of that meaning.
+    You are given the bright words they caught, the grey words that touched them, sample phrases from their archive, a deterministic rescue draft, and a deterministic prose draft. Rewrite both drafts into finished prose.
+    Use ONLY the supplied caught words, grey words, and archive samples as material. Do not invent new events, characters, places, or facts.
+    Do not mention games, scores, points, tokens, taps, code, prompts, or simulation machinery.
+    Write in the Book's voice: plain, concrete, warm, literary, never corporate, no generic wonder.
+    """
+
+    static func prompt(for context: SentenceRunnerProseContext) -> String {
+        let caught = context.caught.isEmpty ? "(none)" : context.caught.joined(separator: ", ")
+        let grey = context.nothingHits.isEmpty ? "(none)" : context.nothingHits.joined(separator: ", ")
+        let samples = context.archiveSamples.isEmpty ? "(none)" : context.archiveSamples.joined(separator: ", ")
+        let formInstruction = context.form == "miniStory"
+            ? "Write a short mini-story of 4-6 sentences that weaves the caught words into one small scene of the reader crossing the margin."
+            : "Write a short poem of 2-4 lines built from the caught words."
+        var sections = [
+            "Outcome: \(context.outcomeTitle)",
+            "Caught (bright) words: \(caught)",
+            "Grey words touched: \(grey)",
+            "Archive samples (the only material for re-enchantment): \(samples)",
+            "\(formInstruction)\nIf any grey words are present, do not leave them flat — re-enchant each one into the concrete memory it was hiding, drawn from the archive samples, then let the run move past it."
+        ]
+        if !context.rescues.isEmpty {
+            sections.append("Rescue draft to elevate (one restored line per grey word; keep each word's restored meaning):\n" + context.rescues.joined(separator: "\n"))
+        }
+        sections.append("Deterministic draft to elevate (keep its shape and meaning):\n\(context.deterministic)")
+        return sections.joined(separator: "\n\n")
     }
 }
 
@@ -6123,7 +7535,7 @@ enum StoryPageResultPromptBuilder {
     Write only the consequence of the selected Story Page action. The app owns the mechanics; you write the ink.
     Do not invent completed real-world actions, exact locations, diagnoses, private facts, identities, or surveillance details.
     Keep it grounded, strange, concrete, and warm. No headings. No labels. No choices.
-    Prose standard: simple surprising sentences; specific nouns and verbs; character action before explanation; no generic wisdom, no abstract emotional summary, no mist, echoes, tapestry, journey, profound, or quiet magic.
+    Prose standard: simple surprising sentences; specific nouns and verbs; dialogue before stage business; no generic wisdom, no abstract emotional summary, no mist, echoes, tapestry, journey, profound, or quiet magic.
     """
 
     static func prompt(for context: StoryPageResultContext) -> String {
@@ -6138,6 +7550,32 @@ enum StoryPageResultPromptBuilder {
             """
         }.joined(separator: "\n\n")
 
+        let landing = StoryTurnLanding.resolve(context.draft.turnLandings, choiceID: context.selectedChoice.id)
+        let who = context.draft.turnCharacter.nonEmpty ?? "the character present"
+        let recipeResultRule: String
+        if let blueprint = context.draft.blueprint {
+            switch blueprint.sceneMode {
+            case .conversation:
+                recipeResultRule = "Let \(who)'s speech carry the consequence, without requiring conflict."
+            case .balanced:
+                recipeResultRule = "Use speech, observation, or action in whatever balance best resolves the chosen path."
+            case .action:
+                recipeResultRule = "Show the physical consequence first; dialogue is optional."
+            case .environmental:
+                recipeResultRule = "The place, object, weather, or Nothing may act and change; dialogue is optional."
+            }
+        } else {
+            recipeResultRule = "Show \(who) saying it to another person. Keep the room and props as backdrop."
+        }
+        let turnBlock = landing.map { line in
+            """
+
+            THIS ACTION RESOLVES THE SCENE'S TURN. By the end, this must be TRUE:
+            \(line)
+            \(recipeResultRule) Do not restate the chosen action as a sentence—show its consequence.
+            """
+        } ?? ""
+
         return """
         Write the result for this selected Story Page action.
 
@@ -6146,7 +7584,7 @@ enum StoryPageResultPromptBuilder {
 
         CURRENT SCENE:
         \(context.draft.scene)
-
+        \(turnBlock)
         SELECTED PATH TYPE:
         \(context.selectedChoice.kindLabel)
 
@@ -6170,10 +7608,8 @@ enum StoryPageResultPromptBuilder {
         - 90-150 words.
         - 4-7 sentences.
         - Make the consequence specific to the selected action, not generic.
-        - Include at least two visible actions or interactions.
-        - Include one exact object, surface, sound, or small physical detail.
-        - If a character is present, let them reveal themselves by speech or behavior, not summary.
-        - Let one entity, object, or motif gain weight.
+        - \(context.draft.blueprint == nil ? "Make most of this result spoken exchange and include no more than one small physical action." : recipeResultRule)
+        - Let one relationship, secret, refusal, promise, or question gain weight.
         - If this is Progress Arc, let the thread move one step.
         - If this is Slice of Life, let an ordinary detail deepen.
         - If this is Surprise, reveal a strange related angle that still belongs here.
@@ -6197,7 +7633,7 @@ enum StoryPagePromptBuilder {
     Write a living storybook vignette from the supplied scene packet. The app owns the mechanics; you write the ink.
     Do not invent completed real-world actions, exact locations, diagnoses, private facts, identities, or surveillance details.
     Keep the real and fictional braided together: warm, strange, grounded, concrete, never corporate.
-    Prose standard: write like a sharp story, not an assistant. Simple surprising sentences. Specific nouns and verbs. Characters show themselves by dialogue, choices, gestures, and interruptions. Do not explain the theme.
+    Prose standard: write like a sharp story, not an assistant. Simple surprising sentences. Specific nouns and verbs. Characters show themselves primarily by dialogue, with small actions only as interruptions or tells. Do not explain the theme.
     Ban filler: no generic inspiration, no vague wonder, no abstract emotional summary, no tapestry, echoes, journey, profound, quiet magic, hidden meaning, or "as if the world itself".
     """
 
@@ -6217,6 +7653,7 @@ enum StoryPagePromptBuilder {
             \($0)
             """
         } ?? ""
+        let mechanicPlan = mechanicPlanPrompt(for: draft.mechanicMandate)
         let structure: String
         if draft.formBeats.isEmpty {
             structure = "A vignette with a beginning, a turn, and a landing."
@@ -6228,6 +7665,74 @@ enum StoryPagePromptBuilder {
             This page follows the shape called "\(draft.formName)". Its beats, in order:
             \(beats)
             Write the FIRST beat as this scene's spine, leaning toward the second. Beats are felt, never labeled or numbered in the prose.
+            """
+        }
+        let promise: String
+        if draft.promiseSeed.isEmpty {
+            promise = ""
+        } else {
+            promise = """
+
+
+            THE PROMISE — plant this now, pay it off at the end:
+            Seed (introduce concretely in this opening, do not resolve it yet): \(draft.promiseSeed)
+            Central question (the whole vignette leans toward answering this, but the reader's choices decide how): \(draft.promiseQuestion)
+            Establish the seed as an ordinary, specific detail. Let it sit slightly charged. Do not explain it.
+            """
+        }
+        let engine: String
+        if let blueprint = draft.blueprint {
+            let modeRule: String
+            switch blueprint.sceneMode {
+            case .conversation:
+                modeRule = "Favor dialogue, but every line must concern the concrete premise. Conversation may be warm, playful, or uncertain; conflict is not required."
+            case .balanced:
+                modeRule = "Balance dialogue, observation, and consequential action. Neither conversation nor atmosphere must dominate."
+            case .action:
+                modeRule = "Let physical action carry the scene. Dialogue is optional; actions must change the situation rather than decorate it."
+            case .environmental:
+                modeRule = "The place, weather, objects, and the Nothing may act and create consequences. Keep the reader's possible response concrete."
+            }
+            engine = """
+
+
+            SCENE RECIPE — \(blueprint.recipeName):
+            Premise: \(blueprint.premise)
+            Exact grounding that MUST matter: \(blueprint.grounding.text)
+            Cast: \([blueprint.leadName, blueprint.companionName].compactMap { $0 }.joined(separator: ", "))
+            Required beats, in order:
+            \(blueprint.beats.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"))
+            Required change: \(blueprint.turn.statement)
+            Grounding direction: \(blueprint.groundingDirective)
+            Tone: \(blueprint.toneDirective)
+            Choice affordances: \(blueprint.choiceDirective)
+            Scene mode: \(blueprint.sceneMode.rawValue). \(modeRule)
+
+            HARD RECIPE RULES:
+            - Use the exact grounded material as story causation, evidence, a topic, or a threatened detail—not wallpaper.
+            - Name concrete nouns and actions. Do not replace the premise with vague feelings or generic disagreement.
+            - Do not invent a completed real-world action. Everything active happens inside this fictional vignette.
+            - Objects may be central when the recipe needs them, but avoid repetitive decorative handling.
+            """
+        } else if draft.turnStatement.isEmpty {
+            engine = ""
+        } else {
+            let registerLine = draft.turnRegister == "quiet"
+                ? "Register: quiet — keep it low and warm; the change can be a small thing understood, not a dramatic event."
+                : "Register: active — let the scene move; someone does, decides, or says something that changes the situation."
+            engine = """
+
+
+            THE SCENE'S ENGINE — a character with a want and an obstacle (this is the spine; objects only serve spoken conflict):
+            \(draft.turnCharacter) wants: \(draft.turnWant)
+            In the way: \(draft.turnObstacle)
+            By the end of this whole page this must become true: \(draft.turnStatement)
+            Beat 1 job: put \(draft.turnCharacter) on screen already in conversation — wanting this, obstacle audible. Do NOT resolve it yet.
+
+            HARD RULE — people, not the room:
+            Open on \(draft.turnCharacter) saying something to another person. Most of the scene should be dialogue, with actions peppered in as brief interruptions. The room, weather, light, dust, glass, and air are BACKDROP ONLY — never the subject of a sentence's verb, never what anyone wants, never what a character reacts to. If a character reacts, they react to another PERSON, not to the air or the light. \(draft.turnCharacter) must speak within the first two sentences.
+            PROP RULE — no decorative business: do not have characters repeatedly pick up, set down, turn, arrange, examine, carry, tap, slide, polish, fold, unfold, or move small objects unless that action directly changes what someone says next. Never build a scene around thimbles, cups, keys, ribbons, glass, dust, paper, shadows, or light moving around.
+            \(registerLine)
             """
         }
         let lens = draft.genreLens.isEmpty
@@ -6243,8 +7748,8 @@ enum StoryPagePromptBuilder {
             Use old faerie manners: courtesy, exact wording, beautiful danger, gifts with edges, loopholes, and alien attention.
             Failure must never read as punishment. Consequences are marks, obligations, debts of attention, strange gifts, and story hooks.
             Build the scene from the supplied Fae identity, court, omen, standing, recent kept material, and entity memory. The visitor must want, notice, test, offer, conceal, or interrupt something specific.
-            Make the parley about the Fae: their voice, posture, appetite, courtesy, refusal, rules, and concealed desire. Kept objects may be evidence or bait, but they must not become the subject of the page.
-            Let the Fae speak at least twice in direct quotation. Their speech should be exact, strange, and transactional, with one line that sounds courteous and one line that sounds dangerous.
+            Make the parley about the Fae's voice, appetite, courtesy, refusal, rules, and concealed desire. Kept objects may be named as evidence or bait, but they must not become the subject of the page or be moved around as business.
+            Let the Fae speak at least three times in direct quotation. Their speech should be exact, strange, and transactional, with one line that sounds courteous and one line that sounds dangerous.
             Preserve the three old-law paths beneath the choices: courtesy softens Claim, naming the law deepens the relationship, and taking the thorn sharpens Claim for a secret.
             Rewrite every visible choice title and prompt to fit this exact vignette. Anchor each choice to a specific line, object, gesture, mark, loophole, or offer that appeared in SCENE. Never reuse the framework titles "Offer Courtesy", "Name the Law", or "Take the Thorn" unless those exact words are uniquely necessary in this scene.
             Use the Book of You braid style: varied literary cadence, concrete ordinary objects made strange, dark playfulness, lucid sentences, and endings that land softly but sharply.
@@ -6257,7 +7762,7 @@ enum StoryPagePromptBuilder {
         \(draft.thread)
 
         STRUCTURE:
-        \(structure)\(lens)
+        \(structure)\(promise)\(engine)\(lens)
 
         ENTITIES:
         \(entities)
@@ -6275,12 +7780,13 @@ enum StoryPagePromptBuilder {
         \(talismanMoves)\(faeDirective)\(RadioAtmosphere.promptSection(nowPlaying))
         \(continuation)
 
+        MECHANIC PLAN:
+        \(mechanicPlan)
+
         OUTPUT FORMAT, EXACTLY:
         SCENE:
         \(isBookFae ? "240-360" : "170-240") words. A vignette with a beginning, a turn, and a landing. Address the reader as "you" only when it feels natural. Make it feel like real life becoming a fantasy story, not like a quest log.
-        The vignette must include at least one spoken line or overheard line when any entity is present.
-        The vignette must include at least three concrete physical details from this packet: objects, surfaces, sounds, weather, posture, clothing, tools, mess, or light.
-        The main movement must happen through character action and interaction, not narration about feelings or significance.
+        \(draft.blueprint == nil ? "The vignette must be mostly dialogue when a character is present. Use actions sparingly and keep rooms and props as backdrop." : "Follow SCENE RECIPE's mode. Concrete details, environments, actions, and dialogue may carry the scene in the proportions that mode requires.")
         Chapter talisman moves appear only when the packet supplies one. If one is supplied, make it a visible character/world-entity action; the app will apply the matching talisman delta when the page is kept. If none is supplied, do not invent a talisman move.
         If CONTINUATION MEMORY is present, this scene must be the next beat of that same thread. Do not recap everything; let the previous consequence alter the first paragraph.
         The SCENE must contain only the vignette. Do not include any choices, prompts, results, button titles, labels, mechanics, section names, or authoring instructions inside SCENE.
@@ -6314,8 +7820,9 @@ enum StoryPagePromptBuilder {
 
         Choice design rule:
         The three choices must be bespoke to this vignette, not generic. They are internally typed as Slice of Life, Progress Arc, and Surprise, but the visible titles and prompts should read like natural story actions.
+        \(draft.blueprint == nil ? "Every visible choice must be something a character says, asks, decides, gives, refuses, admits, interrupts, or does. Do not make atmosphere-only choices." : "Every visible choice must act on a specific person, clue, object, place, threat, or fact established in this scene. Speech, action, exploration, protection, and exact noticing are all valid when the recipe supports them.")
         Mechanics rule:
-        - Most Story Pages should set all three MECHANIC fields to none.
+        - Follow MECHANIC PLAN exactly.
         - At most one choice may offer a mechanic.
         - Use belief-dice only for a risky uncertain story move where chance is interesting.
         - Use compass-run only when the thread needs real-world noticing, movement, or sensory proof.
@@ -6341,9 +7848,21 @@ enum StoryPagePromptBuilder {
         let continuation = draft.continuationContext.map {
             "\n\nCONTINUATION MEMORY:\n\($0)"
         } ?? ""
+        let socialTurn = draft.turnStatement.isEmpty ? "" : """
+
+
+        THE SOCIAL TURN (rides alongside the lesson — it must NOT replace the teaching):
+        \(draft.turnCharacter) wants: \(draft.turnWant)
+        In the way: \(draft.turnObstacle)
+        By the end of this page this also becomes true: \(draft.turnStatement)
+        Let \(draft.turnCharacter) and the students be people with a small stake, not mouthpieces — but the lesson's concept still lands fully. The turn is the warmth around the teaching, never instead of it.
+        """
+        let mechanicPlan = mechanicPlanPrompt(for: draft.mechanicMandate)
 
         return """
         Write one ReEnchanted Academy \(isClub ? "Club Page" : "Class Page") using the Story Page format.
+
+        This page is a lesson first and a vignette second. It should read like the reader has actually stepped into a useful class, not like a teaser for one. Give the subject room to breathe through spoken teaching: define the idea plainly, let a student test it aloud, use one brief demonstration, and leave the reader with one concrete practice.
 
         SESSION:
         \(isClub ? "Club" : "Class"): \(metadata["sessionName"] ?? "an Academy session")
@@ -6361,22 +7880,36 @@ enum StoryPagePromptBuilder {
         Demonstration: \(demonstration)
         Reader interaction: \(interaction)
         Real-world practice invitation: \(practice)
+        \(socialTurn)
         \(continuation)
+
+        MECHANIC PLAN:
+        \(mechanicPlan)
 
         HARD RULES:
         - \(leader) must be physically present, must teach, and must speak at least twice.
-        - This must teach the real subject, not merely mention it. Include one accurate mini-lecture beat and one demonstrated example.
+        - Most of SCENE should be dialogue: lecture lines, student answers, corrections, and the reader-facing question.
+        - This must teach the real subject, not merely mention it. Include at least two accurate mini-lecture beats and one demonstrated example.
+        - Use the supplied lecture beats in order. Do not skip the middle beat just to reach the choices.
+        - Spend most of SCENE on the class exchange: explanation, student response, correction, and reader question. Keep arrival/setup and object handling brief.
         - The professor or leader asks the reader one direct, answerable classroom question.
         - At least one companion reacts in a small characterful way.
-        - Include room texture: one smell, one sound, one thing the light is doing.
+        - Include only one room texture detail total.
+        - Do not build the scene around moving classroom props. One demonstration object is allowed; repeated handling is not.
         - Do not claim the reader completed the practice, attended earlier, or did any real-world task.
+        - Complete every sentence. If space gets tight, shorten description before cutting the lesson, question, or practice invitation.
         - If CONTINUATION MEMORY is present, everything in it has already been read. Continue from the consequence; do not repeat the previous classroom scene, opening setup, image, dialogue, or chosen action.
         - A continued class scene must start one beat later: someone has moved, the lesson has advanced, or the room has visibly changed.
         - Simple concrete sentences. No assistant language, no headings or labels inside SCENE.
 
         OUTPUT FORMAT, EXACTLY:
         SCENE:
-        190-270 words. A living classroom scene with the lesson already underway, the required leader visibly teaching, and the reader invited into the exercise.
+        360-520 words. A living classroom scene with the lesson already underway, the required leader visibly teaching, and the reader invited into the exercise.
+        Structure the SCENE as 4 short paragraphs, with no headings:
+        1. The lesson already underway, one vivid classroom detail, and the leader's spoken thesis.
+        2. The leader's mini-lecture using two supplied lecture beats and one concrete example.
+        3. A student's spoken test, mistake, or objection, plus the leader's correction.
+        4. The reader's direct question and one real-world practice invitation for later.
 
         SLICE_OF_LIFE_CHOICE:
         A bespoke button title, 2-5 words, for staying with one ordinary classroom detail.
@@ -6406,9 +7939,45 @@ enum StoryPagePromptBuilder {
         none, belief-dice, compass-run, or enchantment:<spell-id>.
 
         Choice design rule:
-        The choices are internally Slice of Life, Progress Arc, and Surprise, but their visible titles must sound like natural class actions. At most one choice may use a mechanic. Prefer none unless the lesson genuinely needs proof outside the page.
+        The choices are internally Slice of Life, Progress Arc, and Surprise, but their visible titles must sound like natural class actions. Follow MECHANIC PLAN exactly. At most one choice may use a mechanic.
         Available enchantment spell ids:
         \(StoryEnchantmentCatalog.promptCatalog)
+        """
+    }
+
+    private static func mechanicPlanPrompt(for mandate: StoryPageMechanicMandate) -> String {
+        guard mandate.kind != .none, let choiceID = mandate.choiceID else {
+            return """
+            The app selected no mechanic for this Story Page.
+            Set SLICE_OF_LIFE_MECHANIC, PROGRESS_ARC_MECHANIC, and SURPRISE_MECHANIC to none.
+            """
+        }
+        let choiceName: String
+        switch choiceID {
+        case .sliceOfLife:
+            choiceName = "SLICE_OF_LIFE"
+        case .progressArc:
+            choiceName = "PROGRESS_ARC"
+        case .surprise:
+            choiceName = "SURPRISE"
+        }
+        let mechanicText: String
+        switch mandate.kind {
+        case .none:
+            mechanicText = "none"
+        case .beliefDice:
+            mechanicText = "belief-dice"
+        case .compassRun:
+            mechanicText = "compass-run"
+        case .enchantment:
+            mechanicText = "enchantment:\(mandate.enchantmentID ?? StoryEnchantmentCatalog.spells.first?.id ?? "everything-speaks")"
+        }
+        return """
+        The app selected one mechanic for pacing.
+        Reason: \(mandate.reason)
+        Set \(choiceName)_MECHANIC to \(mechanicText).
+        Set every other MECHANIC field to none.
+        Make the \(choiceName) visible title and prompt naturally invite this mechanic without explaining the system.
         """
     }
 }
@@ -6476,7 +8045,43 @@ enum StoryPageProseParser {
         if let value = section(.surpriseResult, in: cleanedResponse).nonEmpty {
             results["surprise"] = value
         }
-        return StoryPageProse(scene: scene, choices: limitedMechanicChoices(choices), results: results, source: "gemma")
+        let repairedChoices = characterActionChoices(choices, fallback: fallbackProse.choices, draft: draft)
+        let mandatedChoices = enforceMechanicMandate(draft.mechanicMandate, choices: repairedChoices)
+        return StoryPageProse(scene: scene, choices: limitedMechanicChoices(mandatedChoices), results: results, source: "gemma")
+    }
+
+    private static func enforceMechanicMandate(
+        _ mandate: StoryPageMechanicMandate,
+        choices: [StoryPageChoiceDraft]
+    ) -> [StoryPageChoiceDraft] {
+        guard mandate.kind != .none, let mandatedChoiceID = mandate.choiceID?.rawValue else {
+            return choices.map { choice in
+                var copy = choice
+                copy.mechanic = .none
+                return copy
+            }
+        }
+        return choices.map { choice in
+            var copy = choice
+            guard choice.id == mandatedChoiceID else {
+                copy.mechanic = .none
+                return copy
+            }
+            switch mandate.kind {
+            case .none:
+                copy.mechanic = .none
+            case .beliefDice:
+                copy.mechanic = StoryPageChoiceMechanic(kind: .beliefDice)
+            case .compassRun:
+                copy.mechanic = StoryPageChoiceMechanic(kind: .compassRun)
+            case .enchantment:
+                copy.mechanic = StoryPageChoiceMechanic(
+                    kind: .enchantment,
+                    enchantmentID: mandate.enchantmentID ?? StoryEnchantmentCatalog.spells.first?.id
+                )
+            }
+            return copy
+        }
     }
 
     private static func limitedMechanicChoices(_ choices: [StoryPageChoiceDraft]) -> [StoryPageChoiceDraft] {
@@ -6491,6 +8096,38 @@ enum StoryPageProseParser {
             hasMechanic = true
             return choice
         }
+    }
+
+    private static func characterActionChoices(_ choices: [StoryPageChoiceDraft], fallback: [StoryPageChoiceDraft], draft: StoryPageSceneDraft) -> [StoryPageChoiceDraft] {
+        choices.map { choice in
+            guard let fallbackChoice = fallback.first(where: { $0.id == choice.id }) else {
+                return choice
+            }
+            guard draft.blueprint == nil, choiceReadsAsAtmosphere(choice) else {
+                return choice
+            }
+            var repaired = fallbackChoice
+            repaired.mechanic = choice.mechanic
+            return repaired
+        }
+    }
+
+    private static func choiceReadsAsAtmosphere(_ choice: StoryPageChoiceDraft) -> Bool {
+        let text = "\(choice.title) \(choice.prompt)".lowercased()
+        let sensoryTerms = [
+            "atmosphere", "shadow", "light", "glass", "talisman", "resonance",
+            "weather", "stillness", "silence", "scent", "smell", "sound",
+            "listen", "watch", "examine", "hold", "follow", "notice", "trace",
+            "texture", "surface", "glow", "color", "colour"
+        ]
+        let characterTerms = [
+            "ask", "tell", "admit", "decide", "choose", "refuse", "offer",
+            "answer", "trust", "name", "give", "take", "interrupt", "promise",
+            "warn", "invite", "confront", "help"
+        ]
+        let hasSensoryHook = sensoryTerms.contains { text.contains($0) }
+        let hasCharacterAction = characterTerms.contains { text.contains($0) }
+        return hasSensoryHook && !hasCharacterAction
     }
 
     private static func responsePreview(_ response: String, limit: Int) -> String {
@@ -6586,8 +8223,16 @@ enum StoryPageProseParser {
             .replacingOccurrences(of: #"\b(SLICE_OF_LIFE|PROGRESS_ARC|SURPRISE)\s*:?\s*"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\b(Slice of Life|Progress Arc|Surprise)\s*:?\s*"#, with: "", options: [.regularExpression, .caseInsensitive])
             .trimmingCharacters(in: CharacterSet(charactersIn: "\"' :.-"))
-        return cleaned.removingImmediateDuplicateSentence().singleLine(maxLength: 42)?.withoutTrailingSentencePunctuation
+        let collapsed = cleaned.removingImmediateDuplicateSentence().singleLine(maxLength: 60)?.withoutTrailingSentencePunctuation
             ?? fallback.withoutTrailingSentencePunctuation
+        // A button title is a short phrase. The model sometimes runs the title
+        // straight into its own prompt ("Ask About the Light Ask what the light
+        // means") — keep only the first clause, capped at six words, so the
+        // button never shows half a sentence.
+        let firstClause = collapsed.split(whereSeparator: { ",;—".contains($0) }).first.map(String.init) ?? collapsed
+        let words = firstClause.split(separator: " ")
+        let clamped = words.prefix(6).joined(separator: " ")
+        return clamped.nonEmpty ?? fallback.withoutTrailingSentencePunctuation
     }
 
     private enum StoryPageSectionMarker: CaseIterable {
@@ -6779,14 +8424,25 @@ struct StoryPageSceneDraft: Equatable {
     var formBeats: [String]
     var genreName: String
     var genreLens: String
+    var promiseSeed: String
+    var promiseQuestion: String
+    var turnCharacter: String
+    var turnWant: String
+    var turnObstacle: String
+    var turnStatement: String
+    var turnRegister: String
+    var turnLandings: [String: String]
+    var blueprint: StorySceneBlueprint?
     var preparedScene: String?
     var preparedChoices: [String: StoryPageChoiceText]
     var preparedResults: [String: String]
     var continuationContext: String?
+    var mechanicMandate: StoryPageMechanicMandate
 
     init(surface: SurfacePage) {
         self.surface = surface
         let metadata = surface.payload.metadata
+        mechanicMandate = StoryPageMechanicMandate.from(metadata: metadata)
         thread = metadata["sessionSubjectThreadID"]?.nonEmpty
             ?? metadata["selectedThreads"]?
             .split(separator: ",")
@@ -6830,6 +8486,50 @@ struct StoryPageSceneDraft: Equatable {
             .filter { !$0.isEmpty } ?? []
         genreName = metadata["storyGenreName"] ?? ""
         genreLens = metadata["storyGenreLens"] ?? ""
+        promiseSeed = metadata["storyPromiseSeed"] ?? ""
+        promiseQuestion = metadata["storyPromiseQuestion"] ?? ""
+        turnCharacter = metadata["storyTurnCharacter"] ?? ""
+        turnWant = metadata["storyTurnWant"] ?? ""
+        turnObstacle = metadata["storyTurnObstacle"] ?? ""
+        turnStatement = metadata["storyTurnStatement"] ?? ""
+        turnRegister = metadata["storyTurnRegister"] ?? ""
+        turnLandings = [
+            "slice-of-life": metadata["storyTurnLandingSliceOfLife"] ?? "",
+            "progress-arc": metadata["storyTurnLandingProgressArc"] ?? "",
+            "surprise": metadata["storyTurnLandingSurprise"] ?? ""
+        ]
+        if let recipeID = metadata["storyRecipeID"]?.nonEmpty,
+           let modeRaw = metadata["storyRecipeSceneMode"],
+           let mode = StoryRecipeSceneMode(rawValue: modeRaw),
+           let groundingText = metadata["storyRecipeGrounding"]?.nonEmpty {
+            let groundingKind = StoryGroundingKind(rawValue: metadata["storyRecipeGroundingKind"] ?? "") ?? .realSignal
+            let resolvedTurn = StoryTurn(
+                kind: StoryTurnKind(rawValue: metadata["storyTurnKind"] ?? "") ?? .smallDecision,
+                character: turnCharacter, want: turnWant, obstacle: turnObstacle,
+                statement: turnStatement, register: StoryRegister(rawValue: turnRegister) ?? .quiet,
+                landings: turnLandings
+            )
+            blueprint = StorySceneBlueprint(
+                recipeID: recipeID,
+                recipeName: metadata["storyRecipeName"] ?? recipeID,
+                recipePackID: metadata["storyRecipePackID"] ?? "",
+                sceneMode: mode,
+                leadID: metadata["storyRecipeLeadID"] ?? "",
+                leadName: metadata["storyRecipeLeadName"] ?? turnCharacter,
+                companionID: metadata["storyRecipeCompanionID"]?.nonEmpty,
+                companionName: metadata["storyRecipeCompanionName"]?.nonEmpty,
+                premise: metadata["storyRecipePremise"] ?? "",
+                grounding: StoryGrounding(kind: groundingKind, sourceID: metadata["storyRecipeGroundingSourceID"] ?? "", text: groundingText),
+                beats: metadata["storyRecipeBeats"]?.split(separator: "\n").map(String.init) ?? [],
+                groundingDirective: metadata["storyRecipeGroundingDirective"] ?? "",
+                toneDirective: metadata["storyRecipeToneDirective"] ?? "",
+                choiceDirective: metadata["storyRecipeChoiceDirective"] ?? "",
+                continuationDirective: metadata["storyRecipeContinuationDirective"] ?? "",
+                turn: resolvedTurn
+            )
+        } else {
+            blueprint = nil
+        }
         preparedScene = metadata["storyScene"].map(StoryPageProseParser.cleanSceneText)?.nonEmpty
         var choicesByID: [String: StoryPageChoiceText] = [:]
         let sliceChoice = StoryPageChoiceText(
@@ -6881,6 +8581,19 @@ struct StoryPageSceneDraft: Equatable {
         if let preparedScene {
             return preparedScene
         }
+        if surface.type == .academyClass {
+            return academyFallbackScene
+        }
+        if let blueprint {
+            let companion = blueprint.companionName.map { " with \($0)" } ?? ""
+            return """
+            \(blueprint.leadName) enters the scene\(companion) because \(blueprint.premise.lowercased())
+
+            The exact evidence is this: \(blueprint.grounding.text) \(blueprint.beats.first ?? "Something specific changes.")
+
+            \(blueprint.turn.statement)
+            """
+        }
         let entity = entities.first ?? "The Book"
         let signalLine = signals.prefix(2).joined(separator: " ")
         let pressureLine = pressures.first ?? "The margins have found enough weight to turn."
@@ -6890,6 +8603,44 @@ struct StoryPageSceneDraft: Equatable {
         \(signalLine.isEmpty ? "The day has offered a few small pieces of evidence." : signalLine)
 
         \(pressureLine) The Book does not ask the reader to leave real life. It asks which part of real life is ready to become story.
+        """
+    }
+
+    private var academyFallbackScene: String {
+        let metadata = surface.payload.metadata
+        let leader = metadata["sessionLeader"]?.nonEmpty ?? "The professor"
+        let sessionName = metadata["sessionName"]?.nonEmpty ?? "the class"
+        let room = metadata["sessionRoom"]?.nonEmpty ?? "the classroom"
+        let style = metadata["sessionStyle"]?.nonEmpty ?? "careful and alive"
+        let title = metadata["lessonTitle"]?.nonEmpty ?? sessionName
+        let concept = metadata["lessonConcept"]?.nonEmpty
+            ?? metadata["sessionTeaches"]?.nonEmpty
+            ?? "A useful practice becomes real when it is demonstrated, tried, and carried back into ordinary life."
+        let beats = (metadata["lessonLectureBeats"]?.nonEmpty ?? metadata["sessionTeaches"] ?? "")
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let firstBeat = beats.first ?? concept
+        let secondBeat = beats.dropFirst().first ?? "The lesson works best when the reader keeps it small enough to finish."
+        let demonstration = metadata["lessonDemonstration"]?.nonEmpty
+            ?? "\(leader) gives one quick example, then asks the room to test the idea aloud."
+        let interaction = metadata["lessonInteractionPrompt"]?.nonEmpty
+            ?? "What part of this lesson could you try without making the day heavier?"
+        let practice = metadata["lessonRealWorldPractice"]?.nonEmpty
+            ?? "Carry one small version of the lesson into the real world later, then keep one exact sentence from it."
+        let companion = metadata["sessionCompanions"]?
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first(where: { !$0.isEmpty }) ?? "one student"
+
+        return """
+        The door to \(room) is already open, and \(sessionName) is underway. Chalk dust smells faintly mineral. A chair leg ticks against the floor while the light leans across the desks. \(leader) taps the board and says, "\(title) begins here: \(concept)"
+
+        In a \(style) voice, \(leader) makes the lesson plain. "\(firstBeat)" A pause lets the sentence settle. "\(secondBeat)" The point is not to admire the idea from a distance. The point is to make it small enough to test while the day is still ordinary.
+
+        \(demonstration) \(companion) answers first, a little too fast, and has to revise in front of everyone. "Try that again with a smaller claim," \(leader) says. That is useful. The lesson becomes less decorative and more usable.
+
+        \(leader) turns toward you. "\(interaction)" The question waits without hurry. For later, the practice is simple: \(practice) Nothing has to be completed inside this page. The class only asks you to leave with a better-shaped beginning.
         """
     }
 
@@ -6925,29 +8676,41 @@ struct StoryPageSceneDraft: Equatable {
         return [
             StoryPageChoiceDraft(
                 id: "sliceoflife",
-                title: "Slice of Life",
-                prompt: "Stay with the ordinary detail already glowing.",
-                effectLine: "The Book gives the small thing more weight. Nothing dramatic is required.",
+                title: "Ask \(storyActorShort) Softly",
+                prompt: "Let \(storyActor) answer without forcing the thread forward.",
+                effectLine: turnLandings["slice-of-life"]?.nonEmpty ?? "\(storyActor) reveals one small truth in ordinary conversation.",
                 symbolName: "leaf",
                 tint: BookPalette.violet
             ),
             StoryPageChoiceDraft(
                 id: "progressarc",
-                title: "Progress Arc",
-                prompt: "Let the current thread take one real step forward.",
-                effectLine: "\(thread) darkens one line of ink and moves from possibility toward consequence.",
+                title: "Let \(storyActorShort) Act",
+                prompt: "Let \(storyActor) make the next concrete move.",
+                effectLine: turnLandings["progress-arc"]?.nonEmpty ?? "\(storyActor) advances \(thread) through a visible decision.",
                 symbolName: "point.3.connected.trianglepath.dotted",
                 tint: BookPalette.teal
             ),
             StoryPageChoiceDraft(
                 id: "surprise",
-                title: "Something Surprising",
-                prompt: "Open the side door, but keep one hand on the scene.",
-                effectLine: "A related detail steps out of the margins and asks to be remembered later.",
+                title: "Press the Want",
+                prompt: "Ask what \(storyActor) is not saying yet.",
+                effectLine: turnLandings["surprise"]?.nonEmpty ?? "\(storyActor)'s want slips sideways and changes the scene.",
                 symbolName: "sparkles",
                 tint: BookPalette.gold
             )
         ]
+    }
+
+    private var storyActor: String {
+        turnCharacter.nonEmpty ?? entities.first ?? "The Book"
+    }
+
+    private var storyActorShort: String {
+        let actor = storyActor
+            .replacingOccurrences(of: "Dr. ", with: "")
+            .replacingOccurrences(of: "Professor ", with: "")
+            .replacingOccurrences(of: "Headmistress ", with: "")
+        return actor.split(separator: " ").last.map(String.init) ?? actor
     }
 
     var choices: [StoryPageChoiceDraft] {

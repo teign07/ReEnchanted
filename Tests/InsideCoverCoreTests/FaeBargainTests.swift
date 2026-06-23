@@ -139,6 +139,38 @@ final class FaeBargainTests: XCTestCase {
         XCTAssertEqual(FaeEconomy.mood(for: date(month: 1)), .serious)
     }
 
+    // MARK: Parley Turn
+
+    func testParleyTurnIsFaeNativeWithThreePaths() {
+        let turn = FaeParleyTurnBuilder.turn(
+            kind: .goblin, claim: 10, warmth: 2, court: nil, omenTitle: nil, slotKey: "parley-x"
+        )
+        XCTAssertEqual(turn.character, FaeKind.goblin.name)
+        XCTAssertEqual(turn.register, .active)
+        XCTAssertFalse(turn.statement.isEmpty)
+        let landings = ["slice-of-life", "progress-arc", "surprise"].compactMap { turn.landings[$0]?.nonEmpty }
+        XCTAssertEqual(landings.count, 3)
+        XCTAssertEqual(Set(landings).count, 3, "courtesy / name-the-law / thorn must resolve differently")
+        // The serializer carries all nine keys for the shared engine to read.
+        XCTAssertEqual(turn.metadata["storyTurnCharacter"], FaeKind.goblin.name)
+        XCTAssertFalse(turn.metadata["storyTurnLandingSurprise"]?.isEmpty ?? true)
+    }
+
+    func testBookFaePageCarriesACommittedTurn() throws {
+        var state = FaePlayerState()
+        state.attention = 4
+        var inputs = BookSourceInputs.empty
+        inputs.faeState = state
+        let day = BookDay.today()
+        let pages = BookFaePageSourceAdapter().candidates(
+            for: day, context: CuratorContext.make(for: day), inputs: inputs, now: Date()
+        )
+        let meta = try XCTUnwrap(pages.first?.payload.metadata)
+        XCTAssertFalse(meta["storyTurnStatement"]?.isEmpty ?? true)
+        XCTAssertFalse(meta["storyTurnLandingSliceOfLife"]?.isEmpty ?? true)
+        XCTAssertEqual(meta["storyTurnRegister"], "active")
+    }
+
     // MARK: Adapter
 
     func testAdapterSurfacesAnOwedBargain() {

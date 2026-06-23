@@ -1,0 +1,132 @@
+{
+  "files": [
+    {
+      "file": "6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib1603gg7S2nfgRYIcNxyjDg.ttf",
+      "family": "Fraunces",
+      "rawFamily": "Fraunces ExtraBold",
+      "subfamily": "Regular",
+      "postscript": "Fraunces-ExtraBold",
+      "weight": 800,
+      "style": "normal",
+      "variationAxes": [],
+      "identified": true
+    },
+    {
+      "file": "6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib1603gg7S2nfgRYIcaRyjDg.ttf",
+      "family": "Fraunces",
+      "rawFamily": "Fraunces SemiBold",
+      "subfamily": "Regular",
+      "postscript": "Fraunces-SemiBold",
+      "weight": 600,
+      "style": "normal",
+      "variationAxes": [],
+      "identified": true
+    },
+    {
+      "file": "6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib1603gg7S2nfgRYIctxujDg.ttf",
+      "family": "Fraunces",
+      "rawFamily": "Fraunces",
+      "subfamily": "Regular",
+      "postscript": "Fraunces-Regular",
+      "weight": 400,
+      "style": "normal",
+      "variationAxes": [],
+      "identified": true
+    },
+    {
+      "file": "6NVf8FyLNQOQZAnv9ZwNjucMHVn85Ni7emAe9lKqZTnbB-gzTK0K1ChJdt9vIVYX9G37lvd9sPEKsxx664UJf1hLTf7W.ttf",
+      "family": "Fraunces",
+      "rawFamily": "Fraunces",
+      "subfamily": "Italic",
+      "postscript": "Fraunces-Italic",
+      "weight": 400,
+      "style": "italic",
+      "variationAxes": [],
+      "identified": true
+    },
+    {
+      "file": "UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuDyYMZg.ttf",
+      "family": "Inter",
+      "rawFamily": "Inter ExtraBold",
+      "subfamily": "Regular",
+      "postscript": "Inter-ExtraBold",
+      "weight": 800,
+      "style": "normal",
+      "variationAxes": [],
+      "identified": true
+    },
+    {
+      "file": "UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuGKYMZg.ttf",
+      "family": "Inter",
+      "rawFamily": "Inter SemiBold",
+      "subfamily": "Regular",
+      "postscript": "Inter-SemiBold",
+      "weight": 600,
+      "style": "normal",
+      "variationAxes": [],
+      "identified": true
+    },
+    {
+      "file": "UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuI6fMZg.ttf",
+      "family": "Inter",
+      "rawFamily": "Inter Medium",
+      "subfamily": "Regular",
+      "postscript": "Inter-Medium",
+      "weight": 500,
+      "style": "normal",
+      "variationAxes": [],
+      "identified": true
+    },
+    {
+      "file": "UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfMZg.ttf",
+      "family": "Inter",
+      "rawFamily": "Inter",
+      "subfamily": "Regular",
+      "postscript": "Inter-Regular",
+      "weight": 400,
+      "style": "normal",
+      "variationAxes": [],
+      "identified": true
+    }
+  ],
+  "families": [
+    {
+      "family": "Fraunces",
+      "weights": [
+        400,
+        600,
+        800
+      ],
+      "variable": false,
+      "fileCount": 4,
+      "files": [
+        "6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib1603gg7S2nfgRYIcNxyjDg.ttf",
+        "6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib1603gg7S2nfgRYIcaRyjDg.ttf",
+        "6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib1603gg7S2nfgRYIctxujDg.ttf",
+        "6NVf8FyLNQOQZAnv9ZwNjucMHVn85Ni7emAe9lKqZTnbB-gzTK0K1ChJdt9vIVYX9G37lvd9sPEKsxx664UJf1hLTf7W.ttf"
+      ]
+    },
+    {
+      "family": "Inter",
+      "weights": [
+        400,
+        500,
+        600,
+        800
+      ],
+      "variable": false,
+      "fileCount": 4,
+      "files": [
+        "UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuDyYMZg.ttf",
+        "UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuGKYMZg.ttf",
+        "UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuI6fMZg.ttf",
+        "UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfMZg.ttf"
+      ]
+    }
+  ],
+  "unidentified": [],
+  "meta": {
+    "generatedAt": "2026-06-21T17:00:39.688Z",
+    "tool": "fontkit"
+  }
+}

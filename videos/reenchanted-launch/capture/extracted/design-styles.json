@@ -1,0 +1,233 @@
+{
+  "typography": [
+    {
+      "role": "display",
+      "fontFamily": "Fraunces",
+      "fontSize": "89.6px",
+      "fontWeight": "800",
+      "lineHeight": "86.016px",
+      "letterSpacing": "-0.896px",
+      "color": "#FDF4E2",
+      "sampleText": "Real Life,ReEnchanted"
+    },
+    {
+      "role": "heading",
+      "fontFamily": "Fraunces",
+      "fontSize": "56px",
+      "fontWeight": "600",
+      "lineHeight": "57.12px",
+      "letterSpacing": "-0.56px",
+      "color": "#FDF4E2",
+      "sampleText": "Open the book. Keep what's true."
+    },
+    {
+      "role": "heading-3",
+      "fontFamily": "Fraunces",
+      "fontSize": "44.8px",
+      "fontWeight": "800",
+      "lineHeight": "47.04px",
+      "letterSpacing": "-0.448px",
+      "color": "#C9883F",
+      "sampleText": "The Book of You"
+    },
+    {
+      "role": "heading-3",
+      "fontFamily": "Fraunces",
+      "fontSize": "36.8px",
+      "fontWeight": "600",
+      "lineHeight": "38.64px",
+      "letterSpacing": "-0.368px",
+      "color": "#221A10",
+      "sampleText": "Fog over the Stacks."
+    },
+    {
+      "role": "body",
+      "fontFamily": "Fraunces",
+      "fontSize": "29.6px",
+      "fontWeight": "600",
+      "lineHeight": "37px",
+      "letterSpacing": "normal",
+      "color": "#F3E4BF",
+      "sampleText": "Play with Pages. Keep Some. Read Your Story."
+    },
+    {
+      "role": "heading-4",
+      "fontFamily": "Fraunces",
+      "fontSize": "26.4px",
+      "fontWeight": "600",
+      "lineHeight": "normal",
+      "letterSpacing": "normal",
+      "color": "#F3E4BF",
+      "sampleText": "Emberheart"
+    },
+    {
+      "role": "heading-3",
+      "fontFamily": "Fraunces",
+      "fontSize": "24px",
+      "fontWeight": "600",
+      "lineHeight": "normal",
+      "letterSpacing": "-0.24px",
+      "color": "#F3E4BF",
+      "sampleText": "The Monthly Edition"
+    },
+    {
+      "role": "label",
+      "fontFamily": "Inter",
+      "fontSize": "16px",
+      "fontWeight": "400",
+      "lineHeight": "normal",
+      "letterSpacing": "normal",
+      "color": "#FDF4E2",
+      "sampleText": "The Book turns when you do The Labyrinthof Stories ✦ Tap to "
+    },
+    {
+      "role": "link",
+      "fontFamily": "Inter",
+      "fontSize": "16px",
+      "fontWeight": "800",
+      "lineHeight": "normal",
+      "letterSpacing": "normal",
+      "color": "#FDF4E2",
+      "sampleText": "✦ ReEnchanted"
+    },
+    {
+      "role": "body-small",
+      "fontFamily": "Inter",
+      "fontSize": "15.2px",
+      "fontWeight": "400",
+      "lineHeight": "normal",
+      "letterSpacing": "normal",
+      "color": "#FDF4E2",
+      "sampleText": "Every figure, place, and object is illustrated and annotated"
+    }
+  ],
+  "spacing": {
+    "observed": [
+      1,
+      6,
+      7,
+      8,
+      9,
+      10,
+      12,
+      14,
+      16,
+      18,
+      20,
+      22,
+      24,
+      26,
+      28
+    ],
+    "baseUnit": 4
+  },
+  "radius": [
+    "10px",
+    "12px",
+    "18px",
+    "22px",
+    "999px"
+  ],
+  "shadows": [
+    {
+      "value": "rgba(0, 0, 0, 0.24) 0px 24px 56px 0px",
+      "count": 5
+    },
+    {
+      "value": "rgba(0, 0, 0, 0.35) 0px 16px 50px 0px",
+      "count": 1
+    },
+    {
+      "value": "rgba(0, 0, 0, 0.6) 0px 50px 110px 0px, rgba(255, 200, 116, 0.08) 0px 0px 0px 1px inset",
+      "count": 1
+    }
+  ],
+  "buttons": [
+    {
+      "label": "Open the Book",
+      "background": "#000000",
+      "color": "#1A1208",
+      "padding": "10px 18px",
+      "borderRadius": "999px",
+      "border": "0px none rgb(26, 18, 8)",
+      "boxShadow": "rgba(255, 200, 116, 0.25) 0px 8px 24px 0px",
+      "fontSize": "16px",
+      "fontWeight": "700",
+      "height": "40px"
+    },
+    {
+      "label": "Open the Book ↓",
+      "background": "#000000",
+      "color": "#1A1208",
+      "padding": "0px 26px",
+      "borderRadius": "999px",
+      "border": "1px solid rgba(0, 0, 0, 0)",
+      "boxShadow": "rgba(255, 200, 116, 0.28) 0px 14px 40px 0px",
+      "fontSize": "15.68px",
+      "fontWeight": "700",
+      "height": "50px"
+    },
+    {
+      "label": "See how it works",
+      "background": "#FFFFFF",
+      "color": "#FDF4E2",
+      "padding": "0px 26px",
+      "borderRadius": "999px",
+      "border": "1px solid rgba(255, 255, 255, 0.18)",
+      "boxShadow": "none",
+      "fontSize": "15.68px",
+      "fontWeight": "700",
+      "height": "50px"
+    },
+    {
+      "label": "The Book turns when you do\n             ",
+      "background": "#000000",
+      "color": "#FDF4E2",
+      "padding": "1px 6px",
+      "borderRadius": "14px 20px 20px 14px",
+      "border": "1px solid rgba(255, 200, 116, 0.34)",
+      "boxShadow": "rgba(0, 0, 0, 0.6) 0px 50px 110px 0px, rgba(255, 200, 116, 0.08) 0px 0px 0px 1px inset",
+      "fontSize": "13.3333px",
+      "fontWeight": "400",
+      "height": "577.5px"
+    }
+  ],
+  "cards": [
+    {
+      "label": "card",
+      "background": "#000000",
+      "color": "#FDF4E2",
+      "padding": "32px 28px",
+      "borderRadius": "22px",
+      "border": "1px solid rgba(255, 200, 116, 0.18)",
+      "boxShadow": "none",
+      "fontSize": "16px",
+      "fontWeight": "400",
+      "height": "403.172px"
+    },
+    {
+      "label": "card",
+      "background": "#FFFFFF",
+      "color": "#FDF4E2",
+      "padding": "16px 16px 26px",
+      "borderRadius": "24px",
+      "border": "1px solid rgba(255, 200, 116, 0.18)",
+      "boxShadow": "none",
+      "fontSize": "16px",
+      "fontWeight": "400",
+      "height": "733.812px"
+    }
+  ],
+  "nav": {
+    "label": "navigation",
+    "background": "#0A0812",
+    "color": "#FDF4E2",
+    "padding": "9px 9px 9px 18px",
+    "borderRadius": "999px",
+    "border": "1px solid rgba(255, 255, 255, 0.1)",
+    "boxShadow": "rgba(0, 0, 0, 0.35) 0px 16px 50px 0px",
+    "fontSize": "16px",
+    "fontWeight": "400",
+    "height": "60px"
+  }
+}

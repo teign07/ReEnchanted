@@ -494,6 +494,7 @@ const STATIONS = [
     tracks: [
       { id: "mothlight-the-page-came-through", title: "The Page Came Through", artist: "Mothlight Beats", src: "./assets/audio/mothlight-the-page-came-through.m4a" },
       { id: "mothlight-fae-dust", title: "Fae Dust", artist: "Mothlight Beats", src: "./assets/audio/mothlight-fae-dust.m4a" },
+      { id: "mothlight-lost-candy", title: "Lost Candy", artist: "Mothlight Beats", src: "./assets/audio/mothlight-lost-candy.m4a" },
       { id: "mothlight-afternoon-chapters", title: "Afternoon Chapters", artist: "Mothlight Beats", src: "./assets/audio/mothlight-afternoon-chapters.m4a" },
       { id: "mothlight-porchlight-fading", title: "Porchlight, Fading", artist: "Mothlight Beats", src: null },
     ],
@@ -535,6 +536,7 @@ const STATIONS = [
     tracks: [
       { id: "thornwave-bramble-bass", title: "Bramble Bass", artist: "Thornwave", src: "./assets/audio/thornwave-bramble-bass.m4a" },
       { id: "thornwave-nocturnal-faerie-lounge", title: "Nocturnal Faerie Lounge", artist: "Thornwave", src: "./assets/audio/thornwave-nocturnal-faerie-lounge.m4a" },
+      { id: "thornwave-whispering-shadows", title: "Whispering Shadows", artist: "Thornwave", src: "./assets/audio/thornwave-whispering-shadows.m4a" },
       { id: "thornwave-mossy-night", title: "Mossy Night", artist: "Thornwave", src: "./assets/audio/thornwave-mossy-night.m4a" },
     ],
     banters: [
@@ -1321,3 +1323,604 @@ function initField() {
   requestAnimationFrame(draw);
 }
 initField();
+
+/* ───────────────────────── hidden lore marginalia ─────────────────────────
+ * Words across the page are quietly clickable. Each opens a scrap of the
+ * Book's own voice — folklore, cast, talismans, systems. The frame is
+ * fictional; the life is real.
+ */
+const LORE = {
+  /* ── folklore / animist / Fae ── */
+  "faerie-tale": {
+    kicker: "The older, more dangerous kind",
+    title: "Not the Disney Fae",
+    kind: "folklore",
+    body: [
+      "The Folk in my oldest pages are not cute, and they are not winged decorations. They are proud, easily slighted, and generous to the courteous. Across the British and Irish stories people rarely said the word ‘fairy’ aloud — too risky — and called them the Good Folk, the Gentry, the Fair Family, the Good Neighbours.",
+      "The whole etiquette comes down to manners: do not boast, do not take without asking, do not break a promise, and say thank you where thanks are due. The woods really do keep what you promise them.",
+    ],
+    tryThis: "Get through one conversation today on the etiquette of the Folk: no boasting, no taking without asking, and a genuine thank-you where it's owed.",
+  },
+  "the-folk": {
+    kicker: "Old law, not manners",
+    title: "The Good Neighbours",
+    kind: "folklore",
+    body: [
+      "When the Fae speak in old law, they are not being rude — they are being older than your rules. A bargain with them runs on courtesy and exactness, and they remember every word of it long after you've forgotten you spoke.",
+      "I keep their etiquette close because it turns out to be excellent advice for dealing with people, too: be precise, be courteous, and mean what you promise.",
+    ],
+  },
+  "fairy-gifts": {
+    kicker: "What a gift is really asking",
+    title: "The Debt Inside a Gift",
+    kind: "folklore",
+    body: [
+      "A gift from the Folk is never free, and never quite what it looks like — the gold turns to leaves by morning; the leaves turn out to be gold. The rule under every version is reciprocity: a gift opens a thread between giver and taker, and the thread must be honoured.",
+      "It is why the Fae never want Belief. They want noticing. Pay in true attention and the bargain moves — but it remembers, and it is never quite free.",
+    ],
+    tryThis: "Think of one gift or favour you've accepted lately. Decide what, if anything, it quietly asked of you — and whether you mean to honour it.",
+  },
+  "moon-phases": {
+    kicker: "Match your task to the sky",
+    title: "The Moon's Four Faces",
+    kind: "folklore",
+    body: [
+      "Long before calendars, the moon kept the working schedule of folk magic. The waxing moon was for beginning and drawing toward; the full moon for power and clarity; the waning moon for releasing and letting go; the dark moon for rest and the things best done unseen.",
+      "Every Anchor Room I grow remembers which face was overhead when you visited. You really do have weeks for building and weeks for clearing out.",
+    ],
+    tryThis: "Look up tonight's moon phase. Pick one task that matches it — start something if it's waxing, finish or release something if it's waning.",
+  },
+  "genius-loci": {
+    kicker: "The spirit of the place",
+    title: "Every Corner Has Been Teaching You",
+    kind: "folklore",
+    body: [
+      "The Romans called it the genius loci — the spirit of a place — and nearly every tradition keeps a version: the household god, the spirit of the well, the guardian of the crossroads. Animism simply takes the place seriously as a someone, not a something.",
+      "You needn't believe a literal spirit lives in your kitchen to find that greeting a room changes how you move through it. The small rule a corner of the world has been teaching you is the spirit of that place, learning you back.",
+    ],
+    tryThis: "Walk into one room or building today and greet it, silently or aloud. Notice whether you treat it differently once you've said hello.",
+  },
+  "correspondences": {
+    kicker: "The old index of the world",
+    title: "Why the Talismans Are Listening",
+    kind: "folklore",
+    body: [
+      "The cunning folk and the grimoire-keepers worked from correspondence: the idea that a thing in your hand could stand in for a thing out of reach. Rosemary for memory, iron for protection, green for growth, the waxing moon for beginnings.",
+      "A talisman listens because you have agreed it stands for something. I am, when you think about it, one enormous table of correspondences — everything in me points at something in you.",
+    ],
+    tryThis: "Pick one ordinary object near you and decide, on the spot, what it corresponds to. Carry it as that today.",
+  },
+
+  /* ── systems ── */
+  "outer-stacks": {
+    kicker: "Let a place become a room",
+    title: "The Outer Stacks",
+    kind: "system",
+    art: { src: "./assets/art/location-outer-stacks.jpg", alt: "Illustrated dossier of the Outer Stacks, the faerie realm of ReEnchanted" },
+    body: [
+      "My catalogued halls are only the beginning of me. Past them lie the Outer Stacks, where the real places of your world come to be read. A harbour turns into a tidal reading room; a café keeps a tiny kingdom under the sugar packets; a car park holds a door that shows itself only when the light strikes the asphalt just so.",
+      "I do not make these places less real by taking them in. I make them more thoroughly themselves.",
+    ],
+  },
+  belief: {
+    kicker: "Measure how vivid the world feels",
+    title: "Belief",
+    kind: "system",
+    body: [
+      "Belief is my word for what happens when attention, courage, and meaning gather in one place at one time. When it runs high, my ink goes dark, the colours sharpen, and the impossible turns suddenly cooperative.",
+      "When it runs low — and it will — that is not failure. It only means the world has gone muted, and is waiting for some small, concrete act of noticing to bring the brightness back up.",
+    ],
+    tryThis: "When the world goes muted today, do one small concrete act of noticing to bring the brightness back up.",
+  },
+  "anchor-rooms": {
+    kicker: "Let a real place answer in Academy terms",
+    title: "Anchor Rooms",
+    kind: "system",
+    body: [
+      "Some real places step far enough into me to become Anchor Rooms. They stay exactly what they are — but I learn their room-feeling. A market becomes a bazaar of bargains; a pier becomes a tidal classroom; the café you already love becomes a small warm kingdom.",
+      "I do not replace the place; I would not dare. I only give it one more way to be read — and pin it to your real coordinates, so I know when you have truly come back.",
+    ],
+  },
+  "the-nothing": {
+    kicker: "Name the force that makes everything less",
+    title: "The Nothing",
+    kind: "system",
+    body: [
+      "Let me name the thing I am set against. The Nothing is not a monster with a speech to give. It is erasure — colours dulling, details going missing, stories flattening, rooms becoming merely rooms. It feeds on inattention and routine until your whole world reads like a summary of itself.",
+      "Feeling grey is its first weather. Every Compass Run, every Enchantment, is a small refusal: specific, sensory meaning made in the real world, where the Nothing cannot follow.",
+    ],
+    tryThis: "Pick one thing the Nothing has flattened into ‘just a room, just a commute’ and make it specific and sensory again.",
+  },
+  "wonder-compass": {
+    kicker: "Make a complete loop through wonder",
+    title: "The Wonder Compass",
+    kind: "system",
+    body: [
+      "The Compass teaches my most practical ritual: North to Notice, East to Embark, South to Sense, West to Write, and Centre to Rest. I start you on tiny runs because tiny runs are the ones you cannot wave away as nothing.",
+      "The size never matters. A kitchen, a porch, a city block, or a whole day can become a Run, so long as the loop closes.",
+    ],
+    tryThis: "Run one tiny Compass: one question, one comfort, one sensory game, and one true sentence carried home.",
+  },
+  enchantments: {
+    kicker: "Use attention as a spell",
+    title: "Enchantments",
+    kind: "system",
+    body: [
+      "An Enchantment is a pen-spell aimed straight at your real world. Photograph an object, a room, a pet, a meal — and it becomes the focus of the magic: it may speak, turn poetic, give up a hidden story, or show you the secret ways it rhymes with everything else.",
+      "The spell only works because you genuinely looked. The pen aims the attention. The world, as always, supplies the wonder.",
+    ],
+    tryThis: "Look — really look — at one object, room, or meal until it gives up a hidden story.",
+  },
+  "compass-runs": {
+    kicker: "Five stations, one closed loop",
+    title: "Compass Runs",
+    kind: "system",
+    body: [
+      "A Compass Run is one complete little loop through wonder. North asks an I-wonder question. East makes a tiny plan. South hands your senses a playful mission. West catches one true sentence. Centre lets the whole thing rest.",
+      "Close the circle and the most ordinary errand becomes an expedition you actually finished.",
+    ],
+  },
+
+  /* ── chapters ── */
+  emberheart: {
+    kicker: "Life is authored",
+    title: "Emberheart Chapter",
+    kind: "chapter",
+    body: [
+      "This is the chapter that keeps its fire useful. Emberheart belongs to warmth, daring, craft, and brave beginnings — and at their best my Emberheart students are not just bold, they are kindling for other people's courage.",
+      "Their magic favours lamps and hearths and kitchens and rescues, and the decisive moment when someone says yes before the fear has finished making its case.",
+    ],
+  },
+  mossbloom: {
+    kicker: "Life is listened to",
+    title: "Mossbloom Chapter",
+    kind: "chapter",
+    body: [
+      "This is the chapter that grows quietly, and do not mistake quiet for small. Mossbloom belongs to patience, repair, rooting, green persistence. Its students know that not every victory is a blaze — some look like a seedling coming back after winter.",
+      "Their magic favours gardens and mending and slow courage, the kind of strength that builds a shelter rather than a spectacle.",
+    ],
+  },
+  tidecrest: {
+    kicker: "Life is a poem",
+    title: "Tidecrest Chapter",
+    kind: "chapter",
+    body: [
+      "This is the chapter where feeling and weather meet. Tidecrest belongs to memory, music, water, and change, and its students are forever accused of being dramatic by people who mistake depth for inconvenience.",
+      "Their magic favours shorelines and rain and songs and letters — and the hard grace of letting an emotion move through a room without letting it drown the room.",
+    ],
+  },
+  riddlewind: {
+    kicker: "Life is co-written",
+    title: "Riddlewind Chapter",
+    kind: "chapter",
+    body: [
+      "This is the chapter that catches the answer arriving disguised as a question. Riddlewind belongs to wit, puzzles, language, maps, and unexpected routes; its students love locked boxes, unsolved footnotes, and jokes that secretly carry instructions.",
+      "Their magic favours ciphers and breezes and marginalia, and the sideways step that makes a wall finally admit it was a door.",
+    ],
+  },
+  duskthorn: {
+    kicker: "A story needs honest conflict",
+    title: "Duskthorn Chapter",
+    kind: "chapter",
+    body: [
+      "I will tell you what I have, which is mostly rumour. Duskthorn is the half-remembered chapter — twilight, thorns, secrecy, hard protection, and the cost of guarding what others would rather not name.",
+      "Some of my students swear it is only a story invented to make the chapter system feel complete. The rest of them lower their voices when the west windows go violet. I let both be true for now.",
+    ],
+  },
+
+  /* ── talismans (with art) ── */
+  "ember-seal": {
+    kicker: "Emberheart's talisman",
+    title: "The Ember Seal",
+    kind: "talisman",
+    art: { src: "./assets/art/LabyrinthTalismanEmberSeal.png", alt: "The Ember Seal talisman" },
+    body: [
+      "Hold this one and feel a heat that does not burn the palm. The Ember Seal carries Emberheart's oath — to warm, to illuminate, to begin.",
+      "I keep it as a reminder that courage is meant to be carried into kitchens and sickrooms and cold walks and first attempts, not hoarded for some theatrical emergency that may never come.",
+    ],
+  },
+  "moss-clasp": {
+    kicker: "Mossbloom's talisman",
+    title: "The Moss Clasp",
+    kind: "talisman",
+    art: { src: "./assets/art/LabyrinthTalismanMossClasp.png", alt: "The Moss Clasp talisman" },
+    body: [
+      "Fasten yourself to whatever keeps growing. The Moss Clasp belongs to Mossbloom's slow magic — repair, shelter, rootwork, the quiet bravery of coming back.",
+      "Picture it correctly and you will not picture a trophy. You will picture something that simply holds: a mended strap, a garden gate, a hand around a warm mug, a promise kept without fuss.",
+    ],
+  },
+  "tide-glass": {
+    kicker: "Tidecrest's talisman",
+    title: "The Tide Glass",
+    kind: "talisman",
+    art: { src: "./assets/art/LabyrinthTalismanTideGlass.png", alt: "The Tide Glass talisman" },
+    body: [
+      "Look through this and you do not predict a feeling or master it — you see its shape. The Tide Glass is Tidecrest's lens for emotion made visible: the curve of a wave before it breaks, the salt left after tears.",
+      "I keep it for the readers who feel everything and fear it means they are broken. It only means they are awake.",
+    ],
+  },
+  "wind-cipher": {
+    kicker: "Riddlewind's talisman",
+    title: "The Wind Cipher",
+    kind: "talisman",
+    art: { src: "./assets/art/LabyrinthTalismanWindCipher.png", alt: "The Wind Cipher talisman" },
+    body: [
+      "Turn this until the answer catches the air. The Wind Cipher is Riddlewind's talisman of moving thought — for clues, questions, jokes, maps, and the bright instant when a stuck idea suddenly shows you another side.",
+      "My students say carrying it feels less like owning an answer and more like keeping a small weather system for the mind.",
+    ],
+  },
+  "dusk-thorn": {
+    kicker: "Duskthorn's talisman",
+    title: "The Dusk Thorn",
+    kind: "talisman",
+    art: { src: "./assets/art/LabyrinthTalismanDuskThorn.png", alt: "The Dusk Thorn talisman" },
+    body: [
+      "Respect the sign that protects by pricking. The Dusk Thorn is the rumoured mark of Duskthorn — a talisman of boundaries, secrecy, and hard protection. It is not cruel, though it is rarely comfortable.",
+      "It says that beauty is allowed to defend itself, that twilight still belongs to the day, and that some of my doors stay shut for genuinely merciful reasons.",
+    ],
+  },
+
+  /* ── cast: the Book Fae ── */
+  "book-sprite": {
+    kicker: "A life between the lines",
+    title: "The Book Sprite",
+    kind: "cast",
+    art: { src: "./assets/art/fae-book-sprite.jpg", alt: "Illustrated dossier of the Book Sprite, a Paperwing Book Fae" },
+    body: [
+      "A quiet Paperwing who tends the memory of words. She listens to the hush between pages and carries whispered stories on the wind of her wings.",
+      "No Book Fae is decorative; each keeps one necessary thing from going dull. Watch the margins when she is near — the page usually notices before the reader does.",
+    ],
+  },
+  "sentence-salamander": {
+    kicker: "A life between the lines",
+    title: "The Sentence Salamander",
+    kind: "cast",
+    art: { src: "./assets/art/fae-sentence-salamander.jpg", alt: "Illustrated dossier of the Sentence Salamander Book Fae" },
+    body: [
+      "It lives in the warm current of a sentence and keeps the rhythm from going cold. Where it suns itself, the prose holds its heat; where it slips away, a line goes flat and nobody can say why.",
+      "I know it by the way a clause suddenly catches and carries. Lose this one and a story goes quietly wrong in a way no one can name.",
+    ],
+  },
+  "punctuation-pixie": {
+    kicker: "A life between the lines",
+    title: "The Punctuation Pixie",
+    kind: "cast",
+    art: { src: "./assets/art/fae-punctuation-pixie.jpg", alt: "Illustrated dossier of the Punctuation Pixie Book Fae" },
+    body: [
+      "Small, exacting, and faintly smug, the Punctuation Pixie tends the breath of a sentence — the pause of a comma, the held breath before a dash, the full stop that finally lets you exhale.",
+      "Mind your manners around it. Move a comma carelessly and it will move it back, and change your whole meaning while it's there.",
+    ],
+  },
+  "deep-lore-dwarf": {
+    kicker: "The underlayer",
+    title: "The Deep Lore Dwarf",
+    kind: "cast",
+    art: { src: "./assets/art/fae-deep-lore-dwarf.jpg", alt: "Illustrated dossier of the Deep Lore Dwarf Book Fae" },
+    body: [
+      "It works the oldest, lowest seams of me — the overlooked thing that turns out to be holding something else up. It speaks rarely and is usually right when it does.",
+      "A Deep Lore Dwarf once set a small grey stone before a reader and said nothing. The stone was older than the catalogue. So, it implied, were some of your troubles — and some of your strengths.",
+    ],
+  },
+  "marginalia-goblin": {
+    kicker: "A life between the lines",
+    title: "The Marginalia Goblin",
+    kind: "cast",
+    art: { src: "./assets/art/fae-marginalia-goblin.jpg", alt: "Illustrated dossier of the Marginalia Goblin Book Fae" },
+    body: [
+      "It lives in the white space at the edge of the page and cannot leave a margin alone. It scrawls, it doodles, it files ridiculous evidence, and every so often its scribble in the margin saves the whole shelf.",
+      "When it is near, the edges of a page get busy. Watch the margins before you watch the text.",
+    ],
+  },
+
+  /* ── cast: people ── */
+  "headmistress-thorne": {
+    kicker: "You probably shouldn't fully trust her",
+    title: "Headmistress Seraphina Thorne",
+    kind: "cast",
+    art: { src: "./assets/art/cast-headmistress-thorne.jpg", alt: "Illustrated dossier of Headmistress Seraphina Thorne" },
+    body: [
+      "I keep my doors opening; she keeps them honest. Seraphina Thorne is my headmistress — elegant, dry, and very nearly impossible to startle. She can make a reprimand land like a riddle and a kindness arrive like a secret.",
+      "She holds that wonder must be practised, not just admired, and that a school for magic owes its students one lesson before all others: notice the world before you go trying to change it. She is not soft. She is not careless either.",
+    ],
+  },
+  "dr-vellum": {
+    kicker: "She keeps your body's marginalia",
+    title: "Dr. Elowen Vellum",
+    kind: "cast",
+    art: { src: "./assets/art/cast-dr-vellum.jpg", alt: "Illustrated dossier of Dr. Elowen Vellum, Academy Longevity Physician" },
+    body: [
+      "The Academy's longevity physician and keeper of the Refectory Marginalia. She turns your fuel, your sleep, your bloodwork into field notes in the margin — warmly clinical, precise, and entirely without shame.",
+      "She holds that the body is not a problem to win against. She can make a supplement interaction sound like etiquette, and she means it as care.",
+    ],
+  },
+  "dr-inkrest": {
+    kicker: "Keeper of difficult pages",
+    title: "Dr. Selene Inkrest",
+    kind: "cast",
+    art: { src: "./assets/art/cast-dr-inkrest.jpg", alt: "Illustrated dossier of Dr. Selene Inkrest, Academy narrative therapist" },
+    body: [
+      "The Academy's narrative therapist, who curates the Reauthoring Rooms and keeps a chair and a lamp ready before any feeling arrives. She helps you set a problem down beside you so you can look at it instead of being it.",
+      "She believes a hard page deserves a chair and a lamp, not a rush. She will wait so patiently that the room sometimes forgets to answer — and then, gently, it does.",
+    ],
+  },
+  "gwendolyn-mythwright": {
+    kicker: "Mossbloom · cryptid seeker",
+    title: "Gwendolyn Mythwright",
+    kind: "cast",
+    art: { src: "./assets/art/cast-gwendolyn-mythwright.jpg", alt: "Illustrated dossier of Gwendolyn Mythwright, cryptid researcher" },
+    body: [
+      "She does her own research, passionately and at length, on things she has not yet proven. Her notebooks run ahead of her evidence — which is either a flaw or the entire point, depending on the week.",
+      "I keep her because a world needs people who chase the thing in the hedge before anyone agrees it's there. Half of what I know, I learned from someone who refused to wait for permission.",
+    ],
+  },
+  "lysander-mosswood": {
+    kicker: "Mossbloom · he'll send you outside",
+    title: "Lysander Mosswood",
+    kind: "cast",
+    art: { src: "./assets/art/cast-lysander-mosswood.jpg", alt: "Illustrated dossier of Lysander Mosswood, Mossbloom naturalist" },
+    body: [
+      "Thoughtful, unhurried, and faintly smelling of rain, Lysander is the one who turns a quest into a walk. He will send you to a specific real trail near you with one clear thing to notice when you get there.",
+      "He trusts the slow path. The errand he gives is never really about the destination — it is about what the going does to you.",
+    ],
+  },
+  "finn-bridges": {
+    kicker: "Emberheart · the honourable rival",
+    title: "Finn Bridges",
+    kind: "cast",
+    art: { src: "./assets/art/cast-finn-bridges.jpg", alt: "Illustrated dossier of Finn Bridges, Emberheart rival" },
+    body: [
+      "Independent, determined, and happy to argue with anyone — including you. Finn is a rival who respects competence above agreement, which makes him antagonistic and oddly trustworthy at once.",
+      "He will push back on your easy choices. Take it as a compliment: he only bothers to argue with people he thinks can win.",
+    ],
+  },
+  "melisande-blackwood": {
+    kicker: "Emberheart · knows things she shouldn't",
+    title: "Melisande Blackwood",
+    kind: "cast",
+    art: { src: "./assets/art/cast-melisande-blackwood.jpg", alt: "Illustrated dossier of Melisande Blackwood" },
+    body: [
+      "Loyal, brilliant, and ruthless in roughly that order. Melisande runs with Wicker's crew and will attack the Belief she distrusts without blinking — she has read the room before you've finished entering it.",
+      "She knows things she shouldn't, and trades them carefully. Be courteous. The Folk are not the only ones in my pages who remember a slight.",
+    ],
+  },
+  "soren-ng": {
+    kicker: "Riddlewind · building something quietly",
+    title: "Sören Ng",
+    kind: "cast",
+    art: { src: "./assets/art/cast-soren-ng.jpg", alt: "Illustrated dossier of Sören Ng, Riddlewind puzzle-keeper" },
+    body: [
+      "Methodical, observant, and the keeper of a growing collection of puzzles he is clearly assembling toward something he hasn't named yet. He carries a folded puzzle slip the way other people carry a worry stone.",
+      "Riddlewind loves a question that turns out to be a key. Sören is the student most likely to have already cut the key and be waiting, politely, by the door.",
+    ],
+  },
+  "damien-nights": {
+    kicker: "Riddlewind · watches more than he should",
+    title: "Damien Nights",
+    kind: "cast",
+    art: { src: "./assets/art/cast-damien-nights.jpg", alt: "Illustrated dossier of Damien Nights, Riddlewind shadow-worker" },
+    body: [
+      "Brooding, severe, and fluent in shadow magic — Damien runs with Wicker's crew and keeps, and trades, the secrets that the Academy would rather stayed buried. He watches you more than is strictly polite.",
+      "I have not decided yet whether he is a danger or a warning, and I suspect neither has he. Some pages are written in the dark on purpose.",
+    ],
+  },
+
+  /* ── rooms ── */
+  "the-stacks": {
+    kicker: "Rooms that behave like pages",
+    title: "The Stacks",
+    kind: "room",
+    art: { src: "./assets/art/room-stacks.jpg", alt: "Illustrated dossier of the Stacks, the Academy's living library" },
+    body: [
+      "My catalogued heart. The Stacks are corridors that behave like chapters and classrooms that keep their own weather — fog that makes the professors cancel class to watch the harbour vanish, a Library cloud overhead that changes colour when the building is thinking.",
+      "The weather outside your window becomes the weather in here. Step in carelessly and the shelves will still be polite. Step in attentive and they will start to show you things.",
+    ],
+  },
+  "great-hall": {
+    kicker: "Where the school gathers",
+    title: "The Great Hall",
+    kind: "room",
+    art: { src: "./assets/art/room-great-hall.jpg", alt: "Illustrated dossier of the Great Hall of the Academy" },
+    body: [
+      "The room the whole Academy pours into — feasts, announcements, the Day of the Living Literary Figures when Holmes deduced the menu, Alice critiqued the architecture, and Dracula objected to the lighting.",
+      "A hall this size keeps a long memory of everyone who has stood in it. On quiet evenings it still seems to be listening for the next gathering.",
+    ],
+  },
+  kitchens: {
+    kicker: "A small warm kingdom",
+    title: "The Kitchens",
+    kind: "room",
+    art: { src: "./assets/art/room-kitchens.jpg", alt: "Illustrated dossier of the Academy Kitchens" },
+    body: [
+      "Down past the proper rooms, the Kitchens keep a hearth that has never quite gone out and a brownie's worth of small magic in the steam. This is where courage is meant to be carried — into the cooking, the warming, the feeding of someone who needs it.",
+      "Leave a saucer of cream where no one is watching and do not mention it. The oldest hospitality in my pages still lives down here.",
+    ],
+  },
+  professors: {
+    kicker: "Faculty dossiers",
+    title: "The Professors of Enchantify",
+    kind: "cast",
+    gallery: [
+      { src: "./assets/art/cast-lydia-boggle.jpg", alt: "Illustrated dossier of Professor Lydia Boggle", caption: "Professor Lydia Boggle" },
+      { src: "./assets/art/cast-professor-kyle-momort.jpg", alt: "Illustrated dossier of Professor Kyle Momort", caption: "Professor Kyle Momort" },
+      { src: "./assets/art/cast-professor-eleanor-euphony.jpg", alt: "Illustrated dossier of Professor Eleanor Euphony", caption: "Professor Eleanor Euphony" },
+      { src: "./assets/art/cast-professor-vivian-villanelle.jpg", alt: "Illustrated dossier of Professor Vivian Villanelle", caption: "Professor Vivian Villanelle" },
+      { src: "./assets/art/cast-professor-cedric-stonebrook.jpg", alt: "Illustrated dossier of Professor Cedric Stonebrook", caption: "Professor Cedric Stonebrook" },
+      { src: "./assets/art/cast-professor-luna-wispwood.jpg", alt: "Illustrated dossier of Professor Luna Wispwood", caption: "Professor Luna Wispwood" },
+      { src: "./assets/art/cast-professor-permancer.jpg", alt: "Illustrated dossier of Professor Permancer", caption: "Professor Permancer" },
+    ],
+    body: [
+      "The Academy's professors do not agree on what a life is for, which is why their classrooms are worth entering. Each teaches one practical way to make the ordinary world vivid again.",
+      "Their dossiers preserve the evidence: a signature object, a Chapter palette, and the particular kind of trouble each considers educational.",
+    ],
+  },
+  illustrations: {
+    kicker: "The book remembers its cast",
+    title: "An Almanac of Your World",
+    kind: "cast",
+    gallery: [
+      { src: "./assets/art/cast-lydia-boggle.jpg", alt: "Illustrated dossier of Professor Lydia Boggle", caption: "Professor Lydia Boggle" },
+      { src: "./assets/art/cast-penny-blackletter.jpg", alt: "Illustrated dossier of Penny Blackletter", caption: "Penny Blackletter" },
+      { src: "./assets/art/cast-dr-inkrest.jpg", alt: "Illustrated dossier of Dr. Selene Inkrest", caption: "Dr. Selene Inkrest" },
+      { src: "./assets/art/cast-orion-blackthorn.jpg", alt: "Illustrated dossier of Headmaster Orion Blackthorn", caption: "Headmaster Orion Blackthorn" },
+      { src: "./assets/art/cast-zara-finch.jpg", alt: "Illustrated dossier of Zara Finch", caption: "Zara Finch" },
+      { src: "./assets/art/cast-wicker-eddies.jpg", alt: "Illustrated dossier of Wicker Eddies", caption: "Wicker Eddies" },
+      { src: "./assets/art/cast-professor-kyle-momort.jpg", alt: "Illustrated dossier of Professor Kyle Momort", caption: "Professor Kyle Momort" },
+      { src: "./assets/art/cast-professor-eleanor-euphony.jpg", alt: "Illustrated dossier of Professor Eleanor Euphony", caption: "Professor Eleanor Euphony" },
+      { src: "./assets/art/cast-professor-vivian-villanelle.jpg", alt: "Illustrated dossier of Professor Vivian Villanelle", caption: "Professor Vivian Villanelle" },
+      { src: "./assets/art/cast-professor-cedric-stonebrook.jpg", alt: "Illustrated dossier of Professor Cedric Stonebrook", caption: "Professor Cedric Stonebrook" },
+      { src: "./assets/art/cast-professor-luna-wispwood.jpg", alt: "Illustrated dossier of Professor Luna Wispwood", caption: "Professor Luna Wispwood" },
+      { src: "./assets/art/cast-professor-permancer.jpg", alt: "Illustrated dossier of Professor Permancer", caption: "Professor Permancer" },
+    ],
+    body: [
+      "Every figure, place, and object in me is illustrated and annotated like a dossier — a parchment file with a signature object, a colour palette, a chapter mark, and a line in a real hand. This one is Professor Lydia Boggle, who teaches riddles, misdirection, and the sacred usefulness of nonsense.",
+      "I do not summarise a person too quickly. A life is never only an office or a talent or the rumour that reaches the door first. The illustration is just where the ink begins.",
+    ],
+  },
+};
+
+(function initLore() {
+  const modal = document.querySelector("#lore-modal");
+  if (!modal) return;
+  const kickerEl = modal.querySelector("#lore-modal-kicker");
+  const titleEl = modal.querySelector("#lore-modal-title");
+  const copyEl = modal.querySelector("#lore-modal-copy");
+  const figureEl = modal.querySelector("#lore-figure");
+  const figureImg = modal.querySelector("#lore-figure-img");
+  const galleryNav = modal.querySelector("#lore-gallery-nav");
+  const galleryStatus = modal.querySelector("#lore-gallery-status");
+  const galleryPrev = modal.querySelector("#lore-gallery-prev");
+  const galleryNext = modal.querySelector("#lore-gallery-next");
+  const panelEl = modal.querySelector(".lore-panel");
+  const tryEl = modal.querySelector("#lore-trythis");
+  const tryBody = modal.querySelector("#lore-trythis-body");
+  let returnFocus = null;
+  let activeGallery = [];
+  let activeGalleryIndex = 0;
+
+  function showGalleryItem(index) {
+    if (!activeGallery.length) return;
+    activeGalleryIndex = (index + activeGallery.length) % activeGallery.length;
+    const item = activeGallery[activeGalleryIndex];
+    figureImg.src = item.src;
+    figureImg.alt = item.alt || "";
+    galleryStatus.textContent = `${activeGalleryIndex + 1} of ${activeGallery.length} · ${item.caption || item.alt || "Illustration"}`;
+  }
+
+  function open(id) {
+    const entry = LORE[id];
+    if (!entry) return;
+    returnFocus = document.activeElement;
+    panelEl.dataset.loreKind = entry.kind || "";
+    kickerEl.textContent = entry.kicker || "";
+    titleEl.textContent = entry.title || "";
+    copyEl.innerHTML = "";
+    (entry.body || []).forEach((p) => {
+      const el = document.createElement("p");
+      el.textContent = p;
+      copyEl.appendChild(el);
+    });
+    activeGallery = entry.gallery?.length ? entry.gallery : (entry.art ? [entry.art] : []);
+    activeGalleryIndex = 0;
+    if (activeGallery.length) {
+      showGalleryItem(0);
+      galleryNav.hidden = activeGallery.length < 2;
+      figureEl.hidden = false;
+    } else {
+      figureImg.removeAttribute("src");
+      figureImg.alt = "";
+      galleryNav.hidden = true;
+      figureEl.hidden = true;
+    }
+    if (entry.tryThis) {
+      tryBody.textContent = entry.tryThis;
+      tryEl.hidden = false;
+    } else {
+      tryEl.hidden = true;
+    }
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+    modal.querySelector(".lore-close")?.focus();
+    panelEl.scrollTop = 0;
+  }
+
+  function close() {
+    if (modal.hidden) return;
+    modal.hidden = true;
+    document.body.style.overflow = "";
+    if (returnFocus instanceof HTMLElement) returnFocus.focus();
+  }
+
+  document.querySelectorAll("[data-lore]").forEach((trigger) => {
+    trigger.addEventListener("click", (e) => {
+      e.preventDefault();
+      open(trigger.getAttribute("data-lore"));
+    });
+  });
+  galleryPrev.addEventListener("click", () => showGalleryItem(activeGalleryIndex - 1));
+  galleryNext.addEventListener("click", () => showGalleryItem(activeGalleryIndex + 1));
+  modal.querySelectorAll("[data-lore-close]").forEach((c) => c.addEventListener("click", close));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") close();
+    if (!modal.hidden && activeGallery.length > 1 && e.key === "ArrowLeft") showGalleryItem(activeGalleryIndex - 1);
+    if (!modal.hidden && activeGallery.length > 1 && e.key === "ArrowRight") showGalleryItem(activeGalleryIndex + 1);
+  });
+})();
+
+/* ───────────────────────── mobile section drawers ─────────────────────────
+   On narrow screens, long content sections collapse into tap-to-open drawers.
+   Progressive enhancement: the wrappers use display:contents on desktop, so
+   the original layouts render exactly as before. */
+(function setupDrawers() {
+  const sections = Array.from(document.querySelectorAll("section[data-drawer]"));
+  if (!sections.length) return;
+
+  sections.forEach((section, index) => {
+    const heading = section.querySelector("h2");
+    const label = (section.dataset.drawerLabel || heading?.textContent || "Section").trim();
+    const eyebrow = section.querySelector(".eyebrow")?.textContent.trim() || "";
+
+    // Wrap all existing content so it can be collapsed as one unit.
+    const inner = document.createElement("div");
+    inner.className = "drawer-inner";
+    while (section.firstChild) inner.appendChild(section.firstChild);
+    const body = document.createElement("div");
+    body.className = "drawer-body";
+    body.appendChild(inner);
+
+    // The mobile-only toggle bar carries the section's own title.
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "drawer-toggle";
+    const bodyId = (section.id || `drawer-${index}`) + "-body";
+    body.id = bodyId;
+    toggle.setAttribute("aria-controls", bodyId);
+    toggle.innerHTML =
+      `<span class="drawer-toggle-text">` +
+      (eyebrow ? `<span class="drawer-toggle-eyebrow">${eyebrow}</span>` : "") +
+      `<span class="drawer-toggle-label">${label}</span>` +
+      `</span><span class="drawer-chevron" aria-hidden="true"></span>`;
+
+    section.classList.add("is-drawer");
+    section.appendChild(toggle);
+    section.appendChild(body);
+
+    const setOpen = (open) => {
+      section.classList.toggle("is-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+    // First drawer opens by default as a hint that the rest are tappable.
+    setOpen(index === 0);
+    toggle.addEventListener("click", () => setOpen(!section.classList.contains("is-open")));
+  });
+
+  // If the page is opened to a section's anchor, reveal it.
+  const openFromHash = () => {
+    const target = document.querySelector(`section[data-drawer]${location.hash || "#__none"}`);
+    if (target) {
+      target.classList.add("is-open");
+      target.querySelector(".drawer-toggle")?.setAttribute("aria-expanded", "true");
+    }
+  };
+  openFromHash();
+  window.addEventListener("hashchange", openFromHash);
+})();

@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Fraunces"; font-weight: 400; font-style: normal; src: url("fonts/Fraunces-Regular.ttf") format("truetype"); }
+      @font-face { font-family: "Fraunces"; font-weight: 600; font-style: normal; src: url("fonts/Fraunces-SemiBold.ttf") format("truetype"); }
+      @font-face { font-family: "Fraunces"; font-weight: 800; font-style: normal; src: url("fonts/Fraunces-ExtraBold.ttf") format("truetype"); }
+      @font-face { font-family: "Fraunces"; font-weight: 400; font-style: italic; src: url("fonts/Fraunces-Italic.ttf") format("truetype"); }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      :root {
+        --night: #070611;
+        --night2: #0c0a16;
+        --night3: #150f23;
+        --parchment: #fdf4e2;
+        --parchment2: #f3e4bf;
+        --gold: #ffc874;
+        --gold-deep: #c9883f;
+        --gold-soft: #ffd89a;
+        --teal: #4cc0bd;
+        --violet: #8a72c4;
+        --ink: #241a0d;
+      }
+      html, body {
+        width: 1920px; height: 1080px; overflow: hidden;
+        background: var(--night);
+        font-family: "Inter", sans-serif;
+      }
+      .serif { font-family: "Fraunces", Georgia, serif; }
+
+      /* ---- beat stacking ---- */
+      .beat {
+        position: absolute; inset: 0;
+        width: 1920px; height: 1080px;
+        overflow: hidden; opacity: 0;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .stage {
+        position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        will-change: transform;
+      }
+
+      /* night backdrops */
+      .bg-night {
+        background:
+          radial-gradient(120% 90% at 50% 38%, rgba(255,200,116,0.10), rgba(7,6,17,0) 55%),
+          radial-gradient(140% 120% at 50% 120%, #150f23 0%, #0b0811 45%, #070611 100%);
+      }
+      .vignette::after {
+        content: ""; position: absolute; inset: 0; pointer-events: none;
+        box-shadow: inset 0 0 280px 90px rgba(3,2,10,0.9);
+      }
+      .compass-rings {
+        position: absolute; width: 1500px; height: 1500px; left: 50%; top: 50%;
+        transform: translate(-50%, -50%); opacity: 0.16; pointer-events: none;
+        background:
+          radial-gradient(circle, transparent 0 360px, rgba(255,200,116,0.5) 360px 361px, transparent 362px),
+          radial-gradient(circle, transparent 0 500px, rgba(255,200,116,0.35) 500px 501px, transparent 502px),
+          radial-gradient(circle, transparent 0 650px, rgba(255,200,116,0.25) 650px 651px, transparent 652px);
+      }
+
+      /* dust */
+      .dust { position: absolute; inset: 0; pointer-events: none; }
+      .dust i {
+        position: absolute; border-radius: 50%;
+        background: var(--gold-soft); filter: blur(0.4px);
+      }
+
+      /* typography */
+      .eyebrow {
+        font-size: 26px; font-weight: 600; letter-spacing: 0.32em;
+        text-transform: uppercase; color: var(--gold);
+      }
+      .hook { font-size: 88px; font-weight: 400; color: #efe7d6; line-height: 1.1; }
+      .h-section { font-size: 92px; font-weight: 600; color: #f6efe0; line-height: 1.04; }
+      .gold { color: var(--gold); }
+      .body { font-size: 36px; font-weight: 400; color: #cfc6b8; line-height: 1.4; }
+
+      .col { display: flex; flex-direction: column; }
+      .center-text { text-align: center; max-width: 1180px; }
+
+      /* phone */
+      .phone {
+        width: 384px; height: 832px; border-radius: 48px; background: #05050d;
+        border: 2px solid rgba(255,200,116,0.4); padding: 9px; position: relative;
+        box-shadow: 0 36px 90px rgba(0,0,0,0.65), 0 0 70px rgba(255,200,116,0.18);
+      }
+      .phone img { width: 100%; height: 100%; object-fit: cover; object-position: top center; border-radius: 40px; display: block; }
+      .phone-glow {
+        position: absolute; width: 760px; height: 760px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(255,200,116,0.22), rgba(255,200,116,0) 60%);
+        filter: blur(8px); pointer-events: none;
+      }
+
+      /* almanac card */
+      .card {
+        border-radius: 16px; overflow: hidden;
+        border: 1px solid rgba(255,200,116,0.35);
+        box-shadow: 0 28px 64px rgba(0,0,0,0.6);
+        background: #1a130b;
+      }
+      .card img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+      /* split layout (screen + copy) */
+      .split { display: flex; align-items: center; gap: 110px; }
+      .split .copy { max-width: 640px; }
+
+      /* parchment manifesto */
+      .bg-parchment {
+        background:
+          radial-gradient(120% 120% at 50% 0%, #fff8ec 0%, var(--parchment) 45%, var(--parchment2) 100%);
+      }
+      .rule { width: 220px; height: 2px; background: var(--gold-deep); opacity: 0.7; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="60" data-width="1920" data-height="1080" style="position:relative;width:1920px;height:1080px;">
+
+      <!-- ============ BEAT 1 — HOOK (0–6) ============ -->
+      <div class="beat bg-night vignette" id="b1" style="opacity:1;">
+        <div class="compass-rings"></div>
+        <div class="dust" data-dust></div>
+        <div class="stage">
+          <div class="col center-text" style="align-items:center;gap:34px;">
+            <div class="eyebrow" id="b1-eye">Boredom. Routine. The grey.</div>
+            <div class="serif hook" id="b1-line">Life slips past, unread —<br/>and the Nothing creeps in.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ BEAT 2 — HERO / LOGO (6–13) ============ -->
+      <div class="beat bg-night vignette" id="b2">
+        <div class="dust" data-dust></div>
+        <img id="b2-amb" src="assets/art/room-stacks.jpg"
+             style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.16;filter:blur(3px) saturate(0.8);" />
+        <div id="b2-bloom" style="position:absolute;width:1100px;height:1100px;border-radius:50%;background:radial-gradient(circle,rgba(255,200,116,0.28),rgba(255,200,116,0) 60%);"></div>
+        <div class="stage">
+          <div class="col center-text" style="align-items:center;gap:30px;">
+            <div class="serif" id="b2-t1" style="font-size:150px;font-weight:400;color:#f3ead8;line-height:0.98;">Real Life,</div>
+            <div class="serif gold" id="b2-t2" style="font-size:168px;font-weight:600;line-height:0.96;text-shadow:0 0 50px rgba(255,200,116,0.35);">ReEnchanted</div>
+            <div class="body" id="b2-sub" style="font-size:38px;color:#e3d8c4;margin-top:8px;">A free, magical iPhone book that turns the<br/>day you actually lived into a faerie tale.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ BEAT 3 — PAGES ARRIVE (13–21) ============ -->
+      <div class="beat bg-night vignette" id="b3">
+        <div class="stage split">
+          <div class="copy col" style="gap:26px;">
+            <div class="eyebrow" id="b3-eye">Play with it</div>
+            <div class="serif h-section" id="b3-h">Your real day shows up<br/>as little doors.</div>
+            <div class="body" id="b3-b">Weather, walks, moods, music, the people<br/>who pass through — each a page to open.</div>
+          </div>
+          <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+            <div class="phone-glow" id="b3-glow"></div>
+            <div class="phone" id="b3-phone"><img src="assets/screens/home.jpg" /></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ BEAT 4 — KEEP (21–28) ============ -->
+      <div class="beat bg-night vignette" id="b4">
+        <div class="stage split" style="flex-direction:row-reverse;">
+          <div class="copy col" style="gap:26px;">
+            <div class="eyebrow" id="b4-eye">Built on consent &amp; taste</div>
+            <div class="serif h-section" id="b4-h">Keep what's true.<br/><span class="gold">Let the rest wait.</span></div>
+            <div class="body" id="b4-b">Keep a page when it catches a real edge.<br/>No streak to defend. You choose the story.</div>
+          </div>
+          <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+            <div class="phone-glow" id="b4-glow" style="opacity:0.4;"></div>
+            <div class="phone" id="b4-phone"><img src="assets/screens/keep-page.jpg" /></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ BEAT 5 — BRAID (28–36) ============ -->
+      <div class="beat bg-night vignette" id="b5">
+        <div class="dust" data-dust></div>
+        <div class="stage split">
+          <div class="copy col" style="gap:26px;">
+            <div class="eyebrow" id="b5-eye">The braid is real</div>
+            <div class="serif h-section" id="b5-h">Each night it braids<br/>your day into a<br/><span class="gold serif" style="font-style:italic;">Book of You.</span></div>
+            <div class="body" id="b5-b">The day, rewritten as something you can<br/>return to — and one day, bind.</div>
+          </div>
+          <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+            <div class="phone-glow" id="b5-glow"></div>
+            <div class="phone" id="b5-phone"><img src="assets/screens/book-of-you.jpg" /></div>
+            <svg id="b5-braid" width="430" height="900" viewBox="0 0 430 900" style="position:absolute;pointer-events:none;">
+              <path id="b5-p1" d="M150,40 C300,180 100,340 250,500 C360,640 150,760 240,870" fill="none" stroke="rgba(255,200,116,0.85)" stroke-width="3"/>
+              <path id="b5-p2" d="M280,40 C130,180 330,340 180,500 C70,640 300,760 200,870" fill="none" stroke="rgba(76,192,189,0.7)" stroke-width="3"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ BEAT 6 — CHOICES (36–43) ============ -->
+      <div class="beat bg-night vignette" id="b6">
+        <div class="stage split" style="flex-direction:row-reverse;">
+          <div class="copy col" style="gap:30px;">
+            <div class="eyebrow" id="b6-eye">The old, dangerous kind</div>
+            <div class="serif h-section" id="b6-h">A scene from your day —<br/>with choices inside it.</div>
+            <div class="col" style="gap:16px;max-width:560px;">
+              <div class="choice" id="b6-c1" style="border:1px solid rgba(255,200,116,0.4);border-radius:14px;padding:18px 24px;background:rgba(255,200,116,0.04);">
+                <div style="font-size:20px;letter-spacing:0.16em;text-transform:uppercase;color:var(--gold);">Slice of Life</div>
+                <div class="body" style="font-size:28px;color:#e3d8c4;">Examine the paper's texture.</div>
+              </div>
+              <div class="choice" id="b6-c2" style="border:1px solid rgba(76,192,189,0.4);border-radius:14px;padding:18px 24px;background:rgba(76,192,189,0.04);">
+                <div style="font-size:20px;letter-spacing:0.16em;text-transform:uppercase;color:var(--teal);">Arc</div>
+                <div class="body" style="font-size:28px;color:#e3d8c4;">Align the chart's reading.</div>
+              </div>
+              <div class="choice" id="b6-c3" style="border:1px solid rgba(138,114,196,0.45);border-radius:14px;padding:18px 24px;background:rgba(138,114,196,0.05);">
+                <div style="font-size:20px;letter-spacing:0.16em;text-transform:uppercase;color:var(--violet);">Surprise</div>
+                <div class="body" style="font-size:28px;color:#e3d8c4;">Listen to the silence.</div>
+              </div>
+            </div>
+          </div>
+          <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+            <div class="phone-glow" id="b6-glow" style="opacity:0.35;"></div>
+            <div class="phone" id="b6-phone"><img src="assets/screens/story-page-weather-choices.png" /></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ BEAT 7 — A WHOLE WORLD (43–52) ============ -->
+      <div class="beat bg-night vignette" id="b7">
+        <div class="dust" data-dust></div>
+        <div class="stage col" style="flex-direction:column;gap:0;">
+          <div class="serif" id="b7-h" style="position:absolute;top:90px;left:50%;transform:translateX(-50%);font-size:74px;font-weight:600;color:#f6efe0;text-align:center;z-index:5;">And a whole world running underneath.</div>
+          <div id="b7-fan" style="position:relative;width:1920px;height:1080px;">
+            <div class="card" id="b7-c1" style="position:absolute;left:120px;top:330px;width:300px;height:420px;"><img src="assets/art/location-outer-stacks.jpg"/></div>
+            <div class="card" id="b7-c2" style="position:absolute;left:360px;top:300px;width:290px;height:440px;"><img src="assets/art/cast-penny-blackletter.jpg"/></div>
+            <div class="phone" id="b7-radio" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:330px;height:716px;z-index:4;"><img src="assets/screens/radio.jpg"/></div>
+            <div class="card" id="b7-c3" style="position:absolute;right:360px;top:300px;width:290px;height:440px;"><img src="assets/art/room-great-hall.jpg"/></div>
+            <div class="card" id="b7-c4" style="position:absolute;right:120px;top:330px;width:300px;height:430px;"><img src="assets/screens/wonder-compass-cover.jpg"/></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ BEAT 8 — IT'S YOURS (52–56.5) ============ -->
+      <div class="beat bg-parchment" id="b8">
+        <div class="stage">
+          <div class="col center-text" style="align-items:center;gap:30px;">
+            <div class="eyebrow" id="b8-eye" style="color:var(--gold-deep);">Real device magic</div>
+            <div class="rule" id="b8-r1"></div>
+            <div class="serif" id="b8-h" style="font-size:104px;font-weight:600;color:var(--ink);line-height:1.05;">Free · Local · Private<br/>· Open source.</div>
+            <div id="b8-sub" style="font-size:34px;color:#6a5836;font-weight:500;">No ads. No streaks. No guilt.</div>
+            <div class="rule" id="b8-r2"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ BEAT 9 — CTA (56.5–60) ============ -->
+      <div class="beat bg-night vignette" id="b9">
+        <div class="dust" data-dust></div>
+        <div id="b9-bloom" style="position:absolute;width:1000px;height:1000px;border-radius:50%;background:radial-gradient(circle,rgba(255,200,116,0.20),rgba(255,200,116,0) 62%);"></div>
+        <div class="stage">
+          <div class="col center-text" style="align-items:center;gap:24px;">
+            <div class="serif gold" id="b9-logo" style="font-size:128px;font-weight:600;text-shadow:0 0 46px rgba(255,200,116,0.4);">✦ ReEnchanted</div>
+            <div class="body" id="b9-tag" style="font-size:38px;color:#e3d8c4;">Play with pages. Keep some. Read your story.</div>
+            <div id="b9-foot" style="font-size:28px;letter-spacing:0.14em;color:var(--gold);text-transform:uppercase;margin-top:14px;">TestFlight this summer &nbsp;·&nbsp; GitHub &nbsp;·&nbsp; Patreon</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ AUDIO ============ -->
+      <audio id="music" src="assets/audio/fae-fi-mossy-groove-60.m4a" data-start="0" data-duration="60" data-track-index="0" data-volume="0.7"></audio>
+
+      <audio id="sfx-swell"  src="assets/sfx/source-refresh.wav" data-start="1.0"  data-duration="0.45" data-track-index="11" data-volume="0.55"></audio>
+      <audio id="sfx-logo"   src="assets/sfx/braid-start.wav"    data-start="6.7"  data-duration="0.34" data-track-index="12" data-volume="0.7"></audio>
+      <audio id="sfx-open"   src="assets/sfx/open-page.wav"      data-start="14.2" data-duration="0.34" data-track-index="13" data-volume="0.75"></audio>
+      <audio id="sfx-keep"   src="assets/sfx/keep-page.wav"      data-start="22.6" data-duration="0.63" data-track-index="14" data-volume="0.8"></audio>
+      <audio id="sfx-braid"  src="assets/sfx/braid-complete.wav" data-start="33.2" data-duration="1.16" data-track-index="15" data-volume="0.8"></audio>
+      <audio id="sfx-sel1"   src="assets/sfx/select.wav"         data-start="37.6" data-duration="0.08" data-track-index="16" data-volume="0.8"></audio>
+      <audio id="sfx-sel2"   src="assets/sfx/select.wav"         data-start="38.6" data-duration="0.08" data-track-index="17" data-volume="0.8"></audio>
+      <audio id="sfx-sel3"   src="assets/sfx/select.wav"         data-start="39.6" data-duration="0.08" data-track-index="18" data-volume="0.8"></audio>
+      <audio id="sfx-t1"     src="assets/sfx/tap.wav"            data-start="43.4" data-duration="0.07" data-track-index="19" data-volume="0.7"></audio>
+      <audio id="sfx-t2"     src="assets/sfx/select.wav"         data-start="45.6" data-duration="0.08" data-track-index="20" data-volume="0.7"></audio>
+      <audio id="sfx-t3"     src="assets/sfx/tap.wav"            data-start="47.8" data-duration="0.07" data-track-index="21" data-volume="0.7"></audio>
+      <audio id="sfx-t4"     src="assets/sfx/select.wav"         data-start="49.9" data-duration="0.08" data-track-index="22" data-volume="0.7"></audio>
+      <audio id="sfx-cta"    src="assets/sfx/braid-start.wav"    data-start="57.1" data-duration="0.34" data-track-index="23" data-volume="0.7"></audio>
+    </div>
+
+    <script>
+      // ---- deterministic dust ----
+      function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+      var rnd = mulberry32(20240621);
+      document.querySelectorAll('[data-dust]').forEach(function(layer){
+        for(var i=0;i<46;i++){
+          var s = 1.5 + rnd()*3.5;
+          var d = document.createElement('i');
+          d.style.left = (rnd()*100)+'%';
+          d.style.top = (rnd()*100)+'%';
+          d.style.width = s+'px'; d.style.height = s+'px';
+          d.style.opacity = (0.15 + rnd()*0.5).toFixed(2);
+          layer.appendChild(d);
+        }
+      });
+
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      var EO = "expo.out", PO3 = "power3.out", PO2 = "power2.out", PIO = "power1.inOut";
+
+      // ---- crossfades between beats ----
+      // boundary time : [outgoing, incoming]
+      var fades = [
+        [6.0,  "#b1", "#b2"],
+        [13.0, "#b2", "#b3"],
+        [21.0, "#b3", "#b4"],
+        [28.0, "#b4", "#b5"],
+        [36.0, "#b5", "#b6"],
+        [43.0, "#b6", "#b7"],
+        [52.0, "#b7", "#b8"],
+        [56.5, "#b8", "#b9"]
+      ];
+      fades.forEach(function(f){
+        tl.to(f[1], { opacity: 0, duration: 0.7, ease: PIO }, f[0]-0.35);
+        tl.fromTo(f[2], { opacity: 0 }, { opacity: 1, duration: 0.7, ease: PIO }, f[0]-0.35);
+      });
+
+      // ---- slow ken-burns drift on each stage ----
+      var drifts = [
+        ["#b1 .stage",0,6, 1.05,1.0, 0,0],
+        ["#b2 .stage",6,7, 1.06,1.0, 0,0],
+        ["#b3 .stage",13,8, 1.04,1.0, 18,-18],
+        ["#b4 .stage",21,7, 1.04,1.0, -18,18],
+        ["#b5 .stage",28,8, 1.05,1.0, 18,-14],
+        ["#b6 .stage",36,7, 1.04,1.0, -16,16],
+        ["#b7 .stage",43,9, 1.05,1.0, 0,0],
+        ["#b8 .stage",52,4.5, 1.03,1.0, 0,0],
+        ["#b9 .stage",56.5,3.5, 1.04,1.0, 0,0]
+      ];
+      drifts.forEach(function(d){
+        tl.fromTo(d[0], { scale:d[3], x:d[5] }, { scale:d[4], x:d[6], duration:d[2], ease:"none" }, d[1]);
+      });
+
+      // dust twinkle (finite repeat)
+      var cyc = 5, reps = Math.ceil(60/cyc)-1;
+      tl.fromTo(".dust i", { opacity:"+=0" }, { opacity:0.05, duration:cyc/2, ease:PIO, yoyo:true, repeat:reps, stagger:{each:0.04,from:"random"} }, 0);
+
+      // ===== BEAT 1 =====
+      tl.fromTo("#b1-eye",  {y:24,opacity:0}, {y:0,opacity:1,duration:0.9,ease:PO2}, 0.3);
+      tl.fromTo("#b1-line", {y:40,opacity:0}, {y:0,opacity:1,duration:1.3,ease:EO}, 0.9);
+
+      // ===== BEAT 2 =====
+      tl.fromTo("#b2-amb",  {scale:1.12,opacity:0}, {scale:1.0,opacity:0.16,duration:5.5,ease:"none"}, 6.0);
+      tl.fromTo("#b2-bloom",{scale:0.4,opacity:0},  {scale:1,opacity:1,duration:1.1,ease:PO2}, 6.5);
+      tl.fromTo("#b2-t1",   {y:50,opacity:0},       {y:0,opacity:1,duration:1.0,ease:EO}, 6.4);
+      tl.fromTo("#b2-t2",   {y:60,opacity:0,scale:0.94}, {y:0,opacity:1,scale:1,duration:1.1,ease:EO}, 6.7);
+      tl.fromTo("#b2-sub",  {y:24,opacity:0},       {y:0,opacity:1,duration:0.9,ease:PO2}, 7.5);
+
+      // ===== BEAT 3 =====
+      tl.fromTo("#b3-eye",   {y:20,opacity:0},        {y:0,opacity:1,duration:0.7,ease:PO2}, 13.4);
+      tl.fromTo("#b3-h",     {y:40,opacity:0},        {y:0,opacity:1,duration:1.0,ease:EO}, 13.6);
+      tl.fromTo("#b3-b",     {y:28,opacity:0},        {y:0,opacity:1,duration:0.9,ease:PO2}, 14.0);
+      tl.fromTo("#b3-phone", {x:90,opacity:0,rotate:4},{x:0,opacity:1,rotate:0,duration:1.1,ease:EO}, 13.7);
+      tl.fromTo("#b3-glow",  {opacity:0},             {opacity:1,duration:1.0,ease:PO2}, 14.0);
+      // weather card slide accent (the open-page sfx lands here)
+      tl.fromTo("#b3-phone", {filter:"brightness(1.18)"}, {filter:"brightness(1)",duration:0.5,ease:PO2}, 14.2);
+
+      // ===== BEAT 4 =====
+      tl.fromTo("#b4-eye",   {y:20,opacity:0},          {y:0,opacity:1,duration:0.7,ease:PO2}, 21.4);
+      tl.fromTo("#b4-h",     {y:40,opacity:0},          {y:0,opacity:1,duration:1.0,ease:EO}, 21.6);
+      tl.fromTo("#b4-b",     {y:28,opacity:0},          {y:0,opacity:1,duration:0.9,ease:PO2}, 22.0);
+      tl.fromTo("#b4-phone", {x:-90,opacity:0,rotate:-4},{x:0,opacity:1,rotate:0,duration:1.1,ease:EO}, 21.7);
+      // keep pulse (keep-page sfx)
+      tl.fromTo("#b4-glow",  {opacity:0.4,scale:0.9}, {opacity:1,scale:1.08,duration:0.4,ease:PO2}, 22.6);
+      tl.to("#b4-glow", {opacity:0.45,scale:1,duration:0.8,ease:PIO}, 23.0);
+      tl.fromTo("#b4-phone", {scale:1}, {scale:1.03,duration:0.35,ease:"power2.inOut",yoyo:true,repeat:1}, 22.6);
+
+      // ===== BEAT 5 =====
+      tl.fromTo("#b5-eye",   {y:20,opacity:0},          {y:0,opacity:1,duration:0.7,ease:PO2}, 28.4);
+      tl.fromTo("#b5-h",     {y:40,opacity:0},          {y:0,opacity:1,duration:1.0,ease:EO}, 28.6);
+      tl.fromTo("#b5-b",     {y:28,opacity:0},          {y:0,opacity:1,duration:0.9,ease:PO2}, 29.2);
+      tl.fromTo("#b5-phone", {x:80,opacity:0},          {x:0,opacity:1,duration:1.1,ease:EO}, 28.7);
+      tl.fromTo("#b5-glow",  {opacity:0},               {opacity:1,duration:1.0,ease:PO2}, 29.0);
+      // braid draws in, completing ~33.2 where braid-complete sfx fires
+      (function(){
+        var p1=document.getElementById('b5-p1'), p2=document.getElementById('b5-p2');
+        if(p1){var L1=p1.getTotalLength(); p1.style.strokeDasharray=L1; p1.style.strokeDashoffset=L1;}
+        if(p2){var L2=p2.getTotalLength(); p2.style.strokeDasharray=L2; p2.style.strokeDashoffset=L2;}
+      })();
+      tl.fromTo("#b5-p1", {strokeDashoffset:(i,t)=>t.getTotalLength()}, {strokeDashoffset:0,duration:3.4,ease:PIO}, 29.6);
+      tl.fromTo("#b5-p2", {strokeDashoffset:(i,t)=>t.getTotalLength()}, {strokeDashoffset:0,duration:3.4,ease:PIO}, 29.8);
+      tl.fromTo("#b5-glow", {filter:"brightness(1)"}, {filter:"brightness(1.5)",duration:0.4,ease:PO2,yoyo:true,repeat:1}, 33.2);
+
+      // ===== BEAT 6 =====
+      tl.fromTo("#b6-eye",   {y:20,opacity:0},          {y:0,opacity:1,duration:0.7,ease:PO2}, 36.4);
+      tl.fromTo("#b6-h",     {y:40,opacity:0},          {y:0,opacity:1,duration:1.0,ease:EO}, 36.6);
+      tl.fromTo("#b6-phone", {x:80,opacity:0,rotate:3}, {x:0,opacity:1,rotate:0,duration:1.1,ease:EO}, 36.7);
+      tl.fromTo("#b6-glow",  {opacity:0},               {opacity:0.35,duration:1.0,ease:PO2}, 37.0);
+      // choices highlight in sequence with select sfx at 37.6 / 38.6 / 39.6
+      ["#b6-c1","#b6-c2","#b6-c3"].forEach(function(c,i){
+        tl.fromTo(c, {x:40,opacity:0}, {x:0,opacity:1,duration:0.5,ease:PO3}, 37.0+i*0.35);
+        tl.fromTo(c, {scale:1,boxShadow:"0 0 0 rgba(255,200,116,0)"}, {scale:1.04,boxShadow:"0 0 30px rgba(255,200,116,0.35)",duration:0.3,ease:PO2,yoyo:true,repeat:1}, 37.6+i*1.0);
+      });
+
+      // ===== BEAT 7 — montage fan =====
+      tl.fromTo("#b7-h",    {y:-30,opacity:0}, {y:0,opacity:1,duration:0.8,ease:PO2}, 43.4);
+      tl.fromTo("#b7-radio",{scale:0.8,opacity:0}, {scale:1,opacity:1,duration:0.7,ease:EO}, 43.4);
+      tl.fromTo("#b7-c1", {x:-60,y:30,opacity:0,rotation:-10}, {x:0,y:0,opacity:1,rotation:-7,duration:0.7,ease:PO3}, 43.6);
+      tl.fromTo("#b7-c2", {x:-40,y:20,opacity:0,rotation:-5},  {x:0,y:0,opacity:1,rotation:-3,duration:0.7,ease:PO3}, 45.5);
+      tl.fromTo("#b7-c3", {x:40,y:20,opacity:0,rotation:5},    {x:0,y:0,opacity:1,rotation:3,duration:0.7,ease:PO3}, 47.7);
+      tl.fromTo("#b7-c4", {x:60,y:30,opacity:0,rotation:10},   {x:0,y:0,opacity:1,rotation:7,duration:0.7,ease:PO3}, 49.8);
+      // gentle continuous float on the fan
+      tl.fromTo("#b7-fan", {y:14}, {y:-14,duration:9,ease:PIO}, 43.0);
+
+      // ===== BEAT 8 — manifesto =====
+      tl.fromTo("#b8-eye", {y:18,opacity:0}, {y:0,opacity:1,duration:0.6,ease:PO2}, 52.3);
+      tl.fromTo("#b8-r1",  {scaleX:0,opacity:0}, {scaleX:1,opacity:0.7,duration:0.6,ease:PO2}, 52.5);
+      tl.fromTo("#b8-h",   {y:30,opacity:0}, {y:0,opacity:1,duration:0.9,ease:EO}, 52.6);
+      tl.fromTo("#b8-sub", {y:18,opacity:0}, {y:0,opacity:1,duration:0.7,ease:PO2}, 53.1);
+      tl.fromTo("#b8-r2",  {scaleX:0,opacity:0}, {scaleX:1,opacity:0.7,duration:0.6,ease:PO2}, 53.2);
+
+      // ===== BEAT 9 — CTA =====
+      tl.fromTo("#b9-bloom",{scale:0.5,opacity:0}, {scale:1,opacity:1,duration:1.2,ease:PO2}, 56.7);
+      tl.fromTo("#b9-logo", {y:40,opacity:0,scale:0.94}, {y:0,opacity:1,scale:1,duration:1.0,ease:EO}, 56.8);
+      tl.fromTo("#b9-tag",  {y:22,opacity:0}, {y:0,opacity:1,duration:0.8,ease:PO2}, 57.4);
+      tl.fromTo("#b9-foot", {y:18,opacity:0}, {y:0,opacity:1,duration:0.8,ease:PO2}, 57.9);
+      // gentle music-out feel: dim bloom at very end
+      tl.to("#b9-bloom", {opacity:0.6,duration:1.4,ease:PIO}, 58.6);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

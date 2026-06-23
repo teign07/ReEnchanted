@@ -165,6 +165,11 @@ struct RadioStation: Codable, Equatable, Identifiable {
         String(format: "%.1f", frequency)
     }
 
+    var hostDisplayName: String {
+        guard let hostEntityID else { return "Station DJ" }
+        return NarrativePackRegistry.entities.first { $0.id == hostEntityID }?.name ?? "Station DJ"
+    }
+
     /// Banters if authored; otherwise synthesize lightweight ones from the
     /// legacy `interludeTitles` so the playout clock always has something to say.
     var resolvedBanters: [RadioBanter] {
@@ -491,6 +496,14 @@ enum RadioStationRegistry {
                     moodTags: ["wistful", "dusk"]
                 ),
                 RadioTrack(
+                    id: "mothlight-lost-candy",
+                    title: "Lost Candy",
+                    artist: "Mothlight Beats",
+                    assetName: "RadioMothlightLostCandy",
+                    durationSeconds: 102,
+                    moodTags: ["wistful", "memory", "sweet"]
+                ),
+                RadioTrack(
                     id: "mothlight-porchlight-fading",
                     title: "Porchlight, Fading",
                     artist: "Mothlight Beats",
@@ -603,6 +616,14 @@ enum RadioStationRegistry {
                     assetName: "RadioThornwaveNocturnalFaerieLounge",
                     durationSeconds: 123,
                     moodTags: ["dark", "night"]
+                ),
+                RadioTrack(
+                    id: "thornwave-whispering-shadows",
+                    title: "Whispering Shadows",
+                    artist: "Thornwave",
+                    assetName: "RadioThornwaveWhisperingShadows",
+                    durationSeconds: 129,
+                    moodTags: ["dark", "night", "shadow"]
                 ),
                 RadioTrack(
                     id: "thornwave-mossy-night",
@@ -876,6 +897,25 @@ enum RadioStationRegistry {
         return available
             .filter { !hiddenStationIDs.contains($0.id) }
             .min { abs($0.frequency - frequency) < abs($1.frequency - frequency) }
+    }
+
+    /// A station only "locks" when the dial is close enough to the frequency.
+    /// Hidden pirate frequencies require the exact dial step; listed stations
+    /// have a little analog forgiveness.
+    static func tunedStation(to frequency: Double, unlockedPackIDs: Set<String> = []) -> RadioStation? {
+        let available = availableStations(unlockedPackIDs: unlockedPackIDs)
+        if let hidden = available.first(where: {
+            hiddenStationIDs.contains($0.id) && abs($0.frequency - frequency) < 0.051
+        }) {
+            return hidden
+        }
+        guard let nearest = available
+            .filter({ !hiddenStationIDs.contains($0.id) })
+            .min(by: { abs($0.frequency - frequency) < abs($1.frequency - frequency) }),
+              abs(nearest.frequency - frequency) < 0.35 else {
+            return nil
+        }
+        return nearest
     }
 
     /// The tuned station's atmosphere line, for coloring generated prose.
@@ -1406,12 +1446,123 @@ struct AnchorRecord: Identifiable, Codable, Equatable {
         )
     }
 
-    func checkedIn(on date: Date, calendar: Calendar = .current) -> AnchorRecord {
+    func checkedIn(on date: Date, calendar: Calendar = .current, beliefGiven: Int = AnchorRegistry.checkInBeliefReward) -> AnchorRecord {
         var updated = self
         updated.visitCount += 1
-        updated.belief += AnchorRegistry.checkInBeliefReward
+        updated.belief += max(0, beliefGiven)
         updated.lastVisited = AnchorRegistry.visitDateFormatter.string(from: date)
         return updated
+    }
+}
+
+enum AnchorTurnBuilder {
+    static func turn(anchor: AnchorRecord, visitMode: String, slotKey: String) -> StoryTurn {
+        let roomName = anchor.name.nonEmpty ?? "This Anchor Room"
+        let keeper = anchor.fae.nonEmpty ?? roomName
+        let rule = anchor.localRule.nonEmpty ?? "the room will not open further until it is noticed with care"
+        let isFirstVisit = visitMode == "FIRST_VISIT"
+        let candidates: [StoryTurnKind] = isFirstVisit
+            ? [.revealWant, .factLearned, .realNoticing]
+            : [.relationshipShift, .factLearned, .revealWant]
+        let turnKind = candidates[abs("\(slotKey)-anchor-turn".stableHash) % candidates.count]
+
+        let want = isFirstVisit
+            ? "to show the reader what \(roomName) has been waiting to have noticed"
+            : "to show the reader it kept its small story since visit \(anchor.visitCount)"
+        let obstacle = isFirstVisit
+            ? "\(rule) before the threshold will trust a stranger"
+            : "\(rule), and memory asks for proof that the reader returned with attention"
+
+        let statement: String
+        if isFirstVisit {
+            statement = "\(roomName) reveals what it has been holding, and the reader is no longer a stranger to it."
+        } else {
+            statement = "\(roomName)'s small story takes its next real step, and it shows the reader it remembered them."
+        }
+
+        let landings: [String: String] = [
+            "slice-of-life": "The room trusts the reader with one more exact, kept detail; the bond warms a notch.",
+            "progress-arc": "\(keeper) reveals the next piece of what it guards, and the room's story moves a step deeper into the stacks.",
+            "surprise": "A side door gives under the reader's attention; something adjacent to this place stirs and may call back later."
+        ]
+
+        return StoryTurn(
+            kind: turnKind,
+            character: keeper,
+            want: want,
+            obstacle: obstacle,
+            statement: statement,
+            register: .quiet,
+            landings: landings
+        )
+    }
+}
+
+enum AnchorMiniStory {
+    static let maxLength = 240
+
+    static func advanced(previous: String, landing: String) -> String {
+        let cleanLanding = landing.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanLanding.isEmpty else {
+            return previous.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        let prior = previous.bookPreviewSentenceLimit(1).trimmingCharacters(in: .whitespacesAndNewlines)
+        let combined = prior.isEmpty
+            ? cleanLanding
+            : "\(cleanLanding) Before that, \(prior)"
+        return clipped(combined)
+    }
+
+    static func landing(from metadata: [String: String], tags: [String]) -> String? {
+        let role = selectedChoiceRole(from: tags)
+        let keyedLanding = role.flatMap { metadata[metadataKey(for: $0)]?.nonEmpty }
+        return keyedLanding
+            ?? metadata["storyTurnStatement"]?.nonEmpty
+            ?? metadata["storyResult\(role.map { resultSuffix(for: $0) } ?? "")"]?.nonEmpty
+    }
+
+    private static func selectedChoiceRole(from tags: [String]) -> String? {
+        tags
+            .first { $0.hasPrefix("choice:") }
+            .map { String($0.dropFirst("choice:".count)) }
+            .flatMap(normalizedRole)
+    }
+
+    private static func normalizedRole(_ raw: String) -> String? {
+        let compact = raw.lowercased().filter { $0.isLetter || $0.isNumber }
+        switch compact {
+        case "sliceoflife": return "slice-of-life"
+        case "progressarc": return "progress-arc"
+        case "surprise": return "surprise"
+        default: return nil
+        }
+    }
+
+    private static func metadataKey(for role: String) -> String {
+        switch role {
+        case "slice-of-life": return "storyTurnLandingSliceOfLife"
+        case "progress-arc": return "storyTurnLandingProgressArc"
+        default: return "storyTurnLandingSurprise"
+        }
+    }
+
+    private static func resultSuffix(for role: String) -> String {
+        switch role {
+        case "slice-of-life": return "SliceOfLife"
+        case "progress-arc": return "ProgressArc"
+        default: return "Surprise"
+        }
+    }
+
+    private static func clipped(_ value: String) -> String {
+        let normalized = value
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        guard normalized.count > maxLength else { return normalized }
+        let end = normalized.index(normalized.startIndex, offsetBy: maxLength - 1)
+        return String(normalized[..<end]).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
     }
 }
 
@@ -1442,7 +1593,7 @@ struct AnchorProximity: Codable, Equatable {
 
 enum AnchorRegistry {
     static let proximityRadiusMeters = 200.0
-    static let checkInBeliefReward = 5
+    static let checkInBeliefReward = 2
 
     /// Anchors that no longer exist in the player's world. Stored ledgers may
     /// still contain them, so they are filtered out on load.
@@ -1547,6 +1698,71 @@ struct AcademyLessonModule: Equatable {
     var demonstration: String
     var interactionPrompt: String
     var realWorldPractice: String
+}
+
+/// Builds a committed Turn for a Class or Club page. The change is social and
+/// rides ALONGSIDE the lesson, never replacing it: classes stay quiet and keep
+/// teaching their concept, while clubs (no curriculum to protect) lean into the
+/// relationship moving. This is what keeps the leader from being a mouthpiece
+/// and classmates from being wallpaper.
+enum AcademyTurnBuilder {
+    static func turn(
+        session: AcademySession,
+        lesson: AcademyLessonModule?,
+        isClub: Bool,
+        slotKey: String
+    ) -> StoryTurn {
+        let leader = session.leader
+        let classmate = session.companions.first ?? "another student"
+        let subject = lesson?.realSubject.nonEmpty ?? session.teaches
+
+        let candidates: [StoryTurnKind] = isClub
+            ? [.relationshipShift, .changeOfHeart, .revealWant]
+            : [.revealWant, .factLearned, .relationshipShift]
+        let turnKind = candidates[abs("\(slotKey)-academy-turn".stableHash) % candidates.count]
+
+        let want = isClub
+            ? "to pull the reader deeper into \(session.name)'s orbit"
+            : "to make \(subject) actually land for the reader, not just be recited"
+        let obstacle = isClub
+            ? "\(classmate) is hanging back, not sure the reader belongs yet"
+            : "the lesson keeps threatening to flatten into a lecture"
+
+        var statement: String
+        switch turnKind {
+        case .relationshipShift:
+            statement = "What sits between the reader and \(isClub ? classmate : leader) shifts by one honest notch."
+        case .changeOfHeart:
+            statement = "\(leader) changes how they read the reader, and treats them differently by the end."
+        case .revealWant:
+            statement = "\(leader) reveals why \(subject) actually matters to them, personally."
+        case .factLearned:
+            statement = "One concrete thing about \(subject) clicks for the reader that didn't before."
+        default:
+            statement = "Something small but real changes between the reader and \(leader)."
+        }
+        if !isClub {
+            statement += " The lesson's point still lands."
+        }
+
+        let landings: [String: String] = [
+            "slice-of-life": "A quiet personal beat: \(leader) lets one human thing show, and the reader sees the teacher, not the lecture.",
+            "progress-arc": isClub
+                ? "\(classmate) decides the reader belongs, and \(session.name) pulls them a step further in."
+                : "The concept of \(subject) is demonstrated for real, carried by \(leader)'s own stake in it.",
+            "surprise": "\(classmate) reveals something sideways — about \(subject), the room, or \(leader) — that recolors the session."
+        ]
+
+        return StoryTurn(
+            kind: turnKind,
+            character: leader,
+            want: want,
+            obstacle: obstacle,
+            statement: statement,
+            register: isClub ? .active : .quiet,
+            landings: landings
+        )
+    }
 }
 
 /// The Academy's canonical weekly rhythm, ported from Enchantify's
@@ -2053,6 +2269,7 @@ struct ChapterBindingChoice: Equatable {
     var chapter: AcademyChapter
     var scores: [String: Int]
     var evidenceLines: [String]
+    var memoryFragments: [String]
 }
 
 enum ChapterBindingOracle {
@@ -2098,6 +2315,7 @@ enum ChapterBindingOracle {
         let pages = days.flatMap(\.capturedPages)
         var scores = Dictionary(uniqueKeysWithValues: AcademyChapterRegistry.publicChapters.map { ($0.id, 0) })
         var evidence: [String: [String]] = Dictionary(uniqueKeysWithValues: AcademyChapterRegistry.publicChapters.map { ($0.id, []) })
+        var fragments: [String] = []
 
         func add(_ chapterID: String, _ amount: Int, _ line: String) {
             scores[chapterID, default: 0] += amount
@@ -2106,8 +2324,24 @@ enum ChapterBindingOracle {
             }
         }
 
+        func remember(_ line: String) {
+            let cleaned = line
+                .replacingOccurrences(of: "\n", with: " ")
+                .split(separator: " ")
+                .joined(separator: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard cleaned.count >= 18, !fragments.contains(cleaned) else { return }
+            let limited = String(cleaned.prefix(110)).trimmingCharacters(in: .whitespacesAndNewlines)
+            fragments.append(limited.count < cleaned.count ? "\(limited)..." : limited)
+        }
+
         for page in pages {
             let text = ([page.promptText, page.userInput] + page.tags).joined(separator: " ").lowercased()
+            if page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).count >= 18 {
+                remember(page.userInput)
+            } else {
+                remember(page.promptText)
+            }
             switch page.type {
             case .diary:
                 add("emberheart", 3, "Your diary pages keep reaching for authorship.")
@@ -2148,6 +2382,7 @@ enum ChapterBindingOracle {
 
         for fact in selfFacts where fact.usePermission != .doNotUse {
             let text = ([fact.question, fact.answer, fact.bookTranslation] + fact.tags).joined(separator: " ").lowercased()
+            remember(fact.bookTranslation.nonEmpty ?? fact.answer)
             if text.containsAny(["write", "make", "create", "choose", "agency", "independent"]) {
                 add("emberheart", 3, "What you told the Book about yourself values authorship.")
             }
@@ -2203,7 +2438,7 @@ enum ChapterBindingOracle {
         let lines = evidence[chosen.id, default: []].isEmpty
             ? ["The Book chose by the faintest pressure of the ink, not by a questionnaire."]
             : evidence[chosen.id, default: []]
-        return ChapterBindingChoice(chapter: chosen, scores: scores, evidenceLines: lines)
+        return ChapterBindingChoice(chapter: chosen, scores: scores, evidenceLines: lines, memoryFragments: Array(fragments.prefix(4)))
     }
 }
 
@@ -2632,6 +2867,71 @@ enum FaeKind: String, Codable, CaseIterable, Identifiable, Equatable {
         case .deepLoreDwarf: return .reshelving
         case .goblin: return .callingCard
         }
+    }
+}
+
+/// Builds a Fae-native committed Turn for a parley page, drawn from the fae's
+/// appetite and Claim pressure. Landings map onto the three old-law paths that
+/// already sit beneath parley choices (courtesy / name the law / take the
+/// thorn), so each path resolves to a different Fae outcome instead of three
+/// shades of the same eerie mood.
+enum FaeParleyTurnBuilder {
+    static func turn(
+        kind: FaeKind,
+        claim: Int,
+        warmth: Int,
+        court: FaeCourt?,
+        omenTitle: String?,
+        slotKey: String
+    ) -> StoryTurn {
+        let name = kind.name
+        let want = "to be brought \(kind.appetite)"
+        let band = FaeEconomy.claimBand(for: claim)
+        let obstacle: String
+        switch band {
+        case "close", "wild":
+            obstacle = "its Claim is \(band); it must not overreach, or it forfeits the courtesy of the parley"
+        default:
+            obstacle = "the old law binds it to ask sidelong, never plainly"
+        }
+
+        let candidates: [StoryTurnKind] = (band == "close" || band == "wild")
+            ? [.relationshipShift, .smallDecision, .handOff]
+            : [.revealWant, .factLearned, .smallDecision, .handOff]
+        let turnKind = candidates[abs("\(slotKey)-parley-turn".stableHash) % candidates.count]
+
+        let statement: String
+        switch turnKind {
+        case .revealWant:
+            statement = "\(name) finally names what it actually came to the margin wanting."
+        case .factLearned:
+            statement = "\(name) lets one true rule of the old law slip into the open."
+        case .smallDecision:
+            statement = "\(name) decides whether the parley closes in courtesy or in a mark."
+        case .handOff:
+            statement = "\(name) presses something across the margin — a gift, a mark, or a debt."
+        case .relationshipShift:
+            statement = "What stands between you and \(name) shifts by one notch of Claim or Warmth."
+        default:
+            statement = "\(name) answers the parley with one real change before it withdraws."
+        }
+
+        let omenLine = omenTitle.map { " under the mark of \($0)" } ?? ""
+        let landings: [String: String] = [
+            "slice-of-life": "Met with courtesy\(omenLine), \(name) softens and gives a little more than the law required — Warmth offered freely, no thorn.",
+            "progress-arc": "\(name) answers with its true rule, and the old law deepens between you; its Claim edges closer for the honesty.",
+            "surprise": "\(name) presses a strange mark on you and trades a sideways secret for it; the Claim sharpens and stranger Fae may follow."
+        ]
+
+        return StoryTurn(
+            kind: turnKind,
+            character: name,
+            want: want,
+            obstacle: obstacle,
+            statement: statement,
+            register: .active,
+            landings: landings
+        )
     }
 }
 
@@ -3065,47 +3365,274 @@ enum FaeEconomy {
         return options[index]
     }
 
+    // Each fae has many possible asks, picked by slot hash so the same species
+    // never feels like one template. The `terms` is always a single sensory
+    // sentence in that fae's appetite — the Fae have never touched the world and
+    // are hungry for one exact thing from it, surprising in what they choose to
+    // want. Gift names vary for flavor; the mechanical effect stays the species'
+    // `giftEffect`, so each description still gestures at the same real stake.
     static let templates: [FaeBargainTemplate] = [
+        // MARK: Book Sprite — the unfinished, the waiting, the ended-without-ending
         FaeBargainTemplate(
             faeKind: .bookSprite,
             openingGesture: "A Book Sprite has already whispered a single word from the last page of a book you haven't read. It hangs in the air, certain.",
-            terms: "Find something you started and never finished. Don't finish it. Just notice it, and tell me where it is.",
+            terms: "Bring me the smell of a book left open and face-down — that particular dust of a story paused mid-breath.",
             giftName: "the loose page",
             giftDescription: "A page torn from no book that reads a little differently every time you open it."
         ),
         FaeBargainTemplate(
+            faeKind: .bookSprite,
+            openingGesture: "A Book Sprite has been here already. The corner of this moment is dog-eared; it remembers being turned before you arrived.",
+            terms: "Find a cup someone abandoned half-finished and bring me exactly how cold it had gone.",
+            giftName: "the dog-eared leaf",
+            giftDescription: "A page creased by no hand that says something new each time it falls open."
+        ),
+        FaeBargainTemplate(
+            faeKind: .bookSprite,
+            openingGesture: "A Book Sprite spoke the ending of your day before it happened, gently, in the past tense. It was not a warning. It was a fact.",
+            terms: "Somewhere a sentence will be cut off when a door opens — bring me the last word that got through.",
+            giftName: "the interrupted page",
+            giftDescription: "A loose leaf that never finishes the same way twice."
+        ),
+        FaeBargainTemplate(
+            faeKind: .bookSprite,
+            openingGesture: "A Book Sprite left a draught on the page — the cold of a room you have not entered yet, already missing you.",
+            terms: "Find a staircase that stops at a landing and describe the draught that waits there for the next flight.",
+            giftName: "the landing page",
+            giftDescription: "A page that holds a different unfinished stair behind every reading."
+        ),
+        FaeBargainTemplate(
+            faeKind: .bookSprite,
+            openingGesture: "A Book Sprite set down the sound of a clock that stopped. It is still not ticking, very precisely, beside you.",
+            terms: "Find a clock that has stopped and bring me the exact time it chose to keep forever.",
+            giftName: "the stopped-clock page",
+            giftDescription: "A loose page where the hour rewrites itself between glances."
+        ),
+        FaeBargainTemplate(
+            faeKind: .bookSprite,
+            openingGesture: "A Book Sprite traced the pale rectangle where something used to hang. It mourned a picture neither of you has seen.",
+            terms: "Find the clean shape a picture left on a wall after it was taken down, and bring me its exact edges.",
+            giftName: "the pale-rectangle page",
+            giftDescription: "A page printed with an absence that shifts each time you look."
+        ),
+
+        // MARK: Sentence Salamander — the alive moment, warm, more than it should have been
+        FaeBargainTemplate(
             faeKind: .sentenceSalamander,
             openingGesture: "A Sentence Salamander curled against your hand and left a coal of borrowed warmth behind. The sentence down its spine is still glowing.",
-            terms: "Bring me a moment from today that was more than it should have been. Not a thing — a moment, still warm.",
+            terms: "Bring me the warmest thing your hands touched today, and how long the warmth stayed after you let go.",
             giftName: "the borrowed coal",
             giftDescription: "A held warmth that can keep the grey of the Nothing back for a day."
         ),
         FaeBargainTemplate(
+            faeKind: .sentenceSalamander,
+            openingGesture: "A Sentence Salamander tasted the air near you and brightened. Something in your day was honest, and it could tell.",
+            terms: "Find a moment that warmed the back of your neck for no reason you could name, and hand it to me whole.",
+            giftName: "the ember of an hour",
+            giftDescription: "A small heat that holds the Nothing's grey back one shade for a day."
+        ),
+        FaeBargainTemplate(
+            faeKind: .sentenceSalamander,
+            openingGesture: "A Sentence Salamander pressed a glowing full-stop into your palm. It did not explain. It simply ran warmer when you were near.",
+            terms: "Somewhere today something will smell better than it had any right to — bring me that exact breath.",
+            giftName: "the kept warmth",
+            giftDescription: "A banked coal that quiets the grey of the Nothing for a day."
+        ),
+        FaeBargainTemplate(
+            faeKind: .sentenceSalamander,
+            openingGesture: "A Sentence Salamander basked in a sunbeam only it could see, and left some of that heat on the page for you.",
+            terms: "Find a patch of sun that had crossed a floor and tell me what it warmed along the way.",
+            giftName: "the floor-sun coal",
+            giftDescription: "A stored brightness that holds back the Nothing's grey for a day."
+        ),
+        FaeBargainTemplate(
+            faeKind: .sentenceSalamander,
+            openingGesture: "A Sentence Salamander glowed at one sound in your day and went still at the rest. It is keeping the one it liked.",
+            terms: "Bring me the sound of one laugh today that was far bigger than its joke.",
+            giftName: "the laugh-coal",
+            giftDescription: "A warmth that can keep the grey of the Nothing back for a day."
+        ),
+        FaeBargainTemplate(
+            faeKind: .sentenceSalamander,
+            openingGesture: "A Sentence Salamander left the taste of warmth on the page — the first sip of something hot, captured before it cooled.",
+            terms: "Bring me the first hot sip of something on a day that didn't deserve it, and how it landed.",
+            giftName: "the first-sip ember",
+            giftDescription: "A held heat that holds the Nothing's grey back by a shade for a day."
+        ),
+
+        // MARK: Punctuation Pixie — rhythm and pause, the comma-place, the exclamation-thing
+        FaeBargainTemplate(
             faeKind: .punctuationPixie,
             openingGesture: "A Punctuation Pixie turned one of your periods into an ellipsis when you weren't looking— and grinned about it.",
-            terms: "Find a place that feels like a comma — not ended, just paused. Tell me what made it pause.",
+            terms: "Find a place that stops you mid-step — half a breath, then on — and bring me what made you pause.",
             giftName: "the wandering comma",
             giftDescription: "A mark that re-shelves a resting kind of page so it finds you again."
         ),
         FaeBargainTemplate(
+            faeKind: .punctuationPixie,
+            openingGesture: "A Punctuation Pixie — call you Margins today — slid an exclamation point into your pocket. It's heavier than it looks.",
+            terms: "Find the one thing standing up like an exclamation point in a grey street, and point me at it.",
+            giftName: "the pocketed exclamation",
+            giftDescription: "A bright mark that pulls a resting kind of page back onto your shelf."
+        ),
+        FaeBargainTemplate(
+            faeKind: .punctuationPixie,
+            openingGesture: "A Punctuation Pixie was counting the drips from a tap— lost count— started again. It wants you to finish for it.",
+            terms: "Find a dripping tap and bring me the exact silence in the gap between two drops.",
+            giftName: "the caught beat",
+            giftDescription: "A held pause that re-shelves a resting kind of page so it returns."
+        ),
+        FaeBargainTemplate(
+            faeKind: .punctuationPixie,
+            openingGesture: "A Punctuation Pixie— hello, Reader, no, hello, Marginalia— rearranged the letters on a sign you'll pass. You'll see.",
+            terms: "Find a sign with a typo and bring me the better word it accidentally became.",
+            giftName: "the happy typo",
+            giftDescription: "A mischief-mark that re-shelves a resting page kind back into view."
+        ),
+        FaeBargainTemplate(
+            faeKind: .punctuationPixie,
+            openingGesture: "A Punctuation Pixie left a list with its last line missing. It is very pleased with itself, which is— anyway.",
+            terms: "Find a list that ends without its last item and bring me the one you'd have written.",
+            giftName: "the missing line",
+            giftDescription: "A blank that re-shelves a resting kind of page so it finds you again."
+        ),
+        FaeBargainTemplate(
+            faeKind: .punctuationPixie,
+            openingGesture: "A Punctuation Pixie tapped out a rhythm on the spine of the day— dah, dah, dah-dah— and waited for you to hear it.",
+            terms: "Bring me the rhythm of one particular set of footsteps overhead, exactly as they fall.",
+            giftName: "the overhead measure",
+            giftDescription: "A beat that pulls a resting kind of page back onto the shelf."
+        ),
+
+        // MARK: Literary Elf — precision, one true thing described exactly
+        FaeBargainTemplate(
             faeKind: .literaryElf,
             openingGesture: "A Literary Elf left a single, perfectly-formed silver quill on the page. It considers this a gift. It is.",
-            terms: "Find me one true thing and describe it in exactly ten words. Not more, not less.",
+            terms: "Bring me one object described in exactly the words it deserves, and no others.",
             giftName: "the silver quill",
             giftDescription: "A quill that keeps one kept page from ever being forgotten."
         ),
         FaeBargainTemplate(
+            faeKind: .literaryElf,
+            openingGesture: "A Literary Elf inclined its head and named the colour of your morning correctly. The accuracy was almost unkind.",
+            terms: "Find the truest blue in your day and name it precisely enough that I could mix it.",
+            giftName: "the named pigment",
+            giftDescription: "An exactness that keeps one kept page from ever being forgotten."
+        ),
+        FaeBargainTemplate(
+            faeKind: .literaryElf,
+            openingGesture: "A Literary Elf weighed a word in its hand, found it wanting, and set down a truer one for you to use.",
+            terms: "Bring me the exact weight of one small thing you carried, in the honest words of your hand.",
+            giftName: "the weighed word",
+            giftDescription: "A precision that holds one kept page safe from being forgotten."
+        ),
+        FaeBargainTemplate(
+            faeKind: .literaryElf,
+            openingGesture: "A Literary Elf ran a fingertip along an edge you cannot see and pronounced it well-made. Praise, from an Elf, is law.",
+            terms: "Describe the grain of one wooden thing so closely I could know it by touch in the dark.",
+            giftName: "the true grain",
+            giftDescription: "A kept exactness that keeps one page from ever being forgotten."
+        ),
+        FaeBargainTemplate(
+            faeKind: .literaryElf,
+            openingGesture: "A Literary Elf listened to your whole day and kept only one sound, the way one keeps a single perfect line.",
+            terms: "Find one sound and render it so exactly that naming it twice would be a lie.",
+            giftName: "the rendered sound",
+            giftDescription: "A faithfulness that keeps one kept page from being forgotten."
+        ),
+        FaeBargainTemplate(
+            faeKind: .literaryElf,
+            openingGesture: "A Literary Elf marked the precise border where one thing became another and called it the most important line of the day.",
+            terms: "Bring me the exact edge where one texture becomes another on a single surface.",
+            giftName: "the named border",
+            giftDescription: "A precision that keeps one kept page safe in the Book's long memory."
+        ),
+
+        // MARK: Deep Lore Dwarf — the underlayer, the oldest, the thing holding something up
+        FaeBargainTemplate(
             faeKind: .deepLoreDwarf,
             openingGesture: "A Deep Lore Dwarf set down a small grey stone before you. It is older than the catalogue. It said nothing.",
-            terms: "Find something that is holding something else up without being noticed. Bring me the fact of it.",
+            terms: "Bring me the oldest thing in your room and what it has quietly held up all this time.",
             giftName: "the foundation stone",
             giftDescription: "A weight that mines an overlooked kind of page back up to the shelf."
         ),
         FaeBargainTemplate(
+            faeKind: .deepLoreDwarf,
+            openingGesture: "A Deep Lore Dwarf laid one heavy hand on a wall and nodded, slowly, at the work it has done unthanked.",
+            terms: "Find the nail, beam, or bracket doing the real work unseen, and bring me the fact of it.",
+            giftName: "the unthanked nail",
+            giftDescription: "A weight that brings an overlooked kind of page back up to the shelf."
+        ),
+        FaeBargainTemplate(
+            faeKind: .deepLoreDwarf,
+            openingGesture: "A Deep Lore Dwarf knocked once on the floor, listened to what answered from below, and was satisfied.",
+            terms: "Somewhere under your feet is a floor older than the building's purpose — bring me its colour.",
+            giftName: "the older floor",
+            giftDescription: "A depth that mines an overlooked kind of page back into view."
+        ),
+        FaeBargainTemplate(
+            faeKind: .deepLoreDwarf,
+            openingGesture: "A Deep Lore Dwarf traced a long-healed repair with a thumb and did not say how long ago, only that it remembers.",
+            terms: "Find a seam where something was mended long ago and bring me the colour of the older part.",
+            giftName: "the mended seam",
+            giftDescription: "A weight that brings an overlooked kind of page back up from rest."
+        ),
+        FaeBargainTemplate(
+            faeKind: .deepLoreDwarf,
+            openingGesture: "A Deep Lore Dwarf pressed a worn stair-edge and felt ten thousand feet vote in the hollow they had made.",
+            terms: "Bring me the worn dip in a step where countless feet have passed, and how deep they have voted.",
+            giftName: "the voted stone",
+            giftDescription: "A heaviness that mines an overlooked kind of page back to the shelf."
+        ),
+        FaeBargainTemplate(
+            faeKind: .deepLoreDwarf,
+            openingGesture: "A Deep Lore Dwarf set two stones before you — one you could lift, one you could not — and let the difference speak.",
+            terms: "Bring me the weight of a stone you can lift, and the colder fact of the one you cannot.",
+            giftName: "the two weights",
+            giftDescription: "A ballast that brings an overlooked kind of page back up to the shelf."
+        ),
+
+        // MARK: Marginalia Goblin — the unchosen detail, the gap between a name and a thing
+        FaeBargainTemplate(
             faeKind: .goblin,
             openingGesture: "A Marginalia Goblin slid a sealed card across the table before you sat down. The wax is already broken.",
-            terms: "Notice something on your way today that has been there for years and you've never looked at. The detail, not the category.",
+            terms: "Bring me one thing you've walked past for years and never once looked at — the thing, not its name.",
             giftName: "the broken-seal card",
+            giftDescription: "A calling card that opens the Goblin Market when you spend it."
+        ),
+        FaeBargainTemplate(
+            faeKind: .goblin,
+            openingGesture: "A Marginalia Goblin appraised your day at a glance, named a fair price, and left a card as the receipt.",
+            terms: "Find where a sign lies about what it labels, and bring me the truer name.",
+            giftName: "the lying-sign card",
+            giftDescription: "A calling card that opens the Goblin Market when you present it."
+        ),
+        FaeBargainTemplate(
+            faeKind: .goblin,
+            openingGesture: "A Marginalia Goblin sniffed the air for a bargain, found one in your pocket, and slid a card over to seal it.",
+            terms: "Bring me the smell of a shop in the second before its door has fully opened — that, not the shop.",
+            giftName: "the threshold card",
+            giftDescription: "A calling card that opens the Goblin Market when you spend it."
+        ),
+        FaeBargainTemplate(
+            faeKind: .goblin,
+            openingGesture: "A Marginalia Goblin held the cheapest thing in the room up to the light, whistled low, and pocketed nothing — for now.",
+            terms: "Find the cheapest object near you and bring me the one way it is secretly priceless.",
+            giftName: "the undervalued card",
+            giftDescription: "A calling card that opens the Goblin Market when you present it."
+        ),
+        FaeBargainTemplate(
+            faeKind: .goblin,
+            openingGesture: "A Marginalia Goblin pointed at a corner your eyes had been sliding off all day, and charged you nothing to finally see it.",
+            terms: "Bring me a corner everyone's gaze slides off, and the specific thing waiting in it.",
+            giftName: "the overlooked-corner card",
+            giftDescription: "A calling card that opens the Goblin Market when you spend it."
+        ),
+        FaeBargainTemplate(
+            faeKind: .goblin,
+            openingGesture: "A Marginalia Goblin read a half-worn brand name aloud, preferred the wear to the word, and traded you a card for the trouble.",
+            terms: "Bring me a brand name worn half away, and the better word the wear left behind.",
+            giftName: "the worn-letters card",
             giftDescription: "A calling card that opens the Goblin Market when you spend it."
         )
     ]

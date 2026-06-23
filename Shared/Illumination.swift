@@ -318,6 +318,12 @@ enum CoreMarginsPack {
             asset("parchment_landscape_01", "ParchmentTexture", .background, ["parchment", "landscape", "generic"])
         ],
         paperScraps: [
+            asset("illumination_paper_fern", "IlluminationPaperFern", .paperScrap, ["scrap", "wide", "narrow", "torn", "blank", "botanical", "field", "generic"]),
+            asset("illumination_paper_compass", "IlluminationPaperCompass", .paperScrap, ["scrap", "wide", "narrow", "torn", "blank", "compass", "map", "generic"]),
+            asset("illumination_paper_moth", "IlluminationPaperMoth", .paperScrap, ["scrap", "wide", "narrow", "torn", "blank", "moth", "night", "generic"]),
+            asset("illumination_paper_moon", "IlluminationPaperMoon", .paperScrap, ["scrap", "wide", "narrow", "torn", "blank", "moon", "night", "generic"]),
+            asset("illumination_paper_deckled", "IlluminationPaperDeckled", .paperScrap, ["scrap", "wide", "narrow", "torn", "blank", "plain", "generic"]),
+            asset("illumination_paper_violet", "IlluminationPaperViolet", .paperScrap, ["scrap", "wide", "narrow", "torn", "blank", "flower", "botanical", "generic"]),
             asset("illumination_blank_summary", "IlluminationScrapS02_06", .paperScrap, ["scrap", "wide", "blank", "generic"]),
             asset("illumination_blank_date", "IlluminationScrapS02_08", .paperScrap, ["scrap", "wide", "blank", "field"]),
             asset("illumination_blank_field", "IlluminationScrapS03_04", .paperScrap, ["scrap", "wide", "blank", "field"]),
@@ -466,18 +472,30 @@ struct IlluminationAssetResolver {
         kind: IlluminationAssetKind,
         tags: [String],
         template: IlluminatedTemplateID,
-        installedPacks: [IlluminationAssetPack]
+        installedPacks: [IlluminationAssetPack],
+        seed: Int? = nil,
+        salt: Int = 0,
+        excludingAssetNames: Set<String> = []
     ) -> IlluminationAsset? {
         let normalizedTags = Set(tags.map { $0.lowercased() })
         let candidates = installedPacks
             .flatMap(\.allAssets)
             .filter { $0.kind == kind && $0.supportedTemplates.contains(template) }
 
-        return candidates.first { asset in
+        let tagged = candidates.filter { asset in
             !normalizedTags.isDisjoint(with: Set(asset.tags.map { $0.lowercased() }))
-        } ?? candidates.first { asset in
+        }
+        let generic = candidates.filter { asset in
             asset.tags.contains("generic")
-        } ?? candidates.first
+        }
+        let preferred = tagged.isEmpty ? (generic.isEmpty ? candidates : generic) : tagged
+        let unused = preferred.filter { !excludingAssetNames.contains($0.assetName) }
+        let pool = unused.isEmpty ? preferred : unused
+
+        guard !pool.isEmpty else { return nil }
+        guard let seed else { return pool.first }
+        let index = abs((seed &+ salt * 7919).stableScramble) % pool.count
+        return pool[index]
     }
 }
 
@@ -687,9 +705,21 @@ enum IlluminatedPageComposer {
         let resolver = IlluminationAssetResolver()
         let background = resolver.resolveAsset(kind: .background, tags: template.backgroundTags, template: template.id, installedPacks: [pack])
         let overlays = pack.overlays.map(\.assetName)
+        var usedPaperAssetNames = Set<String>()
         var textSlots = (template.requiredSlots + template.optionalSlots).enumerated().map { offset, spec in
             let body = body(for: spec.contentKey, analysis: analysis)
-            let scrap = resolver.resolveAsset(kind: .paperScrap, tags: spec.paperTags, template: template.id, installedPacks: [pack])
+            let scrap = resolver.resolveAsset(
+                kind: .paperScrap,
+                tags: spec.paperTags,
+                template: template.id,
+                installedPacks: [pack],
+                seed: seed,
+                salt: 101 + offset * 37,
+                excludingAssetNames: usedPaperAssetNames
+            )
+            if let scrap {
+                usedPaperAssetNames.insert(scrap.assetName)
+            }
             let layout = textLayout(for: spec, seed: seed, salt: offset)
             return IlluminatedTextSlot(
                 id: UUID(),
@@ -708,7 +738,8 @@ enum IlluminatedPageComposer {
             seed: seed,
             resolver: resolver,
             template: template.id,
-            pack: pack
+            pack: pack,
+            excludingPaperAssetNames: usedPaperAssetNames
         ))
         var decorations = template.decorationSlots.enumerated().compactMap { offset, slot -> DecorationPlacement? in
             guard let asset = resolver.resolveAsset(kind: slot.kind, tags: slot.tags + analysis.motifs, template: template.id, installedPacks: [pack]) else {
@@ -862,7 +893,8 @@ enum IlluminatedPageComposer {
         seed: Int,
         resolver: IlluminationAssetResolver,
         template: IlluminatedTemplateID,
-        pack: IlluminationAssetPack
+        pack: IlluminationAssetPack,
+        excludingPaperAssetNames: Set<String>
     ) -> [IlluminatedTextSlot] {
         let anchors = [
             (CodablePoint(x: 95, y: 785), CodableSize(width: 280, height: 190), ClosedDoubleRange(lowerBound: -7, upperBound: -2)),
@@ -876,9 +908,21 @@ enum IlluminatedPageComposer {
             (CodablePoint(x: 705, y: 250), CodableSize(width: 330, height: 165), ClosedDoubleRange(lowerBound: -3, upperBound: 5))
         ]
         let snippets = IlluminationMarginaliaLibrary.select(motifs: analysis.motifs, seed: seed, count: 3)
+        var usedPaperAssetNames = excludingPaperAssetNames
         return snippets.enumerated().map { offset, snippet in
             let anchor = anchors[abs((seed &+ offset * 4049).stableScramble) % anchors.count]
-            let scrap = resolver.resolveAsset(kind: .paperScrap, tags: ["scrap", offset.isMultiple(of: 2) ? "torn" : "wide"], template: template, installedPacks: [pack])
+            let scrap = resolver.resolveAsset(
+                kind: .paperScrap,
+                tags: ["scrap", offset.isMultiple(of: 2) ? "torn" : "wide"],
+                template: template,
+                installedPacks: [pack],
+                seed: seed,
+                salt: 601 + offset * 43,
+                excludingAssetNames: usedPaperAssetNames
+            )
+            if let scrap {
+                usedPaperAssetNames.insert(scrap.assetName)
+            }
             return IlluminatedTextSlot(
                 id: UUID(),
                 slotId: "marginalia-\(snippet.id)",

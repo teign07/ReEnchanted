@@ -1,0 +1,550 @@
+[span] ReEnchanted
+[a] The Book
+[a] How it works
+[a] Chapters
+[a] Open the Book
+[p] A living book for ordinary days
+[h1] Real Life,
+[span] ReEnchanted
+[p] Play with Pages.
+[span] Keep Some.
+[p] Read Your Story.
+[p] A free, magical iPhone book that turns the day you actually lived — weather, walks,
+            moods, music, the people who pass through — into pages you can keep.
+            Keep what's true. Let the rest wait. Watch it braid into a story only you could write.
+[a] Open the Book ↓
+[a] See how it works
+[li] Open source
+[li] Private by design
+[li] Local-first memory
+[li] iPhone & iPad
+[span] Keep this page
+[span] The Book is listening
+[p] Play with it
+[h2] Open the book. Keep what's true.
+[p] This is the real thing, in miniature. Turn the pages, keep the ones that
+            catch a real edge, let the others wait — then bind your choices into a
+[em] Book of You
+[span] The Book turns when you do
+[span] The Labyrinth
+[span] of Stories
+[span] Tap to open
+[p] Weather
+[h3] Fog over the Stacks.
+[strong] Now
+[span] 60° · fog
+[strong] High / Low
+[span] 71° / 56°
+[strong] Wind
+[span] E 4 mph
+[strong] Humidity
+[span] 92%
+[strong] The Book reads it:
+[span] Fog has softened the edges of the Stacks. Hidden doors are likelier today; move slowly, carry one warm detail, and let unclear things stay gently unclear.
+[p] Weather doorway · public forecast
+[button] Let it wait
+[button] Keep this page ✦
+[p] 8 pages rising · keep the ones that are true
+[p] Your binding
+[h3] The Book of You
+[p] Braided from the pages you kept.
+[p] A real Book of You page.
+[p] This is one day. Kept pages gather into editions you can hold.
+[a] Start your own →
+[button] ↺ Turn back to the start
+[button] ‹ Back
+[span] Page 1 of 8
+[button] Next ›
+[p] Tip: keep a few, let some wait — your choices change the ending.
+[p] The braid is real
+[h2] Your kept pages become a Book of You.
+[p] After enough real pages gather, the local Book brain braids them into a
+            readable entry: the small true things you kept, the bargains you made,
+            the weather outside, and the fictional choices that answered back.
+[p] It is not a recap feed. It is the day rewritten as something you can
+            return to, share, and eventually bind into an edition.
+[figcaption] A real Book of You entry, braided from kept pages and on-device context.
+[span] Bound for keeps
+[span] Publish your own editions.
+[p] Bound for keeps
+[h2] Publish your own editions.
+[p] Your kept pages don't just scroll away. When enough of them gather, the
+            Book can bind them into real, shareable PDF volumes you publish for
+            yourself — composed and rendered entirely on device.
+[h3] The Monthly Edition
+[p] At each month's turn, the Book gathers that month's kept pages — braids,
+              one-sentence souvenirs, letters, the things it noticed — and binds them
+              into a chaptered PDF with its own theme, cover, and a foreword the Book
+              writes about the month you just lived.
+[h3] The Annual Volume
+[p] A whole year becomes one bound book: twelve monthly chapters, each in its
+              own palette, wrapped in a year-long foreword, your constellations, and a
+              closing. A year of ordinary life, made into a fairy tale you can hold.
+[span] An Edition Of
+[span] The Book
+[span] of You
+[span] Chapter Three · June
+[span] Of Rain & Lamps
+[p] No two months bind alike — each picks its own palette, cover, and
+              ornament.
+[em] A mockup; yours fills in as you keep pages.
+[p] How it works
+[h2] Three honest steps.
+[h3] Pages arrive
+[p] The day shows up as little doors: weather, body signals, places, music,
+              questions, one-sentence souvenirs, photos. No blank page, no streak to defend.
+[h3] You keep some
+[p] Keep a page when it catches a real edge. Let the rest wait. The Book is
+              built on consent and taste — you choose what becomes part of the story.
+[h3] It braids
+[p] Each night the Book weaves your real day into a fairy tale — your kept
+              pages, what you noticed, what you ate, your one-sentence check-ins, the
+              weather — braided together with the choices you made in the game. That's
+              your
+[em] Book of You
+[p] : one story a day, gathering into monthly and
+              annual volumes you can hold.
+[span] Inside the Book
+[span] Attention, given a shape.
+[p] Inside the Book
+[h2] Attention, given a shape.
+[h3] Spells & Glow
+[p] A steady belief state, gently luminous. Open
+[button] Compass Runs
+[p] , a noticing game, or an
+[button] Enchantment
+[p] and let an ordinary subject speak.
+[button] Wonder Compass
+[p] Reframe familiar streets and routines until they're legible again. Walk. Notice. Record. Return.
+[h3] Radio
+[p] Music, broadcasts, and world effects become weather in the stacks — atmosphere you can keep.
+[span] Included free — no packs required
+[span] Over 50 kinds of page.
+[p] Included free — no packs required
+[h2] Over
+[h2] kinds of page.
+[p] Every day, the Book offers you a deck of different page types to play
+            with and keep. They ship in the base game, free forever — from quiet
+            logs to playful little games. Here are a few of them.
+[h3] Book Jumping
+[p] At the Academy, students learn to physically jump into books and
+              live them as if they were real. Step into a public-domain classic —
+[em] The Wizard of Oz
+[em] Dracula
+[p] — and explore it from
+              the inside, one controlled beat at a time. Bring back a souvenir
+              sentence. Just don't go too deep.
+[h3] Quips
+[p] A tiny odd fact that tilts the day toward wonder, no work required.
+[em] "An octopus is what happens when curiosity gets eight hands."
+[em] "Rust is iron remembering it used to be in the ground."
+[p] Keep the ones that land.
+[h3] Playful Missions
+[p] One tiny sensory dare — the South = Sense step of a Compass Run,
+              surfaced on its own.
+[em] "Find the oldest thing near you and smell
+              it. What does age smell like here?"
+[em] "Count every blue
+              thing you can see without moving your feet."
+[p] Done in under
+              three minutes; keep one proof line.
+[h3] Illuminated Photos
+[p] Choose a photo from your day — or let Penny find one — and the
+              Book illuminates it, noticing the objects, light, mood, and small
+              jokes already inside, then lettering it like a manuscript page you
+              can keep.
+[figcaption] An ordinary photo of Ron the cat, illuminated.
+[h3] Inner Weather
+[p] How the day actually felt, in your own words and rendered as
+              weather — so a hard afternoon reads as a passing storm and a good
+              one as clear skies. The smallest honest check-in there is.
+[h3] One-Sentence Souvenir
+[p] The whole day, distilled into a single line worth keeping —
+              a color, a sound, a tiny mercy — caught before your brain files it
+              under ordinary. The smallest page in the deck.
+[h3] Cast an Enchantment
+[p] Take a photo, pick one of 14 spells, and the Book transforms both
+              the image and its main subject.
+[em] Everything Speaks
+[p] lets the
+              object answer in its own voice;
+[em] Everything's a Haiku
+[p] distills it to three lines;
+[em] Mirror, Mirror
+[p] reads a selfie
+              for insight;
+[em] Everything's Roasted
+[p] aims a comic burn. Keep
+              the illuminated result.
+[h3] Gossip
+[p] What moved while you were elsewhere. The Academy's cast keep
+              scheming, falling out, and warming to one another off-page — and
+              this is the word that reaches you about it.
+[h3] Letters
+[p] A character who has been watching what you keep writes to you
+              through the margins — a researched, hand-written note that answers
+              something from your real days, addressed to you by name.
+[h3] A Fae Bargain
+[p] One of the Book Fae gave you something first — and now a small
+              sensory return is owed. Pay it in the real world and the Book shifts
+              in your favor; leave it, and the debt quietly waits.
+[h3] Today's Sky
+[p] The Book reads the night actually overhead — the Moon's real phase
+              and sign, the Sun's sign, and the nearest reason to look up tonight —
+              and keeps it as a page.
+[h3] The Bleed
+[p] Penny Blackletter's pocket newspaper, where the outside world leaks
+              into the margins — odd headlines, an almanac, and an interest column
+              that genuinely reaches out to the live web for what's stirring today.
+[p] …and dozens more — Diary, Lore, Story Pages,
+          Cast Members, Outer Stacks rooms, Classes & Clubs, the Book of You,
+          and the rest of the deck, all in the base game.
+[span] The book remembers
+[span] Systems that make it feel alive.
+[p] The book remembers
+[h2] Systems that make it feel alive.
+[p] Underneath the pages, three quiet mechanics decide what returns, what
+            looms, and what the Book keeps. They run on device, on real life.
+[p] Watch the loop
+[h3] Anchor a place. The Book grows it a room.
+[p] Stand somewhere real, name what it holds, and choose how it points.
+              The Book opens that spot its own room in the
+[button] Outer Stacks
+[p] — the
+[button] faerie realm
+[p] of ReEnchanted — with a story already waiting inside.
+              It's a fairy-tale answer to Pokémon Go: instead of catching things,
+              you grow places. Every time you come back, the room deepens —
+              remembering the weather,
+[button] the moon
+[p] , and
+[button] the small rule
+[p] that corner of
+              the world has been teaching you.
+[li] Stand somewhere real and open an anchor
+[li] Point it — Notice, Embark, Sense, Write, Rest
+[li] Name what it holds, in your own words
+[li] It rises into today's margins, on device
+[li] The Book opens its Outer Stacks room, with its own story
+[li] Return, and the room grows and changes with you
+[h3] Anchoring & the Outer Stacks
+[p] Bind a real place — a blue mailbox, a back stair, a shoreline — as an
+[button] anchor
+[p] you
+[em] Notice, Embark, Sense, Write,
+[em] Rest
+[p] at,
+              and the Book grows it a room in the Outer Stacks, ReEnchanted's faerie
+              realm. Anchors are pinned to your real GPS coordinates, so the Book
+              knows when you've truly come back — return in person and each room
+              opens with its own story, growing and changing every visit, remembering
+              the weather, the moon, the season, and the small rule that place taught
+              you.
+[h3] Belief
+[p] A gentle economy, not a score. You can give or take
+[button] Belief
+[p] from
+              anything in the Book — a character, an object, a recurring motif, even
+              a single page. Cast members can fight over those Pages too, warming
+              what they love or cooling what they distrust. What you believe in
+[em] glows
+[p] : the more Belief a thing holds, the more often it
+              appears, writes to you, and shapes what the Book surfaces next. It's
+              how everyone tells the Book what matters.
+[h3] Narrative Weight
+[p] Some things earn their place by happening, not by being chosen. Every
+              person, place, and motif quietly accrues weight as it shows up in your
+              days, your kept pages, and the stories the Book braids. Heavier things
+              loom larger and return more readily — so your world naturally centers
+              on what you actually keep living with.
+[span] Not a chatbot — a world
+[span] An entire school, running without you.
+[p] Not a chatbot — a world
+[h2] An entire school, running without you.
+[p] Underneath the Book is a narrative simulation: a magical Academy in an
+            infinite library, with classes, clubs, faculty,
+[button] professors
+[p] , a
+[button] Great Hall
+[p] and
+[button] kitchens
+[p] that keep their own weather — and a
+            headmistress you probably shouldn't fully trust.
+[p] The cast have personalities, quirks, faults, beliefs, goals, and
+              secrets — and a real interest in the actual places and things in your
+              life. They aren't waiting for a prompt.
+[p] They act
+[em] with or without you
+[li] Invest Belief in what they love
+[button] Attack Belief they distrust
+[li] Give and take Belief from actual Pages
+[li] Write you letters
+[button] Do their own research
+[button] Send you on Quests
+[li] to real places in your own town, with one clear action to complete
+[button] Argue with each other
+[li] Chart your
+[button] moods
+[li] and
+[button] health
+[li] Keep — and trade —
+[button] secrets
+[p] You can invest Belief right back, take it from Pages or people, take
+              sides, and tip the balance. Or just watch the
+[button] Headmistress
+[p] watch you.
+[p] The five Chapters
+[h3] Five wagers about the story of life.
+[p] The Academy calls them Chapters, but they are not simply Houses, clubs, or teams.
+              Each one is a living philosophy with students, faculty, rivalries,
+              a talisman, and a theory about what your life is doing when no one is
+              explaining it. Their Belief shifts the game board and the stories the
+              Book writes from your days.
+[span] Give Belief
+[button] The Ember Seal
+[button] Emberheart
+[p] Life is authored. You are the protagonist, the pen, and the next door.
+[p] Emberheart pushes bold choices, self-authored quests, creative ambition, and scenes where you can decide what happens next.
+[span] Give Belief
+[button] The Moss Clasp
+[button] Mossbloom
+[p] Life is listened to. Something larger is already writing through the world.
+[p] Mossbloom slows the halls, deepens natural details, rewards patience, and turns ordinary noticing into guidance.
+[span] Give Belief
+[button] The Tide Glass
+[button] Tidecrest
+[p] Life is a poem, not a story: no plot to solve, only moments to inhabit.
+[p] Tidecrest favors spontaneity, sudden weather, lively interruptions, and pages where the present matters more than any arc.
+[span] Give Belief
+[button] The Wind Cipher
+[button] Riddlewind
+[p] Life is co-written. Every choice adds to a shared narrative.
+[p] Riddlewind brings dialogue, collaboration,
+[button] puzzles
+[p] , letters, and scenes that need more than one hand on the page.
+[span] Give Belief
+[button] The Dusk Thorn
+[button] Duskthorn
+[p] A story without honest conflict is too thin to protect anyone.
+[p] Duskthorn introduces friction, boundaries, rival claims, and the uncomfortable truths that make a story refuse erasure.
+[p] The
+[button] talismans
+[p] are listening. Belief can be given, deepened, or released.
+[p] A page no one put here
+[h4] The Binding has noticed you.
+[p] Whichever talisman holds the most Belief becomes ascendant. You can
+              give Belief to a talisman or try to take it away; so can every member
+              of the Cast. Everyone is fighting for what's real in the Book. That
+              Chapter colors both the game and the narrative: what scenes surface,
+              how characters act, what kind of choices glow, and the tone the
+              Labyrinth takes when it writes back.
+[p] You do not pick a Chapter from a quiz. Eventually the Binding reads
+              the evidence: the Pages you kept, the Belief you gave, and the small
+              things you preserved. Then it recognizes where you belong in a
+              surprising one-time page of its own.
+[figcaption] Every figure, place, and object is
+[button] illustrated and annotated
+[figcaption] — the
+            Academy keeps its own almanac of your world.
+[p] Story Pages
+[h3] A scene from your day, with choices inside it.
+[p] A Story Page reads the real signals around you — weather, music,
+              sleep, places, moods, and the cast currently moving through the
+              Academy — then turns them into playable fiction. You read the page,
+              choose how it turns, and the choice becomes part of what the Book
+              remembers.
+[strong] Slice of Life
+[li] keeps the scene grounded in texture.
+[strong] Arc
+[li] moves a thread forward.
+[strong] Surprise
+[li] lets the present interrupt the plot.
+[h3] Story Pages
+[p] Playable scenes the Book braids from your real day and the choices you
+              make inside it. Your real world bleeds into the fiction: your step
+              count sets how lively the Academy halls are, a poor night's sleep
+              quiets the world and offers gentler, low-energy play, and the weather
+              outside your window is the weather in
+[button] the Stacks
+[p] . Characters read the
+              pages you keep, comment on them, and remember what you do — warming or
+              cooling toward you over time. Real world, fictional choices.
+[h3] Fae Bargains
+[p] Pages with another hand in them. The
+[button] old-law Fae
+[p] have read every
+              description of the world but never touched it — so they never want
+              Belief. They want
+[em] noticing
+[p] . The price is a sensory field
+              report: what does the oldest thing in the room feel like? Which sound
+              can you hear but not name? Pay in true attention and the bargain moves —
+              but it's never quite free, and it remembers.
+[h3] Parleys
+[p] Not every meeting is a bargain. Six kinds of Book Fae haunt the margins
+              —
+[button] sprites
+[button] sentence salamanders
+[button] punctuation pixies
+[button] lore-dwarves
+[p] , and
+[button] marginalia goblins
+[p] among them — each with its own voice and its own
+              hunger. A parley is a real conversation: omens stir, the Fae make an
+              offer, and you answer with choices. But they speak in
+[button] old law
+[p] , not
+              manners — they reply with
+[em] rules
+[p] that bend the world, and the
+              rules tend to stick.
+[p] Story Pages weave your ordinary life with your fictional choices until the
+          whole thing reads like a
+[span] faerie tale
+[p] — not the Disney kind, but
+          the older, more dangerous one, where the woods keep what you promise them.
+[p] The whole point
+[blockquote] The best-written chapter in the entire book — the most sensory, the most
+          alive — is
+[span] your own ordinary life.
+[p] Everything else is rails and atmosphere. You are the text.
+[span] ReEnchanted Radio
+[span] Dial in. Let the signal color the day.
+[p] ReEnchanted Radio
+[h2] Dial in. Let the signal color the day.
+[p] An analog station page for Academy broadcasts, music packs, and world
+            effects. Turn the dial, find a frequency, and go
+[em] on air
+[span] 88.3 FM
+[span] Fae-Fi
+[span] Tune In
+[span] Vol
+[span] 88.3
+[span] 90.9
+[span] 103.7
+[span] The signal arrives giggling, tasting of clover honey and warm afternoons.
+[p] Sun-dappled beats and dandelion synths from faeries who have plainly had too much nectar.
+[p] World effect · Wonder Compass +8 · Souvenir +8 · Festival +6
+[strong] Mossy Footsteps
+[small] Fae-Fi
+[strong] Folktronica
+[small] Fae-Fi
+[strong] Mossy Groove
+[small] Fae-Fi
+[strong] To the Adventure
+[small] Fae-Fi
+[strong] Pages Rising
+[small] Fae-Fi
+[span] Included free
+[span] Feeling grey?
+[p] Included free
+[h2] Feeling
+[button] grey
+[p] Routine got you bored? Lonely? Have a dentist appointment?
+[p] The full
+[strong] Wonder Compass
+[p] ebook comes with the app — free.
+            Twenty-six chapters on how to live in wonder again, woven right into the
+            shelves so it's there the moment the day goes flat.
+[span] chapters
+[strong] Free
+[span] with the app
+[strong] Offline
+[span] read anywhere
+[span] The complete
+[span] Wonder
+[span] Compass
+[span] Twenty-six ways back into wonder
+[span] The shelf keeps growing
+[span] Content packs: new everything.
+[p] The shelf keeps growing
+[h2] Content packs: new everything.
+[p] Themed expansions that drop a whole world into the Book at once — and the
+            Academy itself shifts week to week. The base game stays whole; packs are
+            for when you want more to keep.
+[li] Themes
+[li] Music & radio stations
+[span] 🖼️
+[li] Illustrations
+[li] Cast members
+[li] Lore
+[li] Festivals
+[li] Playful missions
+[li] I-Wonder prompts
+[span] 🗒️
+[li] Photo marginalia
+[li] Events
+[h3] A living Academy.
+[p] New happenings arrive week to week and month to month — visiting
+              faculty, festivals, weather in the stacks, bargains that tap at the
+              glass. Open the Book on a Tuesday and something is different.
+[span] This week
+[li] The Goblin Market sets up in the lower stacks.
+[span] New moon
+[li] Thornwave runs an all-night broadcast.
+[span] This month
+[li] The Dictionary Rebellion begins; words lift off the page and refuse their meanings. Chaos.
+[span] Season turn
+[li] Another chapter is ready to
+[a] bind into your editions
+[span] Real device magic
+[span] Your save is yours.
+[p] Real device magic
+[h2] Your save is yours.
+[p] The most personal app on your phone shouldn't feel like a surveillance product.
+            ReEnchanted uses explicit doorways for body, weather, location, calendar, and sources.
+            It can run on a local brain, on device — and export your continuity whenever you want
+            the shelves in your own hands.
+[li] Open-source code (MPL-2.0) — read, audit, or fork the engine
+[li] Local-first memory — private material stays on device
+[li] Explicit, revocable permissions for every source
+[li] Export your archive any time
+[li] No cloud
+[li] No accounts
+[li] No ads
+[li] No streaks
+[li] No guilt
+[p] And the
+[strong] code is open source
+[p] (MPL-2.0) — read it, audit it, fork it.
+[p] The engine is licensed under the
+[a] Mozilla Public License 2.0
+[p] :
+          you're free to read, audit, and build on it, and any changes to those files stay open. The art,
+          audio, and paid content packs are ours — proprietary, so a fork can't resell the Book out from under us.
+          Your
+[em] saves
+[p] , of course, are yours alone.
+[p] The only thing we'll ever surface is our own
+[a] Patreon page
+[p] ,
+          quietly pointing to the newest articles. We do sell our own content packs — and
+          nothing else: no outside vendors, no third-party ads, no analytics, no selling
+          your attention. The only shop in here is ours.
+[strong] The public shelf is open.
+[span] Read free Wonder Compass and Clubhouse posts — newest articles surface right in the Book.
+[p] The margin is already listening
+[h2] Open the Book.
+[p] Play with pages. Keep some. Read your story.
+[p] In active development ·
+[strong] TestFlight this summer
+[a] Star it on GitHub
+[a] Follow along on Patreon
+[p] Free · local · private · open source. Watch either to hear when the TestFlight opens.
+[span] ✦ ReEnchanted
+[span] Developed by an Obsessed Guy with an awesome wife, 2 cats, and a happy, small life.
+[span] Private by design · Made for iPhone & iPad
+[span] · Art & content © ReEnchanted
+[button] Dedication
+[span] Meet Ron and Hermione, the two cats in the colophon
+[strong] Ron & Hermione
+[span] Assistant Archivists · sitting on drafts, inspecting margins, and knowing exactly when supper is late.
+[p] Hidden in the colophon
+[h2] A quiet dedication.
+[p] Developed by an Obsessed Guy with an awesome wife, 2 cats, and a happy, small life.
+[p] For Amanda, the first Doobaleedoo and the true wonder in my life. I love you! There would be no book, one of my life's biggest dreams, without you. Thank you for everything. Together forever. I'll give up Heaven if you aren't there with me.
+[p] For Mom, thank you for my one wild and precious life, and thank you for being the perfect Mom for me. Birds of a feather. I wouldn't want anyone else to fill that role. I don't see you enough. Beth is pretty awesome, too.
+[p] For my sister, Beth, for being the younger, but better, sibling that I look up to. I wish I was half as capable and caring as you are. Thank you ahead of time for proofreading this book, lol.
+[p] And, surprisingly, for Tim, rest in peace. Thank you for gifting me the world of The Hobbit in second grade. It changed my life and gave me things to hold onto: reading and good fantasy. Also, you had great taste in music.
+[span] ✦ Try this
+[p] — The Book

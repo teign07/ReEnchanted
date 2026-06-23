@@ -21,6 +21,7 @@ let package = Package(
             ],
             sources: [
                 "InsideCoverState.swift",
+                "ReEnchantedWidgetSnapshot.swift",
                 "SentenceBuilder.swift",
                 "BookArchiveDatabase.swift",
                 "PageModel.swift",
@@ -31,6 +32,7 @@ let package = Package(
                 "Constellations.swift",
                 "TheBleed.swift",
                 "MonthlyEdition.swift",
+                "EditionCurator.swift",
                 "ReferenceLibrary.swift",
                 "Illumination.swift",
                 "WorldSystems.swift",

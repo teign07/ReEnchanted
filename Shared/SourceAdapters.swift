@@ -38,6 +38,7 @@ struct BookSourceInputs: Equatable {
     var activeWorldEvents: [ResolvedWorldEvent] = []
     var ownedPackIDs: Set<String> = []
     var localBrainIsReady = false
+    var readerBeliefScore: Int = 30
 
     func recentVarietyKeys(within seconds: TimeInterval = 48 * 3600, now: Date = Date()) -> Set<String> {
         Set(surfaceHistory.filter { now.timeIntervalSince($0.value.lastShownAt) < seconds }.keys)
@@ -109,6 +110,195 @@ struct BookSourceInputs: Equatable {
             }
         }
         return nil
+    }
+}
+
+enum StoryPageMechanicChoiceID: String, Codable, Equatable, CaseIterable {
+    case sliceOfLife = "sliceoflife"
+    case progressArc = "progressarc"
+    case surprise
+
+    init(role: StoryChoiceRole) {
+        switch role {
+        case .sliceOfLife:
+            self = .sliceOfLife
+        case .progressArc:
+            self = .progressArc
+        case .surprise:
+            self = .surprise
+        }
+    }
+}
+
+enum StoryPageMechanicMandateKind: String, Codable, Equatable {
+    case none
+    case beliefDice = "belief-dice"
+    case compassRun = "compass-run"
+    case enchantment
+}
+
+struct StoryPageMechanicMandate: Codable, Equatable {
+    var kind: StoryPageMechanicMandateKind
+    var choiceID: StoryPageMechanicChoiceID?
+    var enchantmentID: String?
+    var reason: String
+
+    static let none = StoryPageMechanicMandate(
+        kind: .none,
+        choiceID: nil,
+        enchantmentID: nil,
+        reason: "No mechanic this turn; let the Story Page move in prose."
+    )
+
+    var metadata: [String: String] {
+        var values = [
+            "storyMechanicMandateKind": kind.rawValue,
+            "storyMechanicMandateReason": reason
+        ]
+        if let choiceID {
+            values["storyMechanicMandateChoiceID"] = choiceID.rawValue
+        }
+        if let enchantmentID {
+            values["storyMechanicMandateEnchantmentID"] = enchantmentID
+        }
+        return values
+    }
+
+    static func from(metadata: [String: String]) -> StoryPageMechanicMandate {
+        let rawKind = metadata["storyMechanicMandateKind"] ?? StoryPageMechanicMandateKind.none.rawValue
+        let kind = StoryPageMechanicMandateKind(rawValue: rawKind) ?? .none
+        let choiceID = metadata["storyMechanicMandateChoiceID"].flatMap(StoryPageMechanicChoiceID.init(rawValue:))
+        let enchantmentID = metadata["storyMechanicMandateEnchantmentID"]?.nonEmpty
+        let reason = metadata["storyMechanicMandateReason"]?.nonEmpty ?? StoryPageMechanicMandate.none.reason
+        if kind == .none {
+            return .none
+        }
+        return StoryPageMechanicMandate(kind: kind, choiceID: choiceID, enchantmentID: enchantmentID, reason: reason)
+    }
+}
+
+enum StoryPageMechanicPlanner {
+    static func mandate(for day: BookDay, inputs: BookSourceInputs, packet: StoryScenePacket, now: Date) -> StoryPageMechanicMandate {
+        guard shouldAllowMechanic(day: day, inputs: inputs, packet: packet, now: now) else {
+            return .none
+        }
+
+        let seed = "\(day.id)|\(SurfaceCadence.slotID(for: now, hours: 4))|\(packet.id)|story-mechanic".stableHash
+        let roll = abs(seed) % 100
+        let eligibleKinds = eligibleKinds(for: packet, inputs: inputs)
+        guard !eligibleKinds.isEmpty else { return .none }
+
+        let desiredKind: StoryPageMechanicMandateKind
+        switch roll {
+        case 0..<76:
+            return .none
+        case 76..<86:
+            desiredKind = .beliefDice
+        case 86..<93:
+            desiredKind = .compassRun
+        default:
+            desiredKind = .enchantment
+        }
+
+        let kind = eligibleKinds.contains(desiredKind) ? desiredKind : eligibleKinds[abs(seed / 100) % eligibleKinds.count]
+        let choiceID = choiceID(for: kind, packet: packet, seed: seed)
+        let enchantmentID = kind == .enchantment ? enchantmentID(for: packet, seed: seed) : nil
+        return StoryPageMechanicMandate(
+            kind: kind,
+            choiceID: choiceID,
+            enchantmentID: enchantmentID,
+            reason: reason(for: kind, packet: packet)
+        )
+    }
+
+    private static func shouldAllowMechanic(day: BookDay, inputs: BookSourceInputs, packet: StoryScenePacket, now: Date) -> Bool {
+        guard packet.turn != nil else { return false }
+        let recentPages = recentStoryPages(day: day, inputs: inputs, now: now, within: 5 * 86_400)
+        if recentPages.first?.tags.contains(where: { $0.hasPrefix("story-mechanic") }) == true {
+            return false
+        }
+        let externalCount = recentPages
+            .prefix(5)
+            .filter { page in
+                page.tags.contains("story-mechanic:compass-run") ||
+                page.tags.contains("story-mechanic:enchantment")
+            }
+            .count
+        return externalCount == 0
+    }
+
+    private static func recentStoryPages(day: BookDay, inputs: BookSourceInputs, now: Date, within seconds: TimeInterval) -> [BookPage] {
+        (inputs.days.flatMap(\.pages) + day.pages)
+            .filter { $0.type == .narrativeOS && now.timeIntervalSince($0.createdAt) <= seconds }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private static func eligibleKinds(for packet: StoryScenePacket, inputs: BookSourceInputs) -> [StoryPageMechanicMandateKind] {
+        var kinds: [StoryPageMechanicMandateKind] = [.beliefDice]
+        let text = [
+            packet.realSignals.joined(separator: " "),
+            packet.relationshipPressures.joined(separator: " "),
+            packet.selectedEntities.flatMap(\.tags).joined(separator: " "),
+            packet.selectedThreads.flatMap(\.tags).joined(separator: " ")
+        ].joined(separator: " ").lowercased()
+        if text.contains("compass") || text.contains("weather") || text.contains("body") ||
+            text.contains("walk") || text.contains("place") || text.contains("anchor") ||
+            !inputs.nearbyPlaces.isEmpty || inputs.nearbyAnchor != nil {
+            kinds.append(.compassRun)
+        }
+        if text.contains("object") || text.contains("photo") || text.contains("room") ||
+            text.contains("home") || text.contains("meal") || text.contains("tea") ||
+            text.contains("ordinary") || text.contains("enchantment") {
+            kinds.append(.enchantment)
+        }
+        return kinds
+    }
+
+    private static func choiceID(for kind: StoryPageMechanicMandateKind, packet: StoryScenePacket, seed: Int) -> StoryPageMechanicChoiceID {
+        let preferredRole: StoryChoiceRole
+        switch kind {
+        case .none:
+            preferredRole = .sliceOfLife
+        case .beliefDice:
+            preferredRole = packet.turn?.register == .active ? .progressArc : .surprise
+        case .compassRun:
+            preferredRole = .progressArc
+        case .enchantment:
+            preferredRole = .sliceOfLife
+        }
+        if packet.choices.contains(where: { $0.role == preferredRole }) {
+            return StoryPageMechanicChoiceID(role: preferredRole)
+        }
+        let choices = packet.choices.map { StoryPageMechanicChoiceID(role: $0.role) }
+        return choices.isEmpty ? .progressArc : choices[abs(seed / 1_000) % choices.count]
+    }
+
+    private static func enchantmentID(for packet: StoryScenePacket, seed: Int) -> String {
+        let text = packet.realSignals.joined(separator: " ").lowercased()
+        if text.contains("mirror") || text.contains("selfie") {
+            return "mirror-mirror"
+        }
+        let preferred = [
+            "everything-speaks",
+            "everything-is-magic",
+            "everything-is-stories",
+            "everything-is-connected",
+            "everything-is-poetry"
+        ]
+        return preferred[abs(seed / 10_000) % preferred.count]
+    }
+
+    private static func reason(for kind: StoryPageMechanicMandateKind, packet: StoryScenePacket) -> String {
+        switch kind {
+        case .none:
+            return StoryPageMechanicMandate.none.reason
+        case .beliefDice:
+            return "The turn has enough risk or uncertainty for chance to matter."
+        case .compassRun:
+            return "The thread wants real-world noticing, movement, or sensory proof before it moves."
+        case .enchantment:
+            return "A concrete real detail is strong enough to receive an Enchantment before the thread moves."
+        }
     }
 }
 
@@ -1240,6 +1430,13 @@ struct AcademyClassPageSourceAdapter: BookPageSourceAdapter {
             metadata["worldEventIDs"] = inputs.activeWorldEvents.map(\.id).joined(separator: ",")
             metadata["worldEventTitles"] = inputs.activeWorldEvents.map(\.title).joined(separator: ", ")
         }
+        let academyTurn = AcademyTurnBuilder.turn(
+            session: session,
+            lesson: lesson,
+            isClub: isClub,
+            slotKey: "\(session.id)-\(day.id)-\(block)"
+        )
+        metadata.merge(academyTurn.metadata) { _, new in new }
         let bodySuffix = eventInstruction.isEmpty ? "" : "\n\nWorld event in force:\n\(eventInstruction)"
         return SurfacePage(
             id: "\(source.id)-\(session.id)-\(day.id)-\(block)",
@@ -1560,7 +1757,8 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
         let bindingDays = inputs.days.isEmpty ? [day] : inputs.days
         let readiness = ChapterBindingOracle.readiness(days: bindingDays, now: now)
         let chapterBinding: SurfacePage?
-        if !isBound, hasName, !context.distress.isActive, readiness.isReady {
+        let nextPrimerStage = Self.nextUnshownChapterPrimerStage(surfaceHistory: inputs.surfaceHistory)
+        if !isBound, hasName, !context.distress.isActive, readiness.isReady, nextPrimerStage == nil {
             let choice = ChapterBindingOracle.chooseChapter(
                 days: bindingDays,
                 selfFacts: inputs.selfFacts,
@@ -1576,8 +1774,12 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
             chapterBinding = nil
         }
         let chapterPrimer: SurfacePage?
-        if !isBound, hasName, !context.distress.isActive, !readiness.isReady, readiness.primerStage > 0 {
-            chapterPrimer = Self.chapterPrimerPage(source: source, stage: readiness.primerStage, now: now)
+        if !isBound,
+           hasName,
+           !context.distress.isActive,
+           let nextPrimerStage,
+           (readiness.isReady || nextPrimerStage <= readiness.primerStage) {
+            chapterPrimer = Self.chapterPrimerPage(source: source, stage: nextPrimerStage, now: now)
         } else {
             chapterPrimer = nil
         }
@@ -1645,6 +1847,10 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
             pages.append(chapterPrimer)
         }
         return pages
+    }
+
+    private static func nextUnshownChapterPrimerStage(surfaceHistory: [String: SurfaceHistoryRecord]) -> Int? {
+        (1...3).first { surfaceHistory["chapter-primer:\($0)"] == nil }
     }
 
     private static func chapterPrimerPage(source: BookPageSource, stage: Int, now: Date) -> SurfacePage {
@@ -1719,27 +1925,55 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
     ) -> SurfacePage {
         let chapter = choice.chapter
         let evidence = choice.evidenceLines.map { "- \($0)" }.joined(separator: "\n")
+        let memories = choice.memoryFragments.map { "- \($0)" }.joined(separator: "\n")
         let scores = choice.scores
             .sorted { $0.key < $1.key }
             .map { "\($0.key):\($0.value)" }
             .joined(separator: ",")
         let daysLine = readiness.daysSinceFirstKeptPage.map { "\($0) day\($0 == 1 ? "" : "s") since the first kept page" } ?? "time uncounted"
+        let chapterArrival: String
+        switch chapter.id {
+        case "emberheart":
+            chapterArrival = "The seal takes heat first: red ink, a desk under lamplight, the fierce clean pressure of a door waiting for your hand."
+        case "mossbloom":
+            chapterArrival = "The seal grows quiet first: rain-dark soil, old wood, green patience pushing through the binding where no one told it to grow."
+        case "tidecrest":
+            chapterArrival = "The seal breaks like weather first: salt, coffee-light, street glitter, one complete moment refusing to become a lesson."
+        case "riddlewind":
+            chapterArrival = "The seal answers in more than one hand first: a table of voices, a puzzle half-solved, another sentence finding yours in the dark."
+        case "duskthorn":
+            chapterArrival = "The seal darkens first: thorn-shadow, violet glass, the honest edge that protects a story from going soft."
+        default:
+            chapterArrival = "The seal gathers first as ink, light, and pressure."
+        }
         let body = """
         The candles in the Binding Hall have gone blue-white at the wick. Headmistress Thorne looks down at the Book, then at you, and her expression becomes almost kind. Almost.
 
         "No questionnaire," she says. "No little preference game. You have already answered in ink."
 
-        Her hands cup the air around the page. Reality fractures. The room becomes doors: a flame-lit desk, a mossy stair, a wave folding moonlight, a table where several voices finish one sentence together.
+        Her hands cup the air around the page, and somehow you feel them at your face too: cool rings, old ink, the exact pressure of being read. Reality fractures. The Great Hall shatters into doors: a flame-lit desk, a mossy stair, a wave folding moonlight, a table where several voices finish one sentence together, and one narrow violet threshold that refuses to announce itself.
 
-        The Book opens every kept page at once.
+        The Book opens every kept page at once. Your own life rises through the ceremony, not as biography, but as weather:
+
+        \(memories.isEmpty ? "- The Book found its evidence in kept pages too private to quote here." : memories)
+
+        Then the evidence underneath it glows:
 
         \(evidence)
 
+        Stories engulf the room. Your tongue catches old paper and lightning. Your skin remembers a thousand stories that are not yours and, threaded through them, the ordinary kept pieces that are. At the edges, the Nothing opens its grey mouth. The lines of your kept pages flare back.
+
         A jolt runs through the binding, like swallowing lightning. Ink lifts from the margins and gathers into a seal.
+
+        \(chapterArrival)
 
         Chapter \(chapter.name).
 
         \(chapter.philosophy)
+
+        Reality snaps back. The Great Hall re-forms around the Book with its edges still rippling. Thorne's eyes hold recognition now, and something stranger than recognition: respect.
+
+        "From the Great Unwritten Chapter," she says softly, "and bound here by what you chose to keep."
 
         \(chapter.talismanName) warms in the stacks. The Binding has chosen by \(readiness.keptPageCount) kept page\(readiness.keptPageCount == 1 ? "" : "s"), \(readiness.keptDayCount) kept day\(readiness.keptDayCount == 1 ? "" : "s"), and \(daysLine).
         """
@@ -1765,6 +1999,7 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
                     "chosenChapterTalismanName": chapter.talismanName,
                     "chapterScores": scores,
                     "bindingEvidence": choice.evidenceLines.joined(separator: " | "),
+                    "bindingMemories": choice.memoryFragments.joined(separator: " | "),
                     "keptDayCount": "\(readiness.keptDayCount)",
                     "keptPageCount": "\(readiness.keptPageCount)",
                     "daysSinceFirstKeptPage": readiness.daysSinceFirstKeptPage.map(String.init) ?? "",
@@ -2417,13 +2652,16 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
-        guard let prepared = inputs.preparedStoryPageSurface else { return [] }
-        return [prepared]
+        if let prepared = inputs.preparedStoryPageSurface {
+            return [prepared]
+        }
+        return [Self.draftCandidate(for: day, inputs: inputs, now: now)]
     }
 
     static func draftCandidate(for day: BookDay, inputs: BookSourceInputs, now: Date) -> SurfacePage {
         let source = BookPageSourceRegistry.source(for: .narrativeOS)
         let packet = StoryScenePacketBuilder.packet(for: day, inputs: inputs, now: now)
+        let mechanicMandate = StoryPageMechanicPlanner.mandate(for: day, inputs: inputs, packet: packet, now: now)
         let choiceRoles = packet.choices.map { $0.role.title }.joined(separator: " | ")
         let selectedThreads = packet.selectedThreads.map(\.title).joined(separator: ", ")
         let selectedEntities = packet.selectedEntities.map(\.name).joined(separator: ", ")
@@ -2436,6 +2674,55 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
             .joined(separator: "\n")
         let chapterTalismanMoves = packet.chapterTalismanMoves.map(\.promptLine).joined(separator: "\n")
         let chapterTalismanDeltas = packet.chapterTalismanMoves.compactMap(\.ledgerToken).joined(separator: ",")
+        var metadata: [String: String] = [
+            "source": source.id,
+            "packetID": packet.id,
+            "packID": packet.packID,
+            "bookGlow": packet.bookGlow,
+            "playerBelief": "\(packet.playerBelief)",
+            "choiceRoles": choiceRoles,
+            "selectedThreads": selectedThreads,
+            "selectedEntities": selectedEntities,
+            "selectedEntityIDs": packet.selectedEntities.map(\.id).joined(separator: ","),
+            "storyFormID": packet.storyFormID ?? "",
+            "storyFormName": packet.storyFormName ?? "",
+            "storyBeats": (packet.storyFormBeats ?? []).joined(separator: "\n"),
+            "storyGenreID": packet.storyGenreID ?? "",
+            "storyGenreName": packet.storyGenreName ?? "",
+            "storyGenreLens": packet.storyGenreLens ?? "",
+            "storyPromiseSeed": packet.promise?.seed ?? "",
+            "storyPromiseQuestion": packet.promise?.question ?? "",
+            "storyRecipeID": packet.blueprint?.recipeID ?? "",
+            "storyRecipeName": packet.blueprint?.recipeName ?? "",
+            "storyRecipePackID": packet.blueprint?.recipePackID ?? "",
+            "storyRecipeSceneMode": packet.blueprint?.sceneMode.rawValue ?? "",
+            "storyRecipeLeadID": packet.blueprint?.leadID ?? "",
+            "storyRecipeLeadName": packet.blueprint?.leadName ?? "",
+            "storyRecipeCompanionID": packet.blueprint?.companionID ?? "",
+            "storyRecipeCompanionName": packet.blueprint?.companionName ?? "",
+            "storyRecipePremise": packet.blueprint?.premise ?? "",
+            "storyRecipeGroundingKind": packet.blueprint?.grounding.kind.rawValue ?? "",
+            "storyRecipeGroundingSourceID": packet.blueprint?.grounding.sourceID ?? "",
+            "storyRecipeGrounding": packet.blueprint?.grounding.text ?? "",
+            "storyRecipeBeats": packet.blueprint?.beats.joined(separator: "\n") ?? "",
+            "storyRecipeGroundingDirective": packet.blueprint?.groundingDirective ?? "",
+            "storyRecipeToneDirective": packet.blueprint?.toneDirective ?? "",
+            "storyRecipeChoiceDirective": packet.blueprint?.choiceDirective ?? "",
+            "storyRecipeContinuationDirective": packet.blueprint?.continuationDirective ?? "",
+            "selectedThreadIDs": packet.selectedThreads.map(\.id).joined(separator: ","),
+            "selectedRelationships": selectedRelationships,
+            "entityMemories": selectedEntityMemories,
+            "realSignals": packet.realSignals.joined(separator: "\n"),
+            "relationshipPressures": packet.relationshipPressures.joined(separator: "\n"),
+            "chapterTalismanMoves": chapterTalismanMoves,
+            "chapterTalismanDeltas": chapterTalismanDeltas,
+            "uses": "characters, belief, relationship graph, story threads",
+            "cadence": "four-hour simulation"
+        ]
+        metadata.merge(mechanicMandate.metadata) { _, new in new }
+        if let turn = packet.turn {
+            metadata.merge(turn.metadata) { _, new in new }
+        }
         return SurfacePage(
             id: "\(source.id)-\(packet.id)",
             type: .narrativeOS,
@@ -2445,36 +2732,11 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
             score: day.capturedPages.count >= 2 ? 86 : 68,
             reason: "The story field has enough weight for characters, beliefs, and threads to move.",
             prompt: "The Story Page is stirring.",
-            detail: packet.directorIntent,
+            detail: packet.turn.map { "\($0.character) wants \($0.want); \($0.obstacle)." } ?? packet.directorIntent,
             payload: BookPagePayload(
                 headline: packet.title,
                 body: "A page is gathering around the day’s strongest thread. The first lines are still drying in the margin.",
-                metadata: [
-                    "source": source.id,
-                    "packetID": packet.id,
-                    "packID": packet.packID,
-                    "bookGlow": packet.bookGlow,
-                    "playerBelief": "\(packet.playerBelief)",
-                    "choiceRoles": choiceRoles,
-                    "selectedThreads": selectedThreads,
-                    "selectedEntities": selectedEntities,
-                    "selectedEntityIDs": packet.selectedEntities.map(\.id).joined(separator: ","),
-                    "storyFormID": packet.storyFormID ?? "",
-                    "storyFormName": packet.storyFormName ?? "",
-                    "storyBeats": (packet.storyFormBeats ?? []).joined(separator: "\n"),
-                    "storyGenreID": packet.storyGenreID ?? "",
-                    "storyGenreName": packet.storyGenreName ?? "",
-                    "storyGenreLens": packet.storyGenreLens ?? "",
-                    "selectedThreadIDs": packet.selectedThreads.map(\.id).joined(separator: ","),
-                    "selectedRelationships": selectedRelationships,
-                    "entityMemories": selectedEntityMemories,
-                    "realSignals": packet.realSignals.joined(separator: "\n"),
-                    "relationshipPressures": packet.relationshipPressures.joined(separator: "\n"),
-                    "chapterTalismanMoves": chapterTalismanMoves,
-                    "chapterTalismanDeltas": chapterTalismanDeltas,
-                    "uses": "characters, belief, relationship graph, story threads",
-                    "cadence": "four-hour simulation"
-                ]
+                metadata: metadata
             )
         )
     }
@@ -2883,15 +3145,18 @@ struct OuterStacksAnchorPageSourceAdapter: BookPageSourceAdapter {
             : "Return visit \(proximity.nextVisitCount)"
         let room = nonEmpty(anchor.outerStacksRoom)
             ?? "The room has not fully written itself yet, but the threshold is present."
-        let body = [
-            "\(anchor.name) is close enough to light.",
-            "\(visitPhrase). \(season).",
-            "Room: \(room)",
-            "Fae: \(nonEmpty(anchor.fae) ?? "unnamed")",
-            "Local rule: \(nonEmpty(anchor.localRule) ?? "Notice before you take a step.")",
-            nonEmpty(anchor.miniStory).map { "Mini-story: \($0)" },
-            "Keeping this page checks in at the Anchor and adds \(AnchorRegistry.checkInBeliefReward) Belief to the place."
-        ].compactMap { $0 }.joined(separator: "\n\n")
+        let storyScene = anchorVisitVignette(
+            anchor: anchor,
+            room: room,
+            visitPhrase: visitPhrase,
+            season: season
+        )
+        let body = "\(storyScene)\n\nKeeping this page checks in at the Anchor and offers up to \(AnchorRegistry.checkInBeliefReward) Belief from your Glow to the place."
+        let turn = AnchorTurnBuilder.turn(
+            anchor: anchor,
+            visitMode: proximity.visitMode,
+            slotKey: "\(anchor.id)-\(anchor.visitCount)"
+        )
 
         return SurfacePage(
             id: "\(source.id)-\(anchor.id)-\(day.id)-\(Int(now.timeIntervalSince1970))",
@@ -2920,9 +3185,31 @@ struct OuterStacksAnchorPageSourceAdapter: BookPageSourceAdapter {
                     "room": room,
                     "fae": anchor.fae,
                     "localRule": anchor.localRule,
+                    "sessionSubjectThreadID": "Outer Stacks: \(anchor.name)",
+                    "selectedThreads": "Outer Stacks,\(anchor.name)",
+                    "selectedEntities": "\(anchor.fae.nonEmpty ?? "The Anchor Fae"),The Book",
+                    "realSignals": "\(visitPhrase)\n\(season)\n\(anchor.kind.title) Anchor",
+                    "relationshipPressures": nonEmpty(anchor.localRule) ?? "The local rule asks to be honored before the room opens further.",
+                    "entityMemories": nonEmpty(anchor.miniStory) ?? "This Anchor has a small story already in motion.",
+                    "storyScene": storyScene,
+                    "storyChoiceSliceOfLifeTitle": "Honor the Rule",
+                    "storyChoiceSliceOfLifePrompt": "Follow the Anchor's local rule and notice what changes.",
+                    "storyChoiceSliceOfLifeEffect": "The room trusts the reader with one more exact detail.",
+                    "storyChoiceSliceOfLifeMechanic": "none",
+                    "storyChoiceProgressArcTitle": "Approach the Fae",
+                    "storyChoiceProgressArcPrompt": "Ask the room's Fae what it has been guarding.",
+                    "storyChoiceProgressArcEffect": "The Anchor thread advances through a direct question.",
+                    "storyChoiceProgressArcMechanic": "none",
+                    "storyChoiceSurpriseTitle": "Test the Threshold",
+                    "storyChoiceSurprisePrompt": "Follow the oddest sound, object, or draft at the edge of the room.",
+                    "storyChoiceSurpriseEffect": "A side door in the Outer Stacks notices the visit.",
+                    "storyChoiceSurpriseMechanic": "none",
+                    "storyResultSliceOfLife": "The local rule holds. The Anchor warms by one small truth, and the room lets a hidden detail stay visible.",
+                    "storyResultProgressArc": "The Fae answers without giving away everything. The Anchor's private thread moves one step farther into the stacks.",
+                    "storyResultSurprise": "The threshold gives under the reader's attention. Something adjacent to this place may call back later.",
                     "privacy": "location stays on device",
                     "tags": "anchor,outer-stacks,\(anchor.kind.rawValue.lowercased()),location"
-                ]
+                ].merging(turn.metadata) { _, new in new }
             )
         )
     }
@@ -2930,6 +3217,26 @@ struct OuterStacksAnchorPageSourceAdapter: BookPageSourceAdapter {
     private func nonEmpty(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func anchorVisitVignette(anchor: AnchorRecord, room: String, visitPhrase: String, season: String) -> String {
+        let fae = nonEmpty(anchor.fae) ?? "the Fae who keeps this threshold"
+        let rule = nonEmpty(anchor.localRule) ?? "Notice before you take a step."
+        let miniStory = nonEmpty(anchor.miniStory)
+            ?? "Something in this room has been waiting to be noticed, and the waiting has begun to change the furniture."
+        let opening = anchor.visitCount <= 0
+            ? "The threshold at \(anchor.name) catches the light and opens as if this place has been expecting a first knock. \(season) slips through before you do, making a narrow path across the floor."
+            : "The threshold at \(anchor.name) catches the light again, and this time it does not open like a stranger. \(visitPhrase) has a remembered shape: the air is shifted, the silence is listening, and one detail waits where you could swear it was not before."
+
+        return """
+        \(opening)
+
+        \(room) It does not present itself all at once. It lets the nearest objects be seen first, then the next shelf, then the corner where the dark seems to be keeping count.
+
+        \(fae) looks up in the middle of their work, measuring whether you have brought noise, hurry, or attention. The rule arrives without ceremony: \(rule)
+
+        \(miniStory) Today it has moved one small step farther. Something near the edge of the room answers your return with a quiet adjustment, leaving the next question open in the dust.
+        """
     }
 }
 
@@ -3436,21 +3743,15 @@ struct BookFaePageSourceAdapter: BookPageSourceAdapter {
             "Fae standing: \(warmth) Warmth, \(claim) Claim (\(FaeEconomy.claimBand(for: claim)))."
         ].compactMap(\.self)
         let pageID = "\(source.id)-\(BookDay.id(for: now))-\(kind.rawValue)"
-        return [
-            SurfacePage(
-                id: pageID,
-                type: .bookFae,
-                sourceID: source.id,
-                intent: .simulate,
-                renderStyle: .graphEvent,
-                score: score(for: kind, state: inputs.faeState, keptCount: keptCount),
-                reason: strongestOmen.map { "\(kind.name) has come to answer the omen: \($0.title)." } ?? "\(kind.name) has come to parley, not bargain.",
-                prompt: "\(kind.name) at the Margin",
-                detail: strongestOmen.map { "A faerie interaction under the mark of \($0.title)." } ?? "A faerie interaction with three old-law paths.",
-                payload: BookPagePayload(
-                    headline: "\(kind.name) at the Margin",
-                    body: strongestOmen.map { "\(kind.name) touches the edge of the page. The mark called \($0.title) answers in the paper." } ?? "\(kind.name) touches the edge of the page. This is not a bargain. It is a parley.",
-                    metadata: [
+        let parleyTurn = FaeParleyTurnBuilder.turn(
+            kind: kind,
+            claim: claim,
+            warmth: warmth,
+            court: court,
+            omenTitle: strongestOmen?.title,
+            slotKey: pageID
+        )
+        var metadata: [String: String] = [
                         "source": source.id,
                         "faeKind": kind.rawValue,
                         "faeName": kind.name,
@@ -3482,7 +3783,23 @@ struct BookFaePageSourceAdapter: BookPageSourceAdapter {
                         "faeClaim": "\(claim)",
                         "uses": "fae warmth, fae claim, attention, narrative choices",
                         "cadence": "curated fae parley"
-                    ]
+        ]
+        metadata.merge(parleyTurn.metadata) { _, new in new }
+        return [
+            SurfacePage(
+                id: pageID,
+                type: .bookFae,
+                sourceID: source.id,
+                intent: .simulate,
+                renderStyle: .graphEvent,
+                score: score(for: kind, state: inputs.faeState, keptCount: keptCount),
+                reason: strongestOmen.map { "\(kind.name) has come to answer the omen: \($0.title)." } ?? "\(kind.name) has come to parley, not bargain.",
+                prompt: "\(kind.name) at the Margin",
+                detail: strongestOmen.map { "A faerie interaction under the mark of \($0.title)." } ?? "A faerie interaction with three old-law paths.",
+                payload: BookPagePayload(
+                    headline: "\(kind.name) at the Margin",
+                    body: strongestOmen.map { "\(kind.name) touches the edge of the page. The mark called \($0.title) answers in the paper." } ?? "\(kind.name) touches the edge of the page. This is not a bargain. It is a parley.",
+                    metadata: metadata
                 )
             )
         ]
@@ -3862,6 +4179,67 @@ struct CastBondPageSourceAdapter: BookPageSourceAdapter {
                 ]
             )
         )
+    }
+}
+
+struct GlowInvitationPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .glowInvitation)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive, !context.distress.isActive else { return [] }
+        guard inputs.readerBeliefScore >= 80 else { return [] }
+        guard !keptGlowInvitationRecently(in: inputs.days + [day], now: now) else { return [] }
+
+        let isTooFull = inputs.readerBeliefScore >= 90
+        let score = isTooFull ? 95 : 78
+        let glowName = BeliefLexicon.glowName(for: inputs.readerBeliefScore)
+        let body = isTooFull
+            ? """
+            Your Glow has reached the top of the wick. The Book can hold it for a while, but excess light settles back into the paper overnight.
+
+            Spend some of it on a cast member, a page type, a spell, or a living thread you want the Book to treat as more real. Attention kept in motion becomes story.
+            """
+            : """
+            Your Glow is radiant enough to steer the Book on purpose.
+
+            Give Belief to a cast member you want closer, a page type you want more often, or a spell that deserves weight. Take Belief from anything that has been too loud.
+            """
+
+        return [
+            SurfacePage(
+                id: "\(source.id)-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 6))",
+                type: .glowInvitation,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .promptCard,
+                score: score,
+                reason: isTooFull
+                    ? "Your Glow is too full and wants somewhere to live."
+                    : "Your Glow is radiant enough to spend deliberately.",
+                prompt: isTooFull ? "Your Glow Is Too Full" : "Your Glow Wants a Direction",
+                detail: "Open the Glow menu and give Belief to a cast member, a page type, or something you want more of.",
+                payload: BookPagePayload(
+                    headline: isTooFull ? "Your Glow Is Too Full" : "Your Glow Wants a Direction",
+                    body: body,
+                    metadata: [
+                        "source": source.id,
+                        "readerBeliefScore": "\(inputs.readerBeliefScore)",
+                        "readerGlowName": glowName,
+                        "openGlowMenu": "true",
+                        "noBeliefReward": "true",
+                        "placeholder": "Name where this Glow should go.",
+                        "tags": "glow,belief,spend-glow,\(isTooFull ? "glow-too-full" : "radiant-glow")"
+                    ]
+                )
+            )
+        ]
+    }
+
+    private func keptGlowInvitationRecently(in days: [BookDay], now: Date) -> Bool {
+        let cutoff = now.addingTimeInterval(-2 * 86_400)
+        return days
+            .flatMap(\.pages)
+            .contains { $0.type == .glowInvitation && $0.createdAt >= cutoff }
     }
 }
 
@@ -4335,12 +4713,14 @@ enum BookPageSourceAdapters {
         BookJumpPageSourceAdapter(),
         TwoReadingsPageSourceAdapter(),
         CastBondPageSourceAdapter(),
+        GlowInvitationPageSourceAdapter(),
         WeatherPageSourceAdapter(),
         EnchantmentPageSourceAdapter(),
         LabyrinthWelcomePageSourceAdapter(),
         LocalBrainAwakePageSourceAdapter(),
         AcademyClassPageSourceAdapter(),
         ElectivePageSourceAdapter(),
+        GamePageSourceAdapter(),
         PackPageSourceAdapter(),
         CalendarPageSourceAdapter(),
         QuipPageSourceAdapter(),
@@ -4394,6 +4774,147 @@ enum BookPageSourceAdapters {
                 ]
             )
         )
+    }
+}
+
+struct GamePageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .gamePage)
+
+    private let nothingPhrases = [
+        "fine", "whatever", "later", "normal", "busy", "stuff", "things",
+        "same as always", "nothing much", "maybe tomorrow", "just tired", "it was okay"
+    ]
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive else { return [] }
+        let days = inputs.days + [day]
+        let phrases = archivePhrases(from: days)
+        guard phrases.count >= 6 else { return [] }
+        let hour = Calendar.current.component(.hour, from: now)
+        let score = hour >= 17 ? 64 : 54
+        return [surface(phrases: phrases, greyPool: nothingPool(from: days), day: day, now: now, score: score)]
+    }
+
+    func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        let days = inputs.days + [day]
+        let phrases = archivePhrases(from: days)
+        return surface(phrases: phrases, greyPool: nothingPool(from: days), day: day, now: now, score: phrases.count >= 6 ? 62 : 46)
+    }
+
+    private func surface(phrases: [(phrase: String, pageID: String, date: Date, label: String)], greyPool: [String], day: BookDay, now: Date, score: Int) -> SurfacePage {
+        let slotID = SurfaceCadence.slotID(for: now, hours: 6)
+        let seed = "\(day.id)-\(slotID)-sentence-runner"
+        let sourceMap = Dictionary(
+            phrases.map { ($0.phrase, (id: $0.pageID, date: $0.date, label: $0.label)) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let selected = deterministicPick(phrases.map(\.phrase), count: 12, seed: seed)
+        let grey = deterministicPick(greyPool.isEmpty ? nothingPhrases : greyPool, count: 6, seed: "\(seed)-nothing")
+        // Sidecar: phrase¶pageID¶unixTimestamp¶pageTypeTitle — lets the result page
+        // open the exact source page in a modal, dated.
+        let sources = selected.compactMap { phrase -> String? in
+            guard let s = sourceMap[phrase] else { return nil }
+            return "\(phrase)¶\(s.id)¶\(s.date.timeIntervalSince1970)¶\(s.label)"
+        }
+        let ready = selected.count >= 6
+        return SurfacePage(
+            id: "\(source.id)-sentence-runner-\(slotID)",
+            type: .gamePage,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .promptCard,
+            score: ready ? score : 42,
+            reason: ready
+                ? "The Loom has loosened kept words into motion."
+                : "The Loom is waiting for a few more kept sentences before it can run.",
+            prompt: "The Sentence Runner",
+            detail: "Jump through words from your own archive. Avoid the Nothing's grey phrases. Keep what the run makes.",
+            payload: BookPagePayload(
+                headline: ready ? "Your old words are moving again." : "The Loom Needs More Thread",
+                body: ready
+                    ? "The Loom has pulled phrases from kept pages and set them moving across the margin. Catch the words that still feel alive. Let the grey ones pass if you can."
+                    : "Keep a few more real sentences, then come back. Game Pages use your archive as their level design.",
+                metadata: [
+                    "source": source.id,
+                    "gameID": "sentence-runner",
+                    "gameTitle": "The Sentence Runner",
+                    "gamePhrases": selected.joined(separator: "||"),
+                    "nothingPhrases": grey.joined(separator: "||"),
+                    "phraseSources": sources.joined(separator: "||"),
+                    "placeholder": ready ? "Run the margin, then keep the result." : "Keep more pages first.",
+                    "tags": "game-page,sentence-runner,loom-run,nothing-words"
+                ]
+            )
+        )
+    }
+
+    private func archivePhrases(from days: [BookDay]) -> [(phrase: String, pageID: String, date: Date, label: String)] {
+        let pages = days
+            .flatMap(\.pages)
+            .sorted { $0.createdAt > $1.createdAt }
+        var seen = Set<String>()
+        return pages.flatMap { page in
+            phraseCandidates(from: page).map { (phrase: $0, pageID: page.id, date: page.createdAt, label: page.type.title) }
+        }
+        .filter { seen.insert($0.phrase.lowercased()).inserted }
+    }
+
+    /// The Nothing speaks in the reader's own flat words when it can: prefer the
+    /// generic phrases that actually appear in the archive, else fall back to the
+    /// fixed lexicon so a thin archive still has grey to avoid.
+    private func nothingPool(from days: [BookDay]) -> [String] {
+        let text = days
+            .flatMap(\.pages)
+            .map { "\($0.userInput) \($0.promptText)".lowercased() }
+            .joined(separator: " ")
+        let personal = nothingPhrases.filter { text.contains($0) }
+        return personal.count >= 6 ? personal : Array(Set(personal + nothingPhrases))
+    }
+
+    private func phraseCandidates(from page: BookPage) -> [String] {
+        let raw = [
+            page.userInput,
+            page.promptText,
+            page.type.title,
+            page.tags
+                .filter { !$0.contains(":") && !$0.contains("-") }
+                .prefix(4)
+                .joined(separator: " ")
+        ]
+        .filter { !$0.isEmpty }
+        .joined(separator: ". ")
+
+        return raw
+            .components(separatedBy: CharacterSet(charactersIn: ".!?\n;"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap { sentence -> [String] in
+                let words = sentence
+                    .split(separator: " ")
+                    .map { $0.trimmingCharacters(in: .punctuationCharacters) }
+                    .filter { $0.count > 2 }
+                if sentence.count <= 52, words.count >= 2 {
+                    return [sentence]
+                }
+                if words.count >= 4 {
+                    return [words.prefix(4).joined(separator: " ")]
+                }
+                return []
+            }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { phrase in
+                let wordCount = phrase.split(separator: " ").count
+                return (1...7).contains(wordCount) && phrase.count >= 3 && phrase.count <= 64
+            }
+    }
+
+    private func deterministicPick(_ values: [String], count: Int, seed: String) -> [String] {
+        guard !values.isEmpty else { return [] }
+        return values
+            .sorted {
+                "\($0)-\(seed)".stableHash < "\($1)-\(seed)".stableHash
+            }
+            .prefix(count)
+            .map { $0 }
     }
 }
 

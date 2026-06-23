@@ -10,6 +10,17 @@
 	<array>
 		<string>com.openclaw.enchantify.insidecover.overnight-scribe</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.openclaw.enchantify.insidecover</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>reenchanted</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

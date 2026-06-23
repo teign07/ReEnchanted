@@ -109,6 +109,11 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(RadioStationRegistry.nearestStation(to: 97.3)?.id, "the-bleed")
         XCTAssertNotEqual(RadioStationRegistry.nearestStation(to: 97.2)?.id, "the-bleed")
         XCTAssertNotEqual(RadioStationRegistry.nearestStation(to: 97.4)?.id, "the-bleed")
+        XCTAssertEqual(RadioStationRegistry.tunedStation(to: 97.3)?.id, "the-bleed")
+        XCTAssertNil(RadioStationRegistry.tunedStation(to: 97.2))
+        XCTAssertNil(RadioStationRegistry.tunedStation(to: 97.4))
+        XCTAssertNil(RadioStationRegistry.tunedStation(to: 94.1))
+        XCTAssertEqual(RadioStationRegistry.tunedStation(to: 103.8)?.id, "thornwave")
     }
 
     func testUnlockedRadioSoundPackAddsStationsToDial() throws {
@@ -680,6 +685,136 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(packet.choices.allSatisfy { !$0.hiddenEffect.isEmpty })
     }
 
+    func testStoryScenePacketCommitsACharacterFirstTurn() throws {
+        let packet = StoryScenePacketBuilder.packet(
+            for: dayWithMusicSouvenir(),
+            inputs: richInputs(),
+            now: localDate(hour: 16)
+        )
+
+        let turn = try XCTUnwrap(packet.turn)
+        XCTAssertFalse(turn.statement.isEmpty)
+        XCTAssertFalse(turn.character.isEmpty)
+        XCTAssertFalse(turn.want.isEmpty)
+        // One landing per choice path, all distinct — choices land different
+        // facts, not different moods.
+        let landings = ["slice-of-life", "progress-arc", "surprise"].compactMap { turn.landings[$0]?.nonEmpty }
+        XCTAssertEqual(landings.count, 3)
+        XCTAssertEqual(Set(landings).count, 3)
+        // The committed landing rides each choice's hidden effect.
+        for choice in packet.choices {
+            XCTAssertEqual(choice.hiddenEffect, turn.landings[choice.id])
+        }
+    }
+
+    func testStoryScenePacketLeadIsCharacterNotAtmosphereOrObject() throws {
+        let packet = StoryScenePacketBuilder.packet(
+            for: dayWithMusicSouvenir(),
+            inputs: richInputs(),
+            now: localDate(hour: 16)
+        )
+
+        XCTAssertEqual(packet.selectedEntities.first?.kind, .character)
+        XCTAssertFalse(packet.directorIntent.contains("helps Weather in the Stacks"))
+        XCTAssertTrue(packet.directorIntent.contains("wants something specific"))
+    }
+
+    func testWeatherSignalAloneDoesNotMakeWeatherThreadTheStoryPremise() throws {
+        var inputs = BookSourceInputs.empty
+        inputs.weather = WeatherSourceSignal(
+            phrase: "Rain at the window.",
+            source: "test",
+            forecast: "rain later",
+            conditionSymbolName: "cloud.rain"
+        )
+
+        let packet = StoryScenePacketBuilder.packet(
+            for: emptyDay(),
+            inputs: inputs,
+            now: localDate(hour: 16)
+        )
+
+        XCTAssertNotEqual(packet.selectedThreads.first?.id, "weather-in-the-stacks")
+        XCTAssertEqual(packet.selectedEntities.first?.kind, .character)
+    }
+
+    func testStorySceneChoicesAreCharacterActionsNotSensoryAtmosphere() {
+        let packet = StoryScenePacketBuilder.packet(
+            for: dayWithMusicSouvenir(),
+            inputs: richInputs(),
+            now: localDate(hour: 16)
+        )
+
+        let choiceText = packet.choices.map { "\($0.title) \($0.prompt)" }.joined(separator: " ").lowercased()
+        XCTAssertTrue(choiceText.contains("ask") || choiceText.contains("act"))
+        XCTAssertFalse(choiceText.contains("examine the shadow"))
+        XCTAssertFalse(choiceText.contains("follow the resonance"))
+        XCTAssertFalse(choiceText.contains("hold the tide glass"))
+    }
+
+    func testStoryTurnLandingResolvesBothIdConventions() {
+        // The regression that disabled the result rail: draft choice ids are
+        // hyphen-free, landings are hyphenated.
+        let landings = [
+            "slice-of-life": "She admits it quietly.",
+            "progress-arc": "She says it out loud.",
+            "surprise": "It lands sideways."
+        ]
+        XCTAssertEqual(StoryTurnLanding.resolve(landings, choiceID: "sliceoflife"), "She admits it quietly.")
+        XCTAssertEqual(StoryTurnLanding.resolve(landings, choiceID: "progressarc"), "She says it out loud.")
+        XCTAssertEqual(StoryTurnLanding.resolve(landings, choiceID: "slice-of-life"), "She admits it quietly.")
+        XCTAssertEqual(StoryTurnLanding.resolve(landings, choiceID: "surprise"), "It lands sideways.")
+    }
+
+    func testSceneIntentIsConcreteAndInterpersonal() {
+        let packet = StoryScenePacketBuilder.packet(
+            for: dayWithMusicSouvenir(),
+            inputs: richInputs(),
+            now: localDate(hour: 16)
+        )
+        let turn = try? XCTUnwrap(packet.turn)
+        // The want must be a concrete clause, never the raw life-mission goal.
+        XCTAssertNotNil(turn)
+        XCTAssertFalse(turn?.want.contains("teach safe, playful enchantments") ?? false)
+        // Recipe turns may quote the concrete kept detail, but may not fall
+        // back to an abstract yes/no dispute.
+        XCTAssertFalse(turn?.want.contains("what happened last time") ?? true)
+        XCTAssertNotNil(packet.blueprint)
+        XCTAssertFalse(packet.blueprint?.grounding.text.isEmpty ?? true)
+        XCTAssertFalse(turn?.obstacle.isEmpty ?? true)
+        // The subtitle composes cleanly (no "is in the way" run-on).
+        let detail = "\(turn!.character) wants \(turn!.want); \(turn!.obstacle)."
+        XCTAssertFalse(detail.contains("is in the way"))
+    }
+
+    func testStoryTurnValidatorRejectsRoomDominatedProse() {
+        let atmosphere = "The afternoon light shifts across the stacks. The air changes when the sun hits the window frame. A bead of condensation forms on the glass. The dust settles in the still air."
+        XCTAssertTrue(StoryTurnValidator.isAtmosphereDominated(atmosphere, characterNames: ["Luna Wispwood", "Penny Blackletter"]))
+
+        let interaction = "Luna leaned toward Penny and asked her, plainly, whether she had taken the key. Penny set down her cup and admitted she had."
+        XCTAssertFalse(StoryTurnValidator.isAtmosphereDominated(interaction, characterNames: ["Luna Wispwood", "Penny Blackletter"]))
+
+        XCTAssertTrue(StoryTurnValidator.isNearDuplicate(
+            "The afternoon light shifts, slicing across the stacks. You notice the way the air changes.",
+            of: "The afternoon light shifts, slicing across the stacks. You notice the way the sun moves."
+        ))
+    }
+
+    func testStoryTurnValidatorRejectsAtmosphereAcceptsChange() {
+        // Negative fixture: the copper-scent atmosphere from the screenshots —
+        // texture, no event.
+        let atmosphere = "Your ear strains against the narrow gap. The silence presses in. A faint dry click echoes from the upper shelf. The metallic scent of old copper sharpens, clinging to your skin like dried ink."
+        let landing = "Stonebrook admits the want quietly and is relieved to be heard."
+        XCTAssertFalse(StoryTurnValidator.asserts(atmosphere, landing: landing, character: "Professor Stonebrook"))
+
+        let change = "Professor Stonebrook sets down the cracked teacup and admits he already knew what the shelf was counting."
+        XCTAssertTrue(StoryTurnValidator.asserts(change, landing: landing, character: "Professor Stonebrook"))
+
+        // The fallback states the change plainly when prose won't.
+        let landed = StoryTurnValidator.landed(atmosphere, landing: landing)
+        XCTAssertTrue(landed.contains(landing))
+    }
+
     func testStoryScenePacketSelectsWeightedThreadsAndEntitiesFromPacks() throws {
         let packet = StoryScenePacketBuilder.packet(
             for: dayWithMusicSouvenir(),
@@ -692,6 +827,43 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertFalse(packet.selectedThreads.isEmpty)
         XCTAssertTrue(packet.selectedThreads.contains { $0.id == "music-as-shelter" })
         XCTAssertTrue(packet.realSignals.contains { $0.contains("Spotify") || $0.contains("headphones") })
+    }
+
+    func testStoryScenePacketRestsRecentlySpotlitStoryCharactersAndThreads() throws {
+        var inputs = richInputs()
+        let recentStory = NarrativeEvent(
+            id: "recent-story-inkrest-weather",
+            kind: .pageAnswered,
+            sourcePageType: .narrativeOS,
+            sourcePageID: "story-1",
+            createdAt: localDate(hour: 15),
+            summary: "Inkrest read the weather in the stacks.",
+            tags: [
+                "narrative-os",
+                "entity:dr-inkrest",
+                "entity:weather-page",
+                "thread:weather-in-the-stacks"
+            ],
+            effect: NarrativeEventEffect(
+                entityWeightDeltas: ["dr-inkrest": 3, "weather-page": 2],
+                threadWeightDeltas: ["weather-in-the-stacks": 3]
+            )
+        )
+        inputs.narrative = NarrativeSourceSnapshotBuilder.snapshot(
+            from: [recentStory],
+            beliefWeight: 51
+        )
+
+        let packet = StoryScenePacketBuilder.packet(
+            for: emptyDay(),
+            inputs: inputs,
+            now: localDate(hour: 16)
+        )
+
+        XCTAssertEqual(inputs.narrative?.recentlySpotlitEntityIDs.first, "dr-inkrest")
+        XCTAssertEqual(inputs.narrative?.recentlySpotlitThreadIDs.first, "weather-in-the-stacks")
+        XCTAssertNotEqual(packet.selectedEntities.first?.id, "dr-inkrest")
+        XCTAssertNotEqual(packet.selectedThreads.first?.id, "weather-in-the-stacks")
     }
 
     func testCoreNarrativePackIncludesRelationshipGraphEdges() throws {
@@ -885,6 +1057,72 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertNotNil(storyPage.payload.metadata["selectedEntities"])
         XCTAssertNotNil(storyPage.payload.metadata["selectedRelationships"])
         XCTAssertNotNil(storyPage.payload.metadata["storyScene"])
+    }
+
+    func testBeliefInvestedStoryPageSurfacesAsPreviewBeforeGeneration() throws {
+        var inputs = richInputs()
+        inputs.preparedStoryPageSurface = nil
+        let profiles = BookPageSourceRegistry.beliefProfiles(ledger: ["narrative-os": 80])
+        let preferences = CuratorSurfacePreferences(
+            pageBeliefProfiles: Dictionary(uniqueKeysWithValues: profiles.map { ($0.sourceID, $0) })
+        )
+
+        let pages = BookCurator.surfacedPages(
+            for: dayWithMusicSouvenir(),
+            inputs: inputs,
+            now: localDate(hour: 16),
+            limit: 3,
+            preferences: preferences
+        )
+        let storyPage = try XCTUnwrap(pages.first { $0.type == .narrativeOS })
+
+        XCTAssertEqual(storyPage.sourceID, "narrative-os")
+        XCTAssertNil(storyPage.payload.metadata["storyScene"])
+        XCTAssertTrue(SurfaceReadinessState(surface: storyPage).needsLocalBrainToOpen)
+    }
+
+    func testStoryPageMechanicPlannerEventuallySchedulesMechanicWhenEligible() throws {
+        let inputs = richInputs()
+        let day = dayWithMusicSouvenir()
+        let mandate = try XCTUnwrap((0..<80).compactMap { slot -> StoryPageMechanicMandate? in
+            let now = localDate(year: 2026, month: 6, day: 2 + (slot / 6), hour: (slot % 6) * 4)
+            let packet = StoryScenePacketBuilder.packet(for: day, inputs: inputs, now: now)
+            let mandate = StoryPageMechanicPlanner.mandate(for: day, inputs: inputs, packet: packet, now: now)
+            return mandate.kind == .none ? nil : mandate
+        }.first)
+
+        XCTAssertNotEqual(mandate.kind, .none)
+        XCTAssertNotNil(mandate.choiceID)
+    }
+
+    func testStoryPageMechanicPlannerHonorsRecentMechanicCooldown() throws {
+        let recent = BookPage(
+            id: "recent-story-mechanic",
+            type: .narrativeOS,
+            createdAt: localDate(year: 2026, month: 6, day: 2, hour: 8),
+            promptText: "The Story Page returned.",
+            userInput: "A Compass Run fed back into the thread.",
+            tags: ["story-mechanic", "story-mechanic:compass-run"]
+        )
+        let inputs = richInputs()
+        let day = BookDay(id: "2026-06-02", date: localDate(year: 2026, month: 6, day: 2, hour: 9), pages: [recent])
+        let now = localDate(year: 2026, month: 6, day: 2, hour: 12)
+        let packet = StoryScenePacketBuilder.packet(for: day, inputs: inputs, now: now)
+
+        let mandate = StoryPageMechanicPlanner.mandate(for: day, inputs: inputs, packet: packet, now: now)
+
+        XCTAssertEqual(mandate.kind, .none)
+    }
+
+    func testStoryPageDraftCarriesMechanicMandateMetadata() {
+        let surface = NarrativeOSPageSourceAdapter.draftCandidate(
+            for: dayWithMusicSouvenir(),
+            inputs: richInputs(),
+            now: localDate(hour: 16)
+        )
+
+        XCTAssertNotNil(surface.payload.metadata["storyMechanicMandateKind"])
+        XCTAssertNotNil(surface.payload.metadata["storyMechanicMandateReason"])
     }
 
     func testWeatherPageKeptCreatesNarrativeEventForWeatherThread() {

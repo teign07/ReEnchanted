@@ -1181,6 +1181,212 @@ struct StorySceneChoice: Identifiable, Codable, Equatable {
     var targetThreadIDs: [String]
 }
 
+/// One concrete element planted in a Story Page's opening that its ending must
+/// return, changed — the "promise" that lets a beat-by-beat improvised vignette
+/// still pay off without railroading the reader's choices. The path between
+/// seed and resolution stays divergent; only the destination is committed.
+struct StoryPromise: Codable, Equatable {
+    /// The tangible thing to plant up front and honor at the close.
+    var seed: String
+    /// The central dramatic question the vignette answers by its resolution.
+    var question: String
+}
+
+enum StoryRegister: String, Codable, Equatable { case quiet, active }
+
+enum StoryTurnKind: String, Codable, CaseIterable, Equatable {
+    case revealWant        // a character reveals what they want
+    case changeOfHeart     // a character changes their mind about the reader
+    case factLearned       // a fact is learned that recolors the day
+    case smallDecision     // a small decision gets made
+    case handOff           // something changes hands or state
+    case relationshipShift // a relationship warms or cools a notch
+    case realNoticing      // a real-world noticing is minted
+
+    var register: StoryRegister {
+        switch self {
+        case .revealWant, .factLearned, .realNoticing: return .quiet
+        default: return .active
+        }
+    }
+}
+
+/// The one change a Story Page commits to before any prose. Built from the
+/// cast's existing goals/faults/relationship edges so the page is character-
+/// first by construction. `landings` maps each choice role id to a different
+/// resolution of THIS SAME change — that is what makes the player's path
+/// matter: Slice/Arc/Surprise land different facts, not different moods.
+struct StoryTurn: Codable, Equatable {
+    var kind: StoryTurnKind
+    var character: String           // name the turn centers
+    var want: String                // from goals / unwrittenInterest
+    var obstacle: String            // from faults / relationship tension
+    var statement: String           // "by the end, this is true" — the contract
+    var register: StoryRegister
+    var landings: [String: String]  // choice role id → committed landing line
+
+    /// Serializes the turn into the page metadata keys the draft and prompts
+    /// read. Shared by every playable adapter (Story Pages, Parleys, Classes)
+    /// so the commit-before-prose contract is identical across page types.
+    var metadata: [String: String] {
+        [
+            "storyTurnKind": kind.rawValue,
+            "storyTurnCharacter": character,
+            "storyTurnWant": want,
+            "storyTurnObstacle": obstacle,
+            "storyTurnStatement": statement,
+            "storyTurnRegister": register.rawValue,
+            "storyTurnLandingSliceOfLife": landings["slice-of-life"] ?? "",
+            "storyTurnLandingProgressArc": landings["progress-arc"] ?? "",
+            "storyTurnLandingSurprise": landings["surprise"] ?? ""
+        ]
+    }
+}
+
+/// Lightweight check that a generated beat actually enacted the committed
+/// change instead of drifting back into atmosphere. Used to gate climax and
+/// result prose with a regenerate-once-then-state-it-plainly rail.
+enum StoryTurnValidator {
+    static let changeVerbs: Set<String> = [
+        "admits", "admitted", "decides", "decided", "hands", "handed", "reveals",
+        "revealed", "changes", "changed", "agrees", "agreed", "refuses", "refused",
+        "opens", "opened", "names", "named", "gives", "gave", "takes", "took",
+        "chooses", "chose", "confesses", "confessed", "realizes", "realized",
+        "offers", "offered", "accepts", "accepted", "shows", "showed", "tells",
+        "told", "asks", "asked", "promises", "promised", "trusts", "trusted"
+    ]
+
+    static func asserts(_ prose: String, landing: String, character: String) -> Bool {
+        let lowered = prose.lowercased()
+        let firstName = character.split(separator: " ").first.map(String.init)?.lowercased() ?? character.lowercased()
+        // The character (or a clear stand-in) must be present and acting.
+        let presentPronoun = lowered.contains(" he ") || lowered.contains(" she ") || lowered.contains(" they ")
+        let hasCharacter = character.isEmpty || lowered.contains(firstName) || presentPronoun
+        guard hasCharacter else { return false }
+        let words = Set(lowered.split { !$0.isLetter }.map(String.init))
+        if !words.isDisjoint(with: changeVerbs) { return true }
+        // Otherwise demand real overlap with the committed landing's content.
+        let landingNouns = Set(landing.lowercased().split { !$0.isLetter }.map(String.init))
+            .filter { $0.count >= 5 }
+        return landingNouns.intersection(words).count >= 2
+    }
+
+    /// When a beat refuses to enact the change after a retry, state it plainly:
+    /// the committed landing is appended as the closing line so the page still
+    /// ends on a real change rather than more atmosphere.
+    static func landed(_ prose: String, landing: String) -> String {
+        let trimmed = prose.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return landing }
+        if trimmed.lowercased().contains(landing.lowercased()) { return trimmed }
+        return trimmed + " " + landing
+    }
+
+    /// Nouns that, when they dominate the subjects of a scene, mean the room
+    /// has become the protagonist and nobody is doing anything.
+    static let roomNouns: Set<String> = [
+        "room", "air", "light", "dust", "window", "glass", "sun", "pane",
+        "condensation", "stillness", "sunlight", "shadow", "draft", "frame",
+        "surface", "stacks", "shelf", "shelves", "atmosphere"
+    ]
+
+    /// True when the prose is atmosphere-dominated: room nouns crowd out people
+    /// and fewer than two named characters actually appear. Used to reject and
+    /// regenerate openings/results that drift back into mood.
+    static func isAtmosphereDominated(_ prose: String, characterNames: [String]) -> Bool {
+        let lowered = prose.lowercased()
+        let words = lowered.split { !$0.isLetter }.map(String.init)
+        guard words.count > 12 else { return false }
+        let roomHits = words.filter { roomNouns.contains($0) }.count
+        let firstNames = characterNames.compactMap { $0.split(separator: " ").first.map(String.init)?.lowercased() }
+        let distinctPeople = Set(firstNames.filter { lowered.contains($0) }).count
+        let roomDensity = Double(roomHits) / Double(words.count)
+        // Heavy room vocabulary AND fewer than two people on screen.
+        return roomDensity > 0.06 && distinctPeople < 2
+    }
+
+    /// True when two scenes open with effectively the same line — the repetition
+    /// the anti-echo contract is meant to forbid.
+    static func isNearDuplicate(_ a: String, of b: String) -> Bool {
+        func prefix(_ s: String) -> String {
+            s.lowercased().split { !$0.isLetter }.prefix(12).joined(separator: " ")
+        }
+        let pa = prefix(a), pb = prefix(b)
+        guard pa.count > 12 else { return false }
+        return pa == pb
+    }
+}
+
+enum StoryTurnLanding {
+    /// Choice ids arrive in two conventions — "sliceoflife" from the draft
+    /// parser, "slice-of-life" from the packet. Normalize before lookup so the
+    /// result rail and the landing instruction actually fire.
+    static func resolve(_ landings: [String: String], choiceID: String) -> String? {
+        let compact = choiceID.lowercased().filter { $0.isLetter || $0.isNumber }
+        let key = ["sliceoflife": "slice-of-life",
+                   "progressarc": "progress-arc",
+                   "surprise": "surprise"][compact] ?? choiceID
+        return landings[key]?.nonEmpty
+    }
+}
+
+/// The shape of a concrete, interpersonal scene-want — one person wanting a
+/// specific thing from another person, with a physical pretext at stake.
+enum SceneVerb: Equatable {
+    case confront, prove, stop, askHelp, forgive, share, recover, keepSecret, beTakenSeriously
+}
+
+struct SceneIntent: Equatable {
+    var wanter: String   // A
+    var target: String   // B (present character, or "the reader")
+    var pretext: String  // the concrete thing at stake
+    var verb: SceneVerb
+
+    /// The concrete want clause, e.g. "Penny to admit what happened last time".
+    var want: String {
+        switch verb {
+        case .confront: return "\(target) to admit \(pretext)"
+        case .prove: return "to prove \(target) wrong about \(pretext)"
+        case .stop: return "to stop \(target) from walking away from \(pretext)"
+        case .askHelp: return "\(target)'s help with \(pretext) without having to ask plainly"
+        case .forgive: return "\(target) to forgive \(pretext)"
+        case .share: return "to show \(target) \(pretext) before the moment passes"
+        case .recover: return "to get \(pretext) back from \(target)"
+        case .keepSecret: return "to keep \(pretext) from \(target)"
+        case .beTakenSeriously: return "\(target) to take \(pretext) seriously for once"
+        }
+    }
+
+    /// The concrete, person-centered obstacle — never "their own caution".
+    var obstacle: String {
+        switch verb {
+        case .confront: return "\(target) keeps pretending nothing happened"
+        case .prove: return "\(target) has already made up their mind"
+        case .stop: return "\(target) is halfway out the door"
+        case .askHelp: return "\(wanter)'s pride won't let the question out"
+        case .forgive: return "\(target) isn't sure the apology is real"
+        case .share: return "\(target) keeps changing the subject"
+        case .recover: return "\(target) won't admit they have it"
+        case .keepSecret: return "\(target) is already asking the wrong questions"
+        case .beTakenSeriously: return "\(target) treats it as a joke"
+        }
+    }
+
+    /// A short verb phrase the landings reuse, e.g. "admits what happened".
+    var actPhrase: String {
+        switch verb {
+        case .confront: return "admits \(pretext)"
+        case .prove: return "concedes the point about \(pretext)"
+        case .stop: return "decides whether to stay"
+        case .askHelp: return "offers the help"
+        case .forgive: return "lets \(pretext) go"
+        case .share: return "takes in what they're shown"
+        case .recover: return "hands \(pretext) back"
+        case .keepSecret: return "uncovers \(pretext)"
+        case .beTakenSeriously: return "takes \(wanter) seriously"
+        }
+    }
+}
+
 struct StoryScenePacket: Identifiable, Codable, Equatable {
     var id: String
     var packID: String
@@ -1196,12 +1402,15 @@ struct StoryScenePacket: Identifiable, Codable, Equatable {
     var relationshipPressures: [String]
     var chapterTalismanMoves: [ChapterTalismanBeliefMove]
     var choices: [StorySceneChoice]
+    var blueprint: StorySceneBlueprint?
     var storyFormID: String?
     var storyFormName: String?
     var storyFormBeats: [String]?
     var storyGenreID: String?
     var storyGenreName: String?
     var storyGenreLens: String?
+    var promise: StoryPromise?
+    var turn: StoryTurn?
     var activeWorldEvents: [ResolvedWorldEvent]
 }
 
@@ -1209,7 +1418,7 @@ enum StoryScenePacketBuilder {
     static func packet(for day: BookDay, inputs: BookSourceInputs, now: Date = Date()) -> StoryScenePacket {
         let inputs = inputs.resolvingWorldEvents(for: day, now: now)
         let tags = contextTags(for: day, inputs: inputs, now: now)
-        let selectedEntities = rankedEntities(tags: tags, inputs: inputs, limit: 3)
+        var selectedEntities = rankedEntities(tags: tags, inputs: inputs, limit: 3, slotKey: "\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 4))")
         var selectedThreads = rankedThreads(tags: tags, inputs: inputs, limit: 2)
         if let arc = inputs.currentArc,
            let arcThread = NarrativePackRegistry.threads.first(where: { $0.id == arc.threadID }) {
@@ -1218,15 +1427,15 @@ enum StoryScenePacketBuilder {
             selectedThreads = Array(selectedThreads.prefix(2))
         }
         let primaryThread = selectedThreads.first
-        let primaryEntity = selectedEntities.first
-        let selectedRelationships = rankedRelationships(
+        let primaryEntity = selectedEntities.first { $0.kind == .character } ?? selectedEntities.first
+        var selectedRelationships = rankedRelationships(
             tags: tags,
             entities: selectedEntities,
             threads: selectedThreads,
             inputs: inputs,
             limit: 3
         )
-        let selectedEntityMemories = rankedEntityMemories(
+        var selectedEntityMemories = rankedEntityMemories(
             entities: selectedEntities,
             inputs: inputs,
             limit: 5
@@ -1268,6 +1477,17 @@ enum StoryScenePacketBuilder {
         )
         let title = primaryThread.map { "Story Page: \($0.title)" } ?? "Story Page"
         let intent = directorIntent(primaryThread: primaryThread, primaryEntity: primaryEntity, tags: tags)
+        let slot = SurfaceCadence.slotID(for: now, hours: 4)
+        let grounding = grounding(for: day, inputs: inputs, realSignals: realSignals, memories: selectedEntityMemories, now: now)
+        let recipePick = selectRecipe(
+            tags: tags, entities: availableEntities(inputs: inputs), thread: primaryThread, grounding: grounding,
+            hasNothingPressure: greyLevel > 0, inputs: inputs, day: day, slot: slot, now: now
+        )
+        if let recipe = recipePick?.recipe {
+            selectedEntities = entities(for: recipe, selected: selectedEntities, inputs: inputs, slotKey: "\(day.id)-\(slot)")
+            selectedRelationships = rankedRelationships(tags: tags, entities: selectedEntities, threads: selectedThreads, inputs: inputs, limit: 3)
+            selectedEntityMemories = rankedEntityMemories(entities: selectedEntities, inputs: inputs, limit: 5)
+        }
 
         let ascendantChapterID = TalismanAscendancy.ascendant(
             entities: NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity),
@@ -1278,9 +1498,25 @@ enum StoryScenePacketBuilder {
             surfaceHistory: inputs.surfaceHistory,
             ascendantChapterID: ascendantChapterID,
             dayID: day.id,
-            slot: SurfaceCadence.slotID(for: now, hours: 4),
+            slot: slot,
+            recipe: recipePick?.recipe,
             now: now
         )
+        let blueprint = recipePick.flatMap { picked in
+            makeBlueprint(packID: picked.packID, recipe: picked.recipe, grounding: grounding,
+                entities: selectedEntities, thread: primaryThread, form: storyForm,
+                slotKey: "\(day.id)-\(slot)")
+        }
+        let turn = blueprint?.turn ?? turn(
+            primaryCharacter: primaryEntity,
+            relationship: selectedRelationships.first,
+            thread: primaryThread,
+            cast: selectedEntities,
+            slotKey: "\(day.id)-\(slot)"
+        )
+        let promise = blueprint.map {
+            StoryPromise(seed: $0.grounding.text, question: "By the end, how has \($0.premise.lowercased()) changed what happens next?")
+        } ?? promise(primaryThread: primaryThread, primaryEntity: primaryEntity, entities: selectedEntities)
 
         return StoryScenePacket(
             id: "story-packet-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 4))",
@@ -1299,24 +1535,307 @@ enum StoryScenePacketBuilder {
             choices: choices(
                 primaryThread: primaryThread,
                 selectedEntities: selectedEntities,
-                selectedRelationships: selectedRelationships
+                selectedRelationships: selectedRelationships,
+                turn: turn
             ),
+            blueprint: blueprint,
             storyFormID: storyForm.id,
             storyFormName: storyForm.name,
             storyFormBeats: storyForm.beats,
             storyGenreID: storyGenre.id,
             storyGenreName: storyGenre.name,
             storyGenreLens: storyGenre.lens,
+            promise: promise,
+            turn: turn,
             activeWorldEvents: inputs.activeWorldEvents
         )
+    }
+
+    private static func grounding(
+        for day: BookDay,
+        inputs: BookSourceInputs,
+        realSignals: [String],
+        memories: [NarrativeEntityMemory],
+        now: Date
+    ) -> StoryGrounding {
+        let kept = (day.capturedPages + inputs.days.flatMap(\.capturedPages))
+            .sorted { $0.createdAt > $1.createdAt }
+            .first {
+                now.timeIntervalSince($0.createdAt) <= 45 * 86_400
+                    && (!$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !$0.promptText.isEmpty)
+            }
+        if let kept {
+            let text = kept.userInput.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? kept.promptText
+            return StoryGrounding(kind: .keptPage, sourceID: kept.id,
+                text: "A kept \(kept.type.shortTitle) page says: \(text.bookPreviewSentenceLimit(2))")
+        }
+        if let signal = realSignals.first(where: { $0.hasPrefix("Weather:") || $0.hasPrefix("Forecast:") || $0.hasPrefix("Body Page:") }) {
+            return StoryGrounding(kind: .realSignal, sourceID: "real-signal", text: signal)
+        }
+        if let fact = inputs.selfFacts.first(where: { $0.usePermission != .doNotUse && !$0.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+            return StoryGrounding(kind: .realSignal, sourceID: "self-fact:\(fact.questionID)", text: fact.answer)
+        }
+        if let memory = memories.first {
+            return StoryGrounding(kind: .entityMemory, sourceID: memory.id, text: memory.summary)
+        }
+        if let signal = realSignals.first(where: { !$0.hasPrefix("CURRENT ARC:") && !$0.hasPrefix("The player is bound") }) {
+            return StoryGrounding(kind: .realSignal, sourceID: "world-signal", text: signal)
+        }
+        let calendar = Calendar.current
+        let hour = calendar.component(.hour, from: now)
+        let dayPart = hour < 6 ? "before dawn" : hour < 12 ? "morning" : hour < 17 ? "afternoon" : hour < 22 ? "evening" : "late night"
+        let month = calendar.component(.month, from: now)
+        let season = [12, 1, 2].contains(month) ? "winter" : [3, 4, 5].contains(month) ? "spring" : [6, 7, 8].contains(month) ? "summer" : "autumn"
+        return StoryGrounding(kind: .timeAndSeason, sourceID: "clock-season", text: "It is a \(season) \(dayPart) in the player's real day.")
+    }
+
+    private static func selectRecipe(
+        tags: Set<String>, entities: [NarrativeWorldEntity], thread: NarrativeStoryThread?,
+        grounding: StoryGrounding, hasNothingPressure: Bool, inputs: BookSourceInputs,
+        day: BookDay, slot: String, now: Date
+    ) -> (packID: String, recipe: StoryRecipe)? {
+        let characters = entities.filter { $0.kind == .character }
+        let recentPages = day.capturedPages + inputs.days.flatMap(\.capturedPages)
+        func eligible(_ recipe: StoryRecipe, enforceCooldown: Bool) -> Bool {
+            let requirements = Set(recipe.requirements)
+            if requirements.contains(.character) && characters.isEmpty { return false }
+            if requirements.contains(.secondCharacter) && characters.count < 2 { return false }
+            if requirements.contains(.activeThread) && thread == nil { return false }
+            if requirements.contains(.keptPage) && grounding.kind != .keptPage { return false }
+            if requirements.contains(.nothingPressure) && !hasNothingPressure { return false }
+            if requirements.contains(.activeWorldEvent) && inputs.activeWorldEvents.isEmpty { return false }
+            if !recipe.requiredEntityIDs.allSatisfy({ id in entities.contains { $0.id == id } }) { return false }
+            if !recipe.requiredEntityTags.allSatisfy({ tag in entities.contains { $0.tags.contains(tag) } }) { return false }
+            for type in recipe.suppressedByPageTypes {
+                let recentlyPaged = recentPages.contains { $0.type == type && now.timeIntervalSince($0.createdAt) < Double(recipe.suppressionHours) * 3600 }
+                let recentlyShown = inputs.surfaceHistory[CuratorVarietyGovernor.typeKey(for: type)]
+                    .map { now.timeIntervalSince($0.lastShownAt) < Double(recipe.suppressionHours) * 3600 } ?? false
+                if recentlyPaged || recentlyShown { return false }
+            }
+            if enforceCooldown, let record = inputs.surfaceHistory["recipe:\(recipe.id)"],
+               now.timeIntervalSince(record.lastShownAt) < Double(recipe.cooldownHours) * 3600 { return false }
+            return true
+        }
+        let all = StoryFormRegistry.recipesWithPackIDs
+        var pool = all.filter { eligible($0.recipe, enforceCooldown: true) }
+        if pool.isEmpty { pool = all.filter { eligible($0.recipe, enforceCooldown: false) } }
+        return pool.max { left, right in
+            func score(_ item: (packID: String, recipe: StoryRecipe)) -> Int {
+                let affinity = tags.intersection(Set(item.recipe.preferredTags)).count * 4
+                let recency = inputs.surfaceHistory["recipe:\(item.recipe.id)"].map { record in
+                    now.timeIntervalSince(record.lastShownAt) < 72 * 3600 ? 8 : 0
+                } ?? 0
+                return item.recipe.baseWeight + affinity - recency
+                    + abs("\(day.id)-\(slot)-\(item.recipe.id)-recipe".stableHash % 5)
+            }
+            return score(left) < score(right)
+        }
+    }
+
+    private static func makeBlueprint(
+        packID: String, recipe: StoryRecipe, grounding: StoryGrounding,
+        entities: [NarrativeWorldEntity], thread: NarrativeStoryThread?, form: StoryForm,
+        slotKey: String
+    ) -> StorySceneBlueprint? {
+        let cast = entities.filter { $0.kind == .character }
+        let lead = cast.first ?? entities.first
+        guard let lead else { return nil }
+        let companion = cast.dropFirst().first
+        if recipe.requirements.contains(.secondCharacter), companion == nil { return nil }
+        let values = [
+            "lead": lead.name,
+            "companion": companion?.name ?? "the reader",
+            "grounding": grounding.text,
+            "thread": thread?.title ?? "Ordinary Magic",
+            "form": form.name
+        ]
+        func fill(_ template: String) -> String {
+            values.reduce(template) { result, pair in result.replacingOccurrences(of: "{{\(pair.key)}}", with: pair.value) }
+        }
+        let selectedTurn = recipe.turns[abs("\(slotKey)-\(recipe.id)-turn".stableHash) % recipe.turns.count]
+        let turn = StoryTurn(
+            kind: selectedTurn.kind,
+            character: lead.name,
+            want: fill(selectedTurn.wantTemplate),
+            obstacle: fill(selectedTurn.obstacleTemplate),
+            statement: fill(selectedTurn.statementTemplate),
+            register: selectedTurn.kind.register,
+            landings: [
+                "slice-of-life": fill(selectedTurn.sliceLandingTemplate),
+                "progress-arc": fill(selectedTurn.progressLandingTemplate),
+                "surprise": fill(selectedTurn.surpriseLandingTemplate)
+            ]
+        )
+        return StorySceneBlueprint(
+            recipeID: recipe.id, recipeName: recipe.name, recipePackID: packID, sceneMode: recipe.sceneMode,
+            leadID: lead.id, leadName: lead.name, companionID: companion?.id, companionName: companion?.name,
+            premise: fill(recipe.premiseTemplate), grounding: grounding, beats: recipe.beats.map(fill),
+            groundingDirective: fill(recipe.groundingDirective), toneDirective: fill(recipe.toneDirective),
+            choiceDirective: fill(recipe.choiceDirective), continuationDirective: fill(recipe.continuationDirective),
+            turn: turn
+        )
+    }
+
+    /// Builds the page's promise: one concrete seed to plant in the opening and
+    /// the question the resolution must answer. Chosen deterministically from
+    /// the already-selected material so it is fixed before any prose is
+    /// generated — the opening and the ending then reference the same thing,
+    /// while the beats between stay improvised around the reader's choices.
+    private static func promise(
+        primaryThread: NarrativeStoryThread?,
+        primaryEntity: NarrativeWorldEntity?,
+        entities: [NarrativeWorldEntity]
+    ) -> StoryPromise {
+        let tangible = entities.dropFirst().first { $0.kind == .object || $0.kind == .motif }
+        let seed: String
+        if let entity = primaryEntity, entity.kind == .character,
+                  let want = entity.unwrittenInterest?.nonEmpty ?? entity.goals.first?.nonEmpty {
+            seed = "what \(entity.name) won't say about \(want)"
+        } else if let entity = primaryEntity {
+            seed = "something \(entity.name) keeps close"
+        } else if let tangible {
+            seed = "the \(tangible.name)"
+        } else if let thread = primaryThread {
+            seed = "the matter of \(thread.title)"
+        } else {
+            seed = "one small object left on the table"
+        }
+
+        let question: String
+        if let thread = primaryThread {
+            question = "By the end, has \(seed) changed where \u{201C}\(thread.title)\u{201D} is heading?"
+        } else if let entity = primaryEntity {
+            question = "By the end, what does \(seed) ask of \(entity.name)?"
+        } else {
+            question = "By the end, what does \(seed) turn out to be for?"
+        }
+        return StoryPromise(seed: seed, question: question)
+    }
+
+    /// Builds the page's committed Turn from a concrete, interpersonal Scene
+    /// Intent: one present character wants a specific thing from ANOTHER present
+    /// character, with a concrete obstacle. The cast's goals/traits become voice
+    /// flavor in the prompt — never the literal want — which is what stops the
+    /// page from being an abstract mission ("teach how the room breathes") that
+    /// the model can only render as atmosphere. The three landings resolve the
+    /// SAME want down each path, so the player's choices change the outcome.
+    static func turn(
+        primaryCharacter: NarrativeWorldEntity?,
+        relationship: NarrativeRelationshipEdge?,
+        thread: NarrativeStoryThread?,
+        cast: [NarrativeWorldEntity],
+        slotKey: String
+    ) -> StoryTurn {
+        let intent = sceneIntent(
+            primary: primaryCharacter,
+            relationship: relationship,
+            thread: thread,
+            cast: cast,
+            slotKey: slotKey
+        )
+        let a = intent.wanter
+        let b = intent.target
+        let threadTitle = thread?.title ?? "Ordinary Magic"
+        let hasOther = b != "the reader"
+
+        let act = intent.actPhrase
+        let statement = "By the end, \(b) settles \(a)'s want — \(intent.want) — with a yes, a no, or a swerve."
+        let landings: [String: String] = [
+            "slice-of-life": "\(b) \(act), quietly and just to \(a); the bond between them shifts a notch.",
+            "progress-arc": "\(b) \(act) out loud, and it moves \(threadTitle) a real step.",
+            "surprise": "The answer swerves — \(b) does the opposite, or it lands on someone other than \(a) entirely."
+        ]
+
+        return StoryTurn(
+            kind: hasOther ? .relationshipShift : .revealWant,
+            character: a,
+            want: intent.want,
+            obstacle: intent.obstacle,
+            statement: statement,
+            register: hasOther ? .active : .quiet,
+            landings: landings
+        )
+    }
+
+    /// Generates a concrete interpersonal want from the two present characters
+    /// and their relationship tone. Character goals/faults are NOT used as the
+    /// want — only as flavor downstream.
+    static func sceneIntent(
+        primary: NarrativeWorldEntity?,
+        relationship: NarrativeRelationshipEdge?,
+        thread: NarrativeStoryThread?,
+        cast: [NarrativeWorldEntity],
+        slotKey: String
+    ) -> SceneIntent {
+        let a = primary?.name ?? "The Book"
+        let other = cast.first { $0.kind == .character && $0.name != a }?.name
+        let b = other ?? "the reader"
+
+        // A concrete, physical thing at stake — an object in the scene, else a
+        // short human pretext. Never "the room" or "the light".
+        let pretexts = [
+            "what happened last time", "who was right about it", "the thing left unsaid",
+            "the favor never repaid", "the mistake from before", "what they both saw"
+        ]
+        let object = cast.first { $0.kind == .object || $0.kind == .motif }?.name
+        let pretext = object.map { "the \($0)" }
+            ?? pretexts[packetStableIndex(for: "\(slotKey)-pretext", count: pretexts.count)]
+
+        // Pick the want's shape from the relationship tone.
+        let pool: [SceneVerb]
+        if let rel = relationship {
+            if rel.tension > rel.warmth {
+                pool = [.confront, .prove, .stop]
+            } else if rel.warmth >= 12 {
+                pool = [.askHelp, .forgive, .share]
+            } else if rel.trust < 6 {
+                pool = [.recover, .keepSecret]
+            } else {
+                pool = [.beTakenSeriously, .confront, .share]
+            }
+        } else {
+            pool = [.confront, .share, .beTakenSeriously]
+        }
+        let verb = pool[packetStableIndex(for: "\(slotKey)-scene-verb", count: pool.count)]
+
+        return SceneIntent(wanter: a, target: b, pretext: pretext, verb: verb)
     }
 
     private static func availableEntities(inputs: BookSourceInputs) -> [NarrativeWorldEntity] {
         NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity)
     }
 
-    private static func rankedEntities(tags: Set<String>, inputs: BookSourceInputs, limit: Int) -> [NarrativeWorldEntity] {
-        availableEntities(inputs: inputs)
+    private static func entities(
+        for recipe: StoryRecipe,
+        selected: [NarrativeWorldEntity],
+        inputs: BookSourceInputs,
+        slotKey: String
+    ) -> [NarrativeWorldEntity] {
+        let all = availableEntities(inputs: inputs).filter { $0.kind != .talisman }
+        var result = selected
+        func insert(_ entity: NarrativeWorldEntity) {
+            guard !result.contains(where: { $0.id == entity.id }) else { return }
+            result.append(entity)
+        }
+        for id in recipe.requiredEntityIDs {
+            if let entity = all.first(where: { $0.id == id }) { insert(entity) }
+        }
+        for tag in recipe.requiredEntityTags {
+            if let entity = all.first(where: { $0.tags.contains(tag) }) { insert(entity) }
+        }
+        let neededCharacters = recipe.requirements.contains(.secondCharacter) ? 2 : (recipe.requirements.contains(.character) ? 1 : 0)
+        while result.filter({ $0.kind == .character }).count < neededCharacters {
+            let presentIDs = Set(result.map(\.id))
+            let candidates = all.filter { $0.kind == .character && !presentIDs.contains($0.id) }
+            guard !candidates.isEmpty else { break }
+            let candidate = candidates[packetStableIndex(for: "\(slotKey)-recipe-cast-\(result.count)", count: candidates.count)]
+            insert(candidate)
+        }
+        return result
+    }
+
+    private static func rankedEntities(tags: Set<String>, inputs: BookSourceInputs, limit: Int, slotKey: String) -> [NarrativeWorldEntity] {
+        let ranked = availableEntities(inputs: inputs)
             // Talismans influence the scene's tone through ascendancy; they
             // do not compete with people and places for scene slots.
             .filter { $0.kind != .talisman }
@@ -1329,7 +1848,8 @@ enum StoryScenePacketBuilder {
                 let narrativeBoost = entity.name == "The Book" ? 2 : 0
                 let eventBoost = inputs.narrative?.weightedEntityIDs.contains(entity.id) == true ? 18 : 0
                 let worldEventBoost = inputs.activeWorldEvents.scoreBoost(forEntityID: entity.id)
-                return (entity, entity.narrativeWeight + entity.belief / 4 + overlap * 8 + castBoost + narrativeBoost + eventBoost + worldEventBoost)
+                let recentSpotlightPenalty = inputs.narrative?.recentlySpotlitEntityIDs.contains(entity.id) == true ? 28 : 0
+                return (entity, entity.narrativeWeight + entity.belief / 4 + overlap * 8 + castBoost + narrativeBoost + eventBoost + worldEventBoost - recentSpotlightPenalty)
             }
             .sorted { left, right in
                 if left.1 == right.1 {
@@ -1337,8 +1857,28 @@ enum StoryScenePacketBuilder {
                 }
                 return left.1 > right.1
             }
-            .prefix(limit)
             .map(\.0)
+        let cast = ranked.filter { $0.kind == .character }
+        guard let primary = characterForStoryLead(from: cast, inputs: inputs, slotKey: slotKey) else {
+            return Array(ranked.prefix(limit))
+        }
+        var selected = [primary]
+        selected.append(contentsOf: ranked.filter { $0.id != primary.id }.prefix(max(0, limit - 1)))
+        return selected
+    }
+
+    private static func characterForStoryLead(from cast: [NarrativeWorldEntity], inputs: BookSourceInputs, slotKey: String) -> NarrativeWorldEntity? {
+        guard !cast.isEmpty else { return nil }
+        let activeCast = cast.filter { entity in
+            entity.tags.contains("active-cast")
+                || entity.tags.contains("student")
+                || entity.tags.contains("faculty")
+                || entity.tags.contains("professor")
+        }
+        let pool = activeCast.isEmpty ? cast : activeCast
+        let count = min(6, pool.count)
+        let index = packetStableIndex(for: "\(slotKey)-story-lead-character", count: count)
+        return pool[index]
     }
 
     private static func rankedEntityMemories(
@@ -1389,7 +1929,9 @@ enum StoryScenePacketBuilder {
                 let overlap = tags.intersection(Set(thread.tags)).count
                 let eventBoost = inputs.narrative?.weightedThreadIDs.contains(thread.id) == true ? 18 : 0
                 let worldEventBoost = inputs.activeWorldEvents.scoreBoost(forThreadID: thread.id)
-                return (thread, thread.narrativeWeight + thread.belief / 3 + overlap * 10 + eventBoost + worldEventBoost)
+                let recentSpotlightPenalty = inputs.narrative?.recentlySpotlitThreadIDs.contains(thread.id) == true ? 26 : 0
+                let ambientPenalty = isAmbientThread(thread) ? ambientThreadPenalty(tags: tags, eventBoost: eventBoost) : 0
+                return (thread, thread.narrativeWeight + thread.belief / 3 + overlap * 10 + eventBoost + worldEventBoost - recentSpotlightPenalty - ambientPenalty)
             }
             .sorted { left, right in
                 if left.1 == right.1 {
@@ -1399,6 +1941,17 @@ enum StoryScenePacketBuilder {
             }
             .prefix(limit)
             .map(\.0)
+    }
+
+    private static func isAmbientThread(_ thread: NarrativeStoryThread) -> Bool {
+        thread.id == "weather-in-the-stacks" || thread.tags.contains("atmosphere")
+    }
+
+    private static func ambientThreadPenalty(tags: Set<String>, eventBoost: Int) -> Int {
+        let hasOnlyAmbientWeather = tags.contains("weather")
+            && tags.intersection(["souvenir", "music", "belief", "duskthorn", "letters", "research", "threshold", "student", "faction"]).isEmpty
+        if eventBoost > 0 { return 4 }
+        return hasOnlyAmbientWeather ? 20 : 10
     }
 
     private static func rankedRelationships(
@@ -1447,7 +2000,10 @@ enum StoryScenePacketBuilder {
             }
         }
         if inputs.weather != nil {
-            tags.formUnion(["weather", "atmosphere", "bleed"])
+            // A single tag, not the whole cluster: injecting weather/atmosphere/
+            // bleed at once handed the Weather in the Stacks thread a guaranteed
+            // triple-tag match and let it dominate nearly every slot.
+            tags.insert("weather")
         }
         if inputs.body != nil {
             tags.formUnion(["body", "care"])
@@ -1547,19 +2103,20 @@ enum StoryScenePacketBuilder {
         primaryEntity: NarrativeWorldEntity?,
         tags: Set<String>
     ) -> String {
-        if let primaryThread, let primaryEntity {
-            return "Write a grounded, magical vignette where \(primaryEntity.name) helps \(primaryThread.title) press gently on the reader's real day."
+        if let primaryThread, let primaryEntity, primaryEntity.kind == .character {
+            return "A character-first Story Page: \(primaryEntity.name) wants something specific, meets resistance, and changes one small thing inside \(primaryThread.title)."
         }
         if tags.contains("rest") || tags.contains("care") {
-            return "Write a low-pressure vignette where the Book protects the reader from turning care into homework."
+            return "A low-pressure Story Page where a character protects care from becoming homework."
         }
-        return "Write a grounded, magical vignette where ordinary evidence becomes story without leaving real life."
+        return "A character-first Story Page where ordinary evidence becomes a decision, reveal, hand-off, or relationship shift."
     }
 
     private static func choices(
         primaryThread: NarrativeStoryThread?,
         selectedEntities: [NarrativeWorldEntity],
-        selectedRelationships: [NarrativeRelationshipEdge]
+        selectedRelationships: [NarrativeRelationshipEdge],
+        turn: StoryTurn
     ) -> [StorySceneChoice] {
         // Story Pages are about the Cast. Anchor every choice to a person and,
         // where we can, to a relationship between people — not to objects.
@@ -1594,13 +2151,16 @@ enum StoryScenePacketBuilder {
             surpriseEffect = "Reveal an unexpected facet of \(characterName); keep it anchored to the scene packet."
         }
 
+        // Each choice carries the committed landing for its path as its hidden
+        // effect, so the result writer resolves the Turn — not the mood — down
+        // the path the reader actually took.
         return [
             StorySceneChoice(
                 id: "slice-of-life",
                 role: .sliceOfLife,
                 title: "Stay With \(characterName)",
                 prompt: "Tend the ordinary moment you're sharing with \(characterName).",
-                hiddenEffect: "Deepen attention without forcing the plot; add narrative weight to \(characterName).",
+                hiddenEffect: turn.landings["slice-of-life"] ?? "Deepen attention without forcing the plot; add narrative weight to \(characterName).",
                 beliefDelta: 1,
                 targetEntityIDs: [characterID],
                 targetThreadIDs: []
@@ -1610,7 +2170,7 @@ enum StoryScenePacketBuilder {
                 role: .progressArc,
                 title: "Follow The Thread",
                 prompt: "Let \(characterName) take \(threadTitle) one real step forward.",
-                hiddenEffect: "Advance the selected story thread through \(characterName) and prepare a future consequence page.",
+                hiddenEffect: turn.landings["progress-arc"] ?? "Advance the selected story thread through \(characterName) and prepare a future consequence page.",
                 beliefDelta: 1,
                 targetEntityIDs: [characterID],
                 targetThreadIDs: [threadID]
@@ -1620,7 +2180,7 @@ enum StoryScenePacketBuilder {
                 role: .surprise,
                 title: surpriseTitle,
                 prompt: surprisePrompt,
-                hiddenEffect: surpriseEffect,
+                hiddenEffect: turn.landings["surprise"] ?? surpriseEffect,
                 beliefDelta: 1,
                 targetEntityIDs: surpriseEntityIDs,
                 targetThreadIDs: [threadID]
@@ -1877,7 +2437,10 @@ enum GossipSimulationBuilder {
             }
         }
         if inputs.weather != nil {
-            tags.formUnion(["weather", "atmosphere", "bleed"])
+            // A single tag, not the whole cluster: injecting weather/atmosphere/
+            // bleed at once handed the Weather in the Stacks thread a guaranteed
+            // triple-tag match and let it dominate nearly every slot.
+            tags.insert("weather")
         }
         if inputs.body != nil {
             tags.formUnion(["body", "care"])
@@ -3705,6 +4268,90 @@ struct StoryForm: Identifiable, Codable, Equatable {
     var beats: [String]
 }
 
+enum StoryRecipeRequirement: String, Codable, Equatable {
+    case groundedSource
+    case character
+    case secondCharacter
+    case activeThread
+    case keptPage
+    case nothingPressure
+    case activeWorldEvent
+}
+
+enum StoryRecipeSceneMode: String, Codable, Equatable {
+    case conversation
+    case balanced
+    case action
+    case environmental
+}
+
+enum StoryGroundingKind: String, Codable, Equatable {
+    case keptPage
+    case realSignal
+    case entityMemory
+    case timeAndSeason
+}
+
+struct StoryGrounding: Codable, Equatable {
+    var kind: StoryGroundingKind
+    var sourceID: String
+    var text: String
+}
+
+struct StoryRecipeTurnTemplate: Codable, Equatable {
+    var kind: StoryTurnKind
+    var wantTemplate: String
+    var obstacleTemplate: String
+    var statementTemplate: String
+    var sliceLandingTemplate: String
+    var progressLandingTemplate: String
+    var surpriseLandingTemplate: String
+}
+
+struct StoryRecipe: Identifiable, Codable, Equatable {
+    var id: String
+    var name: String
+    var baseWeight: Int
+    var requirements: [StoryRecipeRequirement]
+    var sceneMode: StoryRecipeSceneMode
+    var premiseTemplate: String
+    var beats: [String]
+    var turns: [StoryRecipeTurnTemplate]
+    var preferredTags: [String]
+    var preferredFormIDs: [String]
+    var preferredGenreIDs: [String]
+    var excludedFormIDs: [String]
+    var excludedGenreIDs: [String]
+    var requiredEntityIDs: [String]
+    var requiredEntityTags: [String]
+    var groundingDirective: String
+    var toneDirective: String
+    var choiceDirective: String
+    var continuationDirective: String
+    var cooldownHours: Int
+    var suppressedByPageTypes: [BookPageType]
+    var suppressionHours: Int
+}
+
+struct StorySceneBlueprint: Codable, Equatable {
+    var recipeID: String
+    var recipeName: String
+    var recipePackID: String
+    var sceneMode: StoryRecipeSceneMode
+    var leadID: String
+    var leadName: String
+    var companionID: String?
+    var companionName: String?
+    var premise: String
+    var grounding: StoryGrounding
+    var beats: [String]
+    var groundingDirective: String
+    var toneDirective: String
+    var choiceDirective: String
+    var continuationDirective: String
+    var turn: StoryTurn
+}
+
 struct StoryGenre: Identifiable, Codable, Equatable {
     var id: String
     var name: String
@@ -3720,8 +4367,34 @@ struct StoryFormPack: Codable, Identifiable, Equatable {
     var availability: String
     var forms: [StoryForm]
     var genres: [StoryGenre]
+    var recipes: [StoryRecipe] = []
 
     var isLocked: Bool { availability == "locked" }
+
+    init(id: String, displayName: String, version: Int, author: String, availability: String, forms: [StoryForm], genres: [StoryGenre], recipes: [StoryRecipe] = []) {
+        self.id = id
+        self.displayName = displayName
+        self.version = version
+        self.author = author
+        self.availability = availability
+        self.forms = forms
+        self.genres = genres
+        self.recipes = recipes
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, displayName, version, author, availability, forms, genres, recipes }
+
+    init(from decoder: Decoder) throws {
+        let box = try decoder.container(keyedBy: CodingKeys.self)
+        id = try box.decode(String.self, forKey: .id)
+        displayName = try box.decode(String.self, forKey: .displayName)
+        version = try box.decode(Int.self, forKey: .version)
+        author = try box.decode(String.self, forKey: .author)
+        availability = try box.decode(String.self, forKey: .availability)
+        forms = try box.decodeIfPresent([StoryForm].self, forKey: .forms) ?? []
+        genres = try box.decodeIfPresent([StoryGenre].self, forKey: .genres) ?? []
+        recipes = try box.decodeIfPresent([StoryRecipe].self, forKey: .recipes) ?? []
+    }
 }
 
 enum StoryFormRegistry {
@@ -3811,8 +4484,75 @@ enum StoryFormRegistry {
                 StoryGenre(id: "pastoral", name: "Pastoral", lens: "Slow gold light, work done with the hands, conversation that breathes. Time moves like weather.", moodTags: ["calm", "garden", "season", "rest"]),
                 StoryGenre(id: "kindly-ghost", name: "Kindly Ghost Story", lens: "Someone or something lingers because it loved this place. Memory made gently visible. Never menacing.", moodTags: ["memory", "old", "evening", "anchor"]),
                 StoryGenre(id: "serial-adventure", name: "Adventure Serial", lens: "Chapter-of-a-larger-tale energy: momentum, a cliff's edge of curiosity at the end, callbacks to earlier episodes.", moodTags: ["thread", "arc", "momentum"])
-            ]
+            ],
+            recipes: coreRecipes
         )
+    ]
+
+    private static func recipe(
+        _ id: String, _ name: String, weight: Int = 10,
+        requirements: [StoryRecipeRequirement], mode: StoryRecipeSceneMode,
+        premise: String, beats: [String], turn: StoryRecipeTurnTemplate,
+        tags: [String] = [], forms: [String] = [], genres: [String] = [],
+        grounding: String, tone: String, choices: String, continuation: String,
+        suppressedBy: [BookPageType] = [], suppressionHours: Int = 0
+    ) -> StoryRecipe {
+        StoryRecipe(
+            id: id, name: name, baseWeight: weight, requirements: requirements, sceneMode: mode,
+            premiseTemplate: premise, beats: beats, turns: [turn], preferredTags: tags,
+            preferredFormIDs: forms, preferredGenreIDs: genres, excludedFormIDs: [], excludedGenreIDs: [],
+            requiredEntityIDs: [], requiredEntityTags: [], groundingDirective: grounding,
+            toneDirective: tone, choiceDirective: choices, continuationDirective: continuation,
+            cooldownHours: 18, suppressedByPageTypes: suppressedBy, suppressionHours: suppressionHours
+        )
+    }
+
+    private static func turn(
+        _ kind: StoryTurnKind, want: String, obstacle: String, statement: String,
+        slice: String, progress: String, surprise: String
+    ) -> StoryRecipeTurnTemplate {
+        StoryRecipeTurnTemplate(kind: kind, wantTemplate: want, obstacleTemplate: obstacle,
+            statementTemplate: statement, sliceLandingTemplate: slice,
+            progressLandingTemplate: progress, surpriseLandingTemplate: surprise)
+    }
+
+    static let coreRecipes: [StoryRecipe] = [
+        recipe("dorm-room-visit", "Dorm-Room Visit", requirements: [.groundedSource, .character], mode: .conversation,
+            premise: "{{lead}} visits your dorm because {{grounding}} has given them a concrete reason to knock.",
+            beats: ["The knock interrupts an ordinary moment.", "{{lead}} names the exact reason for the visit.", "The conversation makes {{grounding}} mean something new.", "The visitor leaves a small residue behind."],
+            turn: turn(.revealWant, want: "to talk with the reader about {{grounding}} without turning it into a confrontation", obstacle: "{{lead}} is not sure how plainly to begin", statement: "By the end, {{lead}} has said or learned one specific thing about {{grounding}}.", slice: "The visit becomes easy company, and {{lead}} stays a little longer.", progress: "What {{lead}} says moves {{thread}} one honest step.", surprise: "The real reason for the visit is stranger and kinder than it first appeared."),
+            tags: ["daily", "care", "rest"], forms: ["visitation"], genres: ["pastoral", "kindly-ghost"],
+            grounding: "Use the grounded detail as the visitor's real pretext, not decorative flavor.", tone: "Intimate and unhurried; disagreement is optional and usually absent.", choices: "Offer ways to ask, share, invite, joke, or let the moment rest.", continuation: "Let the visit deepen or end; do not manufacture a quarrel."),
+        recipe("nothing-library-corner", "Nothing in the Library Corner", requirements: [.groundedSource, .nothingPressure], mode: .environmental,
+            premise: "In a library corner, the Nothing begins erasing one precise part of {{grounding}} while the reader is close enough to intervene.",
+            beats: ["Show the first exact absence.", "Let the Nothing advance through the setting.", "Make the reader's available responses materially different.", "Leave one protected detail or admitted loss."],
+            turn: turn(.smallDecision, want: "to keep {{grounding}} from being flattened by the Nothing", obstacle: "the erasure advances whenever nobody names what is actually there", statement: "By the end, one exact part of {{grounding}} is protected, changed, or honestly lost.", slice: "The reader protects one modest detail and lets the rest wait.", progress: "The defense exposes how the Nothing is entering {{thread}}.", surprise: "What looked erased has moved somewhere unexpected instead."),
+            tags: ["grey", "night", "quiet"], forms: ["nocturne", "small-mystery"], genres: ["gentle-horror"],
+            grounding: "Name exactly what is greying or vanishing.", tone: "Eerie but humane; the environment is allowed to act.", choices: "Offer concrete ways to name, shelter, move, trade for, or release the threatened detail.", continuation: "The Nothing may act again; advance the physical consequence rather than forcing dialogue."),
+        recipe("small-discovery", "Small Discovery", requirements: [.groundedSource], mode: .balanced,
+            premise: "A small inconsistency in {{grounding}} becomes a clue inside {{thread}}.",
+            beats: ["State the oddity plainly.", "Test it with one action or question.", "Reveal a useful partial answer.", "Let the discovery alter the next choice."],
+            turn: turn(.factLearned, want: "to understand why {{grounding}} does not quite add up", obstacle: "the first explanation is tidy but wrong", statement: "By the end, a concrete fact about {{grounding}} recolors {{thread}}.", slice: "The reader keeps the discovery small and learns what it means nearby.", progress: "The clue points directly into {{thread}}.", surprise: "The clue belongs to someone or something nobody suspected."),
+            tags: ["wonder", "objects", "evidence"], forms: ["small-mystery"], genres: ["cozy-mystery", "field-naturalist"],
+            grounding: "The clue must be an observable feature of the grounded detail.", tone: "Curious, lucid, and specific rather than ominously vague.", choices: "Offer investigation, disclosure, preservation, or a plausible sideways test.", continuation: "Advance to a new clue or consequence; never rediscover the same oddity."),
+        recipe("odd-favor", "Odd Favor", requirements: [.groundedSource, .character, .activeThread], mode: .action,
+            premise: "{{lead}} asks the reader for one bounded fictional favor involving {{grounding}} and {{thread}}.",
+            beats: ["State the favor in concrete terms.", "Show why {{lead}} cannot simply do it alone.", "Expose one complication.", "Make acceptance, revision, and refusal all interesting."],
+            turn: turn(.handOff, want: "the reader's help with a specific fictional task involving {{grounding}}", obstacle: "{{lead}} has omitted one inconvenient part of the favor", statement: "By the end, the favor is accepted, changed, refused, or handed elsewhere with clear consequences.", slice: "The reader helps only with the small immediate part.", progress: "The favor moves {{thread}} through a visible action.", surprise: "The reader rewrites who the favor is really for."),
+            tags: ["mission", "momentum"], forms: ["quiet-epic", "threshold-crossing"], genres: ["tiny-heist", "serial-adventure"],
+            grounding: "Make the grounded detail necessary to the fictional favor.", tone: "Playful and bounded, never a real-world assignment falsely marked complete.", choices: "Offer help, renegotiation, refusal, delegation, or an inventive fictional method.", continuation: "Show the favor's consequence in action; do not repeat the request."),
+        recipe("shared-quiet", "Shared Quiet", requirements: [.groundedSource, .character], mode: .balanced,
+            premise: "{{lead}} shares an ordinary quiet activity with the reader while {{grounding}} sits naturally between them.",
+            beats: ["Begin with the activity already underway.", "Let one exact detail earn attention.", "Allow a small truth or joke without demanding confession.", "End with companionship or noticing changed by one notch."],
+            turn: turn(.realNoticing, want: "to spend unforced time with the reader around {{grounding}}", obstacle: "the moment will flatten if either person tries to make it profound", statement: "By the end, {{lead}} and the reader have noticed or understood one small true thing together.", slice: "They keep doing the ordinary thing, now with a private shared detail.", progress: "The noticing gives {{thread}} a quiet new fact.", surprise: "A sideways joke or observation changes how the moment is remembered."),
+            tags: ["rest", "care", "quiet"], forms: ["quiet-epic", "correspondence"], genres: ["pastoral", "field-naturalist"],
+            grounding: "Let the detail participate in the shared activity without becoming a symbol lecture.", tone: "Warm, low-pressure, and comfortable with silence.", choices: "Offer small actions, honest noticing, a question, a joke, or simply staying.", continuation: "Keep the pressure low; deepen attention instead of inventing conflict."),
+        recipe("concrete-disagreement", "Concrete Disagreement", weight: 2, requirements: [.groundedSource, .character, .secondCharacter], mode: .conversation,
+            premise: "{{lead}} and {{companion}} disagree about one concrete consequence of {{grounding}}, not about vague principles.",
+            beats: ["Both characters name the same evidence.", "Each gives a distinct fair interpretation.", "The practical consequence becomes clear.", "Leave the reader a meaningful way to intervene."],
+            turn: turn(.relationshipShift, want: "{{companion}} to accept {{lead}}'s reading of {{grounding}}", obstacle: "{{companion}} sees the same evidence and reaches a different practical conclusion", statement: "By the end, the disagreement about {{grounding}} changes what {{lead}} and {{companion}} will do next.", slice: "The reader finds the small point both can live with.", progress: "One reading wins enough ground to move {{thread}}.", surprise: "The reader names a third reading that changes the dispute."),
+            tags: ["tension", "evidence"], forms: ["small-mystery"], genres: ["cozy-mystery"],
+            grounding: "Repeat the exact named evidence both characters are interpreting.", tone: "Fair, concrete, and practical; never generic bickering.", choices: "Offer siding, reframing, asking for evidence, or declining to judge.", continuation: "Show what the disagreement changes; do not merely restate both positions.", suppressedBy: [.twoReadings], suppressionHours: 72)
     ]
 
     static func userPacks(fileManager: FileManager = .default) -> [StoryFormPack] {
@@ -3845,6 +4585,40 @@ enum StoryFormRegistry {
         return enabledPacks().flatMap(\.genres).filter { seen.insert($0.id).inserted }
     }
 
+    static let recipeTemplateTokens: Set<String> = ["lead", "companion", "grounding", "thread", "form"]
+
+    static var recipesWithPackIDs: [(packID: String, recipe: StoryRecipe)] {
+        var seen = Set<String>()
+        return enabledPacks().flatMap { pack in
+            pack.recipes.compactMap { recipe in
+                guard seen.insert(recipe.id).inserted, recipeIsValid(recipe) else { return nil }
+                return (pack.id, recipe)
+            }
+        }
+    }
+
+    static var recipes: [StoryRecipe] { recipesWithPackIDs.map(\.recipe) }
+
+    static func recipeIsValid(_ recipe: StoryRecipe) -> Bool {
+        guard !recipe.id.isEmpty, !recipe.name.isEmpty, recipe.baseWeight > 0,
+              !recipe.premiseTemplate.isEmpty, !recipe.beats.isEmpty, !recipe.turns.isEmpty else { return false }
+        let strings = [recipe.premiseTemplate, recipe.groundingDirective, recipe.toneDirective,
+                       recipe.choiceDirective, recipe.continuationDirective]
+            + recipe.beats
+            + recipe.turns.flatMap { [$0.wantTemplate, $0.obstacleTemplate, $0.statementTemplate,
+                                      $0.sliceLandingTemplate, $0.progressLandingTemplate, $0.surpriseLandingTemplate] }
+        let pattern = #"\{\{([a-zA-Z0-9_-]+)\}\}"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return false }
+        for string in strings {
+            let range = NSRange(string.startIndex..., in: string)
+            for match in regex.matches(in: string, range: range) {
+                guard let tokenRange = Range(match.range(at: 1), in: string),
+                      recipeTemplateTokens.contains(String(string[tokenRange])) else { return false }
+            }
+        }
+        return true
+    }
+
     /// Picks a form and genre for this page: tag affinity chooses among
     /// genres, the ascendant chapter leans on the lens, and the variety
     /// history keeps consecutive pages from wearing the same shape.
@@ -3854,6 +4628,7 @@ enum StoryFormRegistry {
         ascendantChapterID: String?,
         dayID: String,
         slot: String,
+        recipe: StoryRecipe? = nil,
         now: Date = Date()
     ) -> (form: StoryForm, genre: StoryGenre) {
         let allForms = forms
@@ -3881,6 +4656,8 @@ enum StoryFormRegistry {
                 score += 3
             }
             score -= recencyPenalty("genre:\(genre.id)")
+            if recipe?.preferredGenreIDs.contains(genre.id) == true { score += 7 }
+            if recipe?.excludedGenreIDs.contains(genre.id) == true { score -= 100 }
             score += abs("\(dayID)-\(slot)-\(genre.id)-genre".stableHash % 5)
             return (genre, score)
         }
@@ -3889,6 +4666,8 @@ enum StoryFormRegistry {
         let scoredForms = allForms.map { form -> (StoryForm, Int) in
             var score = abs("\(dayID)-\(slot)-\(form.id)-form".stableHash % 7)
             score -= recencyPenalty("form:\(form.id)")
+            if recipe?.preferredFormIDs.contains(form.id) == true { score += 7 }
+            if recipe?.excludedFormIDs.contains(form.id) == true { score -= 100 }
             // The Nocturne belongs to the night.
             let hour = Calendar.current.component(.hour, from: now)
             if form.id == "nocturne" {

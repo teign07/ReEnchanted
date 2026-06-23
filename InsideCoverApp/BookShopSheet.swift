@@ -382,6 +382,14 @@ struct BookShopSheet: View {
             .tint(BookPalette.teal)
             .disabled(isClerkSpeaking)
             .padding(.top, 4)
+
+            if isClerkSpeaking {
+                LocalBrainWorkingStatusCard(
+                    label: "bookshop-clerk",
+                    presentation: .page
+                )
+                .padding(.top, 4)
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -434,7 +442,7 @@ struct BookShopSheet: View {
                         .background(BookPalette.page.opacity(0.85), in: RoundedRectangle(cornerRadius: 8))
                         .overlay { RoundedRectangle(cornerRadius: 8).stroke(BookPalette.teal.opacity(0.3), lineWidth: 1) }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bookPress())
                 }
             }
             if fae.gifts.isEmpty {

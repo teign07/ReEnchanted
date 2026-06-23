@@ -127,6 +127,7 @@ struct ContentView: View {
     @State var isCustomCastSheetPresented = false
     @State var surfaceRefreshDate = Date()
     @State var suppressNextSurfaceRefresh = false
+    @State var isRetiringKeptSurface = false
     @State var undoSurface: SurfacePage?
     @State var undoDayID: String?
     @State var undoRemovedPage: BookPage?
@@ -242,7 +243,6 @@ struct ContentView: View {
         : "This room cannot hear the nearby ley line yet."
     @State var braidingQuipIndex = 0
     @State var localBrainTelemetry = LocalBrainTelemetryState()
-    @State var localBrainQuipIndex = 0
     @State var isOpeningMovieVisible = true
     @State var activeGreeting: BookGreeting?
     @State var didShowGreetingThisLaunch = false
@@ -279,7 +279,6 @@ struct ContentView: View {
     let surfaceDismissalTTL: TimeInterval = 90 * 60
     let surfaceRefreshCadence: Duration = .seconds(20 * 60)
     let braidingQuipCadence: Duration = .seconds(3)
-    let localBrainQuipCadence: Duration = .seconds(7)
 
     static var placeholderModelReport: LocalModelReport {
         LocalModelReport(
@@ -360,6 +359,7 @@ struct ContentView: View {
         inputs.ownedPackIDs = Set(vault.data.ownedPacks ?? [])
         inputs.hemisphere = Hemisphere.from(latitude: lastAnchorReadingLatitude)
         inputs.surfaceHistory = vault.data.surfaceHistory ?? [:]
+        inputs.readerBeliefScore = beliefScore
         inputs.calendarEvents = calendarEvents
         inputs.nearbyPlaces = nearbyPlaces
         inputs.resurfacingCandidates = resurfacedPages
@@ -657,6 +657,9 @@ struct ContentView: View {
             .task {
                 restoreRadioIfNeeded()
                 await runPostLaunchTasksIfNeeded()
+                handlePendingRadioWidgetCommand()
+                handlePendingCompassWidgetCommand()
+                handlePendingWidgetDeepLink()
             }
             .task(id: generation.isBraiding) {
                 guard generation.isBraiding else { return }
@@ -665,16 +668,6 @@ struct ContentView: View {
                     guard !Task.isCancelled && generation.isBraiding else { return }
                     withAnimation(.easeInOut(duration: 0.32)) {
                         braidingQuipIndex = (braidingQuipIndex + 1) % BraidingQuips.lines.count
-                    }
-                }
-            }
-            .task(id: localBrainTelemetry.isWorking) {
-                guard localBrainTelemetry.isWorking else { return }
-                while !Task.isCancelled && localBrainTelemetry.isWorking {
-                    try? await Task.sleep(for: localBrainQuipCadence)
-                    guard !Task.isCancelled && localBrainTelemetry.isWorking else { return }
-                    withAnimation(.easeInOut(duration: 0.45)) {
-                        localBrainQuipIndex = (localBrainQuipIndex + 1) % LocalBrainQuips.lines.count
                     }
                 }
             }
@@ -689,19 +682,23 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: .localBrainWorkDidChange)) { notification in
                 guard let snapshot = notification.object as? LocalBrainWorkSnapshot else { return }
                 if snapshot.isWorking {
-                    if localBrainTelemetry.beginOrUpdateWork(
+                    _ = localBrainTelemetry.beginOrUpdateWork(
                         label: snapshot.label,
                         promptCharacters: snapshot.promptCharacters,
                         queuedCount: snapshot.queuedCount
-                    ) {
-                        localBrainQuipIndex = Int.random(in: 0..<LocalBrainQuips.lines.count)
-                    }
+                    )
                 } else {
                     localBrainTelemetry.finishWork()
                 }
             }
             .onChange(of: scenePhase) { _, newPhase in
-                guard newPhase != .active else { return }
+                if newPhase == .active {
+                    handlePendingRadioWidgetCommand()
+                    handlePendingCompassWidgetCommand()
+                    handlePendingWidgetDeepLink()
+                    return
+                }
+                writeWidgetSnapshot()
                 resetTransientWorkStateForBackgrounding()
             }
             .onReceive(NotificationCenter.default.publisher(for: .bookMemoryPressure)) { _ in
@@ -712,6 +709,13 @@ struct ContentView: View {
             }
             .onChange(of: didHydrateLaunchState) { _, _ in
                 rebuildSurfaceCache()
+                handlePendingRadioWidgetCommand()
+                handlePendingCompassWidgetCommand()
+                handlePendingWidgetDeepLink()
+                writeWidgetSnapshot()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .reEnchantedWidgetDeepLinkReceived)) { _ in
+                handlePendingWidgetDeepLink()
             }
             .onChange(of: surfaceRefreshDate) { _, _ in
                 if suppressNextSurfaceRefresh {
@@ -719,6 +723,7 @@ struct ContentView: View {
                     return
                 }
                 rebuildSurfaceCache()
+                writeWidgetSnapshot()
             }
             .onChange(of: isTodaysMarginsExpanded) { _, expanded in
                 if expanded { tutorTouch("todays-margins") }
@@ -734,6 +739,9 @@ struct ContentView: View {
                     surface: surface,
                     day: today,
                     isLocalBrainWorking: localBrainTelemetry.isWorking,
+                    localBrainWorkLabel: localBrainTelemetry.currentLabel,
+                    localBrainWorkStartedAt: localBrainTelemetry.startedAt,
+                    localBrainQueuedCount: localBrainTelemetry.currentQueuedCount,
                     onReplaceIlluminatedSurface: { replacement in
                         generation.automaticIlluminatedSurface = replacement
                         surfaceRefreshDate = Date()
@@ -870,6 +878,8 @@ struct ContentView: View {
                 SearchTheStacksSheet(
                     dataset: stacksSearchDataset,
                     isLocalBrainWorking: localBrainTelemetry.isWorking,
+                    localBrainWorkLabel: localBrainTelemetry.currentLabel,
+                    localBrainWorkStartedAt: localBrainTelemetry.startedAt,
                     onOpen: { result in
                         isStacksSearchPresented = false
                         openSearchResult(result)
@@ -920,7 +930,7 @@ struct ContentView: View {
                                 }
                                 .scaleEffect(isGlowPillRevealing && !reduceMotion ? 1.08 : 1.0)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.bookPress())
                         .accessibilityLabel(isGlowMenuPresented ? "Close Glow menu" : "Open Glow menu")
                         .transition(.asymmetric(
                             insertion: .opacity.combined(with: .scale(scale: 0.5)),
@@ -1087,6 +1097,9 @@ struct ContentView: View {
             surfacedPages = []
             return
         }
+        guard !isRetiringKeptSurface else {
+            return
+        }
         refreshContinuityCache()
         let previousTopID = surfacedPages.first?.id
         let refreshed = buildCuratorSurfaces(now: surfaceRefreshDate)
@@ -1169,9 +1182,10 @@ struct ContentView: View {
         let history = vault.data.surfaceHistory ?? [:]
         let servedKeys = pages.flatMap { page -> [String] in
             let typeKey = CuratorVarietyGovernor.typeKey(for: page.type)
-            return page.type == .twoReadings
+            let primary = page.type == .twoReadings
                 ? [page.varietyKey, "source:\(page.sourceID)", typeKey]
                 : [page.varietyKey, typeKey]
+            return primary + page.supplementalStoryVarietyKeys
         }
         let newKeys = servedKeys.filter { key in
             guard let record = history[key] else { return true }
@@ -1706,6 +1720,110 @@ struct ContentView: View {
         surfaceRefreshDate = Date()
     }
 
+    func handlePendingRadioWidgetCommand() {
+        guard didHydrateLaunchState,
+              let command = ReEnchantedRadioWidgetCommandStore.load() else { return }
+        ReEnchantedRadioWidgetCommandStore.clear(id: command.id)
+
+        switch command.action {
+        case .tune:
+            guard let stationID = command.stationID else { return }
+            tuneRadio(stationID: stationID)
+            let station = RadioStationRegistry.station(
+                id: stationID,
+                unlockedPackIDs: Set(vault.data.ownedPacks ?? [])
+            )
+            statusMessage = "\(station?.title ?? "The station") is on the air."
+        case .stop:
+            stopRadio()
+            statusMessage = "The radio dial is cold."
+        }
+
+        writeWidgetSnapshot()
+    }
+
+    func handlePendingCompassWidgetCommand() {
+        guard didHydrateLaunchState,
+              let command = ReEnchantedCompassWidgetRunStore.loadCommand() else { return }
+        ReEnchantedCompassWidgetRunStore.clearCommand(id: command.id)
+
+        switch command.action {
+        case .openRun:
+            selectedSurface = compassRunSurface()
+            statusMessage = "The Wonder Compass is open. Keep one true sentence."
+        }
+
+        writeWidgetSnapshot()
+    }
+
+    func handlePendingWidgetDeepLink() {
+        guard didHydrateLaunchState,
+              let request = ReEnchantedWidgetDeepLinkStore.load(),
+              let url = URL(string: request.urlString),
+              url.scheme?.lowercased() == "reenchanted" else { return }
+
+        let route = ([url.host].compactMap { $0 } + url.pathComponents.filter { $0 != "/" })
+            .map { $0.removingPercentEncoding ?? $0 }
+        guard let destination = route.first?.lowercased() else {
+            ReEnchantedWidgetDeepLinkStore.clear(id: request.id)
+            return
+        }
+
+        switch destination {
+        case "radio":
+            let action = route.dropFirst().first?.lowercased()
+            if action == "tune", let stationID = route.dropFirst(2).first {
+                tuneRadio(stationID: stationID)
+                let station = RadioStationRegistry.station(
+                    id: stationID,
+                    unlockedPackIDs: Set(vault.data.ownedPacks ?? [])
+                )
+                statusMessage = "\(station?.title ?? "The station") is on the air."
+            } else if action == "stop" {
+                stopRadio()
+                statusMessage = "The radio dial is cold."
+            }
+            selectedSurface = freshManualSurface(for: .radio)
+
+        case "compass":
+            selectedSurface = compassRunSurface()
+            statusMessage = "The Wonder Compass is open. Keep one true sentence."
+
+        case "capture":
+            if route.dropFirst().first?.lowercased() == "souvenir" {
+                selectedSurface = freshManualSurface(for: .souvenir)
+                statusMessage = "The Book is ready for one true sentence."
+            }
+
+        case "enchantment":
+            let requestedID = route.dropFirst().first
+            if let enchantment = glowEnchantmentMenuItems.first(where: { $0.id == requestedID })
+                ?? glowEnchantmentMenuItems.first {
+                selectedSurface = enchantmentSurface(enchantment)
+                statusMessage = "\(enchantment.title) is ready for a photo."
+            }
+
+        case "remembered":
+            selectedSurface = freshManualSurface(for: .bookRemembered)
+
+        case "glow":
+            selectedSurface = freshManualSurface(for: .glowInvitation)
+
+        case "today":
+            selectedSurface = surfaces.first
+
+        default:
+            if let type = BookPageType(rawValue: destination) {
+                selectedSurface = freshManualSurface(for: type)
+            } else {
+                selectedSurface = surfaces.first
+            }
+        }
+
+        ReEnchantedWidgetDeepLinkStore.clear(id: request.id)
+        writeWidgetSnapshot()
+    }
+
     @MainActor
     func openManualPage(_ type: BookPageType) async {
         switch type {
@@ -1962,9 +2080,9 @@ struct ContentView: View {
         if localBrainTelemetry.isWorking {
             LocalBrainWorkingStatusCard(
                 label: localBrainTelemetry.currentLabel,
-                quip: LocalBrainQuips.lines[localBrainQuipIndex],
                 startedAt: localBrainTelemetry.startedAt,
-                queuedCount: localBrainTelemetry.currentQueuedCount
+                queuedCount: localBrainTelemetry.currentQueuedCount,
+                presentation: .shelf
             )
             .transition(.opacity.combined(with: .move(edge: .top)))
         } else if generation.isBraiding {
@@ -2324,7 +2442,7 @@ struct ContentView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.bookPress())
             .accessibilityLabel(isExpanded.wrappedValue ? "Hide \(title)" : "Show \(title)")
 
             if isExpanded.wrappedValue {
@@ -2536,7 +2654,7 @@ struct ContentView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.bookPress())
             .accessibilityLabel(isQuietMechanicsExpanded ? "Hide Colophon" : "Show Colophon")
 
             if isQuietMechanicsExpanded {
@@ -2840,16 +2958,40 @@ struct ContentView: View {
                                 .buttonStyle(.borderedProminent)
                                 .tint(BookPalette.lampGold)
                             } else {
-                                Button {
-                                    BookFeedback.play(.sourceRefresh)
-                                    exportMonthlyEdition()
+                                Menu {
+                                    Button {
+                                        BookFeedback.play(.sourceRefresh)
+                                        exportMonthlyEdition()
+                                    } label: {
+                                        Label("Bind now (fast)", systemImage: "bolt")
+                                    }
+                                    Button {
+                                        BookFeedback.play(.sourceRefresh)
+                                        exportMonthlyEdition(useGemmaClosing: true)
+                                    } label: {
+                                        Label("Bind with Gemma's conclusion", systemImage: "sparkles")
+                                    }
                                 } label: {
                                     Label("Bind monthly edition", systemImage: "book.pages")
                                         .font(.caption.weight(.bold))
+                                } primaryAction: {
+                                    BookFeedback.play(.sourceRefresh)
+                                    exportMonthlyEdition()
                                 }
+                                .menuStyle(.borderlessButton)
                                 .buttonStyle(.bordered)
                                 .tint(BookPalette.lampGold)
                             }
+                        }
+
+                        if localBrainTelemetry.isWorking,
+                           localBrainTelemetry.currentLabel == "monthly-closing" {
+                            LocalBrainWorkingStatusCard(
+                                label: "monthly-closing",
+                                startedAt: localBrainTelemetry.startedAt,
+                                queuedCount: localBrainTelemetry.currentQueuedCount,
+                                presentation: .page
+                            )
                         }
 
                         let months = bindableEditionMonths
@@ -3053,6 +3195,8 @@ struct ContentView: View {
     func savePage(surface: SurfacePage, input: String, tags: [String]) {
         BookFeedback.play(.keepPage)
         tutorTouch("keep-page")
+        isRetiringKeptSurface = true
+        defer { isRetiringKeptSurface = false }
         let refreshDateBeforeKeeping = surfaceRefreshDate
         let greyBeforeKeeping = NothingTide.greyLevel(
             quietDays: NothingTide.quietDays(in: days, today: today.id),
@@ -3064,7 +3208,7 @@ struct ContentView: View {
             markAutomaticIlluminatedSurfaceKept(surface)
         }
         if surface.type == .anchor {
-            checkInAnchorIfNeeded(surface)
+            checkInAnchorIfNeeded(surface, tags: tags)
         }
         acceptElectiveIfNeeded(surface: surface)
         applyBookJumpActionIfNeeded(surface: surface, input: input)
@@ -3962,12 +4106,14 @@ struct ContentView: View {
         var delta: Int
         if surface.type == .festival {
             delta = Int(surface.payload.metadata["beliefBonus"] ?? "") ?? 3
+        } else if surface.payload.metadata["noBeliefReward"] == "true" {
+            delta = 0
         } else if surface.type == .wonderCompass, surface.payload.metadata["runID"] != nil {
             delta = 0
         } else if surface.type == .enchantment || surface.payload.metadata["source"] == "enchantment" {
             delta = Int(surface.payload.metadata["enchantmentBeliefReward"] ?? "") ?? 3
         } else if surface.type == .anchor {
-            delta = Int(surface.payload.metadata["beliefReward"] ?? "") ?? AnchorRegistry.checkInBeliefReward
+            delta = 0
         } else if surface.type == .bookJump {
             // The deeper you dared, the more the Spine charges to go on — and the
             // more it pays to come home with a true souvenir.
@@ -4447,6 +4593,13 @@ struct ContentView: View {
             statusMessage = ""
         case .bookConnections:
             isConnectionsPresented = true
+        case .glowInvitation:
+            selectedSurface = nil
+            tutorTouch("glow-menu")
+            BookFeedback.play(.sourceRefresh)
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
+                isGlowMenuPresented = true
+            }
         case .illuminatedPhoto:
             statusMessage = "Penny is asking Gemma to illuminate a photo."
             _ = await prepareAutomaticIlluminatedPageIfPossible()
@@ -5227,10 +5380,24 @@ struct ContentView: View {
         // The archive changed; refresh the continuity cache (signature-gated, so
         // it only pays when the data actually moved).
         refreshContinuityCache()
+        writeWidgetSnapshot()
     }
 
     func refreshResurfacedPages() {
         resurfacedPages = (try? BookDatabase.resurfacingCandidates(limit: 3)) ?? []
+    }
+
+    func writeWidgetSnapshot() {
+        guard didHydrateLaunchState else { return }
+        ReEnchantedWidgetSnapshotWriter.write(
+            today: today,
+            surfaces: surfaces,
+            resurfacedPages: resurfacedPages,
+            selfFacts: selfFacts,
+            beliefScore: beliefScore,
+            radio: radioManager.playback,
+            radioIsPlaying: radioManager.isPlaying
+        )
     }
 
     @MainActor
@@ -5268,13 +5435,26 @@ struct ContentView: View {
     }
 
     @MainActor
-    func checkInAnchorIfNeeded(_ surface: SurfacePage) {
+    func checkInAnchorIfNeeded(_ surface: SurfacePage, tags: [String] = []) {
         guard let anchorID = surface.payload.metadata["anchorID"],
               let index = anchorLedger.firstIndex(where: { $0.id == anchorID }) else {
             return
         }
-        anchorLedger[index] = anchorLedger[index].checkedIn(on: Date())
+        let beliefGiven = min(AnchorRegistry.checkInBeliefReward, max(0, beliefScore))
+        let previousMiniStory = anchorLedger[index].miniStory
+        var updatedAnchor = anchorLedger[index].checkedIn(on: Date(), beliefGiven: beliefGiven)
+        if let landing = AnchorMiniStory.landing(from: surface.payload.metadata, tags: tags) {
+            updatedAnchor.miniStory = AnchorMiniStory.advanced(previous: previousMiniStory, landing: landing)
+        }
+        anchorLedger[index] = updatedAnchor
+        beliefScore = max(0, beliefScore - beliefGiven)
         saveAnchorLedger()
+        if beliefGiven > 0 {
+            BookFeedback.beliefTransferred(amount: beliefGiven, recipientGlow: updatedAnchor.belief)
+            anchorMessage = "\(updatedAnchor.name) kept the visit and took \(beliefGiven) Belief from your Glow."
+        } else {
+            anchorMessage = "Your Glow is too dim to feed \(updatedAnchor.name) today, but the visit still counts."
+        }
         if nearbyAnchor?.anchor.id == anchorID {
             nearbyAnchor = nil
         }

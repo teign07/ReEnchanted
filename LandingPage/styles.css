@@ -102,6 +102,21 @@ h2 {
   text-wrap: balance;
 }
 
+.hero-problem {
+  max-width: 540px;
+  margin: 0 0 34px;
+  font-family: var(--serif);
+  font-size: clamp(1.18rem, 1.9vw, 1.5rem);
+  line-height: 1.4;
+  color: color-mix(in srgb, var(--text-dim) 80%, #8b93a4);
+}
+.hero-problem span {
+  display: block;
+  margin-top: 18px;
+  color: var(--paper);
+  font-style: italic;
+}
+
 .eyebrow {
   margin: 0 0 16px;
   color: var(--gold);
@@ -886,6 +901,68 @@ h2 {
 .system-card h3 { margin: 18px 0 10px; font-size: 1.5rem; font-weight: 600; color: var(--paper); }
 .system-card p { margin: 0; color: var(--text-dim); line-height: 1.6; }
 .system-card em { color: var(--gold); font-style: italic; }
+
+/* Page types: a free deck of page kinds, shown as a glyph grid. */
+.pagetypes-section { padding: 96px 0; }
+.pagetypes-count {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+.pagetypes-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+.pagetype {
+  padding: 26px 24px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
+  transition: transform 220ms ease, border-color 220ms ease;
+}
+.pagetype:hover { transform: translateY(-6px); border-color: rgba(255, 200, 116, 0.4); }
+.pagetype-glyph {
+  display: grid;
+  place-items: center;
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  font-size: 1.25rem;
+  color: var(--gold);
+  background: #150f23;
+  box-shadow: inset 0 0 0 1px rgba(255, 200, 116, 0.22);
+}
+.pagetype h3 { margin: 16px 0 8px; font-size: 1.2rem; font-weight: 600; color: var(--paper); }
+.pagetype p { margin: 0; color: var(--text-dim); line-height: 1.55; font-size: 0.95rem; }
+.pagetype em { color: var(--gold); font-style: italic; }
+.pagetype-shot {
+  width: min(54%, 150px);
+  margin: 14px auto 0;
+}
+.pagetype-shot img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
+}
+.pagetype-shot figcaption {
+  margin-top: 8px;
+  font-size: 0.74rem;
+  font-style: italic;
+  color: var(--text-dim);
+  text-align: center;
+}
+.pagetypes-more {
+  max-width: 760px;
+  margin: 36px auto 0;
+  text-align: center;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
 
 /* Editions: a live-rendered mockup of a monthly edition cover, matching the
    real PDF's cover language (dark gradient, gold rule, constellation motif). */
@@ -2358,7 +2435,189 @@ h2 {
   cursor: pointer;
 }
 
+/* ───────────────────────── hidden lore marginalia ───────────────────────── */
+.lore-link {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(255, 200, 116, 0.55);
+  transition: color 0.2s ease, text-decoration-color 0.2s ease, text-shadow 0.2s ease;
+}
+.lore-link:hover,
+.lore-link:focus-visible {
+  color: var(--gold, #ffce7c);
+  text-decoration-color: rgba(255, 200, 116, 0.9);
+  text-shadow: 0 0 14px rgba(255, 200, 116, 0.4);
+  outline: none;
+}
+.lore-link::after {
+  content: "✦";
+  font-size: 0.62em;
+  vertical-align: super;
+  margin-left: 1px;
+  opacity: 0.5;
+}
+.lore-link:hover::after,
+.lore-link:focus-visible::after { opacity: 0.95; }
+em .lore-link, .lore-link em { font-style: italic; }
+
+.lore-modal[hidden] { display: none; }
+.lore-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.lore-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 4, 10, 0.8);
+  backdrop-filter: blur(10px);
+}
+.lore-panel {
+  position: relative;
+  z-index: 1;
+  width: min(560px, 100%);
+  max-height: min(82vh, 760px);
+  overflow: auto;
+  padding: clamp(24px, 3.6vw, 38px);
+  border: 1px solid rgba(255, 200, 116, 0.34);
+  border-radius: 18px;
+  color: var(--paper-ink);
+  background:
+    radial-gradient(circle at 15% 0%, rgba(255,255,255,0.42), transparent 40%),
+    linear-gradient(160deg, #f6e8c6, #e2c989);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.6);
+  animation: lore-rise 0.34s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+@keyframes lore-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+.lore-kicker { margin: 0 0 4px; color: rgba(120, 78, 26, 0.86); }
+.lore-modal-title {
+  margin: 0 0 14px;
+  color: #241a0d;
+  font-size: clamp(1.5rem, 3.4vw, 2.2rem);
+  line-height: 1.12;
+}
+.lore-figure {
+  margin: 0 0 16px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(36, 26, 13, 0.06);
+  border: 1px solid rgba(42, 32, 20, 0.16);
+}
+.lore-figure img {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+}
+.lore-gallery-nav {
+  display: grid;
+  grid-template-columns: 38px 1fr 38px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-top: 1px solid rgba(42, 32, 20, 0.14);
+  color: rgba(42, 32, 20, 0.76);
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 0.78rem;
+  font-weight: 750;
+  text-align: center;
+}
+.lore-gallery-nav[hidden] { display: none; }
+.lore-gallery-button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 30px;
+  border: 1px solid rgba(42, 32, 20, 0.2);
+  border-radius: 999px;
+  color: #241a0d;
+  background: rgba(255, 255, 255, 0.34);
+  cursor: pointer;
+}
+.lore-gallery-button:hover,
+.lore-gallery-button:focus-visible { background: rgba(255, 255, 255, 0.68); }
+.lore-panel[data-lore-kind="talisman"] .lore-figure img { max-height: 240px; padding: 14px; }
+.lore-copy { display: grid; gap: 14px; }
+.lore-copy p {
+  margin: 0;
+  color: rgba(42, 32, 20, 0.85);
+  font-family: var(--serif);
+  font-size: 1.04rem;
+  line-height: 1.66;
+}
+.lore-trythis {
+  margin-top: 18px;
+  padding: 13px 15px;
+  border-radius: 10px;
+  border: 1px dashed rgba(60, 96, 92, 0.5);
+  background: rgba(60, 110, 104, 0.1);
+}
+.lore-trythis-label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2c5f59;
+}
+.lore-trythis p {
+  margin: 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: rgba(28, 48, 44, 0.9);
+}
+.lore-sign {
+  margin: 18px 0 0;
+  text-align: right;
+  font-family: var(--serif);
+  font-style: italic;
+  color: rgba(42, 32, 20, 0.6);
+}
+.lore-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(42, 32, 20, 0.18);
+  border-radius: 999px;
+  color: #241a0d;
+  background: rgba(255, 255, 255, 0.3);
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lore-panel { animation: none; }
+}
+
 /* ───────────────────────── responsive ───────────────────────── */
+@media (max-width: 1100px) {
+  .pagetypes-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 @media (max-width: 900px) {
   .nav-links { display: none; }
   .hero { grid-template-columns: 1fr; padding-top: 110px; min-height: auto; }
@@ -2367,6 +2626,7 @@ h2 {
   .braid-proof-section { grid-template-columns: 1fr; }
   .braid-proof-shot { transform: none; }
   .systems-grid { grid-template-columns: 1fr; }
+  .pagetypes-grid { grid-template-columns: 1fr; }
   .anchor-showcase { grid-template-columns: 1fr; }
   .anchor-phone { order: -1; }
   .academy-feature { grid-template-columns: 1fr; }
@@ -2402,17 +2662,38 @@ h2 {
 
 @media (max-width: 680px) {
   .book { aspect-ratio: auto; }
+  .book-stage { gap: 14px; }
   /* stack the spread vertically on phones */
   .spread { position: relative; grid-template-columns: 1fr; }
   .book[data-state="open"] #spread,
   .book[data-state="braid"] #braid { position: relative; }
-  .book[data-state="closed"] #spread { display: none; }
+  .book[data-state="closed"] #spread,
+  .book[data-state="closed"] #braid,
+  .book[data-state="open"] #braid,
+  .book[data-state="braid"] #spread { display: none; }
   .book-cover { position: relative; width: 100%; aspect-ratio: 3 / 4; }
   .leaf-left { border-radius: 14px 14px 0 0; border: 1px solid rgba(0,0,0,0.4); }
   .leaf-right { border-radius: 0 0 14px 14px; }
   .spread::after { display: none; }
   .leaf-screen { aspect-ratio: 9 / 13; }
   .braid-end { aspect-ratio: 9 / 13; align-items: center; text-align: center; }
+  .book-nav {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 18px;
+  }
+  .nav-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 12px;
+  }
+  .nav-count {
+    min-width: auto;
+    flex: 0 0 auto;
+    font-size: 0.82rem;
+  }
   .chapters-panel { padding: 26px 18px; }
   .chapter-card { grid-template-columns: 1fr; min-height: 0; }
   .chapter-talisman { min-height: 190px; max-height: 240px; }
@@ -2439,4 +2720,103 @@ h2 {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* ───────────────────────── mobile section drawers ─────────────────────────
+   Desktop: the wrapper divs are transparent (display:contents) and the toggle
+   bar is hidden, so flagged sections render exactly as before. Mobile: the
+   section collapses behind a tap-to-open bar carrying its own title. */
+.drawer-toggle { display: none; }
+.is-drawer .drawer-body,
+.is-drawer .drawer-inner { display: contents; }
+
+@media (max-width: 720px) {
+  section[data-drawer].is-drawer {
+    width: min(var(--maxw), calc(100% - 36px));
+    margin: 0 auto;
+    padding: 0 0 14px;
+  }
+
+  .drawer-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    padding: 20px 20px;
+    margin: 0;
+    color: var(--paper);
+    font: inherit;
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    transition: border-color 200ms ease, background 200ms ease;
+  }
+  .drawer-toggle:hover,
+  .drawer-toggle:focus-visible { border-color: rgba(255, 200, 116, 0.4); }
+  .is-drawer.is-open .drawer-toggle {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .drawer-toggle-text { display: flex; flex-direction: column; gap: 4px; }
+  .drawer-toggle-eyebrow {
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--gold);
+  }
+  .drawer-toggle-label {
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+  .drawer-chevron {
+    flex: 0 0 auto;
+    width: 11px; height: 11px;
+    border-right: 2px solid var(--gold);
+    border-bottom: 2px solid var(--gold);
+    transform: rotate(45deg);
+    margin-top: -4px;
+    transition: transform 250ms ease;
+  }
+  .is-drawer.is-open .drawer-chevron { transform: rotate(225deg); margin-top: 4px; }
+
+  /* collapse mechanism: animate the single inner row from 0fr to 1fr */
+  .is-drawer .drawer-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    border: 1px solid transparent;
+    border-top: none;
+    border-radius: 0 0 18px 18px;
+    transition: grid-template-rows 320ms ease;
+  }
+  .is-drawer.is-open .drawer-body {
+    grid-template-rows: 1fr;
+    border-color: var(--line);
+  }
+  .is-drawer .drawer-inner {
+    display: block;
+    overflow: hidden;
+    min-height: 0;
+  }
+  .is-drawer.is-open .drawer-inner { padding: 18px 18px 6px; }
+
+  /* the toggle bar already carries the title, so hide the in-body heading */
+  .is-drawer .section-head { display: none; }
+  /* sections without a .section-head carry their title inside a copy column —
+     hide that block's eyebrow + heading so it isn't duplicated by the bar */
+  .is-drawer .ebook-copy > .eyebrow,
+  .is-drawer .ebook-copy > h2,
+  .is-drawer .privacy-copy > .eyebrow,
+  .is-drawer .privacy-copy > h2 { display: none; }
+}
+
+@media (max-width: 720px) and (prefers-reduced-motion: reduce) {
+  .is-drawer .drawer-body { transition: none; }
+  .drawer-chevron { transition: none; }
 }

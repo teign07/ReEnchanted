@@ -76,6 +76,10 @@ struct LockedBookRoot: View {
         .onReceive(NotificationCenter.default.publisher(for: .bookAppLockAuthorized)) { _ in
             appLock.acceptCurrentAuthorization()
         }
+        .onOpenURL { url in
+            guard ReEnchantedWidgetDeepLinkStore.enqueue(url) else { return }
+            NotificationCenter.default.post(name: .reEnchantedWidgetDeepLinkReceived, object: nil)
+        }
     }
 }
 

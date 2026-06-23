@@ -133,13 +133,19 @@ extension ContentView {
         )
         var body = base.payload.body
         var metadata = base.payload.metadata
+        let memory = anchorVisitMemory(for: proximity.anchor)
         if let scene = try? await makeOuterStacksRoomWriter().visitScene(
             anchor: proximity.anchor,
             visitCount: proximity.nextVisitCount,
-            day: today
+            day: today,
+            memory: memory
         ) {
-            body = "\(scene)\n\nKeeping this page checks in at the Anchor and adds \(AnchorRegistry.checkInBeliefReward) Belief to the place."
+            body = "\(scene)\n\nKeeping this page checks in at the Anchor and offers up to \(AnchorRegistry.checkInBeliefReward) Belief from your Glow to the place."
             metadata["visitScene"] = scene
+            metadata["storyScene"] = scene
+            if !memory.isEmpty {
+                metadata["anchorVisitMemory"] = memory
+            }
         }
         statusMessage = ""
         selectedSurface = SurfacePage(
@@ -158,6 +164,30 @@ extension ContentView {
                 metadata: metadata
             )
         )
+    }
+
+    @MainActor
+    func anchorVisitMemory(for anchor: AnchorRecord) -> String {
+        let anchorTag = "anchor:\(anchor.id)"
+        let archivedDays = days.filter { $0.id != today.id }
+        let pages = (archivedDays + [today])
+            .flatMap(\.pages)
+            .filter { page in
+                page.tags.contains(anchorTag)
+                    || (page.type == .anchor && page.promptText == anchor.name)
+            }
+            .sorted { $0.createdAt < $1.createdAt }
+            .suffix(3)
+
+        return pages.enumerated()
+            .map { index, page in
+                let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                let memory = text.isEmpty
+                    ? "The visit was kept without a margin note."
+                    : text.bookPreviewSentenceLimit(3)
+                return "Prior kept visit \(index + 1): \(memory)"
+            }
+            .joined(separator: "\n")
     }
 
 
@@ -702,8 +732,12 @@ extension ContentView {
         return formatter.string(from: chosen)
     }
 
+    /// Binds the month to a PDF. By default the conclusion is the instant,
+    /// deterministic `BookForewordWriter.closing(...)`; pass `useGemmaClosing`
+    /// to have the on-device brain compose a fresh last word instead (slower,
+    /// and it falls back to the deterministic closing if Gemma is quiet).
     @MainActor
-    func exportMonthlyEdition() {
+    func exportMonthlyEdition(useGemmaClosing: Bool = false) {
         do {
             let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 5000)) ?? narrativeEvents
             let archiveMemories = (try? BookDatabase.entityMemories(limit: 5000)) ?? entityMemories
@@ -726,7 +760,7 @@ extension ContentView {
                     generatedAt: now
                 )
             }
-            let edition: MonthlyEdition
+            var edition: MonthlyEdition
             if let chosen = selectedEditionMonth {
                 // The player named a month from the shelf — bind exactly that one.
                 edition = buildMonth(starting: chosen)
@@ -755,18 +789,68 @@ extension ContentView {
                 BookFeedback.play(.error)
                 return
             }
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM"
-            let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("ReEnchanted-Monthly-\(formatter.string(from: edition.startDate)).pdf")
-            try MonthlyEditionPDFWriter.write(edition, to: url)
-            preparedMonthlyEditionURL = url
-            colophonBindingNote = "\(edition.monthName) is bound — \(edition.pageCount) \(edition.pageCount == 1 ? "page" : "pages") sewn between covers, waiting under the share mark."
-            BookFeedback.play(.braidComplete)
+            if useGemmaClosing {
+                // Ask the on-device brain for the last word, then bind.
+                let pending = edition
+                colophonBindingNote = "Asking Gemma for the last word on \(edition.monthName)…"
+                Task { @MainActor in
+                    var bound = pending
+                    if let gemma = await gemmaMonthlyClosing(for: pending) {
+                        bound.closing = gemma
+                    }
+                    do {
+                        try bindMonthlyEditionPDF(bound)
+                    } catch {
+                        colophonBindingNote = "The thread snapped mid-stitch — the month would not bind. (\(error.localizedDescription))"
+                        BookFeedback.play(.error)
+                    }
+                }
+                return
+            }
+
+            try bindMonthlyEditionPDF(edition)
         } catch {
             colophonBindingNote = "The thread snapped mid-stitch — the month would not bind. (\(error.localizedDescription))"
             BookFeedback.play(.error)
         }
+    }
+
+    /// Writes a built edition to a temp PDF and surfaces it under the share mark.
+    @MainActor
+    private func bindMonthlyEditionPDF(_ edition: MonthlyEdition) throws {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM"
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ReEnchanted-Monthly-\(formatter.string(from: edition.startDate)).pdf")
+        try MonthlyEditionPDFWriter.write(edition, to: url)
+        preparedMonthlyEditionURL = url
+        colophonBindingNote = "\(edition.monthName) is bound — \(edition.pageCount) \(edition.pageCount == 1 ? "page" : "pages") sewn between covers, waiting under the share mark."
+        BookFeedback.play(.braidComplete)
+    }
+
+    /// The on-device brain re-reads the month and composes a closing in the
+    /// Book's voice. Returns nil if the local brain is unavailable or quiet, in
+    /// which case the deterministic closing already on the edition is kept.
+    @MainActor
+    private func gemmaMonthlyClosing(for edition: MonthlyEdition) async -> String? {
+        let themeLine = edition.theme.map { "The month's theme was \u{201C}\($0.name)\u{201D}: \($0.line)" } ?? ""
+        let signals = edition.continuity.strongestSignals.prefix(4).map(\.line).joined(separator: " ")
+        let named = (edition.constellations.filter(\.isNamed).prefix(3).map(\.displayName)).joined(separator: ", ")
+        let prompt = """
+        Write the closing paragraph of \(edition.monthName) for The Book of You, in the Book's own voice: warm, literary, second-person, addressed to the reader. It bound \(edition.pageCount) pages across \(edition.dayCount) days. \(themeLine)
+        What kept returning this month: \(signals)
+        Named threads still alight: \(named.isEmpty ? "none yet" : named)
+        Two or three short paragraphs. End on the line "- The Book". Do not invent events; only reflect what is given.
+        """
+        guard let raw = await LocalBrainProse.write(
+            prompt: prompt,
+            instructions: BraidInstructions.bookOfYou,
+            maxTokens: 360,
+            sourceID: "monthly-closing",
+            tags: ["edition", "closing", "gemma"]
+        ) else { return nil }
+        let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? nil : cleaned
     }
 
     @MainActor

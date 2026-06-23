@@ -168,10 +168,14 @@ final class SentenceBuilderTests: XCTestCase {
         let scaffold = engine.scaffold(for: "Dinner was tired.")
         let misty = scaffold.tokens.first { $0.role == .misty }!
 
-        let moves = engine.moves(for: misty)
+        let moves = engine.moves(for: misty, in: scaffold)
 
         XCTAssertFalse(moves.isEmpty)
         XCTAssertTrue(moves.allSatisfy { $0.group == "ground" })
+        // Every grounded swap is a recognised sense, so it lights the Body mark.
+        for move in moves {
+            XCTAssertTrue(engine.analyze("Dinner was \(move.word).").hasSensoryDetail, "\(move.word) should read as a sense")
+        }
         // Applying any move heals the sentence in place.
         let healed = scaffold.replacing(tokenID: misty.id, with: moves[0].word, using: .core)
         XCTAssertEqual(healed.rendered, "Dinner was \(moves[0].word).")
@@ -182,7 +186,7 @@ final class SentenceBuilderTests: XCTestCase {
         let scaffold = engine.scaffold(for: "The cold mug waited.")
         let sense = scaffold.tokens.first { $0.word == "cold" }!
 
-        let moves = engine.moves(for: sense)
+        let moves = engine.moves(for: sense, in: scaffold)
 
         XCTAssertTrue(moves.contains { $0.group == "cross" })
         XCTAssertFalse(moves.contains { $0.word == "cold" })
@@ -193,7 +197,108 @@ final class SentenceBuilderTests: XCTestCase {
         let scaffold = engine.scaffold(for: "The mug waited.")
         let plain = scaffold.tokens.first { $0.word == "The" }!
 
-        XCTAssertTrue(engine.moves(for: plain).isEmpty)
+        XCTAssertTrue(engine.moves(for: plain, in: scaffold).isEmpty)
+    }
+
+    // MARK: - Context-aware moves
+
+    func testMovesReflectTheSentencesDominantTheme() {
+        let engine = SentenceBuilderEngine()
+        // "kettle" + "mug" pull the kitchen theme; the verb chips should lead with kitchen verbs.
+        let scaffold = engine.scaffold(for: "The kettle and the mug sat.")
+        let motionToken = scaffold.tokens.first { $0.word == "sat" } ?? scaffold.tokens.first { $0.word == "mug" }!
+
+        XCTAssertEqual(engine.dominantTheme(in: scaffold)?.id, "kitchen")
+
+        // For an anchor swap, kitchen anchors should surface before far-off ones.
+        let mug = scaffold.tokens.first { $0.word == "mug" }!
+        let anchorMoves = engine.moves(for: mug, in: scaffold)
+        let kitchenWords: Set<String> = ["kettle", "cup", "spoon", "bowl", "sink", "counter", "saucer", "stove", "pan", "jar"]
+        XCTAssertTrue(kitchenWords.contains(anchorMoves.first!.word), "expected a kitchen anchor first, got \(anchorMoves.first!.word)")
+        _ = motionToken
+    }
+
+    func testMovesSkipWordsAlreadyInTheSentence() {
+        let engine = SentenceBuilderEngine()
+        let scaffold = engine.scaffold(for: "The cold mug waited, cold.")
+        let sense = scaffold.tokens.first { $0.word == "cold" }!
+
+        let moves = engine.moves(for: sense, in: scaffold)
+
+        // "mug" and "waited" are already used and must not be offered back.
+        XCTAssertFalse(moves.contains { $0.word.lowercased() == "mug" })
+        XCTAssertFalse(moves.contains { $0.word.lowercased() == "waited" })
+    }
+
+    func testMovesOfferMoreChipsThanBefore() {
+        let engine = SentenceBuilderEngine()
+        let scaffold = engine.scaffold(for: "The mug waited.")
+        let mug = scaffold.tokens.first { $0.word == "mug" }!
+
+        // The richer pools should comfortably fill the wider chip budget.
+        XCTAssertGreaterThanOrEqual(engine.moves(for: mug, in: scaffold).count, 8)
+    }
+
+    // MARK: - Upgradeable packs (JSON merge)
+
+    func testPartialJSONPackDecodesWithDefaults() throws {
+        // An upgrade pack ships only the parts it wants to add.
+        let json = """
+        { "id": "pack.test", "concreteWords": ["telescope"], "availability": "userImported" }
+        """.data(using: .utf8)!
+
+        let pack = try JSONDecoder().decode(SentenceBuilderPack.self, from: json)
+
+        XCTAssertEqual(pack.id, "pack.test")
+        XCTAssertEqual(pack.concreteWords, ["telescope"])
+        XCTAssertTrue(pack.displayName.isEmpty)   // defaulted, so merge keeps the base ritual name
+        XCTAssertEqual(pack.version, 1)
+        XCTAssertEqual(pack.availability, "userImported")
+    }
+
+    func testImportedPackAddsChipsAndThemeWithoutRenamingRitual() throws {
+        let json = """
+        {
+          "id": "pack.ocean",
+          "concreteWords": ["tide", "shell", "pier"],
+          "sensoryWords": ["briny", "kelpy"],
+          "themes": [{
+            "id": "shore", "name": "Shore",
+            "anchors": ["tide", "shell", "pier"],
+            "senses": ["briny", "kelpy"], "verbs": ["waited"], "crossings": ["salt light"]
+          }]
+        }
+        """.data(using: .utf8)!
+        let importPack = try JSONDecoder().decode(SentenceBuilderPack.self, from: json)
+
+        let composed = SentenceBuilderPack.core.merged(with: importPack)
+        let engine = SentenceBuilderEngine(pack: composed)
+
+        // Ritual identity is preserved (importer left it blank).
+        XCTAssertEqual(composed.displayName, SentenceBuilderPack.core.displayName)
+        // New anchors are live: a shore sentence finds its theme and offers shore chips.
+        XCTAssertTrue(composed.concreteWords.contains("tide"))
+        let scaffold = engine.scaffold(for: "The tide and the shell waited.")
+        XCTAssertEqual(engine.dominantTheme(in: scaffold)?.id, "shore")
+        let tide = scaffold.tokens.first { $0.word == "tide" }!
+        XCTAssertTrue(engine.moves(for: tide, in: scaffold).contains { $0.word == "pier" || $0.word == "shell" })
+    }
+
+    func testComposedCoreMergesEntitledExpansionPack() {
+        // The locked bundled expansion is invisible until owned…
+        PackEntitlements.ownedPackIDs.remove("pack.night-and-garden")
+        SentenceBuilderPackRegistry.reload()
+        XCTAssertFalse(SentenceBuilderPackRegistry.composedCore().concreteWords.contains("moth"))
+
+        // …and its chips appear once unlocked.
+        PackEntitlements.ownedPackIDs.insert("pack.night-and-garden")
+        SentenceBuilderPackRegistry.reload()
+        XCTAssertTrue(SentenceBuilderPackRegistry.composedCore().concreteWords.contains("moth"))
+        XCTAssertTrue(SentenceBuilderPackRegistry.composedCore().themes.contains { $0.id == "garden" })
+
+        // Clean up shared state for other tests.
+        PackEntitlements.ownedPackIDs.remove("pack.night-and-garden")
+        SentenceBuilderPackRegistry.reload()
     }
 
     func testReplacingTokenRetagsSoHighlightingStaysHonest() {

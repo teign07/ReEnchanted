@@ -153,7 +153,7 @@ struct BodySourceCard: View {
                         Image(systemName: bodySignal == nil ? "heart.circle" : "arrow.clockwise.circle")
                             .font(.title3.weight(.semibold))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bookPress())
                     .foregroundStyle(BookPalette.teal)
                     .disabled(!isAvailable)
                     .accessibilityLabel(bodySignal == nil ? "Open the body doorway" : "Listen again")
@@ -235,7 +235,7 @@ struct WeatherSourceCard: View {
                         Image(systemName: weatherSignal == nil ? "location.circle" : "arrow.clockwise.circle")
                             .font(.title3.weight(.semibold))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bookPress())
                     .foregroundStyle(BookPalette.teal)
                     .disabled(!isAvailable)
                     .accessibilityLabel(weatherSignal == nil ? "Open the weather doorway" : "Listen to the sky again")
@@ -313,7 +313,7 @@ struct AnchorSourceCard: View {
                         Image(systemName: proximity == nil ? "location.magnifyingglass" : "arrow.clockwise.circle")
                             .font(.title3.weight(.semibold))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bookPress())
                     .foregroundStyle(BookPalette.teal)
                     .disabled(!isAvailable)
                     .accessibilityLabel(proximity == nil ? "Check nearby Anchors" : "Check nearby Anchors again")
@@ -419,8 +419,9 @@ struct StoryFieldStatusCard: View {
                 Spacer()
 
                 if isPreparing {
-                    ProgressView()
-                        .tint(BookPalette.violet)
+                    ScribeInkMeter(accent: BookPalette.violet, reduceMotion: true)
+                        .frame(width: 98)
+                        .accessibilityLabel("The Story Page is taking ink")
                 } else {
                     Text(bookGlowText)
                         .font(.caption.monospacedDigit().weight(.bold))
@@ -537,7 +538,7 @@ struct StatusBanner: View {
                     action()
                 }
                 .font(.footnote.weight(.bold))
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress())
                 .foregroundStyle(BookPalette.teal)
             }
         }
@@ -557,6 +558,7 @@ struct BeliefScoreBadge: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isBreathing = false
+    @State private var pop = false
 
     private var clampedScore: Int {
         min(100, max(0, score))
@@ -612,9 +614,22 @@ struct BeliefScoreBadge: View {
             reduceMotion ? nil : .easeInOut(duration: 2.4 - normalized * 0.7).repeatForever(autoreverses: true),
             value: isBreathing
         )
+        .scaleEffect(pop && !reduceMotion ? 1.18 : 1.0)
         .onAppear {
             guard !reduceMotion else { return }
             isBreathing = true
+        }
+        .onChange(of: score) { _, _ in
+            BookFeedback.play(.keepPage)
+            guard !reduceMotion else { return }
+            withAnimation(.spring(response: 0.26, dampingFraction: 0.45)) {
+                pop = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    pop = false
+                }
+            }
         }
         .accessibilityLabel("Belief \(tierName), \(clampedScore) out of 100")
         .help("Belief \(clampedScore) out of 100")
@@ -993,7 +1008,7 @@ struct GlowCommandMenu: View {
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .scaleEffect(isSelected && !reduceMotion ? 1.012 : 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress())
         .accessibilityLabel("\(section.title). \(section.subtitle)")
     }
 
@@ -1171,7 +1186,7 @@ struct GlowCommandMenu: View {
                     .padding(.vertical, compact ? 8 : 10)
                     .background(.white.opacity(0.28), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress())
                 .accessibilityLabel("\(page.title), \(page.glowName)")
             }
         }
@@ -1239,7 +1254,7 @@ struct GlowCommandMenu: View {
                         .stroke(BookPalette.violet.opacity(0.22), lineWidth: 1)
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.bookPress())
             .accessibilityLabel("Give Belief to a new Cast Member")
 
             ForEach(entities) { entity in
@@ -1268,7 +1283,7 @@ struct GlowCommandMenu: View {
                     .padding(.vertical, compact ? 8 : 10)
                     .background(.white.opacity(0.28), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress())
                 .accessibilityLabel("\(entity.name), \(entity.glowName)")
             }
         }
@@ -1365,7 +1380,7 @@ struct GlowCommandMenu: View {
             .padding(.vertical, compact ? 8 : 10)
             .background(.white.opacity(0.30), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress())
     }
 
     private var closeSeal: some View {
@@ -1382,7 +1397,7 @@ struct GlowCommandMenu: View {
             .frame(width: 54, height: 54)
             .shadow(color: .black.opacity(0.32), radius: 10, x: 0, y: 6)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress())
         .accessibilityLabel("Close Glow menu")
     }
 
@@ -1446,95 +1461,473 @@ struct BraidingStatusCard: View {
     let startedAt: Date?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                ProgressView()
-                    .tint(BookPalette.teal)
-                Text("The braid is taking ink")
-                    .font(.headline)
-                    .foregroundStyle(BookPalette.ink)
-                Spacer()
-                if let startedAt {
-                    Text(startedAt, style: .timer)
-                        .font(.caption.monospacedDigit().weight(.bold))
-                        .foregroundStyle(BookPalette.teal)
-                }
-            }
+        LocalBrainWorkingStatusCard(
+            label: "braid",
+            quip: quip,
+            startedAt: startedAt,
+            presentation: .shelf
+        )
+    }
+}
 
-            Text(quip)
-                .font(.system(.body, design: .serif, weight: .semibold))
-                .lineSpacing(3)
-                .foregroundStyle(BookPalette.ink.opacity(0.82))
-                .id(quip)
-                .transition(.opacity)
+enum ScribeWorkPresentation {
+    case shelf
+    case page
+    case compact
+}
 
-            Text("You may leave the page open. The Book will keep its place and finish the line.")
-                .font(.caption)
-                .foregroundStyle(BookPalette.ink.opacity(0.62))
-                .fixedSize(horizontal: false, vertical: true)
+private struct ScribeWorkDescriptor {
+    let title: String
+    let scribe: String
+    let assetName: String
+    let status: String
+    let quip: String
+    let accent: Color
+
+    init(label: String) {
+        let normalized = label.lowercased()
+        switch normalized {
+        case let value where value.contains("fae-parley"):
+            let identity: (name: String, asset: String) = {
+                if value.contains("sentencesalamander") { return ("Sentence Salamander", "LabyrinthFaeSentenceSalamander") }
+                if value.contains("punctuationpixie") { return ("Punctuation Pixie", "LabyrinthFaePunctuationPixie") }
+                if value.contains("deeploredwarf") { return ("Deep Lore Dwarf", "LabyrinthFaeDeepLoreDwarf") }
+                if value.contains("goblin") { return ("Marginalia Goblin", "LabyrinthFaeMarginaliaGoblin") }
+                if value.contains("literaryelf") { return ("Literary Elf", "LabyrinthFaeBookSprite") }
+                return ("Book Sprite", "LabyrinthFaeBookSprite")
+            }()
+            self.init(
+                title: "\(identity.name) is answering the parley",
+                scribe: identity.name,
+                assetName: identity.asset,
+                status: "Your chosen wording is changing courtesy, Claim, and the next line.",
+                quip: "Old law is exact about verbs. The Fae is deciding which one you earned.",
+                accent: BookPalette.lampGold
+            )
+        case let value where value.contains("photo-illumination"):
+            self.init(
+                title: "The photograph is developing",
+                scribe: "Penny Blackletter",
+                assetName: "LabyrinthCharacterPennyBlackletter",
+                status: "Reading only what the photograph gives her.",
+                quip: "Light, texture, and the honest edges of the frame are taking ink.",
+                accent: BookPalette.teal
+            )
+        case let value where value.contains("enchantment") || value.contains("everything-speaks"):
+            self.init(
+                title: value.contains("everything-speaks") ? "The subject is finding its voice" : "The Enchantment is taking hold",
+                scribe: "Sentence Salamander",
+                assetName: "LabyrinthFaeSentenceSalamander",
+                status: "The spell and the photograph are staying on this device.",
+                quip: "A bright sentence is testing the shape of the real thing.",
+                accent: BookPalette.lampGold
+            )
+        case let value where value.contains("story-page-result") || value.contains("story-choice"):
+            self.init(
+                title: "Your choice is changing the scene",
+                scribe: "Punctuation Pixie",
+                assetName: "LabyrinthFaePunctuationPixie",
+                status: "The consequence is being written into the living page.",
+                quip: "The fork has been chosen. The ink is discovering what it cost.",
+                accent: BookPalette.violet
+            )
+        case let value where value.contains("story-page") || value.contains("academy-class") || value.contains("book-jump"):
+            self.init(
+                title: "The next scene is taking ink",
+                scribe: "Book Sprite",
+                assetName: "LabyrinthFaeBookSprite",
+                status: "The Book is carrying your last choice forward.",
+                quip: "The old thread is being tied to the next true sentence.",
+                accent: BookPalette.violet
+            )
+        case let value where value.contains("ask-the-book"):
+            self.init(
+                title: "The Book is reading your question",
+                scribe: "Deep Lore Dwarf",
+                assetName: "LabyrinthFaeDeepLoreDwarf",
+                status: "Recent pages and remembered threads are being consulted.",
+                quip: "Something useful is being carried up from the lower shelves.",
+                accent: BookPalette.teal
+            )
+        case let value where value.contains("inkrest"):
+            self.init(
+                title: "Dr. Inkrest is reading with you",
+                scribe: "Dr. Selene Inkrest",
+                assetName: "LabyrinthCharacterDrSeleneInkrest",
+                status: "Your sitting remains private and on this device.",
+                quip: "She is leaving enough quiet around the part that matters.",
+                accent: BookPalette.teal
+            )
+        case let value where value.contains("fae-bargain"):
+            self.init(
+                title: "The Fae is considering the exchange",
+                scribe: "Marginalia Goblin",
+                assetName: "LabyrinthFaeMarginaliaGoblin",
+                status: "The sensory report is being weighed against the old terms.",
+                quip: "The ledger is open. The detail, not the category, will decide it.",
+                accent: BookPalette.lampGold
+            )
+        case let value where value.contains("bookshop-clerk") || value.contains("goblin-clerk"):
+            self.init(
+                title: "The clerk is composing a private opinion",
+                scribe: "Marginalia Goblin",
+                assetName: "LabyrinthFaeMarginaliaGoblin",
+                status: "The stall, your standing, and the current mood are being consulted.",
+                quip: "The clerk has rejected two perfectly serviceable compliments as insufficiently mercantile.",
+                accent: BookPalette.lampGold
+            )
+        case let value where value.contains("wonder-compass") || value.contains("compass") || value.contains("playful-mission"):
+            self.init(
+                title: "The Compass is choosing a passage",
+                scribe: "Punctuation Pixie",
+                assetName: "LabyrinthFaePunctuationPixie",
+                status: "Your constraints are becoming one small, finishable path.",
+                quip: "The needle is refusing every adventure too large for today.",
+                accent: BookPalette.teal
+            )
+        case let value where value.contains("stacks-search"):
+            self.init(
+                title: "The index is reading your question",
+                scribe: "Deep Lore Dwarf",
+                assetName: "LabyrinthFaeDeepLoreDwarf",
+                status: "The search stays inside your private archive.",
+                quip: "Names, moods, objects, and old weather are being cross-referenced.",
+                accent: BookPalette.teal
+            )
+        case let value where value.contains("letter"):
+            self.init(
+                title: "The letter is opening",
+                scribe: "Book Sprite",
+                assetName: "LabyrinthFaeBookSprite",
+                status: "The sender is finding the words that belong on this page.",
+                quip: "The seal is warm. The last line is still deciding how honest to be.",
+                accent: BookPalette.teal
+            )
+        case let value where value.contains("monthly-closing") || value.contains("edition"):
+            self.init(
+                title: "The month is receiving its last page",
+                scribe: "Book Sprite",
+                assetName: "LabyrinthFaeBookSprite",
+                status: "The closing is being written from the pages already kept.",
+                quip: "The binding thread is waiting for one final honest paragraph.",
+                accent: BookPalette.lampGold
+            )
+        case let value where value.contains("gossip") || value.contains("bleed"):
+            self.init(
+                title: "The margins are comparing notes",
+                scribe: "Marginalia Goblin",
+                assetName: "LabyrinthFaeMarginaliaGoblin",
+                status: "Clippings and remembered details are being set in order.",
+                quip: "One source is being dramatic. The clerk has made a note of it.",
+                accent: BookPalette.lampGold
+            )
+        case let value where value.contains("faculty") || value.contains("research") || value.contains("support-guild"):
+            self.init(
+                title: "The research desk is awake",
+                scribe: "Deep Lore Dwarf",
+                assetName: "LabyrinthFaeDeepLoreDwarf",
+                status: "The faculty are reading the supplied evidence, not inventing a diagnosis.",
+                quip: "Several careful notes are becoming one useful page.",
+                accent: BookPalette.teal
+            )
+        case let value where value.contains("braid"):
+            self.init(
+                title: value.contains("rewrite") ? "The braid is being rewritten" : "The braid is taking ink",
+                scribe: "Sentence Salamander",
+                assetName: "LabyrinthFaeSentenceSalamander",
+                status: "Today’s kept fragments are being braided on this device.",
+                quip: "A ribbon is being tied around the ordinary without squeezing it flat.",
+                accent: BookPalette.teal
+            )
+        default:
+            self.init(
+                title: "The local scribe is writing",
+                scribe: "Book Sprite",
+                assetName: "LabyrinthFaeBookSprite",
+                status: "One private page is taking ink at a time.",
+                quip: "The shelves are staying quiet so the sentence can land.",
+                accent: BookPalette.violet
+            )
         }
-        .padding(16)
-        .parchmentSurface(accent: BookPalette.teal, isActive: true)
+    }
+
+    private init(title: String, scribe: String, assetName: String, status: String, quip: String, accent: Color) {
+        self.title = title
+        self.scribe = scribe
+        self.assetName = assetName
+        self.status = status
+        self.quip = quip
+        self.accent = accent
     }
 }
 
 struct LocalBrainWorkingStatusCard: View {
     let label: String
-    let quip: String
-    let startedAt: Date?
-    let queuedCount: Int
+    var quip: String? = nil
+    var startedAt: Date? = nil
+    var queuedCount = 0
+    var presentation: ScribeWorkPresentation = .page
 
-    private var title: String {
-        switch label {
-        case "braid":
-            return "The braid is taking ink"
-        case "weather", "weather-page":
-            return "The Weather Page is finding its words"
-        case "story-page":
-            return "The Story Page is being written"
-        case "photo-illumination":
-            return "Penny is illuminating the photograph"
-        case "wonder-compass":
-            return "The Compass is choosing a passage"
-        default:
-            return "The local brain is writing"
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var activity: WaitActivity?
+    @State private var loosePageSalt = 0
+    @State private var resetStartedAt: Date?
+    @State private var radioManager = BookRadioManager.shared
+
+    private var descriptor: ScribeWorkDescriptor { ScribeWorkDescriptor(label: label) }
+    private var isCompact: Bool { presentation == .compact }
+
+    private enum WaitActivity: String, CaseIterable {
+        case loosePage
+        case radio
+        case reset
+
+        var title: String {
+            switch self {
+            case .loosePage: return "Loose page"
+            case .radio: return "Radio"
+            case .reset: return "60-sec reset"
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .loosePage: return "book.pages"
+            case .radio: return "radio"
+            case .reset: return "circle.dotted"
+            }
         }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                ProgressView()
-                    .tint(BookPalette.violet)
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(BookPalette.ink)
-                Spacer()
+        VStack(alignment: .leading, spacing: isCompact ? 8 : 13) {
+            HStack(alignment: .top, spacing: 12) {
+                scribePortrait
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("WRITING PRIVATELY ON THIS IPHONE")
+                        .font(.caption2.weight(.black))
+                        .tracking(0.7)
+                        .foregroundStyle(descriptor.accent)
+
+                    Text(descriptor.title)
+                        .font(isCompact ? .subheadline.weight(.bold) : .headline)
+                        .foregroundStyle(BookPalette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    ScribeInkMeter(accent: descriptor.accent, reduceMotion: reduceMotion)
+
+                    if !isCompact {
+                        Text(descriptor.status)
+                            .font(.caption)
+                            .foregroundStyle(BookPalette.ink.opacity(0.62))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                Spacer(minLength: 4)
+
                 if queuedCount > 0 {
                     Text("\(queuedCount) waiting")
-                        .font(.caption.monospacedDigit().weight(.bold))
-                        .foregroundStyle(BookPalette.violet)
-                } else if let startedAt {
-                    Text(startedAt, style: .timer)
-                        .font(.caption.monospacedDigit().weight(.bold))
-                        .foregroundStyle(BookPalette.violet)
+                        .font(.caption2.monospacedDigit().weight(.bold))
+                        .foregroundStyle(descriptor.accent)
                 }
             }
 
-            Text(quip)
-                .font(.system(.body, design: .serif, weight: .semibold))
-                .lineSpacing(3)
-                .foregroundStyle(BookPalette.ink.opacity(0.82))
-                .id(quip)
-                .transition(.opacity)
+            if !isCompact {
+                Text(quip?.nonEmpty ?? descriptor.quip)
+                    .font(.system(.body, design: .serif, weight: .semibold))
+                    .lineSpacing(3)
+                    .foregroundStyle(BookPalette.ink.opacity(0.82))
+                    .id(quip)
+                    .transition(.opacity)
 
-            Text("Only one local-brain page can write at a time. The Book is keeping the shelf steady.")
-                .font(.caption)
-                .foregroundStyle(BookPalette.ink.opacity(0.62))
-                .fixedSize(horizontal: false, vertical: true)
+                waitActivities
+
+                Label("No cloud. This page and its private source material do not leave your device.", systemImage: "lock.shield")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.56))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("You can keep reading while the ink dries.")
+                    .font(.caption2)
+                    .foregroundStyle(BookPalette.ink.opacity(0.58))
+            }
         }
-        .padding(16)
-        .parchmentSurface(accent: BookPalette.violet, isActive: true)
+        .padding(isCompact ? 12 : 16)
+        .parchmentSurface(accent: descriptor.accent, isActive: true)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(descriptor.scribe). \(descriptor.title). Writing privately on this iPhone.")
+    }
+
+    private var scribePortrait: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Image(descriptor.assetName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: isCompact ? 46 : 58, height: isCompact ? 46 : 58)
+                .clipShape(Circle())
+                .overlay {
+                    Circle().stroke(descriptor.accent.opacity(0.52), lineWidth: 1)
+                }
+
+            Image(systemName: "pencil.and.scribble")
+                .font(.caption2.weight(.black))
+                .foregroundStyle(BookPalette.paper)
+                .padding(5)
+                .background(descriptor.accent, in: Circle())
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var waitActivities: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("WHILE THE INK DRIES")
+                .font(.caption2.weight(.black))
+                .tracking(0.6)
+                .foregroundStyle(BookPalette.ink.opacity(0.48))
+
+            HStack(spacing: 7) {
+                ForEach(WaitActivity.allCases, id: \.rawValue) { option in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            activity = activity == option ? nil : option
+                            if option == .reset, resetStartedAt == nil {
+                                resetStartedAt = Date()
+                            }
+                        }
+                    } label: {
+                        Label(option.title, systemImage: option.symbol)
+                            .font(.caption2.weight(.bold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(activity == option ? descriptor.accent : BookPalette.ink.opacity(0.62))
+                }
+            }
+
+            if let activity {
+                activityContent(activity)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func activityContent(_ activity: WaitActivity) -> some View {
+        switch activity {
+        case .loosePage:
+            VStack(alignment: .leading, spacing: 8) {
+                Text(loosePageText)
+                    .font(.system(.caption, design: .serif).italic())
+                    .foregroundStyle(BookPalette.ink.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Turn the loose page") { loosePageSalt += 1 }
+                    .font(.caption2.weight(.bold))
+                    .buttonStyle(.bookPress())
+                    .foregroundStyle(descriptor.accent)
+            }
+            .waitActivitySurface(accent: descriptor.accent)
+        case .radio:
+            HStack(spacing: 10) {
+                Image(systemName: radioManager.isPlaying ? "dot.radiowaves.left.and.right" : "radio")
+                    .foregroundStyle(descriptor.accent)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(radioManager.isPlaying ? (radioManager.activeStation?.title ?? "ReEnchanted Radio") : "Let the Radio keep the room")
+                        .font(.caption.weight(.bold))
+                    Text(radioManager.isPlaying ? radioManager.statusLine : "One tap tunes Fae-Fi while the page writes.")
+                        .font(.caption2)
+                        .foregroundStyle(BookPalette.ink.opacity(0.58))
+                }
+                Spacer()
+                Button(radioManager.isPlaying ? "Stop" : "Tune in") { toggleRadio() }
+                    .font(.caption2.weight(.bold))
+                    .buttonStyle(.bordered)
+                    .tint(descriptor.accent)
+            }
+            .waitActivitySurface(accent: descriptor.accent)
+        case .reset:
+            resetView
+        }
+    }
+
+    private var resetView: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+            let started = resetStartedAt ?? timeline.date
+            let elapsed = max(0, Int(timeline.date.timeIntervalSince(started)))
+            let remaining = max(0, 60 - elapsed)
+            let breathIn = (elapsed % 8) < 4
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(descriptor.accent.opacity(breathIn ? 0.28 : 0.13))
+                    .overlay { Circle().stroke(descriptor.accent.opacity(0.56), lineWidth: 1) }
+                    .frame(width: breathIn && !reduceMotion ? 48 : 36, height: breathIn && !reduceMotion ? 48 : 36)
+                    .animation(.easeInOut(duration: 1), value: breathIn)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(remaining == 0 ? "The minute is yours." : (breathIn ? "Breathe in, without improving anything." : "Breathe out. Let the chair hold your weight."))
+                        .font(.caption.weight(.semibold))
+                    Text(remaining == 0 ? "Stay, read, or close the reset." : "\(remaining) seconds — optional, never a requirement.")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(BookPalette.ink.opacity(0.56))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .waitActivitySurface(accent: descriptor.accent)
+        }
+    }
+
+    private var loosePageText: String {
+        guard !LoosePageReader.fragments.isEmpty else {
+            return "A blank leaf has been left here for the sentence that is still arriving."
+        }
+        return LoosePageReader.fragments[abs("scribe-wait-\(label)-\(loosePageSalt)".stableHash) % LoosePageReader.fragments.count]
+    }
+
+    private func toggleRadio() {
+        if radioManager.isPlaying {
+            radioManager.stop()
+            return
+        }
+        let unlocked = Set(PlayerVault.shared.data.ownedPacks ?? [])
+        let stationID = RadioStationRegistry.station(id: "fae-fi", unlockedPackIDs: unlocked)?.id
+            ?? RadioStationRegistry.stations(unlockedPackIDs: unlocked).first?.id
+        if let stationID {
+            radioManager.tune(stationID: stationID, unlockedPackIDs: unlocked)
+        }
+    }
+}
+
+private struct ScribeInkMeter: View {
+    let accent: Color
+    let reduceMotion: Bool
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: reduceMotion ? 2 : 0.8)) { timeline in
+            let tick = Int(timeline.date.timeIntervalSinceReferenceDate / (reduceMotion ? 2 : 0.8))
+            HStack(spacing: 4) {
+                ForEach(0..<4, id: \.self) { index in
+                    Capsule(style: .continuous)
+                        .fill(accent.opacity(index == tick % 4 && !reduceMotion ? 0.78 : 0.24))
+                        .frame(width: CGFloat(18 + ((index * 11 + tick * 7) % 24)), height: 3)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .animation(.easeInOut(duration: 0.35), value: tick)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+private extension View {
+    func waitActivitySurface(accent: Color) -> some View {
+        padding(10)
+            .background(BookPalette.page.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(accent.opacity(0.18), lineWidth: 1)
+            }
     }
 }
 
@@ -1595,7 +1988,7 @@ struct ModelStatusCard: View {
                         .font(.body.weight(.bold))
                         .frame(width: 34, height: 34)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress())
                 .foregroundStyle(BookPalette.teal)
                 .accessibilityLabel("Ask whether the local brain is awake")
             }
@@ -1664,8 +2057,10 @@ struct ModelStatusCard: View {
 struct FaeGiftCard: View {
     let gift: FaeGift
     let now: Date
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isReadingLoosePage = false
     @State private var loosePageSalt = 0
+    @State private var arrived = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1693,7 +2088,7 @@ struct FaeGiftCard: View {
                     Label(isReadingLoosePage ? "Turn the page" : "Read the loose page", systemImage: "book.pages")
                         .font(.caption.weight(.semibold))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress())
                 .foregroundStyle(BookPalette.teal)
                 if isReadingLoosePage {
                     Text(loosePageText)
@@ -1709,6 +2104,15 @@ struct FaeGiftCard: View {
         .padding(12)
         .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
         .overlay { RoundedRectangle(cornerRadius: 8).stroke(BookPalette.ink.opacity(0.12), lineWidth: 1) }
+        .scaleEffect(arrived || reduceMotion ? 1 : 0.86)
+        .opacity(arrived || reduceMotion ? 1 : 0)
+        .onAppear {
+            guard !arrived else { return }
+            if gift.isActive { BookFeedback.faeArrival(kind: gift.name) }
+            withAnimation(reduceMotion ? .linear(duration: 0.01) : .spring(response: 0.45, dampingFraction: 0.58)) {
+                arrived = true
+            }
+        }
     }
 
     private var loosePageText: String {
@@ -1838,7 +2242,7 @@ struct PactMapSheet: View {
                     Label("Press your claim", systemImage: "hand.point.up.left")
                         .font(.caption.weight(.bold))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress())
                 .foregroundStyle(BookPalette.teal)
                 .padding(.top, 2)
             }

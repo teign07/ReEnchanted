@@ -40,6 +40,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case academyClass
     case elective
     case packPage
+    case gamePage
     case calendar
     case helpTips
     case welcome
@@ -47,6 +48,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case bookConnections
     case bookRemembered
     case bookNotices
+    case glowInvitation
     case theBleed
     case inventory
 
@@ -130,6 +132,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Unwritten Electives"
         case .packPage:
             return "Pack Page"
+        case .gamePage:
+            return "Game Page"
         case .calendar:
             return "Hour Page"
         case .helpTips:
@@ -144,6 +148,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "The Book Remembered"
         case .bookNotices:
             return "The Book Notices"
+        case .glowInvitation:
+            return "Spend Glow"
         case .theBleed:
             return "The Bleed"
         case .inventory:
@@ -229,6 +235,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Elective"
         case .packPage:
             return "Pack"
+        case .gamePage:
+            return "Game"
         case .calendar:
             return "Hour"
         case .helpTips:
@@ -243,6 +251,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Remembered"
         case .bookNotices:
             return "Notices"
+        case .glowInvitation:
+            return "Glow"
         case .theBleed:
             return "Bleed"
         case .inventory:
@@ -328,6 +338,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "envelope.badge"
         case .packPage:
             return "puzzlepiece.extension"
+        case .gamePage:
+            return "gamecontroller"
         case .calendar:
             return "calendar"
         case .helpTips:
@@ -342,6 +354,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "clock.arrow.circlepath"
         case .bookNotices:
             return "sparkle.magnifyingglass"
+        case .glowInvitation:
+            return "sparkle"
         case .theBleed:
             return "newspaper"
         case .inventory:
@@ -578,6 +592,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "when patterns gather",
             note: "The Book surfaces literary patterns, absences, living Beliefs, and duration."
+        ),
+        BookPageSource(
+            id: "spend-glow",
+            type: .glowInvitation,
+            title: "Spend Glow",
+            shortTitle: "Glow",
+            symbolName: "sparkle",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "when the reader's Glow runs high",
+            note: "A pressure valve for investing Belief in cast members, page sources, and other living parts of the Book."
         ),
         BookPageSource(
             id: "the-bleed",
@@ -928,6 +954,18 @@ enum BookPageSourceRegistry {
             note: "Characters ask small real-world favors tied to their unwritten interests. Five at most fit the flyleaf."
         ),
         BookPageSource(
+            id: "game-page",
+            type: .gamePage,
+            title: "Game Page",
+            shortTitle: "Game",
+            symbolName: "gamecontroller",
+            origin: .simulated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "when kept words want to move",
+            note: "Small playable pages whose results become real archive material."
+        ),
+        BookPageSource(
             id: "calendar-page",
             type: .calendar,
             title: "The Inked Hour",
@@ -1029,7 +1067,7 @@ enum BookPageSourceRegistry {
             return 32
         case .narrativeOS, .bookFae, .wonderCompass, .anchor, .welcome:
             return 30
-        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .inventory:
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory:
             return 22
         case .diary, .souvenir, .askTheBook, .enchantment, .faeBargain:
             return 28
@@ -1053,6 +1091,8 @@ enum BookPageSourceRegistry {
             return 24
         case .lore, .illustration, .illuminatedPhoto, .packPage:
             return 22
+        case .gamePage:
+            return 28
         case .calendar:
             return 26
         case .quip, .location, .patreon:
@@ -1064,7 +1104,7 @@ enum BookPageSourceRegistry {
         switch source.type {
         case .narrativeOS, .bookFae:
             return 34
-        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .inventory:
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory:
             return 18
         case .mood, .fuel:
             return 30
@@ -1094,6 +1134,8 @@ enum BookPageSourceRegistry {
             return 20
         case .lore, .illustration, .illuminatedPhoto, .packPage:
             return 18
+        case .gamePage:
+            return 26
         case .calendar:
             return 22
         case .quip, .location, .patreon:

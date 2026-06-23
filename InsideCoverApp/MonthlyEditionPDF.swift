@@ -139,20 +139,19 @@ enum MonthlyEditionPDFWriter {
 
         try renderer.writePDF(to: url) { context in
             var cursor = PDFCursor(bounds: pageBounds, margins: margins)
+            cursor.seed = "\(BookThemeEngine.monthKey(for: edition.startDate))-\(edition.theme?.name ?? "untitled")"
             var marginaliaIndex = 0
 
             context.beginPage()
             drawCover(edition, style: style, bounds: pageBounds)
 
             if !edition.foreword.isEmpty {
-                context.beginPage()
-                cursor.reset()
+                beginComposedPage(context, style: style, cursor: &cursor)
                 drawForeword(edition, style: style, context: context, cursor: &cursor)
             }
 
             if let theme = edition.theme {
-                context.beginPage()
-                cursor.reset()
+                beginComposedPage(context, style: style, cursor: &cursor)
                 drawThemePage(theme, edition: edition, style: style, bounds: pageBounds, cursor: &cursor)
             }
 
@@ -162,8 +161,7 @@ enum MonthlyEditionPDFWriter {
                 drawStarChart(aliveConstellations, edition: edition, style: style, bounds: pageBounds)
             }
 
-            context.beginPage()
-            cursor.reset()
+            beginComposedPage(context, style: style, cursor: &cursor)
             drawContents(edition, style: style, cursor: &cursor)
 
             for section in edition.sections where section.id != "the-months-theme" {
@@ -176,6 +174,17 @@ enum MonthlyEditionPDFWriter {
                     cursor: &cursor
                 )
             }
+
+            // The month's conclusion, on its own composted leaf.
+            let closing = edition.closing ?? BookForewordWriter.closing(
+                monthTitle: edition.monthName,
+                pages: [],
+                dayCount: edition.dayCount,
+                continuity: edition.continuity,
+                constellations: edition.constellations,
+                theme: edition.theme
+            )
+            drawClosing(closing, edition: edition, style: style, context: context, cursor: &cursor)
 
             drawColophon(edition, style: style, context: context, cursor: &cursor)
         }
@@ -191,6 +200,7 @@ enum MonthlyEditionPDFWriter {
 
         try renderer.writePDF(to: url) { context in
             var cursor = PDFCursor(bounds: pageBounds, margins: margins)
+            cursor.seed = "annual-\(annual.year)"
 
             // Grand cover.
             context.beginPage()
@@ -198,14 +208,12 @@ enum MonthlyEditionPDFWriter {
 
             // The year's foreword, in the Book's voice.
             if !annual.foreword.isEmpty {
-                context.beginPage()
-                cursor.reset()
+                beginComposedPage(context, style: annualStyle, cursor: &cursor)
                 drawAnnualForeword(annual, style: annualStyle, context: context, cursor: &cursor)
             }
 
             // The table of the year: every chapter and its theme.
-            context.beginPage()
-            cursor.reset()
+            beginComposedPage(context, style: annualStyle, cursor: &cursor)
             drawAnnualContents(annual, style: annualStyle, cursor: &cursor)
 
             // Each month-chapter, bound in its own style.
@@ -213,13 +221,13 @@ enum MonthlyEditionPDFWriter {
                 let chapterStyle = EditionStyle.style(for: chapter)
                 let marginalia = marginaliaLines(for: chapter)
                 var marginaliaIndex = 0
+                cursor.seed = "annual-\(annual.year)-\(chapter.monthName)"
 
                 context.beginPage()
                 drawChapterDivider(chapter, style: chapterStyle, bounds: pageBounds)
 
                 if !chapter.foreword.isEmpty {
-                    context.beginPage()
-                    cursor.reset()
+                    beginComposedPage(context, style: chapterStyle, cursor: &cursor)
                     drawForeword(chapter, style: chapterStyle, context: context, cursor: &cursor)
                 }
 
@@ -308,7 +316,7 @@ enum MonthlyEditionPDFWriter {
 
         let paragraphs = annual.foreword.components(separatedBy: "\n\n")
         for (index, paragraph) in paragraphs.enumerated() {
-            ensureSpace(90, context: context, cursor: &cursor)
+            ensureSpace(90, style: style, context: context, cursor: &cursor)
             if index == 0, let first = paragraph.first {
                 let capital = String(first)
                 let capAttributes: [NSAttributedString.Key: Any] = [
@@ -402,8 +410,7 @@ enum MonthlyEditionPDFWriter {
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
     ) {
-        context.beginPage()
-        cursor.reset()
+        beginComposedPage(context, style: style, cursor: &cursor)
         cursor.y = 96
         drawText(annual.closing, font: .serifItalicFont(ofSize: 13), color: style.palette.ink.withAlphaComponent(0.85), cursor: &cursor, spacingAfter: 30)
 
@@ -738,7 +745,7 @@ enum MonthlyEditionPDFWriter {
 
         let paragraphs = edition.foreword.components(separatedBy: "\n\n")
         for (index, paragraph) in paragraphs.enumerated() {
-            ensureSpace(90, context: context, cursor: &cursor)
+            ensureSpace(90, style: style, context: context, cursor: &cursor)
             if index == 0, let first = paragraph.first {
                 // Drop cap on the opening paragraph.
                 let capital = String(first)
@@ -863,16 +870,23 @@ enum MonthlyEditionPDFWriter {
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
     ) {
-        context.beginPage()
-        cursor.reset()
+        beginComposedPage(context, style: style, cursor: &cursor)
 
-        // Section opener band
-        style.palette.accentSoft.setFill()
-        UIBezierPath(rect: CGRect(x: 0, y: cursor.y - 12, width: cursor.bounds.width, height: 64)).fill()
+        // Section opener: the title torn from paper and taped across the leaf.
+        let labelTop = cursor.y - 14
+        let labelRect = CGRect(x: cursor.left - 16, y: labelTop, width: cursor.contentWidth + 22, height: 66)
+        drawTornScrap(
+            in: labelRect,
+            rotation: -0.012,
+            fill: blend(parchment(for: style).top, style.palette.accent, 0.10),
+            seed: "\(cursor.pageSeed)-label"
+        )
+        drawTapeStrip(center: CGPoint(x: labelRect.minX + 26, y: labelRect.minY + 4), length: 54, angle: -0.7, tint: style.palette.gold)
+        drawTapeStrip(center: CGPoint(x: labelRect.maxX - 26, y: labelRect.minY + 4), length: 54, angle: 0.7, tint: style.palette.gold)
         style.palette.accent.setFill()
-        UIBezierPath(rect: CGRect(x: 0, y: cursor.y - 12, width: 6, height: 64)).fill()
+        UIBezierPath(rect: CGRect(x: cursor.left, y: cursor.y - 4, width: 6, height: 48)).fill()
         drawText(section.title, font: .serifFont(ofSize: 22, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 2)
-        drawText(section.note, font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.65), cursor: &cursor, spacingAfter: 22)
+        drawText(section.note, font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.65), cursor: &cursor, spacingAfter: 26)
 
         for (index, item) in section.items.enumerated() {
             drawItem(
@@ -896,7 +910,7 @@ enum MonthlyEditionPDFWriter {
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
     ) {
-        ensureSpace(110, context: context, cursor: &cursor)
+        ensureSpace(110, style: style, context: context, cursor: &cursor)
         let itemTop = cursor.y
 
         // Date chip in the margin column.
@@ -927,16 +941,30 @@ enum MonthlyEditionPDFWriter {
         // Marginalia: the Book annotating its own binding.
         if showMarginNote, !marginalia.isEmpty {
             let note = marginalia[marginaliaIndex % marginalia.count]
+            let noteSeed = "\(cursor.pageSeed)-margin\(marginaliaIndex)"
             marginaliaIndex += 1
             let paragraph = NSMutableParagraphStyle()
             paragraph.lineSpacing = 1
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: UIFont.serifItalicFont(ofSize: 8),
-                .foregroundColor: style.palette.accent.withAlphaComponent(0.85),
+                .foregroundColor: style.palette.ink.withAlphaComponent(0.82),
                 .paragraphStyle: paragraph
             ]
-            let rect = CGRect(x: 30, y: itemTop + 18, width: 76, height: 120)
-            (note as NSString).draw(in: rect, withAttributes: attributes)
+            let textRect = CGRect(x: 30, y: itemTop + 20, width: 72, height: 120)
+            let measured = (note as NSString).boundingRect(
+                with: CGSize(width: textRect.width, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin], attributes: attributes, context: nil
+            )
+            // A torn scrap of note paper, taped into the gutter at a slight tilt.
+            let scrap = CGRect(x: 22, y: itemTop + 12, width: 88, height: min(120, measured.height + 18))
+            drawTornScrap(
+                in: scrap,
+                rotation: (frac("\(noteSeed)-rot") - 0.5) * 0.18,
+                fill: blend(parchment(for: style).top, style.palette.gold, 0.12),
+                seed: noteSeed
+            )
+            drawTapeStrip(center: CGPoint(x: scrap.midX, y: scrap.minY + 2), length: 40, angle: (frac("\(noteSeed)-tape") - 0.5) * 0.5, tint: style.palette.gold)
+            (note as NSString).draw(in: textRect, withAttributes: attributes)
         }
 
         // Hairline between items
@@ -949,14 +977,58 @@ enum MonthlyEditionPDFWriter {
         cursor.y += 14
     }
 
+    /// The month's conclusion - the Book's last word, set on a composted leaf
+    /// with a torn-paper headpiece taped above the prose.
+    private static func drawClosing(
+        _ closing: String,
+        edition: MonthlyEdition,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        beginComposedPage(context, style: style, cursor: &cursor)
+        drawRunningHead(edition, style: style, cursor: cursor)
+        cursor.y = 96
+
+        // A torn label that reads "In Closing", taped at a tilt.
+        let labelRect = CGRect(x: cursor.left - 8, y: cursor.y, width: 188, height: 40)
+        drawTornScrap(
+            in: labelRect,
+            rotation: -0.03,
+            fill: blend(parchment(for: style).top, style.palette.accent, 0.12),
+            seed: "\(cursor.pageSeed)-closinglabel"
+        )
+        drawTapeStrip(center: CGPoint(x: labelRect.minX + 24, y: labelRect.minY + 2), length: 48, angle: -0.6, tint: style.palette.gold)
+        let labelAttrs: [NSAttributedString.Key: Any] = [
+            .font: UIFont.serifFont(ofSize: 20, weight: .bold),
+            .foregroundColor: style.palette.ink
+        ]
+        ("In Closing" as NSString).draw(at: CGPoint(x: cursor.left + 8, y: cursor.y + 8), withAttributes: labelAttrs)
+        cursor.y += 56
+        drawAccentRule(style, cursor: &cursor)
+
+        let paragraphs = closing.components(separatedBy: "\n\n")
+        for (index, paragraph) in paragraphs.enumerated() {
+            ensureSpace(80, style: style, context: context, cursor: &cursor)
+            // The signed last line ("- The Book") sits apart, in italic.
+            if index == paragraphs.count - 1, paragraph.contains("- The Book") {
+                let body = paragraph.replacingOccurrences(of: " - The Book", with: "")
+                drawText(body, font: .serifFont(ofSize: 12, weight: .regular), color: style.palette.ink, cursor: &cursor, spacingAfter: 18)
+                drawText("\u{2014} The Book", font: .serifItalicFont(ofSize: 13), color: style.palette.accent, cursor: &cursor, spacingAfter: 8)
+            } else {
+                drawText(paragraph, font: .serifFont(ofSize: 12, weight: .regular), color: style.palette.ink, cursor: &cursor, spacingAfter: 14)
+            }
+        }
+        drawOrnamentRow(style, centerY: cursor.y + 16, in: cursor.bounds, color: style.palette.accent)
+    }
+
     private static func drawColophon(
         _ edition: MonthlyEdition,
         style: EditionStyle,
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
     ) {
-        context.beginPage()
-        cursor.reset()
+        beginComposedPage(context, style: style, cursor: &cursor)
         cursor.y = cursor.bounds.midY - 60
         drawOrnamentRow(style, centerY: cursor.y, in: cursor.bounds, color: style.palette.accent)
         cursor.y += 26
@@ -993,6 +1065,227 @@ enum MonthlyEditionPDFWriter {
             }
         }
         return lines
+    }
+
+    // MARK: - Composted parchment (the ReEnchanted visual refresh)
+    //
+    // Every reading page is laid down as a composted leaf: a tinted parchment
+    // base, paper grain and a stain or two, then a few torn fragments held with
+    // strips of tape in the margins. It is all deterministic - the same edition
+    // composts the same way each binding - and stays clear of the text column so
+    // the page still reads cleanly.
+
+    /// A stable fraction in 0...1 for a seed - the building block of the
+    /// deterministic compost (positions, rotations, sizes).
+    private static func frac(_ seed: String) -> CGFloat {
+        CGFloat(ConstellationKeeper.stableIndex(for: seed, count: 1000)) / 1000.0
+    }
+
+    /// Linear blend between two colors, used to tint the cream parchment toward
+    /// the month's palette so the paper itself carries the binding.
+    private static func blend(_ a: UIColor, _ b: UIColor, _ t: CGFloat) -> UIColor {
+        var ar: CGFloat = 0, ag: CGFloat = 0, ab: CGFloat = 0, aa: CGFloat = 0
+        var br: CGFloat = 0, bg: CGFloat = 0, bb: CGFloat = 0, ba: CGFloat = 0
+        a.getRed(&ar, green: &ag, blue: &ab, alpha: &aa)
+        b.getRed(&br, green: &bg, blue: &bb, alpha: &ba)
+        return UIColor(
+            red: ar + (br - ar) * t,
+            green: ag + (bg - ag) * t,
+            blue: ab + (bb - ab) * t,
+            alpha: aa + (ba - aa) * t
+        )
+    }
+
+    /// The warm paper the reading pages are composted onto, tinted a touch
+    /// toward the month's accent so no two bindings sit on identical stock.
+    private static func parchment(for style: EditionStyle) -> (top: UIColor, bottom: UIColor, fiber: UIColor, stain: UIColor) {
+        let creamTop = UIColor(red: 0.965, green: 0.945, blue: 0.890, alpha: 1)
+        let creamBottom = UIColor(red: 0.930, green: 0.900, blue: 0.832, alpha: 1)
+        return (
+            top: blend(creamTop, style.palette.accent, 0.05),
+            bottom: blend(creamBottom, style.palette.accent, 0.08),
+            fiber: blend(UIColor(red: 0.62, green: 0.55, blue: 0.42, alpha: 1), style.palette.accent, 0.2),
+            stain: blend(UIColor(red: 0.55, green: 0.42, blue: 0.26, alpha: 1), style.palette.accent, 0.3)
+        )
+    }
+
+    /// Begins a fresh reading page and composts it. Use for every interior text
+    /// page; the dark cover/star-chart/divider plates keep their own wash.
+    private static func beginComposedPage(
+        _ context: UIGraphicsPDFRendererContext,
+        style: EditionStyle,
+        cursor: inout PDFCursor
+    ) {
+        context.beginPage()
+        cursor.reset()
+        cursor.pageIndex += 1
+        drawComposedBackground(style: style, seed: cursor.pageSeed, in: cursor.bounds)
+    }
+
+    private static func drawComposedBackground(style: EditionStyle, seed: String, in bounds: CGRect) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        let paper = parchment(for: style)
+
+        // Parchment base wash.
+        drawVerticalWash(in: bounds, top: paper.top, bottom: paper.bottom, cg: cg)
+
+        // Foxing: a couple of broad, very faint stains drifting in from the edges.
+        for index in 0..<3 {
+            let cx = frac("\(seed)-stainx\(index)") * bounds.width
+            let cy = frac("\(seed)-stainy\(index)") * bounds.height
+            let r = 60 + frac("\(seed)-stainr\(index)") * 90
+            let blot = CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)
+            paper.stain.withAlphaComponent(0.035).setFill()
+            UIBezierPath(ovalIn: blot).fill()
+        }
+
+        // Paper grain: fine fibres scattered across the leaf.
+        for index in 0..<150 {
+            let x = frac("\(seed)-fx\(index)") * bounds.width
+            let y = frac("\(seed)-fy\(index)") * bounds.height
+            let len = 1 + frac("\(seed)-fl\(index)") * 3
+            paper.fiber.withAlphaComponent(0.05 + frac("\(seed)-fa\(index)") * 0.05).setStroke()
+            let fibre = UIBezierPath()
+            fibre.move(to: CGPoint(x: x, y: y))
+            fibre.addLine(to: CGPoint(x: x + len, y: y + (frac("\(seed)-fd\(index)") - 0.5) * 2))
+            fibre.lineWidth = 0.4
+            fibre.stroke()
+        }
+
+        // Edge vignette: darken the four borders a hair so the leaf has depth.
+        let vignette = blend(paper.bottom, UIColor.black, 0.10)
+        for edge in 0..<4 {
+            let strip: CGRect
+            switch edge {
+            case 0: strip = CGRect(x: 0, y: 0, width: bounds.width, height: 28)
+            case 1: strip = CGRect(x: 0, y: bounds.height - 28, width: bounds.width, height: 28)
+            case 2: strip = CGRect(x: 0, y: 0, width: 28, height: bounds.height)
+            default: strip = CGRect(x: bounds.width - 28, y: 0, width: 28, height: bounds.height)
+            }
+            vignette.withAlphaComponent(0.06).setFill()
+            UIBezierPath(rect: strip).fill()
+        }
+
+        // Composted fragments in the left gutter and corners - never in the text
+        // column (x >= 120). One or two scraps of tape and torn paper per page.
+        let fragmentCount = 1 + ConstellationKeeper.stableIndex(for: "\(seed)-fragcount", count: 2)
+        for index in 0..<fragmentCount {
+            let corner = ConstellationKeeper.stableIndex(for: "\(seed)-corner\(index)", count: 4)
+            let gx = 14 + frac("\(seed)-gx\(index)") * 70           // gutter band 14...84
+            let gy: CGFloat = corner < 2
+                ? 70 + frac("\(seed)-gy\(index)") * 120              // upper gutter
+                : bounds.height - 230 + frac("\(seed)-gy\(index)") * 150 // lower gutter
+            let w = 46 + frac("\(seed)-gw\(index)") * 26
+            let h = 30 + frac("\(seed)-gh\(index)") * 22
+            let rot = (frac("\(seed)-grot\(index)") - 0.5) * 0.5     // +- ~14 degrees
+            let scrap = CGRect(x: gx, y: gy, width: w, height: h)
+            drawTornScrap(
+                in: scrap,
+                rotation: rot,
+                fill: blend(paper.top, style.palette.gold, 0.06),
+                seed: "\(seed)-scrap\(index)"
+            )
+            // A faint ruled line or two, as if torn from a notebook.
+            style.palette.ink.withAlphaComponent(0.12).setStroke()
+            for line in 0..<2 {
+                let ly = gy + 12 + CGFloat(line) * 9
+                let ruled = UIBezierPath()
+                ruled.move(to: CGPoint(x: gx + 6, y: ly))
+                ruled.addLine(to: CGPoint(x: gx + w - 6, y: ly))
+                ruled.lineWidth = 0.5
+                ruled.stroke()
+            }
+            // Hold it down with a strip of tape across one corner.
+            let tapeAtTop = corner % 2 == 0
+            drawTapeStrip(
+                center: CGPoint(x: scrap.midX, y: tapeAtTop ? scrap.minY : scrap.maxY),
+                length: w * 0.7,
+                angle: rot + (tapeAtTop ? -0.5 : 0.5),
+                tint: style.palette.gold
+            )
+        }
+    }
+
+    /// A torn paper fragment: a deckled rounded rect with a soft drop shadow,
+    /// rotated about its center. Used for gutter scraps, section labels, and the
+    /// conclusion card.
+    private static func drawTornScrap(
+        in rect: CGRect,
+        rotation: CGFloat,
+        fill: UIColor,
+        seed: String,
+        shadow: Bool = true
+    ) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        cg.saveGState()
+        cg.translateBy(x: rect.midX, y: rect.midY)
+        cg.rotate(by: rotation)
+        cg.translateBy(x: -rect.width / 2, y: -rect.height / 2)
+        let local = CGRect(x: 0, y: 0, width: rect.width, height: rect.height)
+
+        // Build a jittered (torn) outline.
+        let path = UIBezierPath()
+        let perSide = 6
+        var points: [CGPoint] = []
+        func edgePoints(from a: CGPoint, to b: CGPoint, key: String) {
+            for step in 0..<perSide {
+                let t = CGFloat(step) / CGFloat(perSide)
+                let jitter = (frac("\(seed)-\(key)\(step)") - 0.5) * 4
+                let nx = -(b.y - a.y)
+                let ny = (b.x - a.x)
+                let nlen = max(1, sqrt(nx * nx + ny * ny))
+                points.append(CGPoint(
+                    x: a.x + (b.x - a.x) * t + nx / nlen * jitter,
+                    y: a.y + (b.y - a.y) * t + ny / nlen * jitter
+                ))
+            }
+        }
+        let tl = CGPoint(x: 0, y: 0)
+        let tr = CGPoint(x: local.width, y: 0)
+        let br = CGPoint(x: local.width, y: local.height)
+        let bl = CGPoint(x: 0, y: local.height)
+        edgePoints(from: tl, to: tr, key: "t")
+        edgePoints(from: tr, to: br, key: "r")
+        edgePoints(from: br, to: bl, key: "b")
+        edgePoints(from: bl, to: tl, key: "l")
+        guard let first = points.first else { cg.restoreGState(); return }
+        path.move(to: first)
+        for point in points.dropFirst() { path.addLine(to: point) }
+        path.close()
+
+        if shadow {
+            cg.setShadow(offset: CGSize(width: 1.5, height: 2.5), blur: 4, color: UIColor.black.withAlphaComponent(0.28).cgColor)
+        }
+        fill.setFill()
+        path.fill()
+        cg.setShadow(offset: .zero, blur: 0, color: nil)
+        // A soft inner edge so the tear reads as a thin paper lip.
+        blend(fill, UIColor.black, 0.12).withAlphaComponent(0.5).setStroke()
+        path.lineWidth = 0.6
+        path.stroke()
+        cg.restoreGState()
+    }
+
+    /// A strip of translucent tape, slightly tinted, with darker edges and a
+    /// dab of shine - drawn rotated about its center.
+    private static func drawTapeStrip(center: CGPoint, length: CGFloat, angle: CGFloat, tint: UIColor) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        let height: CGFloat = 13
+        cg.saveGState()
+        cg.translateBy(x: center.x, y: center.y)
+        cg.rotate(by: angle)
+        let body = CGRect(x: -length / 2, y: -height / 2, width: length, height: height)
+        // Translucent tape body.
+        blend(tint, UIColor.white, 0.55).withAlphaComponent(0.42).setFill()
+        UIBezierPath(rect: body).fill()
+        // Darker torn ends.
+        tint.withAlphaComponent(0.22).setFill()
+        UIBezierPath(rect: CGRect(x: body.minX, y: body.minY, width: 3, height: height)).fill()
+        UIBezierPath(rect: CGRect(x: body.maxX - 3, y: body.minY, width: 3, height: height)).fill()
+        // A line of shine down the middle.
+        UIColor.white.withAlphaComponent(0.30).setFill()
+        UIBezierPath(rect: CGRect(x: body.minX + 3, y: -1.5, width: length - 6, height: 2)).fill()
+        cg.restoreGState()
     }
 
     // MARK: Drawing primitives
@@ -1115,7 +1408,7 @@ enum MonthlyEditionPDFWriter {
         let maxHeight: CGFloat = 210
         let scale = min(cursor.contentWidth / image.size.width, maxHeight / image.size.height)
         let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        ensureSpace(size.height + 36, context: context, cursor: &cursor)
+        ensureSpace(size.height + 36, style: style, context: context, cursor: &cursor)
         let rect = CGRect(x: cursor.left, y: cursor.y, width: size.width, height: size.height)
 
         // Plate frame: soft mat + accent hairline.
@@ -1131,10 +1424,9 @@ enum MonthlyEditionPDFWriter {
         cursor.y += size.height + 18
     }
 
-    private static func ensureSpace(_ needed: CGFloat, context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor) {
+    private static func ensureSpace(_ needed: CGFloat, style: EditionStyle, context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor) {
         if cursor.y + needed > cursor.bottom {
-            context.beginPage()
-            cursor.reset()
+            beginComposedPage(context, style: style, cursor: &cursor)
         }
     }
 
@@ -1189,6 +1481,12 @@ private struct PDFCursor {
     let bounds: CGRect
     let margins: UIEdgeInsets
     var y: CGFloat
+    /// Seeds the deterministic composting (paper grain, scrap and tape
+    /// placement) so a given edition always composts the same way.
+    var seed: String = "edition"
+    /// Increments on every fresh page so each composted page draws its own
+    /// arrangement of fragments rather than repeating one.
+    var pageIndex: Int = 0
 
     init(bounds: CGRect, margins: UIEdgeInsets) {
         self.bounds = bounds
@@ -1200,6 +1498,9 @@ private struct PDFCursor {
     var right: CGFloat { bounds.width - margins.right }
     var bottom: CGFloat { bounds.height - margins.bottom }
     var contentWidth: CGFloat { bounds.width - margins.left - margins.right }
+
+    /// A stable per-page seed for the compost layer.
+    var pageSeed: String { "\(seed)-page\(pageIndex)" }
 
     mutating func reset() {
         y = margins.top

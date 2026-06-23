@@ -16,6 +16,11 @@ struct MonthlyEdition: Codable, Equatable {
     var foreword: String
     var sections: [MonthlyEditionSection]
     var continuity: LiteraryContinuityDigest
+    /// The month's closing, in the Book's voice. The builder always fills this
+    /// with the deterministic `BookForewordWriter.closing(...)`; the app may
+    /// overwrite it with a Gemma-written conclusion before binding. Optional so
+    /// older saved editions still decode.
+    var closing: String?
 
     /// "The Book of You - bj - Chapter 3 - June"
     var chapterHeading: String {
@@ -254,39 +259,45 @@ enum MonthlyEditionBuilder {
             )
         let chapterNumber = chapterNumber(forMonthStarting: startDate, in: days, calendar: calendar)
 
+        // Curate before binding: the month kept everything, but the book is
+        // selective. The curator keeps the expressive and authored pages, sips
+        // only the strongest of the daily logs, and tells us what it set aside.
+        let curated = EditionCurator.curate(pages, now: generatedAt)
+        let boundPages = curated.pages
+
         let title = "Book of You: \(monthTitle(for: startDate, calendar: calendar))"
         let subtitle = theme?.name ?? "\(dateLine(startDate, calendar: calendar)) - \(dateLine(endDate, calendar: calendar))"
         let sections = [
-            themeSection(theme, pages: pages),
-            worldEventSection(from: pages),
-            openingSection(from: pages, continuity: continuity),
+            themeSection(theme, pages: boundPages),
+            worldEventSection(from: boundPages),
+            openingSection(from: boundPages, continuity: continuity, setAsideLine: curated.setAsideLine),
             pageSection(
                 id: "daily-braids",
                 title: "Daily Braids",
                 note: "The Book of You pages that gathered the month into nightly thread.",
-                pages: pages.filter { $0.type == .bookOfYou },
+                pages: boundPages.filter { $0.type == .bookOfYou },
                 limit: 31
             ),
             pageSection(
                 id: "souvenirs",
                 title: "One-Sentence Souvenirs",
                 note: "Small bright fragments, preserved before the month could blur them.",
-                pages: pages.filter { $0.type == .souvenir },
+                pages: boundPages.filter { $0.type == .souvenir },
                 limit: 40
             ),
             pageSection(
                 id: "letters",
                 title: "Letters And Voices",
                 note: "Correspondence, gossip, story pages, and faculty notes that spoke back.",
-                pages: pages.filter { [.letter, .narrativeOS, .bookConnections, .gossip, .facultyResearch, .supportGuild, .bookNotices].contains($0.type) },
+                pages: boundPages.filter { [.letter, .narrativeOS, .bookConnections, .gossip, .facultyResearch, .supportGuild, .bookNotices].contains($0.type) },
                 limit: 36
             ),
-            imageSection(from: pages),
+            imageSection(from: boundPages),
             pageSection(
                 id: "other-kept-pages",
                 title: "Other Kept Pages",
                 note: "Weather, anchors, enchantments, classes, questions, and other margins worth binding.",
-                pages: pages.filter { page in
+                pages: boundPages.filter { page in
                     ![.bookOfYou, .souvenir, .letter, .narrativeOS, .bookConnections, .gossip, .facultyResearch, .supportGuild, .bookNotices, .illuminatedPhoto, .illustration, .enchantment].contains(page.type)
                 },
                 limit: 48
@@ -300,7 +311,7 @@ enum MonthlyEditionBuilder {
             startDate: startDate,
             endDate: endDate,
             dayCount: monthDays.count,
-            pageCount: pages.count,
+            pageCount: boundPages.count,
             readerName: readerName,
             chapterNumber: chapterNumber,
             monthName: monthTitle(for: startDate, calendar: calendar),
@@ -308,7 +319,7 @@ enum MonthlyEditionBuilder {
             constellations: constellations,
             foreword: BookForewordWriter.foreword(
                 monthTitle: monthTitle(for: startDate, calendar: calendar),
-                pages: pages,
+                pages: boundPages,
                 dayCount: monthDays.count,
                 continuity: continuity,
                 constellations: constellations,
@@ -318,7 +329,16 @@ enum MonthlyEditionBuilder {
                 calendar: calendar
             ),
             sections: sections,
-            continuity: continuity
+            continuity: continuity,
+            closing: BookForewordWriter.closing(
+                monthTitle: monthTitle(for: startDate, calendar: calendar),
+                pages: boundPages,
+                dayCount: monthDays.count,
+                continuity: continuity,
+                constellations: constellations,
+                theme: theme,
+                calendar: calendar
+            )
         )
     }
 
@@ -373,7 +393,11 @@ enum MonthlyEditionBuilder {
         )
     }
 
-    private static func openingSection(from pages: [BookPage], continuity: LiteraryContinuityDigest) -> MonthlyEditionSection {
+    private static func openingSection(
+        from pages: [BookPage],
+        continuity: LiteraryContinuityDigest,
+        setAsideLine: String? = nil
+    ) -> MonthlyEditionSection {
         var items: [MonthlyEditionItem] = []
         let typeCounts = Dictionary(grouping: pages, by: \.type).mapValues(\.count)
         let strongest = typeCounts.sorted { left, right in
@@ -404,6 +428,19 @@ enum MonthlyEditionBuilder {
                 sourceID: nil,
                 mediaAssets: [],
                 tags: signal.tags
+            ))
+        }
+        if let setAsideLine {
+            items.append(MonthlyEditionItem(
+                id: "kept-not-bound",
+                kind: .continuity,
+                title: "Kept, Not Bound",
+                body: setAsideLine,
+                date: nil,
+                pageType: nil,
+                sourceID: nil,
+                mediaAssets: [],
+                tags: ["monthly-edition", "curation"]
             ))
         }
         return MonthlyEditionSection(
@@ -593,6 +630,44 @@ enum BookForewordWriter {
         }
 
         paragraphs.append("Whatever else this month was, it was read. - The Book")
+
+        return paragraphs.joined(separator: "\n\n")
+    }
+
+    /// The month's conclusion, in the Book's voice. Deterministic and instant —
+    /// woven from the same material the foreword opened with, but closed: the
+    /// signals that held, the threads that earned names, the theme that insisted.
+    /// The app may replace this with a Gemma-written version before binding.
+    static func closing(
+        monthTitle: String,
+        pages: [BookPage],
+        dayCount: Int,
+        continuity: LiteraryContinuityDigest,
+        constellations: [Constellation],
+        theme: BookTheme?,
+        calendar: Calendar = .current
+    ) -> String {
+        var paragraphs: [String] = []
+
+        let pageLine = pages.count == 1 ? "the single page" : "all \(pages.count) pages"
+        paragraphs.append("So \(monthTitle) closes. I have read \(pageLine) back to you and to myself, and what could be kept has been kept. A month does not end so much as settle — the loud parts quiet, and what was true underneath stays where I can find it again.")
+
+        let strongest = continuity.strongestSignals.first
+        if let strongest {
+            let line = strongest.line.hasSuffix(".") ? String(strongest.line.dropLast()) : strongest.line
+            paragraphs.append("If this chapter leaves one thing in your hands, let it be this: \(line). I will be watching to see whether it holds, or turns, or asks for a different name.")
+        }
+
+        let named = ConstellationKeeper.namedConstellations(constellations)
+        if let firstNamed = named.first {
+            paragraphs.append("\(firstNamed.displayName) is still alight in the margins, and I have left it burning on purpose. A thread I have named does not get blown out at the end of a month; it carries into the next one, waiting for you to write it forward.")
+        }
+
+        if let theme {
+            paragraphs.append("The theme this month was \u{201C}\(theme.name)\u{201D}, and it had the last word as often as the first. Whether you chose it or it chose you, it is bound here now, and cannot be unsaid.")
+        }
+
+        paragraphs.append("Nothing in these pages can quietly unhappen now. Turn back to them whenever you like — the month will be exactly where you left it, and the next page is blank on purpose. - The Book")
 
         return paragraphs.joined(separator: "\n\n")
     }

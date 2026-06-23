@@ -138,7 +138,7 @@ protocol OuterStacksRoomWriting {
         belief: Int
     ) async throws -> OuterStacksRoomSpec
 
-    func visitScene(anchor: AnchorRecord, visitCount: Int, day: BookDay) async throws -> String
+    func visitScene(anchor: AnchorRecord, visitCount: Int, day: BookDay, memory: String) async throws -> String
 }
 
 /// Offline room generation: deterministic, built from the player's own words,
@@ -183,11 +183,32 @@ struct FakeOuterStacksRoomWriter: OuterStacksRoomWriting {
         )
     }
 
-    func visitScene(anchor: AnchorRecord, visitCount: Int, day: BookDay) async throws -> String {
-        let visit = visitCount <= 1
-            ? "The door opens for the first time. The room studies you exactly as much as you study it."
-            : "The door knows you now. Visit \(visitCount). Something has moved since last time, the way furniture moves in houses that are alive."
-        return "\(visit)\n\n\(anchor.outerStacksRoom)\n\nThe local rule still holds: \(anchor.localRule)"
+    func visitScene(anchor: AnchorRecord, visitCount: Int, day: BookDay, memory: String = "") async throws -> String {
+        let season = anchor.season.nonEmpty ?? AnchorRegistry.currentSeason(for: day.date)
+        let room = anchor.outerStacksRoom.nonEmpty
+            ?? "The room has not fully written itself yet, but its threshold is present."
+        let fae = anchor.fae.nonEmpty ?? "the Fae who keeps this place"
+        let rule = anchor.localRule.nonEmpty ?? "Notice before you take a step."
+        let motion = anchor.miniStory.nonEmpty
+            ?? "Something in the room has been waiting for a witness."
+        let returnMemory = memory.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let opening = visitCount <= 1
+            ? "The threshold at \(anchor.name) opens as if it has been practicing your name under its breath. \(season) comes through first, a thin color on the floor, and then the room settles around you."
+            : "The threshold at \(anchor.name) remembers the shape of your last visit. On return \(visitCount), the air is not arranged the same way: one chair has turned, one shadow has shortened, and the room seems to be holding its place in a sentence you began before."
+        let memoryLine = returnMemory.isEmpty
+            ? "Nothing here behaves like a display. \(room)"
+            : "The room has kept a trace of what you left it: \(returnMemory.bookPreviewSentenceLimit(2)) This time, \(room)"
+
+        return """
+        \(opening)
+
+        \(memoryLine)
+
+        \(fae) pauses in the middle of their work, not surprised exactly, but no longer able to pretend the visit is accidental. \(motion) The rule presses gently at the edge of the scene: \(rule)
+
+        For a moment the room waits to see whether you will honor it. Somewhere just beyond the nearest shelf, something answers by moving once, quietly, as if leaving you an invitation rather than a clue.
+        """
     }
 }
 
@@ -1136,13 +1157,14 @@ enum LocalModelManager {
         """
     }
 
-    static func outerStacksVisitPrompt(anchor: AnchorRecord, visitCount: Int, day: BookDay) -> String {
+    static func outerStacksVisitPrompt(anchor: AnchorRecord, visitCount: Int, day: BookDay, memory: String) -> String {
         let recentPages = braidEvidenceLines(for: day).suffix(4).joined(separator: "\n")
+        let roomMemory = memory.trimmingCharacters(in: .whitespacesAndNewlines)
         return """
         You are the Labyrinth of Stories narrating a visit to an anchored Outer Stacks room.
         The player is physically present at the real place right now. Write the scene of stepping through.
 
-        THE ROOM:
+        ROOM CONTEXT, NOT OUTPUT STRUCTURE:
         Anchor: \(anchor.name) (\(anchor.kind.title))
         Room: \(anchor.outerStacksRoom)
         Fae: \(anchor.fae)
@@ -1151,11 +1173,18 @@ enum LocalModelManager {
         Born under: \(anchor.weather), \(anchor.moon), \(anchor.season)
         Visit number: \(visitCount) \(visitCount <= 1 ? "(FIRST VISIT — the room and the player meet for the first time)" : "(RETURN VISIT — the room remembers them; the mini-story has moved a little since last time)")
 
+        ROOM MEMORY FROM PRIOR KEPT VISITS:
+        \(roomMemory.isEmpty ? "No prior kept visit is available yet." : roomMemory)
+
         THE PLAYER'S RECENT PAGES (soft context only):
         \(recentPages.isEmpty ? "No kept pages today." : recentPages)
 
         RULES:
-        - 2 to 4 short paragraphs. The Fae should act or speak at least once, in character, pursuing their own concern.
+        - 3 to 5 short paragraphs, 220 to 360 words.
+        - Prose only. Do not use headings, labels, bullet points, or colon-led sections like "Room:", "Fae:", "Local rule:", or "Mini-story:".
+        - Treat the room context as private notes. The output should be a vignette, not a dossier.
+        - For return visits, begin from what has changed since the prior kept visit. Do not reintroduce the room as if the player has never been there.
+        - The Fae should act or speak at least once, in character, pursuing their own concern.
         - Advance the mini-story by one small visible notch. Do not resolve it.
         - The local rule should come up naturally, in action or in the Fae's words.
         - End with one small open question or invitation the room leaves hanging.
@@ -1606,6 +1635,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "an old kept page returning" : "an old kept page returning with \(clipped)"
         case .bookNotices:
             return clipped.isEmpty ? "the Book noticing a pattern" : "the Book noticing \(clipped)"
+        case .glowInvitation:
+            return clipped.isEmpty ? "Glow asking for somewhere to live" : "Glow turning toward \(clipped)"
         case .theBleed:
             return clipped.isEmpty ? "ink still wet on the newest Bleed" : "the morning paper carrying \(clipped)"
         case .gossip:
@@ -1656,6 +1687,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "a favor tucked into the flyleaf" : "a favor answered with \(clipped)"
         case .packPage:
             return clipped.isEmpty ? "a page from an installed pack" : "an installed page noting \(clipped)"
+        case .gamePage:
+            return clipped.isEmpty ? "a Game Page run returning to the archive" : "a Game Page weaving \(clipped)"
         case .calendar:
             return clipped.isEmpty ? "an hour inked ahead" : "a folded corner before \(clipped)"
         case .helpTips:

@@ -276,7 +276,7 @@ struct LivingTextEditor: View {
     }
 
     private func moveRow(for token: ScaffoldToken) -> some View {
-        let moves = engine.moves(for: token)
+        let moves = engine.moves(for: token, in: scaffold)
         return VStack(alignment: .leading, spacing: 8) {
             Text(moveHint(for: token))
                 .font(.caption2)

@@ -18,7 +18,21 @@ struct SentenceBuilderStep: Identifiable, Codable, Equatable {
     var chips: [String]
 }
 
-struct SentenceBuilderPack: Identifiable, Codable, Equatable {
+/// A pocket of vocabulary that hangs together — a kitchen, weather, a bedroom.
+/// When the user's sentence names one of a theme's `anchors`, the builder draws
+/// its replacement chips from that theme first, so suggestions reflect context.
+/// Theme words are subsets of the pack's global lists, so a chosen theme word is
+/// still recognised by `analyze()` and lights up the right craft mark.
+struct LexicalTheme: Identifiable, Codable, Equatable {
+    var id: String
+    var name: String
+    var anchors: [String]    // nouns that signal this theme is in play
+    var senses: [String]
+    var verbs: [String]
+    var crossings: [String]
+}
+
+struct SentenceBuilderPack: Identifiable, Equatable {
     var id: String
     var displayName: String
     var ritualTitle: String
@@ -30,7 +44,15 @@ struct SentenceBuilderPack: Identifiable, Codable, Equatable {
     var sensoryWords: [String]
     var animateVerbs: [String]
     var crossingWords: [String]
-    var steps: [SentenceBuilderStep]
+    /// Context lexicons. Additive: expansion packs ship more of these.
+    var themes: [LexicalTheme] = []
+    var steps: [SentenceBuilderStep] = []
+    /// Pack metadata, mirroring the project's other JSON pack registries.
+    var version: Int = 1
+    var author: String = "The Book"
+    var availability: String = "bundledFree"
+
+    var isLocked: Bool { availability == "locked" }
 
     static let core = SentenceBuilderPack(
         id: "core.faerie-real",
@@ -40,35 +62,59 @@ struct SentenceBuilderPack: Identifiable, Codable, Equatable {
         replayHelper: "Do not explain it yet. Catch the image, sound, smell, pressure, color, or small object that returns on its own.",
         vagueWords: [
             "nice", "fine", "good", "bad", "okay", "ok", "tired", "busy",
-            "sad", "happy", "weird", "interesting", "beautiful", "great"
+            "sad", "happy", "weird", "interesting", "beautiful", "great",
+            "scared", "anxious", "nervous", "angry", "mad", "calm", "peaceful",
+            "relaxed", "excited", "lonely"
         ],
         avoidWords: [
             "ethereal", "cosmic", "whimsical", "magical", "enchanted",
             "shimmering", "luminous", "tapestry", "realm"
         ],
         concreteWords: [
-            "bag", "bed", "bench", "book", "bowl", "car", "chair", "coat",
-            "coffee", "counter", "cup", "door", "floor", "glass", "hand",
-            "hands", "jacket", "kettle", "key", "kitchen", "lamp", "light",
-            "mug", "phone", "porch", "rain", "receipt", "road", "room",
-            "shirt", "shoe", "sink", "sky", "spoon", "street", "table",
-            "tea", "tree", "wall", "window", "wind"
+            "bag", "bed", "bench", "blanket", "book", "bowl", "candle", "car",
+            "chair", "clock", "coat", "coffee", "collar", "counter", "cup",
+            "curb", "door", "drawer", "envelope", "floor", "fork", "gate",
+            "glass", "hand", "hands", "handle", "hinge", "jacket", "jar",
+            "kettle", "key", "kitchen", "knob", "lamp", "ledge", "light",
+            "match", "mirror", "mug", "nail", "needle", "pan", "pavement",
+            "pen", "phone", "pillow", "plate", "pocket", "porch", "radiator",
+            "rain", "receipt", "ribbon", "ring", "road", "room", "saucer",
+            "scarf", "shelf", "shirt", "shoe", "sill", "sink", "sky", "sleeve",
+            "spoon", "stair", "stamp", "stone", "stove", "street", "table",
+            "tea", "thread", "thumb", "ticket", "tile", "towel", "train",
+            "tree", "wall", "window", "wind", "wire", "wrist"
         ],
         sensoryWords: [
-            "blue", "bright", "bitter", "cold", "dim", "dusty", "green",
-            "gold", "grainy", "heavy", "hot", "loud", "metallic", "rough",
-            "salt", "sharp", "soft", "sour", "sticky", "sweet", "tinny",
-            "warm", "wet", "white", "yellow"
+            "amber", "ashen", "bitter", "blue", "bright", "brittle", "chalky",
+            "cold", "copper", "crisp", "crooked", "damp", "dim", "dry", "dusty",
+            "faint", "flat", "fogged", "frayed", "frosted", "glassy", "gold",
+            "grainy", "green", "grey", "heavy", "hollow", "hot", "humid",
+            "leaden", "lit", "loose", "loud", "metallic", "oily", "pale",
+            "papery", "raw", "rough", "rusty", "salt", "sharp", "silver",
+            "smoky", "sodden", "soft", "sour", "stale", "steaming", "sticky",
+            "sweet", "thin", "tinny", "velvet", "warm", "waxy", "wet", "white",
+            "woollen", "yellow"
         ],
         animateVerbs: [
-            "breathed", "clicked", "counted", "crouched", "held", "hummed",
-            "leaned", "listened", "refused", "remembered", "waited",
-            "wanted", "watched", "worried"
+            "ached", "blinked", "breathed", "buzzed", "carried", "caught",
+            "chimed", "clicked", "cooled", "counted", "creaked", "crouched",
+            "drifted", "drummed", "eased", "faltered", "flickered", "gathered",
+            "gnawed", "held", "hissed", "hovered", "hummed", "kept", "knocked",
+            "leaked", "leaned", "lingered", "listened", "nagged", "pressed",
+            "pulsed", "rattled", "recalled", "refused", "remembered", "rested",
+            "sagged", "settled", "shivered", "sighed", "simmered", "slumped",
+            "smouldered", "steamed", "stirred", "strained", "sulked", "tapped",
+            "ticked", "tightened", "tugged", "waited", "wandered", "wanted",
+            "watched", "worried"
         ],
         crossingWords: [
-            "blue sound", "cold green", "paper quiet", "tin taste",
-            "wool tired", "yellow hush"
+            "amber hush", "ash taste", "blue sound", "cold green",
+            "copper quiet", "damp gold", "grey taste", "iron cold",
+            "paper quiet", "salt light", "silver cold", "smoke blue",
+            "sour light", "tin taste", "velvet dark", "warm hum",
+            "white noise", "wool tired", "yellow hush"
         ],
+        themes: SentenceBuilderPack.coreThemes,
         steps: [
             SentenceBuilderStep(
                 id: "anchor",
@@ -158,7 +204,11 @@ struct SentenceBuilderPack: Identifiable, Codable, Equatable {
             sensoryWords: unique(sensoryWords + overlay.sensoryWords),
             animateVerbs: unique(animateVerbs + overlay.animateVerbs),
             crossingWords: unique(crossingWords + overlay.crossingWords),
-            steps: mergedSteps(with: overlay.steps)
+            themes: mergedThemes(with: overlay.themes),
+            steps: mergedSteps(with: overlay.steps),
+            version: max(version, overlay.version),
+            author: overlay.author.isEmpty ? author : overlay.author,
+            availability: availability
         )
     }
 
@@ -174,6 +224,27 @@ struct SentenceBuilderPack: Identifiable, Codable, Equatable {
         return merged
     }
 
+    /// Merge themes by id: an overlay theme with a known id replaces it, otherwise
+    /// it is appended. Lets expansion packs both deepen existing themes and add new ones.
+    private func mergedThemes(with overlayThemes: [LexicalTheme]) -> [LexicalTheme] {
+        var merged = themes
+        for theme in overlayThemes {
+            if let index = merged.firstIndex(where: { $0.id == theme.id }) {
+                merged[index] = LexicalTheme(
+                    id: theme.id,
+                    name: theme.name.isEmpty ? merged[index].name : theme.name,
+                    anchors: unique(merged[index].anchors + theme.anchors),
+                    senses: unique(merged[index].senses + theme.senses),
+                    verbs: unique(merged[index].verbs + theme.verbs),
+                    crossings: unique(merged[index].crossings + theme.crossings)
+                )
+            } else {
+                merged.append(theme)
+            }
+        }
+        return merged
+    }
+
     private func unique(_ values: [String]) -> [String] {
         var seen: Set<String> = []
         return values.filter { value in
@@ -183,6 +254,200 @@ struct SentenceBuilderPack: Identifiable, Codable, Equatable {
             return true
         }
     }
+
+    /// Context lexicons for the core pack. Every word here also lives in the core
+    /// global lists above, so a tapped theme word still lights the right craft mark.
+    static let coreThemes: [LexicalTheme] = [
+        LexicalTheme(
+            id: "kitchen",
+            name: "Kitchen",
+            anchors: ["kettle", "mug", "cup", "spoon", "bowl", "sink", "counter",
+                      "coffee", "tea", "glass", "kitchen", "stove", "pan", "saucer", "jar"],
+            senses: ["warm", "hot", "bitter", "sweet", "metallic", "steaming",
+                     "amber", "sour", "stale"],
+            verbs: ["hissed", "clicked", "steamed", "cooled", "simmered",
+                    "ticked", "waited", "smouldered"],
+            crossings: ["tin taste", "warm hum", "amber hush", "copper quiet"]
+        ),
+        LexicalTheme(
+            id: "weather",
+            name: "Weather",
+            anchors: ["rain", "sky", "wind", "street", "road", "pavement", "curb", "window"],
+            senses: ["cold", "wet", "grey", "silver", "sharp", "loud", "damp",
+                     "frosted", "leaden", "raw"],
+            verbs: ["drummed", "tapped", "pressed", "leaned", "rattled",
+                    "shivered", "drifted", "waited"],
+            crossings: ["grey taste", "blue sound", "iron cold", "salt light", "white noise"]
+        ),
+        LexicalTheme(
+            id: "room",
+            name: "Quiet room",
+            anchors: ["door", "floor", "wall", "lamp", "chair", "bed", "room",
+                      "table", "shelf", "clock", "candle", "radiator", "hinge", "drawer"],
+            senses: ["dim", "dusty", "warm", "soft", "gold", "faint", "pale",
+                     "velvet", "waxy"],
+            verbs: ["creaked", "settled", "held", "leaned", "flickered",
+                    "ticked", "sighed", "waited"],
+            crossings: ["yellow hush", "paper quiet", "velvet dark", "amber hush"]
+        ),
+        LexicalTheme(
+            id: "body",
+            name: "Body & cloth",
+            anchors: ["hand", "hands", "coat", "jacket", "shirt", "shoe", "pocket",
+                      "scarf", "sleeve", "collar", "thumb", "wrist", "blanket"],
+            senses: ["warm", "cold", "rough", "soft", "heavy", "damp", "woollen",
+                     "brittle", "thin"],
+            verbs: ["held", "refused", "remembered", "worried", "ached",
+                    "tightened", "carried", "rested"],
+            crossings: ["wool tired", "warm hum", "velvet dark"]
+        )
+    ]
+}
+
+extension SentenceBuilderPack: Codable {
+    enum CodingKeys: String, CodingKey {
+        case id, displayName, ritualTitle, replayPrompt, replayHelper
+        case vagueWords, avoidWords, concreteWords, sensoryWords, animateVerbs
+        case crossingWords, themes, steps, version, author, availability
+    }
+
+    /// Lenient decoding: every field defaults, so an upgrade pack can ship only the
+    /// parts it wants to add (a few `concreteWords`, one `theme`) and merge over core.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        displayName = try c.decodeIfPresent(String.self, forKey: .displayName) ?? ""
+        ritualTitle = try c.decodeIfPresent(String.self, forKey: .ritualTitle) ?? ""
+        replayPrompt = try c.decodeIfPresent(String.self, forKey: .replayPrompt) ?? ""
+        replayHelper = try c.decodeIfPresent(String.self, forKey: .replayHelper) ?? ""
+        vagueWords = try c.decodeIfPresent([String].self, forKey: .vagueWords) ?? []
+        avoidWords = try c.decodeIfPresent([String].self, forKey: .avoidWords) ?? []
+        concreteWords = try c.decodeIfPresent([String].self, forKey: .concreteWords) ?? []
+        sensoryWords = try c.decodeIfPresent([String].self, forKey: .sensoryWords) ?? []
+        animateVerbs = try c.decodeIfPresent([String].self, forKey: .animateVerbs) ?? []
+        crossingWords = try c.decodeIfPresent([String].self, forKey: .crossingWords) ?? []
+        themes = try c.decodeIfPresent([LexicalTheme].self, forKey: .themes) ?? []
+        steps = try c.decodeIfPresent([SentenceBuilderStep].self, forKey: .steps) ?? []
+        version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        author = try c.decodeIfPresent(String.self, forKey: .author) ?? "The Book"
+        availability = try c.decodeIfPresent(String.self, forKey: .availability) ?? "bundledFree"
+    }
+}
+
+// MARK: - Expansion packs (more chips, as data)
+
+extension SentenceBuilderPack {
+    /// A bundled, purchasable expansion: more senses, livelier verbs, two new
+    /// context themes. Additive only — it leaves the ritual naming alone and just
+    /// deepens the word pools the chips draw from. The delivery seam for paid /
+    /// patron word packs; user-authored JSON packs ride the same merge path.
+    static let nightAndGarden = SentenceBuilderPack(
+        id: "pack.night-and-garden",
+        displayName: "",
+        ritualTitle: "",
+        replayPrompt: "",
+        replayHelper: "",
+        vagueWords: [],
+        avoidWords: [],
+        concreteWords: ["moth", "moon", "porch", "garden", "leaf", "petal",
+                        "root", "stem", "soil", "fence", "moss", "lantern",
+                        "pond", "frost", "branch", "owl"],
+        sensoryWords: ["dewed", "loamy", "green", "silver", "violet", "musky",
+                       "cool", "downy", "resinous", "moonlit"],
+        animateVerbs: ["unfurled", "leaned", "breathed", "rooted", "drowsed",
+                       "climbed", "nodded", "listened"],
+        crossingWords: ["green silence", "moon-cold green", "soil dark",
+                        "violet hush", "dew bright"],
+        themes: [
+            LexicalTheme(
+                id: "garden",
+                name: "Garden",
+                anchors: ["garden", "leaf", "petal", "root", "stem", "soil",
+                          "moss", "branch", "pond", "fence"],
+                senses: ["dewed", "loamy", "green", "musky", "cool", "downy", "resinous"],
+                verbs: ["unfurled", "rooted", "climbed", "leaned", "nodded", "drowsed"],
+                crossings: ["green silence", "soil dark", "dew bright"]
+            ),
+            LexicalTheme(
+                id: "night",
+                name: "Night",
+                anchors: ["moth", "moon", "lantern", "owl", "frost", "porch"],
+                senses: ["silver", "violet", "moonlit", "cool", "frosted", "faint"],
+                verbs: ["drowsed", "breathed", "listened", "nodded", "flickered"],
+                crossings: ["moon-cold green", "violet hush", "velvet dark"]
+            )
+        ],
+        version: 1,
+        author: "The Goblin Index Empire",
+        availability: "locked"
+    )
+}
+
+/// Registry for sentence-builder content, mirroring `PageArchetypePackRegistry`
+/// and the other JSON pack registries: bundled packs ship in the binary, user
+/// packs drop into Documents as `*.sentencepack.json`, and entitlements gate the
+/// locked ones. `composed(onto:)` is how installed word packs reach the editor.
+enum SentenceBuilderPackRegistry {
+    static let userPackFileSuffix = ".sentencepack.json"
+
+    /// Selectable rituals — the packs a surface chooses between.
+    static let basePacks: [SentenceBuilderPack] = [.core, .souvenir]
+
+    /// Additive vocabulary/theme packs that deepen whatever ritual is active.
+    static let bundledExpansionPacks: [SentenceBuilderPack] = [.nightAndGarden]
+
+    /// User-imported expansion packs: any `*.sentencepack.json` in Documents.
+    static func userPacks(fileManager: FileManager = .default) -> [SentenceBuilderPack] {
+        guard let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first,
+              let contents = try? fileManager.contentsOfDirectory(at: documents, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        let decoder = JSONDecoder()
+        return contents
+            .filter { $0.lastPathComponent.hasSuffix(userPackFileSuffix) }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            .compactMap { url in
+                guard let data = try? Data(contentsOf: url),
+                      var pack = try? decoder.decode(SentenceBuilderPack.self, from: data) else {
+                    return nil
+                }
+                if pack.availability != "locked" { pack.availability = "userImported" }
+                return pack
+            }
+    }
+
+    /// Every expansion the player is entitled to right now.
+    static func enabledExpansionPacks(fileManager: FileManager = .default) -> [SentenceBuilderPack] {
+        (bundledExpansionPacks + userPacks(fileManager: fileManager))
+            .filter { !$0.isLocked || PackEntitlements.isUnlocked($0.id) }
+    }
+
+    /// Merge every enabled expansion onto a base ritual. This is what the editor
+    /// should be handed instead of a bare `.core`, so installed word packs appear.
+    static func composed(onto base: SentenceBuilderPack, fileManager: FileManager = .default) -> SentenceBuilderPack {
+        enabledExpansionPacks(fileManager: fileManager)
+            .reduce(base) { $0.merged(with: $1) }
+    }
+
+    /// Cached convenience for the two common rituals, so reused views don't rescan
+    /// Documents on every render. Cleared by `reload()` after an import/unlock.
+    nonisolated(unsafe) private static var cache: [String: SentenceBuilderPack] = [:]
+
+    static func composedCore() -> SentenceBuilderPack {
+        if let hit = cache["core"] { return hit }
+        let pack = composed(onto: .core)
+        cache["core"] = pack
+        return pack
+    }
+
+    static func composedSouvenir() -> SentenceBuilderPack {
+        if let hit = cache["souvenir"] { return hit }
+        let pack = composed(onto: .core.merged(with: .souvenir))
+        cache["souvenir"] = pack
+        return pack
+    }
+
+    static func reload() { cache.removeAll() }
 }
 
 /// The grammatical job a word is doing inside a sentence.
@@ -533,38 +798,68 @@ struct SentenceBuilderEngine {
         SentenceScaffold.tag(text, using: pack)
     }
 
+    /// The dominant context theme of a sentence: whichever pack theme has the most
+    /// of its anchor nouns present. Drives context-aware chip ordering.
+    func dominantTheme(in scaffold: SentenceScaffold) -> LexicalTheme? {
+        guard !pack.themes.isEmpty else { return nil }
+        let present = Set(scaffold.tokens.map { $0.word.lowercased() })
+        var best: (theme: LexicalTheme, score: Int)?
+        for theme in pack.themes {
+            let score = theme.anchors.reduce(0) { $0 + (present.contains($1.lowercased()) ? 1 : 0) }
+            if score > 0, score > (best?.score ?? 0) {
+                best = (theme, score)
+            }
+        }
+        return best?.theme
+    }
+
     /// The transmutations offered when the user taps a word in their sentence.
     /// Every move is a grammar-safe in-place swap, so the sentence can never break.
-    func moves(for token: ScaffoldToken, limit: Int = 6) -> [SentenceMove] {
+    ///
+    /// Suggestions reflect context: words from the sentence's dominant theme come
+    /// first, then the global pool. Words already in the sentence are skipped, so
+    /// the chips are always live alternatives the user hasn't used yet.
+    func moves(for token: ScaffoldToken, in scaffold: SentenceScaffold, limit: Int = 8) -> [SentenceMove] {
         let current = token.word.lowercased()
-        func swaps(_ pool: [String], group: String) -> [SentenceMove] {
-            pool.filter { $0.lowercased() != current }
-                .prefix(limit)
-                .map { SentenceMove(id: "\(group)-\($0)", label: $0, word: $0, group: group) }
+        let alreadyUsed = Set(scaffold.tokens.map { $0.word.lowercased() }).subtracting([current])
+        let theme = dominantTheme(in: scaffold)
+
+        // Theme words first (context), then the global pool — deduped, current and
+        // already-present words removed, capped at `limit`.
+        func compose(themed: [String], global: [String], group: String) -> [SentenceMove] {
+            var seen = Set<String>()
+            var out: [SentenceMove] = []
+            for word in themed + global {
+                let key = word.lowercased()
+                guard key != current, !alreadyUsed.contains(key), seen.insert(key).inserted else { continue }
+                out.append(SentenceMove(id: "\(group)-\(key)", label: word, word: word, group: group))
+                if out.count >= limit { break }
+            }
+            return out
         }
 
         switch token.role {
         case .misty:
-            return swaps(alternatives(for: token.word), group: "ground")
+            return compose(themed: alternatives(for: token.word), global: theme?.senses ?? [], group: "ground")
         case .smoke:
             // Stage-smoke words become a plain physical quality the room can carry.
-            return swaps(alternatives(for: token.word) + pack.sensoryWords, group: "ground")
+            return compose(themed: alternatives(for: token.word), global: (theme?.senses ?? []) + pack.sensoryWords, group: "ground")
         case .thing:
-            return swaps(pack.concreteWords, group: "thing")
+            return compose(themed: theme?.anchors ?? [], global: pack.concreteWords, group: "thing")
         case .sense:
-            // Offer sharper senses, then always reserve room for a crossed-sense leap.
-            let crossings = pack.crossingWords.prefix(2).map {
-                SentenceMove(id: "cross-\($0)", label: $0, word: $0, group: "cross")
-            }
+            // Sharper senses (theme-biased), then always reserve room for a crossed-sense leap.
+            let crossPool = (theme?.crossings ?? []) + pack.crossingWords
+            let crossings = crossPool
+                .filter { $0.lowercased() != current }
+                .prefix(2)
+                .map { SentenceMove(id: "cross-\($0.lowercased())", label: $0, word: $0, group: "cross") }
             let senseRoom = max(1, limit - crossings.count)
-            let senses = Array(swaps(pack.sensoryWords, group: "sense").prefix(senseRoom))
+            let senses = Array(compose(themed: theme?.senses ?? [], global: pack.sensoryWords, group: "sense").prefix(senseRoom))
             return senses + crossings
         case .motion:
-            return swaps(pack.animateVerbs, group: "motion")
+            return compose(themed: theme?.verbs ?? [], global: pack.animateVerbs, group: "motion")
         case .crossing:
-            return pack.crossingWords.filter { $0.lowercased() != current }
-                .prefix(limit)
-                .map { SentenceMove(id: "cross-\($0)", label: $0, word: $0, group: "cross") }
+            return compose(themed: theme?.crossings ?? [], global: pack.crossingWords, group: "cross")
         case .plain:
             return []
         }
@@ -665,18 +960,37 @@ struct SentenceBuilderEngine {
         )
     }
 
+    /// Grounded, body-giving swaps for a vague feeling word. Every word returned
+    /// also lives in `sensoryWords`, so choosing one lights the "Body" craft mark
+    /// and stays tappable for further refinement.
     private func alternatives(for word: String) -> [String] {
         switch word.lowercased() {
         case "tired", "busy":
-            return ["heavy", "grainy", "stale", "frayed", "slow"]
+            return ["heavy", "grainy", "stale", "frayed", "leaden", "thin"]
         case "sad":
-            return ["hollow", "cold", "thin", "bruised", "quiet"]
+            return ["hollow", "cold", "thin", "ashen", "grey", "faint"]
         case "happy", "good", "great":
-            return ["warm", "bright", "loose", "gold", "open"]
+            return ["warm", "bright", "gold", "amber", "loose", "lit"]
         case "bad", "weird":
-            return ["sour", "crooked", "static", "sharp", "wrong"]
+            return ["sour", "crooked", "rusty", "sharp", "raw", "brittle"]
+        case "nice", "fine", "okay", "ok":
+            return ["warm", "soft", "faint", "flat", "pale", "dim"]
+        case "interesting":
+            return ["sharp", "bright", "lit", "crisp", "raw", "amber"]
+        case "beautiful":
+            return ["lit", "gold", "pale", "bright", "amber", "soft"]
+        case "scared", "anxious", "nervous":
+            return ["cold", "thin", "sharp", "brittle", "faint", "raw"]
+        case "angry", "mad":
+            return ["hot", "sharp", "loud", "raw", "copper", "leaden"]
+        case "calm", "peaceful", "relaxed":
+            return ["warm", "soft", "faint", "pale", "dim", "loose"]
+        case "excited":
+            return ["bright", "hot", "loud", "lit", "sharp", "crisp"]
+        case "lonely":
+            return ["hollow", "cold", "thin", "grey", "faint", "pale"]
         default:
-            return ["warm", "cold", "rough", "dim", "sharp"]
+            return ["warm", "cold", "rough", "dim", "sharp", "soft", "heavy"]
         }
     }
 

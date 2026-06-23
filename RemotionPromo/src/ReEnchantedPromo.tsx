@@ -445,18 +445,60 @@ const Pill: React.FC<{children: React.ReactNode; x: number; y: number; delay?: n
 /*  Scenes                                                             */
 /* ------------------------------------------------------------------ */
 
+// Opens on the ache: routine, the grey, the Nothing — before the Book answers it.
+const SceneHook: React.FC = () => {
+  const frame = useCurrentFrame();
+  const eyeP = interpolate(frame, [8, 40], [0, 1], {...clamp, easing: ease});
+  const lineP = interpolate(frame, [22, 64], [0, 1], {...clamp, easing: ease});
+  return (
+    <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center', padding: '0 90px'}}>
+      <div style={{textAlign: 'center'}}>
+        <div
+          style={{
+            ...sans,
+            color: gold,
+            fontSize: 30,
+            fontWeight: 700,
+            letterSpacing: 6,
+            textTransform: 'uppercase',
+            opacity: eyeP,
+            transform: `translateY(${interpolate(eyeP, [0, 1], [20, 0])}px)`,
+          }}
+        >
+          Boredom. Routine. The grey.
+        </div>
+        <div
+          style={{
+            ...serif,
+            color: cream,
+            fontSize: 88,
+            lineHeight: 1.08,
+            marginTop: 34,
+            textShadow: '0 6px 40px rgba(0,0,0,0.7)',
+            opacity: lineP,
+            transform: `translateY(${interpolate(lineP, [0, 1], [40, 0])}px)`,
+          }}
+        >
+          Life slips past, unread —<br />and the Nothing creeps in.
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 const SceneOpen: React.FC = () => {
   const frame = useCurrentFrame();
   const titleP = interpolate(frame, [10, 46], [0, 1], {...clamp, easing: ease});
+  const subP = interpolate(frame, [30, 70], [0, 1], {...clamp, easing: ease});
   return (
     <>
-      <Phone src={screenshots.home} cx={540} cy={760} w={560} delay={6} kenburns glow="rgba(255,197,111,0.40)" />
+      <Phone src={screenshots.home} cx={540} cy={720} w={540} delay={6} kenburns glow="rgba(255,197,111,0.40)" />
       <div
         style={{
           position: 'absolute',
           left: 80,
           right: 80,
-          top: 1330,
+          top: 1290,
           textAlign: 'center',
           opacity: titleP,
           transform: `translateY(${interpolate(titleP, [0, 1], [40, 0])}px)`,
@@ -465,11 +507,27 @@ const SceneOpen: React.FC = () => {
         <div style={{...sans, color: gold, fontSize: 30, fontWeight: 700, letterSpacing: 6, textTransform: 'uppercase'}}>
           ReEnchanted
         </div>
-        <div style={{...serif, color: cream, fontSize: 92, lineHeight: 1.02, marginTop: 22, textShadow: '0 6px 40px rgba(0,0,0,0.7)'}}>
-          Real life,<br />made luminous.
+        <div style={{...serif, color: cream, fontSize: 88, lineHeight: 1.02, marginTop: 20, textShadow: '0 6px 40px rgba(0,0,0,0.7)'}}>
+          Real Life,<br />
+          <span style={{color: gold}}>ReEnchanted</span>
         </div>
-        <div style={{...sans, color: 'rgba(247,232,189,0.8)', fontSize: 34, marginTop: 26, fontWeight: 500}}>
-          A private storybook for the day you are actually living.
+      </div>
+      <div
+        style={{
+          position: 'absolute',
+          left: 80,
+          right: 80,
+          top: 1560,
+          textAlign: 'center',
+          opacity: subP,
+          transform: `translateY(${interpolate(subP, [0, 1], [30, 0])}px)`,
+        }}
+      >
+        <div style={{...sans, color: 'rgba(247,232,189,0.85)', fontSize: 33, lineHeight: 1.3, fontWeight: 500}}>
+          A free, magical iPhone book that turns the day<br />you actually lived into a faerie tale.
+        </div>
+        <div style={{...serif, color: gold, fontSize: 32, marginTop: 18, fontStyle: 'italic'}}>
+          The old kind. The sometimes dangerous kind.
         </div>
       </div>
     </>
@@ -600,25 +658,28 @@ const SceneClose: React.FC = () => {
 
 const SceneTimeline: React.FC = () => (
   <>
-    <Scene start={0} end={235}>
+    <Scene start={0} end={210}>
+      <SceneHook />
+    </Scene>
+    <Scene start={190} end={425}>
       <SceneOpen />
     </Scene>
-    <Scene start={215} end={465}>
+    <Scene start={405} end={655}>
       <SceneNotice />
     </Scene>
-    <Scene start={445} end={695}>
+    <Scene start={635} end={885}>
       <SceneKeep />
     </Scene>
-    <Scene start={675} end={930}>
+    <Scene start={865} end={1120}>
       <ScenePrivate />
     </Scene>
-    <Scene start={910} end={1155}>
+    <Scene start={1100} end={1345}>
       <SceneGlow />
     </Scene>
-    <Scene start={1135} end={1390}>
+    <Scene start={1325} end={1580}>
       <ScenePlay />
     </Scene>
-    <Scene start={1370} end={1620}>
+    <Scene start={1560} end={1810}>
       <SceneClose />
     </Scene>
   </>
@@ -627,24 +688,25 @@ const SceneTimeline: React.FC = () => (
 export const ReEnchantedPromo: React.FC = () => {
   const frame = useCurrentFrame();
   const fadeIn = interpolate(frame, [0, 30], [1, 0], clamp);
-  const outDim = interpolate(frame, [1560, 1620], [0, 0.4], clamp);
+  const outDim = interpolate(frame, [1750, 1810], [0, 0.4], clamp);
   return (
     <AbsoluteFill style={{backgroundColor: ink}}>
       <Background />
       {/* Musical bed: "Mossy Footsteps" — see RemotionPromo/CREDITS.md. */}
       <Audio
         src={staticFile('audio/mossy-footsteps.mp3')}
-        volume={(f) => interpolate(f, [0, 30, 1500, 1620], [0, 0.78, 0.78, 0], clamp)}
+        volume={(f) => interpolate(f, [0, 30, 1690, 1810], [0, 0.78, 0.78, 0], clamp)}
       />
       {/* The app's own sounds, punctuating each beat. */}
-      <Sfx at={8} file="open-page" volume={0.5} />
-      <Sfx at={222} file="source-refresh" volume={0.42} />
-      <Sfx at={470} file="keep-page" volume={0.55} />
-      <Sfx at={690} file="select" volume={0.5} />
-      <Sfx at={940} file="source-refresh" volume={0.4} />
-      <Sfx at={1155} file="tap" volume={0.5} />
-      <Sfx at={1388} file="braid-start" volume={0.45} />
-      <Sfx at={1430} file="braid-complete" volume={0.5} />
+      <Sfx at={22} file="source-refresh" volume={0.32} />
+      <Sfx at={198} file="open-page" volume={0.5} />
+      <Sfx at={412} file="source-refresh" volume={0.42} />
+      <Sfx at={660} file="keep-page" volume={0.55} />
+      <Sfx at={880} file="select" volume={0.5} />
+      <Sfx at={1130} file="source-refresh" volume={0.4} />
+      <Sfx at={1345} file="tap" volume={0.5} />
+      <Sfx at={1578} file="braid-start" volume={0.45} />
+      <Sfx at={1620} file="braid-complete" volume={0.5} />
       <SceneTimeline />
       {/* opening fade-from-black */}
       <AbsoluteFill style={{pointerEvents: 'none', backgroundColor: `rgba(0,0,0,${fadeIn})`}} />

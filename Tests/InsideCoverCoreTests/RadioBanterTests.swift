@@ -2,6 +2,12 @@ import XCTest
 @testable import InsideCoverCore
 
 final class RadioBanterTests: XCTestCase {
+    func testCoreStationsResolveTheirDJNames() throws {
+        XCTAssertEqual(try XCTUnwrap(RadioStationRegistry.station(id: "fae-fi")).hostDisplayName, "Penny Blackletter")
+        XCTAssertEqual(try XCTUnwrap(RadioStationRegistry.station(id: "mothlight-beats")).hostDisplayName, "Professor Eleanor Euphony")
+        XCTAssertEqual(try XCTUnwrap(RadioStationRegistry.station(id: "thornwave")).hostDisplayName, "Wicker Eddies")
+    }
+
     func testThornwaveCatalogIncludesMossyNight() throws {
         let station = try XCTUnwrap(RadioStationRegistry.station(id: "thornwave"))
         let track = try XCTUnwrap(station.tracks.first { $0.id == "thornwave-mossy-night" })

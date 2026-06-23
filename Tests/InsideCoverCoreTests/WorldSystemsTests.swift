@@ -94,6 +94,27 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(lesson?.realWorldPractice.contains("observable facts") ?? false)
     }
 
+    func testAcademyTurnClassIsQuietAndLessonPreservingClubIsActive() throws {
+        let classSession = try XCTUnwrap(AcademyScheduleRegistry.classes["art-of-the-glint"])
+        let classLesson = AcademyScheduleRegistry.lessonModules["art-of-the-glint"]
+        let classTurn = AcademyTurnBuilder.turn(
+            session: classSession, lesson: classLesson, isClub: false, slotKey: "k"
+        )
+        XCTAssertEqual(classTurn.register, .quiet)
+        XCTAssertEqual(classTurn.character, classSession.leader)
+        XCTAssertTrue(classTurn.statement.contains("lesson's point still lands"),
+                      "a class turn must protect the lesson")
+        let classLandings = ["slice-of-life", "progress-arc", "surprise"].compactMap { classTurn.landings[$0]?.nonEmpty }
+        XCTAssertEqual(Set(classLandings).count, 3)
+
+        let clubSession = try XCTUnwrap(AcademyScheduleRegistry.clubs.values.first)
+        let clubTurn = AcademyTurnBuilder.turn(
+            session: clubSession, lesson: AcademyScheduleRegistry.lessonModules[clubSession.id], isClub: true, slotKey: "k"
+        )
+        XCTAssertEqual(clubTurn.register, .active)
+        XCTAssertFalse(clubTurn.statement.contains("lesson's point still lands"))
+    }
+
     func testEveryScheduledSessionHasALessonModule() {
         let sessions = Array(AcademyScheduleRegistry.classes.values) + Array(AcademyScheduleRegistry.clubs.values)
 
@@ -544,6 +565,23 @@ final class WorldSystemsTests: XCTestCase {
         for genre in StoryFormRegistry.genres {
             XCTAssertFalse(genre.lens.isEmpty)
         }
+        XCTAssertEqual(StoryFormRegistry.coreRecipes.count, 6)
+        XCTAssertTrue(StoryFormRegistry.coreRecipes.allSatisfy(StoryFormRegistry.recipeIsValid))
+    }
+
+    func testLegacyStoryFormPackDecodesWithoutRecipes() throws {
+        let data = Data(#"{"id":"old","displayName":"Old","version":1,"author":"Reader","availability":"bundledFree","forms":[],"genres":[]}"#.utf8)
+        let pack = try JSONDecoder().decode(StoryFormPack.self, from: data)
+        XCTAssertEqual(pack.id, "old")
+        XCTAssertTrue(pack.recipes.isEmpty)
+    }
+
+    func testMalformedRecipeTokenDoesNotInvalidateOtherRecipes() {
+        var malformed = StoryFormRegistry.coreRecipes[0]
+        malformed.id = "bad-token"
+        malformed.premiseTemplate = "{{unknown-person}} arrives."
+        XCTAssertFalse(StoryFormRegistry.recipeIsValid(malformed))
+        XCTAssertTrue(StoryFormRegistry.recipeIsValid(StoryFormRegistry.coreRecipes[1]))
     }
 
     func testStoryFormSelectionAvoidsRecentForm() {
@@ -566,6 +604,24 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertNotNil(packet.storyFormID)
         XCTAssertFalse(packet.storyFormBeats?.isEmpty ?? true)
         XCTAssertNotNil(packet.storyGenreLens)
+        XCTAssertNotNil(packet.blueprint)
+        XCTAssertFalse(packet.blueprint?.grounding.text.isEmpty ?? true)
+        XCTAssertFalse(packet.blueprint?.premise.contains("{{") ?? true)
+    }
+
+    func testStoryRecipePrefersKeptPageGrounding() {
+        let page = BookPage(type: .souvenir, promptText: "Keep one thing", userInput: "The blue receipt has a coffee ring.", tags: ["souvenir"])
+        let day = BookDay(id: "recipe-day", date: Date(), pages: [page])
+        let packet = StoryScenePacketBuilder.packet(for: day, inputs: .empty)
+        XCTAssertEqual(packet.blueprint?.grounding.kind, .keptPage)
+        XCTAssertTrue(packet.blueprint?.grounding.text.contains("blue receipt") == true)
+    }
+
+    func testRecipeBecomesPrimaryVarietyKeyAndKeepsFormGenreKeys() {
+        let surface = NarrativeOSPageSourceAdapter.draftCandidate(for: BookDay.today(), inputs: .empty, now: Date())
+        XCTAssertTrue(surface.varietyKey.hasPrefix("recipe:"))
+        XCTAssertTrue(surface.supplementalStoryVarietyKeys.contains { $0.hasPrefix("form:") })
+        XCTAssertTrue(surface.supplementalStoryVarietyKeys.contains { $0.hasPrefix("genre:") })
     }
 
     func testGenreSelectionFollowsMoodTags() {
@@ -1220,6 +1276,7 @@ final class WorldSystemsTests: XCTestCase {
         var inputs = BookSourceInputs.empty
         inputs.days = days
         inputs.selfFacts = [fact("onboarding-name", tags: ["name"])]
+        inputs.surfaceHistory = shownChapterPrimerHistory(now: now)
         let unbound = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
         let binding = unbound.first { $0.payload.metadata["chapterBinding"] == "true" }
         XCTAssertNotNil(binding)
@@ -1251,6 +1308,43 @@ final class WorldSystemsTests: XCTestCase {
         let primer = pages.first { $0.payload.metadata["chapterPrimer"] == "true" }
         XCTAssertNotNil(primer)
         XCTAssertTrue(primer?.payload.body.contains("The Binding") == true)
+    }
+
+    func testChapterBindingRequiresAllPrimerCardsToHaveShown() {
+        let adapter = AboutYouPageSourceAdapter()
+        let calendar = Calendar.current
+        let now = date(2026, 6, 8, hour: 12, calendar: calendar)
+        let days = [
+            bindingDay(1, text: "Amanda and I walked by the harbor and the water made the whole day feel shared."),
+            bindingDay(2, text: "A letter from the margins made the room feel less lonely."),
+            bindingDay(3, text: "We talked about the small adventure and kept laughing about the coffee sign."),
+            bindingDay(4, text: "Together was the word that kept returning to the page."),
+            bindingDay(5, text: "The Book noticed companionship before it noticed courage.")
+        ]
+        let day = days.last!
+        var inputs = BookSourceInputs.empty
+        inputs.days = days
+        inputs.selfFacts = [fact("onboarding-name", tags: ["name"])]
+
+        let firstPass = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
+        let firstPrimer = firstPass.first { $0.payload.metadata["chapterPrimer"] == "true" }
+        XCTAssertNil(firstPass.first { $0.payload.metadata["chapterBinding"] == "true" })
+        XCTAssertEqual(firstPrimer?.payload.metadata["primerStage"], "1")
+        XCTAssertEqual(firstPrimer?.varietyKey, "chapter-primer:1")
+
+        inputs.surfaceHistory = [
+            "chapter-primer:1": SurfaceHistoryRecord(lastShownAt: now.addingTimeInterval(-3600), recentShowCount: 1),
+            "chapter-primer:2": SurfaceHistoryRecord(lastShownAt: now.addingTimeInterval(-1800), recentShowCount: 1)
+        ]
+        let thirdPass = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
+        let thirdPrimer = thirdPass.first { $0.payload.metadata["chapterPrimer"] == "true" }
+        XCTAssertNil(thirdPass.first { $0.payload.metadata["chapterBinding"] == "true" })
+        XCTAssertEqual(thirdPrimer?.payload.metadata["primerStage"], "3")
+
+        inputs.surfaceHistory = shownChapterPrimerHistory(now: now)
+        let bindingPass = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
+        XCTAssertNotNil(bindingPass.first { $0.payload.metadata["chapterBinding"] == "true" })
+        XCTAssertNil(bindingPass.first { $0.payload.metadata["chapterPrimer"] == "true" })
     }
 
     func testChapterBindingOracleHonorsTalismanBeliefInvestment() {
@@ -1389,6 +1483,17 @@ final class WorldSystemsTests: XCTestCase {
         )
     }
 
+    private func shownChapterPrimerHistory(now: Date) -> [String: SurfaceHistoryRecord] {
+        Dictionary(
+            uniqueKeysWithValues: (1...3).map { stage in
+                (
+                    "chapter-primer:\(stage)",
+                    SurfaceHistoryRecord(lastShownAt: now.addingTimeInterval(TimeInterval(-stage * 3600)), recentShowCount: 1)
+                )
+            }
+        )
+    }
+
     // MARK: Save file
 
     func testSaveFileRoundTrips() throws {
@@ -1423,6 +1528,154 @@ final class WorldSystemsTests: XCTestCase {
 
     func testDefaultAnchorsShipEmpty() {
         XCTAssertTrue(AnchorRegistry.defaultAnchors.isEmpty, "Anchors are save data, never binary data")
+    }
+
+    func testAnchorCheckInUsesConservedRewardAmount() {
+        let anchor = AnchorRecord(
+            id: "porch",
+            name: "Porch",
+            latitude: 40,
+            longitude: -73,
+            radiusMeters: 200,
+            kind: .notice,
+            belief: 7,
+            created: "2026-06-01",
+            weather: "rain",
+            moon: "New Moon",
+            season: "Summer",
+            playerWords: "The place with the good lamp.",
+            academyEcho: "A door smells faintly of rain.",
+            outerStacksRoom: "A small room of warm shelves and careful dust.",
+            fae: "A parchment-masked Fae",
+            miniStory: "A map has shifted on the low table.",
+            localRule: "Offer quiet before touching the shelves.",
+            visitCount: 1,
+            lastVisited: "2026-06-10"
+        )
+
+        XCTAssertEqual(AnchorRegistry.checkInBeliefReward, 2)
+        let checkedIn = anchor.checkedIn(on: date(2026, 6, 12, hour: 12, calendar: utcCalendar), beliefGiven: 2)
+        XCTAssertEqual(checkedIn.belief, 9)
+        XCTAssertEqual(checkedIn.visitCount, 2)
+        XCTAssertEqual(checkedIn.lastVisited, "2026-06-12")
+
+        let dimVisit = anchor.checkedIn(on: date(2026, 6, 13, hour: 12, calendar: utcCalendar), beliefGiven: 0)
+        XCTAssertEqual(dimVisit.belief, 7)
+        XCTAssertEqual(dimVisit.visitCount, 2)
+    }
+
+    func testAnchorTurnBuilderCreatesPlaceNativeTurn() {
+        let anchor = AnchorRecord(
+            id: "home",
+            name: "Home",
+            latitude: 40,
+            longitude: -73,
+            radiusMeters: 200,
+            kind: .notice,
+            belief: 7,
+            created: "2026-06-01",
+            weather: "rain",
+            moon: "New Moon",
+            season: "Summer",
+            playerWords: "The place with the good lamp.",
+            academyEcho: "A door smells faintly of rain.",
+            outerStacksRoom: "A small room of warm shelves and careful dust.",
+            fae: "A parchment-masked Fae",
+            miniStory: "A map has shifted on the low table.",
+            localRule: "Offer quiet before touching the shelves.",
+            visitCount: 3,
+            lastVisited: "2026-06-10"
+        )
+
+        let firstTurn = AnchorTurnBuilder.turn(anchor: anchor, visitMode: "FIRST_VISIT", slotKey: "first")
+        XCTAssertEqual(firstTurn.register, .quiet)
+        XCTAssertFalse(firstTurn.want.isEmpty)
+        XCTAssertFalse(firstTurn.statement.isEmpty)
+        XCTAssertFalse(firstTurn.character.isEmpty)
+
+        let returnTurn = AnchorTurnBuilder.turn(anchor: anchor, visitMode: "RETURN_VISIT", slotKey: "return")
+        XCTAssertEqual(returnTurn.register, .quiet)
+        XCTAssertTrue(returnTurn.want.contains("visit 3"))
+        let landings = ["slice-of-life", "progress-arc", "surprise"].compactMap { returnTurn.landings[$0]?.nonEmpty }
+        XCTAssertEqual(landings.count, 3)
+        XCTAssertEqual(Set(landings).count, 3)
+    }
+
+    func testAnchorMiniStoryAdvancesAsRollingGist() {
+        let previous = "A map has shifted on the low table. The dust remembered a name."
+        let landing = "The room trusts the reader with one more exact, kept detail; the bond warms a notch."
+
+        let advanced = AnchorMiniStory.advanced(previous: previous, landing: landing)
+
+        XCTAssertTrue(advanced.contains(landing))
+        XCTAssertTrue(advanced.contains("Before that"))
+        XCTAssertTrue(advanced.contains("A map has shifted on the low table."))
+        XCTAssertLessThanOrEqual(advanced.count, AnchorMiniStory.maxLength)
+
+        let metadata = [
+            "storyTurnLandingProgressArc": "The Fae reveals the next guarded piece.",
+            "storyTurnStatement": "The room changes."
+        ]
+        XCTAssertEqual(
+            AnchorMiniStory.landing(from: metadata, tags: ["anchor", "choice:progressarc"]),
+            "The Fae reveals the next guarded piece."
+        )
+    }
+
+    func testAnchorVisitSurfaceCarriesStoryPageChoices() {
+        let now = date(2026, 6, 12, hour: 12, calendar: utcCalendar)
+        let anchor = AnchorRecord(
+            id: "home",
+            name: "Home",
+            latitude: 40,
+            longitude: -73,
+            radiusMeters: 200,
+            kind: .notice,
+            belief: 7,
+            created: "2026-06-01",
+            weather: "rain",
+            moon: "New Moon",
+            season: "Summer",
+            playerWords: "The place with the good lamp.",
+            academyEcho: "A door smells faintly of rain.",
+            outerStacksRoom: "A small room of warm shelves and careful dust.",
+            fae: "A parchment-masked Fae",
+            miniStory: "A map has shifted on the low table.",
+            localRule: "Offer quiet before touching the shelves.",
+            visitCount: 1,
+            lastVisited: "2026-06-10"
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.nearbyAnchor = AnchorProximity(anchor: anchor, distanceMeters: 12)
+        let day = BookDay(id: "today", date: now, pages: [])
+
+        let surface = OuterStacksAnchorPageSourceAdapter().manualSurface(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertTrue(surface.isStoryPlayablePage)
+        XCTAssertEqual(surface.payload.metadata["storyChoiceSliceOfLifeTitle"], "Honor the Rule")
+        XCTAssertEqual(surface.payload.metadata["storyChoiceProgressArcTitle"], "Approach the Fae")
+        XCTAssertEqual(surface.payload.metadata["storyChoiceSurpriseTitle"], "Test the Threshold")
+        XCTAssertEqual(surface.payload.metadata["storyChoiceSliceOfLifeMechanic"], "none")
+        XCTAssertEqual(surface.payload.metadata["beliefReward"], "2")
+        XCTAssertFalse(surface.payload.metadata["storyTurnStatement"]?.isEmpty ?? true)
+        XCTAssertFalse(surface.payload.metadata["storyTurnLandingSliceOfLife"]?.isEmpty ?? true)
+        XCTAssertFalse(surface.payload.metadata["storyTurnLandingProgressArc"]?.isEmpty ?? true)
+        XCTAssertFalse(surface.payload.metadata["storyTurnLandingSurprise"]?.isEmpty ?? true)
+        guard let scene = surface.payload.metadata["storyScene"]?.nonEmpty else {
+            XCTFail("Anchor visits should carry playable story prose.")
+            return
+        }
+        XCTAssertFalse(scene.contains("Room:"))
+        XCTAssertFalse(scene.contains("Fae:"))
+        XCTAssertFalse(scene.contains("Local rule:"))
+        XCTAssertFalse(scene.contains("Mini-story:"))
+        XCTAssertFalse(surface.payload.body.contains("Room:"))
+        XCTAssertTrue(scene.contains("A small room of warm shelves and careful dust."))
     }
 
     // MARK: Margins Atlas
