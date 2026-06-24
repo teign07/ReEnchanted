@@ -6,6 +6,8 @@
 	<string></string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>ReEnchanted uses Face ID to keep your private Book closed until you open it.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ReEnchanted uses your location when you ask for weather, nearby Anchors, or a Compass Run shaped around where you are.</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.openclaw.enchantify.insidecover.overnight-scribe</string>

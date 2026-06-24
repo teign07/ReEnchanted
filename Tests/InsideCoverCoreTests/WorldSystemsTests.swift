@@ -554,6 +554,65 @@ final class WorldSystemsTests: XCTestCase {
         )
     }
 
+    func testCompassVentureDeterministicRollIsStable() {
+        let first = CompassVenture.deterministicRoll(seed: "run-a|home|steady")
+        let second = CompassVenture.deterministicRoll(seed: "run-a|home|steady")
+        XCTAssertEqual(first, second)
+        XCTAssertGreaterThanOrEqual(first, 0)
+        XCTAssertLessThan(first, 1)
+    }
+
+    func testCompassPlaceContextInfersCafeAndHarbor() {
+        XCTAssertEqual(
+            CompassPlaceContext.inferred(from: [
+                LocalPlaceSignal(id: "a", name: "Downshift Coffee", category: "coffee shop", distanceLabel: "120 m", locality: "Waterville")
+            ]),
+            .cafe
+        )
+        XCTAssertEqual(
+            CompassPlaceContext.inferred(from: [
+                LocalPlaceSignal(id: "b", name: "Belfast Harbor Walk", category: "harbor", distanceLabel: "0.4 km", locality: "Belfast")
+            ]),
+            .harbor
+        )
+    }
+
+    func testCompassRunStepBodiesCarryGoalForward() {
+        let seed = WonderCompassRunSeed(
+            id: "linked-run",
+            mode: .closeToHome,
+            timeBox: "10 minutes",
+            budget: "$0",
+            place: "home",
+            energy: "steady",
+            companions: "solo",
+            considerations: "quiet",
+            circumstance: "ordinary morning",
+            spark: "I wonder what the kitchen light is trying to show me?",
+            destination: "the kitchen window",
+            delight: "a glass of water",
+            definition: "stop when the light changes",
+            mission: "Notice the warmest color and the quietest sound.",
+            souvenirPrompt: "Write the best sensory moment in one sentence.",
+            restPrompt: "Set the phone down for one minute.",
+            tags: ["wonder-compass-run"]
+        )
+
+        let embark = seed.body(for: .embark)
+        XCTAssertTrue(embark.contains(seed.spark))
+        XCTAssertTrue(embark.contains("East makes the plan"))
+
+        let sense = seed.body(for: .sense)
+        XCTAssertTrue(sense.contains(seed.spark))
+        XCTAssertTrue(sense.contains(seed.destination))
+        XCTAssertTrue(sense.contains("puts you in your body"))
+
+        let write = seed.body(for: .write)
+        XCTAssertTrue(write.contains(seed.spark))
+        XCTAssertTrue(write.contains(seed.destination))
+        XCTAssertTrue(write.contains("best sensory moment"))
+    }
+
     // MARK: Story forms
 
     func testStoryFormRegistryIsWellFormed() {
@@ -1059,6 +1118,17 @@ final class WorldSystemsTests: XCTestCase {
         data.entityBelief = ["tide-glass": 12]
         data.tutorSeen = ["glow-menu"]
         data.beliefEconomy = BeliefEconomyState(lastDailyTickDayID: "2026-02-03")
+        data.compassKnownPlaces = [
+            CompassKnownPlace(
+                id: "compass-place-cafe-1",
+                name: "Cafe",
+                contextID: CompassPlaceContext.cafe.rawValue,
+                latitude: 44.1,
+                longitude: -69.1,
+                radiusMeters: 180,
+                updatedAt: date(2026, 6, 12, hour: 8, calendar: utcCalendar)
+            )
+        ]
         data.bookJump = BookJumpState(returned: [
             ReturnedBookJump(
                 id: "return-alice",
@@ -1506,6 +1576,17 @@ final class WorldSystemsTests: XCTestCase {
             facultyEntries: [],
             customCastMembers: [],
             anchors: [],
+            compassKnownPlaces: [
+                CompassKnownPlace(
+                    id: "compass-place-library-1",
+                    name: "Library",
+                    contextID: CompassPlaceContext.library.rawValue,
+                    latitude: 44.2,
+                    longitude: -69.2,
+                    radiusMeters: 180,
+                    updatedAt: Date()
+                )
+            ],
             electives: [],
             beliefScore: 42,
             entityBeliefLedger: ["penny-blackletter": 3],
@@ -1523,6 +1604,7 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(decoded.beliefScore, 42)
         XCTAssertEqual(decoded.entityBeliefLedger["penny-blackletter"], 3)
         XCTAssertEqual(decoded.marginTutorSeen, ["glow-menu"])
+        XCTAssertEqual(decoded.compassKnownPlaces?.first?.context, .library)
         XCTAssertEqual(decoded.days.count, 1)
     }
 
@@ -1676,6 +1758,49 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertFalse(scene.contains("Mini-story:"))
         XCTAssertFalse(surface.payload.body.contains("Room:"))
         XCTAssertTrue(scene.contains("A small room of warm shelves and careful dust."))
+    }
+
+    func testWonderCompassRunSurfaceCarriesNearbyAnchorFlavor() {
+        let now = date(2026, 6, 12, hour: 12, calendar: utcCalendar)
+        let anchor = AnchorRecord(
+            id: "harbor-lamp",
+            name: "Harbor Lamp",
+            latitude: 44,
+            longitude: -69,
+            radiusMeters: 200,
+            kind: .sense,
+            belief: 5,
+            created: "2026-06-01",
+            weather: "mist",
+            moon: "Waxing Moon",
+            season: "Gold Season",
+            playerWords: "Salt air and yellow glass.",
+            academyEcho: "A brass bell waits in fog.",
+            outerStacksRoom: "A narrow room of green rope and lantern light.",
+            fae: "The Lantern Clerk",
+            miniStory: "The tide has moved one shelf higher.",
+            localRule: "Count three reflected lights before asking.",
+            visitCount: 2,
+            lastVisited: "2026-06-10"
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.nearbyAnchor = AnchorProximity(anchor: anchor, distanceMeters: 18)
+        let day = BookDay(id: "today", date: now, pages: [])
+
+        let surface = WonderCompassPageSourceAdapter().manualSurface(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertEqual(surface.payload.metadata["anchorName"], "Harbor Lamp")
+        XCTAssertEqual(surface.payload.metadata["anchorKind"], "Sense")
+        XCTAssertEqual(surface.payload.metadata["anchorDistanceMeters"], "18")
+        XCTAssertEqual(surface.payload.metadata["anchorRoom"], "A narrow room of green rope and lantern light.")
+        XCTAssertEqual(surface.payload.metadata["anchorFae"], "The Lantern Clerk")
+        XCTAssertEqual(surface.payload.metadata["anchorLocalRule"], "Count three reflected lights before asking.")
+        XCTAssertEqual(surface.payload.metadata["anchorVisitMode"], "RETURN_VISIT")
     }
 
     // MARK: Margins Atlas

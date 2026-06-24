@@ -16,25 +16,95 @@ if (!reduceMotion) {
   }, { passive: true });
 }
 
+/* ───────────────────────── the real day ─────────────────────────
+   The app's thesis is that real life is the best-written chapter, so the
+   demo reads the visitor's actual sky, moon, and hour — exactly the way
+   the app's Weather Page does — with a graceful Stacks default offline. */
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"]/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]
+  ));
+}
+
+/* Moon phase, ported from Shared/WorldSystems.swift (MoonPhase.phase). */
+function moonPhase(date = new Date()) {
+  const SYNODIC = 29.530588853;
+  const REF_NEW_MOON = Date.UTC(2000, 0, 6, 18, 14, 0); // a known new moon
+  const days = (date.getTime() - REF_NEW_MOON) / 86_400_000;
+  let pos = (days % SYNODIC) / SYNODIC;
+  if (pos < 0) pos += 1;
+  const idx = Math.round(pos * 8) % 8;
+  const PHASES = [
+    ["New Moon", "The moon is a held breath tonight, a page before the first word."],
+    ["Waxing Crescent", "A thin silver paring of moon is just beginning to write itself."],
+    ["First Quarter", "Half the moon is lit tonight, like a door left ajar."],
+    ["Waxing Gibbous", "The moon is fattening toward full, gathering light like gossip."],
+    ["Full Moon", "The moon is full. Every margin of the night is annotated."],
+    ["Waning Gibbous", "The moon is giving its light back now, a little each night."],
+    ["Last Quarter", "Half-lit and leaving: the moon keeps only what matters."],
+    ["Waning Crescent", "A last paring of moon, almost given back to the dark."],
+  ];
+  return { name: PHASES[idx][0], line: PHASES[idx][1] };
+}
+
+/* WMO weather code → the Book's dual reading, in the app's voice. */
+function describeWeather(code) {
+  const m = (word, enchanted, plain) => ({ word, enchanted, plain });
+  if (code === 0) return m("clear", "The sky is scrubbed clean and the light comes through unhindered.", "It is clear.");
+  if (code <= 2) return m("partly cloudy", "A few pages of cloud drift across an otherwise open sky.", "It is partly cloudy.");
+  if (code === 3) return m("overcast", "The sky weeps a soft, gray shroud over the land.", "It is overcast.");
+  if (code <= 48) return m("fog", "Fog has softened every edge of the world into suggestion.", "It is foggy.");
+  if (code <= 57) return m("drizzle", "A fine drizzle is writing in the margins of the air.", "It is drizzling.");
+  if (code <= 67) return m("rain", "The sky weeps a soft, gray shroud over the land.", "It is raining.");
+  if (code <= 77) return m("snow", "The sky is letting down quiet paper, one flake at a time.", "It is snowing.");
+  if (code <= 82) return m("showers", "The sky keeps clearing its throat in bursts of rain.", "There are passing showers.");
+  if (code <= 86) return m("snow showers", "Brief snow keeps arriving like loose pages on the wind.", "There are snow showers.");
+  return m("storm", "The sky is rearranging its furniture; thunder reads aloud.", "There is a thunderstorm.");
+}
+
+/* The Weather Page, rendered as the app's "Private translation" card. */
+function weatherPageHTML(w) {
+  return `
+    <span class="weather-facts" aria-label="Weather details">
+      <span><strong>Now</strong> ${w.nowTemp}° · ${w.cond}</span>
+      <span><strong>High / Low</strong> ${w.high}° / ${w.low}°</span>
+      <span><strong>Wind</strong> ${w.wind}</span>
+      <span><strong>Humidity</strong> ${w.humidity}%</span>
+    </span>
+    <span class="private-translation">
+      <span class="pt-label">✦ Private translation</span>
+      <span class="pt-line"><strong>Enchanted:</strong> ${escapeHTML(w.enchanted)} <strong>Plain:</strong> ${escapeHTML(w.plain)}</span>
+      <span class="pt-moon">${escapeHTML(w.moonLine)}</span>
+      <span class="pt-meta">Weather: Now ${w.nowTemp}° · ${w.cond} · High ${w.high}° / Low ${w.low}° · ${w.moonName}</span>
+    </span>
+    <span class="weather-place">${escapeHTML(w.place)}</span>
+  `;
+}
+
+const FALLBACK_WEATHER = (() => {
+  const moon = moonPhase();
+  const d = describeWeather(45); // fog over the Stacks
+  return {
+    nowTemp: 60, cond: d.word, high: 71, low: 56, wind: "E 4 mph", humidity: 92,
+    enchanted: d.enchanted, plain: d.plain, moonLine: moon.line, moonName: moon.name,
+    place: "Over the Stacks · the Book's default sky",
+  };
+})();
+
+let weatherCtx = { ...FALLBACK_WEATHER };
+let readerLine = "";
+
 /* ───────────────────────── the deck of pages ─────────────────────────
    Each page: a real screen from the app + copy + the line it contributes
    to the braided "Book of You" if the reader keeps it.                  */
 const PAGES = [
   {
-    kicker: "Weather",
-    title: "Fog over the Stacks.",
-    bodyHTML: `
-      <span class="weather-facts" aria-label="Weather details">
-        <span><strong>Now</strong> 60° · fog</span>
-        <span><strong>High / Low</strong> 71° / 56°</span>
-        <span><strong>Wind</strong> E 4 mph</span>
-        <span><strong>Humidity</strong> 92%</span>
-      </span>
-      <span class="weather-omen"><strong>The Book reads it:</strong> Fog has softened the edges of the Stacks. Hidden doors are likelier today; move slowly, carry one warm detail, and let unclear things stay gently unclear.</span>
-    `,
+    kicker: "Weather Page",
+    title: "The Weather Page has opened.",
+    bodyHTML: weatherPageHTML(FALLBACK_WEATHER),
     source: "Weather doorway · public forecast",
     shot: "./assets/screens/story-page-weather-prose.png",
-    braid: "Fog softened the edges of the Stacks; I moved slowly, carrying one warm detail.",
+    braid: "The Weather Page opened on fog, and I kept the sky exactly as it stood.",
   },
   {
     kicker: "Story Page · A Choice",
@@ -45,13 +115,23 @@ const PAGES = [
     braid: "A brittle chart offered three ways forward; I kept the fact that the page could turn differently.",
   },
   {
+    kicker: "Radio",
+    title: "Music becomes weather in the stacks.",
+    body: "Broadcasts and world effects drift through the shelves as atmosphere — a mood you can keep alongside the day. Tune the Stacks for a moment, then keep the station if it changes the room.",
+    source: "World effect",
+    shot: "./assets/screens/radio.jpg",
+    braid: "A broadcast drifted through and became weather in the stacks.",
+    radioPrompt: true,
+  },
+  {
     kicker: "One-Sentence Souvenir",
-    title: "A single true line from the day.",
-    body: "“The walk at Moose Point, with a small hand in mine, and the waves rolling into the afternoon.” One moment, kept in one durable sentence.",
+    title: "Write one true line from your day.",
+    body: "The Book is asking for your sentence now: one sensory, specific line that would otherwise vanish. The app's sentence helper wakes the line, polishes it gently, and lets you keep it when it can stand.",
     source: "Kept from the margins",
     shot: "./assets/screens/margins.jpg",
     braid: "There was the walk at Moose Point, a small hand in mine, the waves rolling in.",
     quiet: true,
+    sentencePrompt: true,
   },
   {
     kicker: "A Character Arrives",
@@ -86,14 +166,6 @@ const PAGES = [
     braid: "A quiet afternoon in low light — ordinary, and the Book kept it anyway.",
     quiet: true,
   },
-  {
-    kicker: "Radio",
-    title: "Music becomes weather in the stacks.",
-    body: "Broadcasts and world effects drift through the shelves as atmosphere — a mood you can keep alongside the day.",
-    source: "World effect",
-    shot: "./assets/screens/radio.jpg",
-    braid: "A broadcast drifted through and became weather in the stacks.",
-  },
 ];
 
 /* ───────────────────────── book controller ───────────────────────── */
@@ -107,8 +179,16 @@ const elBody = document.querySelector("#page-body");
 const elSource = document.querySelector("#page-source");
 const elShot = document.querySelector("#page-shot");
 const elStatus = document.querySelector("#keep-status");
+const keepControls = document.querySelector("#keep-controls");
 const btnKeep = document.querySelector("#btn-keep");
 const btnWait = document.querySelector("#btn-wait");
+const sentencePolisher = document.querySelector("#sentence-polisher");
+const readerLineInput = document.querySelector("#reader-line");
+const polisherStatus = document.querySelector("#polisher-status");
+const polisherPreview = document.querySelector("#polisher-preview");
+const polishBtn = document.querySelector("#polish-btn");
+const restoreSentenceBtn = document.querySelector("#restore-sentence-btn");
+const stacksRadio = document.querySelector("#stacks-radio");
 const nav = document.querySelector("#book-nav");
 const btnPrev = document.querySelector("#btn-prev");
 const btnNext = document.querySelector("#btn-next");
@@ -123,6 +203,66 @@ const braidReplay = document.querySelector("#braid-replay");
 let index = 0;
 let animating = false;
 const choices = new Array(PAGES.length).fill(null); // null | "keep" | "wait"
+const SAMPLE_SENTENCE = "The walk at Moose Point held a small hand in mine while the waves rolled into the afternoon.";
+
+function isDecisionPage(page) {
+  return page.decision !== false;
+}
+
+function keepablePageCount() {
+  return PAGES.filter(isDecisionPage).length;
+}
+
+function polishSentence(value) {
+  let text = String(value || "")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "";
+
+  text = text
+    .replace(/\b(just|really|very|kind of|sort of|basically)\b\s*/gi, "")
+    .replace(/\s+,/g, ",")
+    .replace(/\s+\./g, ".")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  text = text.charAt(0).toUpperCase() + text.slice(1);
+  if (!/[.!?]$/.test(text)) text += ".";
+  return text;
+}
+
+function sentenceWordCount(value) {
+  return (String(value || "").trim().match(/\b[\w'-]+\b/g) || []).length;
+}
+
+function renderSentencePolisher() {
+  if (!sentencePolisher || !readerLineInput || !polisherStatus || !polisherPreview) return;
+  const visible = Boolean(PAGES[index].sentencePrompt);
+  sentencePolisher.hidden = !visible;
+  if (!visible) return;
+
+  const polished = polishSentence(readerLineInput.value);
+  readerLine = polished;
+  const words = sentenceWordCount(polished);
+  if (!polished) {
+    polisherStatus.textContent = "Wake the sentence";
+    polisherPreview.textContent = "Write one true line and the Book will polish its edges.";
+  } else if (words < 6) {
+    polisherStatus.textContent = "Needs one more detail";
+    polisherPreview.textContent = polished;
+  } else {
+    polisherStatus.textContent = "Strong sentence";
+    polisherPreview.textContent = polished;
+  }
+  sentencePolisher.classList.toggle("is-strong", words >= 6);
+}
+
+function renderStacksRadio() {
+  if (!stacksRadio) return;
+  stacksRadio.hidden = !PAGES[index].radioPrompt;
+}
 
 function render() {
   const p = PAGES[index];
@@ -136,10 +276,15 @@ function render() {
   elSource.textContent = p.source;
   elShot.src = p.shot;
 
+  const decisionPage = isDecisionPage(p);
   const choice = choices[index];
   screenWrap.classList.toggle("is-kept", choice === "keep");
   btnKeep.classList.toggle("chosen", choice === "keep");
   btnWait.classList.toggle("chosen", choice === "wait");
+  keepControls.hidden = !decisionPage;
+  elStatus.hidden = !decisionPage;
+  renderSentencePolisher();
+  renderStacksRadio();
 
   navCount.textContent = `Page ${index + 1} of ${PAGES.length}`;
   btnPrev.disabled = index === 0;
@@ -148,7 +293,7 @@ function render() {
 
   const kept = choices.filter((c) => c === "keep").length;
   elStatus.textContent = kept === 0
-    ? `${PAGES.length} pages rising · keep the ones that are true`
+    ? `${keepablePageCount()} pages rising · keep the ones that are true`
     : `${kept} page${kept === 1 ? "" : "s"} kept · they'll braid into your book`;
 }
 
@@ -169,6 +314,12 @@ function go(delta) {
 }
 
 function choose(kind) {
+  if (!isDecisionPage(PAGES[index])) return;
+  if (kind === "keep" && PAGES[index].sentencePrompt && readerLineInput && !readerLine) {
+    readerLineInput.focus();
+    hint.textContent = "Write one true sentence first — then keep it.";
+    return;
+  }
   choices[index] = kind;
   render();
   // nudge the reader onward without hijacking navigation
@@ -183,51 +334,218 @@ function openBook() {
   nav.hidden = false;
   index = 0;
   render();
+  loadRealWeather(); // best-effort; the page already reads fine on the fallback
 }
 
 function buildBraid() {
   const keptIndices = PAGES.map((_, i) => i).filter((i) => choices[i] === "keep");
-  const keptLines = keptIndices.map((i) => PAGES[i].braid);
-  const everyPageAnswered = choices.every((choice) => choice === "keep" || choice === "wait");
-  const allKept = choices.every((choice) => choice === "keep");
-  const alternating = everyPageAnswered && choices.every((choice, i) => choice === (i % 2 === 0 ? "keep" : "wait"));
+  const decisionIndices = PAGES.map((page, i) => isDecisionPage(page) ? i : -1).filter((i) => i >= 0);
+  const sentencePageKept = keptIndices.some((i) => PAGES[i].sentencePrompt);
+  const keptLines = keptIndices.map((i) => {
+    if (PAGES[i].sentencePrompt && readerLine) {
+      return `I kept one sentence from the day: <em class="reader-own">${escapeHTML(readerLine)}</em>`;
+    }
+    return PAGES[i].braid;
+  });
+  const everyPageAnswered = decisionIndices.every((i) => choices[i] === "keep" || choices[i] === "wait");
+  const allKept = decisionIndices.every((i) => choices[i] === "keep");
+  const alternating = everyPageAnswered && decisionIndices.every((i, decisionOffset) => choices[i] === (decisionOffset % 2 === 0 ? "keep" : "wait"));
   const quietIndices = PAGES.map((page, i) => page.quiet ? i : -1).filter((i) => i >= 0);
   const quietPagesOnly = everyPageAnswered
     && keptIndices.length === quietIndices.length
     && quietIndices.every((i) => keptIndices.includes(i));
 
+  // The reader's own true line, if they wrote one, leads the passage in their voice.
+  const own = readerLine && !sentencePageKept ? `<em class="reader-own">${escapeHTML(readerLine)}</em>` : "";
+  const lead = own ? `${own}  ` : "";
+  const woven = keptLines.join("  ");
+
   if (keptLines.length === 0) {
+    if (own) {
+      braidIntro.textContent = "Only one true line — and the Book kept it anyway.";
+      return `${own}  Nothing else demanded binding today, and that is its own kind of honest month. The shelf is patient.`;
+    }
     braidIntro.textContent = everyPageAnswered ? "You let every page wait." : "You kept no page before the binding.";
     return "An honest month: nothing demanded to be kept, and the Book waited with you. The shelf is patient. Come back when something catches a real edge.";
   }
   if (allKept) {
     braidIntro.textContent = "You kept everything. The Book has concerns. Affectionate ones.";
-    return `${keptLines.join("  ")}  In the final margin, a small hand has written: sentimental, perhaps — but paying attention is hardly the worst trouble to be in.`;
+    return `${lead}${woven}  In the final margin, a small hand has written: sentimental, perhaps — but paying attention is hardly the worst trouble to be in.`;
   }
   if (alternating) {
     braidIntro.textContent = "A Riddlewind pattern appeared between yes and not yet.";
-    return `${keptLines.join("  ")}  Every other door remained closed. Together, the open doors spelled a question the Book has declined to translate.`;
+    return `${lead}${woven}  Every other door remained closed. Together, the open doors spelled a question the Book has declined to translate.`;
   }
   if (quietPagesOnly) {
     braidIntro.textContent = "The Book noticed what kind of pages you chose.";
-    return `${keptLines.join("  ")}  No spectacle asked to be remembered. The ordinary things made a small constellation anyway.`;
+    return `${lead}${woven}  No spectacle asked to be remembered. The ordinary things made a small constellation anyway.`;
   }
-  braidIntro.textContent = `Braided from the ${keptLines.length} page${keptLines.length === 1 ? "" : "s"} you kept.`;
+  braidIntro.textContent = own
+    ? `Braided from your own line and the ${keptLines.length} page${keptLines.length === 1 ? "" : "s"} you kept.`
+    : `Braided from the ${keptLines.length} page${keptLines.length === 1 ? "" : "s"} you kept.`;
   // each kept line is already a complete sentence — weave them into one passage
-  return keptLines.join("  ");
+  return `${lead}${woven}`;
 }
+
+/* ── the Book of You edition: theme, stats, and The Reader's Sky ── */
+const PAGE_WORDS = ["Weather", "Chart", "Music", "Sentence", "Faculty", "Light", "Wonder", "Light"];
+
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function editionData() {
+  const keptIdx = PAGES.map((_, i) => i).filter((i) => choices[i] === "keep");
+  const counts = {};
+  keptIdx.forEach((i) => { const w = PAGE_WORDS[i] || "Page"; counts[w] = (counts[w] || 0) + 1; });
+  if (readerLine) counts["Sentence"] = (counts["Sentence"] || 0) + 1;
+  const words = Object.entries(counts)
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count); // stable: ties keep their first-kept order
+  let theme;
+  if (words.length >= 2) theme = `“What ${words[0].label} Said to ${words[1].label}”`;
+  else if (words.length === 1) theme = `“The ${words[0].label} Chapter”`;
+  else theme = "“A Quiet Chapter”";
+  return { words, theme, keptCount: keptIdx.length };
+}
+
+function renderReadersSky(words) {
+  const wrap = document.querySelector("#readers-sky");
+  const map = document.querySelector("#sky-map");
+  const legend = document.querySelector("#sky-legend");
+  if (!wrap || !map || !legend) return;
+  if (words.length === 0) { wrap.hidden = true; return; }
+  wrap.hidden = false;
+  const W = 300, H = 190, pad = 42;
+  const pts = words.map((w) => {
+    const h = hashStr(w.label + "✦");
+    return {
+      ...w,
+      x: pad + (h % 997) / 997 * (W - 2 * pad),
+      y: pad + (Math.floor(h / 997) % 991) / 991 * (H - 2 * pad),
+    };
+  });
+  let lines = "";
+  for (let i = 0; i < pts.length - 1; i++) {
+    lines += `<line x1="${pts[i].x.toFixed(1)}" y1="${pts[i].y.toFixed(1)}" x2="${pts[i + 1].x.toFixed(1)}" y2="${pts[i + 1].y.toFixed(1)}"/>`;
+  }
+  const stars = pts.map((p) =>
+    `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${(2.5 + p.count).toFixed(1)}" class="sky-star"/>` +
+    `<text x="${(p.x + 7).toFixed(1)}" y="${(p.y + 3).toFixed(1)}" class="sky-label">${escapeHTML(p.label)}</text>`
+  ).join("");
+  map.innerHTML = `<g class="sky-lines">${lines}</g>${stars}`;
+  legend.innerHTML = words.map((w) =>
+    `<li>${escapeHTML(w.label)} · noticed · ${w.count} sighting${w.count === 1 ? "" : "s"}</li>`
+  ).join("");
+}
+
+function monthYear() {
+  return new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+function setText(sel, txt) { const el = document.querySelector(sel); if (el) el.textContent = txt; }
+
+let lastEdition = null;
 
 function showBraid() {
   const text = buildBraid();
+  const data = editionData();
+  lastEdition = data;
   flip("next", () => {
     book.dataset.state = "braid";
-    braidText.textContent = text;
+    braidText.innerHTML = text;
+    const my = monthYear();
+    setText("#edition-chapter", `Chapter 1 · ${my}`);
+    setText("#edition-eyebrow", `The Book of You · ${my}`);
+    setText("#edition-theme", data.theme);
+    setText("#edition-stats", `1 day bound · ${data.keptCount} kept page${data.keptCount === 1 ? "" : "s"}`);
+    renderReadersSky(data.words);
     progressFill.style.width = "100%";
     navCount.textContent = "Your binding";
     btnNext.disabled = true;
     btnPrev.disabled = false;
-    hint.textContent = "This is one day. Kept pages gather into editions you can hold.";
+    hint.textContent = "This is one day. A real month braids many of these into a bound edition.";
   });
+}
+
+/* ── keepsake: render this edition page to a downloadable PNG ── */
+function wrapText(g, text, x, y, maxW, lh, maxY) {
+  const words = text.split(/\s+/);
+  let line = "", yy = y;
+  for (const w of words) {
+    const test = line ? line + " " + w : w;
+    if (g.measureText(test).width > maxW && line) {
+      g.fillText(line, x, yy);
+      line = w;
+      yy += lh;
+      if (yy > maxY) { g.fillText("…", x, yy); return yy; }
+    } else {
+      line = test;
+    }
+  }
+  if (line) g.fillText(line, x, yy);
+  return yy;
+}
+
+async function downloadKeepsake() {
+  const data = lastEdition || editionData();
+  const passage = (braidText.textContent || "").trim();
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (_) {}
+  const W = 1080, H = 1350;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const gold = "#cbb37a", cream = "#ede6d2", cx = W / 2;
+  g.fillStyle = "#0e2018"; g.fillRect(0, 0, W, H);
+  const vg = g.createRadialGradient(cx, H * 0.3, 60, cx, H * 0.3, H * 0.72);
+  vg.addColorStop(0, "rgba(46,86,64,0.55)"); vg.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = vg; g.fillRect(0, 0, W, H);
+  g.strokeStyle = "rgba(201,179,122,0.45)"; g.lineWidth = 2;
+  g.strokeRect(52, 52, W - 104, H - 104);
+  // keyhole door
+  g.strokeStyle = gold; g.lineWidth = 4;
+  const aw = 116, top = 150;
+  g.beginPath();
+  g.moveTo(cx - aw, top + 250);
+  g.lineTo(cx - aw, top + 80);
+  g.arc(cx, top + 80, aw, Math.PI, 0);
+  g.lineTo(cx + aw, top + 250);
+  g.stroke();
+  g.fillStyle = gold;
+  g.beginPath(); g.arc(cx, top + 120, 15, 0, Math.PI * 2); g.fill();
+  g.fillRect(cx - 5, top + 128, 10, 34);
+  // imprint + theme + chapter
+  g.textAlign = "center";
+  g.fillStyle = cream;
+  if ("letterSpacing" in g) g.letterSpacing = "8px";
+  g.font = '600 32px Fraunces, Georgia, serif';
+  g.fillText("THE BOOK OF YOU", cx, 540);
+  if ("letterSpacing" in g) g.letterSpacing = "0px";
+  g.fillStyle = gold; g.font = 'italic 600 50px Fraunces, Georgia, serif';
+  g.fillText(data.theme, cx, 612);
+  g.fillStyle = "rgba(237,230,210,0.66)"; g.font = '400 26px Fraunces, Georgia, serif';
+  g.fillText(`Chapter 1 · ${monthYear()}`, cx, 660);
+  g.strokeStyle = "rgba(201,179,122,0.4)"; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(cx - 80, 700); g.lineTo(cx + 80, 700); g.stroke();
+  // passage
+  g.fillStyle = cream; g.textAlign = "left"; g.font = '400 31px Fraunces, Georgia, serif';
+  wrapText(g, passage, 132, 770, W - 264, 46, 1170);
+  // footer: where + when + sky
+  g.textAlign = "center"; g.fillStyle = "rgba(201,179,122,0.85)"; g.font = 'italic 24px Fraunces, Georgia, serif';
+  const place = [weatherCtx.city, monthYear(), weatherCtx.cond].filter(Boolean).join(" · ");
+  g.fillText(place, cx, H - 86);
+  c.toBlob((b) => {
+    if (!b) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(b);
+    a.download = "book-of-you.png";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  }, "image/png");
 }
 
 function backFromBraid() {
@@ -239,6 +557,8 @@ function backFromBraid() {
 
 function replay() {
   choices.fill(null);
+  readerLine = "";
+  if (readerLineInput) readerLineInput.value = "";
   book.dataset.state = "open";
   index = 0;
   btnNext.disabled = false;
@@ -246,6 +566,162 @@ function replay() {
   render();
   document.querySelector("#book").scrollIntoView({ behavior: "smooth", block: "center" });
 }
+
+/* ── daypart: tint the whole scene to the visitor's real hour ── */
+const DAYPART = {
+  dawn: { kicker: "The Stacks are waking", hint: "Morning in the Stacks — open the book and keep what's true." },
+  day: { kicker: "The Book turns when you do", hint: "Tip: keep a few, let some wait — your choices change the ending." },
+  dusk: { kicker: "The west windows go violet", hint: "Dusk in the Stacks — a good hour to keep what the day meant." },
+  night: { kicker: "The Stacks are lit low", hint: "Read a few pages before sleep — the Book keeps what you keep." },
+};
+function currentDaypart(h = new Date().getHours()) {
+  if (h < 5) return "night";
+  if (h < 8) return "dawn";
+  if (h < 17) return "day";
+  if (h < 20) return "dusk";
+  return "night";
+}
+function applyDaypart() {
+  const part = currentDaypart();
+  root.dataset.daypart = part;
+  const greeting = DAYPART[part];
+  const coverKicker = document.querySelector(".cover-kicker");
+  if (coverKicker) coverKicker.textContent = greeting.kicker;
+  if (book.dataset.state === "closed" && hint) hint.textContent = greeting.hint;
+}
+
+/* ── real weather, read the way the app's Weather Page reads it ── */
+const WIND_DIRS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+async function loadRealWeather() {
+  if (weatherCtx.loaded) return;
+  try {
+    const geo = await fetch("https://ipwho.is/").then((r) => r.json());
+    if (!geo || geo.success === false || typeof geo.latitude !== "number") return;
+    const city = [geo.city, geo.region].filter(Boolean).join(", ") || geo.country || "your sky";
+    const params = new URLSearchParams({
+      latitude: geo.latitude, longitude: geo.longitude,
+      current: "temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m",
+      daily: "temperature_2m_max,temperature_2m_min",
+      temperature_unit: "fahrenheit", wind_speed_unit: "mph", timezone: "auto",
+    });
+    const wx = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`).then((r) => r.json());
+    const cur = wx && wx.current;
+    if (!cur) return;
+    const d = describeWeather(cur.weather_code);
+    const moon = moonPhase();
+    const dir = WIND_DIRS[Math.round(((cur.wind_direction_10m || 0) % 360) / 45) % 8];
+    weatherCtx = {
+      loaded: true,
+      nowTemp: Math.round(cur.temperature_2m),
+      cond: d.word,
+      high: Math.round(wx.daily.temperature_2m_max[0]),
+      low: Math.round(wx.daily.temperature_2m_min[0]),
+      wind: `${dir} ${Math.round(cur.wind_speed_10m)} mph`,
+      humidity: Math.round(cur.relative_humidity_2m),
+      enchanted: d.enchanted, plain: d.plain,
+      moonLine: moon.line, moonName: moon.name,
+      place: `Read from ${city} · approximate, never stored — the same doorway the app uses`,
+      city,
+    };
+    PAGES[0].bodyHTML = weatherPageHTML(weatherCtx);
+    PAGES[0].braid = `The Weather Page opened on ${d.word} over ${city}; I kept the sky exactly as it stood.`;
+    if (index === 0 && book.dataset.state === "open") render();
+  } catch (_) {
+    /* offline / blocked — the Stacks default already reads beautifully */
+  }
+}
+
+/* ── the reader's own true line, on the One-Sentence Souvenir page ── */
+if (readerLineInput) {
+  readerLineInput.addEventListener("input", renderSentencePolisher);
+}
+polishBtn?.addEventListener("click", () => {
+  if (!readerLineInput) return;
+  readerLineInput.value = polishSentence(readerLineInput.value);
+  renderSentencePolisher();
+  if (readerLineInput.value) hint.textContent = "Polished. If it feels true, keep this page.";
+});
+restoreSentenceBtn?.addEventListener("click", () => {
+  if (!readerLineInput) return;
+  readerLineInput.value = SAMPLE_SENTENCE;
+  renderSentencePolisher();
+  hint.textContent = "Sample loaded. Replace it with your own line if you like.";
+});
+
+/* ── launch list: capture an email so the Book can write when the doors open ──
+   Static site, no backend. Paste a Buttondown / Formspree / Apps Script URL into
+   EMAIL_ENDPOINT and it posts there; until then it keeps signups in localStorage
+   so nothing is ever lost in dev. The real, exportable list lives at the provider. */
+const EMAIL_ENDPOINT = ""; // ← paste the provider endpoint here to go live
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+async function postEmail(payload) {
+  if (!EMAIL_ENDPOINT) {
+    const key = "reenchanted-waitlist";
+    const list = JSON.parse(localStorage.getItem(key) || "[]");
+    list.push(payload);
+    localStorage.setItem(key, JSON.stringify(list));
+    return { ok: true, demo: true };
+  }
+  const res = await fetch(EMAIL_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return { ok: res.ok };
+}
+
+function setEmailStatus(el, msg, ok) {
+  if (!el) return;
+  el.hidden = false;
+  el.textContent = msg;
+  el.classList.toggle("ok", ok);
+  el.classList.toggle("err", !ok);
+}
+
+function wireEmailForms() {
+  document.querySelectorAll(".email-capture").forEach((form) => {
+    const input = form.querySelector(".email-input");
+    const status = form.querySelector(".email-status");
+    const btn = form.querySelector(".email-submit");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = (input.value || "").trim();
+      if (!EMAIL_RE.test(email)) {
+        setEmailStatus(status, "That doesn't look like an email yet.", false);
+        input.focus();
+        return;
+      }
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+      try {
+        const r = await postEmail({
+          email,
+          source: form.dataset.source || "landing",
+          daypart: root.dataset.daypart || "",
+          city: (weatherCtx && weatherCtx.city) || "",
+          ts: new Date().toISOString(),
+        });
+        if (r.ok) {
+          form.classList.add("sent");
+          input.disabled = true;
+          setEmailStatus(status, "Kept. The Book will write to you when the doors open. ✦", true);
+        } else {
+          setEmailStatus(status, "The shelf hiccuped — try again in a moment.", false);
+        }
+      } catch (_) {
+        setEmailStatus(status, "The shelf hiccuped — try again in a moment.", false);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    });
+  });
+}
+wireEmailForms();
+
+applyDaypart();
 
 cover.addEventListener("click", openBook);
 btnKeep.addEventListener("click", () => choose("keep"));
@@ -256,6 +732,105 @@ btnPrev.addEventListener("click", () => {
   else go(-1);
 });
 braidReplay.addEventListener("click", replay);
+document.querySelector("#keepsake-btn")?.addEventListener("click", downloadKeepsake);
+
+/* ── peelable page-curl: drag the dog-eared corner to turn ── */
+const pageCorner = document.querySelector("#page-corner");
+let curling = false;
+let curlStartX = 0;
+function setCurl(dx) {
+  const amt = Math.max(0, Math.min(1, -dx / 300));
+  leafRight.style.setProperty("--curl", amt.toFixed(3));
+  leafRight.classList.toggle("curling", amt > 0.02);
+}
+function resetCurl() {
+  leafRight.classList.remove("curl-anim", "curling");
+  leafRight.style.removeProperty("--curl");
+}
+function completeCurlToNext() {
+  if (index + 1 >= PAGES.length) { resetCurl(); go(1); return; } // last page → bind via flip
+  animating = true;
+  leafRight.classList.add("curl-anim");
+  leafRight.style.setProperty("--curl", "1");      // peel away to edge-on
+  setTimeout(() => {
+    index += 1; render();                          // swap content while edge-on
+    leafRight.style.setProperty("--curl", "0");     // settle the new page flat
+    setTimeout(() => { resetCurl(); animating = false; }, 340);
+  }, 330);
+}
+function springBackCurl() {
+  leafRight.classList.add("curl-anim");
+  leafRight.style.setProperty("--curl", "0");
+  setTimeout(resetCurl, 320);
+}
+if (pageCorner) {
+  pageCorner.addEventListener("pointerdown", (e) => {
+    if (reduceMotion || animating || book.dataset.state !== "open" || index >= PAGES.length) return;
+    curling = true;
+    curlStartX = e.clientX;
+    leafRight.classList.remove("curl-anim");
+    pageCorner.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+  });
+  pageCorner.addEventListener("pointermove", (e) => { if (curling) setCurl(e.clientX - curlStartX); });
+  const endCurl = (e) => {
+    if (!curling) return;
+    curling = false;
+    const dx = (typeof e.clientX === "number" ? e.clientX : curlStartX) - curlStartX;
+    if (-dx > 90) completeCurlToNext();
+    else springBackCurl();
+  };
+  pageCorner.addEventListener("pointerup", endCurl);
+  pageCorner.addEventListener("pointercancel", endCurl);
+}
+
+/* ── ambient Stacks radio: muted by default, one tap to tune in ──
+   The station follows the visitor's daypart, the way the app's feed does. */
+const STACKS_STATIONS = {
+  dawn: { src: "fae-fi-folktronica.m4a", name: "Fae-Fi · Folktronica" },
+  day: { src: "mothlight-afternoon-chapters.m4a", name: "Mothlight · Afternoon Chapters" },
+  dusk: { src: "thornwave-nocturnal-faerie-lounge.m4a", name: "Thornwave · Nocturnal Faerie Lounge" },
+  night: { src: "thornwave-whispering-shadows.m4a", name: "Thornwave · Whispering Shadows" },
+};
+const radioToggle = document.querySelector("#radio-toggle");
+const radioAudio = document.querySelector("#radio-audio");
+const radioLabel = document.querySelector("#radio-label");
+const radioNow = document.querySelector("#radio-now");
+let radioOn = false;
+let radioFade = null;
+function fadeRadio(target, done) {
+  clearInterval(radioFade);
+  radioFade = setInterval(() => {
+    const v = radioAudio.volume;
+    const next = v < target ? Math.min(target, v + 0.04) : Math.max(target, v - 0.05);
+    radioAudio.volume = next;
+    if (Math.abs(next - target) < 0.001) { clearInterval(radioFade); if (done) done(); }
+  }, 80);
+}
+if (radioToggle && radioAudio) {
+  radioToggle.addEventListener("click", async () => {
+    if (!radioOn) {
+      const st = STACKS_STATIONS[root.dataset.daypart] || STACKS_STATIONS.day;
+      if (!radioAudio.src) radioAudio.src = "./assets/audio/" + st.src;
+      radioAudio.volume = 0;
+      try { await radioAudio.play(); } catch (_) { return; } // blocked → stay quiet
+      radioOn = true;
+      radioToggle.setAttribute("aria-pressed", "true");
+      radioToggle.classList.add("on");
+      radioLabel.textContent = "Tuned in";
+      radioNow.hidden = false;
+      radioNow.textContent = st.name;
+      fadeRadio(0.32);
+    } else {
+      radioOn = false;
+      radioToggle.setAttribute("aria-pressed", "false");
+      radioToggle.classList.remove("on");
+      radioLabel.textContent = "Tune in the Stacks";
+      radioNow.hidden = true;
+      fadeRadio(0, () => radioAudio.pause());
+    }
+  });
+}
 
 // keyboard support
 document.addEventListener("keydown", (e) => {
@@ -444,6 +1019,8 @@ const STATIONS = [
     tracks: [
       { id: "fae-fi-mossy-footsteps", title: "Mossy Footsteps", artist: "Fae-Fi", src: "./assets/audio/fae-fi-mossy-footsteps.m4a" },
       { id: "fae-fi-folktronica", title: "Folktronica", artist: "Fae-Fi", src: "./assets/audio/fae-fi-folktronica.m4a" },
+      { id: "fae-fi-ink-hands", title: "Ink Hands", artist: "Fae-Fi", src: "./assets/audio/fae-fi-ink-hands.m4a" },
+      { id: "fae-fi-art-of-the-glint", title: "Art of the Glint", artist: "Fae-Fi", src: "./assets/audio/fae-fi-art-of-the-glint.m4a" },
       { id: "fae-fi-mossy-groove", title: "Mossy Groove", artist: "Fae-Fi", src: "./assets/audio/fae-fi-mossy-groove.m4a" },
       { id: "fae-fi-to-the-adventure", title: "To the Adventure", artist: "Fae-Fi", src: "./assets/audio/fae-fi-to-the-adventure.m4a" },
       { id: "fae-fi-pages-rising", title: "Pages Rising", artist: "Fae-Fi", src: "./assets/audio/fae-fi-pages-rising.m4a" },
@@ -495,8 +1072,12 @@ const STATIONS = [
       { id: "mothlight-the-page-came-through", title: "The Page Came Through", artist: "Mothlight Beats", src: "./assets/audio/mothlight-the-page-came-through.m4a" },
       { id: "mothlight-fae-dust", title: "Fae Dust", artist: "Mothlight Beats", src: "./assets/audio/mothlight-fae-dust.m4a" },
       { id: "mothlight-lost-candy", title: "Lost Candy", artist: "Mothlight Beats", src: "./assets/audio/mothlight-lost-candy.m4a" },
+      { id: "mothlight-in-the-story", title: "In the Story", artist: "Mothlight Beats", src: "./assets/audio/mothlight-in-the-story.m4a" },
+      { id: "mothlight-noticing-text-flowers", title: "Noticing Text Flowers", artist: "Mothlight Beats", src: "./assets/audio/mothlight-noticing-text-flowers.m4a" },
+      { id: "mothlight-tales-end", title: "Tale's End", artist: "Mothlight Beats", src: "./assets/audio/mothlight-tales-end.m4a" },
+      { id: "mothlight-book-jumping", title: "Book Jumping", artist: "Mothlight Beats", src: "./assets/audio/mothlight-book-jumping.m4a" },
       { id: "mothlight-afternoon-chapters", title: "Afternoon Chapters", artist: "Mothlight Beats", src: "./assets/audio/mothlight-afternoon-chapters.m4a" },
-      { id: "mothlight-porchlight-fading", title: "Porchlight, Fading", artist: "Mothlight Beats", src: null },
+      { id: "mothlight-porchlight-fading", title: "Porchlight, Fading", artist: "Mothlight Beats", src: "./assets/audio/mothlight-porchlight-fading.m4a" },
     ],
     banters: [
       { id: "mothlight-id-01", category: "stationID", src: "./assets/audio/mothlight-euphony-id-01.m4a",
@@ -537,6 +1118,8 @@ const STATIONS = [
       { id: "thornwave-bramble-bass", title: "Bramble Bass", artist: "Thornwave", src: "./assets/audio/thornwave-bramble-bass.m4a" },
       { id: "thornwave-nocturnal-faerie-lounge", title: "Nocturnal Faerie Lounge", artist: "Thornwave", src: "./assets/audio/thornwave-nocturnal-faerie-lounge.m4a" },
       { id: "thornwave-whispering-shadows", title: "Whispering Shadows", artist: "Thornwave", src: "./assets/audio/thornwave-whispering-shadows.m4a" },
+      { id: "thornwave-long-titles-in-the-dark", title: "Long Titles in the Dark", artist: "Thornwave", src: "./assets/audio/thornwave-long-titles-in-the-dark.m4a" },
+      { id: "thornwave-duskthorn-rising", title: "Duskthorn Rising", artist: "Thornwave", src: "./assets/audio/thornwave-duskthorn-rising.m4a" },
       { id: "thornwave-mossy-night", title: "Mossy Night", artist: "Thornwave", src: "./assets/audio/thornwave-mossy-night.m4a" },
     ],
     banters: [

@@ -43,6 +43,10 @@ struct BookSourceInputs: Equatable {
     func recentVarietyKeys(within seconds: TimeInterval = 48 * 3600, now: Date = Date()) -> Set<String> {
         Set(surfaceHistory.filter { now.timeIntervalSince($0.value.lastShownAt) < seconds }.keys)
     }
+
+    var keptPageCount: Int {
+        days.reduce(0) { $0 + $1.pages.count }
+    }
     var selectedWonderCompass: ReferenceSnippet?
     var selectedWonderCompassSelector: String?
     var preparedIlluminatedPhotoSurface: SurfacePage?
@@ -110,6 +114,30 @@ struct BookSourceInputs: Equatable {
             }
         }
         return nil
+    }
+}
+
+enum BookMemoryGate {
+    static let requiredKeptPageCount = 50
+
+    static let lockedTypes: Set<BookPageType> = [
+        .bookRemembered,
+        .bookConnections,
+        .marginsAtlas
+    ]
+
+    static func locks(_ type: BookPageType, keptPageCount: Int) -> Bool {
+        lockedTypes.contains(type) && keptPageCount < requiredKeptPageCount
+    }
+
+    static func remainingPages(for keptPageCount: Int) -> Int {
+        max(0, requiredKeptPageCount - keptPageCount)
+    }
+
+    static func message(for type: BookPageType, keptPageCount: Int) -> String {
+        let remaining = remainingPages(for: keptPageCount)
+        let noun = remaining == 1 ? "page" : "pages"
+        return "\(type.title) unlocks after \(requiredKeptPageCount) kept pages. Keep \(remaining) more \(noun)."
     }
 }
 
@@ -2122,6 +2150,18 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         metadata["compassStep"] = "run"
         metadata["compassMode"] = "runStart"
         metadata["nearbyPlaces"] = inputs.nearbyPlaces.prefix(10).map(\.promptLine).joined(separator: "\n")
+        if let proximity = inputs.nearbyAnchor {
+            let anchor = proximity.anchor
+            metadata["anchorName"] = anchor.name
+            metadata["anchorKind"] = anchor.kind.title
+            metadata["anchorDistanceMeters"] = "\(Int(proximity.distanceMeters.rounded()))"
+            metadata["anchorRoom"] = anchor.outerStacksRoom
+            metadata["anchorFae"] = anchor.fae
+            metadata["anchorLocalRule"] = anchor.localRule
+            metadata["anchorVisitMode"] = proximity.visitMode
+            metadata["anchorMiniStory"] = anchor.miniStory
+            metadata["anchorAcademyEcho"] = anchor.academyEcho
+        }
         metadata["completedSteps"] = "\(completed)"
         metadata["nextStep"] = next.rawValue
 

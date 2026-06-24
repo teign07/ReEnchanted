@@ -560,17 +560,17 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     /// an active festival) into banter selection without coupling the manager to
     /// the broader state graph. Time-of-day and the listening streak are derived
     /// locally. Returns (grey 0–100, festivalActive).
-    var worldContextProvider: (() -> (grey: Int, festivalActive: Bool))?
+    var worldContextProvider: (() -> (grey: Int, festivalActive: Bool, pageContext: RadioPageContext))?
 
     /// Latest world snapshot pushed by the app (see `updateWorldState`). Takes
     /// precedence over `worldContextProvider`; both fall back to calm.
-    private var liveWorld: (grey: Int, festivalActive: Bool)?
+    private var liveWorld: (grey: Int, festivalActive: Bool, pageContext: RadioPageContext)?
 
     /// Push the current world-state in. Cheap to call often (e.g. on appear, on
     /// tune, on scene-active) — grey/festival change at most daily. `grey` is on
     /// the 0–100 scale the banter conditions use.
-    func updateWorldState(grey: Int, festivalActive: Bool) {
-        liveWorld = (max(0, min(100, grey)), festivalActive)
+    func updateWorldState(grey: Int, festivalActive: Bool, pageContext: RadioPageContext = RadioPageContext()) {
+        liveWorld = (max(0, min(100, grey)), festivalActive, pageContext)
     }
 
     private override init() { super.init() }
@@ -1189,13 +1189,14 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     /// listening streak are derived here; grey/festival come from the app via
     /// `worldContextProvider` when wired (defaults to calm).
     private func makeWorldContext(for station: RadioStation, now: Date = Date()) -> RadioWorldContext {
-        let world = liveWorld ?? worldContextProvider?() ?? (grey: 0, festivalActive: false)
+        let world = liveWorld ?? worldContextProvider?() ?? (grey: 0, festivalActive: false, pageContext: RadioPageContext())
         return RadioWorldContext(
             timeOfDay: RadioWorldContext.band(for: now),
             grey: world.grey,
             festivalActive: world.festivalActive,
             listeningDays: playback.daysHeard(stationID: station.id),
-            weekday: Calendar.current.component(.weekday, from: now)
+            weekday: Calendar.current.component(.weekday, from: now),
+            pageContext: world.pageContext
         )
     }
 
@@ -2651,7 +2652,8 @@ enum LocalPlacesScout {
     static let categoryPool = [
         "diner", "bakery", "coffee shop", "hardware store", "bookstore",
         "thrift store", "antiques", "farm stand", "library", "park",
-        "ice cream", "pizza", "fish market", "garden center", "barber shop"
+        "ice cream", "pizza", "fish market", "garden center", "barber shop",
+        "harbor", "marina", "waterfront", "trail", "train station"
     ]
 
     static func cachedPlaces() -> [LocalPlaceSignal] {
@@ -2727,6 +2729,195 @@ enum LocalPlacesScout {
         #else
         return []
         #endif
+    }
+}
+
+enum CompassPlaceMemory {
+    static let storageKey = "compassKnownPlacesV1"
+
+    static func knownPlaces() -> [CompassKnownPlace] {
+        migrateLegacyDefaultsIfNeeded()
+        return PlayerVault.shared.data.compassKnownPlaces ?? []
+    }
+
+    static func nearestKnownPlace(latitude: Double, longitude: Double) -> CompassKnownPlace? {
+        knownPlaces()
+            .map { place in (place, place.distanceMeters(to: latitude, longitude: longitude)) }
+            .filter { $0.1 <= $0.0.radiusMeters }
+            .min { $0.1 < $1.1 }?
+            .0
+    }
+
+    @discardableResult
+    static func remember(
+        context: CompassPlaceContext,
+        latitude: Double,
+        longitude: Double,
+        radiusMeters: Double? = nil
+    ) -> CompassKnownPlace {
+        let radius = radiusMeters ?? defaultRadius(for: context)
+        let now = Date()
+        let existingPlaces = knownPlaces()
+        let matchingIndex = existingPlaces
+            .enumerated()
+            .filter { _, place in
+                place.contextID == context.rawValue &&
+                    place.distanceMeters(to: latitude, longitude: longitude) <= max(place.radiusMeters, radius)
+            }
+            .min { left, right in
+                left.element.distanceMeters(to: latitude, longitude: longitude) <
+                    right.element.distanceMeters(to: latitude, longitude: longitude)
+            }?
+            .offset
+        let place = CompassKnownPlace(
+            id: matchingIndex.flatMap { existingPlaces[$0].id }
+                ?? "compass-place-\(context.rawValue)-\(Int(now.timeIntervalSince1970))-\(abs("\(latitude),\(longitude)".stableHash))",
+            name: context.title,
+            contextID: context.rawValue,
+            latitude: latitude,
+            longitude: longitude,
+            radiusMeters: radius,
+            updatedAt: now
+        )
+
+        var places = existingPlaces
+        if let matchingIndex {
+            places[matchingIndex] = place
+        } else {
+            places.append(place)
+        }
+        save(places)
+        return place
+    }
+
+    private static func save(_ places: [CompassKnownPlace]) {
+        PlayerVault.shared.data.compassKnownPlaces = places.sorted { $0.updatedAt > $1.updatedAt }
+        PlayerVault.shared.save()
+    }
+
+    private static func migrateLegacyDefaultsIfNeeded() {
+        guard PlayerVault.shared.data.compassKnownPlaces == nil else { return }
+        guard let raw = UserDefaults.standard.string(forKey: storageKey)?.data(using: .utf8),
+              let places = try? JSONDecoder().decode([CompassKnownPlace].self, from: raw) else {
+            PlayerVault.shared.data.compassKnownPlaces = []
+            PlayerVault.shared.save()
+            return
+        }
+        PlayerVault.shared.data.compassKnownPlaces = places
+        PlayerVault.shared.save()
+    }
+
+    private static func defaultRadius(for context: CompassPlaceContext) -> Double {
+        switch context {
+        case .home, .work, .cafe, .library, .indoors:
+            return 180
+        case .harbor, .waterfront, .park, .trail:
+            return 320
+        case .store, .transit, .neighborhood:
+            return 240
+        case .current, .other:
+            return 180
+        }
+    }
+}
+
+struct CompassCurrentPlaceSignal: Equatable {
+    var label: String
+    var context: CompassPlaceContext
+    var detail: String
+    var nearbyPlaces: [LocalPlaceSignal]
+    var latitude: Double
+    var longitude: Double
+    var knownPlace: CompassKnownPlace?
+    var anchorProximity: AnchorProximity?
+}
+
+enum CompassCurrentPlaceReader {
+    static func request(anchors: [AnchorRecord] = []) async throws -> CompassCurrentPlaceSignal {
+        let coordinate = try await AnchorLocationReader.requestLocation()
+        let places = await LocalPlacesScout.refreshIfNeeded()
+        let anchorProximity = AnchorRegistry.nearestAnchor(
+            to: coordinate.latitude,
+            longitude: coordinate.longitude,
+            anchors: anchors
+        )
+        if let knownPlace = CompassPlaceMemory.nearestKnownPlace(latitude: coordinate.latitude, longitude: coordinate.longitude) {
+            let detail = [
+                "Known place: \(knownPlace.name). The Compass will use this saved area.",
+                anchorProximity.map(anchorDetail)
+            ]
+            .compactMap { $0 }
+            .joined(separator: " ")
+            return CompassCurrentPlaceSignal(
+                label: knownPlace.name,
+                context: knownPlace.context,
+                detail: detail,
+                nearbyPlaces: places,
+                latitude: coordinate.latitude,
+                longitude: coordinate.longitude,
+                knownPlace: knownPlace,
+                anchorProximity: anchorProximity
+            )
+        }
+        let context = CompassPlaceContext.inferred(from: places)
+        let namedPlace = bestPlace(for: context, places: places)
+        let label = anchorProximity.map { "At \($0.anchor.name)" }
+            ?? namedPlace.map { "Near \($0.name)" }
+            ?? context.promptValue
+        let detail: String
+        if let anchorProximity {
+            detail = anchorDetail(for: anchorProximity)
+        } else if let namedPlace {
+            detail = "\(context.title) reading from \(namedPlace.promptLine)"
+        } else {
+            detail = "\(context.title) reading from approximate device location"
+        }
+        return CompassCurrentPlaceSignal(
+            label: label,
+            context: context,
+            detail: detail,
+            nearbyPlaces: places,
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            knownPlace: nil,
+            anchorProximity: anchorProximity
+        )
+    }
+
+    private static func anchorDetail(for proximity: AnchorProximity) -> String {
+        let anchor = proximity.anchor
+        let distance = Int(proximity.distanceMeters.rounded())
+        let rememberedDetail = anchor.outerStacksRoom.nonEmpty
+            ?? anchor.academyEcho.nonEmpty
+            ?? anchor.localRule.nonEmpty
+            ?? "The room remembers you."
+        return "Anchor detected: \(anchor.name) is awake \(distance)m away. \(rememberedDetail)"
+    }
+
+    private static func bestPlace(for context: CompassPlaceContext, places: [LocalPlaceSignal]) -> LocalPlaceSignal? {
+        places.first { place in
+            let text = "\(place.name) \(place.category)".lowercased()
+            switch context {
+            case .cafe:
+                return text.contains("coffee") || text.contains("cafe") || text.contains("bakery")
+            case .harbor:
+                return text.contains("harbor") || text.contains("harbour") || text.contains("marina") || text.contains("pier") || text.contains("fish market")
+            case .waterfront:
+                return text.contains("waterfront") || text.contains("beach") || text.contains("river") || text.contains("shore")
+            case .trail:
+                return text.contains("trail") || text.contains("greenway") || text.contains("walkway")
+            case .park:
+                return text.contains("park") || text.contains("garden")
+            case .library:
+                return text.contains("library")
+            case .store:
+                return text.contains("store") || text.contains("market") || text.contains("shop") || text.contains("pharmacy")
+            case .transit:
+                return text.contains("station") || text.contains("terminal") || text.contains("bus") || text.contains("train")
+            default:
+                return false
+            }
+        } ?? places.first
     }
 }
 

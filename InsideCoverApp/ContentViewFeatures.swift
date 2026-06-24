@@ -468,6 +468,7 @@ extension ContentView {
             facultyEntries: (try? BookDatabase.facultyEntries(limit: 5000)) ?? facultyEntries,
             customCastMembers: customCastMembers,
             anchors: anchorLedger,
+            compassKnownPlaces: vault.data.compassKnownPlaces,
             electives: electives,
             beliefScore: beliefScore,
             entityBeliefLedger: entityBeliefLedger,
@@ -934,6 +935,20 @@ extension ContentView {
             }
             anchorLedger.append(contentsOf: importedAnchors)
             saveAnchorLedger()
+
+            if let importedPlaces = save.compassKnownPlaces, !importedPlaces.isEmpty {
+                var mergedPlaces = vault.data.compassKnownPlaces ?? []
+                for place in importedPlaces {
+                    if let index = mergedPlaces.firstIndex(where: { $0.id == place.id }) {
+                        if place.updatedAt > mergedPlaces[index].updatedAt {
+                            mergedPlaces[index] = place
+                        }
+                    } else {
+                        mergedPlaces.append(place)
+                    }
+                }
+                vault.data.compassKnownPlaces = mergedPlaces.sorted { $0.updatedAt > $1.updatedAt }
+            }
 
             var mergedElectives = electives
             for elective in save.electives where !mergedElectives.contains(where: { $0.id == elective.id }) {

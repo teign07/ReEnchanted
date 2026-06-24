@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./styles.css?v=4">
+    <link rel="stylesheet" href="./styles.css?v=5">
   </head>
   <body>
     <canvas id="spell-field" aria-hidden="true"></canvas>
@@ -115,8 +115,8 @@
               <!-- left: the decision page -->
               <div class="leaf leaf-left">
                 <div class="leaf-paper">
-                  <p class="leaf-kicker" id="page-kicker">Weather</p>
-                  <h3 class="leaf-title" id="page-title">Fog over the Stacks.</h3>
+                  <p class="leaf-kicker" id="page-kicker">Weather Page</p>
+                  <h3 class="leaf-title" id="page-title">The Weather Page has opened.</h3>
                   <p class="leaf-body" id="page-body">
                     <span class="weather-facts" aria-label="Weather details">
                       <span><strong>Now</strong> 60° · fog</span>
@@ -124,7 +124,13 @@
                       <span><strong>Wind</strong> E 4 mph</span>
                       <span><strong>Humidity</strong> 92%</span>
                     </span>
-                    <span class="weather-omen"><strong>The Book reads it:</strong> Fog has softened the edges of the Stacks. Hidden doors are likelier today; move slowly, carry one warm detail, and let unclear things stay gently unclear.</span>
+                    <span class="private-translation">
+                      <span class="pt-label">✦ Private translation</span>
+                      <span class="pt-line"><strong>Enchanted:</strong> Fog has softened every edge of the world into suggestion. <strong>Plain:</strong> It is foggy.</span>
+                      <span class="pt-moon">Half the moon is lit tonight, like a door left ajar.</span>
+                      <span class="pt-meta">Weather: Now 60° · fog · High 71° / Low 56° · First Quarter</span>
+                    </span>
+                    <span class="weather-place">Over the Stacks · the Book's default sky</span>
                   </p>
                   <p class="leaf-source" id="page-source">Weather doorway · public forecast</p>
 
@@ -133,43 +139,96 @@
                     <button class="keep-btn keep" id="btn-keep" type="button">Keep this page ✦</button>
                   </div>
                   <p class="keep-status" id="keep-status">8 pages rising · keep the ones that are true</p>
+
+                  <div class="stacks-radio" id="stacks-radio" hidden>
+                    <button class="radio-toggle" id="radio-toggle" type="button" aria-pressed="false">
+                      <span class="radio-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                      <span class="radio-label" id="radio-label">Tune in the Stacks</span>
+                    </button>
+                    <span class="radio-now" id="radio-now" hidden></span>
+                    <audio id="radio-audio" preload="none" loop></audio>
+                  </div>
+
+                  <div class="sentence-polisher" id="sentence-polisher" hidden>
+                    <label class="margin-note">
+                      <span class="margin-note-label">One-sentence souvenir</span>
+                      <input id="reader-line" type="text" maxlength="120" autocomplete="off"
+                             placeholder="The exact thing I want to keep is...">
+                    </label>
+                    <div class="polisher-card" aria-live="polite">
+                      <span class="polisher-mark" aria-hidden="true">✦</span>
+                      <span class="polisher-copy">
+                        <strong id="polisher-status">Wake the sentence</strong>
+                        <span id="polisher-preview">Write one true line and the Book will polish its edges.</span>
+                      </span>
+                    </div>
+                    <div class="polisher-actions">
+                      <button class="polisher-btn" id="polish-btn" type="button">Polish gently</button>
+                      <button class="polisher-btn ghost" id="restore-sentence-btn" type="button">Use sample line</button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <!-- right: the screen (flips on turn) -->
+              <!-- right: the screen (peel the corner or tap Next to turn) -->
               <div class="leaf leaf-right" id="leaf-right">
                 <div class="leaf-screen">
                   <img id="page-shot" src="./assets/screens/story-page-weather-prose.png" alt="ReEnchanted screen">
                   <span class="kept-stamp" id="kept-stamp">Kept</span>
                 </div>
+                <span class="page-corner" id="page-corner" aria-hidden="true" title="Drag to turn the page"></span>
               </div>
             </div>
 
-            <!-- final braid page -->
+            <!-- final braid page: the real Book of You edition -->
             <div class="spread braid" id="braid" hidden>
+              <!-- left: the forest-green edition cover -->
               <div class="leaf leaf-left">
-                <div class="leaf-paper braid-paper">
-                  <p class="leaf-kicker">Your binding</p>
-                  <h3 class="leaf-title braid-title">The Book of You</h3>
-                  <p class="braid-intro" id="braid-intro">Braided from the pages you kept.</p>
-                  <p class="braid-text" id="braid-text"></p>
-                  <div class="constellation" aria-hidden="true">
-                    <span></span><span></span><span></span><span></span><span></span>
-                  </div>
+                <div class="edition-cover">
+                  <svg class="edition-door" viewBox="0 0 120 150" aria-hidden="true">
+                    <path class="door-arch" d="M24 150 V58 a36 36 0 0 1 72 0 V150" fill="none"/>
+                    <circle class="door-key" cx="60" cy="78" r="7"/>
+                    <path class="door-key" d="M57 84 h6 l-2 16 h-2 z"/>
+                  </svg>
+                  <p class="edition-rule" aria-hidden="true">⌣</p>
+                  <p class="edition-imprint">The Book of You</p>
+                  <p class="edition-sample">a one-day sample</p>
+                  <p class="edition-chapter" id="edition-chapter">Chapter 1 · June 2026</p>
+                  <p class="edition-theme" id="edition-theme">“What Weather Said to Chart”</p>
+                  <p class="edition-rule" aria-hidden="true">⌣</p>
+                  <p class="edition-stats" id="edition-stats">1 day bound · 3 kept pages</p>
+                  <p class="edition-bind">bound in the forest margin style</p>
                 </div>
               </div>
+              <!-- right: foreword + The Reader's Sky -->
               <div class="leaf leaf-right">
-                <div class="leaf-screen braid-screen">
-                  <img
-                    id="book-of-you-shot"
-                    src="./assets/screens/book-of-you.jpg"
-                    alt="A real Book of You page, written from kept days"
-                    onerror="this.closest('.braid-screen').classList.add('no-shot')"
-                  >
-                  <div class="braid-screen-cap">
-                    <p class="braid-end-line">A real Book of You page.</p>
-                    <p class="braid-end-sub">This is one day. Kept pages gather into editions you can hold.</p>
-                    <a class="button primary" href="#download">Start your own →</a>
+                <div class="edition-page" id="edition-page">
+                  <p class="edition-eyebrow" id="edition-eyebrow">The Book of You · Chapter 1</p>
+                  <h3 class="edition-foreword-title">Foreword</h3>
+                  <p class="braid-intro" id="braid-intro">Braided from the pages you kept.</p>
+                  <p class="braid-text" id="braid-text"></p>
+
+                  <div class="readers-sky" id="readers-sky" hidden>
+                    <p class="sky-title">The Reader's Sky</p>
+                    <p class="sky-sub">Constellations the Book keeps about you, as they stood today.</p>
+                    <svg class="sky-map" id="sky-map" viewBox="0 0 300 190" aria-hidden="true"></svg>
+                    <ul class="sky-legend" id="sky-legend"></ul>
+                  </div>
+
+                  <form class="email-capture braid-email" data-source="braid" novalidate>
+                    <p class="braid-email-pitch">You made a Book of You in a minute. Want yours when it opens?</p>
+                    <label class="sr-only" for="email-braid">Your email for the TestFlight invite</label>
+                    <div class="email-row">
+                      <input id="email-braid" class="email-input" type="email" name="email" required
+                             autocomplete="email" placeholder="you@example.com">
+                      <button class="button primary email-submit" type="submit">Be first into the TestFlight ✦</button>
+                    </div>
+                    <p class="email-consent">One email when the doors open. Nothing else. Unsubscribe anytime.</p>
+                    <p class="email-status" role="status" aria-live="polite" hidden></p>
+                  </form>
+
+                  <div class="edition-buttons">
+                    <button class="button ghost edition-keep" id="keepsake-btn" type="button">Keep this page ↓</button>
                     <button class="braid-replay" id="braid-replay" type="button">↺ Turn back to the start</button>
                   </div>
                 </div>
@@ -1009,11 +1068,23 @@
             <span class="cta-status-dot" aria-hidden="true"></span>
             In active development · <strong>TestFlight this summer</strong>
           </p>
+
+          <form class="email-capture" data-source="final-cta" novalidate>
+            <label class="sr-only" for="email-final">Your email for the TestFlight invite</label>
+            <div class="email-row">
+              <input id="email-final" class="email-input" type="email" name="email" required
+                     autocomplete="email" placeholder="you@example.com">
+              <button class="button primary email-submit" type="submit">Get the TestFlight invite ✦</button>
+            </div>
+            <p class="email-consent">One email when the doors open. Nothing else. Unsubscribe anytime.</p>
+            <p class="email-status" role="status" aria-live="polite" hidden></p>
+          </form>
+
           <div class="cta-actions">
-            <a class="button primary large" href="https://github.com/teign07/ReEnchanted" target="_blank" rel="noopener">Star it on GitHub</a>
+            <a class="button ghost large" href="https://github.com/teign07/ReEnchanted" target="_blank" rel="noopener">Star it on GitHub</a>
             <a class="button ghost large" href="https://www.patreon.com/thedoobaleedoos" target="_blank" rel="noopener">Follow along on Patreon</a>
           </div>
-          <p class="cta-fine">Free · local · private · open source. Watch either to hear when the TestFlight opens.</p>
+          <p class="cta-fine">Free · local · private · open source. No account, no tracking.</p>
         </div>
       </section>
     </main>

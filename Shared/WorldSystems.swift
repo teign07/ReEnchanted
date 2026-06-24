@@ -53,10 +53,58 @@ struct RadioBanter: Codable, Equatable, Identifiable {
         var minListeningDays: Int?
         /// Calendar weekday numbers (1 = Sunday ... 7 = Saturday).
         var weekdays: [Int]?
+        /// Require at least one of these page types in the recent kept-page window.
+        var pageTypes: [BookPageType]?
+        /// Minimum recent kept pages among `pageTypes`, or across all recent pages
+        /// if `pageTypes` is nil.
+        var minRecentPagesOfType: Int?
+        /// Require at least one recently kept page from any of these sources.
+        var sourceIDs: [String]?
+        /// Require at least one recently kept page carrying any of these tags.
+        var sourceTags: [String]?
+        /// Minimum number of pages kept today.
+        var minKeptToday: Int?
+        /// Require at least one current weather tag such as "rain", "cold", or "bright".
+        var weatherTags: [String]?
+        /// Require that the most recent kept page is one of these types.
+        var lastKeptPageTypes: [BookPageType]?
+
+        init(
+            timeOfDay: [String]? = nil,
+            minGrey: Int? = nil,
+            maxGrey: Int? = nil,
+            festivalOnly: Bool? = nil,
+            minListeningDays: Int? = nil,
+            weekdays: [Int]? = nil,
+            pageTypes: [BookPageType]? = nil,
+            minRecentPagesOfType: Int? = nil,
+            sourceIDs: [String]? = nil,
+            sourceTags: [String]? = nil,
+            minKeptToday: Int? = nil,
+            weatherTags: [String]? = nil,
+            lastKeptPageTypes: [BookPageType]? = nil
+        ) {
+            self.timeOfDay = timeOfDay
+            self.minGrey = minGrey
+            self.maxGrey = maxGrey
+            self.festivalOnly = festivalOnly
+            self.minListeningDays = minListeningDays
+            self.weekdays = weekdays
+            self.pageTypes = pageTypes
+            self.minRecentPagesOfType = minRecentPagesOfType
+            self.sourceIDs = sourceIDs
+            self.sourceTags = sourceTags
+            self.minKeptToday = minKeptToday
+            self.weatherTags = weatherTags
+            self.lastKeptPageTypes = lastKeptPageTypes
+        }
 
         var isUnconditional: Bool {
             timeOfDay == nil && minGrey == nil && maxGrey == nil
                 && festivalOnly == nil && minListeningDays == nil && weekdays == nil
+                && pageTypes == nil && minRecentPagesOfType == nil
+                && sourceIDs == nil && sourceTags == nil && minKeptToday == nil
+                && weatherTags == nil && lastKeptPageTypes == nil
         }
     }
 
@@ -101,6 +149,93 @@ struct RadioBanter: Codable, Equatable, Identifiable {
 /// Live world snapshot the banter selector reads to decide what's appropriate
 /// right now. Built by the app from existing systems (NothingTide, festival
 /// windows, the clock, the listening streak) — pure data, no app types.
+struct RadioPageContext: Equatable {
+    var keptToday: Int
+    var recentPageTypeCounts: [BookPageType: Int]
+    var recentSourceIDs: Set<String>
+    var recentTags: Set<String>
+    var lastKeptPageType: BookPageType?
+    var weatherTags: Set<String>
+
+    init(
+        keptToday: Int = 0,
+        recentPageTypeCounts: [BookPageType: Int] = [:],
+        recentSourceIDs: Set<String> = [],
+        recentTags: Set<String> = [],
+        lastKeptPageType: BookPageType? = nil,
+        weatherTags: Set<String> = []
+    ) {
+        self.keptToday = keptToday
+        self.recentPageTypeCounts = recentPageTypeCounts
+        self.recentSourceIDs = Set(recentSourceIDs.map(Self.normalize))
+        self.recentTags = Set(recentTags.map(Self.normalize))
+        self.lastKeptPageType = lastKeptPageType
+        self.weatherTags = Set(weatherTags.map(Self.normalize))
+    }
+
+    var recentKeptCount: Int {
+        recentPageTypeCounts.values.reduce(0, +)
+    }
+
+    func recentCount(matching types: [BookPageType]?) -> Int {
+        guard let types, !types.isEmpty else { return recentKeptCount }
+        return types.reduce(0) { total, type in total + (recentPageTypeCounts[type] ?? 0) }
+    }
+
+    func hasRecentSource(in sourceIDs: [String]) -> Bool {
+        sourceIDs.map(Self.normalize).contains { recentSourceIDs.contains($0) }
+    }
+
+    func hasRecentTag(in tags: [String]) -> Bool {
+        tags.map(Self.normalize).contains { recentTags.contains($0) }
+    }
+
+    func hasWeatherTag(in tags: [String]) -> Bool {
+        tags.map(Self.normalize).contains { weatherTags.contains($0) }
+    }
+
+    static func normalize(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    static func weatherTags(
+        weather: WeatherSourceSignal?,
+        enchanted: EnchantedWeatherSignal? = nil
+    ) -> Set<String> {
+        let text = [
+            weather?.phrase,
+            weather?.forecast,
+            weather?.conditionSymbolName,
+            weather?.currentTemperature,
+            enchanted?.summary,
+            enchanted?.enchantified,
+            enchanted?.symbolName
+        ].compactMap { $0?.lowercased() }.joined(separator: " ")
+        guard !text.isEmpty else { return [] }
+
+        var tags = Set<String>()
+        func add(_ tag: String, when words: [String]) {
+            if words.contains(where: { text.contains($0) }) {
+                tags.insert(tag)
+            }
+        }
+        add("storm", when: ["storm", "thunder", "bolt"])
+        add("rain", when: ["rain", "drizzle", "shower"])
+        add("snow", when: ["snow", "sleet", "ice", "freezing"])
+        add("fog", when: ["fog", "mist", "haze"])
+        add("wind", when: ["wind", "gust", "breez"])
+        add("cloud", when: ["cloud", "overcast"])
+        add("bright", when: ["clear", "sun", "bright"])
+        add("hot", when: ["hot", "heat", "warm", "8", "9"])
+        add("cold", when: ["cold", "chill", "freez", "snow", "ice", "3", "2", "1"])
+        return tags
+    }
+}
+
+/// Live world snapshot the banter selector reads to decide what's appropriate
+/// right now. Built by the app from existing systems (NothingTide, festival
+/// windows, the clock, the listening streak, recent kept pages, weather) —
+/// pure data, no app services.
 struct RadioWorldContext: Equatable {
     /// "dawn" | "day" | "dusk" | "night"
     var timeOfDay: String
@@ -111,13 +246,23 @@ struct RadioWorldContext: Equatable {
     var listeningDays: Int
     /// Calendar weekday number (1 = Sunday ... 7 = Saturday), when known.
     var weekday: Int?
+    /// Recent kept-page and weather summary for prerecorded reactive DJ clips.
+    var pageContext: RadioPageContext
 
-    init(timeOfDay: String = "day", grey: Int = 0, festivalActive: Bool = false, listeningDays: Int = 0, weekday: Int? = nil) {
+    init(
+        timeOfDay: String = "day",
+        grey: Int = 0,
+        festivalActive: Bool = false,
+        listeningDays: Int = 0,
+        weekday: Int? = nil,
+        pageContext: RadioPageContext = RadioPageContext()
+    ) {
         self.timeOfDay = timeOfDay
         self.grey = grey
         self.festivalActive = festivalActive
         self.listeningDays = listeningDays
         self.weekday = weekday
+        self.pageContext = pageContext
     }
 
     /// Convenience: derive the time-of-day band from a date.
@@ -139,6 +284,32 @@ struct RadioWorldContext: Equatable {
         if let minDays = conditions.minListeningDays, listeningDays < minDays { return false }
         if let weekdays = conditions.weekdays {
             guard let weekday, weekdays.contains(weekday) else { return false }
+        }
+        if let pageTypes = conditions.pageTypes, !pageTypes.isEmpty,
+           pageContext.recentCount(matching: pageTypes) == 0 {
+            return false
+        }
+        if let minimum = conditions.minRecentPagesOfType,
+           pageContext.recentCount(matching: conditions.pageTypes) < minimum {
+            return false
+        }
+        if let sourceIDs = conditions.sourceIDs, !sourceIDs.isEmpty,
+           !pageContext.hasRecentSource(in: sourceIDs) {
+            return false
+        }
+        if let tags = conditions.sourceTags, !tags.isEmpty,
+           !pageContext.hasRecentTag(in: tags) {
+            return false
+        }
+        if let minimum = conditions.minKeptToday, pageContext.keptToday < minimum {
+            return false
+        }
+        if let tags = conditions.weatherTags, !tags.isEmpty,
+           !pageContext.hasWeatherTag(in: tags) {
+            return false
+        }
+        if let lastTypes = conditions.lastKeptPageTypes, !lastTypes.isEmpty {
+            guard let last = pageContext.lastKeptPageType, lastTypes.contains(last) else { return false }
         }
         return true
     }
@@ -348,6 +519,22 @@ enum RadioStationRegistry {
                     moodTags: ["bright", "playful", "folktronica"]
                 ),
                 RadioTrack(
+                    id: "fae-fi-ink-hands",
+                    title: "Ink Hands",
+                    artist: "Fae-Fi",
+                    assetName: "RadioFaeFiInkHands",
+                    durationSeconds: 117,
+                    moodTags: ["bright", "playful", "ink"]
+                ),
+                RadioTrack(
+                    id: "fae-fi-art-of-the-glint",
+                    title: "Art of the Glint",
+                    artist: "Fae-Fi",
+                    assetName: "RadioFaeFiArtOfTheGlint",
+                    durationSeconds: 96,
+                    moodTags: ["bright", "playful", "glint"]
+                ),
+                RadioTrack(
                     id: "fae-fi-mossy-groove",
                     title: "Mossy Groove",
                     artist: "Fae-Fi",
@@ -465,6 +652,108 @@ enum RadioStationRegistry {
                     caption: "Festival weather incoming; the Academy's in a feasting mood. I'll be the one in the corner, cataloguing joy as it happens, which is, I'm told, not the point of joy. Bring a souvenir. Catch one real thing. Don't tell the grey where you keep it.",
                     conditions: RadioBanter.Conditions(festivalOnly: true),
                     weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-pages-souvenir-cluster", category: .gossip,
+                    assetName: "DJ_faefi_pages_souvenir_01",
+                    caption: "Production note from Fae-Fi: the receiver is picking up a run of souvenirs. Tiny true things, properly filed. Penny Blackletter approves this extremely irresponsible form of journalism.",
+                    conditions: RadioBanter.Conditions(
+                        pageTypes: [.souvenir],
+                        minRecentPagesOfType: 2
+                    ),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "faefi-pages-wonder-morning", category: .news,
+                    assetName: "DJ_faefi_pages_wonder_morning_01",
+                    caption: "Morning bulletin: the Wonder Compass is bright enough to annoy the furniture. If you kept one of its pages, congratulations. The day now has a suspiciously useful hinge.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dawn", "day"],
+                        pageTypes: [.wonderCompass],
+                        minRecentPagesOfType: 1
+                    ),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "faefi-weather-bright", category: .news,
+                    assetName: "DJ_faefi_weather_bright_01",
+                    caption: "Weather desk says bright. My desk says suspiciously bright. Either way, Fae-Fi recommends catching one real detail before the afternoon spends it all.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dawn", "day"],
+                        weatherTags: ["bright"]
+                    ),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-pages-souvenir-collector", category: .gossip,
+                    assetName: "DJ_faefi_pages_souvenir_02",
+                    caption: "Three souvenirs in a week. I'm not saying you're building a case file, but the evidence is starting to look deliberate.",
+                    conditions: RadioBanter.Conditions(
+                        pageTypes: [.souvenir],
+                        minRecentPagesOfType: 3
+                    ),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "faefi-weather-bright-morning", category: .news,
+                    assetName: "DJ_faefi_weather_bright_morning_02",
+                    caption: "Filed under obvious: the sun is out, the band is clean, and somewhere a dandelion synth just got ideas.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dawn", "day"],
+                        weatherTags: ["bright"]
+                    ),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-source-wonder-compass-morning", category: .news,
+                    assetName: "DJ_faefi_source_wonder_compass_02",
+                    caption: "Heavy Wonder Compass traffic this morning. Somebody's been practicing the looking. Let it go to your feet, not your head.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dawn", "day"],
+                        sourceIDs: ["wonder-compass"]
+                    ),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-pages-kept-today-busy", category: .news,
+                    assetName: "DJ_faefi_pages_kept_today_busy_01",
+                    caption: "Four pages kept before lunch. At this rate I'm going to need a bigger drawer. Slow down, or don't. I'll keep filing.",
+                    conditions: RadioBanter.Conditions(minKeptToday: 4),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-festival-mandatory-brightness", category: .stationID,
+                    assetName: "DJ_faefi_festival_window_01",
+                    caption: "The almanac says it's a festival, and it's rarely wrong, which is annoying. Brightness is mandatory. Resistance will be noted.",
+                    conditions: RadioBanter.Conditions(festivalOnly: true),
+                    weight: 5
+                ),
+                RadioBanter(
+                    id: "faefi-pages-body-fuel-care", category: .gossip,
+                    assetName: "DJ_faefi_pages_body_fuel_care_01",
+                    caption: "A couple of body and fuel pages in the recent file. Unglamorous. Also the truest things you've logged all week. Drink some water.",
+                    conditions: RadioBanter.Conditions(
+                        pageTypes: [.body, .fuel],
+                        minRecentPagesOfType: 2
+                    ),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-listening-streak-loyal", category: .stationID,
+                    assetName: "DJ_faefi_listening_streak_01",
+                    caption: "Several days you've come back to this frequency. People call it habit. I file it under loyalty. The bright stuff remembers who showed up.",
+                    conditions: RadioBanter.Conditions(minListeningDays: 4),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "faefi-pages-illuminated-photo", category: .gossip,
+                    assetName: "DJ_faefi_pages_illuminated_photo_01",
+                    caption: "Someone's been gilding their own photographs. Gold leaf around an ordinary Tuesday. That's the whole trick. That's the entire grimoire.",
+                    conditions: RadioBanter.Conditions(
+                        pageTypes: [.illuminatedPhoto],
+                        minRecentPagesOfType: 1
+                    ),
+                    weight: 4
                 )
             ]
         ),
@@ -504,11 +793,43 @@ enum RadioStationRegistry {
                     moodTags: ["wistful", "memory", "sweet"]
                 ),
                 RadioTrack(
+                    id: "mothlight-in-the-story",
+                    title: "In the Story",
+                    artist: "Mothlight Beats",
+                    assetName: "RadioMothlightInTheStory",
+                    durationSeconds: 136,
+                    moodTags: ["wistful", "memory", "story"]
+                ),
+                RadioTrack(
+                    id: "mothlight-noticing-text-flowers",
+                    title: "Noticing Text Flowers",
+                    artist: "Mothlight Beats",
+                    assetName: "RadioMothlightNoticingTextFlowers",
+                    durationSeconds: 132,
+                    moodTags: ["wistful", "memory", "text"]
+                ),
+                RadioTrack(
+                    id: "mothlight-tales-end",
+                    title: "Tale's End",
+                    artist: "Mothlight Beats",
+                    assetName: "RadioMothlightTalesEnd",
+                    durationSeconds: 144,
+                    moodTags: ["wistful", "memory", "ending"]
+                ),
+                RadioTrack(
+                    id: "mothlight-book-jumping",
+                    title: "Book Jumping",
+                    artist: "Mothlight Beats",
+                    assetName: "RadioMothlightBookJumping",
+                    durationSeconds: 130,
+                    moodTags: ["wistful", "memory", "book"]
+                ),
+                RadioTrack(
                     id: "mothlight-porchlight-fading",
                     title: "Porchlight, Fading",
                     artist: "Mothlight Beats",
                     assetName: "RadioMothlightPorchlightFading",
-                    durationSeconds: nil,
+                    durationSeconds: 120,
                     moodTags: ["wistful", "memory"]
                 ),
                 RadioTrack(
@@ -587,6 +908,43 @@ enum RadioStationRegistry {
                     assetName: "DJ_mothlight_gossip_02",
                     caption: "A note carried in on the dusk: Dr. Inkrest left her office lamp on past hours again. If the day sat heavy as a low note, her door is the kind that opens. No appointment. Just weather, and a chair, and a lamp.",
                     conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "mothlight-pages-memory-cluster", category: .gossip,
+                    assetName: "DJ_mothlight_pages_memory_01",
+                    caption: "I'm hearing several old pages close together. Not a haunting. A harmony. The Book remembers in chords when you give it enough notes.",
+                    conditions: RadioBanter.Conditions(
+                        pageTypes: [.bookRemembered, .diary, .mood],
+                        minRecentPagesOfType: 3
+                    ),
+                    weight: 5
+                ),
+                RadioBanter(
+                    id: "mothlight-pages-last-mood-night", category: .gossip,
+                    assetName: "DJ_mothlight_pages_mood_night_01",
+                    caption: "The last page you kept had weather inside it. That's not weakness. That's instrumentation. Stay with the note until it tells you where it resolves.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dusk", "night"],
+                        lastKeptPageTypes: [.mood, .diary]
+                    ),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "mothlight-weather-rain", category: .news,
+                    assetName: "DJ_mothlight_weather_rain_01",
+                    caption: "Rain on the signal tonight. The roof is playing percussion, the lamp is keeping time, and every page you kept has softer edges.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dusk", "night"],
+                        weatherTags: ["rain", "storm"]
+                    ),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "mothlight-pages-kept-today", category: .news,
+                    assetName: "DJ_mothlight_pages_kept_today_01",
+                    caption: "You've kept enough pages today for the Book to start humming under its breath. That's usually when the quiet ones come back. Leave the lamp on.",
+                    conditions: RadioBanter.Conditions(minKeptToday: 4),
+                    weight: 3
                 )
             ]
         ),
@@ -624,6 +982,22 @@ enum RadioStationRegistry {
                     assetName: "RadioThornwaveWhisperingShadows",
                     durationSeconds: 129,
                     moodTags: ["dark", "night", "shadow"]
+                ),
+                RadioTrack(
+                    id: "thornwave-long-titles-in-the-dark",
+                    title: "Long Titles in the Dark",
+                    artist: "Thornwave",
+                    assetName: "RadioThornwaveLongTitlesInTheDark",
+                    durationSeconds: 212,
+                    moodTags: ["dark", "night", "smooth", "jazz"]
+                ),
+                RadioTrack(
+                    id: "thornwave-duskthorn-rising",
+                    title: "Duskthorn Rising",
+                    artist: "Thornwave",
+                    assetName: "RadioThornwaveDuskthornRising",
+                    durationSeconds: 240,
+                    moodTags: ["dark", "night", "thorn", "rising"]
                 ),
                 RadioTrack(
                     id: "thornwave-mossy-night",
@@ -731,6 +1105,48 @@ enum RadioStationRegistry {
                     caption: "Pact Dispatch is busy tonight. Three bargains struck, two already regretted, one that'll change a life. I can usually tell which is which — it's my whole talent. Tonight? Can't call it. That's how you know it's real. More Thornwave, after this.",
                     conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
                     weight: nil
+                ),
+                RadioBanter(
+                    id: "thornwave-pages-story-night", category: .gossip,
+                    assetName: "DJ_thornwave_pages_story_night_01",
+                    caption: "You've been keeping story pages. Thornwave noticed. Stories are doors with teeth, and you keep putting your hand on the handle. Respect.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dusk", "night"],
+                        pageTypes: [.narrativeOS, .gamePage, .bookJump],
+                        minRecentPagesOfType: 2
+                    ),
+                    weight: 5
+                ),
+                RadioBanter(
+                    id: "thornwave-pages-fae-bargain", category: .gossip,
+                    assetName: "DJ_thornwave_pages_bargain_01",
+                    caption: "A bargain page crossed the wire. Read the small print twice. Then read the silence after it. That's where they hide the expensive part.",
+                    conditions: RadioBanter.Conditions(
+                        pageTypes: [.faeBargain, .pactDispatch],
+                        minRecentPagesOfType: 1
+                    ),
+                    weight: 5
+                ),
+                RadioBanter(
+                    id: "thornwave-weather-storm-grey", category: .news,
+                    assetName: "DJ_thornwave_weather_storm_grey_01",
+                    caption: "Storm pressure on the band and grey at the edges. Good. False magic hates bad weather. Real magic keeps its footing.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dusk", "night"],
+                        minGrey: 35,
+                        weatherTags: ["rain", "storm", "wind"]
+                    ),
+                    weight: 5
+                ),
+                RadioBanter(
+                    id: "thornwave-pages-gossip", category: .gossip,
+                    assetName: "DJ_thornwave_pages_gossip_01",
+                    caption: "Gossip pages in the margins. Careful. A rumor is just a spell wearing someone else's coat.",
+                    conditions: RadioBanter.Conditions(
+                        pageTypes: [.gossip, .theBleed],
+                        minRecentPagesOfType: 1
+                    ),
+                    weight: 4
                 )
             ]
         ),
@@ -759,6 +1175,36 @@ enum RadioStationRegistry {
                 RadioStationEffect(pageType: .gossip, boost: 12, reason: "The Bleed puts unauthorized truths into circulation."),
                 RadioStationEffect(pageType: .narrativeOS, boost: 8, reason: "A compromised signal wakes the machinery behind the margins."),
                 RadioStationEffect(pageType: .bookFae, boost: 5, reason: "Book Fae notice frequencies the Academy refuses to list.")
+            ],
+            banters: [
+                RadioBanter(
+                    id: "bleed-pages-gossip-cluster", category: .network,
+                    assetName: "DJ_bleed_pages_gossip_01",
+                    caption: "Unauthorized pattern detected: multiple gossip-bearing pages, recently kept. The official station calls this coincidence. The official station is lying.",
+                    conditions: RadioBanter.Conditions(
+                        pageTypes: [.gossip, .theBleed],
+                        minRecentPagesOfType: 2
+                    ),
+                    weight: 6
+                ),
+                RadioBanter(
+                    id: "bleed-pages-story-grey", category: .network,
+                    assetName: "DJ_bleed_pages_story_grey_01",
+                    caption: "Hidden-band advisory: story pages plus rising grey make a door-shaped shadow. If you hear knocking from the wrong side, do not answer in your own name.",
+                    conditions: RadioBanter.Conditions(
+                        minGrey: 35,
+                        pageTypes: [.narrativeOS, .bookJump, .gamePage],
+                        minRecentPagesOfType: 2
+                    ),
+                    weight: 6
+                ),
+                RadioBanter(
+                    id: "bleed-time-after-midnight", category: .network,
+                    assetName: "DJ_bleed_time_after_midnight_01",
+                    caption: "This is not a station ID. After midnight, IDs become handles. Handles become hooks. Stay anonymous, reader.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["night"]),
+                    weight: 3
+                )
             ]
         )
     ]
@@ -1155,6 +1601,20 @@ enum RadioStationRegistry {
             }
         case .network:
             weight *= 1.1
+        }
+        if let conditions = banter.conditions {
+            if conditions.pageTypes != nil || conditions.lastKeptPageTypes != nil {
+                weight *= 1.75
+            }
+            if conditions.weatherTags != nil {
+                weight *= 1.35
+            }
+            if conditions.minKeptToday != nil || conditions.sourceTags != nil || conditions.sourceIDs != nil {
+                weight *= 1.25
+            }
+            if conditions.timeOfDay != nil && !conditions.isUnconditional {
+                weight *= 1.1
+            }
         }
         return weight
     }

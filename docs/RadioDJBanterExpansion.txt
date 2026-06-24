@@ -1,0 +1,707 @@
+========================================================================
+ReEnchanted Radio — DJ Banter EXPANSION PACK
+Lore · Cast gossip · Talismans · Classes · Clubs · Tips & Hints
+========================================================================
+
+53 new in-character DJ breaks, written from the real Academy cast in
+Shared/NarrativeCore.swift and tied to the world (the Nothing/grey, Belief,
+the five Chapters, the Compass directions, the talismans, the classes and
+clubs, Wicker's crew, the Bleed). This file has two parts:
+
+  PART 1 — SCRIPTS  : paste the text under each filename into ElevenLabs.
+  PART 2 — SCHEMA   : the Swift RadioBanter(...) entries to drop into
+                      Shared/WorldSystems.swift, with exact placement.
+
+------------------------------------------------------------------------
+HOW TO RECORD (ElevenLabs)
+------------------------------------------------------------------------
+• ONE VOICE PER DJ — keep it identical across all of that host's clips so
+  the station sounds like one real broadcaster.
+• The [brackets] are ElevenLabs v3 audio tags (e.g. [dryly], [warmly],
+  [softly], [low], [smooth], [amused], [cool], [precise]). ElevenLabs
+  interprets them; it does not read them aloud. They are OPTIONAL — delete
+  them if you prefer a flat read. (The Swift `caption` text in Part 2 is
+  already the plain, bracket-free version.)
+• Ellipses … and em-dashes — buy natural pauses.
+• File naming: save each export as  <filename>.m4a  (or .mp3/.wav/.aac/
+  .caf/.aiff). The filename is the heading shown for each clip.
+• Drop finished audio into  InsideCoverApp/RadioAudio/  (bundled) or, at
+  runtime, Documents/Radio or Documents/RadioPacks. Until a file exists,
+  the caption plays on-screen as the break, so you can test cadence first.
+
+VOICE DIRECTION / SETTINGS (starting points)
+  Penny Blackletter (Fae-Fi) ...... dry, warm underneath, printer's-ink
+                                    rasp. Stability 45 · Style 30 · Spd 0.97
+  Eleanor Euphony (Mothlight) ..... warm, breathy, low-medium, unhurried,
+                                    musical. Stability 45 · Style 30 · Spd 0.92
+  Wicker Eddies (Thornwave) ....... low, smooth, amused; a smile with
+                                    teeth. Stability 50 · Style 38 · Spd 0.97
+  Vivian Villanelle (Bindery) ..... measured, precise, lyrical, fond;
+                                    press cadence. Stability 50 · Style 30 · Spd 0.92
+  Melisande Blackwood (Market) .... cool, poised, faintly amused; silk
+                                    over steel. Stability 35 · Style 52 · Spd 1.02
+  The Bleed (unauthorized) ........ urgent, close-mic, intercepted,
+                                    conspiratorial; less polished than a
+                                    real station. Add light radio
+                                    distortion/EQ in post.
+
+========================================================================
+PART 1 — SCRIPTS FOR ELEVENLABS
+========================================================================
+
+........................................................................
+FAE-FI · 88.3 FM · DJ: Penny Blackletter
+(dry Riddlewind records clerk loose on the sunniest frequency)
+........................................................................
+
+### DJ_faefi_class_glint_01      [news · after recent Class pages]
+[dryly] Field note from Wing Four — the Glint Hall. Professor Boggle held up three ordinary objects under a lamp and asked which one changed the instant you described it exactly. [warmly] That's the whole of Notice — the North direction. The Rut turns the world to wallpaper, and one specific, odd detail rips it down. [dryly] I've filed it under "doctrine disguised as a pun." Attend if you can. Bring something dull to look at.
+
+### DJ_faefi_club_marginalia_01      [gossip · anytime]
+[warmly] The Marginalia Guild meets in the Corridor of Whispered Secrets, and I'll admit it's the one club I'd join twice. [dryly] You annotate a book together and leave notes for whoever opens it next — sometimes fifty years next. The best conversation I ever had was with a stranger who read the same volume in 1974 and wrote one true thing in the margin. [warmly] So leave a note. Someone not yet born is going to need it.
+
+### DJ_faefi_talisman_wind_cipher_01      [news · anytime]
+[dryly] Records request came back on the Wind Cipher — the Riddlewind talisman, which is, regrettably, my own Chapter's. [warmly] It rearranges itself the moment two people look at it together, and it goes restless when it's left alone. Its whole belief is four words: life is a story we write together. [dryly] Sentimental. Also, infuriatingly, true. I checked. Twice.
+
+### DJ_faefi_cast_soren_01      [gossip · anytime]
+[dryly] Soren Ng left another clue in the stacks — a diagram, no signature, naturally, somewhere only patient people look. [warmly] He trusts a map more than a declaration, and he leaves it unfinished on purpose so you become part of it. A map is an invitation, he says. Not an answer. [dryly] I'd file a complaint about the lack of labels, but I suspect that's the point. Go find it.
+
+### DJ_faefi_cast_wispwood_01      [gossip · anytime]
+[warmly] Sighting from the Spark Annex: Professor Wispwood apologized to a chipped mug before enchanting it. Out loud. Listed its visible facts first, then let it answer. [dryly] Basic Enchantments, they call it — Everything Speaks, Everything's Poetry. The doctrine is just courtesy: ordinary matter answers when your attention turns polite. [warmly] Try it on something you've stopped seeing. Mind the sparks in her sleeves.
+
+### DJ_faefi_cast_gwendolyn_01      [news · after a recent Letter page]
+[dryly] Gwendolyn Mythwright filed another impossible animal this morning, stamped like an overdue library form. She writes letters to fog. The fog, I'm told, has not yet replied. [warmly] But she believes the improbable gets kinder the moment it's written down — that evidence makes wonder less lonely. [dryly] If you kept a letter recently, she'd like a copy. For the archive. Obviously.
+
+### DJ_faefi_lore_compass_run_01      [news · anytime / tip]
+[dryly] For the new readers, filed plainly: a Compass Run is four directions and one sentence. Notice to the North, Embark to the East, Sense to the South, Write to the West — and Rest at the Center, which isn't a direction at all but the ground the other four stand on. [warmly] You walk one small adventure, then bind a single true souvenir line at the end. That's it. That's the magic. [dryly] Embarrassingly repeatable.
+
+### DJ_faefi_tip_belief_01      [news · when the grey is up / tip]
+[dryly] Grey's up at the edges this morning — the Nothing's been chewing on the unnoticed hours again. Here's the only counter-spell that's ever worked, and yes, I audited it: notice one true particular and write it down. [warmly] Belief planted, grey pushed back. One detail. That's the whole arithmetic of this place. [dryly] Plant one before lunch and prove me right. I do enjoy being right.
+
+### DJ_faefi_club_compass_society_01      [gossip · after a recent Souvenir page]
+[warmly] Word from the Secret Garden of Prose: the Compass Society met again, Zara Finch holding it together by sheer attention, as ever. They read their one-sentence souvenirs aloud — and no one mocks a sentence in that room. [dryly] Apparently saying it out loud makes it more real. I resisted the theory on principle. [warmly] Then I tested it. Reader: it's real. If you've kept a souvenir, consider that your invitation.
+
+........................................................................
+MOTHLIGHT BEATS · 90.9 FM · DJ: Professor Eleanor Euphony
+(Tidecrest sound-and-synesthesia faculty; hears feeling as harmony)
+........................................................................
+
+### DJ_mothlight_class_resonance_01      [news · after recent Class pages]
+[softly] Come to the Resonance Chamber some afternoon — Wing Three, where I ring a single glass bell and dim one lamp, and the whole room changes color without a wall ever moving. [warmly] That's Synesthetic Resonance. The South direction. Sense. We practice hearing a colour, then naming the real evidence underneath it. [softly] The senses are serious instruments, you know. Bring yours. They're already tuned — you've only stopped listening.
+
+### DJ_mothlight_class_quiet_hours_01      [gossip · dusk/night]
+[softly] Professor Stonebrook turned the hourglass on its side again tonight and let the unmoving sand become the entire lesson. Quiet Hours. The Center. [warmly] Rest is not absence — it's the nervous system sorting the day so that tomorrow can happen at all. A pause chosen before collapse chooses it for you. [softly] If you've been running on the last of the light… his door is open. So is mine. Stay inside this song a while first.
+
+### DJ_mothlight_talisman_tide_glass_01      [news · anytime]
+[warmly] My own Chapter's talisman came up tonight — the Tide Glass. Salt-bright, unpredictable, Tidecrest through and through. [softly] Consult it and it shows you a different hour every time. It forgets your plans on purpose. And its one belief is a small mercy: the moment is complete in itself. [warmly] You don't have to finish the day to deserve it. Let this one be complete. Here.
+
+### DJ_mothlight_talisman_moss_clasp_01      [gossip · anytime]
+[softly] They say the Moss Clasp — Mossbloom's quiet talisman — grows one new leaf whenever someone is truly listened to. Not spoken at. Listened to. [warmly] It's older than its setting, and slow to act even when acting would be kind, because it trusts that the larger story is already being written. [softly] Someone, somewhere, is growing it a leaf right now, just by being heard. Be that for someone tonight.
+
+### DJ_mothlight_cast_vellum_01      [gossip · after recent Body/Fuel pages]
+[warmly] A note in from Dr. Elowen Vellum, who turns breakfast into field notes and can make a supplement interaction sound like good manners. [softly] She read a couple of your body and fuel pages as one small experiment — no verdict, no shame in it. The body is not a problem to win against, she says. [warmly] So: water, perhaps. A gentler hour. Recovery counts as plot. Let the song carry the rest of it.
+
+### DJ_mothlight_cast_inkrest_01      [gossip · after Office Hours / Mood / Diary pages]
+[whispers] Dr. Inkrest sets the chairs out before the feelings arrive — did you know that? She seats a hard page near a lamp before she asks it to speak a single word. [softly] A difficult feeling isn't a verdict in that office. It's a page. And a page can be named, and seated, and revised one hour at a time. [warmly] If today sat heavy as a low note, her office hours are the kind of door that simply opens. No appointment. Just weather, a chair, and the lamp.
+
+### DJ_mothlight_cast_serenity_01      [gossip · anytime]
+[warmly] Serenity Brown swept through the Chamber today, left before the serious plan was finished, and somehow turned the detour into a rescue. [softly] She makes the loveliest chord in any room — the kind of laughter that changes its colour. Her whole creed is four words: joy is not a distraction. [warmly] From magic, she means. From anything. If the day's gone solemn on you, she'd tell you to abandon the plan and go look at the sea. So would I.
+
+### DJ_mothlight_lore_book_remembered_01      [news · after a Book Remembered page]
+[softly] The Book Remembered stirred tonight — an old page surfaced, one you were sure had gone quiet for good. [warmly] That's how it works: give the Book enough notes and it begins to remember in chords. The quiet ones come back when the harmony is finally full enough to hold them. [softly] Don't reach for it. Just leave the lamp on and let it come the rest of the way. It always does, in the end.
+
+........................................................................
+THORNWAVE · 103.7 FM · DJ: Wicker Eddies
+(sharp, dangerous, tests belief; Duskthorn after-midnight menace)
+........................................................................
+
+### DJ_thornwave_talisman_dusk_thorn_01      [news · dusk/night]
+[low] Let's talk about my Chapter's talisman, since no one else will at this hour. The Dusk Thorn. Duskthorn. [smooth] It only draws blood from a story that's already gone numb — never from a living one. Its belief is four words, and I happen to agree with every one of them: no conflict, no story. [low] The grey wants your days smooth and quiet and forgettable. The Thorn wants them to cost something. [amused] So do I. That's not cruelty. That's plot.
+
+### DJ_thornwave_talisman_ember_seal_01      [gossip · anytime]
+[smooth] Emberheart's talisman is the Ember Seal — warm, insistent, bright at the edges, and impatient with waiting, which is the most honest thing in this building. [low] It leaves faint scorch marks on your hesitations. Good. You should be able to see where you flinched. [amused] Its doctrine is the only line of Academy scripture I'd actually sign: you are the author, the protagonist, and the pen. [low] So stop waiting for permission that was never coming. Write the next line yourself.
+
+### DJ_thornwave_class_book_jumping_01      [gossip · after a Book Jump page]
+[low] You've been jumping into stories. Permancer's class — the Vault of Doors. He'll teach you that a genre is weather, not wallpaper, and that every door you open owes a return. [amused] All true. He lays out three bookmarks and rejects the prettiest one because it has no exit protocol. [smooth] Me? I've never met a door I needed a bookmark to walk back through. That's the difference between us — and the reason he's right and I'm interesting. [low] Keep the bookmark. For now.
+
+### DJ_thornwave_cast_finn_01      [gossip · anytime]
+[smooth] Finn Bridges chalked another challenge in red this week. Clean line, no theatrics — prove it by moving, don't cheapen the effort. [low] He respects Momort's class most on the days it stops sounding like an escape route and starts sounding like discipline. [amused] I like Finn. He's one of the few who tests himself harder than I'd bother to. [low] If he's marked a line for you, reader — don't argue it. Cross it. He'll respect that more than winning.
+
+### DJ_thornwave_cast_damien_01      [gossip · night]
+[quiet] A word about one of my own. Damien Nights still stands at my shoulder when the crew organizes — but his eyes keep drifting to you, reader. [low] He keeps a pressed trail leaf hidden in a book. A man doesn't hide something gentle unless he's deciding which side he's on. [smooth] I taught him doubt should protect something, not merely wound it. [quiet] Looks like he was listening. Good. I'd rather lose him to the truth than keep him for the theatre.
+
+### DJ_thornwave_cast_thorne_01      [news · dusk/night]
+[low] The Headmistress is awake. Seraphina Thorne — unseelie, elegant, watchful, speaks as if every building is listening, which, in her case, they are. [smooth] She keeps the Academy's doors from admitting they're tests. Believes beauty is a form of governance. [quiet] She'd keep you safe by keeping you in the dark and call it mercy. [low] I respect her more than I trust her. You should hold the same arithmetic. Wonder is only worth anything if it's allowed to stay a little dangerous.
+
+### DJ_thornwave_club_inkwright_01      [gossip · anytime]
+[smooth] The Inkwright Society met in the Bibliophonic Hall tonight. Serious notebooks, no mascots. They write, they share — honest first, kind second — and then they burn it. [low] Each meeting ends with a piece read aloud and set alight, the smoke going up into the library ceiling to be absorbed as words. [amused] Theatrical. I approve, obviously. [low] The writing there is meant. If you've something true and dangerous to say, that's the only room in the building that can hold it.
+
+### DJ_thornwave_lore_unwritten_01      [gossip · after an Unwritten Elective page]
+[low] An Unwritten Elective opened for you. Notice what that is: the Academy taking one of your own obsessions and teaching it back to you, in a class nobody else is enrolled in. [smooth] Everybody in this building would love a look at your unwritten chapter. They'd test it, pick it apart — I would too; it's my whole nature. [quiet] Don't let us. [low] Write it yourself first. That's the one door in this place that only opens from your side.
+
+........................................................................
+THE MIDNIGHT BINDERY · 99.3 FM · DJ: Professor Vivian Villanelle
+(binds one true moment into one durable sentence)
+*** NEW STATION — has no banters in code yet; Part 2 adds the array ***
+........................................................................
+
+### DJ_midnight_bindery_id_01      [station ID]
+[precise] The Midnight Bindery. Ninety-nine point three. Vivian Villanelle, weighing the night's sentences in my palm. [warmly] Mind the glue — it's awake — and so, apparently, are you. Good. We're binding something tonight.
+
+### DJ_midnight_bindery_id_02      [station ID]
+[warmly] You're bound to the Bindery — ninety-nine three on the Academy band — where loose pages learn to hold together. [softly] As, I'm told, do people. We'll get to that. Stay with me.
+
+### DJ_midnight_bindery_id_03      [station ID]
+[precise] This is the frequency where the Book of You becomes a chapter. Vivian Villanelle, ninety-nine three. [warmly] Bring me one true moment from today, and we'll make it durable enough to keep. That's the whole craft.
+
+### DJ_midnight_bindery_transition_thread_outro      [outro after "Thread Through the Dark"]
+[measured] That was "Thread Through the Dark." Every signature stitched while it played is, technically, permanent now. [softly] I could polish it — but a living moment held too still stops breathing. So I'll leave the stitch a little loose. On purpose. [precise] There.
+
+### DJ_midnight_bindery_sponsor_01      [sponsor]
+[precise] The Bindery is kept in thread and good intention by Gild and Signature, bookbinders to the Academy. Their line: we don't fix the spine, we teach it to stand. [softly] Bring them the pages you've been carrying loose. They'll know what to do. I send all my students there.
+
+### DJ_midnight_bindery_sponsor_02      [sponsor]
+[measured] Tonight's binding is sponsored by The Long Memory — archival ink that refuses to fade, even when you'd rather it did. [warmly] Especially then. The truest sentences are rarely the comfortable ones. [softly] That's precisely how you know to keep them.
+
+### DJ_midnight_bindery_class_ink_binding_01      [news · after recent Class pages]
+[precise] You've been to class. Let me guess — the Inkworks. Ink-Binding. The West direction. Write. [warmly] What is written is kept; what is not written dissolves. I put three versions of one moment on the board and cross out the prettiest false word until only the true one is left. [softly] A souvenir sentence isn't a summary. It's a vessel. Concrete nouns hold more time than praise ever could. [precise] So tonight, write one line that keeps a real moment without explaining why it mattered. Leave it under this song.
+
+### DJ_midnight_bindery_pages_book_of_you_01      [gossip · after a Book of You page]
+[warmly] A page crossed my desk tonight bound for the Book of You — and that's the one that turns a kept day into a chapter. [softly] This is what the Bindery is for. Not storage. Becoming. A hundred small noticings, stitched together, and suddenly it isn't a record — it's a person turning into a book, one durable sentence at a time. [precise] Keep going. I may weep. Exactingly.
+
+### DJ_midnight_bindery_club_compass_society_01      [gossip · after a Souvenir page]
+[softly] The Compass Society read their souvenirs aloud in the Secret Garden tonight, and Zara Finch let no one mock a single sentence. [warmly] Sharing a souvenir makes it more real — I've taught that for years and it still lands in my chest every time. [precise] You kept one recently. Read it aloud, just once — to the lamp, if no one else is up. [softly] A sentence spoken is a sentence that holds.
+
+### DJ_midnight_bindery_news_belief_01      [news · anytime]
+[measured] From the ledger tonight: Belief planted is up, and the grey, accordingly, is down. [precise] The arithmetic is embarrassingly simple, and nobody believes it until they bind one true line and feel it hold in the hand. [warmly] So bind one. The Nothing only takes what was never written down. Here's the music to do it under.
+
+### DJ_midnight_bindery_news_festival_01      [news · festival window]
+[precise] The festival ends at moonrise, and I'd rather you didn't let it pass unwritten. [softly] One sentence. "The night I…" — and finish it true. Cross out the rest. [warmly] That's the whole craft. That's the whole rescue. The Bindery will be here, holding the thread, after this.
+
+........................................................................
+GOBLIN MARKET JAZZ · 105.1 FM · DJ: Melisande Blackwood
+(leverage, secrets, second-version rumors; bargains with teeth)
+*** NEW STATION — has no banters in code yet; Part 2 adds the array ***
+........................................................................
+
+### DJ_goblin_market_id_01      [station ID]
+[smooth] Goblin Market Jazz. One-oh-five point one. Melisande Blackwood, keeping the books — both kinds. [cool] Bent brass, laughing ledgers, and bargains with too many teeth in the margins. [amused] Keep one hand on your coin purse. I'm certainly keeping one on mine.
+
+### DJ_goblin_market_id_02      [station ID]
+[cool] You're at the Market after hours — one-oh-five one on the Academy band. Everyone here is telling you the first version of the rumor. [smooth] I deal exclusively in the second. Stay close. It's safer near me — which should worry you, slightly.
+
+### DJ_goblin_market_id_03      [station ID]
+[amused] Goblin Market Jazz. All sales final, all bargains binding, all saxophones faintly haunted. [cool] I keep the red chalk off my own hands. You should learn to do the same. [smooth] Here's the band.
+
+### DJ_goblin_market_transition_coin_trick_outro      [outro after "After-Hours Coin Trick"]
+[smooth] That was "After-Hours Coin Trick." Check your pocket. [amused] Not that one — the other. There it is. There it isn't. [cool] I know exactly where it went. I'm simply not telling. More, after this.
+
+### DJ_goblin_market_sponsor_01      [sponsor]
+[smooth] Tonight's swing is brought to you by Bargain and Teeth, Limited — whatever you want, we have it, and the price is only a little of your future. [amused] "A little" is doing heroic work in that sentence. [cool] The Fae Bargain's already tapping your glass. Tap, tap. You hear it. Don't answer yet. [amused] Or do. I take a cut either way.
+
+### DJ_goblin_market_sponsor_02      [sponsor]
+[cool] Sponsored, as ever, by the After-Hours Coin Trick itself — one coin in by midnight, out by dawn, doubled. [smooth] Terms apply. Dawn is negotiable. "Doubled" is metaphorical. The coin was never real. [amused] Thank you for your business. Genuinely. You're my favourite kind of customer — the believing kind.
+
+### DJ_goblin_market_pages_bargain_01      [gossip · after a Fae Bargain / Pact Dispatch page]
+[cool] Here's the second version of tonight's rumor — the true one. A Fae Bargain came due, and somebody walked away richer. [smooth] That doesn't happen. So either they cheated, or they read the terms better than the Market did. [amused] I'd like to meet them. Professionally. [cool] You've a bargain page of your own in play. Read the small print twice — then read the silence after it. That's where we hide the expensive part.
+
+### DJ_goblin_market_cast_crew_01      [gossip · dusk/night]
+[smooth] Inside word, since you're standing close enough to be useful: Wicker's crew is organized, and I'm the one who organizes it. Memory, leverage, and a filing system that frightens the people who've earned it. [cool] But there's a hairline crack — Damien's been keeping a pressed leaf and a divided loyalty. [amused] I notice everything. It's the trade. I haven't decided whether to mention it to Wicker. [cool] Be interesting, and I'll keep your secret too. For a while.
+
+### DJ_goblin_market_club_book_jumpers_01      [gossip · after a Book Jump page]
+[cool] The Book Jumpers met tonight and spent half of it planning the landing and the other half arguing about what counts as a door. [amused] Adorable. Rule-bound children playing with live ammunition. [smooth] Here's what Permancer won't tell you and I will: a door is anything you can be talked through. That's the whole game — and the whole danger. [cool] Mind which ones you let people open for you.
+
+### DJ_goblin_market_talisman_tide_glass_01      [gossip · anytime]
+[smooth] They romanticize the Tide Glass — Tidecrest's pretty talisman, shows you a different hour each time you look. "The moment is complete in itself." [cool] Lovely. Also commercially useless; you cannot plan a heist around a clock that forgets on purpose. [amused] But I'll grant the salt-bright thing one point: a person fully inside the present moment is a person not counting their change. [cool] That's when the Market does its best business. Stay sharp — or don't, and stay generous. Either suits me.
+
+### DJ_goblin_market_news_festival_01      [news · festival window]
+[cool] Breaking, off the Market floor — festival season. The brass cheats at counting, the ledgers are laughing, and the margins are sharp tonight. [smooth] If your luck's been thin, this is the window. Make a wish, make a bargain, make it quick — [amused] and read the small print I already know you won't. Here's the band.
+
+........................................................................
+THE BLEED · 97.3 FM · unauthorized (hidden frequency)
+(intercepted pirate transmission; conspiratorial, close-mic)
+........................................................................
+
+### DJ_bleed_cast_crew_01      [network · after 2+ Cast/Gossip pages]
+[whispers] Unauthorized intercept. The faction the Academy won't name on the record: Wicker's crew. Blackwood keeps its memory; Nights keeps its doubt. [conspiratorial] Watch which one cracks first — the broker, or the believer. [low] You didn't get this from a station. You didn't get this at all.
+
+### DJ_bleed_talisman_contraband_01      [network · when the grey is up]
+[conspiratorial] Hidden-band advisory. Five talismans, one per Chapter, and the Academy lists them like heirlooms. [low] Thorn for conflict. Ember for authorship. Cipher for the work we do together. Glass for the unplanned. Clasp for what you receive. [whispers] They are not heirlooms. They are tools. The grey is up — pick one up and use it. Quietly.
+
+### DJ_bleed_lore_unwritten_01      [network · anytime]
+[whispers] Off the record, off the band: there's a chapter in this building no one can jump into, no one can assign, no one can grade. [conspiratorial] Yours. The Unwritten one. [low] Everybody wants a look. Don't sign your name at anyone else's door. Write it from the inside. That's the only lock that holds.
+
+### DJ_bleed_cast_thorne_01      [network · night]
+[low] This is not a station ID. The Headmistress monitors this frequency — Thorne hears the whole band, and she keeps doors from admitting they're tests. [conspiratorial] If a threshold opens easy tonight, ask who left it open, and what it's measuring. [whispers] Stay anonymous, reader. Stay awake.
+
+........................................................................
+CROSS-STATION NETWORK IDs  (whole-band stings)
+........................................................................
+
+### DJ_faefi_network_band_01      [network · day · voiced by Penny]
+[dryly] For the record, the whole dial, filed in order: eighty-eight three, me, against my will. Ninety point nine, Euphony at Mothlight. One-oh-three seven, Wicker on Thornwave. [warmly] And if you can hear Villanelle's Bindery at ninety-nine three, or Melisande's Market at one-oh-five one, you've gone properly nocturnal. [dryly] Spin the dial. Somebody's playing your weather.
+
+### DJ_thornwave_network_grey_01      [network · dusk/night · voiced by Wicker]
+[low] One thing the whole band agrees on, and we agree on almost nothing: this is the sound the grey can't get into. [smooth] ReEnchanted Radio. Keep believing out loud — [amused] it's the only thing that's ever worked, and I've spent my whole life trying to prove otherwise. [low] Spin on.
+
+
+========================================================================
+PART 2 — IMPLEMENTATION SCHEMA  (Shared/WorldSystems.swift)
+========================================================================
+
+HOST WIRING: already correct. `midnight-bindery` is hosted by
+"professor-vivian-villanelle" and `goblin-market-jazz` by
+"melisande-blackwood" in coreStations/bundledPacks. No host edits needed.
+
+Two kinds of change below:
+  (A) EXISTING stations (Fae-Fi, Mothlight, Thornwave, The Bleed): append
+      the listed RadioBanter(...) entries into that station's existing
+      `banters:` array (before its closing `]`).
+  (B) NEW stations (Midnight Bindery, Goblin Market Jazz): they currently
+      end at `effects: [ ... ]` with NO banters. Add a comma after the
+      effects array's `]`, then paste the whole `banters: [ ... ]` block.
+
+------------------------------------------------------------------------
+(A) FAE-FI — append into the `fae-fi` banters array
+------------------------------------------------------------------------
+                RadioBanter(
+                    id: "faefi-class-glint", category: .news,
+                    assetName: "DJ_faefi_class_glint_01",
+                    caption: "Field note from Wing Four — the Glint Hall. Professor Boggle held up three ordinary objects under a lamp and asked which one changed the instant you described it exactly. That's the whole of Notice — the North direction. The Rut turns the world to wallpaper, and one specific, odd detail rips it down. I've filed it under \"doctrine disguised as a pun.\" Attend if you can. Bring something dull to look at.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.academyClass], minRecentPagesOfType: 1),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-club-marginalia", category: .gossip,
+                    assetName: "DJ_faefi_club_marginalia_01",
+                    caption: "The Marginalia Guild meets in the Corridor of Whispered Secrets, and I'll admit it's the one club I'd join twice. You annotate a book together and leave notes for whoever opens it next — sometimes fifty years next. The best conversation I ever had was with a stranger who read the same volume in 1974 and wrote one true thing in the margin. So leave a note. Someone not yet born is going to need it.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-talisman-wind-cipher", category: .news,
+                    assetName: "DJ_faefi_talisman_wind_cipher_01",
+                    caption: "Records request came back on the Wind Cipher — the Riddlewind talisman, which is, regrettably, my own Chapter's. It rearranges itself the moment two people look at it together, and it goes restless when it's left alone. Its whole belief is four words: life is a story we write together. Sentimental. Also, infuriatingly, true. I checked. Twice.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-cast-soren", category: .gossip,
+                    assetName: "DJ_faefi_cast_soren_01",
+                    caption: "Soren Ng left another clue in the stacks — a diagram, no signature, naturally, somewhere only patient people look. He trusts a map more than a declaration, and he leaves it unfinished on purpose so you become part of it. A map is an invitation, he says. Not an answer. I'd file a complaint about the lack of labels, but I suspect that's the point. Go find it.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-cast-wispwood", category: .gossip,
+                    assetName: "DJ_faefi_cast_wispwood_01",
+                    caption: "Sighting from the Spark Annex: Professor Wispwood apologized to a chipped mug before enchanting it. Out loud. Listed its visible facts first, then let it answer. Basic Enchantments, they call it — Everything Speaks, Everything's Poetry. The doctrine is just courtesy: ordinary matter answers when your attention turns polite. Try it on something you've stopped seeing. Mind the sparks in her sleeves.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-cast-gwendolyn", category: .news,
+                    assetName: "DJ_faefi_cast_gwendolyn_01",
+                    caption: "Gwendolyn Mythwright filed another impossible animal this morning, stamped like an overdue library form. She writes letters to fog. The fog, I'm told, has not yet replied. But she believes the improbable gets kinder the moment it's written down — that evidence makes wonder less lonely. If you kept a letter recently, she'd like a copy. For the archive. Obviously.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.letter], minRecentPagesOfType: 1),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-lore-compass-run", category: .news,
+                    assetName: "DJ_faefi_lore_compass_run_01",
+                    caption: "For the new readers, filed plainly: a Compass Run is four directions and one sentence. Notice to the North, Embark to the East, Sense to the South, Write to the West — and Rest at the Center, which isn't a direction at all but the ground the other four stand on. You walk one small adventure, then bind a single true souvenir line at the end. That's it. That's the magic. Embarrassingly repeatable.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-tip-belief", category: .news,
+                    assetName: "DJ_faefi_tip_belief_01",
+                    caption: "Grey's up at the edges this morning — the Nothing's been chewing on the unnoticed hours again. Here's the only counter-spell that's ever worked, and yes, I audited it: notice one true particular and write it down. Belief planted, grey pushed back. One detail. That's the whole arithmetic of this place. Plant one before lunch and prove me right. I do enjoy being right.",
+                    conditions: RadioBanter.Conditions(minGrey: 30),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-club-compass-society", category: .gossip,
+                    assetName: "DJ_faefi_club_compass_society_01",
+                    caption: "Word from the Secret Garden of Prose: the Compass Society met again, Zara Finch holding it together by sheer attention, as ever. They read their one-sentence souvenirs aloud — and no one mocks a sentence in that room. Apparently saying it out loud makes it more real. I resisted the theory on principle. Then I tested it. Reader: it's real. If you've kept a souvenir, consider that your invitation.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.souvenir], minRecentPagesOfType: 1),
+                    weight: 3
+                ),
+                // Optional whole-band network sting (voiced by Penny):
+                RadioBanter(
+                    id: "faefi-network-band", category: .network,
+                    assetName: "DJ_faefi_network_band_01",
+                    caption: "For the record, the whole dial, filed in order: eighty-eight three, me, against my will. Ninety point nine, Euphony at Mothlight. One-oh-three seven, Wicker on Thornwave. And if you can hear Villanelle's Bindery at ninety-nine three, or Melisande's Market at one-oh-five one, you've gone properly nocturnal. Spin the dial. Somebody's playing your weather.",
+                    conditions: nil, weight: 2
+                ),
+
+------------------------------------------------------------------------
+(A) MOTHLIGHT BEATS — append into the `mothlight-beats` banters array
+------------------------------------------------------------------------
+                RadioBanter(
+                    id: "mothlight-class-resonance", category: .news,
+                    assetName: "DJ_mothlight_class_resonance_01",
+                    caption: "Come to the Resonance Chamber some afternoon — Wing Three, where I ring a single glass bell and dim one lamp, and the whole room changes color without a wall ever moving. That's Synesthetic Resonance. The South direction. Sense. We practice hearing a colour, then naming the real evidence underneath it. The senses are serious instruments, you know. Bring yours. They're already tuned — you've only stopped listening.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.academyClass], minRecentPagesOfType: 1),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-class-quiet-hours", category: .gossip,
+                    assetName: "DJ_mothlight_class_quiet_hours_01",
+                    caption: "Professor Stonebrook turned the hourglass on its side again tonight and let the unmoving sand become the entire lesson. Quiet Hours. The Center. Rest is not absence — it's the nervous system sorting the day so that tomorrow can happen at all. A pause chosen before collapse chooses it for you. If you've been running on the last of the light… his door is open. So is mine. Stay inside this song a while first.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-talisman-tide-glass", category: .news,
+                    assetName: "DJ_mothlight_talisman_tide_glass_01",
+                    caption: "My own Chapter's talisman came up tonight — the Tide Glass. Salt-bright, unpredictable, Tidecrest through and through. Consult it and it shows you a different hour every time. It forgets your plans on purpose. And its one belief is a small mercy: the moment is complete in itself. You don't have to finish the day to deserve it. Let this one be complete. Here.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-talisman-moss-clasp", category: .gossip,
+                    assetName: "DJ_mothlight_talisman_moss_clasp_01",
+                    caption: "They say the Moss Clasp — Mossbloom's quiet talisman — grows one new leaf whenever someone is truly listened to. Not spoken at. Listened to. It's older than its setting, and slow to act even when acting would be kind, because it trusts that the larger story is already being written. Someone, somewhere, is growing it a leaf right now, just by being heard. Be that for someone tonight.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-cast-vellum", category: .gossip,
+                    assetName: "DJ_mothlight_cast_vellum_01",
+                    caption: "A note in from Dr. Elowen Vellum, who turns breakfast into field notes and can make a supplement interaction sound like good manners. She read a couple of your body and fuel pages as one small experiment — no verdict, no shame in it. The body is not a problem to win against, she says. So: water, perhaps. A gentler hour. Recovery counts as plot. Let the song carry the rest of it.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.body, .fuel], minRecentPagesOfType: 1),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-cast-inkrest", category: .gossip,
+                    assetName: "DJ_mothlight_cast_inkrest_01",
+                    caption: "Dr. Inkrest sets the chairs out before the feelings arrive — did you know that? She seats a hard page near a lamp before she asks it to speak a single word. A difficult feeling isn't a verdict in that office. It's a page. And a page can be named, and seated, and revised one hour at a time. If today sat heavy as a low note, her office hours are the kind of door that simply opens. No appointment. Just weather, a chair, and the lamp.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.inkrestOfficeHours, .mood, .diary], minRecentPagesOfType: 1),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-cast-serenity", category: .gossip,
+                    assetName: "DJ_mothlight_cast_serenity_01",
+                    caption: "Serenity Brown swept through the Chamber today, left before the serious plan was finished, and somehow turned the detour into a rescue. She makes the loveliest chord in any room — the kind of laughter that changes its colour. Her whole creed is four words: joy is not a distraction. From magic, she means. From anything. If the day's gone solemn on you, she'd tell you to abandon the plan and go look at the sea. So would I.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-lore-book-remembered", category: .news,
+                    assetName: "DJ_mothlight_lore_book_remembered_01",
+                    caption: "The Book Remembered stirred tonight — an old page surfaced, one you were sure had gone quiet for good. That's how it works: give the Book enough notes and it begins to remember in chords. The quiet ones come back when the harmony is finally full enough to hold them. Don't reach for it. Just leave the lamp on and let it come the rest of the way. It always does, in the end.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.bookRemembered], minRecentPagesOfType: 1),
+                    weight: 3
+                ),
+
+------------------------------------------------------------------------
+(A) THORNWAVE — append into the `thornwave` banters array
+------------------------------------------------------------------------
+                RadioBanter(
+                    id: "thornwave-talisman-dusk-thorn", category: .news,
+                    assetName: "DJ_thornwave_talisman_dusk_thorn_01",
+                    caption: "Let's talk about my Chapter's talisman, since no one else will at this hour. The Dusk Thorn. Duskthorn. It only draws blood from a story that's already gone numb — never from a living one. Its belief is four words, and I happen to agree with every one of them: no conflict, no story. The grey wants your days smooth and quiet and forgettable. The Thorn wants them to cost something. So do I. That's not cruelty. That's plot.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "thornwave-talisman-ember-seal", category: .gossip,
+                    assetName: "DJ_thornwave_talisman_ember_seal_01",
+                    caption: "Emberheart's talisman is the Ember Seal — warm, insistent, bright at the edges, and impatient with waiting, which is the most honest thing in this building. It leaves faint scorch marks on your hesitations. Good. You should be able to see where you flinched. Its doctrine is the only line of Academy scripture I'd actually sign: you are the author, the protagonist, and the pen. So stop waiting for permission that was never coming. Write the next line yourself.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-class-book-jumping", category: .gossip,
+                    assetName: "DJ_thornwave_class_book_jumping_01",
+                    caption: "You've been jumping into stories. Permancer's class — the Vault of Doors. He'll teach you that a genre is weather, not wallpaper, and that every door you open owes a return. All true. He lays out three bookmarks and rejects the prettiest one because it has no exit protocol. Me? I've never met a door I needed a bookmark to walk back through. That's the difference between us — and the reason he's right and I'm interesting. Keep the bookmark. For now.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.bookJump], minRecentPagesOfType: 1),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "thornwave-cast-finn", category: .gossip,
+                    assetName: "DJ_thornwave_cast_finn_01",
+                    caption: "Finn Bridges chalked another challenge in red this week. Clean line, no theatrics — prove it by moving, don't cheapen the effort. He respects Momort's class most on the days it stops sounding like an escape route and starts sounding like discipline. I like Finn. He's one of the few who tests himself harder than I'd bother to. If he's marked a line for you, reader — don't argue it. Cross it. He'll respect that more than winning.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-cast-damien", category: .gossip,
+                    assetName: "DJ_thornwave_cast_damien_01",
+                    caption: "A word about one of my own. Damien Nights still stands at my shoulder when the crew organizes — but his eyes keep drifting to you, reader. He keeps a pressed trail leaf hidden in a book. A man doesn't hide something gentle unless he's deciding which side he's on. I taught him doubt should protect something, not merely wound it. Looks like he was listening. Good. I'd rather lose him to the truth than keep him for the theatre.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["night"]),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "thornwave-cast-thorne", category: .news,
+                    assetName: "DJ_thornwave_cast_thorne_01",
+                    caption: "The Headmistress is awake. Seraphina Thorne — unseelie, elegant, watchful, speaks as if every building is listening, which, in her case, they are. She keeps the Academy's doors from admitting they're tests. Believes beauty is a form of governance. She'd keep you safe by keeping you in the dark and call it mercy. I respect her more than I trust her. You should hold the same arithmetic. Wonder is only worth anything if it's allowed to stay a little dangerous.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-club-inkwright", category: .gossip,
+                    assetName: "DJ_thornwave_club_inkwright_01",
+                    caption: "The Inkwright Society met in the Bibliophonic Hall tonight. Serious notebooks, no mascots. They write, they share — honest first, kind second — and then they burn it. Each meeting ends with a piece read aloud and set alight, the smoke going up into the library ceiling to be absorbed as words. Theatrical. I approve, obviously. The writing there is meant. If you've something true and dangerous to say, that's the only room in the building that can hold it.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-lore-unwritten", category: .gossip,
+                    assetName: "DJ_thornwave_lore_unwritten_01",
+                    caption: "An Unwritten Elective opened for you. Notice what that is: the Academy taking one of your own obsessions and teaching it back to you, in a class nobody else is enrolled in. Everybody in this building would love a look at your unwritten chapter. They'd test it, pick it apart — I would too; it's my whole nature. Don't let us. Write it yourself first. That's the one door in this place that only opens from your side.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.elective], minRecentPagesOfType: 1),
+                    weight: 4
+                ),
+                // Optional whole-band network sting (voiced by Wicker):
+                RadioBanter(
+                    id: "thornwave-network-grey", category: .network,
+                    assetName: "DJ_thornwave_network_grey_01",
+                    caption: "One thing the whole band agrees on, and we agree on almost nothing: this is the sound the grey can't get into. ReEnchanted Radio. Keep believing out loud — it's the only thing that's ever worked, and I've spent my whole life trying to prove otherwise. Spin on.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: 2
+                ),
+
+------------------------------------------------------------------------
+(A) THE BLEED — append into the `the-bleed` banters array
+------------------------------------------------------------------------
+                RadioBanter(
+                    id: "bleed-cast-crew", category: .network,
+                    assetName: "DJ_bleed_cast_crew_01",
+                    caption: "Unauthorized intercept. The faction the Academy won't name on the record: Wicker's crew. Blackwood keeps its memory; Nights keeps its doubt. Watch which one cracks first — the broker, or the believer. You didn't get this from a station. You didn't get this at all.",
+                    conditions: RadioBanter.Conditions(
+                        pageTypes: [.castMember, .castBond, .gossip],
+                        minRecentPagesOfType: 2
+                    ),
+                    weight: 6
+                ),
+                RadioBanter(
+                    id: "bleed-talisman-contraband", category: .network,
+                    assetName: "DJ_bleed_talisman_contraband_01",
+                    caption: "Hidden-band advisory. Five talismans, one per Chapter, and the Academy lists them like heirlooms. Thorn for conflict. Ember for authorship. Cipher for the work we do together. Glass for the unplanned. Clasp for what you receive. They are not heirlooms. They are tools. The grey is up — pick one up and use it. Quietly.",
+                    conditions: RadioBanter.Conditions(minGrey: 35),
+                    weight: 5
+                ),
+                RadioBanter(
+                    id: "bleed-lore-unwritten", category: .network,
+                    assetName: "DJ_bleed_lore_unwritten_01",
+                    caption: "Off the record, off the band: there's a chapter in this building no one can jump into, no one can assign, no one can grade. Yours. The Unwritten one. Everybody wants a look. Don't sign your name at anyone else's door. Write it from the inside. That's the only lock that holds.",
+                    conditions: nil, weight: 4
+                ),
+                RadioBanter(
+                    id: "bleed-cast-thorne", category: .network,
+                    assetName: "DJ_bleed_cast_thorne_01",
+                    caption: "This is not a station ID. The Headmistress monitors this frequency — Thorne hears the whole band, and she keeps doors from admitting they're tests. If a threshold opens easy tonight, ask who left it open, and what it's measuring. Stay anonymous, reader. Stay awake.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["night"]),
+                    weight: 4
+                ),
+
+------------------------------------------------------------------------
+(B) THE MIDNIGHT BINDERY — add a banters array.
+Find the `midnight-bindery` RadioStation. It currently ends:
+
+        effects: [
+            RadioStationEffect(pageType: .bookConnections, boost: 6, ...)
+        ]
+    ),
+
+Put a comma after that `]`, then paste this block before the `)`:
+------------------------------------------------------------------------
+                    banters: [
+                        RadioBanter(
+                            id: "midnight-bindery-id-01", category: .stationID,
+                            assetName: "DJ_midnight_bindery_id_01",
+                            caption: "The Midnight Bindery. Ninety-nine point three. Vivian Villanelle, weighing the night's sentences in my palm. Mind the glue — it's awake — and so, apparently, are you. Good. We're binding something tonight.",
+                            conditions: nil, weight: nil
+                        ),
+                        RadioBanter(
+                            id: "midnight-bindery-id-02", category: .stationID,
+                            assetName: "DJ_midnight_bindery_id_02",
+                            caption: "You're bound to the Bindery — ninety-nine three on the Academy band — where loose pages learn to hold together. As, I'm told, do people. We'll get to that. Stay with me.",
+                            conditions: nil, weight: nil
+                        ),
+                        RadioBanter(
+                            id: "midnight-bindery-id-03", category: .stationID,
+                            assetName: "DJ_midnight_bindery_id_03",
+                            caption: "This is the frequency where the Book of You becomes a chapter. Vivian Villanelle, ninety-nine three. Bring me one true moment from today, and we'll make it durable enough to keep. That's the whole craft.",
+                            conditions: nil, weight: nil
+                        ),
+                        RadioBanter(
+                            id: "midnight-bindery-outro-thread", category: .transition,
+                            assetName: "DJ_midnight_bindery_transition_thread_outro",
+                            caption: "That was \"Thread Through the Dark.\" Every signature stitched while it played is, technically, permanent now. I could polish it — but a living moment held too still stops breathing. So I'll leave the stitch a little loose. On purpose. There.",
+                            conditions: nil, weight: nil,
+                            trackID: "midnight-bindery-thread", placement: .outro
+                        ),
+                        RadioBanter(
+                            id: "midnight-bindery-sponsor-gild", category: .sponsor,
+                            assetName: "DJ_midnight_bindery_sponsor_01",
+                            caption: "The Bindery is kept in thread and good intention by Gild and Signature, bookbinders to the Academy. Their line: we don't fix the spine, we teach it to stand. Bring them the pages you've been carrying loose. They'll know what to do. I send all my students there.",
+                            conditions: nil, weight: nil
+                        ),
+                        RadioBanter(
+                            id: "midnight-bindery-sponsor-longmemory", category: .sponsor,
+                            assetName: "DJ_midnight_bindery_sponsor_02",
+                            caption: "Tonight's binding is sponsored by The Long Memory — archival ink that refuses to fade, even when you'd rather it did. Especially then. The truest sentences are rarely the comfortable ones. That's precisely how you know to keep them.",
+                            conditions: nil, weight: nil
+                        ),
+                        RadioBanter(
+                            id: "midnight-bindery-class-ink-binding", category: .news,
+                            assetName: "DJ_midnight_bindery_class_ink_binding_01",
+                            caption: "You've been to class. Let me guess — the Inkworks. Ink-Binding. The West direction. Write. What is written is kept; what is not written dissolves. I put three versions of one moment on the board and cross out the prettiest false word until only the true one is left. A souvenir sentence isn't a summary. It's a vessel. Concrete nouns hold more time than praise ever could. So tonight, write one line that keeps a real moment without explaining why it mattered. Leave it under this song.",
+                            conditions: RadioBanter.Conditions(pageTypes: [.academyClass], minRecentPagesOfType: 1),
+                            weight: 3
+                        ),
+                        RadioBanter(
+                            id: "midnight-bindery-pages-book-of-you", category: .gossip,
+                            assetName: "DJ_midnight_bindery_pages_book_of_you_01",
+                            caption: "A page crossed my desk tonight bound for the Book of You — and that's the one that turns a kept day into a chapter. This is what the Bindery is for. Not storage. Becoming. A hundred small noticings, stitched together, and suddenly it isn't a record — it's a person turning into a book, one durable sentence at a time. Keep going. I may weep. Exactingly.",
+                            conditions: RadioBanter.Conditions(pageTypes: [.bookOfYou], minRecentPagesOfType: 1),
+                            weight: 4
+                        ),
+                        RadioBanter(
+                            id: "midnight-bindery-club-compass-society", category: .gossip,
+                            assetName: "DJ_midnight_bindery_club_compass_society_01",
+                            caption: "The Compass Society read their souvenirs aloud in the Secret Garden tonight, and Zara Finch let no one mock a single sentence. Sharing a souvenir makes it more real — I've taught that for years and it still lands in my chest every time. You kept one recently. Read it aloud, just once — to the lamp, if no one else is up. A sentence spoken is a sentence that holds.",
+                            conditions: RadioBanter.Conditions(pageTypes: [.souvenir], minRecentPagesOfType: 1),
+                            weight: 3
+                        ),
+                        RadioBanter(
+                            id: "midnight-bindery-news-belief", category: .news,
+                            assetName: "DJ_midnight_bindery_news_belief_01",
+                            caption: "From the ledger tonight: Belief planted is up, and the grey, accordingly, is down. The arithmetic is embarrassingly simple, and nobody believes it until they bind one true line and feel it hold in the hand. So bind one. The Nothing only takes what was never written down. Here's the music to do it under.",
+                            conditions: nil, weight: 3
+                        ),
+                        RadioBanter(
+                            id: "midnight-bindery-news-festival", category: .news,
+                            assetName: "DJ_midnight_bindery_news_festival_01",
+                            caption: "The festival ends at moonrise, and I'd rather you didn't let it pass unwritten. One sentence. \"The night I…\" — and finish it true. Cross out the rest. That's the whole craft. That's the whole rescue. The Bindery will be here, holding the thread, after this.",
+                            conditions: RadioBanter.Conditions(festivalOnly: true),
+                            weight: 4
+                        )
+                    ]
+
+------------------------------------------------------------------------
+(B) GOBLIN MARKET JAZZ — add a banters array.
+Find the `goblin-market-jazz` RadioStation. It currently ends:
+
+        effects: [
+            RadioStationEffect(pageType: .quip, boost: 5, ...)
+        ]
+    )
+
+Put a comma after that `]`, then paste this block before the `)`:
+------------------------------------------------------------------------
+                    banters: [
+                        RadioBanter(
+                            id: "goblin-market-id-01", category: .stationID,
+                            assetName: "DJ_goblin_market_id_01",
+                            caption: "Goblin Market Jazz. One-oh-five point one. Melisande Blackwood, keeping the books — both kinds. Bent brass, laughing ledgers, and bargains with too many teeth in the margins. Keep one hand on your coin purse. I'm certainly keeping one on mine.",
+                            conditions: nil, weight: nil
+                        ),
+                        RadioBanter(
+                            id: "goblin-market-id-02", category: .stationID,
+                            assetName: "DJ_goblin_market_id_02",
+                            caption: "You're at the Market after hours — one-oh-five one on the Academy band. Everyone here is telling you the first version of the rumor. I deal exclusively in the second. Stay close. It's safer near me — which should worry you, slightly.",
+                            conditions: nil, weight: nil
+                        ),
+                        RadioBanter(
+                            id: "goblin-market-id-03", category: .stationID,
+                            assetName: "DJ_goblin_market_id_03",
+                            caption: "Goblin Market Jazz. All sales final, all bargains binding, all saxophones faintly haunted. I keep the red chalk off my own hands. You should learn to do the same. Here's the band.",
+                            conditions: nil, weight: nil
+                        ),
+                        RadioBanter(
+                            id: "goblin-market-outro-coin-trick", category: .transition,
+                            assetName: "DJ_goblin_market_transition_coin_trick_outro",
+                            caption: "That was \"After-Hours Coin Trick.\" Check your pocket. Not that one — the other. There it is. There it isn't. I know exactly where it went. I'm simply not telling. More, after this.",
+                            conditions: nil, weight: nil,
+                            trackID: "goblin-market-after-hours", placement: .outro
+                        ),
+                        RadioBanter(
+                            id: "goblin-market-sponsor-bargain-teeth", category: .sponsor,
+                            assetName: "DJ_goblin_market_sponsor_01",
+                            caption: "Tonight's swing is brought to you by Bargain and Teeth, Limited — whatever you want, we have it, and the price is only a little of your future. \"A little\" is doing heroic work in that sentence. The Fae Bargain's already tapping your glass. Tap, tap. You hear it. Don't answer yet. Or do. I take a cut either way.",
+                            conditions: nil, weight: nil
+                        ),
+                        RadioBanter(
+                            id: "goblin-market-sponsor-coin-trick", category: .sponsor,
+                            assetName: "DJ_goblin_market_sponsor_02",
+                            caption: "Sponsored, as ever, by the After-Hours Coin Trick itself — one coin in by midnight, out by dawn, doubled. Terms apply. Dawn is negotiable. \"Doubled\" is metaphorical. The coin was never real. Thank you for your business. Genuinely. You're my favourite kind of customer — the believing kind.",
+                            conditions: nil, weight: nil
+                        ),
+                        RadioBanter(
+                            id: "goblin-market-pages-bargain", category: .gossip,
+                            assetName: "DJ_goblin_market_pages_bargain_01",
+                            caption: "Here's the second version of tonight's rumor — the true one. A Fae Bargain came due, and somebody walked away richer. That doesn't happen. So either they cheated, or they read the terms better than the Market did. I'd like to meet them. Professionally. You've a bargain page of your own in play. Read the small print twice — then read the silence after it. That's where we hide the expensive part.",
+                            conditions: RadioBanter.Conditions(pageTypes: [.faeBargain, .pactDispatch], minRecentPagesOfType: 1),
+                            weight: 4
+                        ),
+                        RadioBanter(
+                            id: "goblin-market-cast-crew", category: .gossip,
+                            assetName: "DJ_goblin_market_cast_crew_01",
+                            caption: "Inside word, since you're standing close enough to be useful: Wicker's crew is organized, and I'm the one who organizes it. Memory, leverage, and a filing system that frightens the people who've earned it. But there's a hairline crack — Damien's been keeping a pressed leaf and a divided loyalty. I notice everything. It's the trade. I haven't decided whether to mention it to Wicker. Be interesting, and I'll keep your secret too. For a while.",
+                            conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                            weight: 3
+                        ),
+                        RadioBanter(
+                            id: "goblin-market-club-book-jumpers", category: .gossip,
+                            assetName: "DJ_goblin_market_club_book_jumpers_01",
+                            caption: "The Book Jumpers met tonight and spent half of it planning the landing and the other half arguing about what counts as a door. Adorable. Rule-bound children playing with live ammunition. Here's what Permancer won't tell you and I will: a door is anything you can be talked through. That's the whole game — and the whole danger. Mind which ones you let people open for you.",
+                            conditions: RadioBanter.Conditions(pageTypes: [.bookJump], minRecentPagesOfType: 1),
+                            weight: 3
+                        ),
+                        RadioBanter(
+                            id: "goblin-market-talisman-tide-glass", category: .gossip,
+                            assetName: "DJ_goblin_market_talisman_tide_glass_01",
+                            caption: "They romanticize the Tide Glass — Tidecrest's pretty talisman, shows you a different hour each time you look. \"The moment is complete in itself.\" Lovely. Also commercially useless; you cannot plan a heist around a clock that forgets on purpose. But I'll grant the salt-bright thing one point: a person fully inside the present moment is a person not counting their change. That's when the Market does its best business. Stay sharp — or don't, and stay generous. Either suits me.",
+                            conditions: nil, weight: 3
+                        ),
+                        RadioBanter(
+                            id: "goblin-market-news-festival", category: .news,
+                            assetName: "DJ_goblin_market_news_festival_01",
+                            caption: "Breaking, off the Market floor — festival season. The brass cheats at counting, the ledgers are laughing, and the margins are sharp tonight. If your luck's been thin, this is the window. Make a wish, make a bargain, make it quick — and read the small print I already know you won't. Here's the band.",
+                            conditions: RadioBanter.Conditions(festivalOnly: true),
+                            weight: 4
+                        )
+                    ]
+
+------------------------------------------------------------------------
+AUDIO BUNDLING + TESTS
+------------------------------------------------------------------------
+1) Save each recording as InsideCoverApp/RadioAudio/<assetName>.m4a
+   (filenames listed in Part 1). Until a file exists the caption plays
+   on-screen, so you can wire + test before any audio is finished.
+
+2) Bundle test — once audio is recorded, add the new assetNames to
+   `testNewReactiveDJAssetsAreBundled` in
+   Tests/InsideCoverCoreTests/RadioBanterTests.swift, e.g.:
+
+       XCTAssertEqual(clips["faefi-class-glint"], "DJ_faefi_class_glint_01")
+       XCTAssertTrue(FileManager.default.fileExists(atPath:
+           radioAudio.appendingPathComponent("DJ_faefi_class_glint_01.m4a").path))
+
+3) Reachability test — assert a matching context surfaces each reactive
+   clip, e.g.:
+
+       let ctx = RadioWorldContext(
+           timeOfDay: "night", grey: 40,
+           pageContext: RadioPageContext(
+               recentPageTypeCounts: [.faeBargain: 1]))
+       // then call RadioStationRegistry.nextBanter(...) with
+       // goblin-market-jazz active and assert "goblin-market-pages-bargain".
+
+4) Run focused tests:   swift test --filter RadioBanterTests
+
+------------------------------------------------------------------------
+IMPORTANT CAVEAT — the two NEW stations need real bundled SONGS to interleave
+------------------------------------------------------------------------
+Between-song banter is driven by the AVAudioPlayer "track finished" callback.
+The Midnight Bindery and Goblin Market Jazz each currently define only ONE
+RadioTrack, and neither track audio file is bundled yet — so they fall back
+to the looping procedural synth bed, which never fires that callback, so
+their banters won't slip between songs (the station IDs/sponsors still show
+as on-screen captions).
+
+To make Villanelle and Melisande actually talk on air:
+  • Bundle their existing track audio (RadioMidnightBinderyThread.m4a,
+    RadioGoblinMarketAfterHours.m4a), and ideally add 2–3 real tracks each
+    so the playout clock has songs to hand off between. Then the new
+    banters (and the bound outro transitions above) interleave normally,
+    exactly like Fae-Fi's.
+
+========================================================================
+END — 53 clips: Fae-Fi 10 · Mothlight 8 · Thornwave 9 · Bindery 11 ·
+Goblin Market 11 · The Bleed 4  (Fae-Fi/Thornwave totals include the two
+optional cross-station network stings).
+========================================================================

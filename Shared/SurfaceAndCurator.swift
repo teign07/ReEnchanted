@@ -592,11 +592,12 @@ enum BookCurator {
         let candidates = BookPageSourceAdapters.active.flatMap { adapter in
             adapter.candidates(for: day, context: context, inputs: inputs, now: now)
         }.map { WorldEventEffects.framed($0, events: inputs.activeWorldEvents) }
+        let mood = CuratorMood.make(inputs: inputs, distressActive: context.distress.isActive, now: now)
         var picked = rankedPages(
             from: candidates,
             limit: limit,
             preferences: preferences,
-            mood: CuratorMood.make(inputs: inputs, distressActive: context.distress.isActive, now: now),
+            mood: mood,
             now: now
         ).map(\.page)
 
@@ -617,6 +618,21 @@ enum BookCurator {
             }
         }
 
+        if BookSchedule.shouldAutoBraid(now),
+           !picked.contains(where: { $0.type == .bookOfYou }),
+           let braid = candidates.first(where: { candidate in
+               candidate.type == .bookOfYou
+                   && preferences.allows(candidate)
+                   && mood.allows(candidate)
+                   && !BookMemoryGate.locks(candidate.type, keptPageCount: inputs.keptPageCount)
+           }) {
+            if picked.isEmpty {
+                picked = [braid]
+            } else {
+                picked[picked.count - 1] = braid
+            }
+        }
+
         return picked.map { PactWarEffects.framed($0, state: inputs.pactWar) }
     }
 
@@ -632,6 +648,7 @@ enum BookCurator {
         let allowed = candidates
             .filter { preferences.allows($0) }
             .filter { mood.allows($0) }
+            .filter { !BookMemoryGate.locks($0.type, keptPageCount: mood.keptPageCount) }
         // The type-refresh cooldown only adds variety — it must never starve the
         // desk. Prefer pages that are off cooldown, but if that would leave the
         // homescreen empty, fall back to the full allowed pool.
@@ -934,6 +951,7 @@ struct CuratorMood {
     var pactWar: PactWarState = PactWarState()
     var almanacBoosts: [BookPageType: Int] = [:]
     var isFirstHours: Bool = false
+    var keptPageCount: Int = 0
 
     static let neutral = CuratorMood()
 
@@ -970,12 +988,18 @@ struct CuratorMood {
                 .merging(BookJumpEngine.surfaceBoosts(state: inputs.bookJump, now: now)) { $0 + $1 }
                 .merging(RadioStationRegistry.surfaceBoosts(state: inputs.radio, unlockedPackIDs: inputs.ownedPackIDs)) { $0 + $1 }
                 .merging(RadioStationRegistry.heldSurfaceBoosts(state: inputs.radio)) { $0 + $1 },
-            isFirstHours: firstHoursActive(inputs: inputs, now: now)
+            isFirstHours: firstHoursActive(inputs: inputs, now: now),
+            keptPageCount: inputs.keptPageCount
         )
     }
 
     func allows(_ page: SurfacePage) -> Bool {
         guard isFirstHours else { return true }
+        if page.type == .bookJump,
+           let action = page.payload.metadata["bookJumpAction"],
+           action != BookJumpAction.start.rawValue {
+            return true
+        }
         return !Self.firstHoursHiddenTypes.contains(page.type)
     }
 

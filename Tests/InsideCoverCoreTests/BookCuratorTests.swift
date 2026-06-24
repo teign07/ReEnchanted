@@ -208,6 +208,25 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(Set(pages.map(\.type)), [.helpTips, .fuel, .souvenir])
     }
 
+    func testFirstHoursCuratorAllowsActiveBookJumpButHidesStart() {
+        let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
+        let start = bookJumpCandidate(action: .start, score: 100)
+        let active = bookJumpCandidate(action: .advance, score: 99)
+        let orientation = rankedCandidate(.helpTips, score: 40)
+        let mood = CuratorMood.make(inputs: .empty, now: now)
+
+        let pages = BookCurator.rankedPages(
+            from: [start, active, orientation],
+            limit: 3,
+            mood: mood,
+            now: now
+        ).map(\.page)
+
+        XCTAssertFalse(pages.contains { $0.id == start.id })
+        XCTAssertTrue(pages.contains { $0.id == active.id })
+        XCTAssertTrue(pages.contains { $0.id == orientation.id })
+    }
+
     func testFirstHoursCuratorBoostsOrientationCards() {
         let now = localDate(year: 2026, month: 6, day: 1, hour: 11)
         let candidates = [
@@ -282,7 +301,7 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(pages.first?.id, "wonder-notice")
     }
 
-    func testDeepSystemCardsReturnAfterFirstHours() {
+    func testDeepSystemCardsStayLockedAfterFirstHoursUntilArchiveIsReady() {
         let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
         var inputs = BookSourceInputs.empty
         inputs.selfFacts = [
@@ -313,7 +332,38 @@ final class BookCuratorTests: XCTestCase {
             now: now
         ).map(\.page)
 
-        XCTAssertEqual(pages.map(\.type), [.bookConnections, .bookRemembered, .helpTips])
+        XCTAssertEqual(pages.map(\.type), [.helpTips])
+    }
+
+    func testMemorySystemCardsUnlockAfterFiftyKeptPages() {
+        let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
+        let candidates = [
+            rankedCandidate(.bookConnections, score: 100),
+            rankedCandidate(.bookRemembered, score: 99),
+            rankedCandidate(.marginsAtlas, score: 98),
+            rankedCandidate(.helpTips, score: 40)
+        ]
+
+        var nearlyReady = BookSourceInputs.empty
+        nearlyReady.days = [dayWithKeptPageCount(49)]
+        let locked = BookCurator.rankedPages(
+            from: candidates,
+            limit: 4,
+            mood: CuratorMood.make(inputs: nearlyReady, now: now),
+            now: now
+        ).map(\.page.type)
+
+        var ready = BookSourceInputs.empty
+        ready.days = [dayWithKeptPageCount(50)]
+        let unlocked = BookCurator.rankedPages(
+            from: candidates,
+            limit: 4,
+            mood: CuratorMood.make(inputs: ready, now: now),
+            now: now
+        ).map(\.page.type)
+
+        XCTAssertEqual(locked, [.helpTips])
+        XCTAssertEqual(unlocked, [.bookConnections, .bookRemembered, .marginsAtlas, .helpTips])
     }
 
     func testRecentlySurfacedPageTypeIsSuppressedBriefly() {
@@ -1393,6 +1443,18 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(night.contains { $0.type == .bookOfYou })
     }
 
+    func testBookOfYouIsGuaranteedAfterAutoBraidTime() {
+        let pages = BookCurator.surfacedPages(
+            for: dayWithMusicSouvenir(),
+            inputs: richInputs(),
+            now: localDate(hour: 21, minute: 31),
+            limit: 3
+        )
+
+        XCTAssertEqual(pages.count, 3)
+        XCTAssertTrue(pages.contains { $0.type == .bookOfYou })
+    }
+
     func testDistressBiasesGentleRestFirst() {
         let dayDate = localDate(year: 2026, month: 6, day: 1, hour: 0)
         let day = BookDay(
@@ -1542,6 +1604,23 @@ final class BookCuratorTests: XCTestCase {
                     tags: ["souvenir", "music"]
                 )
             ]
+        )
+    }
+
+    private func dayWithKeptPageCount(_ count: Int) -> BookDay {
+        BookDay(
+            id: "2026-05-31",
+            date: localDate(year: 2026, month: 5, day: 31, hour: 0),
+            pages: (0..<count).map { index in
+                BookPage(
+                    id: "kept-\(index)",
+                    type: .souvenir,
+                    createdAt: localDate(year: 2026, month: 5, day: 31, hour: min(index % 24, 23)),
+                    promptText: "Catch one bright particular.",
+                    userInput: "Kept page \(index).",
+                    tags: ["souvenir"]
+                )
+            }
         )
     }
 
@@ -1828,6 +1907,22 @@ final class BookCuratorTests: XCTestCase {
             score: score,
             prompt: type.title,
             detail: "Candidate for \(type.title)."
+        )
+    }
+
+    private func bookJumpCandidate(action: BookJumpAction, score: Int) -> SurfacePage {
+        SurfacePage(
+            id: "candidate-book-jump-\(action.rawValue)",
+            type: .bookJump,
+            sourceID: "book-jump",
+            score: score,
+            prompt: "Book Jump",
+            detail: "Candidate for Book Jump.",
+            payload: BookPagePayload(
+                headline: action.title,
+                body: "Candidate for Book Jump.",
+                metadata: ["bookJumpAction": action.rawValue]
+            )
         )
     }
 

@@ -440,6 +440,14 @@ private struct RadioSignalMeter: View {
     }
 }
 
+private struct CompassChoiceOption: Identifiable, Equatable {
+    var id: String
+    var title: String
+    var value: String
+    var symbol: String
+    var detail: String = ""
+}
+
 struct CapturePageSheet: View {
     let surface: SurfacePage
     let day: BookDay
@@ -450,6 +458,7 @@ struct CapturePageSheet: View {
     let onReplaceIlluminatedSurface: (SurfacePage) -> Void
     let onNavigateToSurface: (SurfacePage) -> Void
     let onCompleteCompassRun: (SurfacePage) -> Void
+    var compassAnchors: [AnchorRecord] = []
     let onStoryMechanicCompleted: (SurfacePage, String) -> Void
     let onGenerateLetter: (SurfacePage) -> Void
     let onGeneratePlayfulMission: (SurfacePage) -> Void
@@ -528,12 +537,20 @@ struct CapturePageSheet: View {
     @State private var proofPhotoImage: UIImage?
     @State private var proofPhotoURL: URL?
     @State private var proofPhotoMessage = ""
+    @State private var didSeedCompassControls = false
+    @State private var compassPlaceContextID = CompassPlaceContext.current.rawValue
     @State private var compassLocation = ""
     @State private var compassTimeLimit = ""
     @State private var compassEnergy = ""
     @State private var compassCompanions = ""
     @State private var compassBudget = ""
-    @State private var compassConsiderations = ""
+    @State private var compassConsiderationIDs: Set<String> = []
+    @State private var compassCurrentPlaceMessage = ""
+    @State private var compassNearbyPlacesOverride = ""
+    @State private var compassCurrentLatitude: Double?
+    @State private var compassCurrentLongitude: Double?
+    @State private var compassAnchorProximity: AnchorProximity?
+    @State private var isResolvingCompassPlace = false
     @State private var isGeneratingCompassRun = false
     @State private var compassGenerationMessage = ""
     @State private var lastVentureMode: CompassVentureMode = .neighborhood
@@ -574,6 +591,63 @@ struct CapturePageSheet: View {
     @State private var activeTutorNote: MarginTutorNote?
 
     private let weatherOptions = ["Fog", "Rain", "Static", "Heavy", "Bright", "Restless", "Soft", "Numb", "Stormy", "Clearing"]
+
+    private var compassPlaceOptions: [CompassChoiceOption] {
+        CompassPlaceContext.allCases.map { context in
+            CompassChoiceOption(
+                id: context.rawValue,
+                title: context.title,
+                value: context.promptValue,
+                symbol: compassPlaceSymbol(for: context)
+            )
+        }
+    }
+
+    private let compassTimeOptions: [CompassChoiceOption] = [
+        CompassChoiceOption(id: "1m", title: "1 minute", value: "1 minute", symbol: "timer"),
+        CompassChoiceOption(id: "5m", title: "5 minutes", value: "5 minutes", symbol: "timer"),
+        CompassChoiceOption(id: "10m", title: "10 minutes", value: "10 minutes", symbol: "timer"),
+        CompassChoiceOption(id: "20m", title: "20 minutes", value: "20 minutes", symbol: "timer"),
+        CompassChoiceOption(id: "45m", title: "45 minutes", value: "45 minutes", symbol: "timer"),
+        CompassChoiceOption(id: "half-day", title: "Half day", value: "half a day", symbol: "sun.max")
+    ]
+
+    private let compassEnergyOptions: [CompassChoiceOption] = [
+        CompassChoiceOption(id: "depleted", title: "Depleted", value: "10% - depleted", symbol: "battery.0percent"),
+        CompassChoiceOption(id: "low", title: "Low", value: "35% - low", symbol: "battery.25percent"),
+        CompassChoiceOption(id: "steady", title: "Steady", value: "60% - steady", symbol: "battery.50percent"),
+        CompassChoiceOption(id: "bright", title: "Bright", value: "85% - bright", symbol: "battery.100percent")
+    ]
+
+    private let compassCompanionOptions: [CompassChoiceOption] = [
+        CompassChoiceOption(id: "solo", title: "Solo", value: "solo", symbol: "person"),
+        CompassChoiceOption(id: "partner", title: "Partner", value: "with a partner", symbol: "person.2"),
+        CompassChoiceOption(id: "kids", title: "Kids", value: "with kids", symbol: "figure.2.and.child.holdinghands"),
+        CompassChoiceOption(id: "friend", title: "Friend", value: "with a friend", symbol: "person.2"),
+        CompassChoiceOption(id: "group", title: "Group", value: "with a small group", symbol: "person.3")
+    ]
+
+    private let compassBudgetOptions: [CompassChoiceOption] = [
+        CompassChoiceOption(id: "zero", title: "$0", value: "$0", symbol: "dollarsign.circle"),
+        CompassChoiceOption(id: "five", title: "$5", value: "$5 or less", symbol: "dollarsign.circle"),
+        CompassChoiceOption(id: "twenty", title: "$20", value: "$20 or less", symbol: "dollarsign.circle"),
+        CompassChoiceOption(id: "available", title: "Use what I have", value: "use what is already available", symbol: "bag"),
+        CompassChoiceOption(id: "flexible", title: "Flexible", value: "flexible", symbol: "sparkles")
+    ]
+
+    private let compassConsiderationOptions: [CompassChoiceOption] = [
+        CompassChoiceOption(id: "indoors", title: "Indoors", value: "indoors only", symbol: "house"),
+        CompassChoiceOption(id: "accessible", title: "Accessible", value: "accessible route", symbol: "figure.roll"),
+        CompassChoiceOption(id: "no-driving", title: "No driving", value: "no driving", symbol: "figure.walk"),
+        CompassChoiceOption(id: "no-strangers", title: "No strangers", value: "no strangers", symbol: "person.crop.circle.badge.xmark"),
+        CompassChoiceOption(id: "kid-safe", title: "Kid-safe", value: "kid-safe", symbol: "figure.and.child.holdinghands"),
+        CompassChoiceOption(id: "quiet", title: "Quiet", value: "quiet", symbol: "speaker.slash"),
+        CompassChoiceOption(id: "weather-safe", title: "Weather-safe", value: "weather-safe", symbol: "cloud.sun")
+    ]
+
+    private let compassMemoryOptions: [CompassPlaceContext] = [
+        .home, .work, .cafe, .harbor, .park, .store, .library, .waterfront, .trail
+    ]
 
     private var isLocalBrainIssuePage: Bool {
         surface.payload.metadata["source"] == "local-brain" ||
@@ -3960,12 +4034,12 @@ struct CapturePageSheet: View {
 
     private var compassRunConstraintForm: some View {
         VStack(alignment: .leading, spacing: 10) {
-            compassTextField("Location", text: $compassLocation, placeholder: "My kitchen, downtown, driveway...")
-            compassTextField("Time limit", text: $compassTimeLimit, placeholder: "15 minutes, 2 hours, 2 days...")
-            compassTextField("Energy", text: $compassEnergy, placeholder: "10% - exhausted, 60% - okay...")
-            compassTextField("Who is with me", text: $compassCompanions, placeholder: "Just me, partner, kids...")
-            compassTextField("Budget", text: $compassBudget, placeholder: "$0, $20, use what I have...")
-            compassTextField("Special needs or considerations", text: $compassConsiderations, placeholder: "Indoors only, wheelchair accessible, no strangers...")
+            compassPlaceMenu
+            compassMenuField("Time limit", options: compassTimeOptions, selection: $compassTimeLimit)
+            compassMenuField("Energy", options: compassEnergyOptions, selection: $compassEnergy)
+            compassMenuField("Who is with me", options: compassCompanionOptions, selection: $compassCompanions)
+            compassMenuField("Budget", options: compassBudgetOptions, selection: $compassBudget)
+            compassConsiderationPicker
 
             Button {
                 BookFeedback.play(.braidStart)
@@ -3987,6 +4061,9 @@ struct CapturePageSheet: View {
                 )
             }
         }
+        .onAppear {
+            seedCompassRunControlsIfNeeded()
+        }
     }
 
     private var compassStepSummary: some View {
@@ -3995,18 +4072,23 @@ struct CapturePageSheet: View {
             if step == "notice" {
                 compassRail("Spark", surface.payload.metadata["spark"])
             } else if step == "embark" {
+                compassRail("Goal", surface.payload.metadata["spark"])
                 compassRail("Destination", surface.payload.metadata["destination"])
                 compassRail("Delight", surface.payload.metadata["delight"])
                 compassRail("Definition", surface.payload.metadata["definition"])
             } else if step == "sense" {
-                compassRail("Mission", surface.payload.metadata["mission"])
+                compassRail("Goal", surface.payload.metadata["spark"])
+                compassRail("Destination", surface.payload.metadata["destination"])
+                compassRail("Body Mission", surface.payload.metadata["mission"])
             } else if step == "write" {
-                compassRail("Souvenir", surface.payload.metadata["souvenirPrompt"])
-                Text("Write your One-Sentence Souvenir in the box below. When the sentence feels specific enough to keep, continue to Center: Rest.")
+                compassRail("Goal", surface.payload.metadata["spark"])
+                compassRail("Best Sensory Moment", surface.payload.metadata["souvenirPrompt"])
+                Text("Write the best sensory moment from the run in one sentence. When it feels specific enough to keep, continue to Center: Rest.")
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.76))
                     .fixedSize(horizontal: false, vertical: true)
             } else if step == "rest" {
+                compassRail("Goal", surface.payload.metadata["spark"])
                 compassRail("Rest", surface.payload.metadata["restPrompt"])
             }
 
@@ -4061,24 +4143,272 @@ struct CapturePageSheet: View {
         }
     }
 
-    private func compassTextField(_ title: String, text: Binding<String>, placeholder: String) -> some View {
+    private var compassPlaceMenu: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            compassMenuButton(
+                title: "Place",
+                selectionTitle: selectedCompassPlaceContext.title,
+                symbol: compassPlaceSymbol(for: selectedCompassPlaceContext)
+            ) {
+                ForEach(compassPlaceOptions) { option in
+                    Button {
+                        BookFeedback.play(.select)
+                        compassPlaceContextID = option.id
+                        if option.id != CompassPlaceContext.current.rawValue {
+                            compassLocation = option.value
+                            compassCurrentPlaceMessage = ""
+                        }
+                    } label: {
+                        Label(option.title, systemImage: option.symbol)
+                    }
+                }
+            }
+
+            if selectedCompassPlaceContext == .current {
+                Button {
+                    BookFeedback.play(.sourceRefresh)
+                    Task { await resolveCompassCurrentPlace() }
+                } label: {
+                    Label(isResolvingCompassPlace ? "Reading place..." : "Use current GPS place", systemImage: "location.magnifyingglass")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.bordered)
+                .tint(BookPalette.teal)
+                .disabled(isResolvingCompassPlace)
+            }
+
+            if !compassCurrentPlaceMessage.isEmpty {
+                Text(compassCurrentPlaceMessage)
+                    .font(.caption)
+                    .foregroundStyle(openPageSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if canRememberCompassCurrentPlace {
+                Menu {
+                    ForEach(compassMemoryOptions, id: \.rawValue) { context in
+                        Button {
+                            rememberCompassCurrentPlace(as: context)
+                        } label: {
+                            Label(context.title, systemImage: compassPlaceSymbol(for: context))
+                        }
+                    }
+                } label: {
+                    Label("Remember this area", systemImage: "mappin.and.ellipse")
+                        .font(.caption.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                }
+                .buttonStyle(.bordered)
+                .tint(BookPalette.lampGold)
+            }
+        }
+    }
+
+    private func compassMenuField(_ title: String, options: [CompassChoiceOption], selection: Binding<String>) -> some View {
+        let selected = selectedCompassOption(in: options, value: selection.wrappedValue)
+        return compassMenuButton(
+            title: title,
+            selectionTitle: selected?.title ?? selection.wrappedValue.nonEmpty ?? "Choose",
+            symbol: selected?.symbol ?? "chevron.up.chevron.down"
+        ) {
+            ForEach(options) { option in
+                Button {
+                    BookFeedback.play(.select)
+                    selection.wrappedValue = option.value
+                } label: {
+                    Label(option.title, systemImage: option.symbol)
+                }
+            }
+        }
+    }
+
+    private func compassMenuButton<Items: View>(
+        title: String,
+        selectionTitle: String,
+        symbol: String,
+        @ViewBuilder items: () -> Items
+    ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title.uppercased())
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(BookPalette.teal.opacity(0.82))
-            TextField(placeholder, text: text, axis: .vertical)
-                .font(.callout.weight(.semibold))
+            Menu {
+                items()
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: symbol)
+                        .frame(width: 20)
+                    Text(selectionTitle)
+                        .font(.callout.weight(.semibold))
+                        .lineLimit(2)
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption.weight(.bold))
+                }
                 .foregroundStyle(BookPalette.ink)
-                .textFieldStyle(.plain)
-                .lineLimit(1...3)
-                .dictationInput(text: text)
                 .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .background(BookPalette.paper.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .stroke(BookPalette.ink.opacity(0.12), lineWidth: 1)
                 }
+            }
         }
+    }
+
+    private var compassConsiderationPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("CONSIDERATIONS")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(BookPalette.teal.opacity(0.82))
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: 8)], spacing: 8) {
+                ForEach(compassConsiderationOptions) { option in
+                    let selected = compassConsiderationIDs.contains(option.id)
+                    Button {
+                        BookFeedback.play(.select)
+                        if selected {
+                            compassConsiderationIDs.remove(option.id)
+                        } else {
+                            compassConsiderationIDs.insert(option.id)
+                        }
+                    } label: {
+                        Label(option.title, systemImage: selected ? "checkmark.circle.fill" : option.symbol)
+                            .font(.caption.weight(.bold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                            .padding(.horizontal, 8)
+                            .background(
+                                selected ? BookPalette.teal.opacity(0.18) : BookPalette.paper.opacity(0.74),
+                                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            )
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(selected ? BookPalette.teal.opacity(0.42) : BookPalette.ink.opacity(0.10), lineWidth: 1)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(BookPalette.ink)
+                }
+            }
+        }
+    }
+
+    private var selectedCompassPlaceContext: CompassPlaceContext {
+        CompassPlaceContext(rawValue: compassPlaceContextID) ?? .current
+    }
+
+    private var canRememberCompassCurrentPlace: Bool {
+        compassCurrentLatitude != nil &&
+            compassCurrentLongitude != nil &&
+            !isResolvingCompassPlace
+    }
+
+    private var currentNearbyPlacesText: String {
+        compassNearbyPlacesOverride.nonEmpty ?? surface.payload.metadata["nearbyPlaces"] ?? ""
+    }
+
+    private var selectedCompassConsiderations: String {
+        let selected = compassConsiderationOptions
+            .filter { compassConsiderationIDs.contains($0.id) }
+            .map(\.value)
+        return selected.isEmpty ? "no special constraints known" : selected.joined(separator: ", ")
+    }
+
+    private func selectedCompassOption(in options: [CompassChoiceOption], value: String) -> CompassChoiceOption? {
+        options.first { $0.value == value || $0.id == value }
+    }
+
+    private func compassPlaceSymbol(for context: CompassPlaceContext) -> String {
+        switch context {
+        case .current: return "location.magnifyingglass"
+        case .home: return "house"
+        case .work: return "briefcase"
+        case .cafe: return "cup.and.saucer"
+        case .harbor: return "sailboat"
+        case .park: return "tree"
+        case .store: return "basket"
+        case .library: return "books.vertical"
+        case .transit: return "tram"
+        case .waterfront: return "water.waves"
+        case .trail: return "figure.hiking"
+        case .neighborhood: return "map"
+        case .indoors: return "door.left.hand.closed"
+        case .other: return "mappin"
+        }
+    }
+
+    private func seedCompassRunControlsIfNeeded() {
+        guard !didSeedCompassControls else { return }
+        didSeedCompassControls = true
+        let place = surface.payload.metadata["place"]?.nonEmpty
+        let context = surface.payload.metadata["placeContextID"]
+            .flatMap(CompassPlaceContext.init(rawValue:))
+            ?? CompassPlaceContext.current
+        compassPlaceContextID = context.rawValue
+        compassLocation = place ?? context.promptValue
+        compassTimeLimit = surface.payload.metadata["timeBox"]?.nonEmpty ?? "10 minutes"
+        compassEnergy = normalizedCompassEnergy(surface.payload.metadata["energy"]) ?? "60% - steady"
+        compassCompanions = surface.payload.metadata["companions"]?.nonEmpty ?? "solo"
+        compassBudget = surface.payload.metadata["budget"]?.nonEmpty ?? "$0"
+        compassNearbyPlacesOverride = surface.payload.metadata["nearbyPlaces"] ?? ""
+    }
+
+    private func normalizedCompassEnergy(_ value: String?) -> String? {
+        guard let lowered = value?.lowercased(), !lowered.isEmpty else { return nil }
+        if lowered.contains("depleted") || lowered.contains("exhaust") || lowered.contains("10%") {
+            return "10% - depleted"
+        }
+        if lowered.contains("low") || lowered.contains("tired") || lowered.contains("35%") {
+            return "35% - low"
+        }
+        if lowered.contains("bright") || lowered.contains("great") || lowered.contains("energ") || lowered.contains("85%") {
+            return "85% - bright"
+        }
+        return "60% - steady"
+    }
+
+    @MainActor
+    private func resolveCompassCurrentPlace() async {
+        guard !isResolvingCompassPlace else { return }
+        isResolvingCompassPlace = true
+        compassCurrentPlaceMessage = "The Book is reading the ground under your feet."
+        defer { isResolvingCompassPlace = false }
+        do {
+            let signal = try await CompassCurrentPlaceReader.request(anchors: compassAnchors)
+            compassPlaceContextID = signal.context.rawValue
+            compassLocation = signal.label
+            compassNearbyPlacesOverride = signal.nearbyPlaces.prefix(10).map(\.promptLine).joined(separator: "\n")
+            compassCurrentLatitude = signal.latitude
+            compassCurrentLongitude = signal.longitude
+            compassAnchorProximity = signal.anchorProximity
+            compassCurrentPlaceMessage = signal.detail
+            BookFeedback.play(.braidComplete)
+        } catch {
+            compassCurrentPlaceMessage = error.localizedDescription
+            BookFeedback.play(.error)
+        }
+    }
+
+    private func rememberCompassCurrentPlace(as context: CompassPlaceContext) {
+        guard let latitude = compassCurrentLatitude,
+              let longitude = compassCurrentLongitude else {
+            return
+        }
+        let place = CompassPlaceMemory.remember(
+            context: context,
+            latitude: latitude,
+            longitude: longitude
+        )
+        compassPlaceContextID = context.rawValue
+        compassLocation = place.name
+        compassCurrentPlaceMessage = "Saved \(place.name). Future GPS reads inside this area will use \(context.title)."
+        BookFeedback.play(.braidComplete)
     }
 
     @ViewBuilder
@@ -5261,7 +5591,12 @@ struct CapturePageSheet: View {
     }
 
     private var canSubmitCompassRun: Bool {
-        !isGeneratingCompassRun && !compassLocation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard !isGeneratingCompassRun else { return false }
+        if selectedCompassPlaceContext == .current {
+            return !compassLocation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                !compassCurrentPlaceMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        return true
     }
 
     private var currentCompassStep: CompassRunStep? {
@@ -5352,14 +5687,19 @@ struct CapturePageSheet: View {
         switch step {
         case .notice:
             body = """
-            North sets the bearing.
+            North sets the bearing by turning curiosity into the goal.
 
-            Spark:
+            I wonder goal:
             \(metadata["spark"] ?? "I wonder what is asking for attention nearby?")
+
+            Keep this when you are ready to let the question steer the rest of the run.
             """
         case .embark:
             body = """
-            East crosses the threshold with the 3 D's.
+            North made the goal:
+            \(metadata["spark"] ?? "I wonder what is asking for attention nearby?")
+
+            East makes the plan to fulfill that goal.
 
             Destination:
             \(metadata["destination"] ?? "")
@@ -5369,26 +5709,42 @@ struct CapturePageSheet: View {
 
             Definition:
             \(metadata["definition"] ?? "")
+
+            Cross one real threshold when this plan feels small enough to begin.
             """
         case .sense:
             body = """
-            South gives your senses a tiny game.
+            Keep North's goal in mind:
+            \(metadata["spark"] ?? "I wonder what is asking for attention nearby?")
+
+            Follow East's plan toward:
+            \(metadata["destination"] ?? "")
+
+            South puts you in your body when you reach the goal, or right at the start if this is a stay-put run.
 
             Mission:
             \(metadata["mission"] ?? "")
+
+            Let your senses answer what the goal was asking.
             """
         case .write:
             body = """
-            West keeps one sentence from time.
+            The run began with:
+            \(metadata["spark"] ?? "I wonder what is asking for attention nearby?")
+
+            The plan pointed toward:
+            \(metadata["destination"] ?? "")
+
+            West keeps the best sensory moment from the run in one sentence.
 
             Souvenir prompt:
             \(metadata["souvenirPrompt"] ?? "")
 
-            Write your One-Sentence Souvenir in the text box below, then continue to Center: Rest.
+            Write that sentence in the text box below, then continue to Center: Rest.
             """
         case .rest:
             body = """
-            Center lets the run land.
+            You followed the Compass from a question into a body-memory.
 
             Rest:
             \(metadata["restPrompt"] ?? "Put the phone face down for sixty seconds and let the run land.")
@@ -5620,14 +5976,16 @@ struct CapturePageSheet: View {
         let metadata = preparedSurface.payload.metadata
         let step = metadata["compassStep"] ?? "run"
         if step == "run" {
-            return [
+            let lines: [String?] = [
                 "Wonder Compass Run",
                 "Location: \(compassValue(compassLocation, fallback: metadata["place"] ?? "unknown"))",
+                "Place Kind: \(metadata["placeContext"] ?? selectedCompassPlaceContext.title)",
+                compassAnchorPreparedLine(from: metadata),
                 "Time Limit: \(compassValue(compassTimeLimit, fallback: metadata["timeBox"] ?? "unknown"))",
                 "Energy: \(compassValue(compassEnergy, fallback: metadata["energy"] ?? "unknown"))",
                 "Who is with me: \(compassValue(compassCompanions, fallback: metadata["companions"] ?? "unknown"))",
                 "Budget: \(compassValue(compassBudget, fallback: metadata["budget"] ?? "unknown"))",
-                "Special Needs/Considerations: \(compassValue(compassConsiderations, fallback: metadata["considerations"] ?? "unknown"))",
+                "Special Needs/Considerations: \(compassValue(selectedCompassConsiderations, fallback: metadata["considerations"] ?? "unknown"))",
                 "",
                 "NORTH (NOTICE)",
                 metadata["spark"],
@@ -5646,6 +6004,7 @@ struct CapturePageSheet: View {
                 "CENTER (REST)",
                 metadata["restPrompt"]
             ]
+            return lines
             .compactMap { $0 }
             .joined(separator: "\n")
         }
@@ -5653,6 +6012,14 @@ struct CapturePageSheet: View {
             return text.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return preparedSurface.payload.metadata["placeholder"] ?? preparedSurface.payload.body
+    }
+
+    private func compassAnchorPreparedLine(from metadata: [String: String]) -> String? {
+        guard let name = metadata["anchorName"]?.nonEmpty else { return nil }
+        let kind = metadata["anchorKind"]?.nonEmpty
+        let distance = metadata["anchorDistanceMeters"]?.nonEmpty.map { "\($0)m" }
+        let details = [kind, distance].compactMap { $0 }.joined(separator: ", ")
+        return details.isEmpty ? "Anchor: \(name)" : "Anchor: \(name) (\(details))"
     }
 
     private func compassValue(_ value: String, fallback: String) -> String {
@@ -5890,24 +6257,68 @@ struct CapturePageSheet: View {
     }
 
     private func compassRunConstraints() -> [String: String] {
-        return [
-            "location": compassValue(compassLocation, fallback: surface.payload.metadata["place"] ?? "where you are"),
+        let context = selectedCompassPlaceContext
+        let location = compassLocation.nonEmpty ?? context.promptValue
+        var constraints = [
+            "location": compassValue(location, fallback: surface.payload.metadata["place"] ?? context.promptValue),
+            "placeContext": context.title,
+            "placeContextID": context.rawValue,
+            "nearbyPlaces": currentNearbyPlacesText,
             "timeLimit": compassValue(compassTimeLimit, fallback: surface.payload.metadata["timeBox"] ?? "10-20 minutes"),
             "energy": compassValue(compassEnergy, fallback: surface.payload.metadata["energy"] ?? "ordinary tired adult"),
             "companions": compassValue(compassCompanions, fallback: surface.payload.metadata["companions"] ?? "solo"),
             "budget": compassValue(compassBudget, fallback: surface.payload.metadata["budget"] ?? "$0"),
-            "considerations": compassValue(compassConsiderations, fallback: surface.payload.metadata["considerations"] ?? "no special constraints known")
+            "considerations": compassValue(selectedCompassConsiderations, fallback: surface.payload.metadata["considerations"] ?? "no special constraints known")
         ]
+        if let proximity = compassAnchorProximity {
+            let anchor = proximity.anchor
+            constraints["anchorName"] = anchor.name
+            constraints["anchorKind"] = anchor.kind.title
+            constraints["anchorDistanceMeters"] = "\(Int(proximity.distanceMeters.rounded()))"
+            constraints["anchorRoom"] = anchor.outerStacksRoom
+            constraints["anchorFae"] = anchor.fae
+            constraints["anchorLocalRule"] = anchor.localRule
+            constraints["anchorVisitMode"] = proximity.visitMode
+            constraints["anchorMiniStory"] = anchor.miniStory
+            constraints["anchorAcademyEcho"] = anchor.academyEcho
+        } else {
+            for key in [
+                "anchorName",
+                "anchorKind",
+                "anchorDistanceMeters",
+                "anchorRoom",
+                "anchorFae",
+                "anchorLocalRule",
+                "anchorVisitMode",
+                "anchorMiniStory",
+                "anchorAcademyEcho"
+            ] {
+                if let value = surface.payload.metadata[key]?.nonEmpty {
+                    constraints[key] = value
+                }
+            }
+        }
+        return constraints
     }
 
     private var compassVentureMode: CompassVentureMode {
-        let places = surface.payload.metadata["nearbyPlaces"]?.nonEmpty
+        let places = currentNearbyPlacesText.nonEmpty
+        let seed = [
+            surface.id,
+            compassLocation,
+            compassPlaceContextID,
+            compassTimeLimit,
+            compassEnergy,
+            compassCompanions,
+            compassBudget,
+            selectedCompassConsiderations
+        ].joined(separator: "|")
         return CompassVenture.decide(
             energyText: compassEnergy.isEmpty ? (surface.payload.metadata["energy"] ?? "") : compassEnergy,
-            considerations: compassConsiderations.isEmpty ? (surface.payload.metadata["considerations"] ?? "") : compassConsiderations,
+            considerations: selectedCompassConsiderations,
             timeLimit: compassTimeLimit.isEmpty ? (surface.payload.metadata["timeBox"] ?? "") : compassTimeLimit,
             hasPlaces: places != nil,
-            roll: Double.random(in: 0..<1)
+            roll: CompassVenture.deterministicRoll(seed: seed)
         )
     }
 
@@ -5922,7 +6333,7 @@ struct CapturePageSheet: View {
             VENTURE READING: There is fuel for the block, not for a trip. The EAST Destination should be within a few minutes of the front door, described by KIND ("the nearest tree older than the house", "the corner with the loudest birds") — never by a business name. Do not invent named places.
             """
         case .destination:
-            let places = surface.payload.metadata["nearbyPlaces"] ?? ""
+            let places = currentNearbyPlacesText
             return """
             VENTURE READING: There is real fuel today — this run may go somewhere true.
             REAL PLACES NEARBY (verified to exist; the only named places you may use):
@@ -5930,6 +6341,19 @@ struct CapturePageSheet: View {
             Choose ONE whose nature honestly fits the time limit, budget, and considerations, set the EAST Destination to its real name, and shape the SOUTH mission to what that place actually is (a bakery's mission smells; a hardware store's mission is texture and weight). If none fits, fall back to an unnamed nearby kind of place. Never invent a named place.
             """
         }
+    }
+
+    private func compassAnchorPrompt(from constraints: [String: String]) -> String {
+        guard let name = constraints["anchorName"]?.nonEmpty else {
+            return "No known Anchor is active at this place."
+        }
+        let kind = constraints["anchorKind"]?.nonEmpty ?? "Anchor"
+        let distance = constraints["anchorDistanceMeters"]?.nonEmpty.map { "\($0)m away" } ?? "nearby"
+        let room = constraints["anchorRoom"]?.nonEmpty ?? constraints["anchorAcademyEcho"]?.nonEmpty ?? "The Anchor has local memory."
+        let fae = constraints["anchorFae"]?.nonEmpty ?? "the place's keeper"
+        let rule = constraints["anchorLocalRule"]?.nonEmpty ?? "notice before asking for more"
+        let visitMode = constraints["anchorVisitMode"]?.nonEmpty ?? "RETURN_VISIT"
+        return "\(name) is an active \(kind) Anchor \(distance). Visit mode: \(visitMode). Room: \(room) Keeper: \(fae). Local rule: \(rule)"
     }
 
     private func generateCompassRunWithGemma(constraints: [String: String]) async throws -> String {
@@ -5941,6 +6365,8 @@ struct CapturePageSheet: View {
 
         Constraints:
         1. My Location: \(constraints["location"] ?? "")
+        Place kind: \(constraints["placeContext"] ?? "")
+        Anchor context: \(compassAnchorPrompt(from: constraints))
         2. My Time Limit: \(constraints["timeLimit"] ?? "")
         3. My Energy Level: \(constraints["energy"] ?? "")
         4. Who is with me: \(constraints["companions"] ?? "")
@@ -5949,20 +6375,28 @@ struct CapturePageSheet: View {
 
         \(ventureSection(for: mode))
 
+        Compass chain:
+        - NORTH is the run's goal, written as one "I wonder..." question.
+        - EAST is the practical plan for fulfilling that exact North goal: where to go or what threshold to choose, what small delight supports it, and how completion is defined.
+        - SOUTH happens when I reach the goal, or at the start for a stay-put run. It puts me in my body and must help answer the North goal through senses.
+        - WEST asks for the best sensory moment from the whole run in one sentence.
+        - CENTER lands the completed loop.
+        Every direction must clearly depend on the previous direction. Do not write five disconnected prompts.
+
         Format exactly:
         NORTH (NOTICE)
-        [one I wonder question]
+        [one I wonder question that names the goal]
 
         EAST (EMBARK)
-        Destination: [specific destination]
-        Delight: [small treat or comfort]
-        Definition: [specific end point]
+        Destination: [specific destination or threshold chosen to fulfill the North goal]
+        Delight: [small treat or comfort that helps me do the plan]
+        Definition: [specific end point that proves the North goal was fulfilled]
 
         SOUTH (SENSE)
-        [one playful sensory mission]
+        [one embodied sensory mission at the destination or start that helps answer the North goal]
 
         WEST (WRITE)
-        [one one-sentence souvenir prompt]
+        [one prompt to write the best sensory moment from the run in one sentence]
 
         CENTER (REST)
         [one short rest instruction]
@@ -6039,9 +6473,31 @@ struct CapturePageSheet: View {
     private func fallbackCompassRunPlan(constraints: [String: String]) -> [String: String] {
         let location = constraints["location"] ?? "where you are"
         let time = constraints["timeLimit"] ?? "10-20 minutes"
+        let context = constraints["placeContextID"].flatMap(CompassPlaceContext.init(rawValue:)) ?? .current
         let lowEnergy = lastVentureMode == .homebound
+        if let anchorName = constraints["anchorName"]?.nonEmpty {
+            let anchorRoom = constraints["anchorRoom"]?.nonEmpty
+                ?? constraints["anchorAcademyEcho"]?.nonEmpty
+                ?? "the room that knows this place"
+            let keeper = constraints["anchorFae"]?.nonEmpty ?? "the place's keeper"
+            let rule = constraints["anchorLocalRule"]?.nonEmpty ?? "notice before asking for more"
+            let visitMode = constraints["anchorVisitMode"]?.nonEmpty ?? "RETURN_VISIT"
+            let mission = visitMode == "FIRST_VISIT"
+                ? "Introduce yourself to \(anchorName) without saying your name: notice one edge, one sound, and one object that seems to be guarding the room. Then honor the rule: \(rule)."
+                : "Find one detail proving \(anchorName) changed since the last visit. Ask what \(keeper) wants noticed, then honor the rule: \(rule)."
+            return [
+                "spark": "I wonder what \(anchorName) remembered about me before I noticed it?",
+                "destination": lowEnergy ? "the gentlest threshold inside \(anchorName)" : "\(anchorName) - the Anchor already awake here",
+                "delight": lowEnergy ? "water, softer light, or one comfortable place to sit" : "one tiny offering that suits \(anchorName): warmth, quiet, a favorite sip, or a careful look",
+                "definition": "the North question is complete after \(time), or when the Anchor gives one remembered detail",
+                "mission": mission,
+                "souvenirPrompt": "Write the best sensory moment from \(anchorName) in one sentence: \(anchorRoom)",
+                "restPrompt": "Before leaving \(anchorName), give it three quiet breaths and let it recognize you.",
+                "hint": "Do not hunt for magic. Let the local rule make one ordinary detail brighter."
+            ]
+        }
         if lastVentureMode == .destination,
-           let firstPlace = surface.payload.metadata["nearbyPlaces"]?
+           let firstPlace = currentNearbyPlacesText
                .split(separator: "\n").first
                .flatMap({ $0.split(separator: "(").first })
                .map({ $0.trimmingCharacters(in: .whitespaces) }),
@@ -6050,21 +6506,55 @@ struct CapturePageSheet: View {
                 "spark": "I wonder what \(firstPlace) is like at exactly this hour?",
                 "destination": "\(firstPlace) — it really exists, and it is close",
                 "delight": "whatever small good thing \(firstPlace) does best",
-                "definition": "finish after \(time), or when the visit feels complete",
-                "mission": "Inside \(firstPlace), find the thing they are proudest of and the thing nobody notices. Smell one of them.",
-                "souvenirPrompt": "Write one sentence about \(firstPlace) that only someone who was there today could write.",
+                "definition": "the North question is complete after \(time), or when you know one thing true about this hour at \(firstPlace)",
+                "mission": "At \(firstPlace), let your body answer the North question: find the thing they are proudest of and the thing nobody notices. Smell one of them.",
+                "souvenirPrompt": "Write the best sensory moment from \(firstPlace) in one sentence.",
                 "restPrompt": "Before leaving, stand still for three breaths and let the place file you under regulars."
             ]
+        }
+        let placeMission: String
+        let placeDestination: String
+        switch context {
+        case .home, .indoors:
+            placeDestination = "one room, window, doorway, sink, chair, or patch of light"
+            placeMission = "Find the oldest, softest, and most recently moved thing in this room. Let one of them win."
+        case .work:
+            placeDestination = "one threshold inside the workday: desk, hallway, break room, doorway, or machine"
+            placeMission = "Find the sound your workplace makes that no other building makes. Name it without complaining about it."
+        case .cafe:
+            placeDestination = "one seat, counter, window, cup, pastry case, or corner in \(location)"
+            placeMission = "Track three layers: cup sound, human sound, machine sound. Decide which one is conducting the room."
+        case .harbor, .waterfront:
+            placeDestination = "one edge where land meets water"
+            placeMission = "Find one rope, reflection, gull-mark, tide-line, or boat-sound. Ask what job it is doing today."
+        case .park, .trail:
+            placeDestination = "one living threshold: path, tree, bench, stone, sign, or patch of shade"
+            placeMission = "Collect three kinds of green or brown and one sound that arrived before you did."
+        case .store:
+            placeDestination = "one aisle, shelf, sign, basket, counter, or waiting place"
+            placeMission = "Find one strange label, one tiny kindness, and one object designed by a stranger's hand."
+        case .library:
+            placeDestination = "one shelf, table, return cart, quiet corner, or public notice"
+            placeMission = "Let shelf chance choose one title, then find the quietest object doing work nearby."
+        case .transit:
+            placeDestination = "one waiting edge: platform, stop, seat, window, crossing, or route marker"
+            placeMission = "Watch one moving thing nobody else is watching. Give its errand a name."
+        case .neighborhood:
+            placeDestination = "one corner, tree, sign, stoop, fence, mailbox, or threshold nearby"
+            placeMission = "Find three details proving this block is not generic: one old thing, one repair, and one color."
+        case .current, .other:
+            placeDestination = "one real threshold in or near \(location)"
+            placeMission = "Find three textures, two colors, and the quietest sound nearby."
         }
         return [
             "spark": lowEnergy
                 ? "I wonder what is the smallest true thing I can notice from \(location)?"
                 : "I wonder what detail in \(location) has been waiting for me to notice it?",
-            "destination": lowEnergy ? "one nearby chair, window, doorway, or patch of light" : "one real threshold in or near \(location)",
+            "destination": lowEnergy ? "one nearby chair, window, doorway, or patch of light" : placeDestination,
             "delight": lowEnergy ? "water, soft light, silence, or something warm to hold" : "a favorite drink, song, jacket, or tiny treat",
-            "definition": "finish after \(time), or sooner if the body says stop",
-            "mission": lowEnergy ? "Find one thing that supports weight: floor, chair, wall, cup, blanket, or breath. Notice exactly how it holds." : "Find three textures, two colors, and the quietest sound nearby.",
-            "souvenirPrompt": "Complete this in one sensory sentence: I want to keep...",
+            "definition": "the North question is complete after \(time), or sooner if the body says stop",
+            "mission": lowEnergy ? "Start where you are and let the body answer the North question: find one thing that supports weight: floor, chair, wall, cup, blanket, or breath. Notice exactly how it holds." : "\(placeMission) Let that sensory detail answer the North question.",
+            "souvenirPrompt": "Write the best sensory moment from the run in one sentence: I want to keep...",
             "restPrompt": "Put the phone face down for 60 seconds and let the run land.",
             "hint": "Make it smaller before you make it harder."
         ]
@@ -8370,6 +8860,28 @@ private extension SurfacePage {
     func withCompassRunPlan(_ plan: [String: String], constraints: [String: String]) -> SurfacePage {
         var metadata = payload.metadata
         metadata["place"] = constraints["location"]
+        metadata["placeContext"] = constraints["placeContext"]
+        metadata["placeContextID"] = constraints["placeContextID"]
+        if let nearbyPlaces = constraints["nearbyPlaces"]?.nonEmpty {
+            metadata["nearbyPlaces"] = nearbyPlaces
+        }
+        for key in [
+            "anchorName",
+            "anchorKind",
+            "anchorDistanceMeters",
+            "anchorRoom",
+            "anchorFae",
+            "anchorLocalRule",
+            "anchorVisitMode",
+            "anchorMiniStory",
+            "anchorAcademyEcho"
+        ] {
+            if let value = constraints[key]?.nonEmpty {
+                metadata[key] = value
+            } else {
+                metadata.removeValue(forKey: key)
+            }
+        }
         metadata["timeBox"] = constraints["timeLimit"]
         metadata["energy"] = constraints["energy"]
         metadata["companions"] = constraints["companions"]

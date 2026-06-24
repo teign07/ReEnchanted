@@ -365,6 +365,7 @@ struct ReEnchantedSaveFile: Codable {
     var facultyEntries: [FacultyEntry]
     var customCastMembers: [CustomCastMember]
     var anchors: [AnchorRecord]
+    var compassKnownPlaces: [CompassKnownPlace]?
     var electives: [UnwrittenElective]
     var beliefScore: Int
     var entityBeliefLedger: [String: Int]
@@ -471,6 +472,7 @@ struct PlayerVaultData: Codable, Equatable {
     var beliefEconomy: BeliefEconomyState?
     var bookJump: BookJumpState?
     var radio: RadioPlaybackState?
+    var compassKnownPlaces: [CompassKnownPlace]?
     /// Gemma-authored taste notes earned when the reader marks a braid "missed
     /// me." Each is one short second-person nudge folded into future braid
     /// prompts as reader-taught guidance. Capped to the most recent few.

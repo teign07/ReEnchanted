@@ -3630,13 +3630,13 @@ enum CompassRunStep: String, CaseIterable, Identifiable {
     var standaloneDetail: String {
         switch self {
         case .notice:
-            return "Choose a spark: a question, object, place, oddity, color, sound, or tiny curiosity."
+            return "Choose the run's goal as one I wonder question."
         case .embark:
-            return "Name the 3 D's: Destination, Delight, and Definition."
+            return "Make the 3 D's into a plan for the North goal."
         case .sense:
-            return "Pick a playful mission: find, count, compare, collect, touch, listen, taste, or photograph."
+            return "Use the body at the start or destination so the goal becomes real."
         case .write:
-            return "Save the single best sensory detail. Specific is terrific."
+            return "Save the best sensory moment from the run in one sentence."
         case .rest:
             return "Set the phone down for one quiet minute. Rest is the pin, not the prize."
         }
@@ -3645,13 +3645,13 @@ enum CompassRunStep: String, CaseIterable, Identifiable {
     var capturePlaceholder: String {
         switch self {
         case .notice:
-            return "Keep the exact Spark that starts the run."
+            return "Keep the I wonder goal that will steer the run."
         case .embark:
-            return "Write when you have crossed the threshold."
+            return "Write the plan you will follow to answer the goal."
         case .sense:
-            return "Write what the mission made you notice, or keep a photo."
+            return "Write what your body noticed at the start or destination, or keep a photo."
         case .write:
-            return "Write your One-Sentence Souvenir here."
+            return "Write the best sensory moment from the run in one sentence."
         case .rest:
             return "After one quiet minute, the needle feels..."
         }
@@ -3677,14 +3677,126 @@ enum CompassRunStep: String, CaseIterable, Identifiable {
         case .notice:
             return "North sets the bearing. Start with the Spark and let it become the goal of the run."
         case .embark:
-            return "East crosses the threshold with the 3 D's: Destination, Delight, Definition. Specificity lowers the activation energy."
+            return "East turns the North question into a plan: where to go, what tiny delight helps, and how you will know the goal is complete."
         case .sense:
-            return "South breaks the museum gaze. Use a playful sensory mission so the phone becomes a field kit, then the eyes come up."
+            return "South puts the run into the body at the start or destination, so the goal is answered by senses instead of only thoughts."
         case .write:
-            return "West is the save button. One specific sentence is enough to keep the memory from dissolving."
+            return "West saves the best sensory moment from the run in one exact sentence."
         case .rest:
             return "The Center keeps the compass from becoming homework. Sixty seconds of no input is a valid completion."
         }
+    }
+}
+
+enum CompassPlaceContext: String, CaseIterable, Identifiable {
+    case current
+    case home
+    case work
+    case cafe
+    case harbor
+    case park
+    case store
+    case library
+    case transit
+    case waterfront
+    case trail
+    case neighborhood
+    case indoors
+    case other
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .current: return "Current Place"
+        case .home: return "Home"
+        case .work: return "Work"
+        case .cafe: return "Cafe"
+        case .harbor: return "Harbor"
+        case .park: return "Park"
+        case .store: return "Store"
+        case .library: return "Library"
+        case .transit: return "Transit"
+        case .waterfront: return "Waterfront"
+        case .trail: return "Trail"
+        case .neighborhood: return "Neighborhood"
+        case .indoors: return "Indoors"
+        case .other: return "Somewhere Else"
+        }
+    }
+
+    var promptValue: String {
+        switch self {
+        case .current: return "where I am right now"
+        case .home: return "home"
+        case .work: return "work"
+        case .cafe: return "a cafe"
+        case .harbor: return "a harbor"
+        case .park: return "a park"
+        case .store: return "a store or errand stop"
+        case .library: return "a library"
+        case .transit: return "in transit"
+        case .waterfront: return "near the water"
+        case .trail: return "on or near a trail"
+        case .neighborhood: return "the neighborhood"
+        case .indoors: return "indoors"
+        case .other: return "somewhere specific"
+        }
+    }
+
+    static func inferred(from places: [LocalPlaceSignal]) -> CompassPlaceContext {
+        let text = places
+            .prefix(8)
+            .map { "\($0.name) \($0.category)".lowercased() }
+            .joined(separator: " ")
+        if text.contains("coffee") || text.contains("cafe") || text.contains("bakery") {
+            return .cafe
+        }
+        if text.contains("harbor") || text.contains("harbour") || text.contains("marina") || text.contains("pier") || text.contains("fish market") {
+            return .harbor
+        }
+        if text.contains("waterfront") || text.contains("beach") || text.contains("river") || text.contains("shore") {
+            return .waterfront
+        }
+        if text.contains("trail") || text.contains("greenway") || text.contains("walkway") {
+            return .trail
+        }
+        if text.contains("park") || text.contains("garden") {
+            return .park
+        }
+        if text.contains("library") {
+            return .library
+        }
+        if text.contains("store") || text.contains("market") || text.contains("shop") || text.contains("pharmacy") {
+            return .store
+        }
+        if text.contains("station") || text.contains("terminal") || text.contains("bus") || text.contains("train") {
+            return .transit
+        }
+        return places.isEmpty ? .current : .neighborhood
+    }
+}
+
+struct CompassKnownPlace: Codable, Equatable, Identifiable {
+    var id: String
+    var name: String
+    var contextID: String
+    var latitude: Double
+    var longitude: Double
+    var radiusMeters: Double
+    var updatedAt: Date
+
+    var context: CompassPlaceContext {
+        CompassPlaceContext(rawValue: contextID) ?? .other
+    }
+
+    func distanceMeters(to latitude: Double, longitude: Double) -> Double {
+        AnchorMath.distanceMeters(
+            fromLatitude: self.latitude,
+            longitude: self.longitude,
+            toLatitude: latitude,
+            longitude: longitude
+        )
     }
 }
 
@@ -3781,32 +3893,53 @@ struct WonderCompassRunSeed: Equatable {
             """
         case .embark:
             return """
+            North made the goal:
+            \(spark)
+
+            East makes the plan to fulfill that goal.
+
             Destination: \(destination)
 
             Delight: \(delight)
 
             Definition: \(definition)
 
-            Cross one real threshold. The run begins when your body moves into the recipe.
+            Cross one real threshold when this plan feels small enough to begin.
             """
         case .sense:
             return """
-            Playful Mission:
+            Keep North's goal in mind:
+            \(spark)
+
+            Follow East's plan toward:
+            \(destination)
+
+            South puts you in your body when you reach the goal, or right at the start if this is a stay-put run.
+
+            Body Mission:
 
             \(mission)
 
-            Let your senses do the work. Keep a sentence or photo when something specific appears.
+            Let your senses answer what the goal was asking.
             """
         case .write:
             return """
-            One-Sentence Souvenir:
+            The run began with:
+            \(spark)
+
+            The plan pointed toward:
+            \(destination)
+
+            West keeps the best sensory moment from the run in one sentence.
 
             \(souvenirPrompt)
 
-            One sentence is enough. Make it sensory enough that tomorrow can find it again.
+            One sentence is enough. Make it concrete enough that tomorrow can find it again.
             """
         case .rest:
             return """
+            You followed the Compass from a question into a body-memory.
+
             \(restPrompt)
 
             Rest is the center of the Compass. Keep this page after the quiet minute, and the completed run adds 6 Belief.
@@ -4754,6 +4887,11 @@ enum CompassVenture {
         guard hasPlaces else { return .neighborhood }
         let threshold = tier == 2 ? 0.5 : 0.78
         return roll < threshold ? .destination : .neighborhood
+    }
+
+    static func deterministicRoll(seed: String) -> Double {
+        let bucket = abs("\(seed)-compass-venture".stableHash % 10_000)
+        return Double(bucket) / 10_000.0
     }
 }
 

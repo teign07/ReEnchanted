@@ -407,6 +407,19 @@ struct ContentView: View {
         return inputs
     }
 
+    var keptPageCount: Int {
+        days.reduce(0) { $0 + $1.pages.count }
+    }
+
+    func isMemoryPageLocked(_ type: BookPageType) -> Bool {
+        BookMemoryGate.locks(type, keptPageCount: keptPageCount)
+    }
+
+    func showMemoryPageLockedMessage(for type: BookPageType) {
+        BookFeedback.play(.error)
+        statusMessage = BookMemoryGate.message(for: type, keptPageCount: keptPageCount)
+    }
+
     var selectedCuratorSurfaces: [SurfacePage] {
         buildCuratorSurfaces(now: surfaceRefreshDate)
     }
@@ -752,6 +765,7 @@ struct ContentView: View {
                     onCompleteCompassRun: { completedSurface in
                         completeCompassRunIfNeeded(completedSurface)
                     },
+                    compassAnchors: anchorLedger,
                     onStoryMechanicCompleted: { completedSurface, outcome in
                         openStoryMechanicReturnPage(from: completedSurface, outcome: outcome)
                     },
@@ -1699,7 +1713,40 @@ struct ContentView: View {
             celebrationGreyShift: Almanac.greyShift(on: Date(), hemisphere: hemisphere)
         )
         let festival = Almanac.active(on: Date(), hemisphere: hemisphere) != nil
-        radioManager.updateWorldState(grey: greyLevel * 33, festivalActive: festival)
+        radioManager.updateWorldState(
+            grey: greyLevel * 33,
+            festivalActive: festival,
+            pageContext: radioPageContext(now: Date())
+        )
+    }
+
+    func radioPageContext(now: Date = Date(), calendar: Calendar = .current) -> RadioPageContext {
+        let startOfToday = calendar.startOfDay(for: now)
+        let recentStart = calendar.date(byAdding: .day, value: -7, to: now) ?? now.addingTimeInterval(-7 * 24 * 3600)
+        let recentPages = days
+            .flatMap(\.pages)
+            .filter { $0.createdAt >= recentStart && $0.createdAt <= now }
+            .sorted { $0.createdAt > $1.createdAt }
+
+        let recentTypeCounts = recentPages.reduce(into: [BookPageType: Int]()) { counts, page in
+            counts[page.type, default: 0] += 1
+        }
+        let keptToday = recentPages.filter { $0.createdAt >= startOfToday }.count
+        let recentSourceIDs = Set(recentPages.map(\.sourceID))
+        let recentTags = Set(recentPages.flatMap(\.tags))
+        let weatherTags = RadioPageContext.weatherTags(
+            weather: weatherPageSignal,
+            enchanted: enchantedWeather
+        )
+
+        return RadioPageContext(
+            keptToday: keptToday,
+            recentPageTypeCounts: recentTypeCounts,
+            recentSourceIDs: recentSourceIDs,
+            recentTags: recentTags,
+            lastKeptPageType: recentPages.first?.type,
+            weatherTags: weatherTags
+        )
     }
 
     func tuneRadio(stationID: String) {
@@ -1804,7 +1851,11 @@ struct ContentView: View {
             }
 
         case "remembered":
-            selectedSurface = freshManualSurface(for: .bookRemembered)
+            if isMemoryPageLocked(.bookRemembered) {
+                showMemoryPageLockedMessage(for: .bookRemembered)
+            } else {
+                selectedSurface = freshManualSurface(for: .bookRemembered)
+            }
 
         case "glow":
             selectedSurface = freshManualSurface(for: .glowInvitation)
@@ -1814,7 +1865,11 @@ struct ContentView: View {
 
         default:
             if let type = BookPageType(rawValue: destination) {
-                selectedSurface = freshManualSurface(for: type)
+                if isMemoryPageLocked(type) {
+                    showMemoryPageLockedMessage(for: type)
+                } else {
+                    selectedSurface = freshManualSurface(for: type)
+                }
             } else {
                 selectedSurface = surfaces.first
             }
@@ -1826,6 +1881,11 @@ struct ContentView: View {
 
     @MainActor
     func openManualPage(_ type: BookPageType) async {
+        if isMemoryPageLocked(type) {
+            showMemoryPageLockedMessage(for: type)
+            return
+        }
+
         switch type {
         case .narrativeOS:
             if generation.preparedStoryPageSurface == nil {
@@ -2348,6 +2408,10 @@ struct ContentView: View {
                         case .braid:
                             Task { await braidToday() }
                         case .open:
+                            if isMemoryPageLocked(surface.type) {
+                                showMemoryPageLockedMessage(for: surface.type)
+                                return
+                            }
                             if SurfaceReadinessState(surface: surface).needsLocalBrainToOpen {
                                 Task { await generateAndOpenSurface(surface) }
                             } else if surface.type == .bookConnections {
@@ -2916,8 +2980,12 @@ struct ContentView: View {
                             .foregroundStyle(BookPalette.nightText.opacity(0.62))
                         Spacer()
                         Button {
-                            BookFeedback.play(.openPage)
-                            isConnectionsPresented = true
+                            if isMemoryPageLocked(.bookConnections) {
+                                showMemoryPageLockedMessage(for: .bookConnections)
+                            } else {
+                                BookFeedback.play(.openPage)
+                                isConnectionsPresented = true
+                            }
                         } label: {
                             Label("Open connections", systemImage: "sparkles.rectangle.stack")
                                 .font(.caption.weight(.bold))
@@ -4510,6 +4578,11 @@ struct ContentView: View {
 
     @MainActor
     func generateAndOpenSurface(_ surface: SurfacePage) async {
+        if isMemoryPageLocked(surface.type) {
+            showMemoryPageLockedMessage(for: surface.type)
+            return
+        }
+
         switch surface.type {
         case .narrativeOS:
             statusMessage = "The Story Page is calling the local Book brain..."
