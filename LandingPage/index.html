@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./styles.css?v=5">
+    <link rel="stylesheet" href="./styles.css?v=10">
   </head>
   <body>
     <canvas id="spell-field" aria-hidden="true"></canvas>
@@ -86,7 +86,7 @@
           <p class="eyebrow">Play with it</p>
           <h2>Open the book. Keep what's true.</h2>
           <p class="section-sub">
-            This is the real thing, in miniature. Turn the pages, keep the ones that
+            A web-sized taste, this is just to give you the idea; turn the pages, keep the ones that
             catch a real edge, let the others wait — then bind your choices into a
             <em>Book of You</em>.
           </p>
@@ -140,12 +140,57 @@
                   </div>
                   <p class="keep-status" id="keep-status">8 pages rising · keep the ones that are true</p>
 
+                  <div class="story-choices" id="story-choices" hidden>
+                    <p class="story-choices-heading">Choose how the page turns — keep it to brave that future.</p>
+                    <div class="story-options" id="story-options" role="group" aria-label="Story page choices"></div>
+                  </div>
+
+                  <div class="character-choices" id="character-choices" hidden>
+                    <p class="character-choices-heading">Choose who steps out of the margin.</p>
+                    <div class="character-options" id="character-options" role="group" aria-label="Character page choices"></div>
+                  </div>
+
+                  <div class="enchantment-lab" id="enchantment-lab" hidden>
+                    <p class="enchantment-heading">Choose a spell. Give it something real.</p>
+                    <div class="enchantment-spells" id="enchantment-spells" role="group" aria-label="Enchantment choices"></div>
+                    <div class="enchantment-samples" id="enchantment-samples" role="group" aria-label="Sample images"></div>
+                    <p class="enchantment-note">In the real app, you use your own photos. Apple Vision tags what is actually in them, then the spell writes from those clues.</p>
+                    <div class="enchantment-reading" id="enchantment-reading" aria-live="polite"></div>
+                  </div>
+
+                  <div class="wonder-choices" id="wonder-choices" hidden>
+                    <p class="wonder-heading"><strong>The Wonder Compass: A Field Guide to Finding Magic in the Mess</strong> is included free, to pull you out of routine and into Wonder any day.</p>
+                    <div class="wonder-options" id="wonder-options" role="group" aria-label="Wonder Compass chapter choices"></div>
+                  </div>
+
+                  <div class="fuel-log" id="fuel-log" hidden>
+                    <label class="margin-note">
+                      <span class="margin-note-label">Fuel log</span>
+                      <input id="fuel-input" type="text" maxlength="140" autocomplete="off"
+                             placeholder="two eggs, toast with butter, coffee">
+                    </label>
+                    <div class="fuel-samples" id="fuel-samples" role="group" aria-label="Fuel log samples"></div>
+                    <div class="fuel-reading" id="fuel-reading" aria-live="polite"></div>
+                  </div>
+
+                  <div class="inner-weather" id="inner-weather" hidden>
+                    <p class="inner-weather-heading">Name the weather without making it a verdict.</p>
+                    <div class="inner-weather-options" id="inner-weather-options" role="group" aria-label="Inner weather options"></div>
+                    <label class="margin-note">
+                      <span class="margin-note-label">Add one private detail</span>
+                      <input id="inner-weather-input" type="text" maxlength="120" autocomplete="off"
+                             placeholder="because the morning felt too loud">
+                    </label>
+                    <div class="inner-weather-reading" id="inner-weather-reading" aria-live="polite"></div>
+                  </div>
+
                   <div class="stacks-radio" id="stacks-radio" hidden>
-                    <button class="radio-toggle" id="radio-toggle" type="button" aria-pressed="false">
+                    <p class="radio-heading">Tune the Stacks — the Book follows the signal.</p>
+                    <div class="radio-stations" id="radio-stations" role="group" aria-label="Stacks radio stations"></div>
+                    <div class="radio-status">
                       <span class="radio-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-                      <span class="radio-label" id="radio-label">Tune in the Stacks</span>
-                    </button>
-                    <span class="radio-now" id="radio-now" hidden></span>
+                      <span class="radio-now" id="radio-now">Nothing playing yet — tap a station.</span>
+                    </div>
                     <audio id="radio-audio" preload="none" loop></audio>
                   </div>
 
@@ -153,8 +198,14 @@
                     <label class="margin-note">
                       <span class="margin-note-label">One-sentence souvenir</span>
                       <input id="reader-line" type="text" maxlength="120" autocomplete="off"
-                             placeholder="The exact thing I want to keep is...">
+                             placeholder="What did today smell or sound like?">
                     </label>
+
+                    <div class="souvenir-sparks">
+                      <span class="souvenir-sparks-label">Stuck? Borrow a line, then bend it toward your day:</span>
+                      <div class="souvenir-samples" id="souvenir-samples"></div>
+                    </div>
+
                     <div class="polisher-card" aria-live="polite">
                       <span class="polisher-mark" aria-hidden="true">✦</span>
                       <span class="polisher-copy">
@@ -164,7 +215,6 @@
                     </div>
                     <div class="polisher-actions">
                       <button class="polisher-btn" id="polish-btn" type="button">Polish gently</button>
-                      <button class="polisher-btn ghost" id="restore-sentence-btn" type="button">Use sample line</button>
                     </div>
                   </div>
                 </div>
@@ -330,7 +380,7 @@
         <div class="how-grid">
           <article class="how-card">
             <span class="how-num">01</span>
-            <h3>Pages arrive</h3>
+            <h3>Pages arrive. Play with them.</h3>
             <p>
               The day shows up as little doors: weather, body signals, places, music,
               questions, one-sentence souvenirs, photos. No blank page, no streak to defend.
@@ -1158,6 +1208,6 @@
     </div>
 
     <!-- You looked behind the page. Riddlewind approves. Penny misfiled a receipt marked 97.3. -->
-    <script src="./app.js?v=4"></script>
+    <script src="./app.js?v=10"></script>
   </body>
 </html>

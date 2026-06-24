@@ -104,7 +104,7 @@ const PAGES = [
     bodyHTML: weatherPageHTML(FALLBACK_WEATHER),
     source: "Weather doorway · public forecast",
     shot: "./assets/screens/story-page-weather-prose.png",
-    braid: "The Weather Page opened on fog, and I kept the sky exactly as it stood.",
+    braid: "Fog pressed its thumb to the Weather Page, softening the streetlights until the whole sky felt made of wool.",
   },
   {
     kicker: "Story Page · A Choice",
@@ -112,16 +112,35 @@ const PAGES = [
     body: "Professor Villanelle has found a brittle weather chart whose reading does not match its shadow. Examine the paper's texture, align the chart, or listen to the silence — Slice of Life, Arc, and Surprise each make a different future true.",
     source: "Weather in the Stacks · playable fiction",
     shot: "./assets/screens/story-page-weather-choices.png",
-    braid: "A brittle chart offered three ways forward; I kept the fact that the page could turn differently.",
+    braid: "The brittle chart smelled faintly of dust and rain; three futures lifted their corners like paper wanting wind.",
+    storyPrompt: true,
   },
   {
     kicker: "Radio",
     title: "Music becomes weather in the stacks.",
-    body: "Broadcasts and world effects drift through the shelves as atmosphere — a mood you can keep alongside the day. Tune the Stacks for a moment, then keep the station if it changes the room.",
+    body: "Broadcasts drift through the shelves as atmosphere. Tune one in; the Book listens differently afterward.",
     source: "World effect",
     shot: "./assets/screens/radio.jpg",
-    braid: "A broadcast drifted through and became weather in the stacks.",
+    braid: "A broadcast found the rafters and made the shelves hum, each spine holding a different temperature of song.",
     radioPrompt: true,
+  },
+  {
+    kicker: "Fuel Log",
+    title: "Dr. Vellum opens a plate note.",
+    body: "Log ordinary fuel in plain language. Vellum's assistant can pencil in rough nutrition, then Dr. Vellum reads it as care evidence, never a verdict.",
+    source: "Dr. Vellum's Chart · nutrition lookup",
+    shot: "./assets/art/cast-dr-vellum.jpg",
+    braid: "Dr. Vellum set the plate note beside a cranberry pencil and let the numbers cool before they could bite.",
+    fuelPrompt: true,
+  },
+  {
+    kicker: "Inner Weather",
+    title: "Name the weather inside.",
+    body: "Choose the nearest weather, then add one private detail. Dr. Inkrest reads inner weather as context before anyone tries to fix it.",
+    source: "Dr. Inkrest's Chart · inner weather",
+    shot: "./assets/screens/belief-cast.jpg",
+    braid: "I named the inward weather and felt the room unclench, as if the ceiling had been waiting for the word.",
+    innerWeatherPrompt: true,
   },
   {
     kicker: "One-Sentence Souvenir",
@@ -129,33 +148,36 @@ const PAGES = [
     body: "The Book is asking for your sentence now: one sensory, specific line that would otherwise vanish. The app's sentence helper wakes the line, polishes it gently, and lets you keep it when it can stand.",
     source: "Kept from the margins",
     shot: "./assets/screens/margins.jpg",
-    braid: "There was the walk at Moose Point, a small hand in mine, the waves rolling in.",
+    braid: "At Moose Point, a small hand warmed my palm while the waves folded silver over stone.",
     quiet: true,
     sentencePrompt: true,
   },
   {
     kicker: "A Character Arrives",
-    title: "Professor Vivian Villanelle.",
-    body: "Professor of Ink-Binding and Souvenir Craft — exacting, lyrical, kind. A person is never only the rumor that arrives before them.",
-    source: "Faculty letter",
-    shot: "./assets/screens/keep-page.jpg",
-    braid: "Professor Villanelle taught me to keep one true moment in one durable sentence.",
+    title: "Zara Finch, pressed and filed.",
+    body: "Zara notices exits before introductions and calls it being prepared. She is loyal enough to find the path that holds, and wary enough to check whether it will hold twice.",
+    source: "Riddlewind guide · hidden alcoves",
+    shot: "./assets/screens/character-zara-finch.png",
+    braid: "Zara Finch stepped out of the file with storm-gray eyes and a satchel full of exits, and the hallway straightened for her.",
+    characterPrompt: true,
   },
   {
     kicker: "Spells & Glow",
-    title: "Warming Glow.",
-    body: "The current belief state is steady and gently luminous. Open Compass Runs, a noticing game, or let an Enchantment reveal the spellbook nature of an ordinary subject.",
-    source: "Belief state",
-    shot: "./assets/screens/spells.jpg",
-    braid: "My belief state ran warm that month — steady, and gently luminous.",
+    title: "Cast an Enchantment.",
+    body: "Choose a spell and one true photo. In the app, Apple Vision tags your own images so the magic can stay close to what is actually there.",
+    source: "Enchantment · illuminated photo",
+    shot: "./assets/screens/enchantment-rabbit.jpeg",
+    braid: "I gave the Book an ordinary image; gold ink gathered at its edges and made the real thing answer.",
+    enchantmentPrompt: true,
   },
   {
     kicker: "Wonder Compass",
-    title: "Let wonder interrupt the usual.",
-    body: "Reframe a gray commute, a familiar street, a tired room until it becomes legible again. Walk. Notice. Record. Return.",
-    source: "Real-world wonder",
+    title: "Choose a chapter for the day.",
+    body: "The Wonder Compass is a free field guide inside the app: tiny practices for stepping out of routine and back into wonder.",
+    source: "Wonder Compass · free field guide",
     shot: "./assets/screens/wonder-compass.jpg",
-    braid: "On a gray commute I let wonder interrupt the usual, and the street read new.",
+    braid: "The Compass clicked in my pocket, and the gray commute opened one green eye.",
+    wonderPrompt: true,
   },
   {
     kicker: "Real Life, Kept",
@@ -163,7 +185,7 @@ const PAGES = [
     body: "Low light holds. The textile shows its surface to the light. An ordinary afternoon, framed and witnessed.",
     source: "Ordinary wonder",
     shot: "./assets/screens/real-life-kept.jpg",
-    braid: "A quiet afternoon in low light — ordinary, and the Book kept it anyway.",
+    braid: "Low light pooled in the fabric, and the afternoon lay down quietly enough for the Book to hear it breathing.",
     quiet: true,
   },
 ];
@@ -187,8 +209,23 @@ const readerLineInput = document.querySelector("#reader-line");
 const polisherStatus = document.querySelector("#polisher-status");
 const polisherPreview = document.querySelector("#polisher-preview");
 const polishBtn = document.querySelector("#polish-btn");
-const restoreSentenceBtn = document.querySelector("#restore-sentence-btn");
 const stacksRadio = document.querySelector("#stacks-radio");
+const characterChoices = document.querySelector("#character-choices");
+const characterOptionsWrap = document.querySelector("#character-options");
+const enchantmentLab = document.querySelector("#enchantment-lab");
+const enchantmentSpellsWrap = document.querySelector("#enchantment-spells");
+const enchantmentSamplesWrap = document.querySelector("#enchantment-samples");
+const enchantmentReading = document.querySelector("#enchantment-reading");
+const wonderChoices = document.querySelector("#wonder-choices");
+const wonderOptionsWrap = document.querySelector("#wonder-options");
+const fuelLog = document.querySelector("#fuel-log");
+const fuelInput = document.querySelector("#fuel-input");
+const fuelSamplesWrap = document.querySelector("#fuel-samples");
+const fuelReading = document.querySelector("#fuel-reading");
+const innerWeather = document.querySelector("#inner-weather");
+const innerWeatherOptionsWrap = document.querySelector("#inner-weather-options");
+const innerWeatherInput = document.querySelector("#inner-weather-input");
+const innerWeatherReading = document.querySelector("#inner-weather-reading");
 const nav = document.querySelector("#book-nav");
 const btnPrev = document.querySelector("#btn-prev");
 const btnNext = document.querySelector("#btn-next");
@@ -203,7 +240,6 @@ const braidReplay = document.querySelector("#braid-replay");
 let index = 0;
 let animating = false;
 const choices = new Array(PAGES.length).fill(null); // null | "keep" | "wait"
-const SAMPLE_SENTENCE = "The walk at Moose Point held a small hand in mine while the waves rolled into the afternoon.";
 
 function isDecisionPage(page) {
   return page.decision !== false;
@@ -264,6 +300,46 @@ function renderStacksRadio() {
   stacksRadio.hidden = !PAGES[index].radioPrompt;
 }
 
+function renderCharacterChoices() {
+  if (!characterChoices) return;
+  characterChoices.hidden = !PAGES[index].characterPrompt;
+  if (PAGES[index].characterPrompt && !selectedCharacterId) {
+    selectCharacter(BOOK_CHARACTERS[0].id, { quiet: true });
+  }
+}
+
+function renderEnchantmentLab() {
+  if (!enchantmentLab) return;
+  enchantmentLab.hidden = !PAGES[index].enchantmentPrompt;
+  if (PAGES[index].enchantmentPrompt && !selectedEnchantmentId) {
+    selectEnchantment(BOOK_ENCHANTMENTS[0].id, { quiet: true });
+  }
+}
+
+function renderWonderChoices() {
+  if (!wonderChoices) return;
+  wonderChoices.hidden = !PAGES[index].wonderPrompt;
+  if (PAGES[index].wonderPrompt && !selectedWonderChapterId) {
+    selectWonderChapter(WONDER_CHAPTERS[0].id, { quiet: true });
+  }
+}
+
+function renderFuelLog() {
+  if (!fuelLog) return;
+  fuelLog.hidden = !PAGES[index].fuelPrompt;
+  if (PAGES[index].fuelPrompt) updateFuelLog({ quiet: true });
+}
+
+function renderInnerWeather() {
+  if (!innerWeather) return;
+  innerWeather.hidden = !PAGES[index].innerWeatherPrompt;
+  if (PAGES[index].innerWeatherPrompt && !selectedInnerWeatherId) {
+    selectInnerWeather(INNER_WEATHER_OPTIONS[0].id, { quiet: true });
+  } else if (PAGES[index].innerWeatherPrompt) {
+    updateInnerWeatherPage({ quiet: true });
+  }
+}
+
 function render() {
   const p = PAGES[index];
   elKicker.textContent = p.kicker;
@@ -279,12 +355,23 @@ function render() {
   const decisionPage = isDecisionPage(p);
   const choice = choices[index];
   screenWrap.classList.toggle("is-kept", choice === "keep");
+  screenWrap.classList.toggle("is-character", Boolean(p.characterPrompt));
+  screenWrap.classList.toggle("is-enchantment", Boolean(p.enchantmentPrompt));
+  screenWrap.classList.toggle("is-wonder", Boolean(p.wonderPrompt));
+  screenWrap.classList.toggle("is-fuel", Boolean(p.fuelPrompt));
+  screenWrap.classList.toggle("is-inner-weather", Boolean(p.innerWeatherPrompt));
   btnKeep.classList.toggle("chosen", choice === "keep");
   btnWait.classList.toggle("chosen", choice === "wait");
   keepControls.hidden = !decisionPage;
   elStatus.hidden = !decisionPage;
   renderSentencePolisher();
   renderStacksRadio();
+  renderStoryChoices();
+  renderCharacterChoices();
+  renderEnchantmentLab();
+  renderWonderChoices();
+  renderFuelLog();
+  renderInnerWeather();
 
   navCount.textContent = `Page ${index + 1} of ${PAGES.length}`;
   btnPrev.disabled = index === 0;
@@ -343,7 +430,7 @@ function buildBraid() {
   const sentencePageKept = keptIndices.some((i) => PAGES[i].sentencePrompt);
   const keptLines = keptIndices.map((i) => {
     if (PAGES[i].sentencePrompt && readerLine) {
-      return `I kept one sentence from the day: <em class="reader-own">${escapeHTML(readerLine)}</em>`;
+      return `I wrote one true line and the ink kept its pulse: <em class="reader-own">${escapeHTML(readerLine)}</em>`;
     }
     return PAGES[i].braid;
   });
@@ -359,6 +446,12 @@ function buildBraid() {
   const own = readerLine && !sentencePageKept ? `<em class="reader-own">${escapeHTML(readerLine)}</em>` : "";
   const lead = own ? `${own}  ` : "";
   const woven = keptLines.join("  ");
+  const fuelKept = FUEL_INDEX >= 0 && choices[FUEL_INDEX] === "keep";
+  const innerWeatherKept = INNER_WEATHER_INDEX >= 0 && choices[INNER_WEATHER_INDEX] === "keep";
+  const innerWeatherLabel = INNER_WEATHER_OPTIONS.find((w) => w.id === selectedInnerWeatherId)?.label.toLowerCase() || "the inward sky";
+  const supportGuildSurprise = fuelKept && innerWeatherKept
+    ? `  Later, Dr. Vellum slid the plate note under Dr. Inkrest's weather glass: ${fuelEstimateLine || "warm fuel"} and ${innerWeatherLabel} fogged the same edge of the lens. Two dialects, one body speaking.`
+    : "";
 
   if (keptLines.length === 0) {
     if (own) {
@@ -370,25 +463,25 @@ function buildBraid() {
   }
   if (allKept) {
     braidIntro.textContent = "You kept everything. The Book has concerns. Affectionate ones.";
-    return `${lead}${woven}  In the final margin, a small hand has written: sentimental, perhaps — but paying attention is hardly the worst trouble to be in.`;
+    return `${lead}${woven}${supportGuildSurprise}  In the final margin, a small hand wrote in brown ink: sentimental, perhaps, but the shelf was warm where you touched it.`;
   }
   if (alternating) {
     braidIntro.textContent = "A Riddlewind pattern appeared between yes and not yet.";
-    return `${lead}${woven}  Every other door remained closed. Together, the open doors spelled a question the Book has declined to translate.`;
+    return `${lead}${woven}  Every other door stayed shut; together, the open ones breathed keyhole-cold and spelled a question the Book would not translate.`;
   }
   if (quietPagesOnly) {
     braidIntro.textContent = "The Book noticed what kind of pages you chose.";
-    return `${lead}${woven}  No spectacle asked to be remembered. The ordinary things made a small constellation anyway.`;
+    return `${lead}${woven}  No spectacle asked to be remembered. The ordinary things pricked holes in the dark and made a small constellation anyway.`;
   }
   braidIntro.textContent = own
     ? `Braided from your own line and the ${keptLines.length} page${keptLines.length === 1 ? "" : "s"} you kept.`
     : `Braided from the ${keptLines.length} page${keptLines.length === 1 ? "" : "s"} you kept.`;
   // each kept line is already a complete sentence — weave them into one passage
-  return `${lead}${woven}`;
+  return `${lead}${woven}${supportGuildSurprise}`;
 }
 
 /* ── the Book of You edition: theme, stats, and The Reader's Sky ── */
-const PAGE_WORDS = ["Weather", "Chart", "Music", "Sentence", "Faculty", "Light", "Wonder", "Light"];
+const PAGE_WORDS = ["Weather", "Chart", "Music", "Fuel", "Weather", "Sentence", "Character", "Light", "Wonder", "Light"];
 
 function hashStr(s) {
   let h = 0;
@@ -559,6 +652,13 @@ function replay() {
   choices.fill(null);
   readerLine = "";
   if (readerLineInput) readerLineInput.value = "";
+  resetRadio();
+  resetStory();
+  resetCharacter();
+  resetEnchantment();
+  resetWonderChapter();
+  resetFuelLog();
+  resetInnerWeather();
   book.dataset.state = "open";
   index = 0;
   btnNext.disabled = false;
@@ -641,12 +741,52 @@ polishBtn?.addEventListener("click", () => {
   renderSentencePolisher();
   if (readerLineInput.value) hint.textContent = "Polished. If it feels true, keep this page.";
 });
-restoreSentenceBtn?.addEventListener("click", () => {
-  if (!readerLineInput) return;
-  readerLineInput.value = SAMPLE_SENTENCE;
-  renderSentencePolisher();
-  hint.textContent = "Sample loaded. Replace it with your own line if you like.";
-});
+/* ── One-Sentence Souvenir: ideas + sample lines to borrow ──
+   The samples quietly model the craft — sensory, exact, synaesthetic, and a thing
+   with a will of its own — without naming any of it. The rotating placeholder
+   suggests what to write about. */
+const SOUVENIR_SAMPLES = [
+  "Rain ticked on the skylight while the kettle made its small argument.",
+  "The cold tasted blue, and the streetlight hummed a colour I couldn't name.",
+  "My old coat insisted on the long way home, and I let it.",
+  "She folded the receipt like a secret, and I pretended not to see.",
+];
+const SOUVENIR_PROMPTS = [
+  "What did today smell or sound like?",
+  "Name one exact small thing — a colour, a word, an object.",
+  "What did a feeling taste, or weigh?",
+  "If one thing in the room could talk, what would it want?",
+  "Who passed through, and what did they leave behind?",
+];
+const souvenirSamplesWrap = document.querySelector("#souvenir-samples");
+
+function buildSouvenirSamples() {
+  if (!souvenirSamplesWrap || souvenirSamplesWrap.dataset.built) return;
+  souvenirSamplesWrap.innerHTML = SOUVENIR_SAMPLES.map((s, i) =>
+    `<button class="souvenir-sample" type="button" data-i="${i}">${escapeHTML(s)}</button>`).join("");
+  souvenirSamplesWrap.dataset.built = "1";
+  souvenirSamplesWrap.querySelectorAll(".souvenir-sample").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      if (!readerLineInput) return;
+      readerLineInput.value = SOUVENIR_SAMPLES[Number(btn.dataset.i)];
+      renderSentencePolisher();
+      readerLineInput.focus();
+      hint.textContent = "Borrowed. Now bend it toward your real day, then keep it.";
+    }));
+}
+buildSouvenirSamples();
+
+let souvenirPromptIdx = 0;
+function rotateSouvenirPrompt() {
+  if (!readerLineInput || !sentencePolisher || sentencePolisher.hidden) return;
+  if (readerLineInput.value) return; // don't fight a line the reader is writing
+  souvenirPromptIdx = (souvenirPromptIdx + 1) % SOUVENIR_PROMPTS.length;
+  readerLineInput.placeholder = SOUVENIR_PROMPTS[souvenirPromptIdx];
+}
+if (readerLineInput) {
+  readerLineInput.placeholder = SOUVENIR_PROMPTS[0];
+  setInterval(rotateSouvenirPrompt, 3600);
+}
 
 /* ── launch list: capture an email so the Book can write when the doors open ──
    Static site, no backend. Paste a Buttondown / Formspree / Apps Script URL into
@@ -784,20 +924,30 @@ if (pageCorner) {
   pageCorner.addEventListener("pointercancel", endCurl);
 }
 
-/* ── ambient Stacks radio: muted by default, one tap to tune in ──
-   The station follows the visitor's daypart, the way the app's feed does. */
-const STACKS_STATIONS = {
-  dawn: { src: "fae-fi-folktronica.m4a", name: "Fae-Fi · Folktronica" },
-  day: { src: "mothlight-afternoon-chapters.m4a", name: "Mothlight · Afternoon Chapters" },
-  dusk: { src: "thornwave-nocturnal-faerie-lounge.m4a", name: "Thornwave · Nocturnal Faerie Lounge" },
-  night: { src: "thornwave-whispering-shadows.m4a", name: "Thornwave · Whispering Shadows" },
-};
-const radioToggle = document.querySelector("#radio-toggle");
+/* ── ambient Stacks radio: pick a station, and keep the one you tuned to ──
+   The reader chooses the station; whichever is selected colors the braid line
+   the Radio page contributes if they keep it. Muted until a real tap.
+   (Named BOOK_STATIONS to avoid clashing with the page's STATIONS registry.) */
+const BOOK_STATIONS = [
+  { id: "fae-fi", name: "Fae-Fi", introLabel: "Penny intro", track: "Folktronica", intro: "fae-fi-penny-intro-folktronica.m4a", src: "fae-fi-folktronica.m4a",
+    braid: "Fae-Fi flickered through Penny's grin; folktronica put green sparks in the rafters and made the afternoon taste like clover soda." },
+  { id: "mothlight", name: "Mothlight", introLabel: "Euphony ID", track: "Afternoon Chapters", intro: "mothlight-euphony-id-01.m4a", src: "mothlight-afternoon-chapters.m4a",
+    braid: "Mothlight lowered its voice until the shelves breathed paper-dust and lavender; even the hinges turned pages more softly." },
+  { id: "thornwave", name: "Thornwave", introLabel: "Wicker ID", track: "Nocturnal Faerie Lounge", intro: "thornwave-wicker-id-01.m4a", src: "thornwave-nocturnal-faerie-lounge.m4a",
+    braid: "Wicker's Thornwave ID clicked like a black match; bass gathered under the floorboards and made doubt feel velvet-backed." },
+  { id: "the-bleed", name: "The Bleed", introLabel: "Signal break", track: "Pirate Signal", intro: "the-bleed-pirate-signal.m4a", src: "the-bleed-pirate-signal.m4a",
+    braid: "The Bleed came in sideways, all salt-static and torn ribbon, and the Book kept the part of the signal that tasted like a locked door." },
+];
+const RADIO_INDEX = PAGES.findIndex((p) => p.radioPrompt);
+const DEFAULT_RADIO_BRAID = RADIO_INDEX >= 0 ? PAGES[RADIO_INDEX].braid : "";
 const radioAudio = document.querySelector("#radio-audio");
-const radioLabel = document.querySelector("#radio-label");
+const radioStationsWrap = document.querySelector("#radio-stations");
 const radioNow = document.querySelector("#radio-now");
+let selectedStationId = null;
 let radioOn = false;
 let radioFade = null;
+let radioPhase = "idle"; // idle | intro | track
+
 function fadeRadio(target, done) {
   clearInterval(radioFade);
   radioFade = setInterval(() => {
@@ -807,30 +957,745 @@ function fadeRadio(target, done) {
     if (Math.abs(next - target) < 0.001) { clearInterval(radioFade); if (done) done(); }
   }, 80);
 }
-if (radioToggle && radioAudio) {
-  radioToggle.addEventListener("click", async () => {
-    if (!radioOn) {
-      const st = STACKS_STATIONS[root.dataset.daypart] || STACKS_STATIONS.day;
-      if (!radioAudio.src) radioAudio.src = "./assets/audio/" + st.src;
-      radioAudio.volume = 0;
-      try { await radioAudio.play(); } catch (_) { return; } // blocked → stay quiet
-      radioOn = true;
-      radioToggle.setAttribute("aria-pressed", "true");
-      radioToggle.classList.add("on");
-      radioLabel.textContent = "Tuned in";
-      radioNow.hidden = false;
-      radioNow.textContent = st.name;
-      fadeRadio(0.32);
-    } else {
-      radioOn = false;
-      radioToggle.setAttribute("aria-pressed", "false");
-      radioToggle.classList.remove("on");
-      radioLabel.textContent = "Tune in the Stacks";
-      radioNow.hidden = true;
-      fadeRadio(0, () => radioAudio.pause());
+
+function updateRadioUI() {
+  radioStationsWrap?.querySelectorAll(".radio-station").forEach((btn) => {
+    const isSel = btn.dataset.station === selectedStationId;
+    btn.classList.toggle("selected", isSel);
+    btn.classList.toggle("on", isSel && radioOn);
+    btn.setAttribute("aria-pressed", isSel && radioOn ? "true" : "false");
+  });
+  stacksRadio?.classList.toggle("playing", radioOn);
+  if (!radioNow) return;
+  const st = BOOK_STATIONS.find((s) => s.id === selectedStationId);
+  if (radioOn && st && radioPhase === "intro") radioNow.textContent = `DJ bit · ${st.name}`;
+  else if (radioOn && st) radioNow.textContent = `Playing · ${st.name} — ${st.track}`;
+  else if (st) radioNow.textContent = `Kept · ${st.name} — paused`;
+  else radioNow.textContent = "Nothing playing yet — tap a station.";
+}
+
+function stopRadio() {
+  radioOn = false;
+  radioPhase = "idle";
+  fadeRadio(0, () => radioAudio.pause());
+  updateRadioUI();
+}
+
+async function playStationTrack(st, options = {}) {
+  if (!st || !radioAudio) return;
+  radioPhase = "track";
+  radioAudio.loop = true;
+  if (!options.keepSource) radioAudio.src = "./assets/audio/" + st.src;
+  else radioAudio.currentTime = 0;
+  radioAudio.volume = options.fadeIn ? 0 : radioAudio.volume;
+  try { await radioAudio.play(); } catch (_) { updateRadioUI(); return; }
+  radioOn = true;
+  if (options.fadeIn) fadeRadio(0.32);
+  updateRadioUI();
+}
+
+async function selectStation(id) {
+  const st = BOOK_STATIONS.find((s) => s.id === id);
+  if (!st || !radioAudio) return;
+  if (selectedStationId === id && radioOn) { stopRadio(); return; } // tap the playing one to pause
+  selectedStationId = id;
+  if (RADIO_INDEX >= 0) PAGES[RADIO_INDEX].braid = st.braid; // the chosen station shapes the binding
+  radioPhase = "intro";
+  radioAudio.loop = false;
+  radioAudio.src = "./assets/audio/" + (st.intro || st.src);
+  radioAudio.volume = 0;
+  try { await radioAudio.play(); } catch (_) { updateRadioUI(); return; } // blocked → keep choice, stay quiet
+  radioOn = true;
+  fadeRadio(0.32);
+  updateRadioUI();
+}
+
+radioAudio?.addEventListener("ended", () => {
+  const st = BOOK_STATIONS.find((s) => s.id === selectedStationId);
+  if (!st || !radioOn || radioPhase !== "intro") return;
+  if (st.intro === st.src) {
+    playStationTrack(st, { keepSource: true, fadeIn: false });
+  } else {
+    playStationTrack(st, { fadeIn: false });
+  }
+});
+
+function resetRadio() {
+  if (radioOn) { radioOn = false; radioAudio.pause(); }
+  radioPhase = "idle";
+  if (radioAudio) radioAudio.loop = false;
+  selectedStationId = null;
+  if (RADIO_INDEX >= 0) PAGES[RADIO_INDEX].braid = DEFAULT_RADIO_BRAID;
+  updateRadioUI();
+}
+
+function buildStationButtons() {
+  if (!radioStationsWrap || radioStationsWrap.dataset.built) return;
+  radioStationsWrap.innerHTML = BOOK_STATIONS.map((s) =>
+    `<button class="radio-station" type="button" data-station="${s.id}" aria-pressed="false">
+       <span class="radio-station-name">${s.name}</span>
+       <span class="radio-station-track">${s.introLabel} → ${s.track}</span>
+     </button>`).join("");
+  radioStationsWrap.dataset.built = "1";
+  radioStationsWrap.querySelectorAll(".radio-station").forEach((btn) =>
+    btn.addEventListener("click", () => selectStation(btn.dataset.station)));
+}
+buildStationButtons();
+
+/* ── Fuel Log: a tiny static version of Vellum's nutrition lookup. The app can
+   use USDA FoodData; the demo keeps a local pocket table so the page works here. */
+const FUEL_INDEX = PAGES.findIndex((p) => p.fuelPrompt);
+const DEFAULT_FUEL_PAGE = FUEL_INDEX >= 0
+  ? {
+      title: PAGES[FUEL_INDEX].title,
+      body: PAGES[FUEL_INDEX].body,
+      source: PAGES[FUEL_INDEX].source,
+      shot: PAGES[FUEL_INDEX].shot,
+      braid: PAGES[FUEL_INDEX].braid,
     }
+  : null;
+const FUEL_SAMPLES = [
+  "two eggs, toast with butter, coffee",
+  "oatmeal, banana, peanut butter",
+  "lentil soup, rice, tea",
+];
+const FUEL_LOOKUP = [
+  { match: ["egg", "eggs"], kcal: 72, protein: 6, carbs: 0, fat: 5 },
+  { match: ["toast"], kcal: 95, protein: 3, carbs: 18, fat: 1 },
+  { match: ["butter"], kcal: 102, protein: 0, carbs: 0, fat: 12 },
+  { match: ["coffee"], kcal: 2, protein: 0, carbs: 0, fat: 0 },
+  { match: ["oatmeal", "oats"], kcal: 154, protein: 6, carbs: 27, fat: 3 },
+  { match: ["banana"], kcal: 105, protein: 1, carbs: 27, fat: 0 },
+  { match: ["peanut butter"], kcal: 188, protein: 8, carbs: 7, fat: 16 },
+  { match: ["lentil soup", "lentils"], kcal: 230, protein: 16, carbs: 40, fat: 1 },
+  { match: ["rice"], kcal: 205, protein: 4, carbs: 45, fat: 0 },
+  { match: ["tea"], kcal: 2, protein: 0, carbs: 0, fat: 0 },
+];
+let fuelText = "";
+let fuelEstimateLine = "";
+
+function estimateFuel(text) {
+  const lower = String(text || "").toLowerCase();
+  const total = { kcal: 0, protein: 0, carbs: 0, fat: 0, matched: [] };
+  FUEL_LOOKUP.forEach((item) => {
+    const hit = item.match.find((m) => lower.includes(m));
+    if (!hit) return;
+    const qtyMatch = lower.match(new RegExp(`(?:two|three|four|2|3|4)\\s+${hit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    const qtyWord = qtyMatch?.[0]?.split(/\s+/)[0];
+    const qty = qtyWord === "two" || qtyWord === "2" ? 2 : qtyWord === "three" || qtyWord === "3" ? 3 : qtyWord === "four" || qtyWord === "4" ? 4 : 1;
+    total.kcal += item.kcal * qty;
+    total.protein += item.protein * qty;
+    total.carbs += item.carbs * qty;
+    total.fat += item.fat * qty;
+    total.matched.push(hit);
+  });
+  if (!total.matched.length) return null;
+  return {
+    ...total,
+    line: `~${Math.round(total.kcal)} kcal · P ${Math.round(total.protein)}g · C ${Math.round(total.carbs)}g · F ${Math.round(total.fat)}g`,
+  };
+}
+
+function updateFuelLog(options = {}) {
+  if (!fuelInput || FUEL_INDEX < 0) return;
+  fuelText = fuelInput.value.trim();
+  const estimate = estimateFuel(fuelText);
+  fuelEstimateLine = estimate?.line || "";
+  const page = PAGES[FUEL_INDEX];
+  if (fuelText && estimate) {
+    page.title = "Vellum pencils in the numbers.";
+    page.body = `${fuelText}. ${estimate.line} (Vellum's rough arithmetic). Dr. Vellum calls this a body clue, not a moral score.`;
+    page.braid = `Dr. Vellum logged ${fuelText}; ${estimate.line} cooled in cranberry ink beside the plate, useful and deliberately toothless.`;
+    fuelReading.innerHTML = `<span class="fuel-reading-label">Vellum's assistant</span><p>${escapeHTML(estimate.line)} <em>(rough lookup)</em></p><p class="vellum-note">Dr. Vellum: "Useful enough to notice patterns. Never sharp enough to shame you."</p>`;
+  } else if (fuelText) {
+    page.title = "Vellum keeps the plate note.";
+    page.body = `${fuelText}. The demo lookup did not recognize enough ingredients, but the real app can use a broader nutrition source when configured.`;
+    page.braid = `Dr. Vellum kept the plate note "${fuelText}" unnumbered; the margin accepted it warm, without asking it to become a spreadsheet.`;
+    fuelReading.innerHTML = `<span class="fuel-reading-label">Vellum's assistant</span><p>No demo match yet. The note still counts.</p><p class="vellum-note">Dr. Vellum: "Absence of arithmetic is not absence of care."</p>`;
+  } else {
+    if (DEFAULT_FUEL_PAGE) Object.assign(page, DEFAULT_FUEL_PAGE);
+    fuelReading.innerHTML = `<span class="fuel-reading-label">Vellum's assistant</span><p>Try a plate note, or borrow one below.</p><p class="vellum-note">Dr. Vellum: "Plain language first. Numbers may follow politely."</p>`;
+  }
+  if (index === FUEL_INDEX) {
+    elTitle.textContent = page.title;
+    elBody.textContent = page.body;
+    elSource.textContent = page.source;
+    elShot.src = page.shot;
+  }
+  if (!options.quiet && fuelText) hint.textContent = "Fuel note filed — keep it to let Vellum compare patterns later.";
+}
+
+function resetFuelLog() {
+  fuelText = "";
+  fuelEstimateLine = "";
+  if (fuelInput) fuelInput.value = "";
+  if (DEFAULT_FUEL_PAGE && FUEL_INDEX >= 0) Object.assign(PAGES[FUEL_INDEX], DEFAULT_FUEL_PAGE);
+  if (fuelReading) fuelReading.innerHTML = "";
+}
+
+function buildFuelSamples() {
+  if (!fuelSamplesWrap || fuelSamplesWrap.dataset.built) return;
+  fuelSamplesWrap.innerHTML = FUEL_SAMPLES.map((sample) =>
+    `<button class="fuel-sample" type="button" data-fuel="${escapeHTML(sample)}">${escapeHTML(sample)}</button>`).join("");
+  fuelSamplesWrap.dataset.built = "1";
+  fuelSamplesWrap.querySelectorAll(".fuel-sample").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      if (!fuelInput) return;
+      fuelInput.value = btn.dataset.fuel || "";
+      updateFuelLog();
+    }));
+  fuelInput?.addEventListener("input", () => updateFuelLog());
+}
+buildFuelSamples();
+
+/* ── Inner Weather: Inkrest names weather as context, not identity. */
+const INNER_WEATHER_INDEX = PAGES.findIndex((p) => p.innerWeatherPrompt);
+const DEFAULT_INNER_WEATHER_PAGE = INNER_WEATHER_INDEX >= 0
+  ? {
+      title: PAGES[INNER_WEATHER_INDEX].title,
+      body: PAGES[INNER_WEATHER_INDEX].body,
+      source: PAGES[INNER_WEATHER_INDEX].source,
+      shot: PAGES[INNER_WEATHER_INDEX].shot,
+      braid: PAGES[INNER_WEATHER_INDEX].braid,
+    }
+  : null;
+const INNER_WEATHER_OPTIONS = [
+  { id: "fog", label: "Fog", tag: "soft edges", braid: "fog put felt on the edges of the next step and made distance look closer than it was" },
+  { id: "rain", label: "Rain", tag: "needed release", braid: "rain gave the pressure a gutter to sing through" },
+  { id: "static", label: "Static", tag: "too many signals", braid: "static filled the wires with tin-bright teeth, but one true word still got through" },
+  { id: "sunbreak", label: "Sunbreak", tag: "small clearing", braid: "a sunbreak opened for one minute, warm as brass, and the Book believed it" },
+];
+let selectedInnerWeatherId = null;
+let innerWeatherDetail = "";
+
+function updateInnerWeatherUI() {
+  innerWeatherOptionsWrap?.querySelectorAll(".inner-weather-option").forEach((btn) => {
+    const isSel = btn.dataset.weather === selectedInnerWeatherId;
+    btn.classList.toggle("selected", isSel);
+    btn.setAttribute("aria-pressed", isSel ? "true" : "false");
   });
 }
+
+function updateInnerWeatherPage(options = {}) {
+  if (INNER_WEATHER_INDEX < 0) return;
+  const weather = INNER_WEATHER_OPTIONS.find((w) => w.id === selectedInnerWeatherId) || INNER_WEATHER_OPTIONS[0];
+  innerWeatherDetail = innerWeatherInput?.value.trim() || "";
+  const cleanDetail = innerWeatherDetail.replace(/^(because|since)\s+/i, "").replace(/[.!?]$/, "");
+  const page = PAGES[INNER_WEATHER_INDEX];
+  page.title = `${weather.label} in the inward sky.`;
+  page.body = innerWeatherDetail
+    ? `Inner weather: ${weather.label.toLowerCase()}. Private detail: ${cleanDetail}. Dr. Inkrest keeps the weather separate from the self, which is how a person gets room to move.`
+    : `Inner weather: ${weather.label.toLowerCase()}. Dr. Inkrest keeps the weather separate from the self, which is how a person gets room to move.`;
+  page.braid = innerWeatherDetail
+    ? `I named ${weather.label.toLowerCase()} inside because ${cleanDetail}; the Book pinned it to the sky, not to my skin.`
+    : `I named the inward sky: ${weather.braid}.`;
+  if (innerWeatherReading) {
+    innerWeatherReading.innerHTML = `<span class="inner-weather-reading-label">Inkrest's margin</span><p>${escapeHTML(weather.label)} is a condition, not a character flaw.</p>`;
+  }
+  if (index === INNER_WEATHER_INDEX) {
+    elTitle.textContent = page.title;
+    elBody.textContent = page.body;
+    elSource.textContent = page.source;
+    elShot.src = page.shot;
+  }
+  if (!options.quiet) hint.textContent = `${weather.label} named — keep this page to braid the weather honestly.`;
+}
+
+function selectInnerWeather(id, options = {}) {
+  selectedInnerWeatherId = id;
+  updateInnerWeatherUI();
+  updateInnerWeatherPage(options);
+}
+
+function resetInnerWeather() {
+  selectedInnerWeatherId = null;
+  innerWeatherDetail = "";
+  if (innerWeatherInput) innerWeatherInput.value = "";
+  if (DEFAULT_INNER_WEATHER_PAGE && INNER_WEATHER_INDEX >= 0) Object.assign(PAGES[INNER_WEATHER_INDEX], DEFAULT_INNER_WEATHER_PAGE);
+  updateInnerWeatherUI();
+  if (innerWeatherReading) innerWeatherReading.innerHTML = "";
+}
+
+function buildInnerWeatherOptions() {
+  if (!innerWeatherOptionsWrap || innerWeatherOptionsWrap.dataset.built) return;
+  innerWeatherOptionsWrap.innerHTML = INNER_WEATHER_OPTIONS.map((w) =>
+    `<button class="inner-weather-option" type="button" data-weather="${w.id}" aria-pressed="false">
+       <span class="inner-weather-name">${escapeHTML(w.label)}</span>
+       <span class="inner-weather-tag">${escapeHTML(w.tag)}</span>
+     </button>`).join("");
+  innerWeatherOptionsWrap.dataset.built = "1";
+  innerWeatherOptionsWrap.querySelectorAll(".inner-weather-option").forEach((btn) =>
+    btn.addEventListener("click", () => selectInnerWeather(btn.dataset.weather)));
+  innerWeatherInput?.addEventListener("input", () => updateInnerWeatherPage({ quiet: true }));
+}
+buildInnerWeatherOptions();
+
+/* ── Story Page choices: the chosen form colors the braid line, the way the
+   app's Story Pages let Slice of Life / Arc / Surprise make a different future true. */
+const BOOK_STORY_CHOICES = [
+  { id: "slice", label: "Examine the paper's texture", form: "Slice of Life",
+    braid: "I held the brittle chart close enough to feel its grain; the day's whole plot was hiding in the rough place under my thumb." },
+  { id: "arc", label: "Align the chart", form: "Arc",
+    braid: "I aligned the chart with its shadow, and the day bent like a wet branch toward the ending it had been practicing." },
+  { id: "surprise", label: "Listen to the silence", form: "Surprise",
+    braid: "I listened to the silence around the chart; it clicked its small teeth together and turned the page before I touched it." },
+];
+const STORY_INDEX = PAGES.findIndex((p) => p.storyPrompt);
+const DEFAULT_STORY_BRAID = STORY_INDEX >= 0 ? PAGES[STORY_INDEX].braid : "";
+const storyChoices = document.querySelector("#story-choices");
+const storyOptionsWrap = document.querySelector("#story-options");
+let selectedStoryId = null;
+
+function updateStoryUI() {
+  storyOptionsWrap?.querySelectorAll(".story-option").forEach((btn) => {
+    const isSel = btn.dataset.story === selectedStoryId;
+    btn.classList.toggle("selected", isSel);
+    btn.setAttribute("aria-pressed", isSel ? "true" : "false");
+  });
+}
+
+function selectStory(id) {
+  const choice = BOOK_STORY_CHOICES.find((c) => c.id === id);
+  if (!choice) return;
+  selectedStoryId = id;
+  if (STORY_INDEX >= 0) PAGES[STORY_INDEX].braid = choice.braid; // the chosen form shapes the binding
+  updateStoryUI();
+  hint.textContent = `${choice.form} chosen — keep this page to braid that future in.`;
+}
+
+function resetStory() {
+  selectedStoryId = null;
+  if (STORY_INDEX >= 0) PAGES[STORY_INDEX].braid = DEFAULT_STORY_BRAID;
+  updateStoryUI();
+}
+
+function buildStoryOptions() {
+  if (!storyOptionsWrap || storyOptionsWrap.dataset.built) return;
+  storyOptionsWrap.innerHTML = BOOK_STORY_CHOICES.map((c) =>
+    `<button class="story-option" type="button" data-story="${c.id}" aria-pressed="false">
+       <span class="story-option-label">${c.label}</span>
+       <span class="story-option-form">${c.form}</span>
+     </button>`).join("");
+  storyOptionsWrap.dataset.built = "1";
+  storyOptionsWrap.querySelectorAll(".story-option").forEach((btn) =>
+    btn.addEventListener("click", () => selectStory(btn.dataset.story)));
+}
+buildStoryOptions();
+
+function renderStoryChoices() {
+  if (!storyChoices) return;
+  storyChoices.hidden = !PAGES[index].storyPrompt;
+}
+
+/* ── Character Page choices: the chosen person changes the illustration screen
+   and the line that enters the reader's binding. */
+const BOOK_CHARACTERS = [
+  {
+    id: "zara-finch",
+    name: "Zara Finch",
+    tag: "Riddlewind guide",
+    title: "Zara Finch, pressed and filed.",
+    body: "Zara notices exits before introductions and calls it being prepared. She is loyal enough to find the path that holds, and wary enough to check whether it will hold twice.",
+    source: "Riddlewind guide · hidden alcoves",
+    shot: "./assets/screens/character-zara-finch.png",
+    card: "First friend, house guide, and practical magic in a satchel. Her flaw is mistaking vigilance for care; her gift is coming back anyway.",
+    braid: "Zara Finch joined the cast with sea-glass at her throat; the hidden alcove held its breath while she found the stair everyone else missed.",
+  },
+  {
+    id: "lysander-mosswood",
+    name: "Lysander Mosswood",
+    tag: "Mossbloom naturalist",
+    title: "What the ink knows of Lysander Mosswood.",
+    body: "Lysander answers with a route before an explanation. He keeps pressed leaves as field punctuation and believes a path becomes magical when walked attentively.",
+    source: "Mossbloom field notes · Compass Runs",
+    shot: "./assets/screens/character-lysander-mosswood.png",
+    card: "Thoughtful, trail-minded, and quietly stubborn about slow wonder. His weakness is making stillness sound easier than it is.",
+    braid: "Lysander Mosswood joined the cast by pressing an alder leaf into the margin; the path smelled of moss and old rain, and it waited for slower feet.",
+  },
+  {
+    id: "wicker-eddies",
+    name: "Wicker Eddies",
+    tag: "Duskthorn · Thornwave DJ",
+    title: "What the ink knows of Wicker Eddies.",
+    body: "Wicker DJs Thornwave on the Academy dial, where doubt gets a bassline. He punctures false magic for sport, and sometimes wounds the thing he meant to test.",
+    source: "Duskthorn index · 103.7 Thornwave",
+    shot: "./assets/screens/character-wicker-eddies.png",
+    card: "Sharp, funny, dangerously persuasive. He thinks belief should survive contact with doubt, preferably while he is smiling.",
+    braid: "Wicker Eddies joined the cast through a wrong-door key and a Thornwave bassline; he smiled while the page flinched, then made every bright claim prove it could survive him.",
+  },
+  {
+    id: "marginalia-goblin",
+    name: "Marginalia Goblin",
+    tag: "Book Fae · margins",
+    title: "Small and entirely necessary: Marginalia Goblin.",
+    body: "Marginalia Goblin lives where the page almost stops looking. It files ridiculous evidence, prices attention like currency, and points at the corner your eyes kept sliding past.",
+    source: "Book Fae dossier · overlooked evidence",
+    shot: "./assets/screens/character-marginalia-goblin.png",
+    card: "A mercantile little witness to the unchosen detail: the gap between what a thing is called and what it is.",
+    braid: "A Marginalia Goblin joined the cast from the page-corner and offered the Unspoken Pen; the bargain price was three seconds of attention paid to the thing I kept almost noticing.",
+  },
+];
+const CHARACTER_INDEX = PAGES.findIndex((p) => p.characterPrompt);
+const DEFAULT_CHARACTER_PAGE = CHARACTER_INDEX >= 0
+  ? {
+      title: PAGES[CHARACTER_INDEX].title,
+      body: PAGES[CHARACTER_INDEX].body,
+      source: PAGES[CHARACTER_INDEX].source,
+      shot: PAGES[CHARACTER_INDEX].shot,
+      braid: PAGES[CHARACTER_INDEX].braid,
+    }
+  : null;
+let selectedCharacterId = null;
+
+function updateCharacterUI() {
+  characterOptionsWrap?.querySelectorAll(".character-option").forEach((btn) => {
+    const isSel = btn.dataset.character === selectedCharacterId;
+    btn.classList.toggle("selected", isSel);
+    btn.setAttribute("aria-pressed", isSel ? "true" : "false");
+  });
+}
+
+function applyCharacter(character) {
+  if (!character || CHARACTER_INDEX < 0) return;
+  const page = PAGES[CHARACTER_INDEX];
+  page.title = character.title;
+  page.body = character.body;
+  page.source = character.source;
+  page.shot = character.shot;
+  page.braid = character.braid;
+  if (index === CHARACTER_INDEX) {
+    elTitle.textContent = character.title;
+    elBody.textContent = character.body;
+    elSource.textContent = character.source;
+    elShot.src = character.shot;
+  }
+}
+
+function selectCharacter(id, options = {}) {
+  const character = BOOK_CHARACTERS.find((c) => c.id === id);
+  if (!character) return;
+  selectedCharacterId = id;
+  applyCharacter(character);
+  updateCharacterUI();
+  if (!options.quiet) hint.textContent = `${character.name} chosen — keep this page to bind their thread in.`;
+}
+
+function resetCharacter() {
+  selectedCharacterId = null;
+  if (DEFAULT_CHARACTER_PAGE && CHARACTER_INDEX >= 0) Object.assign(PAGES[CHARACTER_INDEX], DEFAULT_CHARACTER_PAGE);
+  updateCharacterUI();
+}
+
+function buildCharacterOptions() {
+  if (!characterOptionsWrap || characterOptionsWrap.dataset.built) return;
+  characterOptionsWrap.innerHTML = BOOK_CHARACTERS.map((c) =>
+    `<button class="character-option" type="button" data-character="${c.id}" aria-pressed="false">
+       <span class="character-option-name">${escapeHTML(c.name)}</span>
+       <span class="character-option-tag">${escapeHTML(c.tag)}</span>
+       <span class="character-option-copy">${escapeHTML(c.card)}</span>
+     </button>`).join("");
+  characterOptionsWrap.dataset.built = "1";
+  characterOptionsWrap.querySelectorAll(".character-option").forEach((btn) =>
+    btn.addEventListener("click", () => selectCharacter(btn.dataset.character)));
+}
+buildCharacterOptions();
+
+/* ── Enchantment Page: a free, browser-local version of the photo spell system.
+   The real app can use richer image understanding; this demo still honors the
+   central rule by deriving its reading from visible color, light, and texture. */
+const BOOK_ENCHANTMENTS = [
+  {
+    id: "everything-speaks",
+    name: "Everything Speaks",
+    tag: "Object voice",
+    source: "Enchantment · Everything Speaks",
+    title: "Let the image answer.",
+    card: "The subject speaks back in the first person, but only from what the picture gives it.",
+    braid: "Everything Speaks let the ordinary subject answer back because I finally looked.",
+  },
+  {
+    id: "everything-is-magic",
+    name: "Everything's Magic",
+    tag: "Correspondences",
+    source: "Enchantment · Everything's Magic",
+    title: "Read the correspondences.",
+    card: "The image becomes practical magic: omens, elements, folk correspondences, and what the rite is for.",
+    braid: "Everything's Magic turned the image into a spellbook entry, components and side effects included.",
+  },
+  {
+    id: "everything-is-connected",
+    name: "Everything's Connected",
+    tag: "Thread finder",
+    source: "Enchantment · Everything's Connected",
+    title: "Find the larger threads.",
+    card: "The spell reads the cultural signal: what this image has learned to mean, and what it is trying not to say.",
+    braid: "Everything's Connected found the larger threads tied to the subject I brought.",
+  },
+];
+
+const ENCHANTMENT_SAMPLES = [
+  {
+    id: "rabbit",
+    label: "Rabbit counsel",
+    src: "./assets/screens/enchantment-rabbit.jpeg",
+    subject: "the rabbit tucked against a face",
+    body: "A rabbit leans into a cheek, all warm fur, glasses, blanket, and the serious privacy of being trusted by something small.",
+    readings: {
+      "everything-speaks": "\"Yes, I know I am soft. That is not my whole profession. I am here to inspect your breathing, approve one cheek, and remind you that trust is a very bossy kind of love.\"",
+      "everything-is-magic": "<strong>Working:</strong> Hearth familiar blessing for gentleness, fertility of attention, and nervous-system repair.<br><strong>Correspondences:</strong> rabbit for abundance and quick intuition; fur for comfort magic; cheek-touch for consent and kinship; gray blanket for lunar shelter; glasses for clear seeing.<br><strong>Element:</strong> Earth held close by Water.<br><strong>Use:</strong> Hold near the heart when you need proof that softness can still be protective.",
+      "everything-is-connected": "<strong>What media says:</strong> rabbits carry springtime, vulnerability, luck, speed, fertility, and the old storybook promise that small creatures know secret paths.<br><strong>Unspoken connection:</strong> this photo is not saying \"cute pet\" so much as \"I am trusted by something fragile, therefore I must be gentle with myself too.\"",
+    },
+    braids: {
+      "everything-speaks": "The rabbit spoke first, warm-nosed and imperious: breathe softer; I am conducting the room.",
+      "everything-is-magic": "The rabbit became a hearth familiar in gray blanket-moonlight, abundance tucked against a cheek like a living charm.",
+      "everything-is-connected": "The rabbit photo carried spring, luck, and small trust; beneath the cuteness, it whispered that gentleness was a form of guardianship.",
+    },
+  },
+  {
+    id: "camper",
+    label: "Tiny kitchen",
+    src: "./assets/screens/enchantment-camper.jpeg",
+    subject: "the red and yellow camper kitchen",
+    body: "A little kitchen is bright with red walls, yellow panels, flowers, plants, pillows, a sink, and a shining water filter that looks almost ceremonial.",
+    readings: {
+      "everything-speaks": "\"Do not call me cluttered. I am compact abundance. I know where the towels live, where the water waits, where the flowers are showing off, and which corner still owes someone a cup of tea.\"",
+      "everything-is-magic": "<strong>Working:</strong> Road-hearth charm for provision, cleansing, and cheerful resilience in a small vessel.<br><strong>Correspondences:</strong> red for life-force and protection; yellow for solar luck; sink for purification; flowers for Venusian sweetness; hanging tools for readiness; polished water filter for blessing and flow.<br><strong>Element:</strong> Fire braided with Water.<br><strong>Use:</strong> Consecrate before travel, cooking, or any day that asks a small space to hold a whole life.",
+      "everything-is-connected": "<strong>What media says:</strong> tiny homes, van-life kitchens, and bright domestic corners promise freedom without rootlessness: the fantasy of having only what matters, arranged within reach.<br><strong>Unspoken connection:</strong> this image is trying to say \"I can be mobile and still be nourished. I can leave without becoming untethered.\"",
+    },
+    braids: {
+      "everything-speaks": "The tiny kitchen objected to being called clutter; its red walls snapped like flags while the flowers kept inventory.",
+      "everything-is-magic": "The camper kitchen turned road-hearth: red for protection, yellow for luck, water shining like a blessing with a spigot.",
+      "everything-is-connected": "The tiny kitchen carried the whole van-life promise in one crowded breath: leave, yes, but take nourishment with you.",
+    },
+  },
+  {
+    id: "harbor",
+    label: "Harbor sky",
+    src: "./assets/screens/enchantment-harbor.jpeg",
+    subject: "the person stretching toward the sunset harbor",
+    body: "A person stands on a dock with arms lifted toward storm clouds, peach light, dark water, boats, and a bridge holding the horizon together.",
+    readings: {
+      "everything-speaks": "\"I am not posing; I am receiving. The clouds came loud, the water copied them, and I lifted my hands because some doors are opened by answering weather with a body.\"",
+      "everything-is-magic": "<strong>Working:</strong> Threshold rite for release, weather-listening, and calling courage across water.<br><strong>Correspondences:</strong> sunset for liminal change; storm clouds for charged transformation; harbor water for emotional passage; dock for boundary work; bridge for crossing; raised arms for invocation.<br><strong>Element:</strong> Water crowned by Air and Fire.<br><strong>Use:</strong> Face west at dusk, name what is leaving, then let the horizon carry the rest.",
+      "everything-is-connected": "<strong>What media says:</strong> sunset-at-the-water images mean revelation, travel, grief, victory, proposal, vacation, main-character renewal, and the feeling that a life can turn cinematic for one minute.<br><strong>Unspoken connection:</strong> this photo is trying to say \"I am still here, and the world is large enough to meet me back.\"",
+    },
+    braids: {
+      "everything-speaks": "The harbor sky answered the lifted hands in peach and thunder; the water repeated it until the dock believed.",
+      "everything-is-magic": "The harbor became a threshold rite: storm-cloud air, sunset fire, dock wood, and raised arms calling courage across water.",
+      "everything-is-connected": "The harbor photo knew every cinematic sunset trick, but underneath it said: I am still here, and the world is large enough to answer.",
+    },
+  },
+];
+
+const ENCHANTMENT_INDEX = PAGES.findIndex((p) => p.enchantmentPrompt);
+const DEFAULT_ENCHANTMENT_PAGE = ENCHANTMENT_INDEX >= 0
+  ? {
+      title: PAGES[ENCHANTMENT_INDEX].title,
+      body: PAGES[ENCHANTMENT_INDEX].body,
+      source: PAGES[ENCHANTMENT_INDEX].source,
+      shot: PAGES[ENCHANTMENT_INDEX].shot,
+      braid: PAGES[ENCHANTMENT_INDEX].braid,
+    }
+  : null;
+let selectedEnchantmentId = null;
+let selectedEnchantmentImage = ENCHANTMENT_SAMPLES[0];
+
+function updateEnchantmentButtons() {
+  enchantmentSpellsWrap?.querySelectorAll(".enchantment-spell").forEach((btn) => {
+    const isSel = btn.dataset.enchantment === selectedEnchantmentId;
+    btn.classList.toggle("selected", isSel);
+    btn.setAttribute("aria-pressed", isSel ? "true" : "false");
+  });
+  enchantmentSamplesWrap?.querySelectorAll(".enchantment-sample").forEach((btn) => {
+    const isSel = btn.dataset.sample === selectedEnchantmentImage?.id;
+    btn.classList.toggle("selected", isSel);
+    btn.setAttribute("aria-pressed", isSel ? "true" : "false");
+  });
+}
+
+function enchantmentText(spell, image) {
+  return image?.readings?.[spell.id] || "The spell found the image, then waited for a truer sentence.";
+}
+
+function applyEnchantmentPage(spell, image, readingHTML) {
+  if (!spell || ENCHANTMENT_INDEX < 0) return;
+  const page = PAGES[ENCHANTMENT_INDEX];
+  page.title = spell.title;
+  page.body = `${spell.name} reads ${image.subject}. ${image.body}`;
+  page.source = spell.source;
+  page.shot = image?.src || page.shot;
+  page.braid = image?.braids?.[spell.id] || spell.braid;
+  if (index === ENCHANTMENT_INDEX) {
+    elTitle.textContent = page.title;
+    elBody.textContent = page.body;
+    elSource.textContent = page.source;
+    elShot.src = page.shot;
+    if (enchantmentReading) {
+      enchantmentReading.innerHTML = `<span class="enchantment-reading-label">The spell reads:</span><p>${readingHTML}</p>`;
+    }
+  }
+}
+
+function refreshEnchantmentReading() {
+  const spell = BOOK_ENCHANTMENTS.find((s) => s.id === selectedEnchantmentId) || BOOK_ENCHANTMENTS[0];
+  const image = selectedEnchantmentImage || ENCHANTMENT_SAMPLES[0];
+  applyEnchantmentPage(spell, image, enchantmentText(spell, image));
+}
+
+function selectEnchantment(id, options = {}) {
+  const spell = BOOK_ENCHANTMENTS.find((s) => s.id === id);
+  if (!spell) return;
+  selectedEnchantmentId = id;
+  updateEnchantmentButtons();
+  refreshEnchantmentReading(options);
+  if (!options.quiet) hint.textContent = `${spell.name} chosen — keep this page to braid that spell in.`;
+}
+
+function selectEnchantmentSample(id) {
+  const sample = ENCHANTMENT_SAMPLES.find((s) => s.id === id);
+  if (!sample) return;
+  selectedEnchantmentImage = sample;
+  updateEnchantmentButtons();
+  refreshEnchantmentReading();
+}
+
+function resetEnchantment() {
+  selectedEnchantmentId = null;
+  selectedEnchantmentImage = ENCHANTMENT_SAMPLES[0];
+  if (DEFAULT_ENCHANTMENT_PAGE && ENCHANTMENT_INDEX >= 0) Object.assign(PAGES[ENCHANTMENT_INDEX], DEFAULT_ENCHANTMENT_PAGE);
+  updateEnchantmentButtons();
+}
+
+function buildEnchantmentLab() {
+  if (!enchantmentLab || enchantmentLab.dataset.built) return;
+  if (enchantmentSpellsWrap) {
+    enchantmentSpellsWrap.innerHTML = BOOK_ENCHANTMENTS.map((spell) =>
+      `<button class="enchantment-spell" type="button" data-enchantment="${spell.id}" aria-pressed="false">
+         <span class="enchantment-spell-name">${escapeHTML(spell.name)}</span>
+         <span class="enchantment-spell-tag">${escapeHTML(spell.tag)}</span>
+         <span class="enchantment-spell-copy">${escapeHTML(spell.card)}</span>
+       </button>`).join("");
+    enchantmentSpellsWrap.querySelectorAll(".enchantment-spell").forEach((btn) =>
+      btn.addEventListener("click", () => selectEnchantment(btn.dataset.enchantment)));
+  }
+  if (enchantmentSamplesWrap) {
+    enchantmentSamplesWrap.innerHTML = ENCHANTMENT_SAMPLES.map((sample) =>
+      `<button class="enchantment-sample" type="button" data-sample="${sample.id}" aria-pressed="false">
+         ${escapeHTML(sample.label)}
+       </button>`).join("");
+    enchantmentSamplesWrap.querySelectorAll(".enchantment-sample").forEach((btn) =>
+      btn.addEventListener("click", () => selectEnchantmentSample(btn.dataset.sample)));
+  }
+  enchantmentLab.dataset.built = "1";
+  updateEnchantmentButtons();
+}
+buildEnchantmentLab();
+
+/* ── Wonder Compass chapters: the chosen field-guide chapter changes the page
+   and the thread that enters the final Book of You binding. */
+const WONDER_CHAPTERS = [
+  {
+    id: "core-compass",
+    name: "Chapter 5",
+    title: "The Wonder Compass",
+    tag: "Notice · Embark · Sense · Write · Rest",
+    pageTitle: "Run the Compass once.",
+    body: "Chapter 5 teaches the core loop: Notice one spark, Embark across one tiny threshold, Sense the moment with the body, Write one sentence, and Rest at the center.",
+    source: "Wonder Compass · Chapter 5",
+    shot: "./assets/screens/wonder-chapters-core.png",
+    card: "A low-stakes adventure small enough to do today, but specific enough that the day cannot stay wallpaper.",
+    braid: "I ran the Compass once: one spark, one threshold, one body-note, one sentence; Rest sat in the center like a warm stone.",
+  },
+  {
+    id: "characters",
+    name: "Chapter 8B",
+    title: "Characters",
+    tag: "Make the world answer back",
+    pageTitle: "Let the room join the cast.",
+    body: "Chapter 8B invites you to treat objects and spaces as characters: the kettle with opinions, the hallway with a mood, the desk that knows what you avoid.",
+    source: "Wonder Compass · Chapter 8B",
+    shot: "./assets/screens/wonder-chapters-rest.png",
+    card: "A practice for loneliness, decision fatigue, and boring tasks: make the inanimate world collaborative again.",
+    braid: "I gave the ordinary world a cast list, and the kettle, hallway, and desk began clearing their throats.",
+  },
+  {
+    id: "center-rest",
+    name: "Chapter 10",
+    title: "Center = Rest",
+    tag: "The permission to stop",
+    pageTitle: "Let rest be the center.",
+    body: "Chapter 10 makes rest part of the practice, not the opposite of it. Stop before collapse chooses it for you; let the nervous system integrate what the day is carrying.",
+    source: "Wonder Compass · Chapter 10",
+    shot: "./assets/screens/wonder-chapters-rest.png",
+    card: "A sixty-second reset to re-magnetize the inner needle and prevent wonder from becoming another chore.",
+    braid: "I let Rest stand at the center of the Compass; the day loosened its belt and stopped pretending exhaustion was a door.",
+  },
+];
+
+const WONDER_INDEX = PAGES.findIndex((p) => p.wonderPrompt);
+const DEFAULT_WONDER_PAGE = WONDER_INDEX >= 0
+  ? {
+      title: PAGES[WONDER_INDEX].title,
+      body: PAGES[WONDER_INDEX].body,
+      source: PAGES[WONDER_INDEX].source,
+      shot: PAGES[WONDER_INDEX].shot,
+      braid: PAGES[WONDER_INDEX].braid,
+    }
+  : null;
+let selectedWonderChapterId = null;
+
+function updateWonderUI() {
+  wonderOptionsWrap?.querySelectorAll(".wonder-option").forEach((btn) => {
+    const isSel = btn.dataset.wonder === selectedWonderChapterId;
+    btn.classList.toggle("selected", isSel);
+    btn.setAttribute("aria-pressed", isSel ? "true" : "false");
+  });
+}
+
+function applyWonderChapter(chapter) {
+  if (!chapter || WONDER_INDEX < 0) return;
+  const page = PAGES[WONDER_INDEX];
+  page.title = chapter.pageTitle;
+  page.body = chapter.body;
+  page.source = chapter.source;
+  page.shot = chapter.shot;
+  page.braid = chapter.braid;
+  if (index === WONDER_INDEX) {
+    elTitle.textContent = page.title;
+    elBody.textContent = page.body;
+    elSource.textContent = page.source;
+    elShot.src = page.shot;
+  }
+}
+
+function selectWonderChapter(id, options = {}) {
+  const chapter = WONDER_CHAPTERS.find((c) => c.id === id);
+  if (!chapter) return;
+  selectedWonderChapterId = id;
+  applyWonderChapter(chapter);
+  updateWonderUI();
+  if (!options.quiet) hint.textContent = `${chapter.title} chosen — keep this page to braid that practice in.`;
+}
+
+function resetWonderChapter() {
+  selectedWonderChapterId = null;
+  if (DEFAULT_WONDER_PAGE && WONDER_INDEX >= 0) Object.assign(PAGES[WONDER_INDEX], DEFAULT_WONDER_PAGE);
+  updateWonderUI();
+}
+
+function buildWonderOptions() {
+  if (!wonderOptionsWrap || wonderOptionsWrap.dataset.built) return;
+  wonderOptionsWrap.innerHTML = WONDER_CHAPTERS.map((chapter) =>
+    `<button class="wonder-option" type="button" data-wonder="${chapter.id}" aria-pressed="false">
+       <span class="wonder-option-name">${escapeHTML(chapter.name)}: ${escapeHTML(chapter.title)}</span>
+       <span class="wonder-option-tag">${escapeHTML(chapter.tag)}</span>
+       <span class="wonder-option-copy">${escapeHTML(chapter.card)}</span>
+     </button>`).join("");
+  wonderOptionsWrap.dataset.built = "1";
+  wonderOptionsWrap.querySelectorAll(".wonder-option").forEach((btn) =>
+    btn.addEventListener("click", () => selectWonderChapter(btn.dataset.wonder)));
+}
+buildWonderOptions();
 
 // keyboard support
 document.addEventListener("keydown", (e) => {
