@@ -663,8 +663,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         }
 
         if let trackID = track?.id {
-            let historyLimit = max(1, (station.tracks.count - 1) / 2)
-            playback.recordTrack(trackID, historyLimit: historyLimit)
+            playback.recordTrack(trackID, stationTrackIDs: station.tracks.map(\.id))
         }
         statusLine = "\(station.displayFrequency) \(station.title) — \(track?.title ?? "broadcasting")."
     }

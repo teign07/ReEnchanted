@@ -28,11 +28,15 @@ struct BookShopSheet: View {
     @State private var spentAttention = 0
     @State private var spentBelief = 0
     @State private var boughtWareIDs: Set<String> = []
+    @State private var boundFreePackIDs: Set<String> = []
     @State private var haggleDiscounts: [String: Int] = [:]
     @State private var haggledWareIDs: Set<String> = []
 
     private var ownedListings: [BookShopListing] {
         BookShopCatalog.listings.filter { PackEntitlements.isUnlocked($0.packID) }
+    }
+    private var freePacks: [PageArchetypePack] {
+        PageArchetypePackRegistry.bundledPacks.filter { $0.availability == "bundledFree" }
     }
     private var comingSoon: [BookShopListing] {
         BookShopCatalog.listings.filter { $0.comingSoon }
@@ -50,6 +54,12 @@ struct BookShopSheet: View {
                         marketHero
                         purseStrip
                         clerkCard
+
+                        if !freePacks.isEmpty {
+                            shelfBlock(title: "Free First Folio", subtitle: "One shelf is a gift. The clerk calls it a customer acquisition hex.", symbol: "gift.fill", accent: BookPalette.lampGold) {
+                                ForEach(freePacks) { pack in freePackCard(pack) }
+                            }
+                        }
 
                         let visibleWares = stall.wares.filter { !boughtWareIDs.contains($0.id) }
                         if stall.open, !visibleWares.isEmpty {
@@ -652,6 +662,64 @@ struct BookShopSheet: View {
         case .soundPack: return "radio.fill"
         case .eventPack: return listing.resolvedSaleState == .liveEvent ? "sparkles.rectangle.stack.fill" : "archivebox.fill"
         default: return "shippingbox.fill"
+        }
+    }
+
+    private func freePackCard(_ pack: PageArchetypePack) -> some View {
+        let isBound = PackEntitlements.isUnlocked(pack.id) || boundFreePackIDs.contains(pack.id)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(BookPalette.lampGold.opacity(0.18))
+                    Image(systemName: isBound ? "checkmark.seal.fill" : "gift.fill")
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(BookPalette.lampGold)
+                }
+                .frame(width: 42, height: 42)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(pack.displayName)
+                        .font(.system(.headline, design: .serif, weight: .bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(isBound ? "Bound to your save" : "Bundled free folio")
+                        .font(.caption2.weight(.black))
+                        .kerning(0.8)
+                        .foregroundStyle(BookPalette.lampGold.opacity(0.84))
+                }
+                Spacer()
+                priceTag("$0", label: "gift", tint: BookPalette.lampGold)
+            }
+            Text("A starter folio of \(pack.archetypes.count) extra page shapes. Bind it once and the Bookshop has taught you how shelves can be added.")
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.76))
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                guard !isBound else { return }
+                boundFreePackIDs.insert(pack.id)
+                onUnlock(pack.id)
+                clerkLine = "The clerk stamps the free folio with theatrical reluctance. \"A gift. Obviously suspicious. Enjoy it.\""
+            } label: {
+                Label(isBound ? "Already bound" : "Bind the free folio", systemImage: isBound ? "checkmark.seal.fill" : "seal")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(BookPalette.lampGold)
+            .disabled(isBound)
+        }
+        .padding(13)
+        .background(
+            LinearGradient(
+                colors: [BookPalette.page.opacity(0.98), BookPalette.paper.opacity(0.86), BookPalette.lampGold.opacity(0.10)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.28), lineWidth: 1)
         }
     }
 

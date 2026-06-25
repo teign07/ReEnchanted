@@ -551,6 +551,14 @@ struct CapturePageSheet: View {
     @State private var compassCurrentLongitude: Double?
     @State private var compassAnchorProximity: AnchorProximity?
     @State private var isResolvingCompassPlace = false
+    @State private var isWritingManualCompassRun = false
+    @State private var manualCompassSpark = ""
+    @State private var manualCompassDestination = ""
+    @State private var manualCompassDelight = ""
+    @State private var manualCompassDefinition = ""
+    @State private var manualCompassMission = ""
+    @State private var manualCompassSouvenirPrompt = ""
+    @State private var manualCompassRestPrompt = ""
     @State private var isGeneratingCompassRun = false
     @State private var compassGenerationMessage = ""
     @State private var lastVentureMode: CompassVentureMode = .neighborhood
@@ -560,6 +568,8 @@ struct CapturePageSheet: View {
     @State private var bleedExportMessage = ""
     @State private var inventoryRevision = 0
     @State private var inventoryMessage = ""
+    @State private var inventoryUnspokenSentence = ""
+    @State private var isWritingUnspokenSentence = false
     @State private var isGamePagePresented = false
     @State private var gameResultSurface: SurfacePage?
     @State private var lastGameResult: SentenceRunnerResult?
@@ -909,7 +919,7 @@ struct CapturePageSheet: View {
     }
 
     private var castMemberImage: UIImage? {
-        guard surface.type == .castMember,
+        guard surface.payload.metadata["illustrationKind"] == "cast",
               surface.payload.metadata["imageAssetKind"] == BookPageMediaAsset.Kind.renderedImageFile.rawValue,
               let path = surface.payload.metadata["imageAssetReference"],
               FileManager.default.fileExists(atPath: path) else {
@@ -1277,7 +1287,7 @@ struct CapturePageSheet: View {
         switch surface.type {
         case .letter:
             return [nonEmpty("senderName")].compactMap { $0 }
-        case .castMember:
+        case .illustration where metadata["illustrationKind"] == "cast":
             return [nonEmpty("entityName")].compactMap { $0 }
         case .twoReadings, .castBond:
             return [nonEmpty("entityAName"), nonEmpty("entityBName")].compactMap { $0 }
@@ -1294,7 +1304,7 @@ struct CapturePageSheet: View {
 
     /// A custom cast member's attached photo for the Cast page, if present.
     private func portraitCustomAsset(for name: String) -> BookPageMediaAsset? {
-        guard surface.type == .castMember,
+        guard surface.payload.metadata["illustrationKind"] == "cast",
               surface.payload.metadata["entityName"] == name,
               let kindRaw = surface.payload.metadata["imageAssetKind"],
               let kind = BookPageMediaAsset.Kind(rawValue: kindRaw),
@@ -3916,6 +3926,25 @@ struct CapturePageSheet: View {
                     inventoryRevision += 1
                     inventoryMessage = "The loose page changed while you were looking at it. Naturally."
                 }
+            case .unspokenPen:
+                if !inventoryUnspokenSentence.isEmpty {
+                    Text(inventoryUnspokenSentence)
+                        .font(.system(.callout, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.86))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(10)
+                        .background(BookPalette.paper.opacity(0.62), in: RoundedRectangle(cornerRadius: 6))
+                }
+                inventoryActionButton(
+                    isWritingUnspokenSentence ? "Gemma is uncapping it" : "Write an unspoken sentence",
+                    symbol: "pencil.and.scribble"
+                ) {
+                    writeUnspokenSentence(with: gift)
+                }
+                .disabled(isWritingUnspokenSentence)
+                if isWritingUnspokenSentence {
+                    scribeWorkCard("unspoken-pen")
+                }
             case .reshelving:
                 if let target = gift.boundSourceID,
                    let source = BookPageSourceRegistry.sources.first(where: { $0.id == target }) {
@@ -3964,6 +3993,52 @@ struct CapturePageSheet: View {
         inventoryRevision += 1
         inventoryMessage = "The Inventory has amended itself in fresh ink."
         BookFeedback.play(.select)
+    }
+
+    private func writeUnspokenSentence(with gift: FaeGift) {
+        guard !isWritingUnspokenSentence else { return }
+        isWritingUnspokenSentence = true
+        inventoryMessage = "Gemma is trying to write one sentence no one has said before."
+        Task {
+            let sentence = await unspokenPenSentence()
+            await MainActor.run {
+                isWritingUnspokenSentence = false
+                inventoryUnspokenSentence = sentence
+                inventoryMessage = "The Unspoken Pen wrote: \(sentence)"
+                useInventoryGift(gift.id, target: nil)
+            }
+        }
+    }
+
+    private func unspokenPenSentence() async -> String {
+        let prompt = """
+        Write exactly one original English sentence that is very unlikely to have ever been spoken before.
+        It should still make sense: concrete, grammatically complete, and meaningful rather than random.
+        Do not explain the sentence. Do not use quotation marks. Do not write more than one sentence.
+        """
+        let raw = await LocalBrainProse.write(
+            prompt: prompt,
+            instructions: "Exactly one coherent sentence, no heading, no commentary, no quotation marks.",
+            maxTokens: 80,
+            sourceID: "unspoken-pen",
+            tags: ["inventory", "goblin-market", "unspoken-pen"]
+        )
+        return cleanUnspokenSentence(raw)
+    }
+
+    private func cleanUnspokenSentence(_ raw: String?) -> String {
+        var sentence = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        sentence = sentence.trimmingCharacters(in: CharacterSet(charactersIn: "\"“”"))
+        if let firstTerminator = sentence.firstIndex(where: { ".!?".contains($0) }) {
+            sentence = String(sentence[...firstTerminator])
+        }
+        if sentence.isEmpty {
+            sentence = "The brass moon folded its receipt into the teacup and remembered why the windows smelled blue."
+        }
+        if !".!?".contains(sentence.last ?? ".") {
+            sentence += "."
+        }
+        return sentence
     }
 
     private func inventoryGiftState(_ gift: FaeGift) -> String {
@@ -4054,6 +4129,21 @@ struct CapturePageSheet: View {
             .tint(BookPalette.teal)
             .disabled(!canSubmitCompassRun)
 
+            DisclosureGroup(isExpanded: $isWritingManualCompassRun) {
+                manualCompassRunForm
+                    .padding(.top, 8)
+            } label: {
+                Label("Write my own Compass Run", systemImage: "square.and.pencil")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(BookPalette.ink)
+            }
+            .padding(12)
+            .background(BookPalette.paper.opacity(0.62), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(BookPalette.ink.opacity(0.12), lineWidth: 1)
+            }
+
             if isGeneratingCompassRun {
                 scribeWorkCard(
                     "wonder-compass",
@@ -4063,6 +4153,59 @@ struct CapturePageSheet: View {
         }
         .onAppear {
             seedCompassRunControlsIfNeeded()
+        }
+    }
+
+    private var manualCompassRunForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            compassManualTextField(
+                "North goal",
+                text: $manualCompassSpark,
+                placeholder: "I wonder what this place wants me to notice?"
+            )
+            compassManualTextField(
+                "East destination",
+                text: $manualCompassDestination,
+                placeholder: "The kitchen window, the harbor edge, the nearest threshold..."
+            )
+            compassManualTextField(
+                "East delight",
+                text: $manualCompassDelight,
+                placeholder: "A drink, a song, a warm layer, a tiny treat..."
+            )
+            compassManualTextField(
+                "East definition",
+                text: $manualCompassDefinition,
+                placeholder: "Done after 10 minutes, one answer, one photo, one lap..."
+            )
+            compassManualTextField(
+                "South body mission",
+                text: $manualCompassMission,
+                placeholder: "At the destination or start, notice one sound, one texture, one color..."
+            )
+            compassManualTextField(
+                "West sentence prompt",
+                text: $manualCompassSouvenirPrompt,
+                placeholder: "Write the best sensory moment from the run in one sentence."
+            )
+            compassManualTextField(
+                "Center rest",
+                text: $manualCompassRestPrompt,
+                placeholder: "Put the phone down for 60 seconds and let the run land."
+            )
+
+            Button {
+                BookFeedback.play(.braidStart)
+                saveManualCompassRun()
+            } label: {
+                Label("Start My Compass Run", systemImage: "arrow.right.circle")
+                    .font(.headline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(BookPalette.lampGold)
+            .disabled(!canSubmitManualCompassRun)
         }
     }
 
@@ -4260,6 +4403,26 @@ struct CapturePageSheet: View {
         }
     }
 
+    private func compassManualTextField(_ title: String, text: Binding<String>, placeholder: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title.uppercased())
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(BookPalette.teal.opacity(0.82))
+            TextField(placeholder, text: text, axis: .vertical)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(BookPalette.ink)
+                .textFieldStyle(.plain)
+                .lineLimit(2...5)
+                .dictationInput(text: text)
+                .padding(10)
+                .background(BookPalette.page.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.ink.opacity(0.12), lineWidth: 1)
+                }
+        }
+    }
+
     private var compassConsiderationPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("CONSIDERATIONS")
@@ -4357,6 +4520,13 @@ struct CapturePageSheet: View {
         compassCompanions = surface.payload.metadata["companions"]?.nonEmpty ?? "solo"
         compassBudget = surface.payload.metadata["budget"]?.nonEmpty ?? "$0"
         compassNearbyPlacesOverride = surface.payload.metadata["nearbyPlaces"] ?? ""
+        manualCompassSpark = surface.payload.metadata["spark"]?.nonEmpty ?? ""
+        manualCompassDestination = surface.payload.metadata["destination"]?.nonEmpty ?? ""
+        manualCompassDelight = surface.payload.metadata["delight"]?.nonEmpty ?? ""
+        manualCompassDefinition = surface.payload.metadata["definition"]?.nonEmpty ?? ""
+        manualCompassMission = surface.payload.metadata["mission"]?.nonEmpty ?? ""
+        manualCompassSouvenirPrompt = surface.payload.metadata["souvenirPrompt"]?.nonEmpty ?? ""
+        manualCompassRestPrompt = surface.payload.metadata["restPrompt"]?.nonEmpty ?? ""
     }
 
     private func normalizedCompassEnergy(_ value: String?) -> String? {
@@ -5599,6 +5769,15 @@ struct CapturePageSheet: View {
         return true
     }
 
+    private var canSubmitManualCompassRun: Bool {
+        guard !isGeneratingCompassRun else { return false }
+        return !manualCompassSpark.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !manualCompassDestination.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !manualCompassDefinition.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !manualCompassMission.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !manualCompassSouvenirPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private var currentCompassStep: CompassRunStep? {
         guard isCompassRunStepPage,
               let rawValue = surface.payload.metadata["compassStep"],
@@ -6214,6 +6393,9 @@ struct CapturePageSheet: View {
             if let mode = preparedSurface.payload.metadata["conciergeMode"] {
                 tags.append("concierge:\(mode)")
             }
+            if let authoringMode = preparedSurface.payload.metadata["runAuthoringMode"] {
+                tags.append("compass-run:\(authoringMode)")
+            }
         }
         if preparedSurface.payload.metadata["storyMechanicReturn"] == "true" {
             tags.append("story-mechanic")
@@ -6254,6 +6436,31 @@ struct CapturePageSheet: View {
         let savedSurface = surface.withCompassRunPlan(plan, constraints: constraints)
         onSave(savedSurface, compassPreparedInput(for: savedSurface), preparedTags(for: savedSurface))
         onNavigateToSurface(compassStepSurface(from: savedSurface, step: .notice))
+    }
+
+    private func saveManualCompassRun() {
+        guard canSubmitManualCompassRun else { return }
+        let constraints = compassRunConstraints()
+            .merging([
+                "runAuthoringMode": "manual",
+                "selector": "manual-custom-run"
+            ]) { _, new in new }
+        let savedSurface = surface.withCompassRunPlan(manualCompassRunPlan(), constraints: constraints)
+        onSave(savedSurface, compassPreparedInput(for: savedSurface), preparedTags(for: savedSurface))
+        onNavigateToSurface(compassStepSurface(from: savedSurface, step: .notice))
+    }
+
+    private func manualCompassRunPlan() -> [String: String] {
+        [
+            "spark": compassValue(manualCompassSpark, fallback: "I wonder what is asking for attention nearby?"),
+            "destination": compassValue(manualCompassDestination, fallback: "one real threshold nearby"),
+            "delight": compassValue(manualCompassDelight, fallback: "one small comfort that helps the run begin"),
+            "definition": compassValue(manualCompassDefinition, fallback: "finish when the North question has one answer"),
+            "mission": compassValue(manualCompassMission, fallback: "Let the body answer the North question through one sound, one color, and one texture."),
+            "souvenirPrompt": compassValue(manualCompassSouvenirPrompt, fallback: "Write the best sensory moment from the run in one sentence."),
+            "restPrompt": compassValue(manualCompassRestPrompt, fallback: "Put the phone face down for 60 seconds and let the run land."),
+            "hint": "You wrote this run. Keep it small enough to actually do."
+        ]
     }
 
     private func compassRunConstraints() -> [String: String] {
@@ -8895,7 +9102,8 @@ private extension SurfacePage {
         metadata["souvenirPrompt"] = plan["souvenirPrompt"]
         metadata["restPrompt"] = plan["restPrompt"]
         metadata["hint"] = plan["hint"]
-        metadata["selector"] = "gemma-custom-run"
+        metadata["selector"] = constraints["selector"] ?? "gemma-custom-run"
+        metadata["runAuthoringMode"] = constraints["runAuthoringMode"] ?? "generated"
         metadata["compassMode"] = "runStart"
         metadata["privacy"] = "private local practice"
 

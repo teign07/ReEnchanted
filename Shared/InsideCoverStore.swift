@@ -1647,8 +1647,6 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "a sealed letter waiting in the margins" : "a letter carrying \(clipped)"
         case .supportGuild:
             return clipped.isEmpty ? "the Support Guild comparing charts" : "the Support Guild connecting \(clipped)"
-        case .castMember:
-            return clipped.isEmpty ? "a cast member stepping into the margins" : "a cast member carrying \(clipped)"
         case .quip:
             return clipped.isEmpty ? "a quip lighting a match" : "a quip insisting \(clipped)"
         case .aboutYou:
@@ -1707,7 +1705,7 @@ struct FakeBraider: Braider {
         if fragments.contains(where: { $0.type == .illuminatedPhoto || $0.type == .souvenir }) {
             return "one bright fragment"
         }
-        if fragments.contains(where: { $0.type == .wonderCompass || $0.type == .lore || $0.type == .narrativeOS || $0.type == .marginsAtlas || $0.type == .bookNotices || $0.type == .gossip || $0.type == .castMember }) {
+        if fragments.contains(where: { $0.type == .wonderCompass || $0.type == .lore || $0.type == .narrativeOS || $0.type == .marginsAtlas || $0.type == .bookNotices || $0.type == .gossip || ($0.type == .illustration && $0.tags.contains("entity")) }) {
             return "one true thread"
         }
         return "the ordinary"

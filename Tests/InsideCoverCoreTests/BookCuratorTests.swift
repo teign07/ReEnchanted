@@ -230,7 +230,7 @@ final class BookCuratorTests: XCTestCase {
     func testFirstHoursCuratorBoostsOrientationCards() {
         let now = localDate(year: 2026, month: 6, day: 1, hour: 11)
         let candidates = [
-            rankedCandidate(.castMember, score: 49),
+            rankedCandidate(.supportGuild, score: 49),
             rankedCandidate(.helpTips, score: 42),
             rankedCandidate(.lore, score: 41),
             rankedCandidate(.mood, score: 40)

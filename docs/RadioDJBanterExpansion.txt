@@ -244,6 +244,91 @@ CROSS-STATION NETWORK IDs  (whole-band stings)
 ### DJ_thornwave_network_grey_01      [network · dusk/night · voiced by Wicker]
 [low] One thing the whole band agrees on, and we agree on almost nothing: this is the sound the grey can't get into. [smooth] ReEnchanted Radio. Keep believing out loud — [amused] it's the only thing that's ever worked, and I've spent my whole life trying to prove otherwise. [low] Spin on.
 
+........................................................................
+PUBLIC SERVICE NOTICES  (general feed — Academy schedules, festivals, services)
+22 untriggered-by-default bulletins with real, accurate info (the bell
+timetable, what each class/club teaches, the eight feasts of the Wheel,
+moons, meteor showers, office hours, The Bleed editions). Only the lines
+whose wording says "evening/tonight" carry a dusk/night gate, so a clip
+never claims it's night when it isn't. Everything else plays anytime.
+........................................................................
+
+-- Penny Blackletter · Fae-Fi (the records desk; PSAs are her whole job) --
+
+### DJ_faefi_psa_timetable_01      [news · anytime]
+[dryly] Public notice from the records desk, since someone has to keep it straight. The Academy runs on bells: morning classes at nine, afternoon classes at one, and clubs gather at seven, lamps up. [warmly] Five days of classes, a Saturday field run, and a Sunday that opens in another book entirely. [dryly] It's all chalked on the board by the Inkworks. I keep the master copy. Naturally.
+
+### DJ_faefi_psa_curriculum_01      [news · anytime]
+[dryly] For new readers wondering what's actually taught here: the whole curriculum is one compass. North is Notice — Boggle's Art of the Glint, finding the one odd detail. East is Embark — Momort's Wayfinding, crossing a small threshold on purpose. South is Sense — Euphony's Synesthetic Resonance, reading a room through the body. West is Write — Villanelle's Ink-Binding, one true sentence that keeps. [warmly] And the Center is Rest — Stonebrook's Quiet Hours. Not a direction. The ground the other four stand on. [dryly] Filed, cross-referenced, and only mildly poetic.
+
+### DJ_faefi_psa_week_grid_01      [news · anytime]
+[dryly] The week, for the record, as briefly as I can manage. Mondays: the Glint, then Ink-Binding. Tuesdays: Wayfinding, then Resonance. Wednesdays: the Glint again, then Quiet Hours. Thursdays: Wayfinding, then Ink-Binding. Fridays: Resonance, then Basic Enchantments. [warmly] Saturdays we run the full Compass in the field. Sundays open in the Vault of Doors, with Book Jumping. [dryly] Clubs after dark. Don't make me repeat it — I'll only be more accurate.
+
+### DJ_faefi_psa_clubs_01      [news · dusk/night]
+[warmly] Evening notice: the clubs are gathering — seven bells, lamps up. [dryly] The Compass Society reads souvenirs aloud in the Secret Garden, where no one mocks a sentence. The Marginalia Guild annotates in the Corridor of Whispered Secrets, leaving notes for readers fifty years out. The Inkwright Society writes, shares, and burns it. And the Book Jumpers argue about what counts as a door. [warmly] Find the room that fits your week. Tell them the records desk sent you.
+
+### DJ_faefi_psa_bleed_editions_01      [news · anytime]
+[dryly] Reminder from your editor, which is me: The Bleed runs two editions. The Morning paper lands before one bell — weather, the day's hinges, what the Book noticed overnight, and a column off one of your own shelves. The Evening edition sets after four — tomorrow's shape, tonight's margins, a fresh column. [warmly] The quiet afternoon between them belongs to you. That part's intentional. [dryly] Read both. There may be a quiz. There won't be. But there could be.
+
+### DJ_faefi_psa_office_hours_01      [news · anytime]
+[warmly] A notice I file gladly: the support faculty keep their doors open. Dr. Inkrest holds office hours for difficult pages — no appointment, just a chair, a lamp, and the time to name a hard thing slowly. Dr. Vellum takes the body's evidence — fuel, rest, recovery — and turns it into one small experiment with no shame attached. [dryly] Neither will rush you. It's almost unnerving. [warmly] If the day's gone heavy, that's what the doors are for.
+
+### DJ_faefi_psa_todays_sky_01      [news · anytime]
+[dryly] Daily service note: Today's Sky posts each morning — the moon's phase and sign, the weather drawing in, and the nearest thing the heavens are up to. [warmly] It's the one forecast that reads the inner weather as much as the outer. [dryly] I check it before I file anything. The sky, annoyingly, is usually right.
+
+### DJ_faefi_psa_festivals_wheel_01      [news · anytime]
+[dryly] Since readers keep asking what we celebrate: the Academy keeps the eight feasts of the Wheel. Imbolc, the First Stir, when the dark first turns. Ostara and Mabon, the two Rebalancings at the equinoxes. Beltane's Greenfire and Litha's Longest Day in the bright half. Lughnasadh, the First Harvest. [warmly] And in the dark half — Samhain, the Thinning, and Yule, the Darkest Class, taught by candlelight. [dryly] Eight feasts, one turning year. I keep the calendar. The calendar, for once, keeps itself.
+
+### DJ_faefi_psa_moons_showers_01      [news · anytime]
+[dryly] Also on the calendar, for the record: the moons and the falling stars. Every Full Moon is a Luminous Gathering — classes cancelled after sunset, everyone out reading by moonlight. Every New Moon, the Quiet Hours: candles only, the words holding their breath. [warmly] And twice a year the ceiling goes clear for the meteors — the Perseids in August, the Falling Letters; the Geminids in December, the Winter Stars, when hot chocolate turns up in your hands unasked. [dryly] I have not determined who delivers it. The investigation remains open.
+
+-- Professor Eleanor Euphony · Mothlight (the tender feasts; her own class) --
+
+### DJ_mothlight_psa_samhain_01      [news · anytime]
+[softly] A note for the calendar's gentlest night: Samhain — the Thinning — comes at the turn of October, when the door between the kept and the lost stands a little ajar. [warmly] The Book remembers more than usual then, and is kinder about it. Name someone you've lost, and one thing they left in your keeping. The veil is thin; be honest, be gentle. [softly] It isn't a sad feast. It's a held one.
+
+### DJ_mothlight_psa_yule_newmoon_01      [news · anytime]
+[softly] For the dark half of the year, two quiet feasts worth keeping. Yule — the Darkest Class — held by candlelight on the longest night, taught honestly, the fireplaces crowded. And every New Moon, the Listening: candles only, the Academy gone contemplative-dark. [warmly] Both ask the same small thing — name one thing that survives the dark with you, and keep it where the candle can reach. [softly] The light always comes back. These feasts simply sit with you until it does.
+
+### DJ_mothlight_psa_resonance_class_01      [news · anytime]
+[warmly] A standing invitation, for the record: Synesthetic Resonance meets twice a week — Tuesday afternoons at one bell, and Friday mornings at nine — in the Resonance Chamber, Wing Three. [softly] We practice the South direction. Sense. Hearing a colour, then naming the real evidence beneath it. The senses are serious instruments, and yours are only out of practice. [warmly] Come tune the room with me. Bring nothing — you already carry everything it needs.
+
+### DJ_mothlight_psa_quiet_hours_01      [news · anytime]
+[softly] Quiet Hours sits on the Wednesday timetable — Professor Stonebrook, the Still Room, one bell in the afternoon. [warmly] It's the only class that teaches the Center. Rest. Not absence — the nervous system sorting the day so that tomorrow can happen. He turns the hourglass on its side and lets the still sand do the talking. [softly] If you've been running on the last of the light, that's the room. No one there will ask you to perform being fine.
+
+-- Wicker Eddies · Thornwave (after-dark clubs; the feasts with an edge) --
+
+### DJ_thornwave_psa_clubs_night_01      [news · dusk/night]
+[low] It's after the bells, which means the clubs are awake — seven to ten, lamps up, doors open. [smooth] The Compass Society reads souvenirs aloud like confessions, and no one in that garden mocks a sentence — more discipline than most of you manage. The Inkwright Society writes it true, then burns it; the smoke goes up into the library ceiling. [amused] The Marginalia Guild leaves threats to future readers, lovingly. And the Book Jumpers argue about doors until someone finds the one with a way back. [low] Pick a room. Or don't. But the doors only open at this hour.
+
+### DJ_thornwave_psa_beltane_01      [news · anytime]
+[smooth] One feast even I won't sharpen my teeth on: Beltane. The Greenfire. The first of May, when the courtyard goes reckless with bloom and the vines climb the shelves with tiny books for leaves. [amused] The bees in the Compass Rose are helpful and, frankly, a little drunk. [low] Find the most alive green thing near you and talk to it like it can hear you. It can. That isn't me going soft — it's just true, and true is the only thing I deal in. [smooth] Greenfire. Don't miss it.
+
+### DJ_thornwave_psa_fullmoon_01      [news · dusk/night]
+[low] When the moon comes full, the Academy does the one thing it almost never does — cancels class after sunset. The Luminous Gathering. Everyone spills into the courtyard to read by moonlight, and strangers actually speak to each other. [smooth] The sentences glow. I've watched it happen and failed to find the trick. [amused] So write your souvenir under a full moon some night — they call it Moonwrite — and watch the page light up. [low] Believe it out loud. I dare you. The moon's already holding still for you.
+
+-- Professor Vivian Villanelle · The Midnight Bindery (the writing rooms) --
+
+### DJ_midnight_bindery_psa_ink_binding_01      [news · anytime]
+[precise] A standing notice from the Inkworks: Ink-Binding meets twice a week — Monday and Thursday afternoons, one bell. [warmly] The West direction. Write. What is written is kept; what is not written dissolves. We take one whole moment and bind it into a single durable sentence, then cross out the prettiest word that isn't true. [softly] Bring a day you don't want to lose. We'll make it hold. [precise] That is the entire curriculum, and the entire mercy.
+
+### DJ_midnight_bindery_psa_writing_clubs_01      [news · dusk/night]
+[warmly] For those still awake with something to say: the writing circles gather after the bells. [precise] The Compass Society reads one-sentence souvenirs aloud in the Secret Garden — Zara Finch lets no one mock a line. The Inkwright Society workshops honest first, kind second, and ends each night with a burning. The Marginalia Guild leaves notes in the margins for readers not yet born. [softly] Three rooms, one belief: a sentence shared is a sentence that holds. [precise] Find yours.
+
+### DJ_midnight_bindery_psa_moonwrite_01      [news · dusk/night]
+[precise] When the moon comes full, the Bindery keeps an old practice: Moonwrite. [warmly] You take the truest sentence of your day out under the Luminous Gathering and write it by moonlight — and the page, I promise you, glows. I've bound thousands of pages, and that one still stops my hands. [softly] Classes are cancelled after sunset that night anyway. So come out, write one true line, and let the moon witness it. [precise] Some bindings only set under that particular light.
+
+-- Melisande Blackwood · Goblin Market Jazz (hours, feasts, fair warning) --
+
+### DJ_goblin_market_psa_hours_01      [news · dusk/night]
+[cool] Consumer notice, for the standing record: the Goblin Market opens after hours and closes when it pleases. [smooth] All sales final. All bargains binding. No refunds, on principle. Bent brass, laughing ledgers, and discounts the trumpet is not legally entitled to offer. [amused] You'll find the jar of clover honey that hums, the Bramblewine aged in the dark, and at least one deal you shouldn't take. [cool] Bring a sharp eye and a loose coin. The Market does the rest.
+
+### DJ_goblin_market_psa_bargain_notice_01      [news · anytime]
+[cool] A genuine consumer warning — and I do mean genuine; it's good for repeat business if you survive it. A Fae Bargain always tells you the terms. Out loud. Plainly. [smooth] Then it watches you not listen. The expensive part is never in the offer — it's in the silence right after it. [amused] So when a deal taps your glass — tap, tap — read the small print twice, then read the pause. [cool] That's the whole art of not becoming a cautionary tale. Class dismissed. I don't teach for free, but that one's on the house.
+
+### DJ_goblin_market_psa_harvest_feasts_01      [news · anytime]
+[smooth] The feasts the Market likes best are the harvests. Lughnasadh, the First Harvest, the first of August — when the kitchens smell of bread that wasn't there an hour ago and everyone's flush with what they made. [cool] Then Mabon, the Second Rebalancing — the golden, grateful one at the autumn equinox. [amused] Gratitude makes people generous, and generous people make the margins sing. [cool] Name one thing you gathered this season and keep it like a loaf on the sill. Then come spend a little of the surplus. I'll be here. Keeping the books.
+
 
 ========================================================================
 PART 2 — IMPLEMENTATION SCHEMA  (Shared/WorldSystems.swift)
@@ -460,7 +545,7 @@ Two kinds of change below:
                     assetName: "DJ_bleed_cast_crew_01",
                     caption: "Unauthorized intercept. The faction the Academy won't name on the record: Wicker's crew. Blackwood keeps its memory; Nights keeps its doubt. Watch which one cracks first — the broker, or the believer. You didn't get this from a station. You didn't get this at all.",
                     conditions: RadioBanter.Conditions(
-                        pageTypes: [.castMember, .castBond, .gossip],
+                        pageTypes: [.illustration, .castBond, .gossip],
                         minRecentPagesOfType: 2
                     ),
                     weight: 6
@@ -657,6 +742,162 @@ Put a comma after that `]`, then paste this block before the `)`:
                     ]
 
 ------------------------------------------------------------------------
+PUBLIC SERVICE NOTICES — schema (general feed)
+All `.news`; weight left nil (normal rotation) so they blend into the feed
+rather than crowd the reactive clips. Only the evening/night-worded ones
+carry a `timeOfDay` gate. Append each block into the matching station's
+`banters:` array (for the Bindery & Market, that's the array added above).
+------------------------------------------------------------------------
+
+// FAE-FI — append into the `fae-fi` banters array
+                RadioBanter(
+                    id: "faefi-psa-timetable", category: .news,
+                    assetName: "DJ_faefi_psa_timetable_01",
+                    caption: "Public notice from the records desk, since someone has to keep it straight. The Academy runs on bells: morning classes at nine, afternoon classes at one, and clubs gather at seven, lamps up. Five days of classes, a Saturday field run, and a Sunday that opens in another book entirely. It's all chalked on the board by the Inkworks. I keep the master copy. Naturally.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-curriculum", category: .news,
+                    assetName: "DJ_faefi_psa_curriculum_01",
+                    caption: "For new readers wondering what's actually taught here: the whole curriculum is one compass. North is Notice — Boggle's Art of the Glint, finding the one odd detail. East is Embark — Momort's Wayfinding, crossing a small threshold on purpose. South is Sense — Euphony's Synesthetic Resonance, reading a room through the body. West is Write — Villanelle's Ink-Binding, one true sentence that keeps. And the Center is Rest — Stonebrook's Quiet Hours. Not a direction. The ground the other four stand on. Filed, cross-referenced, and only mildly poetic.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-week-grid", category: .news,
+                    assetName: "DJ_faefi_psa_week_grid_01",
+                    caption: "The week, for the record, as briefly as I can manage. Mondays: the Glint, then Ink-Binding. Tuesdays: Wayfinding, then Resonance. Wednesdays: the Glint again, then Quiet Hours. Thursdays: Wayfinding, then Ink-Binding. Fridays: Resonance, then Basic Enchantments. Saturdays we run the full Compass in the field. Sundays open in the Vault of Doors, with Book Jumping. Clubs after dark. Don't make me repeat it — I'll only be more accurate.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-clubs", category: .news,
+                    assetName: "DJ_faefi_psa_clubs_01",
+                    caption: "Evening notice: the clubs are gathering — seven bells, lamps up. The Compass Society reads souvenirs aloud in the Secret Garden, where no one mocks a sentence. The Marginalia Guild annotates in the Corridor of Whispered Secrets, leaving notes for readers fifty years out. The Inkwright Society writes, shares, and burns it. And the Book Jumpers argue about what counts as a door. Find the room that fits your week. Tell them the records desk sent you.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-bleed-editions", category: .news,
+                    assetName: "DJ_faefi_psa_bleed_editions_01",
+                    caption: "Reminder from your editor, which is me: The Bleed runs two editions. The Morning paper lands before one bell — weather, the day's hinges, what the Book noticed overnight, and a column off one of your own shelves. The Evening edition sets after four — tomorrow's shape, tonight's margins, a fresh column. The quiet afternoon between them belongs to you. That part's intentional. Read both. There may be a quiz. There won't be. But there could be.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-office-hours", category: .news,
+                    assetName: "DJ_faefi_psa_office_hours_01",
+                    caption: "A notice I file gladly: the support faculty keep their doors open. Dr. Inkrest holds office hours for difficult pages — no appointment, just a chair, a lamp, and the time to name a hard thing slowly. Dr. Vellum takes the body's evidence — fuel, rest, recovery — and turns it into one small experiment with no shame attached. Neither will rush you. It's almost unnerving. If the day's gone heavy, that's what the doors are for.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-todays-sky", category: .news,
+                    assetName: "DJ_faefi_psa_todays_sky_01",
+                    caption: "Daily service note: Today's Sky posts each morning — the moon's phase and sign, the weather drawing in, and the nearest thing the heavens are up to. It's the one forecast that reads the inner weather as much as the outer. I check it before I file anything. The sky, annoyingly, is usually right.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-festivals-wheel", category: .news,
+                    assetName: "DJ_faefi_psa_festivals_wheel_01",
+                    caption: "Since readers keep asking what we celebrate: the Academy keeps the eight feasts of the Wheel. Imbolc, the First Stir, when the dark first turns. Ostara and Mabon, the two Rebalancings at the equinoxes. Beltane's Greenfire and Litha's Longest Day in the bright half. Lughnasadh, the First Harvest. And in the dark half — Samhain, the Thinning, and Yule, the Darkest Class, taught by candlelight. Eight feasts, one turning year. I keep the calendar. The calendar, for once, keeps itself.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-moons-showers", category: .news,
+                    assetName: "DJ_faefi_psa_moons_showers_01",
+                    caption: "Also on the calendar, for the record: the moons and the falling stars. Every Full Moon is a Luminous Gathering — classes cancelled after sunset, everyone out reading by moonlight. Every New Moon, the Quiet Hours: candles only, the words holding their breath. And twice a year the ceiling goes clear for the meteors — the Perseids in August, the Falling Letters; the Geminids in December, the Winter Stars, when hot chocolate turns up in your hands unasked. I have not determined who delivers it. The investigation remains open.",
+                    conditions: nil, weight: nil
+                ),
+
+// MOTHLIGHT — append into the `mothlight-beats` banters array
+                RadioBanter(
+                    id: "mothlight-psa-samhain", category: .news,
+                    assetName: "DJ_mothlight_psa_samhain_01",
+                    caption: "A note for the calendar's gentlest night: Samhain — the Thinning — comes at the turn of October, when the door between the kept and the lost stands a little ajar. The Book remembers more than usual then, and is kinder about it. Name someone you've lost, and one thing they left in your keeping. The veil is thin; be honest, be gentle. It isn't a sad feast. It's a held one.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "mothlight-psa-yule-newmoon", category: .news,
+                    assetName: "DJ_mothlight_psa_yule_newmoon_01",
+                    caption: "For the dark half of the year, two quiet feasts worth keeping. Yule — the Darkest Class — held by candlelight on the longest night, taught honestly, the fireplaces crowded. And every New Moon, the Listening: candles only, the Academy gone contemplative-dark. Both ask the same small thing — name one thing that survives the dark with you, and keep it where the candle can reach. The light always comes back. These feasts simply sit with you until it does.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "mothlight-psa-resonance-class", category: .news,
+                    assetName: "DJ_mothlight_psa_resonance_class_01",
+                    caption: "A standing invitation, for the record: Synesthetic Resonance meets twice a week — Tuesday afternoons at one bell, and Friday mornings at nine — in the Resonance Chamber, Wing Three. We practice the South direction. Sense. Hearing a colour, then naming the real evidence beneath it. The senses are serious instruments, and yours are only out of practice. Come tune the room with me. Bring nothing — you already carry everything it needs.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "mothlight-psa-quiet-hours", category: .news,
+                    assetName: "DJ_mothlight_psa_quiet_hours_01",
+                    caption: "Quiet Hours sits on the Wednesday timetable — Professor Stonebrook, the Still Room, one bell in the afternoon. It's the only class that teaches the Center. Rest. Not absence — the nervous system sorting the day so that tomorrow can happen. He turns the hourglass on its side and lets the still sand do the talking. If you've been running on the last of the light, that's the room. No one there will ask you to perform being fine.",
+                    conditions: nil, weight: nil
+                ),
+
+// THORNWAVE — append into the `thornwave` banters array
+                RadioBanter(
+                    id: "thornwave-psa-clubs-night", category: .news,
+                    assetName: "DJ_thornwave_psa_clubs_night_01",
+                    caption: "It's after the bells, which means the clubs are awake — seven to ten, lamps up, doors open. The Compass Society reads souvenirs aloud like confessions, and no one in that garden mocks a sentence — more discipline than most of you manage. The Inkwright Society writes it true, then burns it; the smoke goes up into the library ceiling. The Marginalia Guild leaves threats to future readers, lovingly. And the Book Jumpers argue about doors until someone finds the one with a way back. Pick a room. Or don't. But the doors only open at this hour.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "thornwave-psa-beltane", category: .news,
+                    assetName: "DJ_thornwave_psa_beltane_01",
+                    caption: "One feast even I won't sharpen my teeth on: Beltane. The Greenfire. The first of May, when the courtyard goes reckless with bloom and the vines climb the shelves with tiny books for leaves. The bees in the Compass Rose are helpful and, frankly, a little drunk. Find the most alive green thing near you and talk to it like it can hear you. It can. That isn't me going soft — it's just true, and true is the only thing I deal in. Greenfire. Don't miss it.",
+                    conditions: nil, weight: nil
+                ),
+                RadioBanter(
+                    id: "thornwave-psa-fullmoon", category: .news,
+                    assetName: "DJ_thornwave_psa_fullmoon_01",
+                    caption: "When the moon comes full, the Academy does the one thing it almost never does — cancels class after sunset. The Luminous Gathering. Everyone spills into the courtyard to read by moonlight, and strangers actually speak to each other. The sentences glow. I've watched it happen and failed to find the trick. So write your souvenir under a full moon some night — they call it Moonwrite — and watch the page light up. Believe it out loud. I dare you. The moon's already holding still for you.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: nil
+                ),
+
+// THE MIDNIGHT BINDERY — append into the bindery banters array added above
+                        RadioBanter(
+                            id: "midnight-bindery-psa-ink-binding", category: .news,
+                            assetName: "DJ_midnight_bindery_psa_ink_binding_01",
+                            caption: "A standing notice from the Inkworks: Ink-Binding meets twice a week — Monday and Thursday afternoons, one bell. The West direction. Write. What is written is kept; what is not written dissolves. We take one whole moment and bind it into a single durable sentence, then cross out the prettiest word that isn't true. Bring a day you don't want to lose. We'll make it hold. That is the entire curriculum, and the entire mercy.",
+                            conditions: nil, weight: nil
+                        ),
+                        RadioBanter(
+                            id: "midnight-bindery-psa-writing-clubs", category: .news,
+                            assetName: "DJ_midnight_bindery_psa_writing_clubs_01",
+                            caption: "For those still awake with something to say: the writing circles gather after the bells. The Compass Society reads one-sentence souvenirs aloud in the Secret Garden — Zara Finch lets no one mock a line. The Inkwright Society workshops honest first, kind second, and ends each night with a burning. The Marginalia Guild leaves notes in the margins for readers not yet born. Three rooms, one belief: a sentence shared is a sentence that holds. Find yours.",
+                            conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                            weight: nil
+                        ),
+                        RadioBanter(
+                            id: "midnight-bindery-psa-moonwrite", category: .news,
+                            assetName: "DJ_midnight_bindery_psa_moonwrite_01",
+                            caption: "When the moon comes full, the Bindery keeps an old practice: Moonwrite. You take the truest sentence of your day out under the Luminous Gathering and write it by moonlight — and the page, I promise you, glows. I've bound thousands of pages, and that one still stops my hands. Classes are cancelled after sunset that night anyway. So come out, write one true line, and let the moon witness it. Some bindings only set under that particular light.",
+                            conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                            weight: nil
+                        ),
+
+// GOBLIN MARKET JAZZ — append into the market banters array added above
+                        RadioBanter(
+                            id: "goblin-market-psa-hours", category: .news,
+                            assetName: "DJ_goblin_market_psa_hours_01",
+                            caption: "Consumer notice, for the standing record: the Goblin Market opens after hours and closes when it pleases. All sales final. All bargains binding. No refunds, on principle. Bent brass, laughing ledgers, and discounts the trumpet is not legally entitled to offer. You'll find the jar of clover honey that hums, the Bramblewine aged in the dark, and at least one deal you shouldn't take. Bring a sharp eye and a loose coin. The Market does the rest.",
+                            conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                            weight: nil
+                        ),
+                        RadioBanter(
+                            id: "goblin-market-psa-bargain-notice", category: .news,
+                            assetName: "DJ_goblin_market_psa_bargain_notice_01",
+                            caption: "A genuine consumer warning — and I do mean genuine; it's good for repeat business if you survive it. A Fae Bargain always tells you the terms. Out loud. Plainly. Then it watches you not listen. The expensive part is never in the offer — it's in the silence right after it. So when a deal taps your glass — tap, tap — read the small print twice, then read the pause. That's the whole art of not becoming a cautionary tale. Class dismissed. I don't teach for free, but that one's on the house.",
+                            conditions: nil, weight: nil
+                        ),
+                        RadioBanter(
+                            id: "goblin-market-psa-harvest-feasts", category: .news,
+                            assetName: "DJ_goblin_market_psa_harvest_feasts_01",
+                            caption: "The feasts the Market likes best are the harvests. Lughnasadh, the First Harvest, the first of August — when the kitchens smell of bread that wasn't there an hour ago and everyone's flush with what they made. Then Mabon, the Second Rebalancing — the golden, grateful one at the autumn equinox. Gratitude makes people generous, and generous people make the margins sing. Name one thing you gathered this season and keep it like a loaf on the sill. Then come spend a little of the surplus. I'll be here. Keeping the books.",
+                            conditions: nil, weight: nil
+                        ),
+
+------------------------------------------------------------------------
 AUDIO BUNDLING + TESTS
 ------------------------------------------------------------------------
 1) Save each recording as InsideCoverApp/RadioAudio/<assetName>.m4a
@@ -701,7 +942,11 @@ To make Villanelle and Melisande actually talk on air:
     exactly like Fae-Fi's.
 
 ========================================================================
-END — 53 clips: Fae-Fi 10 · Mothlight 8 · Thornwave 9 · Bindery 11 ·
-Goblin Market 11 · The Bleed 4  (Fae-Fi/Thornwave totals include the two
-optional cross-station network stings).
+END — 75 clips total: Fae-Fi 19 · Mothlight 12 · Thornwave 12 · Bindery 14 ·
+Goblin Market 14 · The Bleed 4.
+  • 53 lore/cast/talisman/class/club + network clips (original drop)
+  • 22 Public Service Notices (general feed): Academy timetable & curriculum,
+    what each class/club teaches, the eight feasts of the Wheel, the moon
+    Esbats, the meteor showers, support office hours, and The Bleed editions.
+    16 play anytime; 6 evening/night-worded ones carry a dusk/night gate.
 ========================================================================

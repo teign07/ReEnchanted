@@ -22,6 +22,9 @@ import HealthKit
 #if canImport(Vision)
 import Vision
 #endif
+#if canImport(StoreKit)
+import StoreKit
+#endif
 #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM)
 import MLXLLM
 #endif
@@ -90,6 +93,9 @@ private struct GlowPillRevealAura: View {
 struct ContentView: View {
     @Environment(\.scenePhase) var scenePhase
     @Environment(\.accessibilityReduceMotion) var reduceMotion
+    #if canImport(StoreKit)
+    @Environment(\.requestReview) var requestReview
+    #endif
 
     @State var days: [BookDay] = [BookDay.today()]
     @State var generation = GenerationCoordinator()
@@ -199,6 +205,7 @@ struct ContentView: View {
     }
     @AppStorage("didCompleteStoryOnboarding") var didCompleteStoryOnboarding = false
     @AppStorage("didRevealGlowPill") var didRevealGlowPill = false
+    @AppStorage("didRequestFirstDoorAppReview") var didRequestFirstDoorAppReview = false
     var marginTutorSeenData: String {
         get { MarginTutorLedger.encode(Set(vault.data.tutorSeen)) }
         nonmutating set {
@@ -601,7 +608,12 @@ struct ContentView: View {
                 }
 
                 if !didCompleteStoryOnboarding && !isOpeningMovieVisible {
-                    OnboardingFlowView(onGlowUnlocked: revealGlowPillIfNeeded) { result in
+                    OnboardingFlowView(
+                        onGlowUnlocked: revealGlowPillIfNeeded,
+                        onKeepIlluminatedPhoto: { draft, renderedURL in
+                            keepOnboardingIlluminatedPhoto(draft: draft, renderedURL: renderedURL)
+                        }
+                    ) { result in
                         completeOnboarding(result)
                     }
                     .onAppear {
@@ -1092,6 +1104,7 @@ struct ContentView: View {
         tendFae()
         tendPact()
         tendConstellations()
+        maybeRequestFirstDoorAppReview()
         nearbyPlaces = LocalPlacesScout.cachedPlaces()
         if didRequestAnchorLocation || didRequestWeatherLocation {
             let scouted = await LocalPlacesScout.refreshIfNeeded()
@@ -1103,6 +1116,18 @@ struct ContentView: View {
         }
         await refreshAnchorProximity(isUserInitiated: false)
         await runLaunchSmokeTestIfRequested()
+    }
+
+    @MainActor
+    func maybeRequestFirstDoorAppReview() {
+        guard didCompleteStoryOnboarding, !didRequestFirstDoorAppReview else { return }
+        let daysWithPages = days.filter { !$0.pages.isEmpty }.count
+        let keptPages = days.reduce(0) { $0 + $1.pages.count }
+        guard daysWithPages >= 2, keptPages >= 5 else { return }
+        didRequestFirstDoorAppReview = true
+        #if canImport(StoreKit)
+        requestReview()
+        #endif
     }
 
     @MainActor
@@ -1531,7 +1556,7 @@ struct ContentView: View {
                 kind: .renderedImageFile,
                 reference: url.path,
                 caption: name,
-                sourceID: BookPageSourceRegistry.source(for: .castMember).id,
+                sourceID: BookPageSourceRegistry.source(for: .illustration).id,
                 metadata: ["entityID": entityID]
             )
         } catch {
@@ -1864,7 +1889,7 @@ struct ContentView: View {
             selectedSurface = surfaces.first
 
         default:
-            if let type = BookPageType(rawValue: destination) {
+            if let type = BookPageType.legacyCompatible(rawValue: destination) {
                 if isMemoryPageLocked(type) {
                     showMemoryPageLockedMessage(for: type)
                 } else {
@@ -4055,6 +4080,8 @@ struct ContentView: View {
             summary = "The reader presented \(gift.name) at the Goblin Market."
         case .loosePage:
             summary = "The reader turned \(gift.name), and found that it had revised itself."
+        case .unspokenPen:
+            summary = "The reader uncapped \(gift.name), and Gemma wrote one sentence meant never to have been spoken before."
         }
 
         vault.data.fae = state

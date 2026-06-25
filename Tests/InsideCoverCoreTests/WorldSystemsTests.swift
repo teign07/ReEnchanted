@@ -921,9 +921,9 @@ final class WorldSystemsTests: XCTestCase {
         let now = Date()
         func candidate(_ id: String, entityID: String, score: Int) -> SurfacePage {
             SurfacePage(
-                id: id, type: .castMember, sourceID: "cast-member-page",
+                id: id, type: .illustration, sourceID: "labyrinth-illustrations",
                 score: score, prompt: id, detail: "",
-                payload: BookPagePayload(headline: id, body: "", metadata: ["entityID": entityID])
+                payload: BookPagePayload(headline: id, body: "", metadata: ["illustrationKind": "cast", "entityID": entityID])
             )
         }
         let tired = candidate("a", entityID: "compassion", score: 70)
@@ -947,7 +947,7 @@ final class WorldSystemsTests: XCTestCase {
     }
 
     func testCastRotationExcludesRecentlySeenMember() {
-        let adapter = CastMemberPageSourceAdapter()
+        let adapter = CastIllustrationPageSourceAdapter()
         var inputs = BookSourceInputs.empty
         func member(_ id: String, belief: Int) -> CustomCastMember {
             CustomCastMember(
@@ -969,13 +969,13 @@ final class WorldSystemsTests: XCTestCase {
     }
 
     func testCastPoolIncludesBundledCharacters() {
-        let adapter = CastMemberPageSourceAdapter()
+        let adapter = CastIllustrationPageSourceAdapter()
         var inputs = BookSourceInputs.empty
         // No custom cast at all — a bundled character should still surface.
         inputs.customCastMembers = []
         let day = BookDay.today()
         let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: Date())
-        XCTAssertEqual(pages.first?.type, .castMember)
+        XCTAssertEqual(pages.first?.type, .illustration)
         XCTAssertFalse(pages.first?.payload.metadata["entityID"]?.isEmpty ?? true)
     }
 
@@ -1526,11 +1526,209 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(pages.isEmpty)
     }
 
+    func testFirstDoorOriginSurfaceCollectsOnboardingAnswers() {
+        let calendar = utcCalendar
+        let startedAt = date(2026, 6, 1, hour: 9, calendar: calendar)
+        let day = BookDay(id: "2026-06-01", date: startedAt, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = firstDoorFacts(startedAt: startedAt)
+
+        let origin = FirstDoorOriginPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: startedAt
+        ).first
+
+        XCTAssertEqual(origin?.type, .welcome)
+        XCTAssertEqual(origin?.sourceID, "first-door-origin")
+        XCTAssertEqual(origin?.payload.metadata["firstDoorOrigin"], "true")
+        XCTAssertEqual(origin?.varietyKey, "first-door-origin")
+        XCTAssertTrue(origin?.payload.body.contains("Beej") == true)
+        XCTAssertTrue(origin?.payload.body.contains("peanut butter toast") == true)
+        XCTAssertTrue(origin?.payload.body.contains("Small strange things count.") == true)
+        XCTAssertTrue(origin?.payload.body.contains("The lamp made a small gold island on the desk.") == true)
+    }
+
+    func testFirstRunSequenceShowsOriginAfterWelcomeBeforeBrain() {
+        let calendar = utcCalendar
+        let startedAt = date(2026, 6, 1, hour: 9, calendar: calendar)
+        let day = BookDay(id: "2026-06-01", date: startedAt, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = firstDoorFacts(startedAt: startedAt)
+        inputs.surfaceHistory = [
+            "source:labyrinth-welcome": SurfaceHistoryRecord(lastShownAt: startedAt, recentShowCount: 1)
+        ]
+
+        let pages = FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: startedAt
+        )
+
+        XCTAssertEqual(pages?.map(\.sourceID), ["labyrinth-welcome", "first-door-origin"])
+
+        inputs.surfaceHistory["first-door-origin"] = SurfaceHistoryRecord(lastShownAt: startedAt, recentShowCount: 1)
+
+        let followUp = FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: startedAt
+        )
+
+        XCTAssertEqual(followUp?.map(\.sourceID), ["labyrinth-welcome"])
+    }
+
+    func testFirstRunSequenceStillShowsWelcomeWhenOnboardingSouvenirIsAlreadyKept() {
+        var day = BookDay.today()
+        day.pages.append(BookPage(
+            type: .souvenir,
+            promptText: "What was the first true sentence you kept?",
+            userInput: "The lamp made a small gold island on the desk.",
+            tags: ["souvenir", "first-run-souvenir", "onboarding-first-souvenir"],
+            sourceID: "one-sentence-souvenir",
+            origin: .userAuthored,
+            privacy: .privateLocal
+        ))
+        var inputs = BookSourceInputs.empty
+
+        let pages = FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        )
+
+        XCTAssertEqual(pages?.map(\.sourceID), ["labyrinth-welcome"])
+
+        inputs.surfaceHistory = [
+            "source:labyrinth-welcome": SurfaceHistoryRecord(lastShownAt: Date(), recentShowCount: 1),
+            "source:local-brain-awake": SurfaceHistoryRecord(lastShownAt: Date(), recentShowCount: 1)
+        ]
+        inputs.localBrainIsReady = true
+
+        let afterWelcomeAndBrain = FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        )
+
+        XCTAssertNil(afterWelcomeAndBrain)
+    }
+
+    func testFirstDoorApprenticeshipSurfacesOneDailyPageDuringFirstWeek() {
+        let calendar = utcCalendar
+        let startedAt = date(2026, 6, 1, hour: 9, calendar: calendar)
+        let now = date(2026, 6, 3, hour: 10, calendar: calendar)
+        let day = BookDay(id: "2026-06-03", date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = firstDoorFacts(startedAt: startedAt)
+
+        let surface = FirstDoorApprenticeshipPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        ).first
+
+        XCTAssertEqual(surface?.sourceID, "first-door-apprenticeship")
+        XCTAssertEqual(surface?.type, .helpTips)
+        XCTAssertEqual(surface?.payload.metadata["firstDoorApprenticeshipDay"], "2")
+        XCTAssertEqual(surface?.varietyKey, "first-door-apprenticeship:2")
+        XCTAssertTrue(surface?.payload.body.contains("Small strange things count.") == true)
+    }
+
+    func testFirstDoorApprenticeshipDoesNotRepeatSeenDay() {
+        let calendar = utcCalendar
+        let startedAt = date(2026, 6, 1, hour: 9, calendar: calendar)
+        let now = date(2026, 6, 3, hour: 10, calendar: calendar)
+        let day = BookDay(id: "2026-06-03", date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = firstDoorFacts(startedAt: startedAt)
+        inputs.surfaceHistory = [
+            "first-door-apprenticeship:2": SurfaceHistoryRecord(lastShownAt: now, recentShowCount: 1)
+        ]
+
+        let surfaces = FirstDoorApprenticeshipPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertTrue(surfaces.isEmpty)
+    }
+
+    func testFirstDoorApprenticeshipStopsAfterFirstWeek() {
+        let calendar = utcCalendar
+        let startedAt = date(2026, 6, 1, hour: 9, calendar: calendar)
+        let now = date(2026, 6, 8, hour: 10, calendar: calendar)
+        let day = BookDay(id: "2026-06-08", date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = firstDoorFacts(startedAt: startedAt)
+
+        let surfaces = FirstDoorApprenticeshipPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertTrue(surfaces.isEmpty)
+    }
+
     private func fact(_ questionID: String, tags: [String]) -> SelfFact {
         SelfFact(
             id: questionID, questionID: questionID, question: "q", answer: "a",
             bookTranslation: "a", sensitivity: .delight, usePermission: .privateContext,
             tags: tags, createdAt: Date(), updatedAt: Date()
+        )
+    }
+
+    private func firstDoorFacts(startedAt: Date) -> [SelfFact] {
+        [
+            firstDoorFact(
+                "onboarding-name",
+                answer: "Beej",
+                tags: ["name", "identity", "onboarding"],
+                startedAt: startedAt
+            ),
+            firstDoorFact(
+                "onboarding-snack",
+                answer: "peanut butter toast",
+                tags: ["snack", "comfort", "onboarding"],
+                startedAt: startedAt
+            ),
+            firstDoorFact(
+                "onboarding-belief",
+                answer: "Small strange things count.",
+                tags: ["belief", "values", "onboarding"],
+                startedAt: startedAt
+            ),
+            firstDoorFact(
+                "onboarding-first-souvenir",
+                answer: "The lamp made a small gold island on the desk.",
+                tags: ["souvenir", "first-run-souvenir", "onboarding"],
+                startedAt: startedAt
+            )
+        ]
+    }
+
+    private func firstDoorFact(_ questionID: String, answer: String, tags: [String], startedAt: Date) -> SelfFact {
+        SelfFact(
+            id: questionID,
+            questionID: questionID,
+            question: "q",
+            answer: answer,
+            bookTranslation: answer,
+            sensitivity: .delight,
+            usePermission: .privateContext,
+            tags: tags,
+            createdAt: startedAt,
+            updatedAt: startedAt
         )
     }
 

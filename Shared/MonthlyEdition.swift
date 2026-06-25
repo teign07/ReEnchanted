@@ -417,12 +417,27 @@ enum MonthlyEditionBuilder {
                 tags: ["monthly-edition", "shape"]
             ))
         }
-        for signal in continuity.strongestSignals.prefix(8) {
+        let signals = continuity.strongestSignals
+        let patternSignals = signals.filter { $0.kind == .pattern }
+        if !patternSignals.isEmpty {
+            items.append(MonthlyEditionItem(
+                id: "returning-language",
+                kind: .continuity,
+                title: "Returning Language",
+                body: returningLanguageLine(from: patternSignals),
+                date: patternSignals.map(\.lastSeenAt).max(),
+                pageType: nil,
+                sourceID: nil,
+                mediaAssets: [],
+                tags: ["monthly-edition", "language", "pattern"]
+            ))
+        }
+        for signal in signals.filter({ $0.kind != .pattern }).prefix(5) {
             items.append(MonthlyEditionItem(
                 id: signal.id,
                 kind: .continuity,
                 title: signal.subjectName,
-                body: signal.line,
+                body: monthlySignalLine(signal),
                 date: signal.lastSeenAt,
                 pageType: nil,
                 sourceID: nil,
@@ -449,6 +464,48 @@ enum MonthlyEditionBuilder {
             note: "Connections, absences, durations, and living Beliefs gathered from the month.",
             items: items
         )
+    }
+
+    private static func returningLanguageLine(from signals: [LiteraryContinuitySignal]) -> String {
+        let names = signals.prefix(6).map(\.subjectName)
+        let motifLine = naturalList(names)
+        let recentNames = signals
+            .filter { $0.tags.contains("recent-events") }
+            .prefix(3)
+            .map(\.subjectName)
+        let recentLine = recentNames.isEmpty
+            ? ""
+            : " \(naturalList(recentNames)) also crossed into recent events."
+        return "Certain words kept finding their way back: \(motifLine). The Book treats them as motifs and atmosphere, not as a scorecard.\(recentLine)"
+    }
+
+    private static func monthlySignalLine(_ signal: LiteraryContinuitySignal) -> String {
+        switch signal.kind {
+        case .absence:
+            return signal.line
+        case .duration:
+            return signal.line
+        case .beliefLifecycle:
+            return signal.line
+        case .pattern:
+            return signal.line
+        case .listening:
+            return signal.line
+        }
+    }
+
+    private static func naturalList(_ values: [String]) -> String {
+        let cleaned = values.filter { !$0.isEmpty }
+        switch cleaned.count {
+        case 0:
+            return "a few quiet motifs"
+        case 1:
+            return cleaned[0]
+        case 2:
+            return "\(cleaned[0]) and \(cleaned[1])"
+        default:
+            return "\(cleaned.dropLast().joined(separator: ", ")), and \(cleaned.last ?? "")"
+        }
     }
 
     private static func worldEventSection(from pages: [BookPage]) -> MonthlyEditionSection {
@@ -544,8 +601,56 @@ enum MonthlyEditionBuilder {
 
     private static func pageBody(_ page: BookPage) -> String {
         let userInput = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !userInput.isEmpty { return userInput }
-        return page.promptText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let raw = userInput.isEmpty ? page.promptText.trimmingCharacters(in: .whitespacesAndNewlines) : userInput
+        return excerptForMonthlyBinding(raw, pageType: page.type)
+    }
+
+    private static func excerptForMonthlyBinding(_ text: String, pageType: BookPageType) -> String {
+        let limit = monthlyExcerptLimit(for: pageType)
+        guard text.count > limit else { return text }
+
+        let paragraphs = text
+            .components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        var chosen: [String] = []
+        var count = 0
+        for paragraph in paragraphs {
+            let nextCount = count + paragraph.count
+            if nextCount > limit { break }
+            chosen.append(paragraph)
+            count = nextCount
+            if count >= Int(Double(limit) * 0.65) { break }
+        }
+
+        let excerpt: String
+        if chosen.isEmpty {
+            excerpt = prefixAtWordBoundary(text, limit: limit)
+        } else {
+            excerpt = chosen.joined(separator: "\n\n")
+        }
+        return "\(excerpt)\n\n[Excerpted for the monthly binding.]"
+    }
+
+    private static func monthlyExcerptLimit(for pageType: BookPageType) -> Int {
+        switch pageType {
+        case .bookOfYou, .letter, .narrativeOS, .bookConnections, .gossip:
+            return 1_800
+        case .souvenir:
+            return 600
+        default:
+            return 1_100
+        }
+    }
+
+    private static func prefixAtWordBoundary(_ text: String, limit: Int) -> String {
+        guard text.count > limit else { return text }
+        let cutoff = text.index(text.startIndex, offsetBy: limit)
+        let prefix = text[..<cutoff]
+        if let lastSpace = prefix.lastIndex(where: { $0.isWhitespace }) {
+            return String(prefix[..<lastSpace]).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+        return String(prefix).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
     }
 
     private static func monthTitle(for date: Date, calendar: Calendar) -> String {

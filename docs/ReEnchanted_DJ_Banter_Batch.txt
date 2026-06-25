@@ -1,0 +1,559 @@
+================================================================================
+REENCHANTED RADIO — NEW DJ BANTER BATCH
+For copy/paste into Shared/WorldSystems.swift (banters: arrays)
+Asset headings double as ElevenLabs clip headings.
+================================================================================
+
+Notes before you paste:
+- Every clip below has an id, assetName, caption, conditions, and weight.
+- Captions are the audio fallback AND the on-screen line, so they're written
+  to stand alone if a recording isn't bundled yet.
+- Conditions only reference real fields from the guide. nil means "anytime."
+- Page types use dot-case (.souvenir, .theBleed) exactly as the enum wants.
+- Weight: nil normal, 3-4 noticeable, 5-6 rare/perfect-match.
+- Slugs: faefi / mothlight / thornwave / bleed.
+
+
+================================================================================
+FAE-FI — Penny Blackletter
+Dry, precise record-keeper. Treats brightness like evidence. Warm underneath.
+================================================================================
+
+--------------------------------------------------------------------------------
+ASSET: DJ_faefi_pages_souvenir_02
+--------------------------------------------------------------------------------
+Three souvenirs in a week. I'm not saying you're building a case file, but
+the evidence is starting to look deliberate. Carry on.
+
+RadioBanter(
+    id: "faefi-pages-souvenir-collector",
+    category: .gossip,
+    assetName: "DJ_faefi_pages_souvenir_02",
+    caption: "Three souvenirs in a week. I'm not saying you're building a case file, but the evidence is starting to look deliberate.",
+    conditions: RadioBanter.Conditions(
+        pageTypes: [.souvenir],
+        minRecentPagesOfType: 3
+    ),
+    weight: 4
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_faefi_weather_bright_morning_02
+--------------------------------------------------------------------------------
+Filed under "obvious": the sun is out, the band is clean, and somewhere a
+dandelion synth just got ideas. I've logged it. You're welcome.
+
+RadioBanter(
+    id: "faefi-weather-bright-morning",
+    category: .news,
+    assetName: "DJ_faefi_weather_bright_morning_02",
+    caption: "Filed under obvious: the sun is out, the band is clean, and somewhere a dandelion synth just got ideas.",
+    conditions: RadioBanter.Conditions(
+        timeOfDay: ["dawn", "day"],
+        weatherTags: ["bright"]
+    ),
+    weight: 3
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_faefi_source_wonder_compass_02
+--------------------------------------------------------------------------------
+Heavy Wonder Compass traffic on the wire this morning. Somebody's been
+practicing the looking. Don't let it go to your head — let it go to your feet.
+
+RadioBanter(
+    id: "faefi-source-wonder-compass-morning",
+    category: .news,
+    assetName: "DJ_faefi_source_wonder_compass_02",
+    caption: "Heavy Wonder Compass traffic this morning. Somebody's been practicing the looking. Let it go to your feet, not your head.",
+    conditions: RadioBanter.Conditions(
+        sourceIDs: ["wonder-compass"],
+        timeOfDay: ["dawn", "day"]
+    ),
+    weight: 3
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_faefi_pages_kept_today_busy_01
+--------------------------------------------------------------------------------
+You've kept four pages before lunch. At this rate the archivist — me — is
+going to need a bigger drawer. Slow down or don't. I'll keep filing.
+
+RadioBanter(
+    id: "faefi-pages-kept-today-busy",
+    category: .news,
+    assetName: "DJ_faefi_pages_kept_today_busy_01",
+    caption: "Four pages kept before lunch. At this rate I'm going to need a bigger drawer. Slow down, or don't. I'll keep filing.",
+    conditions: RadioBanter.Conditions(minKeptToday: 4),
+    weight: 3
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_faefi_festival_window_01
+--------------------------------------------------------------------------------
+The almanac says it's a festival. The almanac is rarely wrong about these
+things, which is annoying. Brightness is mandatory. Resistance will be noted.
+
+RadioBanter(
+    id: "faefi-festival-mandatory-brightness",
+    category: .stationID,
+    assetName: "DJ_faefi_festival_window_01",
+    caption: "The almanac says it's a festival, and it's rarely wrong, which is annoying. Brightness is mandatory. Resistance will be noted.",
+    conditions: RadioBanter.Conditions(festivalOnly: true),
+    weight: 5
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_faefi_pages_body_fuel_care_01
+--------------------------------------------------------------------------------
+I've got a couple of body and fuel pages in the recent file. Unglamorous,
+both of them. Also the truest things you've logged all week. Drink some water.
+
+RadioBanter(
+    id: "faefi-pages-body-fuel-care",
+    category: .gossip,
+    assetName: "DJ_faefi_pages_body_fuel_care_01",
+    caption: "A couple of body and fuel pages in the recent file. Unglamorous. Also the truest things you've logged all week. Drink some water.",
+    conditions: RadioBanter.Conditions(
+        pageTypes: [.body, .fuel],
+        minRecentPagesOfType: 2
+    ),
+    weight: 3
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_faefi_listening_streak_01
+--------------------------------------------------------------------------------
+Several days now you've come back to this frequency. People mistake that for
+habit. I file it under loyalty. The bright stuff remembers who showed up.
+
+RadioBanter(
+    id: "faefi-listening-streak-loyal",
+    category: .stationID,
+    assetName: "DJ_faefi_listening_streak_01",
+    caption: "Several days you've come back to this frequency. People call it habit. I file it under loyalty. The bright stuff remembers who showed up.",
+    conditions: RadioBanter.Conditions(minListeningDays: 4),
+    weight: 4
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_faefi_pages_illuminated_photo_01
+--------------------------------------------------------------------------------
+Someone's been gilding their own photographs. Gold leaf around an ordinary
+Tuesday. That's the whole trick, by the way. That's the entire grimoire.
+
+RadioBanter(
+    id: "faefi-pages-illuminated-photo",
+    category: .gossip,
+    assetName: "DJ_faefi_pages_illuminated_photo_01",
+    caption: "Someone's been gilding their own photographs. Gold leaf around an ordinary Tuesday. That's the whole trick. That's the entire grimoire.",
+    conditions: RadioBanter.Conditions(
+        pageTypes: [.illuminatedPhoto],
+        minRecentPagesOfType: 1
+    ),
+    weight: 4
+)
+
+
+================================================================================
+MOTHLIGHT BEATS — Professor Eleanor Euphony
+Synesthete. Hears feeling as harmony. Lush, gentle, lamp-lit. Never bleak.
+================================================================================
+
+--------------------------------------------------------------------------------
+ASSET: DJ_mothlight_weather_rain_dusk_02
+--------------------------------------------------------------------------------
+Rain at dusk has a key signature, you know. Minor, but warm minor — the kind
+that holds you instead of dropping you. Let it play through the window a while.
+
+RadioBanter(
+    id: "mothlight-weather-rain-dusk",
+    category: .news,
+    assetName: "DJ_mothlight_weather_rain_dusk_02",
+    caption: "Rain at dusk has a key signature. Minor, but a warm minor — the kind that holds you instead of dropping you. Let it play a while.",
+    conditions: RadioBanter.Conditions(
+        timeOfDay: ["dusk", "night"],
+        weatherTags: ["rain"]
+    ),
+    weight: 4
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_mothlight_pages_memory_cluster_02
+--------------------------------------------------------------------------------
+I'm hearing old pages resonate together — three of them, sounding the same
+note from different rooms. That's not nostalgia, dear one. That's a chord
+your year is trying to complete.
+
+RadioBanter(
+    id: "mothlight-pages-memory-chord",
+    category: .gossip,
+    assetName: "DJ_mothlight_pages_memory_cluster_02",
+    caption: "Old pages resonating together — three of them, the same note from different rooms. Not nostalgia. A chord your year is trying to complete.",
+    conditions: RadioBanter.Conditions(
+        pageTypes: [.bookRemembered, .diary, .mood],
+        minRecentPagesOfType: 3
+    ),
+    weight: 5
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_mothlight_pages_last_mood_night_02
+--------------------------------------------------------------------------------
+The last page you kept is still warm. I can hear the feeling in it sitting
+there in the dark, not asking to be fixed. Good. Some things only want to be
+heard out to their natural end.
+
+RadioBanter(
+    id: "mothlight-pages-last-mood-warm",
+    category: .gossip,
+    assetName: "DJ_mothlight_pages_last_mood_night_02",
+    caption: "The last page you kept is still warm. The feeling in it isn't asking to be fixed. Some things only want to be heard out to their natural end.",
+    conditions: RadioBanter.Conditions(
+        timeOfDay: ["dusk", "night"],
+        lastKeptPageTypes: [.mood, .diary]
+    ),
+    weight: 4
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_mothlight_weather_fog_01
+--------------------------------------------------------------------------------
+Fog tonight. The whole band goes soft-focus, every edge sanded down to a hum.
+Don't strain to see through it. Fog is the world asking you to listen instead.
+
+RadioBanter(
+    id: "mothlight-weather-fog-listen",
+    category: .news,
+    assetName: "DJ_mothlight_weather_fog_01",
+    caption: "Fog tonight. Every edge sanded down to a hum. Don't strain to see through it. Fog is the world asking you to listen instead.",
+    conditions: RadioBanter.Conditions(
+        timeOfDay: ["dusk", "night"],
+        weatherTags: ["fog"]
+    ),
+    weight: 4
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_mothlight_pages_letter_01
+--------------------------------------------------------------------------------
+Someone's been keeping letters. The cast writes in a register I can almost
+play — affection arranged for strings. If one arrives tonight, read it slow.
+Correspondence is a duet across time.
+
+RadioBanter(
+    id: "mothlight-pages-letter-duet",
+    category: .gossip,
+    assetName: "DJ_mothlight_pages_letter_01",
+    caption: "Someone's been keeping letters. Affection arranged for strings. If one arrives tonight, read it slow. Correspondence is a duet across time.",
+    conditions: RadioBanter.Conditions(
+        pageTypes: [.letter, .castMember],
+        minRecentPagesOfType: 2
+    ),
+    weight: 4
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_mothlight_weather_snow_night_01
+--------------------------------------------------------------------------------
+DJ_mothlight_pages_letter_01
+
+RadioBanter(
+    id: "mothlight-weather-snow-hush",
+    category: .news,
+    assetName: "DJ_mothlight_weather_snow_night_01",
+    caption: "Snow is the only weather that arrives in pianissimo. Everything outside agreed to be quiet at once. We'll match it.",
+    conditions: RadioBanter.Conditions(
+        timeOfDay: ["dusk", "night"],
+        weatherTags: ["snow", "cold"]
+    ),
+    weight: 5
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_mothlight_pages_kept_today_gentle_01
+--------------------------------------------------------------------------------
+You've kept a good handful of pages today. I can feel the Book beginning to
+hum — that low, contented frequency a thing makes when it's being properly
+tended. Rest in that sound a moment before the next song.
+
+RadioBanter(
+    id: "mothlight-pages-kept-today-hum",
+    category: .news,
+    assetName: "DJ_mothlight_pages_kept_today_gentle_01",
+    caption: "You've kept a good handful of pages today. The Book is beginning to hum — that low, contented frequency a thing makes when it's being tended.",
+    conditions: RadioBanter.Conditions(minKeptToday: 4),
+    weight: 3
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_mothlight_grey_gentle_01
+--------------------------------------------------------------------------------
+There's a greyness pressing on the band tonight. I won't pretend it away —
+that's not what music is for. But I'll do this: I'll keep the lamp on, and
+I'll keep the songs warm, and we'll wait it out together in good company.
+
+RadioBanter(
+    id: "mothlight-grey-keep-the-lamp",
+    category: .news,
+    assetName: "DJ_mothlight_grey_gentle_01",
+    caption: "There's a greyness pressing on the band tonight. I won't pretend it away. But I'll keep the lamp on and the songs warm, and we'll wait it out together.",
+    conditions: RadioBanter.Conditions(
+        timeOfDay: ["dusk", "night"],
+        minGrey: 35,
+        maxGrey: 70
+    ),
+    weight: 4
+)
+
+
+================================================================================
+THORNWAVE — Wicker Eddies
+Smooth, amused, dangerous. Doors, names, pacts, consequences. Real care, rarely.
+================================================================================
+
+--------------------------------------------------------------------------------
+ASSET: DJ_thornwave_pages_bargain_02
+--------------------------------------------------------------------------------
+So you've been taking meetings with the Fae. Bold. The good news is they
+always keep their word. The bad news is the same sentence. Read the small
+print, darling — it's where all the music lives.
+
+RadioBanter(
+    id: "thornwave-pages-fae-bargain-fineprint",
+    category: .gossip,
+    assetName: "DJ_thornwave_pages_bargain_02",
+    caption: "So you've been taking meetings with the Fae. They always keep their word — that's the good news and the bad news. Read the small print. It's where the music lives.",
+    conditions: RadioBanter.Conditions(
+        pageTypes: [.faeBargain, .pactDispatch],
+        minRecentPagesOfType: 1
+    ),
+    weight: 5
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_thornwave_weather_storm_grey_02
+--------------------------------------------------------------------------------
+Storm on the band, grey at the edges, and that delicious pressure right before
+something decides to happen. The Nothing loves weather like this. So do I. The
+difference is I'm only here for the bassline.
+
+RadioBanter(
+    id: "thornwave-weather-storm-grey-pressure",
+    category: .news,
+    assetName: "DJ_thornwave_weather_storm_grey_02",
+    caption: "Storm on the band, grey at the edges, that delicious pressure before something decides to happen. The Nothing loves weather like this. So do I — but I'm only here for the bassline.",
+    conditions: RadioBanter.Conditions(
+        timeOfDay: ["dusk", "night"],
+        minGrey: 35,
+        weatherTags: ["storm", "rain", "wind"]
+    ),
+    weight: 5
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_thornwave_pages_story_night_02
+--------------------------------------------------------------------------------
+A story's been moving through your pages after dark. Something with a door in
+it, I'd wager. Here's a free tip, no strings — and you'll notice I rarely say
+that: in this kind of tale, the choice you skip is also a choice.
+
+RadioBanter(
+    id: "thornwave-pages-story-night-choice",
+    category: .gossip,
+    assetName: "DJ_thornwave_pages_story_night_02",
+    caption: "A story's been moving through your pages after dark. Something with a door in it. Free tip, no strings, and I rarely say that: the choice you skip is also a choice.",
+    conditions: RadioBanter.Conditions(
+        timeOfDay: ["dusk", "night"],
+        pageTypes: [.narrativeOS, .bookJump, .gamePage],
+        minRecentPagesOfType: 2
+    ),
+    weight: 5
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_thornwave_pages_gossip_02
+--------------------------------------------------------------------------------
+The Bleed's been chatty and so has the Loom. I don't traffic in rumor —
+I traffic in leverage, which is rumor that's grown up. Someone in the cast
+is keeping a secret. Lovely. Secrets are just bargains that haven't been
+offered yet.
+
+RadioBanter(
+    id: "thornwave-pages-gossip-leverage",
+    category: .gossip,
+    assetName: "DJ_thornwave_pages_gossip_02",
+    caption: "The Bleed's been chatty and so has the Loom. I don't traffic in rumor — I traffic in leverage, which is rumor that's grown up. Secrets are just bargains not yet offered.",
+    conditions: RadioBanter.Conditions(
+        pageTypes: [.gossip, .castBond],
+        minRecentPagesOfType: 2
+    ),
+    weight: 4
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_thornwave_time_after_midnight_01
+--------------------------------------------------------------------------------
+It's past the hour when sensible people sleep, which is exactly why you're
+my favorite kind of company. Nothing good gets decided after midnight, they
+say. They're wrong. Nothing safe gets decided after midnight. Different word.
+
+RadioBanter(
+    id: "thornwave-time-after-midnight",
+    category: .stationID,
+    assetName: "DJ_thornwave_time_after_midnight_01",
+    caption: "Past the hour sensible people sleep, which makes you my favorite company. Nothing good gets decided after midnight, they say. Wrong. Nothing safe does. Different word.",
+    conditions: RadioBanter.Conditions(timeOfDay: ["night"]),
+    weight: 3
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_thornwave_grey_high_pressure_01
+--------------------------------------------------------------------------------
+The grey's gone heavy. I can feel the Nothing leaning on the door, polite as
+ever, asking to be let in for a moment. Here's the thing about that door,
+sweetheart: it only opens from your side. Keep the music up. Keep your hand
+off the latch.
+
+RadioBanter(
+    id: "thornwave-grey-high-keep-the-door",
+    category: .news,
+    assetName: "DJ_thornwave_grey_high_pressure_01",
+    caption: "The grey's gone heavy. The Nothing's leaning on the door, polite as ever. Here's the thing — it only opens from your side. Keep the music up. Hand off the latch.",
+    conditions: RadioBanter.Conditions(
+        minGrey: 55,
+        maxGrey: 85
+    ),
+    weight: 5
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_thornwave_pages_anchor_resist_01
+--------------------------------------------------------------------------------
+You've been dropping anchors lately. Naming things. Holding ground. Look at
+you, building a self the Nothing can't argue with. I'd be insulted if I
+weren't quietly impressed. Don't tell anyone I said that.
+
+RadioBanter(
+    id: "thornwave-pages-anchor-impressed",
+    category: .gossip,
+    assetName: "DJ_thornwave_pages_anchor_resist_01",
+    caption: "You've been dropping anchors. Naming things. Holding ground. Building a self the Nothing can't argue with. I'd be insulted if I weren't quietly impressed. Don't tell anyone.",
+    conditions: RadioBanter.Conditions(
+        pageTypes: [.anchor, .enchantment],
+        minRecentPagesOfType: 1
+    ),
+    weight: 4
+)
+
+
+================================================================================
+THE BLEED — 97.3 (hidden pirate band)
+Use category: .network. Intercepts, anomalies, unauthorized patterns.
+Voice: between stations. Half-tuned. Knows too much.
+================================================================================
+
+--------------------------------------------------------------------------------
+ASSET: DJ_bleed_pages_gossip_02
+--------------------------------------------------------------------------------
+— authorized broadcast. You weren't meant to find this dial step. We log
+what the other stations smooth over. Pattern noted: you, returning. The
+Bleed sees the seams. The Bleed keeps the offcuts. Tune back when the
+official frequencies get too clean. They always do. —
+
+RadioBanter(
+    id: "bleed-pages-gossip-seams",
+    category: .network,
+    assetName: "DJ_bleed_pages_gossip_02",
+    caption: "— you weren't meant to find this dial step. We log what the others smooth over. The Bleed sees the seams. Tune back when the official frequencies get too clean. —",
+    conditions: RadioBanter.Conditions(
+        pageTypes: [.gossip, .theBleed],
+        minRecentPagesOfType: 2
+    ),
+    weight: 6
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_bleed_grey_story_intercept_01
+--------------------------------------------------------------------------------
+— interrupting your regularly scheduled wonder. Grey's up. A story's open.
+That combination has a name in our files and we don't say it on air. Whatever
+chose to surface tonight, it surfaced on purpose. Nothing in the Labyrinth is
+an accident. Especially not the accidents. —
+
+RadioBanter(
+    id: "bleed-grey-story-intercept",
+    category: .network,
+    assetName: "DJ_bleed_grey_story_intercept_01",
+    caption: "— grey's up, a story's open, and that combination has a name in our files we don't say on air. Whatever surfaced tonight, it surfaced on purpose. Nothing here is an accident. Especially the accidents. —",
+    conditions: RadioBanter.Conditions(
+        minGrey: 40,
+        pageTypes: [.narrativeOS, .bookJump, .gamePage],
+        minRecentPagesOfType: 2
+    ),
+    weight: 6
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_bleed_festival_underside_01
+--------------------------------------------------------------------------------
+— while the bright stations celebrate, somebody has to mind the underside of
+the festival. Every wheel that turns has a back. We broadcast from the back.
+Enjoy your sabbat. We'll be here, reading the bits the almanac leaves in the
+margins. —
+
+RadioBanter(
+    id: "bleed-festival-underside",
+    category: .network,
+    assetName: "DJ_bleed_festival_underside_01",
+    caption: "— while the bright stations celebrate, somebody minds the underside of the festival. Every wheel that turns has a back. We broadcast from the back. —",
+    conditions: RadioBanter.Conditions(festivalOnly: true),
+    weight: 6
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_bleed_time_deep_night_02
+--------------------------------------------------------------------------------
+— 97.3, the frequency that isn't on the list. It's the deep middle of the
+night, the hour the Book leaves a door ajar between editions. We slipped in
+through it. So did you. Don't worry. We're the friendly kind of unauthorized.
+Mostly. —
+
+RadioBanter(
+    id: "bleed-time-deep-night",
+    category: .network,
+    assetName: "DJ_bleed_time_deep_night_02",
+    caption: "— 97.3, the frequency that isn't on the list. Deep middle of the night, the hour the Book leaves a door ajar between editions. We slipped in. So did you. We're the friendly kind of unauthorized. Mostly. —",
+    conditions: RadioBanter.Conditions(timeOfDay: ["night"]),
+    weight: 5
+)
+
+--------------------------------------------------------------------------------
+ASSET: DJ_bleed_loyalty_watched_01
+--------------------------------------------------------------------------------
+— you keep finding your way back to the hidden number. Most people tune past
+us their whole lives. Not you. We've started a file. Don't be flattered;
+everyone gets a file. Yours is just getting interesting. Stay on the dial. —
+
+RadioBanter(
+    id: "bleed-loyalty-file",
+    category: .network,
+    assetName: "DJ_bleed_loyalty_watched_01",
+    caption: "— you keep finding the hidden number. Most people tune past us their whole lives. We've started a file. Don't be flattered; everyone gets one. Yours is getting interesting. —",
+    conditions: RadioBanter.Conditions(minListeningDays: 3),
+    weight: 6
+)
+
+
+================================================================================
+END OF BATCH
+================================================================================
+
+Quick wiring checklist (from the guide):
+1. Paste each RadioBanter into the right station's banters: array in
+   Shared/WorldSystems.swift.
+2. The Bleed entries go in the the-bleed (97.3) station array.
+3. Record/export audio to InsideCoverApp/RadioAudio/<assetName>.m4a.
+   Until then, the caption plays as fallback, so you can test now.
+4. Add new bundled assets to testNewReactiveDJAssetsAreBundled.
+5. swift test --filter RadioBanterTests

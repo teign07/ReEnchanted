@@ -215,6 +215,44 @@ extension ContentView {
             answer: result.belief,
             tags: ["belief", "core", "onboarding"]
         )
+        saveOnboardingFact(
+            questionID: "onboarding-sleeve-word",
+            question: "Which word caught on your sleeve?",
+            answer: result.sleeveWord,
+            tags: ["arrival", "sleeve-word", "onboarding"]
+        )
+        saveOnboardingFact(
+            questionID: "onboarding-taste",
+            question: "What should the Book bring you more of?",
+            answer: result.tastePreference,
+            tags: ["taste", "curation", "onboarding"]
+        )
+        saveOnboardingFact(
+            questionID: "onboarding-comfort-boundary",
+            question: "How sharp should the Book get?",
+            answer: result.comfortBoundary,
+            tags: ["comfort", "tone", "grey", "onboarding"]
+        )
+        saveOnboardingFact(
+            questionID: "onboarding-whisper-cadence",
+            question: "When should the Book tap the glass?",
+            answer: result.whisperCadence,
+            tags: ["notifications", "whispers", "onboarding"]
+        )
+        saveOnboardingFact(
+            questionID: "onboarding-wicker-mode",
+            question: "How did you answer Wicker?",
+            answer: result.wickerMode,
+            tags: ["wicker", "story-shape", "belief-roll", "onboarding"]
+        )
+        saveOnboardingFact(
+            questionID: "onboarding-wicker-roll",
+            question: "Did your first Wicker Belief roll hold?",
+            answer: result.wickerMode.isEmpty ? "" : (result.wickerRollSucceeded ? "success" : "failure"),
+            tags: ["wicker", "belief-roll", result.wickerRollSucceeded ? "success" : "failure", "onboarding"]
+        )
+        applyOnboardingChapterAffinity(result.drawnChapterID)
+        applyOnboardingWhisperPreference(result.whisperCadence)
         if !result.firstSouvenir.isEmpty {
             saveOnboardingFact(
                 questionID: "onboarding-first-souvenir",
@@ -222,6 +260,7 @@ extension ContentView {
                 answer: result.firstSouvenir,
                 tags: ["souvenir", "first-page", "onboarding"]
             )
+            keepOnboardingSouvenirIfNeeded(result.firstSouvenir)
         }
         if result.investedBelief, !result.belief.isEmpty {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
@@ -244,6 +283,125 @@ extension ContentView {
             ? "The Academy doors are open."
             : "The Academy doors are open, \(result.name)."
         BookFeedback.play(.braidComplete)
+    }
+
+    func applyOnboardingChapterAffinity(_ chapterID: String) {
+        let trimmed = chapterID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let chapter = AcademyChapterRegistry.chapter(id: trimmed) else { return }
+        saveOnboardingFact(
+            questionID: "onboarding-drawn-chapter",
+            question: "Which Chapter tugged at you first?",
+            answer: chapter.name,
+            tags: ["chapter", "talisman", "belief", "onboarding", chapter.id]
+        )
+        let amount = min(3, beliefScore)
+        guard amount > 0 else { return }
+        let talisman = GlowEntityMenuItem(
+            id: chapter.talismanID,
+            name: chapter.talismanName,
+            kind: "talisman",
+            glow: 0,
+            line: chapter.storyBias
+        )
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+            beliefScore = max(0, beliefScore - amount)
+        }
+        adjustEntityBelief(talisman, delta: amount, kind: .beliefInvested, playerBeliefDelta: -amount)
+    }
+
+    func applyOnboardingWhisperPreference(_ cadence: String) {
+        let trimmed = cadence.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let enabled = trimmed != "inside"
+        bookWhispersEnabled = enabled
+        BookWhispers.refreshSchedule(
+            enabled: enabled,
+            electives: electives,
+            whisperController: whisperController,
+            whisperSovereign: whisperSovereign,
+            festivalWhisper: festivalWhisperToday
+        )
+    }
+
+    func keepOnboardingSouvenirIfNeeded(_ answer: String) {
+        let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        var day = today
+        guard !day.pages.contains(where: {
+            $0.type == .souvenir && (
+                $0.tags.contains("first-run-souvenir") ||
+                $0.tags.contains("onboarding-first-souvenir")
+            )
+        }) else { return }
+
+        let source = BookPageSourceRegistry.source(for: .souvenir)
+        let page = BookPage(
+            type: .souvenir,
+            promptText: "What was the first true sentence you kept?",
+            userInput: trimmed,
+            tags: ["souvenir", "first-page", "first-run-souvenir", "onboarding", "onboarding-first-souvenir"],
+            sourceID: source.id,
+            origin: source.origin,
+            privacy: source.privacy,
+            promptVersion: "first-door-v1"
+        )
+        day.pages.append(page)
+        recordNarrativeEvent(for: page)
+        weaveRelationshipField(for: page)
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+            beliefScore = min(100, beliefScore + 1)
+        }
+        persist(day: day, message: "Your first true sentence is already tucked into Today's Margins.")
+    }
+
+    @MainActor
+    func keepOnboardingIlluminatedPhoto(draft: IlluminatedPhotoDraft, renderedURL: URL?) {
+        var day = today
+        guard !day.pages.contains(where: {
+            $0.type == .illuminatedPhoto
+                && $0.tags.contains("onboarding-illuminated-photo")
+                && $0.mediaAssets.contains { $0.metadata["assetLocalIdentifier"] == draft.assetLocalIdentifier }
+        }) else {
+            statusMessage = "That illuminated plate is already tucked into Today's Margins."
+            return
+        }
+
+        let source = BookPageSourceRegistry.source(for: .illuminatedPhoto)
+        var mediaAssets: [BookPageMediaAsset] = []
+        if let renderedURL {
+            mediaAssets.append(BookPageMediaAsset(
+                kind: .renderedImageFile,
+                reference: renderedURL.path,
+                caption: draft.analysis.marginalia.closingLine,
+                sourceID: source.id,
+                metadata: [
+                    "assetLocalIdentifier": draft.assetLocalIdentifier,
+                    "template": draft.compositionPlan.templateId.rawValue,
+                    "assetPack": draft.compositionPlan.assetPackId,
+                    "firstDoorDemo": "true"
+                ]
+            ))
+        }
+
+        let page = BookPage(
+            type: .illuminatedPhoto,
+            promptText: "The First Door illuminated a photo.",
+            userInput: draft.analysis.marginalia.observationList.joined(separator: "\n"),
+            tags: ["illuminated-photo", "photo", "first-door", "onboarding", "onboarding-illuminated-photo"],
+            sourceID: source.id,
+            origin: source.origin,
+            privacy: source.privacy,
+            promptVersion: "first-door-photo-v1",
+            mediaAssets: mediaAssets
+        )
+        day.pages.append(page)
+        recordNarrativeEvent(for: page)
+        weaveRelationshipField(for: page)
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+            beliefScore = min(100, beliefScore + 1)
+        }
+        persist(day: day, message: "The First Door illuminated photo is tucked into Today's Margins.")
     }
 
     func saveOnboardingFact(questionID: String, question: String, answer: String, tags: [String]) {

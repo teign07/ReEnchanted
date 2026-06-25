@@ -80,7 +80,7 @@ The numeric checks are intentionally broad because temperature text may be strin
 
 Use these Swift enum cases in `pageTypes` or `lastKeptPageTypes`:
 
-`mood`, `diary`, `souvenir`, `rest`, `body`, `fuel`, `weather`, `location`, `quip`, `aboutYou`, `wonderCompass`, `lore`, `patreon`, `illustration`, `illuminatedPhoto`, `narrativeOS`, `gossip`, `facultyResearch`, `letter`, `supportGuild`, `castMember`, `bookOfYou`, `askTheBook`, `inkrestOfficeHours`, `faeBargain`, `bookFae`, `pactDispatch`, `festival`, `twoReadings`, `castBond`, `todaysSky`, `radio`, `bookJump`, `enchantment`, `anchor`, `academyClass`, `elective`, `packPage`, `gamePage`, `calendar`, `helpTips`, `welcome`, `marginsAtlas`, `bookConnections`, `bookRemembered`, `bookNotices`, `glowInvitation`, `theBleed`, `inventory`.
+`mood`, `diary`, `souvenir`, `rest`, `body`, `fuel`, `weather`, `location`, `quip`, `aboutYou`, `wonderCompass`, `lore`, `patreon`, `illustration`, `illuminatedPhoto`, `narrativeOS`, `gossip`, `facultyResearch`, `letter`, `supportGuild`, `bookOfYou`, `askTheBook`, `inkrestOfficeHours`, `faeBargain`, `bookFae`, `pactDispatch`, `festival`, `twoReadings`, `castBond`, `todaysSky`, `radio`, `bookJump`, `enchantment`, `anchor`, `academyClass`, `elective`, `packPage`, `gamePage`, `calendar`, `helpTips`, `welcome`, `marginsAtlas`, `bookConnections`, `bookRemembered`, `bookNotices`, `glowInvitation`, `theBleed`, `inventory`.
 
 In Swift, write them with dots: `.souvenir`, `.bookRemembered`, `.theBleed`.
 

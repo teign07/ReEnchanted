@@ -22,7 +22,6 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case facultyResearch
     case letter
     case supportGuild
-    case castMember
     case bookOfYou
     case askTheBook
     case inkrestOfficeHours
@@ -53,6 +52,27 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case inventory
 
     var id: String { rawValue }
+
+    static func legacyCompatible(rawValue: String) -> BookPageType? {
+        rawValue == "castMember" ? .illustration : Self(rawValue: rawValue)
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        guard let type = Self.legacyCompatible(rawValue: rawValue) else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unknown book page type: \(rawValue)"
+            )
+        }
+        self = type
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 
     var title: String {
         switch self {
@@ -96,8 +116,6 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Letter Page"
         case .supportGuild:
             return "Support Guild Page"
-        case .castMember:
-            return "Cast Member Page"
         case .bookOfYou:
             return "Book of You"
         case .askTheBook:
@@ -199,8 +217,6 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Letter"
         case .supportGuild:
             return "Guild"
-        case .castMember:
-            return "Cast"
         case .bookOfYou:
             return "Braid"
         case .askTheBook:
@@ -302,8 +318,6 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "envelope.open"
         case .supportGuild:
             return "cross.case"
-        case .castMember:
-            return "person.crop.square"
         case .bookOfYou:
             return "book.closed"
         case .askTheBook:
@@ -628,18 +642,6 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "four-hour turn",
             note: "What moved while you were elsewhere."
-        ),
-        BookPageSource(
-            id: "cast-member-page",
-            type: .castMember,
-            title: "Cast Member Page",
-            shortTitle: "Cast",
-            symbolName: "person.crop.square",
-            origin: .generated,
-            privacy: .privateLocal,
-            isActive: true,
-            cadence: "belief-weighted",
-            note: "User-made people, places, objects, motifs, and talismans."
         ),
         BookPageSource(
             id: "letter-page",
@@ -1002,6 +1004,30 @@ enum BookPageSourceRegistry {
             note: "The Labyrinth of Stories introduces itself and the daily loop."
         ),
         BookPageSource(
+            id: "first-door-origin",
+            type: .welcome,
+            title: "The First Door",
+            shortTitle: "First Door",
+            symbolName: "door.left.hand.open",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "first run",
+            note: "A private origin page made from the reader's first answers."
+        ),
+        BookPageSource(
+            id: "first-door-apprenticeship",
+            type: .helpTips,
+            title: "First Door Apprenticeship",
+            shortTitle: "First Week",
+            symbolName: "sparkles.rectangle.stack",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "daily for seven days",
+            note: "A gentle first-week path that turns the Book's core loop into habit."
+        ),
+        BookPageSource(
             id: "local-brain-awake",
             type: .welcome,
             title: "The Book Thinks Again",
@@ -1085,8 +1111,6 @@ enum BookPageSourceRegistry {
             return 26
         case .theBleed:
             return 30
-        case .castMember:
-            return 25
         case .aboutYou, .rest, .helpTips:
             return 24
         case .lore, .illustration, .illuminatedPhoto, .packPage:
@@ -1126,7 +1150,7 @@ enum BookPageSourceRegistry {
             return 24
         case .bookJump:
             return 30
-        case .weather, .gossip, .facultyResearch, .letter, .castMember, .askTheBook, .enchantment, .academyClass, .elective:
+        case .weather, .gossip, .facultyResearch, .letter, .askTheBook, .enchantment, .academyClass, .elective:
             return 22
         case .theBleed:
             return 26

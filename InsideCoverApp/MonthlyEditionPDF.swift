@@ -910,7 +910,8 @@ enum MonthlyEditionPDFWriter {
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
     ) {
-        ensureSpace(110, style: style, context: context, cursor: &cursor)
+        let pageCapacity = cursor.bottom - cursor.margins.top
+        ensureSpace(min(estimatedItemHeight(item, cursor: cursor), pageCapacity), style: style, context: context, cursor: &cursor)
         let itemTop = cursor.y
 
         // Date chip in the margin column.
@@ -975,6 +976,27 @@ enum MonthlyEditionPDFWriter {
         rule.lineWidth = 0.5
         rule.stroke()
         cursor.y += 14
+    }
+
+    private static func estimatedItemHeight(_ item: MonthlyEditionItem, cursor: PDFCursor) -> CGFloat {
+        var height: CGFloat = 0
+        height += measuredTextHeight(
+            item.title,
+            font: .systemFont(ofSize: 12, weight: .bold),
+            width: cursor.contentWidth
+        ) + 4
+        if item.kind == .image, !item.mediaAssets.isEmpty {
+            height += 246
+            if let caption = item.mediaAssets.first?.caption, !caption.isEmpty {
+                height += measuredTextHeight(caption, font: .serifItalicFont(ofSize: 9), width: cursor.contentWidth) + 6
+            }
+        }
+        height += measuredTextHeight(
+            item.body,
+            font: .serifFont(ofSize: 11, weight: .regular),
+            width: cursor.contentWidth
+        ) + 6
+        return height + 22
     }
 
     /// The month's conclusion - the Book's last word, set on a composted leaf
@@ -1386,6 +1408,48 @@ enum MonthlyEditionPDFWriter {
         leftInset: CGFloat = 0,
         firstLineOnlyInsetHeight: CGFloat = 0
     ) {
+        let width = cursor.contentWidth - leftInset
+        let rectHeight = measuredTextHeight(text, font: font, width: width)
+        drawMeasuredText(
+            text,
+            font: font,
+            color: color,
+            cursor: &cursor,
+            spacingAfter: spacingAfter,
+            width: width,
+            rectHeight: rectHeight,
+            leftInset: leftInset,
+            firstLineOnlyInsetHeight: firstLineOnlyInsetHeight
+        )
+    }
+
+    private static func measuredTextHeight(_ text: String, font: UIFont, width: CGFloat) -> CGFloat {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = 3
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .paragraphStyle: paragraph
+        ]
+        let attributed = NSAttributedString(string: text, attributes: attributes)
+        let rect = attributed.boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        ).integral
+        return rect.height + 4
+    }
+
+    private static func drawMeasuredText(
+        _ text: String,
+        font: UIFont,
+        color: UIColor,
+        cursor: inout PDFCursor,
+        spacingAfter: CGFloat,
+        width: CGFloat,
+        rectHeight: CGFloat,
+        leftInset: CGFloat,
+        firstLineOnlyInsetHeight: CGFloat
+    ) {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = 3
         let attributes: [NSAttributedString.Key: Any] = [
@@ -1394,14 +1458,8 @@ enum MonthlyEditionPDFWriter {
             .paragraphStyle: paragraph
         ]
         let attributed = NSAttributedString(string: text, attributes: attributes)
-        let width = cursor.contentWidth - leftInset
-        let rect = attributed.boundingRect(
-            with: CGSize(width: width, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            context: nil
-        ).integral
-        attributed.draw(in: CGRect(x: cursor.left + leftInset, y: cursor.y, width: width, height: rect.height + 4))
-        cursor.y += max(rect.height + 4, firstLineOnlyInsetHeight) + spacingAfter
+        attributed.draw(in: CGRect(x: cursor.left + leftInset, y: cursor.y, width: width, height: rectHeight))
+        cursor.y += max(rectHeight, firstLineOnlyInsetHeight) + spacingAfter
     }
 
     private static func drawFramedImage(_ image: UIImage, style: EditionStyle, context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor) {

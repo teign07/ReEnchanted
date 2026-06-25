@@ -49,7 +49,7 @@ final class StoredArchivePage {
         let decodedTags = (try? JSONDecoder().decode([String].self, from: tagsData)) ?? []
         let decodedMediaAssets = mediaAssetsData
             .flatMap { try? JSONDecoder().decode([BookPageMediaAsset].self, from: $0) } ?? []
-        let type = BookPageType(rawValue: typeRawValue) ?? .souvenir
+        let type = BookPageType.legacyCompatible(rawValue: typeRawValue) ?? .souvenir
         return BookPage(
             id: id,
             type: type,

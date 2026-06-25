@@ -1727,7 +1727,7 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
             renderStyle: .loreLetter,
             score: score,
             reason: reason,
-            prompt: "Welcome to the Labyrinth of Stories",
+            prompt: "The First Door Opens",
             detail: "The Book opens its first door and decides, on the spot, that it likes you.",
             payload: BookPagePayload(
                 headline: name == "Reader" ? "Welcome to the Labyrinth" : "Welcome, \(name)",
@@ -1748,14 +1748,14 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
 
                 Then we begin in earnest.
 
-                First a greeting — done, and I meant every letter of it. Then a mind. Then one true sentence, brought back from the world on the other side of this page.
+                First Door work is simple. A greeting — done, and I meant every letter of it. Then a mind. Then one true sentence, brought back from the world on the other side of this page.
 
                 I will be right here. I am a book. Waiting is the thing I am best at.
                 """,
                 metadata: [
                     "source": source.id,
                     "welcomePage": "true",
-                    "firstRunStep": "welcome",
+                    "firstRunStep": "first-door-welcome",
                     "playerName": name,
                     "privacy": "public reference",
                     "symbol": source.symbolName,
@@ -1771,6 +1771,409 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
             ?? usableFacts.first { $0.questionID == "called" }?.answer
             ?? usableFacts.first { $0.tags.contains("name") || $0.tags.contains("identity") }?.answer
         return preferred?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+}
+
+private struct FirstDoorReaderProfile {
+    var name: String?
+    var snack: String?
+    var belief: String?
+    var firstSouvenir: String?
+    var sleeveWord: String?
+    var drawnChapter: String?
+    var wickerMode: String?
+    var wickerRoll: String?
+    var tastePreference: String?
+    var comfortBoundary: String?
+    var whisperCadence: String?
+    var startedAt: Date?
+
+    static func from(_ inputs: BookSourceInputs) -> FirstDoorReaderProfile? {
+        let usableFacts = inputs.selfFacts.filter { $0.usePermission != .doNotUse }
+        let startedAt = usableFacts
+            .filter { $0.questionID.hasPrefix("onboarding-") || $0.tags.contains("onboarding") }
+            .map(\.createdAt)
+            .min()
+        let profile = FirstDoorReaderProfile(
+            name: answer(for: "onboarding-name", in: usableFacts)
+                ?? LabyrinthWelcomePageSourceAdapter.playerName(from: inputs),
+            snack: answer(for: "onboarding-snack", in: usableFacts),
+            belief: answer(for: "onboarding-belief", in: usableFacts),
+            firstSouvenir: answer(for: "onboarding-first-souvenir", in: usableFacts),
+            sleeveWord: answer(for: "onboarding-sleeve-word", in: usableFacts),
+            drawnChapter: answer(for: "onboarding-drawn-chapter", in: usableFacts),
+            wickerMode: answer(for: "onboarding-wicker-mode", in: usableFacts),
+            wickerRoll: answer(for: "onboarding-wicker-roll", in: usableFacts),
+            tastePreference: answer(for: "onboarding-taste", in: usableFacts),
+            comfortBoundary: answer(for: "onboarding-comfort-boundary", in: usableFacts),
+            whisperCadence: answer(for: "onboarding-whisper-cadence", in: usableFacts),
+            startedAt: startedAt
+        )
+        guard profile.name != nil
+            || profile.snack != nil
+            || profile.belief != nil
+            || profile.firstSouvenir != nil
+            || profile.sleeveWord != nil
+            || profile.drawnChapter != nil
+            || profile.wickerMode != nil
+            || profile.wickerRoll != nil
+            || profile.tastePreference != nil
+            || profile.comfortBoundary != nil
+            || profile.whisperCadence != nil
+            || profile.startedAt != nil else {
+            return nil
+        }
+        return profile
+    }
+
+    private static func answer(for questionID: String, in facts: [SelfFact]) -> String? {
+        facts.first { $0.questionID == questionID }?
+            .answer
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty
+    }
+}
+
+struct FirstDoorOriginPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(id: "first-door-origin")
+
+    func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        originSurface(
+            profile: FirstDoorReaderProfile.from(inputs) ?? FirstDoorReaderProfile(),
+            day: day,
+            score: 74,
+            reason: "The Book can re-open the private origin page made from the reader's first answers."
+        )
+    }
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive else { return [] }
+        guard inputs.surfaceHistory["first-door-origin"] == nil else { return [] }
+        guard !day.pages.contains(where: { $0.sourceID == source.id || $0.tags.contains("first-door-origin") }) else { return [] }
+        guard let profile = FirstDoorReaderProfile.from(inputs) else { return [] }
+        return [
+            originSurface(
+                profile: profile,
+                day: day,
+                score: context.distress.isActive ? 78 : 94,
+                reason: "The Book has enough first answers to make a private origin page."
+            )
+        ]
+    }
+
+    private func originSurface(profile: FirstDoorReaderProfile, day: BookDay, score: Int, reason: String) -> SurfacePage {
+        let name = profile.name ?? "Reader"
+        let snack = profile.snack ?? "not yet named"
+        let belief = profile.belief ?? "still taking shape"
+        let firstSentence = profile.firstSouvenir ?? "still waiting for its first true sentence"
+        let sleeveWord = profile.sleeveWord ?? "still unnamed"
+        let drawnChapter = profile.drawnChapter ?? "still listening"
+        let wicker = profile.wickerMode.map(Self.displayTitle(for:)) ?? "not yet crossed"
+        let wickerRoll = profile.wickerRoll ?? "not rolled"
+        let taste = profile.tastePreference.map(Self.displayTitle(for:)) ?? "still listening"
+        let comfort = profile.comfortBoundary.map(Self.displayTitle(for:)) ?? "balanced"
+        let whispers = profile.whisperCadence.map(Self.displayTitle(for:)) ?? "inside the covers"
+        let startedLine = profile.startedAt.map { "Opened: \(Self.dayFormatter.string(from: $0))" } ?? "Opened: just now"
+        return SurfacePage(
+            id: "\(source.id)-\(day.id)",
+            type: .welcome,
+            sourceID: source.id,
+            intent: .importReference,
+            renderStyle: .loreLetter,
+            score: score,
+            reason: reason,
+            prompt: "Your First Door",
+            detail: "The private page made from your first answers.",
+            payload: BookPagePayload(
+                headline: "\(name)'s First Door",
+                body: """
+                This is the page the Book made from the first things you gave it.
+
+                \(startedLine)
+                Name: \(name)
+                Sleeve word: \(sleeveWord)
+                First talisman tug: \(drawnChapter)
+                Wicker answer: \(wicker) (\(wickerRoll))
+                Margin ration: \(snack)
+                First belief: \(belief)
+                First true sentence: \(firstSentence)
+                First appetite: \(taste)
+                First edge: \(comfort)
+                First whisper rule: \(whispers)
+
+                Nothing here needs to be impressive. That is the point. The Book is stickier when it starts with real crumbs instead of grand declarations: a name it can say, a comfort it can leave beside you, a belief it can test gently, and one sentence from the actual day.
+
+                Keep this page if you want the beginning to stay reachable.
+                """,
+                metadata: [
+                    "source": source.id,
+                    "firstDoorOrigin": "true",
+                    "welcomePage": "true",
+                    "firstRunStep": "first-door-origin",
+                    "playerName": name,
+                    "privacy": "private local",
+                    "symbol": source.symbolName,
+                    "tags": "welcome,first-door,first-door-origin,origin,onboarding,private-local"
+                ]
+            )
+        )
+    }
+
+    private static func displayTitle(for raw: String) -> String {
+        switch raw {
+        case "letters": return "Letters and voices"
+        case "errands": return "Strange errands"
+        case "cozy": return "Cozy noticing"
+        case "weather-place": return "Weather and place"
+        case "eerie": return "Eerie story threads"
+        case "oddities": return "Funny little oddities"
+        case "gentle": return "Gentle"
+        case "balanced": return "Balanced"
+        case "strange": return "Let it get strange"
+        case "morning": return "Morning"
+        case "evening": return "Evening"
+        case "inside": return "Only inside the covers"
+        case "slice-of-life": return "Slice of Life"
+        case "arc": return "Arc"
+        case "surprise": return "Surprise"
+        default: return raw
+        }
+    }
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+}
+
+private struct FirstDoorApprenticeshipEntry {
+    var id: String
+    var dayIndex: Int
+    var title: String
+    var prompt: String
+    var detail: String
+    var body: String
+    var tags: [String]
+    var metadata: [String: String] = [:]
+}
+
+private enum FirstDoorApprenticeshipCatalog {
+    static func entry(for dayIndex: Int, profile: FirstDoorReaderProfile) -> FirstDoorApprenticeshipEntry? {
+        let name = profile.name ?? "Reader"
+        let snack = profile.snack ?? "whatever keeps you company"
+        let belief = profile.belief ?? "the thing you want to believe"
+        let firstSentence = profile.firstSouvenir ?? "one true sentence"
+        let taste = displayTitle(for: profile.tastePreference ?? "cozy").lowercased()
+        let edge = displayTitle(for: profile.comfortBoundary ?? "balanced").lowercased()
+        let whispers = displayTitle(for: profile.whisperCadence ?? "inside").lowercased()
+        let entries = [
+            FirstDoorApprenticeshipEntry(
+                id: "day-0",
+                dayIndex: 0,
+                title: "Keep One Small Thing",
+                prompt: "Find today's first keepable sentence.",
+                detail: "The Book gets sticky when the first move is tiny.",
+                body: """
+                \(name), today's work is one sentence.
+
+                Do not make it wise. Make it specific. A sound in the room, a color on the counter, the exact little problem with the weather, the good line someone said, the smell of \(snack).
+
+                Keep the page only if it has a pulse.
+                """,
+                tags: ["first-door", "apprenticeship", "day-0", "souvenir"]
+            ),
+            FirstDoorApprenticeshipEntry(
+                id: "day-1",
+                dayIndex: 1,
+                title: "Bind the Free Folio",
+                prompt: "Open the BookShop and bind the free folio.",
+                detail: "A gift teaches the shelf that packs can change the Book.",
+                body: """
+                The Bookshop is not only a paid shelf. The first gift is already on the counter.
+
+                Open the Goblin Market and bind Margins & Mysteries to your save. It is a free folio: Grey pages, hearth inventories, and small evening mysteries that teach the Book how extra shelves work.
+
+                The clerk will pretend this is not generous. The clerk is lying.
+                """,
+                tags: ["first-door", "apprenticeship", "day-1", "bookshop", "free-pack"],
+                metadata: ["opensBookShop": "true", "recommendedFreePackID": "margins-and-mysteries"]
+            ),
+            FirstDoorApprenticeshipEntry(
+                id: "day-2",
+                dayIndex: 2,
+                title: "Aim the Glow",
+                prompt: "Spend attention on one thing you want more of.",
+                detail: "Belief becomes practice when attention has a target.",
+                body: """
+                Your first belief was: \(belief).
+
+                Today, do not defend it. Test it gently. Put one small mark beside something that makes it easier to believe, even for a minute. The Book is currently biased toward \(taste), so look there first.
+
+                The Glow is not a mood. It is attention with a direction.
+                """,
+                tags: ["first-door", "apprenticeship", "day-2", "glow"]
+            ),
+            FirstDoorApprenticeshipEntry(
+                id: "day-3",
+                dayIndex: 3,
+                title: "Give the Book Its Mind",
+                prompt: "Visit the Colophon and check the local brain.",
+                detail: "The Book gets better when its private mind is awake.",
+                body: """
+                Today is for the Colophon.
+
+                The local brain lives on this device. When it is ready, letters, story pages, Ask the Book, and braids can read your archive with sharper hands without sending private pages away.
+
+                Open the Colophon, check the local brain, and let the Book know whether it may think properly here.
+                """,
+                tags: ["first-door", "apprenticeship", "day-3", "local-brain", "colophon"],
+                metadata: ["opensColophon": "true", "localBrainSetup": "true"]
+            ),
+            FirstDoorApprenticeshipEntry(
+                id: "day-4",
+                dayIndex: 4,
+                title: "Check the Bell",
+                prompt: "Notice whether the whisper rule still fits.",
+                detail: "A sticky Book calls back politely, or not at all.",
+                body: """
+                Your first whisper rule was: \(whispers).
+
+                If that still feels right, leave it. If it does not, open the Colophon and change Whispers from the Book. The Book should never feel like a pushy app wearing a nice coat.
+
+                A good door knocks only when knocking helps.
+                """,
+                tags: ["first-door", "apprenticeship", "day-4", "notifications", "whispers"],
+                metadata: ["opensColophon": "true", "whisperCadence": profile.whisperCadence ?? "inside"]
+            ),
+            FirstDoorApprenticeshipEntry(
+                id: "day-5",
+                dayIndex: 5,
+                title: "Ask for a Useful Door",
+                prompt: "Ask the Book one plain question.",
+                detail: "A question turns the Book from ambiance into help.",
+                body: """
+                Ask the Book one useful question.
+
+                Not a cosmic one. Try something with a handle: What should I notice on the walk? Which kept sentence wants a follow-up? What would make \(firstSentence) less lonely?
+
+                Keep the edge \(edge). Useful magic starts with a question you might actually act on.
+                """,
+                tags: ["first-door", "apprenticeship", "day-5", "ask-the-book"]
+            ),
+            FirstDoorApprenticeshipEntry(
+                id: "day-6",
+                dayIndex: 6,
+                title: "Read the Week Back",
+                prompt: "Find the thread that followed you home.",
+                detail: "The first week becomes a habit when it can be reread.",
+                body: """
+                The First Door has been open for a week.
+
+                Read back what you kept. Do not summarize everything. Find the one thread that followed you home: a comfort, a joke, a color, a voice, a stubborn little belief.
+
+                Name that thread. If the Book is starting to feel alive, this is the moment when the App Store may ask for a rating later. If it is not, that is useful too: dismiss weak pages, change the edge, and make the Book earn it.
+                """,
+                tags: ["first-door", "apprenticeship", "day-6", "reread", "rating-warmup"],
+                metadata: ["ratingWarmup": "true"]
+            )
+        ]
+        return entries.first { $0.dayIndex == dayIndex }
+    }
+
+    private static func displayTitle(for raw: String) -> String {
+        switch raw {
+        case "letters": return "Letters and voices"
+        case "errands": return "Strange errands"
+        case "cozy": return "Cozy noticing"
+        case "weather-place": return "Weather and place"
+        case "eerie": return "Eerie story threads"
+        case "oddities": return "Funny little oddities"
+        case "gentle": return "Gentle"
+        case "balanced": return "Balanced"
+        case "strange": return "Let it get strange"
+        case "morning": return "Morning"
+        case "evening": return "Evening"
+        case "inside": return "Only inside the covers"
+        default: return raw
+        }
+    }
+}
+
+struct FirstDoorApprenticeshipPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(id: "first-door-apprenticeship")
+
+    func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        let profile = FirstDoorReaderProfile.from(inputs) ?? FirstDoorReaderProfile()
+        let dayIndex = apprenticeshipDay(for: profile, now: now) ?? 0
+        let entry = FirstDoorApprenticeshipCatalog.entry(for: dayIndex, profile: profile)
+            ?? FirstDoorApprenticeshipCatalog.entry(for: 0, profile: profile)!
+        return surface(for: entry, day: day, context: context, score: 70, reason: "The First Door can re-open today's apprenticeship page.")
+    }
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive else { return [] }
+        guard let profile = FirstDoorReaderProfile.from(inputs),
+              let dayIndex = apprenticeshipDay(for: profile, now: now),
+              let entry = FirstDoorApprenticeshipCatalog.entry(for: dayIndex, profile: profile) else {
+            return []
+        }
+        guard inputs.surfaceHistory["first-door-apprenticeship:\(dayIndex)"] == nil else { return [] }
+        guard !day.pages.contains(where: { $0.tags.contains("first-door-apprenticeship-\(dayIndex)") }) else { return [] }
+        return [
+            surface(
+                for: entry,
+                day: day,
+                context: context,
+                score: context.distress.isActive ? 74 : 88,
+                reason: "The reader is still in the first week; the Book has one sticky practice for today."
+            )
+        ]
+    }
+
+    private func apprenticeshipDay(for profile: FirstDoorReaderProfile, now: Date) -> Int? {
+        guard let startedAt = profile.startedAt else { return nil }
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: startedAt)
+        let current = calendar.startOfDay(for: now)
+        guard let day = calendar.dateComponents([.day], from: start, to: current).day,
+              (0...6).contains(day) else {
+            return nil
+        }
+        return day
+    }
+
+    private func surface(
+        for entry: FirstDoorApprenticeshipEntry,
+        day: BookDay,
+        context: CuratorContext,
+        score: Int,
+        reason: String
+    ) -> SurfacePage {
+        SurfacePage(
+            id: "\(source.id)-\(entry.id)-\(day.id)",
+            type: .helpTips,
+            sourceID: source.id,
+            intent: .importReference,
+            renderStyle: .loreLetter,
+            score: score,
+            reason: reason,
+            prompt: entry.prompt,
+            detail: entry.detail,
+            payload: BookPagePayload(
+                headline: entry.title,
+                body: entry.body,
+                metadata: [
+                    "source": source.id,
+                    "firstDoorApprenticeshipDay": "\(entry.dayIndex)",
+                    "tipID": "first-door-apprenticeship-\(entry.dayIndex)",
+                    "privacy": "private local",
+                    "symbol": source.symbolName,
+                    "tags": (entry.tags + ["first-door-apprenticeship-\(entry.dayIndex)", "onboarding", "private-local"]).joined(separator: ",")
+                ].merging(entry.metadata) { _, new in new }
+            )
+        )
     }
 }
 
@@ -2916,8 +3319,8 @@ struct GossipPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
-struct CastMemberPageSourceAdapter: BookPageSourceAdapter {
-    let source = BookPageSourceRegistry.source(for: .castMember)
+struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .illustration)
 
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
         guard let pick = selectedEntity(from: castPool(inputs: inputs), offsets: inputs.entityBeliefOffsets, excluding: inputs.recentVarietyKeys(now: now), now: now, manual: true) else {
@@ -2985,6 +3388,7 @@ struct CastMemberPageSourceAdapter: BookPageSourceAdapter {
         let isCustom = entity.packID == "user-cast"
         var metadata = [
             "source": source.id,
+            "illustrationKind": "cast",
             "entityID": entity.id,
             "entityName": entity.name,
             "entityKind": entity.kind.rawValue,
@@ -3001,8 +3405,8 @@ struct CastMemberPageSourceAdapter: BookPageSourceAdapter {
         let body = Self.castBody(for: entity, description: description, meaning: meaning)
         let slotID = manual ? "\(Int(now.timeIntervalSince1970))" : SurfaceCadence.minuteSlotID(for: now, minutes: 20)
         return SurfacePage(
-            id: "\(source.id)-\(entity.id)-\(slotID)",
-            type: .castMember,
+            id: "\(source.id)-cast-\(entity.id)-\(slotID)",
+            type: .illustration,
             sourceID: source.id,
             intent: .importReference,
             renderStyle: .quoteCard,
@@ -3080,8 +3484,8 @@ struct CastMemberPageSourceAdapter: BookPageSourceAdapter {
 
     private func emptySurface(day: BookDay, now: Date) -> SurfacePage {
         SurfacePage(
-            id: "\(source.id)-empty-\(day.id)-\(Int(now.timeIntervalSince1970))",
-            type: .castMember,
+            id: "\(source.id)-cast-empty-\(day.id)-\(Int(now.timeIntervalSince1970))",
+            type: .illustration,
             sourceID: source.id,
             intent: .capture,
             renderStyle: .promptCard,
@@ -3090,8 +3494,8 @@ struct CastMemberPageSourceAdapter: BookPageSourceAdapter {
             prompt: "No custom cast member yet.",
             detail: "Use Belief to add one first.",
             payload: BookPagePayload(
-                headline: "The cast shelf is waiting.",
-                body: "Give Belief to a new Cast Member, then this Page can surface them.",
+                headline: "The illustration shelf is waiting.",
+                body: "Give Belief to a new Cast Member, then an illustration can surface them.",
                 metadata: ["source": source.id]
             )
         )
@@ -3361,14 +3765,19 @@ struct BookJumpPageSourceAdapter: BookPageSourceAdapter {
 
 enum FirstRunPageSequence {
     static func surfaces(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage]? {
-        guard !hasKeptFirstSouvenir(day: day, inputs: inputs) else { return nil }
-
         let welcomeAdapter = LabyrinthWelcomePageSourceAdapter()
         let welcome = welcomeAdapter.manualSurface(for: day, context: context, inputs: inputs, now: now)
         let welcomeShown = inputs.surfaceHistory["source:\(welcome.sourceID)"] != nil
 
         guard welcomeShown else {
             return [welcome]
+        }
+
+        let originAdapter = FirstDoorOriginPageSourceAdapter()
+        let origin = originAdapter.manualSurface(for: day, context: context, inputs: inputs, now: now)
+        let originShown = inputs.surfaceHistory[origin.varietyKey] != nil
+        if !originShown, FirstDoorReaderProfile.from(inputs) != nil {
+            return [welcome, origin]
         }
 
         guard inputs.localBrainIsReady else {
@@ -3382,6 +3791,8 @@ enum FirstRunPageSequence {
         guard brainShown else {
             return [welcome, brain]
         }
+
+        guard !hasKeptFirstSouvenir(day: day, inputs: inputs) else { return nil }
 
         return [welcome, brain, firstSouvenirSurface(for: day)]
     }
@@ -3405,8 +3816,8 @@ enum FirstRunPageSequence {
             intent: .capture,
             renderStyle: .quoteCard,
             score: 99,
-            reason: "The Book has introduced itself and woken its local brain; now it needs one true sentence.",
-            prompt: "Keep one true sentence.",
+            reason: "The Book has introduced itself and woken its local brain; now The First Door needs one true sentence.",
+            prompt: "The First Door: One True Sentence",
             detail: "A small real detail opens the first shelf.",
             payload: BookPagePayload(
                 headline: "One-Sentence Souvenir",
@@ -4757,7 +5168,9 @@ enum BookPageSourceAdapters {
         WeatherPageSourceAdapter(),
         EnchantmentPageSourceAdapter(),
         LabyrinthWelcomePageSourceAdapter(),
+        FirstDoorOriginPageSourceAdapter(),
         LocalBrainAwakePageSourceAdapter(),
+        FirstDoorApprenticeshipPageSourceAdapter(),
         AcademyClassPageSourceAdapter(),
         ElectivePageSourceAdapter(),
         GamePageSourceAdapter(),
@@ -4774,7 +5187,7 @@ enum BookPageSourceAdapters {
         NarrativeOSPageSourceAdapter(),
         MarginsAtlasPageSourceAdapter(),
         GossipPageSourceAdapter(),
-        CastMemberPageSourceAdapter(),
+        CastIllustrationPageSourceAdapter(),
         OuterStacksAnchorPageSourceAdapter(),
         LocationPageSourceAdapter()
     ]

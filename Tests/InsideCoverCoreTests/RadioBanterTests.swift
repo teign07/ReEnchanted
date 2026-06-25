@@ -21,10 +21,22 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertEqual(artOfTheGlint.assetName, "RadioFaeFiArtOfTheGlint")
         XCTAssertEqual(artOfTheGlint.durationSeconds, 96)
 
+        let crushedPixies = try XCTUnwrap(station.tracks.first { $0.id == "fae-fi-crushed-pixies" })
+        XCTAssertEqual(crushedPixies.title, "Crushed Pixies")
+        XCTAssertEqual(crushedPixies.assetName, "RadioFaeFiCrushedPixies")
+        XCTAssertEqual(crushedPixies.durationSeconds, 134)
+
+        let faeFi = try XCTUnwrap(station.tracks.first { $0.id == "fae-fi-fae-fi" })
+        XCTAssertEqual(faeFi.title, "Fae Fi")
+        XCTAssertEqual(faeFi.assetName, "RadioFaeFiFaeFi")
+        XCTAssertEqual(faeFi.durationSeconds, 185)
+
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFaeFiInkHands.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFaeFiArtOfTheGlint.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFaeFiCrushedPixies.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFaeFiFaeFi.m4a").path))
     }
 
     func testMothlightCatalogIncludesInTheStory() throws {
@@ -78,10 +90,28 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertEqual(duskthorn.assetName, "RadioThornwaveDuskthornRising")
         XCTAssertEqual(duskthorn.durationSeconds, 240)
 
+        let noConflict = try XCTUnwrap(station.tracks.first { $0.id == "thornwave-no-conflict-no-story" })
+        XCTAssertEqual(noConflict.title, "No Conflict, No Story")
+        XCTAssertEqual(noConflict.assetName, "RadioThornwaveNoConflictNoStory")
+        XCTAssertEqual(noConflict.durationSeconds, 245)
+
+        let magicMargins = try XCTUnwrap(station.tracks.first { $0.id == "thornwave-magic-margins" })
+        XCTAssertEqual(magicMargins.title, "Magic Margins")
+        XCTAssertEqual(magicMargins.assetName, "RadioThornwaveMagicMargins")
+        XCTAssertEqual(magicMargins.durationSeconds, 264)
+
+        let velvetArrears = try XCTUnwrap(station.tracks.first { $0.id == "thornwave-velvet-arrears" })
+        XCTAssertEqual(velvetArrears.title, "Velvet Arrears")
+        XCTAssertEqual(velvetArrears.assetName, "RadioThornwaveVelvetArrears")
+        XCTAssertEqual(velvetArrears.durationSeconds, 233)
+
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioThornwaveLongTitlesInTheDark.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioThornwaveDuskthornRising.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioThornwaveNoConflictNoStory.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioThornwaveMagicMargins.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioThornwaveVelvetArrears.m4a").path))
     }
 
     func testAliveSelectionVariesAndAvoidsImmediateRepeats() {
@@ -113,6 +143,64 @@ final class RadioBanterTests: XCTestCase {
         ))
 
         XCTAssertFalse(recent.contains(chosen.id))
+    }
+
+    func testTrackCurationFinishesAFullRunBeforeRepeatingSongs() throws {
+        let station = try XCTUnwrap(RadioStationRegistry.station(id: "mothlight-beats"))
+        let allTrackIDs = Set(station.tracks.map(\.id))
+        var state = RadioPlaybackState(
+            activeStationID: station.id,
+            startedAt: Date(timeIntervalSince1970: 1_750_000_000)
+        )
+        let context = RadioWorldContext(timeOfDay: "dusk")
+        let seed = "full-run-curation-test"
+        var heardThisRun: [String] = []
+        var now = Date(timeIntervalSince1970: 1_750_000_000)
+
+        for turn in 0..<station.tracks.count {
+            let track = try XCTUnwrap(RadioStationRegistry.curatedTrack(
+                station: station,
+                previousTrackID: state.lastTrackID,
+                recentTrackIDs: state.recentTrackIDs ?? [],
+                playTurn: turn,
+                context: context,
+                sessionSeed: seed,
+                now: now
+            ))
+
+            XCTAssertFalse(heardThisRun.contains(track.id), "song repeated before the station run finished")
+            heardThisRun.append(track.id)
+            state.recordTrack(track.id, stationTrackIDs: station.tracks.map(\.id))
+            now = now.addingTimeInterval(240)
+        }
+
+        XCTAssertEqual(Set(heardThisRun), allTrackIDs)
+        XCTAssertEqual(Set(state.recentTrackIDs ?? []), allTrackIDs)
+
+        let nextRunFirst = try XCTUnwrap(RadioStationRegistry.curatedTrack(
+            station: station,
+            previousTrackID: state.lastTrackID,
+            recentTrackIDs: state.recentTrackIDs ?? [],
+            playTurn: station.tracks.count,
+            context: context,
+            sessionSeed: seed,
+            now: now
+        ))
+        XCTAssertNotEqual(nextRunFirst.id, heardThisRun.last, "new run should still avoid an immediate repeat")
+
+        state.recordTrack(nextRunFirst.id, stationTrackIDs: station.tracks.map(\.id))
+        XCTAssertEqual(state.recentTrackIDs, [nextRunFirst.id])
+
+        let nextRunSecond = try XCTUnwrap(RadioStationRegistry.curatedTrack(
+            station: station,
+            previousTrackID: state.lastTrackID,
+            recentTrackIDs: state.recentTrackIDs ?? [],
+            playTurn: station.tracks.count + 1,
+            context: context,
+            sessionSeed: seed,
+            now: now.addingTimeInterval(240)
+        ))
+        XCTAssertNotEqual(nextRunSecond.id, nextRunFirst.id)
     }
 
     func testAliveBanterCurationCoolsTheMostRecentCategory() throws {
@@ -319,6 +407,45 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertTrue(sawReactiveClip)
     }
 
+    func testMothlightBatchReactiveTriggersAreRegistered() throws {
+        let station = try XCTUnwrap(RadioStationRegistry.station(id: "mothlight-beats"))
+        let clips = Dictionary(uniqueKeysWithValues: station.resolvedBanters.map { ($0.id, $0) })
+
+        let rainDusk = RadioWorldContext(
+            timeOfDay: "dusk",
+            pageContext: RadioPageContext(weatherTags: ["rain"])
+        )
+        XCTAssertTrue(rainDusk.satisfies(clips["mothlight-weather-rain-dusk"]?.conditions))
+
+        let memoryChord = RadioWorldContext(
+            pageContext: RadioPageContext(recentPageTypeCounts: [.bookRemembered: 1, .diary: 1, .mood: 1])
+        )
+        XCTAssertTrue(memoryChord.satisfies(clips["mothlight-pages-memory-chord"]?.conditions))
+
+        let lastMood = RadioWorldContext(
+            timeOfDay: "night",
+            pageContext: RadioPageContext(lastKeptPageType: .mood)
+        )
+        XCTAssertTrue(lastMood.satisfies(clips["mothlight-pages-last-mood-warm"]?.conditions))
+
+        let fog = RadioWorldContext(
+            timeOfDay: "night",
+            pageContext: RadioPageContext(weatherTags: ["fog"])
+        )
+        XCTAssertTrue(fog.satisfies(clips["mothlight-weather-fog-listen"]?.conditions))
+
+        let letters = RadioWorldContext(
+            pageContext: RadioPageContext(recentPageTypeCounts: [.letter: 1, .illustration: 1])
+        )
+        XCTAssertTrue(letters.satisfies(clips["mothlight-pages-letter-duet"]?.conditions))
+
+        let busy = RadioWorldContext(pageContext: RadioPageContext(keptToday: 4))
+        XCTAssertTrue(busy.satisfies(clips["mothlight-pages-kept-today-hum"]?.conditions))
+
+        let grey = RadioWorldContext(timeOfDay: "dusk", grey: 45)
+        XCTAssertTrue(grey.satisfies(clips["mothlight-grey-keep-the-lamp"]?.conditions))
+    }
+
     func testFaeFiBatchReactiveTriggersAreRegistered() throws {
         let station = try XCTUnwrap(RadioStationRegistry.station(id: "fae-fi"))
         let clips = Dictionary(uniqueKeysWithValues: station.resolvedBanters.map { ($0.id, $0) })
@@ -392,6 +519,45 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertTrue(seen.contains("thornwave-weather-storm-grey"))
     }
 
+    func testThornwaveBatchReactiveTriggersAreRegistered() throws {
+        let station = try XCTUnwrap(RadioStationRegistry.station(id: "thornwave"))
+        let clips = Dictionary(uniqueKeysWithValues: station.resolvedBanters.map { ($0.id, $0) })
+
+        let bargain = RadioWorldContext(
+            pageContext: RadioPageContext(recentPageTypeCounts: [.faeBargain: 1])
+        )
+        XCTAssertTrue(bargain.satisfies(clips["thornwave-pages-fae-bargain-fineprint"]?.conditions))
+
+        let stormGrey = RadioWorldContext(
+            timeOfDay: "night",
+            grey: 40,
+            pageContext: RadioPageContext(weatherTags: ["storm"])
+        )
+        XCTAssertTrue(stormGrey.satisfies(clips["thornwave-weather-storm-grey-pressure"]?.conditions))
+
+        let storyNight = RadioWorldContext(
+            timeOfDay: "dusk",
+            pageContext: RadioPageContext(recentPageTypeCounts: [.narrativeOS: 1, .bookJump: 1])
+        )
+        XCTAssertTrue(storyNight.satisfies(clips["thornwave-pages-story-night-choice"]?.conditions))
+
+        let leverage = RadioWorldContext(
+            pageContext: RadioPageContext(recentPageTypeCounts: [.gossip: 1, .castBond: 1])
+        )
+        XCTAssertTrue(leverage.satisfies(clips["thornwave-pages-gossip-leverage"]?.conditions))
+
+        let afterMidnight = RadioWorldContext(timeOfDay: "night")
+        XCTAssertTrue(afterMidnight.satisfies(clips["thornwave-time-after-midnight"]?.conditions))
+
+        let greyHigh = RadioWorldContext(grey: 60)
+        XCTAssertTrue(greyHigh.satisfies(clips["thornwave-grey-high-keep-the-door"]?.conditions))
+
+        let anchor = RadioWorldContext(
+            pageContext: RadioPageContext(recentPageTypeCounts: [.anchor: 1])
+        )
+        XCTAssertTrue(anchor.satisfies(clips["thornwave-pages-anchor-impressed"]?.conditions))
+    }
+
     func testHiddenBleedCanReactToGossipClustersAndNight() throws {
         var state = RadioPlaybackState(
             activeStationID: "the-bleed",
@@ -456,6 +622,13 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertEqual(mothlightClips["mothlight-pages-last-mood-night"], "DJ_mothlight_pages_mood_night_01")
         XCTAssertEqual(mothlightClips["mothlight-weather-rain"], "DJ_mothlight_weather_rain_01")
         XCTAssertEqual(mothlightClips["mothlight-pages-kept-today"], "DJ_mothlight_pages_kept_today_01")
+        XCTAssertEqual(mothlightClips["mothlight-weather-rain-dusk"], "DJ_mothlight_weather_rain_dusk_02")
+        XCTAssertEqual(mothlightClips["mothlight-pages-memory-chord"], "DJ_mothlight_pages_memory_cluster_02")
+        XCTAssertEqual(mothlightClips["mothlight-pages-last-mood-warm"], "DJ_mothlight_pages_last_mood_night_02")
+        XCTAssertEqual(mothlightClips["mothlight-weather-fog-listen"], "DJ_mothlight_weather_fog_01")
+        XCTAssertEqual(mothlightClips["mothlight-pages-letter-duet"], "DJ_mothlight_pages_letter_01")
+        XCTAssertEqual(mothlightClips["mothlight-pages-kept-today-hum"], "DJ_mothlight_pages_kept_today_gentle_01")
+        XCTAssertEqual(mothlightClips["mothlight-grey-keep-the-lamp"], "DJ_mothlight_grey_gentle_01")
 
         let thornwave = try XCTUnwrap(RadioStationRegistry.station(id: "thornwave"))
         let thornClips = Dictionary(uniqueKeysWithValues: thornwave.resolvedBanters.map { ($0.id, $0.assetName) })
@@ -463,6 +636,13 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertEqual(thornClips["thornwave-pages-fae-bargain"], "DJ_thornwave_pages_bargain_01")
         XCTAssertEqual(thornClips["thornwave-weather-storm-grey"], "DJ_thornwave_weather_storm_grey_01")
         XCTAssertEqual(thornClips["thornwave-pages-gossip"], "DJ_thornwave_pages_gossip_01")
+        XCTAssertEqual(thornClips["thornwave-pages-fae-bargain-fineprint"], "DJ_thornwave_pages_bargain_02")
+        XCTAssertEqual(thornClips["thornwave-weather-storm-grey-pressure"], "DJ_thornwave_weather_storm_grey_02")
+        XCTAssertEqual(thornClips["thornwave-pages-story-night-choice"], "DJ_thornwave_pages_story_night_02")
+        XCTAssertEqual(thornClips["thornwave-pages-gossip-leverage"], "DJ_thornwave_pages_gossip_02")
+        XCTAssertEqual(thornClips["thornwave-time-after-midnight"], "DJ_thornwave_time_after_midnight_01")
+        XCTAssertEqual(thornClips["thornwave-grey-high-keep-the-door"], "DJ_thornwave_grey_high_pressure_01")
+        XCTAssertEqual(thornClips["thornwave-pages-anchor-impressed"], "DJ_thornwave_pages_anchor_resist_01")
 
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
@@ -481,9 +661,23 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_pages_mood_night_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_weather_rain_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_pages_kept_today_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_weather_rain_dusk_02.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_pages_memory_cluster_02.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_pages_last_mood_night_02.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_weather_fog_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_pages_letter_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_pages_kept_today_gentle_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_grey_gentle_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_pages_story_night_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_pages_bargain_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_weather_storm_grey_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_pages_gossip_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_pages_bargain_02.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_weather_storm_grey_02.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_pages_story_night_02.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_pages_gossip_02.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_time_after_midnight_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_grey_high_pressure_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_pages_anchor_resist_01.m4a").path))
     }
 }

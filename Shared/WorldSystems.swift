@@ -411,8 +411,9 @@ struct RadioPlaybackState: Codable, Equatable {
     /// Recently played banter ids (newest last), so the selector avoids
     /// repeating a break the reader just heard. Optional for back-compat.
     var recentBanterIDs: [String]?
-    /// Recently heard songs (newest last), used to prevent ABAB loops and
-    /// source-order playback. Optional so older saves continue to decode.
+    /// Songs heard in the current station run (newest last). Once every
+    /// available song has played, the next recording starts a fresh run.
+    /// Optional so older saves continue to decode.
     var recentTrackIDs: [String]?
 
     /// How many recent banters to remember. Kept small so fresh stations with
@@ -461,6 +462,24 @@ struct RadioPlaybackState: Codable, Equatable {
             history.removeFirst(history.count - limit)
         }
         recentTrackIDs = history
+        lastTrackID = trackID
+    }
+
+    mutating func recordTrack(_ trackID: String, stationTrackIDs: [String]) {
+        let validIDs = Set(stationTrackIDs)
+        guard !validIDs.isEmpty else {
+            recordTrack(trackID)
+            return
+        }
+
+        var run = (recentTrackIDs ?? []).filter { validIDs.contains($0) }
+        if validIDs.isSubset(of: Set(run)) {
+            run = []
+        }
+
+        run.removeAll { $0 == trackID }
+        run.append(trackID)
+        recentTrackIDs = run
         lastTrackID = trackID
     }
 
@@ -533,6 +552,22 @@ enum RadioStationRegistry {
                     assetName: "RadioFaeFiArtOfTheGlint",
                     durationSeconds: 96,
                     moodTags: ["bright", "playful", "glint"]
+                ),
+                RadioTrack(
+                    id: "fae-fi-crushed-pixies",
+                    title: "Crushed Pixies",
+                    artist: "Fae-Fi",
+                    assetName: "RadioFaeFiCrushedPixies",
+                    durationSeconds: 134,
+                    moodTags: ["bright", "playful", "pixies"]
+                ),
+                RadioTrack(
+                    id: "fae-fi-fae-fi",
+                    title: "Fae Fi",
+                    artist: "Fae-Fi",
+                    assetName: "RadioFaeFiFaeFi",
+                    durationSeconds: 185,
+                    moodTags: ["bright", "playful", "wonder", "signal"]
                 ),
                 RadioTrack(
                     id: "fae-fi-mossy-groove",
@@ -945,6 +980,74 @@ enum RadioStationRegistry {
                     caption: "You've kept enough pages today for the Book to start humming under its breath. That's usually when the quiet ones come back. Leave the lamp on.",
                     conditions: RadioBanter.Conditions(minKeptToday: 4),
                     weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-weather-rain-dusk", category: .news,
+                    assetName: "DJ_mothlight_weather_rain_dusk_02",
+                    caption: "Rain at dusk has a key signature. Minor, but a warm minor — the kind that holds you instead of dropping you. Let it play a while.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dusk", "night"],
+                        weatherTags: ["rain"]
+                    ),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "mothlight-pages-memory-chord", category: .gossip,
+                    assetName: "DJ_mothlight_pages_memory_cluster_02",
+                    caption: "Old pages resonating together — three of them, the same note from different rooms. Not nostalgia. A chord your year is trying to complete.",
+                    conditions: RadioBanter.Conditions(
+                        pageTypes: [.bookRemembered, .diary, .mood],
+                        minRecentPagesOfType: 3
+                    ),
+                    weight: 5
+                ),
+                RadioBanter(
+                    id: "mothlight-pages-last-mood-warm", category: .gossip,
+                    assetName: "DJ_mothlight_pages_last_mood_night_02",
+                    caption: "The last page you kept is still warm. The feeling in it isn't asking to be fixed. Some things only want to be heard out to their natural end.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dusk", "night"],
+                        lastKeptPageTypes: [.mood, .diary]
+                    ),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "mothlight-weather-fog-listen", category: .news,
+                    assetName: "DJ_mothlight_weather_fog_01",
+                    caption: "Fog tonight. Every edge sanded down to a hum. Don't strain to see through it. Fog is the world asking you to listen instead.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dusk", "night"],
+                        weatherTags: ["fog"]
+                    ),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "mothlight-pages-letter-duet", category: .gossip,
+                    assetName: "DJ_mothlight_pages_letter_01",
+                    caption: "Someone's been keeping letters. Affection arranged for strings. If one arrives tonight, read it slow. Correspondence is a duet across time.",
+                    conditions: RadioBanter.Conditions(
+                        pageTypes: [.letter, .illustration],
+                        minRecentPagesOfType: 2
+                    ),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "mothlight-pages-kept-today-hum", category: .news,
+                    assetName: "DJ_mothlight_pages_kept_today_gentle_01",
+                    caption: "You've kept a good handful of pages today. The Book is beginning to hum — that low, contented frequency a thing makes when it's being tended.",
+                    conditions: RadioBanter.Conditions(minKeptToday: 4),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-grey-keep-the-lamp", category: .news,
+                    assetName: "DJ_mothlight_grey_gentle_01",
+                    caption: "There's a greyness pressing on the band tonight. I won't pretend it away. But I'll keep the lamp on and the songs warm, and we'll wait it out together.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dusk", "night"],
+                        minGrey: 35,
+                        maxGrey: 70
+                    ),
+                    weight: 4
                 )
             ]
         ),
@@ -998,6 +1101,30 @@ enum RadioStationRegistry {
                     assetName: "RadioThornwaveDuskthornRising",
                     durationSeconds: 240,
                     moodTags: ["dark", "night", "thorn", "rising"]
+                ),
+                RadioTrack(
+                    id: "thornwave-no-conflict-no-story",
+                    title: "No Conflict, No Story",
+                    artist: "Thornwave",
+                    assetName: "RadioThornwaveNoConflictNoStory",
+                    durationSeconds: 245,
+                    moodTags: ["dark", "night", "story", "conflict"]
+                ),
+                RadioTrack(
+                    id: "thornwave-magic-margins",
+                    title: "Magic Margins",
+                    artist: "Thornwave",
+                    assetName: "RadioThornwaveMagicMargins",
+                    durationSeconds: 264,
+                    moodTags: ["dark", "night", "margins", "magic"]
+                ),
+                RadioTrack(
+                    id: "thornwave-velvet-arrears",
+                    title: "Velvet Arrears",
+                    artist: "Thornwave",
+                    assetName: "RadioThornwaveVelvetArrears",
+                    durationSeconds: 233,
+                    moodTags: ["dark", "night", "velvet", "bargain"]
                 ),
                 RadioTrack(
                     id: "thornwave-mossy-night",
@@ -1144,6 +1271,75 @@ enum RadioStationRegistry {
                     caption: "Gossip pages in the margins. Careful. A rumor is just a spell wearing someone else's coat.",
                     conditions: RadioBanter.Conditions(
                         pageTypes: [.gossip, .theBleed],
+                        minRecentPagesOfType: 1
+                    ),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "thornwave-pages-fae-bargain-fineprint", category: .gossip,
+                    assetName: "DJ_thornwave_pages_bargain_02",
+                    caption: "So you've been taking meetings with the Fae. They always keep their word — that's the good news and the bad news. Read the small print. It's where the music lives.",
+                    conditions: RadioBanter.Conditions(
+                        pageTypes: [.faeBargain, .pactDispatch],
+                        minRecentPagesOfType: 1
+                    ),
+                    weight: 5
+                ),
+                RadioBanter(
+                    id: "thornwave-weather-storm-grey-pressure", category: .news,
+                    assetName: "DJ_thornwave_weather_storm_grey_02",
+                    caption: "Storm on the band, grey at the edges, that delicious pressure before something decides to happen. The Nothing loves weather like this. So do I — but I'm only here for the bassline.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dusk", "night"],
+                        minGrey: 35,
+                        weatherTags: ["storm", "rain", "wind"]
+                    ),
+                    weight: 5
+                ),
+                RadioBanter(
+                    id: "thornwave-pages-story-night-choice", category: .gossip,
+                    assetName: "DJ_thornwave_pages_story_night_02",
+                    caption: "A story's been moving through your pages after dark. Something with a door in it. Free tip, no strings, and I rarely say that: the choice you skip is also a choice.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dusk", "night"],
+                        pageTypes: [.narrativeOS, .bookJump, .gamePage],
+                        minRecentPagesOfType: 2
+                    ),
+                    weight: 5
+                ),
+                RadioBanter(
+                    id: "thornwave-pages-gossip-leverage", category: .gossip,
+                    assetName: "DJ_thornwave_pages_gossip_02",
+                    caption: "The Bleed's been chatty and so has the Loom. I don't traffic in rumor — I traffic in leverage, which is rumor that's grown up. Secrets are just bargains not yet offered.",
+                    conditions: RadioBanter.Conditions(
+                        pageTypes: [.gossip, .castBond],
+                        minRecentPagesOfType: 2
+                    ),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "thornwave-time-after-midnight", category: .stationID,
+                    assetName: "DJ_thornwave_time_after_midnight_01",
+                    caption: "Past the hour sensible people sleep, which makes you my favorite company. Nothing good gets decided after midnight, they say. Wrong. Nothing safe does. Different word.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["night"]),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-grey-high-keep-the-door", category: .news,
+                    assetName: "DJ_thornwave_grey_high_pressure_01",
+                    caption: "The grey's gone heavy. The Nothing's leaning on the door, polite as ever. Here's the thing — it only opens from your side. Keep the music up. Hand off the latch.",
+                    conditions: RadioBanter.Conditions(
+                        minGrey: 55,
+                        maxGrey: 85
+                    ),
+                    weight: 5
+                ),
+                RadioBanter(
+                    id: "thornwave-pages-anchor-impressed", category: .gossip,
+                    assetName: "DJ_thornwave_pages_anchor_resist_01",
+                    caption: "You've been dropping anchors. Naming things. Holding ground. Building a self the Nothing can't argue with. I'd be insulted if I weren't quietly impressed. Don't tell anyone.",
+                    conditions: RadioBanter.Conditions(
+                        pageTypes: [.anchor, .enchantment],
                         minRecentPagesOfType: 1
                     ),
                     weight: 4
@@ -2811,8 +3007,10 @@ enum ChapterBindingOracle {
                 add("mossbloom", 1, "Your souvenirs notice what the world is already saying.")
             case .mood, .rest, .body, .fuel:
                 add("mossbloom", 3, "Your kept body and mood pages treat attention as care.")
-            case .letter, .castMember:
+            case .letter:
                 add("riddlewind", 3, "Your kept letters and people-pages lean toward co-authorship.")
+            case .illustration where page.tags.contains("entity"):
+                add("riddlewind", 3, "Your kept illustrated people-pages lean toward co-authorship.")
             case .wonderCompass, .anchor, .weather, .illuminatedPhoto:
                 add("tidecrest", 2, "Your kept field pages follow what catches you off guard.")
             case .narrativeOS, .bookConnections, .bookNotices, .bookRemembered, .marginsAtlas, .gossip:
@@ -3425,6 +3623,7 @@ enum FaeGiftEffect: String, Codable, Equatable {
     case longMemory   // pins a kept page to reliably resurface as Book Remembered
     case callingCard  // opens a Goblin Market window (consumable)
     case loosePage    // a collectible whose text regenerates each read
+    case unspokenPen  // asks Gemma for one coherent sentence never spoken before
 
     var title: String {
         switch self {
@@ -3433,6 +3632,7 @@ enum FaeGiftEffect: String, Codable, Equatable {
         case .longMemory: return "Long Memory"
         case .callingCard: return "Calling Card"
         case .loosePage: return "Loose Page"
+        case .unspokenPen: return "Unspoken Pen"
         }
     }
 
@@ -3443,6 +3643,7 @@ enum FaeGiftEffect: String, Codable, Equatable {
         case .longMemory: return "Keeps one kept page from being forgotten; the Book will return it."
         case .callingCard: return "Opens the Goblin Market when you spend it."
         case .loosePage: return "A page that never reads the same way twice."
+        case .unspokenPen: return "Asks Gemma for one sentence that has never been spoken before, and tries to make it make sense."
         }
     }
 
@@ -3458,6 +3659,8 @@ enum FaeGiftEffect: String, Codable, Equatable {
             return "Find it in Inventory under Fae Gifts, then present it at the Goblin Market to open the stall."
         case .loosePage:
             return "Find it in Inventory under Fae Gifts; open it there when you want to read what changed."
+        case .unspokenPen:
+            return "Find it in Inventory under Fae Gifts, then ask it for one new sentence that still means something."
         }
     }
 }
@@ -3491,7 +3694,7 @@ struct FaeGift: Identifiable, Codable, Equatable {
         case .quieting: return !isActive
         case .reshelving, .longMemory: return boundSourceID?.isEmpty != false
         case .callingCard: return isActive
-        case .loosePage: return true
+        case .loosePage, .unspokenPen: return true
         }
     }
 }
@@ -4349,6 +4552,14 @@ enum FaeMarketCatalog {
             baseCost: 4
         ),
         FaeMarketOffer(
+            id: "market-unspoken-pen",
+            faeKind: .goblin,
+            name: "The Unspoken Pen",
+            descriptionText: "Asks Gemma for one sentence that has never been spoken before, and tries to make it make sense.",
+            effect: .unspokenPen,
+            baseCost: 6
+        ),
+        FaeMarketOffer(
             id: "market-broken-seal-card",
             faeKind: .goblin,
             name: "a broken-seal calling card",
@@ -4641,8 +4852,8 @@ enum PactTerritoryRegistry {
                       blurb: "Story Pages, Gossip, The Bleed, the Book's own noticing.",
                       pageTypes: [.narrativeOS, .gossip, .theBleed, .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices]),
         PactTerritory(id: "shelf-connection", front: .shelf, name: "The Connection Shelf",
-                      blurb: "Letters, Cast, the Support Guild, Office Hours, Fae Bargains — pages with another hand in them.",
-                      pageTypes: [.letter, .castMember, .supportGuild, .inkrestOfficeHours, .faeBargain]),
+                      blurb: "Letters, Cast illustrations, the Support Guild, Office Hours, Fae Bargains — pages with another hand in them.",
+                      pageTypes: [.letter, .illustration, .supportGuild, .inkrestOfficeHours, .faeBargain]),
         PactTerritory(id: "shelf-field", front: .shelf, name: "The Field Shelf",
                       blurb: "Wonder Compass, Outer Stacks, Illuminated Photos, Hour Pages — the world out the door.",
                       pageTypes: [.wonderCompass, .anchor, .illuminatedPhoto, .location, .calendar])
@@ -5382,7 +5593,7 @@ enum Almanac {
             case "sabbat-samhain":
                 add(.bookRemembered, 10); add(.inkrestOfficeHours, 4)  // the returning / the lost
             case "sabbat-beltane":
-                add(.letter, 8); add(.castMember, 4); add(.wonderCompass, 4)  // connection
+                add(.letter, 8); add(.illustration, 4); add(.wonderCompass, 4)  // connection
             case "sabbat-imbolc":
                 add(.diary, 6); add(.mood, 4)                // first stirrings
             case "sabbat-litha":

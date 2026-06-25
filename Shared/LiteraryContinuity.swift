@@ -1070,17 +1070,19 @@ enum LiteraryContinuityProjector {
             guard let penalty = ubiquityPenalty(pageHits: uniquePages.count, totalPages: totalPages) else { return nil }
             let first = uniquePages.first?.createdAt ?? now
             let last = uniquePages.last?.createdAt ?? now
-            let countLine = uniquePages.count == 3 ? "three kept pages" : "\(uniquePages.count) kept pages"
-            let eventLine = eventWords.contains(word) ? " and it is still moving in recent events" : ""
+            let isMovingInEvents = eventWords.contains(word)
+            let line = isMovingInEvents
+                ? "\(word.capitalized) kept returning in the pages, then recent events picked up the thread."
+                : "\(word.capitalized) kept returning through the kept pages."
             return LiteraryContinuitySignal(
                 id: "pattern-\(word)",
                 kind: .pattern,
                 subjectID: word,
                 subjectName: word.capitalized,
-                line: "The word \(word) has gathered across \(countLine)\(eventLine).",
+                line: line,
                 evidencePageIDs: uniquePages.prefix(8).map(\.id),
                 relatedEntityIDs: [],
-                tags: [word, "pattern", "literary-continuity"],
+                tags: [word, "pattern", "literary-continuity"] + (isMovingInEvents ? ["recent-events"] : []),
                 firstSeenAt: first,
                 lastSeenAt: last,
                 strength: patternStrength(pageCount: uniquePages.count, eventBoost: eventWords.contains(word) ? 10 : 0, penalty: penalty)

@@ -44,6 +44,15 @@ final class GoblinMarketTests: XCTestCase {
         XCTAssertTrue(stall.wares.allSatisfy { $0.rarity < 3 }, "rare wares stay under the counter")
     }
 
+    func testInWorldWaresIncludeUnspokenPen() {
+        let pen = GoblinMarketEngine.inWorldWares.first { $0.id == "attention-market-unspoken-pen" }
+        XCTAssertEqual(pen?.title, "The Unspoken Pen")
+        XCTAssertEqual(pen?.currency, .attention)
+        XCTAssertEqual(pen?.basePrice, 6)
+        XCTAssertEqual(pen?.good, .gift(.unspokenPen, .goblin))
+        XCTAssertTrue(pen?.contents.contains("make it make sense") ?? false)
+    }
+
     func testHiddenShelfGatedByConditions() {
         let calm = GoblinMarketEngine.stall(on: date(2026, 7, 7), fae: callingCardState(),
                                             belief: 40, greyLevel: 0, calendar: cal)

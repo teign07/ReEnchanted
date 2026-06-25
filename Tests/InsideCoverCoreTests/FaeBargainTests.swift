@@ -392,6 +392,19 @@ final class FaeBargainTests: XCTestCase {
         XCTAssertEqual(state.gifts.first?.effect, .loosePage)
     }
 
+    func testMarketPurchaseCanBuyUnspokenPen() {
+        var state = FaePlayerState()
+        state.attention = 10
+        let now = julyDate() // Gold Season → generous → Unspoken Pen costs 5
+        let bought = FaeEconomy.purchase(offerID: "market-unspoken-pen", into: &state, now: now)
+        XCTAssertNotNil(bought)
+        XCTAssertEqual(state.attention, 5)
+        XCTAssertEqual(state.gifts.count, 1)
+        XCTAssertEqual(state.gifts.first?.name, "The Unspoken Pen")
+        XCTAssertEqual(state.gifts.first?.effect, .unspokenPen)
+        XCTAssertTrue(state.gifts.first?.isReady ?? false)
+    }
+
     func testMarketPurchaseFailsWhenBroke() {
         var state = FaePlayerState()
         state.attention = 1

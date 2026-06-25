@@ -1989,7 +1989,7 @@ enum NarrativeEventResolver {
             }
             threadDeltas["ordinary-magic", default: 0] += 1
             createdHint = "A completed favor deepens what its asker will trust the player with next."
-        case .castMember:
+        case .illustration where tags.contains("entity"):
             if let entityID = tags.first(where: { $0.hasPrefix("entity:") })?.replacingOccurrences(of: "entity:", with: "") {
                 entityDeltas[entityID, default: 0] += 3
             }

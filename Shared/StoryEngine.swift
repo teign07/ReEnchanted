@@ -298,7 +298,7 @@ enum BorrowedRuleEffect: String, Codable, Equatable, CaseIterable {
         case .sharpenNotices: return [.bookNotices: 8, .marginsAtlas: 4]
         case .warmRecords: return [.diary: 6, .souvenir: 6]
         case .pushBackNothing: return [:]
-        case .warmTheCast: return [.castMember: 4, .letter: 4]
+        case .warmTheCast: return [.illustration: 4, .letter: 4]
         case .steadyTheBody: return [.body: 6, .rest: 6]
         case .openWonder: return [.wonderCompass: 8]
         }

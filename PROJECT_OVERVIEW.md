@@ -118,20 +118,20 @@ surface -> keep/dismiss -> archive -> event/memory -> curation -> return
 > onboarding flow, tutorial, or welcome wizard — one already exists, is
 > load-bearing, and is wired into first-run gating, Self Facts, Belief, the
 > custom cast, and the Glow-pill reveal.** Changes here should refine the
-> existing **Flyleaf Ritual**, not replace it.
+> existing **First Door**, not replace it.
 
 ### Where it lives and how it is gated
 
 The onboarding flow is **`OnboardingFlowView`** in
 `InsideCoverApp/BookSurfaceViews.swift` (around line 3361), branded in-world as
-**The Flyleaf Ritual**. It is a full-screen story sequence — parchment reading
+**The First Door**. It is a full-screen story sequence — parchment reading
 card with a stage pill, animated header, step dots, shimmer/page-tilt, and a
 sparkle aura — not a settings wizard.
 
 `ContentView` presents it as an overlay only when
 `!didCompleteStoryOnboarding && !isOpeningMovieVisible` (i.e. after the opening
 movie, on a fresh install). The gate is **`@AppStorage("didCompleteStoryOnboarding")`**
-(`ContentView.swift:199`); `completeOnboarding` flips it to `true`, so the ritual
+(`ContentView.swift:199`); `completeOnboarding` flips it to `true`, so the sequence
 runs exactly once per install and never again until that flag is cleared. While
 it is up, the Glow menu is suppressed.
 
@@ -140,36 +140,54 @@ it is up, the Glow menu is suppressed.
 - `onGlowUnlocked` → `ContentView.revealGlowPillIfNeeded` — fired **mid-flow**
   (`notifyGlowUnlockedIfNeeded`: once `step >= 4` and the belief field is
   non-empty) so the Glow pill animates into the chrome the moment the reader
-  names a first belief, before the ritual even ends.
+  names a first belief, before the sequence even ends.
 - `onFinished` → `completeOnboarding(result)`.
 
 ### The nine beats
 
-`stepCount = 9` (steps 0–8). Each carries a stage name, header line, SF Symbol,
+`stepCount = 12` (steps 0–11). Each carries a stage name, header line, SF Symbol,
 and in-world prose. Steps that collect input gate their continue button until the
 field is filled.
 
 | # | Stage | Title | What happens / collects |
 |---|-------|-------|--------------------------|
-| 0 | Arrival | **The Cover Opens** | The reader falls through the app's own screen into Enchantify Academy (long cinematic prose; "they came through the Unwritten"). |
-| 1 | The Unwritten | **The Chapter Without an Ending** | Zara Finch frames the reader's ordinary life as the Great Unwritten Chapter — the one book no one in the Academy can jump into. |
+| 0 | Arrival | **The Cover Opens** | The reader falls through the app's own screen into Enchantify Academy. The prose is broken by micro-actions: touch the first wet word, choose the sleeve word, and hold to steady the page. |
+| 1 | The Unwritten | **The Chapter Without an Ending** | Zara Finch frames the reader's ordinary life as the Great Unwritten Chapter — the one book no one in the Academy can jump into. The reader drags `UNWRITTEN` into the margin before continuing. |
 | 2 | Guide | **The Guide** | Zara introduces herself (portrait) and asks the reader's **favorite reading snack** → `snack`. |
 | 3 | Name | **The Name the Book Knows** | Collects the **preferred reader name** → `name` (used in letters, Welcome, generated text). |
 | 4 | Belief | **Belief and the Grey** | The Nothing, Belief, and Glow are explained via a **core-belief** prompt → `belief`. Once non-empty, an inline panel offers **Plant 3 Belief** vs **Keep it for now** → `investedBelief`. (This is where the Glow pill reveals.) |
-| 5 | Chapters | **The School's Argument** | The five Academy Chapters are introduced (rendered from `AcademyChapterRegistry.publicChapters`). Chapter **Binding is explicitly deferred** — it later recognizes where Belief has lived, based on kept pages. |
+| 5 | Chapters | **The School's Argument** | The five Academy Chapters are introduced (rendered from `AcademyChapterRegistry.publicChapters`). Chapter **Binding is explicitly deferred**, but Zara asks which Chapter tugs first → `drawnChapterID`; that talisman warms by 3 Belief and teaches that the strongest talisman influences page frequency, invitations, and atmosphere. |
 | 6 | First Page | **The First Page Rises** | A **practice page**: the reader chooses **Keep** or **Let it wait** (`rehearsalChoice`); choosing Keep reveals a one-sentence field → `firstSouvenir`. Teaches the core keep/dismiss loop in a no-stakes sandbox. |
-| 7 | Cast | **The Cast Notices** | Letters, memory, disagreement, and the weight of real-world action are explained. Shows a tappable cast glimpse (Zara, Finn, Penny, Orion) that opens portraits via QuickLook. |
-| 8 | Threshold | **The Academy Opens** | Closing prose + a "your first loop" preview card, then hands the reader to the home shelf. |
+| 7 | Illumination | **The Plate Illuminates** | Optional illuminated-photo demo: the reader can choose or take a photo, and the app creates a local illuminated plate with `IlluminatedPageComposer` / `IlluminatedPageRenderer` **without calling Gemma**. It teaches the photo feature without blocking onboarding. |
+| 8 | Cast | **The Cast Notices** | Letters, memory, disagreement, and the weight of real-world action are explained. Shows a tappable cast glimpse (Zara, Finn, Penny, Orion) that opens portraits via QuickLook. |
+| 9 | Wicker | **Wicker Interrupts** | Zara and the reader bump into Wicker. The reader chooses **Slice of Life**, **Arc**, or **Surprise** → `wickerMode`; each option makes a deterministic Belief roll and stores success/failure → `wickerRollSucceeded`, then carries that result into the final braid. |
+| 10 | Taste | **What Should Find You** | Collects a first curation bias → `tastePreference` (letters, errands, cozy noticing, weather/place, eerie story threads, or funny oddities). |
+| 11 | Edge | **How Sharp Should It Get** | Collects a first tone boundary → `comfortBoundary` (`gentle`, `balanced`, or `strange`). |
+| 12 | Whispers | **When the Book Taps the Glass** | Collects a notification preference → `whisperCadence` (`morning`, `evening`, or `inside`) and later maps it to the existing Book Whispers switch. |
+| 13 | Threshold | **The First Door Writes Back** | The Book braids the reader's micro-actions, answers, keep/wait choice, Wicker result, taste, tone, and whisper rule into a personalized mini-story, then hands the reader to the home shelf. |
 
 ### What completion does
 
 `completeOnboarding(_ result:)` (`ContentViewFeatures.swift:166`) consumes an
-`OnboardingFlowView.Result { snack, name, belief, investedBelief, firstSouvenir }`:
+`OnboardingFlowView.Result { snack, name, belief, investedBelief, firstSouvenir,
+sleeveWord, drawnChapterID, wickerMode, wickerRollSucceeded, tastePreference,
+comfortBoundary, whisperCadence }`:
 
-- Persists **Self Facts** for snack, name, belief, and (if written) the first
-  souvenir via `saveOnboardingFact` — each a `SelfFact` with id
+- Persists **Self Facts** for snack, name, belief, sleeve word, first drawn
+  Chapter, Wicker mode / roll result, taste, comfort boundary, whisper cadence,
+  and (if written) the first souvenir via
+  `saveOnboardingFact` — each a `SelfFact` with id
   `onboarding:<questionID>`, `sensitivity: .delight`, and
   `usePermission: .privateContext`, tagged `onboarding` plus topic tags.
+- Applies `whisperCadence` to the existing `bookWhispersEnabled` switch:
+  `inside` keeps notifications off; morning/evening enable Book Whispers and
+  save the exact preference as memory for later tuning.
+- Applies `drawnChapterID` as a real early talisman bias: subtracts up to **3**
+  Belief from the reader and invests it in the selected Chapter talisman through
+  `adjustEntityBelief`, feeding ascendant talisman influence immediately.
+- If the first souvenir was written, keeps it as a real **souvenir page** tagged
+  `first-run-souvenir` / `onboarding-first-souvenir`, so the first sentence is
+  archive material instead of only a profile fact.
 - If `investedBelief` is true: subtracts **3** from `beliefScore` and mints a
   **custom cast member** (`saveCustomCastMember`) of kind `.motif` from the
   stated belief — `startingGlow: 34`, tags `["core-belief","onboarding",
@@ -179,9 +197,25 @@ field is filled.
 - Sets `didCompleteStoryOnboarding = true` and a name-aware status message
   ("The Academy doors are open, <name>.").
 
-The ritual teaches the actual loop (offer → keep/wait → archive → the Book
+The First Door teaches the actual loop (offer → keep/wait → archive → the Book
 remembers) and the core vocabulary (the Nothing, Belief, Glow, Chapters), and it
 explains the app as a living book of kept pages — never as a productivity app.
+
+After completion, two private local source adapters keep the first week sticky:
+
+- `FirstDoorOriginPageSourceAdapter` (`sourceID: first-door-origin`) renders a
+  private origin page from the reader's first name, snack, belief, and first
+  sentence. The first-run sequence shows it after the welcome page and before
+  the local-brain step when onboarding answers exist.
+- `FirstDoorApprenticeshipPageSourceAdapter` (`sourceID:
+  first-door-apprenticeship`) surfaces one small practice per day for days 0–6
+  after onboarding, keyed by `first-door-apprenticeship:<day>` so each practice
+  appears at most once. The path includes the free Bookshop folio, local-brain
+  setup, whisper review, Ask the Book, rereading the week, and an App Store
+  rating warmup.
+- `ContentView.maybeRequestFirstDoorAppReview()` asks StoreKit for a rating only
+  after onboarding is complete, at least two archive days have kept pages, and
+  the reader has kept at least five pages.
 
 Relevant files:
 
@@ -189,7 +223,7 @@ Relevant files:
 - `InsideCoverApp/ContentView.swift` (presentation, `didCompleteStoryOnboarding`
   gate, `revealGlowPillIfNeeded`)
 - `InsideCoverApp/ContentViewFeatures.swift` (`completeOnboarding`,
-  `saveOnboardingFact`)
+  `saveOnboardingFact`, first-souvenir keeping)
 - `Shared/SourceAdapters.swift`
 - `Shared/PageModel.swift`
 
@@ -204,7 +238,7 @@ Current page types:
 ```text
 mood, diary, souvenir, rest, body, fuel, weather, location, quip,
 aboutYou, wonderCompass, lore, patreon, illustration, illuminatedPhoto,
-narrativeOS, gossip, facultyResearch, letter, supportGuild, castMember,
+narrativeOS, gossip, facultyResearch, letter, supportGuild,
 bookOfYou, askTheBook, inkrestOfficeHours, faeBargain, bookFae,
 pactDispatch, festival, twoReadings, castBond, todaysSky, radio,
 bookJump, enchantment, anchor, academyClass, elective, packPage,
@@ -329,6 +363,52 @@ pages (`CapturePageSheet`). It wraps the plain editor with the live nudge, a
 collapsible builder, tappable scaffold tokens, the transmutation chips, and a
 shimmer/alchemy treatment as the sentence strengthens — all driven by
 `SentenceBuilderEngine`, no model call.
+
+### Margin Tutor
+
+The app has a second, lighter teaching layer after onboarding:
+`MarginTutorCatalog` / `MarginTutorLedger` (`Shared/PagePacks.swift`). These are
+first-touch notes in Zara Finch's voice, shown once when the reader first touches
+major mechanics: Glow, body/weather/location seals, keeping/dismissing pages,
+Story Pages, Enchantments, the Flyleaf, Compass Runs, Ask the Book, Today's
+Margins, returned pages, Search the Stacks, and the Colophon.
+
+The ledger lives in the vault (`PlayerVaultData.tutorSeen`) and is included in
+save export/import. This lets The First Door stay cinematic while practical
+guidance appears exactly where the reader is experimenting.
+
+### Page Packs And The BookShop
+
+Page packs are data-driven page plugins. A `PageArchetypePack` supplies
+archetypes with title, body template, cadence, active hours, render style, tags,
+and optional local-brain generation instructions. `PageTemplateRenderer` fills
+safe placeholders such as `{weather}`, `{moonLine}`, `{playerName}`,
+`{keptCount}`, `{lastKeptPage}`, `{timeOfDay}`, and `{season}` from live local
+signals.
+
+Enabled packs come from bundled content plus user-imported
+`*.reenchantedpack.json` files in Documents. Locked bundled packs are enabled by
+`PackEntitlements`, so the same system supports free packs, imported packs, and
+BookShop purchases without adding new Swift page types.
+
+The BookShop is the Marginalia Goblins' commerce layer:
+
+- `BookShopCatalog` lists packs across families: page folios, story forms,
+  spark packs, lore crates, marginalia sets, sound bindings, and event packs.
+- `BookShopSheet` is the in-app shelf. It also has a **Free First Folio** shelf
+  for bundled-free packs such as **Margins & Mysteries**, so first-week
+  onboarding can teach "plug in a pack" without a purchase.
+- `BookShopMerchant` abstracts StoreKit from the internal
+  `ScrivenersCounterMerchant`.
+- `BookShopPreviewPageSourceAdapter` can surface a keepable "BookShop open"
+  page, with weekly cooldown, that opens the shop directly.
+
+Current listed packs include **The Nocturne Folio**, **Academy Night Band**, and
+**The Starlit Paper Trial Archive**, with additional story/marginalia packs
+marked as being printed.
+
+This is the content expansion spine: new pages, event archives, radio stations,
+and story-form bundles can be owned by the save and consumed by registries.
 
 ### Game Pages: The Sentence Runner
 
@@ -990,15 +1070,20 @@ metadata, mood tags, and explicit page-type boosts.
 Core stations ship in `RadioStationRegistry`:
 
 - Fae-Fi (88.3) - bright/playful faerie lo-fi; leans toward Wonder Compass,
-  souvenirs, and festivals. Bundled tracks: **Mossy Footsteps**, **Folktronica**,
-  **Mossy Groove**, **To the Adventure**, and **Pages Rising**.
+  souvenirs, and festivals. DJ'd by Penny Blackletter. Bundled tracks:
+  **Mossy Footsteps**, **Folktronica**, **Ink Hands**, **Art of the Glint**,
+  **Crushed Pixies**, **Mossy Groove**, **To the Adventure**, and
+  **Pages Rising**.
 - Mothlight Beats (90.9) - bittersweet wistful fae-fi; leans toward remembered
-  pages, inner weather, and diary. Bundled tracks: **The Page Came Through**,
-  **Fae Dust**, **Lost Candy**, **Porchlight, Fading**, and
-  **Afternoon Chapters**.
+  pages, inner weather, and diary. DJ'd by Professor Eleanor Euphony. Bundled
+  tracks: **The Page Came Through**, **Fae Dust**, **In the Story**,
+  **Lost Candy**, **Noticing Text Flowers**, **Tale's End**, **Book Jumping**,
+  **Porchlight, Fading**, and **Afternoon Chapters**.
 - Thornwave (103.7) - dark faerie lo-fi / trip-hop / future garage; leans toward
-  Book Fae, story, and gossip. Bundled tracks: **Bramble Bass**,
-  **Nocturnal Faerie Lounge**, **Whispering Shadows**, and **Mossy Night**.
+  Book Fae, story, and gossip. DJ'd by Wicker Eddies. Bundled tracks:
+  **Bramble Bass**, **Nocturnal Faerie Lounge**, **Whispering Shadows**,
+  **Mossy Night**, **Long Titles in the Dark**, **Duskthorn Rising**, and
+  **No Conflict, No Story**.
 
 Two further stations ship behind pack entitlements: **The Midnight Bindery** and
 **Goblin Market Jazz** (with their own bundled tracks).
@@ -1034,11 +1119,17 @@ its caption as a resilient fallback; song-aware intros/outros can bind to a
 specific `RadioTrack` and placement.
 
 `RadioWorldContext` gates breaks by dawn/day/dusk/night, Nothing pressure,
-festival state, listening streak, and weekday. `RadioStationRegistry` rotates
-eligible categories and recent clip IDs, usually placing a break after one or
-two songs while preventing sponsor/category loops. `BookRadioManager` owns the
-playout clock, queues the next track around a bound intro/outro, persists recent
-track/banter history, and exposes the host/caption while the DJ is on air.
+festival state, listening streak, weekday, recent kept-page counts, source IDs,
+tags, today's kept-page count, the last kept page type, and weather tags such as
+rain/fog/storm/bright/cold. `RadioStationRegistry` rotates eligible categories
+and recent clip IDs, usually placing a break after one or two songs while
+preventing sponsor/category loops. `BookRadioManager` owns the playout clock,
+queues the next track around a bound intro/outro, persists recent track/banter
+history, and exposes the host/caption while the DJ is on air.
+
+Track curation is now run-based rather than catalog-order playback: a station
+tries to finish a full pass through its available tracks before repeating, still
+avoids immediate repeats, and can weight/gate tracks by the same world context.
 Older `.reenchantedradio.json` stations without authored banter remain valid:
 their legacy interlude titles become caption-only transition breaks.
 
@@ -1890,13 +1981,18 @@ Export/import:
 
 ## Search The Stacks
 
-Search is local and structured first.
+Search is local and structured first. It is a first-class archive surface, not a
+debug convenience: the **Search the Stacks** sheet
+(`InsideCoverApp/SearchTheStacksSheet.swift`) can find kept pages, cast, anchors,
+entity memories, electives/favors, reference snippets, and page families without
+asking the local brain to guess.
 
 Key pieces:
 
 - `StacksSearchDataset`
 - `StacksQuery`
 - `StacksSearchEngine`
+- `StacksSearchResult.Kind`
 - `SearchTheStacksSheet`
 - optional local-brain interpretation for unusual queries
 
@@ -1908,9 +2004,14 @@ Search can find:
 - self facts where appropriate,
 - entity memories,
 - custom cast members,
+- anchors and places,
+- electives/favors,
+- reference-library snippets,
 - page family/type words,
-- Glow tier language,
-- co-kept correlations such as tiredness.
+- Glow-tier language ("bright glow", "faint glow"),
+- mood vocabulary,
+- co-kept correlations such as tiredness,
+- cast/place/anchor intent words.
 
 Kept pages reopen through the same surface sheet used by live pages, so archive
 items are not inert rows.

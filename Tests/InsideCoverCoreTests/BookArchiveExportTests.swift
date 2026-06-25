@@ -99,6 +99,64 @@ final class BookArchiveExportTests: XCTestCase {
         XCTAssertFalse(edition.sections.flatMap(\.items).contains { $0.id == "may" || $0.id == "july" })
     }
 
+    func testMonthlyEditionGroupsRepeatedWordSignals() {
+        let pages = (1...3).map { dayNumber in
+            BookPage(
+                id: "harbor-\(dayNumber)",
+                type: .souvenir,
+                createdAt: date(day: dayNumber, hour: 12),
+                promptText: "Souvenir",
+                userInput: "The harbor lantern waited by the moss and the harbor light held."
+            )
+        }
+        let days = pages.map { page in
+            BookDay(id: "day-\(page.id)", date: page.createdAt, pages: [page])
+        }
+
+        let edition = MonthlyEditionBuilder.edition(
+            from: days,
+            readerName: "bj",
+            startDate: date(day: 1, hour: 0),
+            endDate: date(day: 30, hour: 23),
+            generatedAt: date(day: 30, hour: 23),
+            calendar: calendar
+        )
+
+        let notices = edition.sections.first { $0.id == "the-book-notices" }
+        let returning = notices?.items.first { $0.id == "returning-language" }
+        XCTAssertNotNil(returning)
+        XCTAssertTrue(returning?.body.contains("Certain words kept finding their way back") == true)
+        XCTAssertFalse(returning?.body.contains("kept pages") == true)
+        XCTAssertFalse(notices?.items.contains { $0.body.contains("The word ") } == true)
+    }
+
+    func testMonthlyEditionExcerptsLongSavedPages() {
+        let longText = (1...30)
+            .map { "Paragraph \($0) keeps describing the same welcome page in enough detail that the monthly binding should quote it selectively instead of pouring the whole source page onto the leaf." }
+            .joined(separator: "\n\n")
+        let page = BookPage(
+            id: "welcome",
+            type: .welcome,
+            createdAt: date(day: 4, hour: 9),
+            promptText: "Welcome",
+            userInput: longText
+        )
+
+        let edition = MonthlyEditionBuilder.edition(
+            from: [BookDay(id: "2026-06-04", date: date(day: 4, hour: 0), pages: [page])],
+            readerName: "bj",
+            startDate: date(day: 1, hour: 0),
+            endDate: date(day: 30, hour: 23),
+            generatedAt: date(day: 30, hour: 23),
+            calendar: calendar
+        )
+
+        let item = edition.sections.flatMap(\.items).first { $0.id == "welcome" }
+        XCTAssertNotNil(item)
+        XCTAssertLessThan(item?.body.count ?? longText.count, longText.count)
+        XCTAssertTrue(item?.body.contains("[Excerpted for the monthly binding.]") == true)
+    }
+
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt

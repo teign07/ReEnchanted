@@ -312,7 +312,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
                 metadata: payload.metadata
             ))
         }
-        if type == .castMember,
+        if payload.metadata["illustrationKind"] == "cast",
            let kindRawValue = nonEmptyMetadataValue("imageAssetKind"),
            let kind = BookPageMediaAsset.Kind(rawValue: kindRawValue),
            let reference = nonEmptyMetadataValue("imageAssetReference") {
@@ -380,7 +380,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .reflect
         case .calendar:
             return .reflect
-        case .wonderCompass, .lore, .patreon, .illustration, .quip, .castMember, .helpTips, .welcome, .marginsAtlas:
+        case .wonderCompass, .lore, .patreon, .illustration, .quip, .helpTips, .welcome, .marginsAtlas:
             return .importReference
         case .enchantment:
             return .capture
@@ -789,6 +789,9 @@ extension SurfacePage {
             return "bookjump:\(id):\(action)"
         }
         if let id = payload.metadata["bookID"]?.nonEmpty { return "bookjump-book:\(id)" }
+        if payload.metadata["firstDoorOrigin"] == "true" { return "first-door-origin" }
+        if let id = payload.metadata["firstDoorApprenticeshipDay"]?.nonEmpty { return "first-door-apprenticeship:\(id)" }
+        if let id = payload.metadata["tipID"]?.nonEmpty { return "tip:\(id)" }
         return "source:\(sourceID)"
     }
 
@@ -1039,14 +1042,14 @@ struct CuratorMood {
 
         // Narrative heat: a field full of fresh events favors story-bearing
         // pages; a cold field favors pages that gather new material.
-        let storyBearing: Set<BookPageType> = [.narrativeOS, .bookFae, .gossip, .letter, .castMember, .supportGuild]
+        let storyBearing: Set<BookPageType> = [.narrativeOS, .bookFae, .gossip, .letter, .illustration, .supportGuild]
         let materialGathering: Set<BookPageType> = [.diary, .mood, .aboutYou, .souvenir]
         if narrativeHeat >= 6, storyBearing.contains(page.type) {
             delta += min(8, narrativeHeat / 2)
         } else if narrativeHeat == 0, materialGathering.contains(page.type) {
             delta += 4
         }
-        if hasFreshEntityMemory, page.type == .castMember {
+        if hasFreshEntityMemory, page.payload.metadata["illustrationKind"] == "cast" {
             delta += 4
         }
 
