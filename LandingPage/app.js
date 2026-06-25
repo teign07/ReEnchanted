@@ -1886,6 +1886,8 @@ const STATIONS = [
       { id: "fae-fi-folktronica", title: "Folktronica", artist: "Fae-Fi", src: "./assets/audio/fae-fi-folktronica.m4a" },
       { id: "fae-fi-ink-hands", title: "Ink Hands", artist: "Fae-Fi", src: "./assets/audio/fae-fi-ink-hands.m4a" },
       { id: "fae-fi-art-of-the-glint", title: "Art of the Glint", artist: "Fae-Fi", src: "./assets/audio/fae-fi-art-of-the-glint.m4a" },
+      { id: "fae-fi-crushed-pixies", title: "Crushed Pixies", artist: "Fae-Fi", src: "./assets/audio/fae-fi-crushed-pixies.m4a" },
+      { id: "fae-fi-fae-fi", title: "Fae Fi", artist: "Fae-Fi", src: "./assets/audio/fae-fi-fae-fi.m4a" },
       { id: "fae-fi-mossy-groove", title: "Mossy Groove", artist: "Fae-Fi", src: "./assets/audio/fae-fi-mossy-groove.m4a" },
       { id: "fae-fi-to-the-adventure", title: "To the Adventure", artist: "Fae-Fi", src: "./assets/audio/fae-fi-to-the-adventure.m4a" },
       { id: "fae-fi-pages-rising", title: "Pages Rising", artist: "Fae-Fi", src: "./assets/audio/fae-fi-pages-rising.m4a" },
@@ -1985,6 +1987,9 @@ const STATIONS = [
       { id: "thornwave-whispering-shadows", title: "Whispering Shadows", artist: "Thornwave", src: "./assets/audio/thornwave-whispering-shadows.m4a" },
       { id: "thornwave-long-titles-in-the-dark", title: "Long Titles in the Dark", artist: "Thornwave", src: "./assets/audio/thornwave-long-titles-in-the-dark.m4a" },
       { id: "thornwave-duskthorn-rising", title: "Duskthorn Rising", artist: "Thornwave", src: "./assets/audio/thornwave-duskthorn-rising.m4a" },
+      { id: "thornwave-no-conflict-no-story", title: "No Conflict, No Story", artist: "Thornwave", src: "./assets/audio/thornwave-no-conflict-no-story.m4a" },
+      { id: "thornwave-magic-margins", title: "Magic Margins", artist: "Thornwave", src: "./assets/audio/thornwave-magic-margins.m4a" },
+      { id: "thornwave-velvet-arrears", title: "Velvet Arrears", artist: "Thornwave", src: "./assets/audio/thornwave-velvet-arrears.m4a" },
       { id: "thornwave-mossy-night", title: "Mossy Night", artist: "Thornwave", src: "./assets/audio/thornwave-mossy-night.m4a" },
     ],
     banters: [
