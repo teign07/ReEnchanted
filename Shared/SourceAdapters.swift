@@ -1932,6 +1932,7 @@ struct FirstDoorOriginPageSourceAdapter: BookPageSourceAdapter {
         case "strange": return "Let it get strange"
         case "morning": return "Morning"
         case "evening": return "Evening"
+        case "both": return "Morning and evening"
         case "inside": return "Only inside the covers"
         case "slice-of-life": return "Slice of Life"
         case "arc": return "Arc"
@@ -2095,6 +2096,7 @@ private enum FirstDoorApprenticeshipCatalog {
         case "strange": return "Let it get strange"
         case "morning": return "Morning"
         case "evening": return "Evening"
+        case "both": return "Morning and evening"
         case "inside": return "Only inside the covers"
         default: return raw
         }

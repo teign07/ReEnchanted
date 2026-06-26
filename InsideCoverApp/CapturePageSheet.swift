@@ -729,6 +729,10 @@ struct CapturePageSheet: View {
         surface.payload.metadata["keptPage"] == "true"
     }
 
+    private var isMoonwriteSouvenirPage: Bool {
+        surface.type == .souvenir && Almanac.isMoonwriteActive()
+    }
+
     private var keptPageID: String? {
         surface.payload.metadata["keptPageID"]?.nonEmpty
     }
@@ -1182,6 +1186,32 @@ struct CapturePageSheet: View {
     }
 
     @ViewBuilder
+    private var moonwriteGlowNote: some View {
+        Label("Moonwrite is active. Souvenir sentences glow under the full moon.", systemImage: "moonphase.full.moon")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(Color(red: 0.92, green: 0.88, blue: 1.0))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.28, green: 0.24, blue: 0.48).opacity(0.72),
+                        BookPalette.nightPanel.opacity(0.84)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.white.opacity(0.28), lineWidth: 1)
+            }
+            .shadow(color: Color(red: 0.70, green: 0.62, blue: 1.0).opacity(0.22), radius: 12, x: 0, y: 0)
+    }
+
+    @ViewBuilder
     private var pageShareControl: some View {
         if let artifactURL = illuminatedArtifactURL {
             ShareLink(item: artifactURL) {
@@ -1420,6 +1450,10 @@ struct CapturePageSheet: View {
                 .font(.body)
                 .foregroundStyle(openPageSecondaryText)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if isMoonwriteSouvenirPage {
+                moonwriteGlowNote
+            }
 
             pageShareControl
 

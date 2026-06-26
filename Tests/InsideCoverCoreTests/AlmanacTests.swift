@@ -32,17 +32,25 @@ final class AlmanacTests: XCTestCase {
         // Scan a synodic month; both a full and a new esbat must occur.
         var sawFull = false
         var sawNew = false
+        var fullMoonDate: Date?
+        var newMoonDate: Date?
         var probe = date(2026, 1, 1)
         for _ in 0..<31 {
             switch Almanac.activeEsbat(on: probe)?.id {
-            case "esbat-full": sawFull = true
-            case "esbat-new": sawNew = true
+            case "esbat-full":
+                sawFull = true
+                fullMoonDate = fullMoonDate ?? probe
+            case "esbat-new":
+                sawNew = true
+                newMoonDate = newMoonDate ?? probe
             default: break
             }
             probe = probe.addingTimeInterval(86_400)
         }
         XCTAssertTrue(sawFull, "a full-moon esbat occurs within a month")
         XCTAssertTrue(sawNew, "a new-moon esbat occurs within a month")
+        XCTAssertTrue(Almanac.isMoonwriteActive(on: try XCTUnwrap(fullMoonDate)))
+        XCTAssertFalse(Almanac.isMoonwriteActive(on: try XCTUnwrap(newMoonDate)))
     }
 
     func testMeteorShowersLandInWindow() {

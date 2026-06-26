@@ -585,6 +585,12 @@ final class RadioBanterTests: XCTestCase {
         )
         XCTAssertTrue(leverage.satisfies(clips["thornwave-pages-gossip-leverage"]?.conditions))
 
+        let moonwrite = RadioWorldContext(
+            timeOfDay: "night",
+            pageContext: RadioPageContext(recentPageTypeCounts: [.souvenir: 1])
+        )
+        XCTAssertTrue(moonwrite.satisfies(clips["thornwave-pages-moonwrite"]?.conditions))
+
         let afterMidnight = RadioWorldContext(timeOfDay: "night")
         XCTAssertTrue(afterMidnight.satisfies(clips["thornwave-time-after-midnight"]?.conditions))
 
@@ -595,6 +601,30 @@ final class RadioBanterTests: XCTestCase {
             pageContext: RadioPageContext(recentPageTypeCounts: [.anchor: 1])
         )
         XCTAssertTrue(anchor.satisfies(clips["thornwave-pages-anchor-impressed"]?.conditions))
+
+        let dusk = RadioWorldContext(timeOfDay: "dusk")
+        XCTAssertTrue(dusk.satisfies(clips["thornwave-talisman-dusk-thorn"]?.conditions))
+        XCTAssertTrue(dusk.satisfies(clips["thornwave-cast-thorne"]?.conditions))
+        XCTAssertTrue(dusk.satisfies(clips["thornwave-network-grey"]?.conditions))
+        XCTAssertTrue(dusk.satisfies(clips["thornwave-psa-clubs-night"]?.conditions))
+        XCTAssertTrue(dusk.satisfies(clips["thornwave-psa-fullmoon"]?.conditions))
+
+        let day = RadioWorldContext(timeOfDay: "day")
+        XCTAssertFalse(day.satisfies(clips["thornwave-talisman-dusk-thorn"]?.conditions))
+        XCTAssertFalse(day.satisfies(clips["thornwave-psa-clubs-night"]?.conditions))
+
+        let night = RadioWorldContext(timeOfDay: "night")
+        XCTAssertTrue(night.satisfies(clips["thornwave-cast-damien"]?.conditions))
+
+        let bookJump = RadioWorldContext(
+            pageContext: RadioPageContext(recentPageTypeCounts: [.bookJump: 1])
+        )
+        XCTAssertTrue(bookJump.satisfies(clips["thornwave-class-book-jumping"]?.conditions))
+
+        XCTAssertNotNil(clips["thornwave-talisman-ember-seal"])
+        XCTAssertNotNil(clips["thornwave-cast-finn"])
+        XCTAssertNotNil(clips["thornwave-club-inkwright"])
+        XCTAssertNotNil(clips["thornwave-psa-beltane"])
     }
 
     func testHiddenBleedCanReactToGossipClustersAndNight() throws {
@@ -697,9 +727,21 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertEqual(thornClips["thornwave-weather-storm-grey-pressure"], "DJ_thornwave_weather_storm_grey_02")
         XCTAssertEqual(thornClips["thornwave-pages-story-night-choice"], "DJ_thornwave_pages_story_night_02")
         XCTAssertEqual(thornClips["thornwave-pages-gossip-leverage"], "DJ_thornwave_pages_gossip_02")
+        XCTAssertNil(thornClips["thornwave-pages-moonwrite"] ?? nil)
         XCTAssertEqual(thornClips["thornwave-time-after-midnight"], "DJ_thornwave_time_after_midnight_01")
         XCTAssertEqual(thornClips["thornwave-grey-high-keep-the-door"], "DJ_thornwave_grey_high_pressure_01")
         XCTAssertEqual(thornClips["thornwave-pages-anchor-impressed"], "DJ_thornwave_pages_anchor_resist_01")
+        XCTAssertEqual(thornClips["thornwave-talisman-dusk-thorn"], "DJ_thornwave_talisman_dusk_thorn_01")
+        XCTAssertEqual(thornClips["thornwave-talisman-ember-seal"], "DJ_thornwave_talisman_ember_seal_01")
+        XCTAssertEqual(thornClips["thornwave-class-book-jumping"], "DJ_thornwave_class_book_jumping_01")
+        XCTAssertEqual(thornClips["thornwave-cast-finn"], "DJ_thornwave_cast_finn_01")
+        XCTAssertEqual(thornClips["thornwave-cast-damien"], "DJ_thornwave_cast_damien_01")
+        XCTAssertEqual(thornClips["thornwave-cast-thorne"], "DJ_thornwave_cast_thorne_01")
+        XCTAssertEqual(thornClips["thornwave-club-inkwright"], "DJ_thornwave_club_inkwright_01")
+        XCTAssertEqual(thornClips["thornwave-network-grey"], "DJ_thornwave_network_grey_01")
+        XCTAssertEqual(thornClips["thornwave-psa-clubs-night"], "DJ_thornwave_psa_clubs_night_01")
+        XCTAssertEqual(thornClips["thornwave-psa-beltane"], "DJ_thornwave_psa_beltane_01")
+        XCTAssertEqual(thornClips["thornwave-psa-fullmoon"], "DJ_thornwave_psa_fullmoon_01")
 
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
@@ -754,5 +796,16 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_time_after_midnight_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_grey_high_pressure_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_pages_anchor_resist_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_talisman_dusk_thorn_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_talisman_ember_seal_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_class_book_jumping_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_cast_finn_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_cast_damien_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_cast_thorne_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_club_inkwright_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_network_grey_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_psa_clubs_night_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_psa_beltane_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_psa_fullmoon_01.m4a").path))
     }
 }

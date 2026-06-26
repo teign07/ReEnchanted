@@ -1402,6 +1402,17 @@ enum RadioStationRegistry {
                     weight: 4
                 ),
                 RadioBanter(
+                    id: "thornwave-pages-moonwrite", category: .gossip,
+                    assetName: nil,
+                    caption: "When the moon comes full, the Academy does the one thing it almost never does — cancels class after sunset. The Luminous Gathering. Everyone spills into the courtyard to read by moonlight, and strangers actually speak to each other. The sentences glow. I've watched it happen and failed to find the trick. So write your souvenir under a full moon some night — they call it Moonwrite — and watch the page light up. Believe it out loud. I dare you. The moon's already holding still for you.",
+                    conditions: RadioBanter.Conditions(
+                        timeOfDay: ["dusk", "night"],
+                        pageTypes: [.souvenir],
+                        minRecentPagesOfType: 1
+                    ),
+                    weight: 5
+                ),
+                RadioBanter(
                     id: "thornwave-pages-fae-bargain-fineprint", category: .gossip,
                     assetName: "DJ_thornwave_pages_bargain_02",
                     caption: "So you've been taking meetings with the Fae. They always keep their word — that's the good news and the bad news. Read the small print. It's where the music lives.",
@@ -1469,6 +1480,83 @@ enum RadioStationRegistry {
                         minRecentPagesOfType: 1
                     ),
                     weight: 4
+                ),
+                RadioBanter(
+                    id: "thornwave-talisman-dusk-thorn", category: .news,
+                    assetName: "DJ_thornwave_talisman_dusk_thorn_01",
+                    caption: "Let's talk about my Chapter's talisman, since no one else will at this hour. The Dusk Thorn. Duskthorn. It only draws blood from a story that's already gone numb - never from a living one. Its belief is four words, and I happen to agree with every one of them: no conflict, no story. The grey wants your days smooth and quiet and forgettable. The Thorn wants them to cost something. So do I. That's not cruelty. That's plot.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "thornwave-talisman-ember-seal", category: .gossip,
+                    assetName: "DJ_thornwave_talisman_ember_seal_01",
+                    caption: "Emberheart's talisman is the Ember Seal - warm, insistent, bright at the edges, and impatient with waiting, which is the most honest thing in this building. It leaves faint scorch marks on your hesitations. Good. You should be able to see where you flinched. Its doctrine is the only line of Academy scripture I'd actually sign: you are the author, the protagonist, and the pen. So stop waiting for permission that was never coming. Write the next line yourself.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-class-book-jumping", category: .gossip,
+                    assetName: "DJ_thornwave_class_book_jumping_01",
+                    caption: "You've been jumping into stories. Permancer's class - the Vault of Doors. He'll teach you that a genre is weather, not wallpaper, and that every door you open owes a return. All true. He lays out three bookmarks and rejects the prettiest one because it has no exit protocol. Me? I've never met a door I needed a bookmark to walk back through. That's the difference between us - and the reason he's right and I'm interesting. Keep the bookmark. For now.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.bookJump], minRecentPagesOfType: 1),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "thornwave-cast-finn", category: .gossip,
+                    assetName: "DJ_thornwave_cast_finn_01",
+                    caption: "Finn Bridges chalked another challenge in red this week. Clean line, no theatrics - prove it by moving, don't cheapen the effort. He respects Momort's class most on the days it stops sounding like an escape route and starts sounding like discipline. I like Finn. He's one of the few who tests himself harder than I'd bother to. If he's marked a line for you, reader - don't argue it. Cross it. He'll respect that more than winning.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-cast-damien", category: .gossip,
+                    assetName: "DJ_thornwave_cast_damien_01",
+                    caption: "A word about one of my own. Damien Nights still stands at my shoulder when the crew organizes - but his eyes keep drifting to you, reader. He keeps a pressed trail leaf hidden in a book. A man doesn't hide something gentle unless he's deciding which side he's on. I taught him doubt should protect something, not merely wound it. Looks like he was listening. Good. I'd rather lose him to the truth than keep him for the theatre.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["night"]),
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "thornwave-cast-thorne", category: .news,
+                    assetName: "DJ_thornwave_cast_thorne_01",
+                    caption: "The Headmistress is awake. Seraphina Thorne - unseelie, elegant, watchful, speaks as if every building is listening, which, in her case, they are. She keeps the Academy's doors from admitting they're tests. Believes beauty is a form of governance. She'd keep you safe by keeping you in the dark and call it mercy. I respect her more than I trust her. You should hold the same arithmetic. Wonder is only worth anything if it's allowed to stay a little dangerous.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-club-inkwright", category: .gossip,
+                    assetName: "DJ_thornwave_club_inkwright_01",
+                    caption: "The Inkwright Society met in the Bibliophonic Hall tonight. Serious notebooks, no mascots. They write, they share - honest first, kind second - and then they burn it. Each meeting ends with a piece read aloud and set alight, the smoke going up into the library ceiling to be absorbed as words. Theatrical. I approve, obviously. The writing there is meant. If you've something true and dangerous to say, that's the only room in the building that can hold it.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-network-grey", category: .network,
+                    assetName: "DJ_thornwave_network_grey_01",
+                    caption: "One thing the whole band agrees on, and we agree on almost nothing: this is the sound the grey can't get into. ReEnchanted Radio. Keep believing out loud - it's the only thing that's ever worked, and I've spent my whole life trying to prove otherwise. Spin on.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: 2
+                ),
+                RadioBanter(
+                    id: "thornwave-psa-clubs-night", category: .news,
+                    assetName: "DJ_thornwave_psa_clubs_night_01",
+                    caption: "It's after the bells, which means the clubs are awake - seven to ten, lamps up, doors open. The Compass Society reads souvenirs aloud like confessions, and no one in that garden mocks a sentence - more discipline than most of you manage. The Inkwright Society writes it true, then burns it; the smoke goes up into the library ceiling. The Marginalia Guild leaves threats to future readers, lovingly. And the Book Jumpers argue about doors until someone finds the one with a way back. Pick a room. Or don't. But the doors only open at this hour.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "thornwave-psa-beltane", category: .news,
+                    assetName: "DJ_thornwave_psa_beltane_01",
+                    caption: "One feast even I won't sharpen my teeth on: Beltane. The Greenfire. The first of May, when the courtyard goes reckless with bloom and the vines climb the shelves with tiny books for leaves. The bees in the Compass Rose are helpful and, frankly, a little drunk. Find the most alive green thing near you and talk to it like it can hear you. It can. That isn't me going soft - it's just true, and true is the only thing I deal in. Greenfire. Don't miss it.",
+                    conditions: nil,
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "thornwave-psa-fullmoon", category: .news,
+                    assetName: "DJ_thornwave_psa_fullmoon_01",
+                    caption: "When the moon comes full, the Academy does the one thing it almost never does - cancels class after sunset. The Luminous Gathering. Everyone spills into the courtyard to read by moonlight, and strangers actually speak to each other. The sentences glow. I've watched it happen and failed to find the trick. So write your souvenir under a full moon some night - they call it Moonwrite - and watch the page light up. Believe it out loud. I dare you. The moon's already holding still for you.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: nil
                 )
             ]
         ),
@@ -5660,6 +5748,10 @@ enum Almanac {
             )
         }
         return nil
+    }
+
+    static func isMoonwriteActive(on date: Date = Date()) -> Bool {
+        activeEsbat(on: date)?.id == "esbat-full"
     }
 
     /// Meteor showers, by their real date windows.
