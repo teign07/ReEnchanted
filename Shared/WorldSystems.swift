@@ -789,6 +789,132 @@ enum RadioStationRegistry {
                         minRecentPagesOfType: 1
                     ),
                     weight: 4
+                ),
+                RadioBanter(
+                    id: "faefi-class-glint", category: .news,
+                    assetName: "DJ_faefi_class_glint_01",
+                    caption: "Field note from Wing Four - the Glint Hall. Professor Boggle held up three ordinary objects under a lamp and asked which one changed the instant you described it exactly. That's the whole of Notice - the North direction. The Rut turns the world to wallpaper, and one specific, odd detail rips it down. I've filed it under \"doctrine disguised as a pun.\" Attend if you can. Bring something dull to look at.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.academyClass], minRecentPagesOfType: 1),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-club-marginalia", category: .gossip,
+                    assetName: "DJ_faefi_club_marginalia_01",
+                    caption: "The Marginalia Guild meets in the Corridor of Whispered Secrets, and I'll admit it's the one club I'd join twice. You annotate a book together and leave notes for whoever opens it next - sometimes fifty years next. The best conversation I ever had was with a stranger who read the same volume in 1974 and wrote one true thing in the margin. So leave a note. Someone not yet born is going to need it.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-talisman-wind-cipher", category: .news,
+                    assetName: "DJ_faefi_talisman_wind_cipher_01",
+                    caption: "Records request came back on the Wind Cipher - the Riddlewind talisman, which is, regrettably, my own Chapter's. It rearranges itself the moment two people look at it together, and it goes restless when it's left alone. Its whole belief is four words: life is a story we write together. Sentimental. Also, infuriatingly, true. I checked. Twice.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-cast-soren", category: .gossip,
+                    assetName: "DJ_faefi_cast_soren_01",
+                    caption: "Soren Ng left another clue in the stacks - a diagram, no signature, naturally, somewhere only patient people look. He trusts a map more than a declaration, and he leaves it unfinished on purpose so you become part of it. A map is an invitation, he says. Not an answer. I'd file a complaint about the lack of labels, but I suspect that's the point. Go find it.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-cast-wispwood", category: .gossip,
+                    assetName: "DJ_faefi_cast_wispwood_01",
+                    caption: "Sighting from the Spark Annex: Professor Wispwood apologized to a chipped mug before enchanting it. Out loud. Listed its visible facts first, then let it answer. Basic Enchantments, they call it - Everything Speaks, Everything's Poetry. The doctrine is just courtesy: ordinary matter answers when your attention turns polite. Try it on something you've stopped seeing. Mind the sparks in her sleeves.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-cast-gwendolyn", category: .news,
+                    assetName: "DJ_faefi_cast_gwendolyn_01",
+                    caption: "Gwendolyn Mythwright filed another impossible animal this morning, stamped like an overdue library form. She writes letters to fog. The fog, I'm told, has not yet replied. But she believes the improbable gets kinder the moment it's written down - that evidence makes wonder less lonely. If you kept a letter recently, she'd like a copy. For the archive. Obviously.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.letter], minRecentPagesOfType: 1),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-lore-compass-run", category: .news,
+                    assetName: "DJ_faefi_lore_compass_run_01",
+                    caption: "For the new readers, filed plainly: a Compass Run is four directions and one sentence. Notice to the North, Embark to the East, Sense to the South, Write to the West - and Rest at the Center, which isn't a direction at all but the ground the other four stand on. You walk one small adventure, then bind a single true souvenir line at the end. That's it. That's the magic. Embarrassingly repeatable.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-tip-belief", category: .news,
+                    assetName: "DJ_faefi_tip_belief_01",
+                    caption: "Grey's up at the edges this morning - the Nothing's been chewing on the unnoticed hours again. Here's the only counter-spell that's ever worked, and yes, I audited it: notice one true particular and write it down. Belief planted, grey pushed back. One detail. That's the whole arithmetic of this place. Plant one before lunch and prove me right. I do enjoy being right.",
+                    conditions: RadioBanter.Conditions(minGrey: 30),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-club-compass-society", category: .gossip,
+                    assetName: "DJ_faefi_club_compass_society_01",
+                    caption: "Word from the Secret Garden of Prose: the Compass Society met again, Zara Finch holding it together by sheer attention, as ever. They read their one-sentence souvenirs aloud - and no one mocks a sentence in that room. Apparently saying it out loud makes it more real. I resisted the theory on principle. Then I tested it. Reader: it's real. If you've kept a souvenir, consider that your invitation.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.souvenir], minRecentPagesOfType: 1),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-psa-timetable", category: .news,
+                    assetName: "DJ_faefi_psa_timetable_01",
+                    caption: "Public notice from the records desk, since someone has to keep it straight. The Academy runs on bells: morning classes at nine, afternoon classes at one, and clubs gather at seven, lamps up. Five days of classes, a Saturday field run, and a Sunday that opens in another book entirely. It's all chalked on the board by the Inkworks. I keep the master copy. Naturally.",
+                    conditions: nil,
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-curriculum", category: .news,
+                    assetName: "DJ_faefi_psa_curriculum_01",
+                    caption: "For new readers wondering what's actually taught here: the whole curriculum is one compass. North is Notice - Boggle's Art of the Glint, finding the one odd detail. East is Embark - Momort's Wayfinding, crossing a small threshold on purpose. South is Sense - Euphony's Synesthetic Resonance, reading a room through the body. West is Write - Villanelle's Ink-Binding, one true sentence that keeps. And the Center is Rest - Stonebrook's Quiet Hours. Not a direction. The ground the other four stand on. Filed, cross-referenced, and only mildly poetic.",
+                    conditions: nil,
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-week-grid", category: .news,
+                    assetName: "DJ_faefi_psa_week_grid_01",
+                    caption: "The week, for the record, as briefly as I can manage. Mondays: the Glint, then Ink-Binding. Tuesdays: Wayfinding, then Resonance. Wednesdays: the Glint again, then Quiet Hours. Thursdays: Wayfinding, then Ink-Binding. Fridays: Resonance, then Basic Enchantments. Saturdays we run the full Compass in the field. Sundays open in the Vault of Doors, with Book Jumping. Clubs after dark. Don't make me repeat it - I'll only be more accurate.",
+                    conditions: nil,
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-clubs", category: .news,
+                    assetName: "DJ_faefi_psa_clubs_01",
+                    caption: "Evening notice: the clubs are gathering - seven bells, lamps up. The Compass Society reads souvenirs aloud in the Secret Garden, where no one mocks a sentence. The Marginalia Guild annotates in the Corridor of Whispered Secrets, leaving notes for readers fifty years out. The Inkwright Society writes, shares, and burns it. And the Book Jumpers argue about what counts as a door. Find the room that fits your week. Tell them the records desk sent you.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-bleed-editions", category: .news,
+                    assetName: "DJ_faefi_psa_bleed_editions_01",
+                    caption: "Reminder from your editor, which is me: The Bleed runs two editions. The Morning paper lands before one bell - weather, the day's hinges, what the Book noticed overnight, and a column off one of your own shelves. The Evening edition sets after four - tomorrow's shape, tonight's margins, a fresh column. The quiet afternoon between them belongs to you. That part's intentional. Read both. There may be a quiz. There won't be. But there could be.",
+                    conditions: nil,
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-office-hours", category: .news,
+                    assetName: "DJ_faefi_psa_office_hours_01",
+                    caption: "A notice I file gladly: the support faculty keep their doors open. Dr. Inkrest holds office hours for difficult pages - no appointment, just a chair, a lamp, and the time to name a hard thing slowly. Dr. Vellum takes the body's evidence - fuel, rest, recovery - and turns it into one small experiment with no shame attached. Neither will rush you. It's almost unnerving. If the day's gone heavy, that's what the doors are for.",
+                    conditions: nil,
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-todays-sky", category: .news,
+                    assetName: "DJ_faefi_psa_todays_sky_01",
+                    caption: "Daily service note: Today's Sky posts each morning - the moon's phase and sign, the weather drawing in, and the nearest thing the heavens are up to. It's the one forecast that reads the inner weather as much as the outer. I check it before I file anything. The sky, annoyingly, is usually right.",
+                    conditions: nil,
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-festivals-wheel", category: .news,
+                    assetName: "DJ_faefi_psa_festivals_wheel_01",
+                    caption: "Since readers keep asking what we celebrate: the Academy keeps the eight feasts of the Wheel. Imbolc, the First Stir, when the dark first turns. Ostara and Mabon, the two Rebalancings at the equinoxes. Beltane's Greenfire and Litha's Longest Day in the bright half. Lughnasadh, the First Harvest. And in the dark half - Samhain, the Thinning, and Yule, the Darkest Class, taught by candlelight. Eight feasts, one turning year. I keep the calendar. The calendar, for once, keeps itself.",
+                    conditions: nil,
+                    weight: nil
+                ),
+                RadioBanter(
+                    id: "faefi-psa-moons-showers", category: .news,
+                    assetName: "DJ_faefi_psa_moons_showers_01",
+                    caption: "Also on the calendar, for the record: the moons and the falling stars. Every Full Moon is a Luminous Gathering - classes cancelled after sunset, everyone out reading by moonlight. Every New Moon, the Quiet Hours: candles only, the words holding their breath. And twice a year the ceiling goes clear for the meteors - the Perseids in August, the Falling Letters; the Geminids in December, the Winter Stars, when hot chocolate turns up in your hands unasked. I have not determined who delivers it. The investigation remains open.",
+                    conditions: nil,
+                    weight: nil
                 )
             ]
         ),

@@ -451,7 +451,10 @@ enum BookReferenceCatalog {
         "LabyrinthLocationOuterStacks",
         "LabyrinthLocationStacks",
         "LabyrinthLocationGreatHall",
-        "LabyrinthLocationKitchens"
+        "LabyrinthLocationKitchens",
+        "LabyrinthLocationQuillquarium",
+        "LabyrinthLocationBookBurrow",
+        "LabyrinthLocationDorm"
     ]
 
     private static var characterIllustrationPlates: [LabyrinthIllustrationPlate] {
@@ -771,8 +774,8 @@ enum BookReferenceCatalog {
             sourceID: "labyrinth-lore",
             title: "Rooms That Behave Like Pages",
             prompt: "Open the door that has been waiting.",
-            body: "Rooms in the Labyrinth are not neutral containers. A room has a mood, a history, a preferred volume, and sometimes a private grudge against certain shoes. The Quillquarium is full of writing instruments swimming through the air until the right one chooses the right student. The Peculiar Potions Parlor contains cauldrons with personalities and dramatic opinions about stirring. The Clockwork Conservatory plays music with or without permission. A Story Page can borrow any of these rooms when a day needs shape, shelter, or mischief.",
-            tags: ["classes", "locations", "rooms", "story"]
+            body: "Rooms in the Labyrinth are not neutral containers. A room has a mood, a history, a preferred volume, and sometimes a private grudge against certain shoes. The Quillquarium is full of writing instruments swimming through the air until the right one chooses the right student. The Book Burrow is where lamps, blankets, snacks, and low voices make hanging out feel like a valid form of magic. The Dorm is the reader's private continuity room: shaped by kept pages, souvenirs, letters, chapter weather, and chosen comforts, but careful never to invent private facts. A Story Page can borrow any of these rooms when a day needs shape, shelter, or mischief.",
+            tags: ["classes", "locations", "rooms", "story", "quillquarium", "book-burrow", "dormitory"]
         ),
         ReferenceSnippet(
             id: "labyrinth-lore-classes",

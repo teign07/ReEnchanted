@@ -979,6 +979,19 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertFalse(pages.first?.payload.metadata["entityID"]?.isEmpty ?? true)
     }
 
+    func testLocationBeliefCanSurfaceLocationIllustration() {
+        let adapter = CastIllustrationPageSourceAdapter()
+        var inputs = BookSourceInputs.empty
+        inputs.entityBeliefOffsets = ["location-kitchens": 80]
+        let day = BookDay.today()
+
+        let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: Date())
+
+        XCTAssertEqual(pages.first?.payload.metadata["entityID"], "location-kitchens")
+        XCTAssertEqual(pages.first?.payload.metadata["entityKind"], "location")
+        XCTAssertEqual(pages.first?.payload.metadata["illustrationKind"], "location")
+    }
+
     func testInkedHourSurfacesBeforeEvent() {
         let adapter = CalendarPageSourceAdapter()
         var inputs = BookSourceInputs.empty

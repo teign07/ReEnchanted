@@ -582,7 +582,7 @@ enum NarrativePackRegistry {
             version: "0.1",
             author: "The Book",
             availability: .bundledFree,
-            entities: coreEntities + coreTalismans,
+            entities: coreEntities + coreLocations + coreTalismans,
             threads: coreThreads,
             relationships: coreRelationships
         )
@@ -973,6 +973,114 @@ enum NarrativePackRegistry {
             beliefs: ["care should be responsive, not creepy"],
             goals: ["translate body signals into humane pacing"],
             tags: ["body", "care", "rest"]
+        )
+    ]
+
+    private static let coreLocations: [NarrativeWorldEntity] = [
+        entity(
+            "location-outer-stacks",
+            "The Outer Stacks",
+            .location,
+            belief: 18,
+            weight: 18,
+            chapter: "Labyrinth",
+            unwrittenInterest: "GPS anchors, ordinary places, ley lines, thresholds, and the moment a real-world place becomes a room in the Book.",
+            traits: ["thresholded", "unmapped", "weather-touched"],
+            quirks: ["shelves remember footsteps", "doors open toward real streets when anchors wake"],
+            faults: ["can make scenes feel unmoored if the grounded detail is vague"],
+            beliefs: ["a real place can become a room when attention crosses the line"],
+            goals: ["give Story Pages a concrete threshold between ordinary life and the Labyrinth"],
+            tags: ["location", "outer-stacks", "anchor", "ley-line", "threshold", "place", "story-setting"]
+        ),
+        entity(
+            "location-stacks",
+            "The Stacks",
+            .location,
+            belief: 17,
+            weight: 17,
+            chapter: "Labyrinth",
+            unwrittenInterest: "Shelves, ladders, ledgers, archives, memory, kept pages, and the hush of the Book's living library.",
+            traits: ["archival", "deep", "watchfully quiet"],
+            quirks: ["catalog cards misfile things toward meaning", "ladders arrive before questions finish"],
+            faults: ["can become atmosphere unless a specific shelf, card, or ledger matters"],
+            beliefs: ["kept pages deserve a place where they can be found again"],
+            goals: ["ground memory-heavy Story Pages in the Book's navigable body"],
+            tags: ["location", "stacks", "library", "archive", "memory", "book", "story-setting"]
+        ),
+        entity(
+            "location-great-hall",
+            "The Great Hall",
+            .location,
+            belief: 16,
+            weight: 16,
+            chapter: "Labyrinth",
+            unwrittenInterest: "Chapters, classes, factions, rumors, returning readers, weather-glass, and public crossings of Belief.",
+            traits: ["communal", "bright", "politically alive"],
+            quirks: ["banners change when Belief moves", "rumors cross the room faster than footsteps"],
+            faults: ["can turn private material too public if the scene does not choose a table or corner"],
+            beliefs: ["a living school needs a room where private pages briefly share light"],
+            goals: ["stage public Story Pages without leaving characters in nowhere land"],
+            tags: ["location", "great-hall", "academy", "chapters", "rumor", "class", "story-setting"]
+        ),
+        entity(
+            "location-kitchens",
+            "The Kitchens",
+            .location,
+            belief: 16,
+            weight: 16,
+            chapter: "Labyrinth",
+            unwrittenInterest: "Comfort, fuel, practical magic, broth, bread, lists, lamp heat, and small repairs after difficult pages.",
+            traits: ["warm", "practical", "domestic"],
+            quirks: ["the door opens faster when someone needs tending", "pantry labels revise themselves toward care"],
+            faults: ["can over-comfort a scene that needs honest friction"],
+            beliefs: ["support becomes real when it has heat, food, and a table"],
+            goals: ["give care, body, fuel, and rest Story Pages a specific working room"],
+            tags: ["location", "kitchens", "hearth", "support", "fuel", "care", "home", "story-setting"]
+        ),
+        entity(
+            "location-quillquarium",
+            "The Quillquarium",
+            .location,
+            belief: 17,
+            weight: 17,
+            chapter: "Labyrinth",
+            unwrittenInterest: "Living pens, airborne ink, schools of nibs, predatory quills, chosen writing instruments, and the moment a sentence finds its writer.",
+            traits: ["aerial", "ink-bright", "mischievously selective"],
+            quirks: ["pens school overhead like fish", "predatory quills circle weak sentences until they sharpen"],
+            faults: ["can turn writing into spectacle unless one chosen pen matters"],
+            beliefs: ["the right instrument can choose the hand as much as the hand chooses the instrument"],
+            goals: ["give writing, choice, and voice Story Pages a lively room with real motion"],
+            tags: ["location", "quillquarium", "writing", "ink", "pens", "school", "riddlewind", "story-setting"]
+        ),
+        entity(
+            "location-book-burrow",
+            "The Book Burrow",
+            .location,
+            belief: 18,
+            weight: 18,
+            chapter: "Labyrinth",
+            unwrittenInterest: "A cozy common-room burrow for hanging out, reading, low-stakes company, lamps, blankets, snacks, and conversations that need somewhere soft to land.",
+            traits: ["cozy", "low-ceilinged", "companionable"],
+            quirks: ["armchairs migrate toward whoever needs quiet company", "blankets remember which pages were hard"],
+            faults: ["can over-soften a scene that needs a clean edge"],
+            beliefs: ["companionship is easier to trust when the room stops performing"],
+            goals: ["give friendship, rest, letters, and Slice of Life Story Pages a warm place to happen"],
+            tags: ["location", "book-burrow", "cozy", "living-room", "rest", "friendship", "letters", "story-setting"]
+        ),
+        entity(
+            "location-dorm",
+            "The Dorm",
+            .location,
+            belief: 19,
+            weight: 19,
+            chapter: "Labyrinth",
+            unwrittenInterest: "The reader's personal Academy room: a private continuity space shaped by souvenirs, letters, chapter traces, chosen comforts, and the ordinary evidence the Book has learned to keep.",
+            traits: ["private", "reader-shaped", "changeable"],
+            quirks: ["the desk rearranges around the page most recently kept", "one wall quietly changes with the reader's Chapter weather"],
+            faults: ["must not define the reader's identity, belongings, or address without permission"],
+            beliefs: ["a room becomes yours by remembering what you choose to keep"],
+            goals: ["give Story Pages a personal home base without inventing private facts about the player"],
+            tags: ["location", "dorm", "dormitory", "home", "private", "student-life", "souvenir", "story-setting"]
         )
     ]
 

@@ -4577,6 +4577,96 @@
         "support",
         "illustration"
       ]
+    },
+    {
+      "id": "location-quillquarium",
+      "characterName": "The Quillquarium",
+      "slug": "location-quillquarium",
+      "status": "location",
+      "chapter": "Labyrinth",
+      "core": "An airborne aquarium of living pens where writing instruments swim like fish, school by temperament, and sometimes hunt weak sentences until they sharpen.",
+      "signature": "pens swimming in the air, ink currents, nib-schools, predatory quills, and one instrument choosing the right hand",
+      "palette": "ink blue, glass green, brass nib gold, parchment cream",
+      "silhouette": "a tall bright room crossed by floating currents of pens and quills, more aquarium than classroom",
+      "continuity": "Preserve the location identity: the Quillquarium is an Enchantify room where writing instruments move like living fish and choose students.",
+      "avoid": "ordinary stationery shop, generic library, underwater fish tank, sterile classroom, empty room, glossy sci-fi display",
+      "assetName": "LabyrinthLocationQuillquarium",
+      "intendedAssetName": "LabyrinthLocationQuillquarium",
+      "prompt": "Create a ReEnchanted location dossier illustration in the house style: antique parchment, sparse graphite and ink, watercolor washes, jewel-color accents, and marginalia from the living Book. Location: The Quillquarium — an airborne aquarium where pens, quills, and nibs swim through the air like fish; some school by temperament, some circle predatory and sharp, and the right instrument chooses the right student. Signature: ink currents, glassy room-light, brass nibs, one chosen pen near the hand.",
+      "negativePrompt": "Avoid ordinary stationery shop, generic library, underwater fish tank, sterile classroom, glossy sci-fi display, and empty room.",
+      "marginalia": [
+        "location file: The Quillquarium",
+        "motion evidence: nib-schools, ink currents, predatory quills",
+        "rule: the right instrument chooses the hand as much as the hand chooses it",
+        "margin note: do not trail a weak sentence near the sharp ones"
+      ],
+      "tags": [
+        "location",
+        "quillquarium",
+        "writing",
+        "ink",
+        "illustration"
+      ]
+    },
+    {
+      "id": "location-book-burrow",
+      "characterName": "The Book Burrow",
+      "slug": "location-book-burrow",
+      "status": "location",
+      "chapter": "Labyrinth",
+      "core": "A cozy living-room burrow inside the Book where readers and cast can hang out without performing: lamps, blankets, shelves, snacks, low voices, and friendly quiet.",
+      "signature": "migrating armchairs, blanket nests, low lamps, half-open books, snack trays, and shelves curved like a warm den",
+      "palette": "moss green, lamp gold, worn red, deep wood, parchment cream",
+      "silhouette": "a low comfortable common room tucked into shelves, rounded and denlike rather than grand",
+      "continuity": "Preserve the location identity: the Book Burrow is a hangout and soft landing room, not a formal library or tavern.",
+      "avoid": "grand hall, generic cafe, tavern, modern apartment showroom, empty lounge, beige stock living room",
+      "assetName": "LabyrinthLocationBookBurrow",
+      "intendedAssetName": "LabyrinthLocationBookBurrow",
+      "prompt": "Create a ReEnchanted location dossier illustration in the house style: antique parchment, sparse graphite and ink, watercolor washes, jewel-color accents, and marginalia from the living Book. Location: The Book Burrow — a cozy living-room-like burrow inside the Book, made for hanging out, reading, low-stakes company, lamps, blankets, snacks, and conversations that need somewhere soft to land. Signature: migrating armchairs, blanket nests, warm shelves, low lamps.",
+      "negativePrompt": "Avoid grand hall, generic cafe, tavern, modern apartment showroom, empty lounge, and beige stock living room.",
+      "marginalia": [
+        "location file: The Book Burrow",
+        "comfort evidence: migrating armchairs, blankets, lamps, snack tray",
+        "rule: the room stops performing so people can stop performing too",
+        "margin note: the quiet here is companionable"
+      ],
+      "tags": [
+        "location",
+        "book-burrow",
+        "cozy",
+        "rest",
+        "illustration"
+      ]
+    },
+    {
+      "id": "location-dorm",
+      "characterName": "The Dorm",
+      "slug": "location-dorm",
+      "status": "location",
+      "chapter": "Labyrinth",
+      "core": "The reader's personal Academy room: a private continuity space shaped by kept pages, souvenirs, letters, chapter weather, chosen comforts, and the ordinary evidence the Book has learned to protect.",
+      "signature": "a reader-shaped desk, souvenir shelf, mutable wall, letter slot, bed-nook, chapter glints, and room details that remain deliberately unclaimed",
+      "palette": "lamp gold, ink blue, soft moss, warm wood, chapter-color sparks",
+      "silhouette": "a private dorm room with a bed-nook, desk, shelves, and one wall that changes with the reader's story",
+      "continuity": "Preserve the location identity: this is the player's private room and must not invent their real address, identity, possessions, or fixed decor.",
+      "avoid": "specific real bedroom, luxury hotel room, generic fantasy dormitory, modern stock bedroom, cluttered personal facts, surveillance feeling",
+      "assetName": "LabyrinthLocationDorm",
+      "intendedAssetName": "LabyrinthLocationDorm",
+      "prompt": "Create a ReEnchanted location dossier illustration in the house style: antique parchment, sparse graphite and ink, watercolor washes, jewel-color accents, and marginalia from the living Book. Location: The Dorm — the reader's personal Academy room, a private continuity space shaped by kept pages, souvenirs, letters, chapter weather, chosen comforts, and ordinary evidence. Signature: reader-shaped desk, souvenir shelf, mutable wall, letter slot, bed-nook, chapter glints. Keep it personal but not specific to private real-world facts.",
+      "negativePrompt": "Avoid specific real bedroom, luxury hotel room, generic fantasy dormitory, modern stock bedroom, cluttered personal facts, surveillance feeling, and identity assumptions.",
+      "marginalia": [
+        "location file: The Dorm",
+        "privacy evidence: reader-shaped desk, souvenir shelf, letter slot",
+        "rule: the room remembers what the reader chooses to keep, not what the Book assumes",
+        "margin note: home base, not dossier trap"
+      ],
+      "tags": [
+        "location",
+        "dorm",
+        "dormitory",
+        "home",
+        "illustration"
+      ]
     }
   ]
 }

@@ -1427,7 +1427,13 @@ enum StoryScenePacketBuilder {
             selectedThreads = Array(selectedThreads.prefix(2))
         }
         let primaryThread = selectedThreads.first
-        let primaryEntity = selectedEntities.first { $0.kind == .character } ?? selectedEntities.first
+        selectedEntities = withSettingLocation(
+            selectedEntities,
+            tags: tags,
+            inputs: inputs,
+            slotKey: "\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 4))-setting",
+            limit: 4
+        )
         var selectedRelationships = rankedRelationships(
             tags: tags,
             entities: selectedEntities,
@@ -1475,8 +1481,6 @@ enum StoryScenePacketBuilder {
             for: selectedEntities,
             seed: packetStableIndex(for: "\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 4))-story-talisman-options", count: 10_000)
         )
-        let title = primaryThread.map { "Story Page: \($0.title)" } ?? "Story Page"
-        let intent = directorIntent(primaryThread: primaryThread, primaryEntity: primaryEntity, tags: tags)
         let slot = SurfaceCadence.slotID(for: now, hours: 4)
         let grounding = grounding(for: day, inputs: inputs, realSignals: realSignals, memories: selectedEntityMemories, now: now)
         let recipePick = selectRecipe(
@@ -1485,9 +1489,19 @@ enum StoryScenePacketBuilder {
         )
         if let recipe = recipePick?.recipe {
             selectedEntities = entities(for: recipe, selected: selectedEntities, inputs: inputs, slotKey: "\(day.id)-\(slot)")
+            selectedEntities = withSettingLocation(
+                selectedEntities,
+                tags: tags,
+                inputs: inputs,
+                slotKey: "\(day.id)-\(slot)-recipe-setting",
+                limit: 4
+            )
             selectedRelationships = rankedRelationships(tags: tags, entities: selectedEntities, threads: selectedThreads, inputs: inputs, limit: 3)
             selectedEntityMemories = rankedEntityMemories(entities: selectedEntities, inputs: inputs, limit: 5)
         }
+        let primaryEntity = selectedEntities.first { $0.kind == .character } ?? selectedEntities.first
+        let title = primaryThread.map { "Story Page: \($0.title)" } ?? "Story Page"
+        let intent = directorIntent(primaryThread: primaryThread, primaryEntity: primaryEntity, tags: tags)
 
         let ascendantChapterID = TalismanAscendancy.ascendant(
             entities: NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity),
@@ -1834,12 +1848,78 @@ enum StoryScenePacketBuilder {
         return result
     }
 
+    private static func withSettingLocation(
+        _ selected: [NarrativeWorldEntity],
+        tags: Set<String>,
+        inputs: BookSourceInputs,
+        slotKey: String,
+        limit: Int
+    ) -> [NarrativeWorldEntity] {
+        if let setting = selected.first(where: { $0.kind == .location }) {
+            return limitedSceneEntities(selected, setting: setting, limit: limit)
+        }
+        let selectedIDs = Set(selected.map(\.id))
+        let locations = availableEntities(inputs: inputs)
+            .filter { $0.kind == .location && !selectedIDs.contains($0.id) }
+        guard !locations.isEmpty else { return Array(selected.prefix(limit)) }
+        let ranked = locations.sorted { left, right in
+            func score(_ entity: NarrativeWorldEntity) -> Int {
+                let belief = effectiveBelief(for: entity, inputs: inputs)
+                let overlap = tags.intersection(Set(entity.tags)).count * 9
+                let eventBoost = inputs.narrative?.weightedEntityIDs.contains(entity.id) == true ? 12 : 0
+                let recentSpotlightPenalty = inputs.narrative?.recentlySpotlitEntityIDs.contains(entity.id) == true ? 18 : 0
+                let anchorBoost = (!inputs.nearbyPlaces.isEmpty || inputs.nearbyAnchor != nil) && entity.tags.contains("anchor") ? 10 : 0
+                let careBoost = tags.contains("care") && entity.tags.contains("care") ? 8 : 0
+                let archiveBoost = (tags.contains("memory") || tags.contains("letters")) && entity.tags.contains("archive") ? 8 : 0
+                let jitter = abs("\(slotKey)-\(entity.id)".stableHash % 5)
+                return entity.narrativeWeight + belief / 2 + overlap + eventBoost + anchorBoost + careBoost + archiveBoost + jitter - recentSpotlightPenalty
+            }
+            let leftScore = score(left)
+            let rightScore = score(right)
+            if leftScore == rightScore { return left.id < right.id }
+            return leftScore > rightScore
+        }
+        guard let setting = ranked.first else { return Array(selected.prefix(limit)) }
+        var result = selected
+        if result.count >= limit {
+            if let replaceIndex = result.lastIndex(where: { $0.kind != .character }) {
+                result[replaceIndex] = setting
+            } else {
+                result[result.count - 1] = setting
+            }
+        } else {
+            result.append(setting)
+        }
+        return result
+    }
+
+    private static func limitedSceneEntities(
+        _ selected: [NarrativeWorldEntity],
+        setting: NarrativeWorldEntity,
+        limit: Int
+    ) -> [NarrativeWorldEntity] {
+        var result: [NarrativeWorldEntity] = []
+        func appendUnique(_ entity: NarrativeWorldEntity) {
+            guard result.count < limit, !result.contains(where: { $0.id == entity.id }) else { return }
+            result.append(entity)
+        }
+        selected.filter { $0.kind == .character }.forEach(appendUnique)
+        appendUnique(setting)
+        selected.filter { $0.kind != .character && $0.id != setting.id }.forEach(appendUnique)
+        return result
+    }
+
+    private static func effectiveBelief(for entity: NarrativeWorldEntity, inputs: BookSourceInputs) -> Int {
+        max(0, min(100, entity.belief + (inputs.entityBeliefOffsets[entity.id] ?? 0)))
+    }
+
     private static func rankedEntities(tags: Set<String>, inputs: BookSourceInputs, limit: Int, slotKey: String) -> [NarrativeWorldEntity] {
         let ranked = availableEntities(inputs: inputs)
             // Talismans influence the scene's tone through ascendancy; they
             // do not compete with people and places for scene slots.
             .filter { $0.kind != .talisman }
             .map { entity in
+                let belief = effectiveBelief(for: entity, inputs: inputs)
                 let overlap = tags.intersection(Set(entity.tags)).count
                 // Story Pages are about the Cast: people carry scenes, objects
                 // and places only join them. Bias the scene slots toward
@@ -1849,7 +1929,7 @@ enum StoryScenePacketBuilder {
                 let eventBoost = inputs.narrative?.weightedEntityIDs.contains(entity.id) == true ? 18 : 0
                 let worldEventBoost = inputs.activeWorldEvents.scoreBoost(forEntityID: entity.id)
                 let recentSpotlightPenalty = inputs.narrative?.recentlySpotlitEntityIDs.contains(entity.id) == true ? 28 : 0
-                return (entity, entity.narrativeWeight + entity.belief / 4 + overlap * 8 + castBoost + narrativeBoost + eventBoost + worldEventBoost - recentSpotlightPenalty)
+                return (entity, entity.narrativeWeight + belief / 4 + overlap * 8 + castBoost + narrativeBoost + eventBoost + worldEventBoost - recentSpotlightPenalty)
             }
             .sorted { left, right in
                 if left.1 == right.1 {

@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./styles.css?v=10">
+    <link rel="stylesheet" href="./styles.css?v=21">
   </head>
   <body>
     <canvas id="spell-field" aria-hidden="true"></canvas>
@@ -22,19 +22,67 @@
         <span class="brand-mark" aria-hidden="true">✦</span>
         <span class="brand-name">ReEnchanted</span>
       </a>
-      <nav class="nav-links" aria-label="Sections">
-        <a href="#book">The Book</a>
-        <a href="#how">How it works</a>
-        <a href="#mechanics">Inside</a>
-        <a href="#pages">Pages</a>
-        <a href="#radio">Radio</a>
-        <a href="#academy">Academy</a>
-        <a href="#chapters">Chapters</a>
-        <a href="#packs">Packs</a>
-        <a href="#privacy">Privacy</a>
-      </nav>
-      <a class="header-cta" href="#book">Open the Book</a>
+      <button class="glow-pill" id="glow-pill" type="button" aria-controls="glow-menu" aria-expanded="false">
+        <span class="glow-orb" aria-hidden="true"></span>
+        <span class="glow-copy">
+          <span class="glow-label">Your Glow</span>
+          <span class="glow-count" id="glow-count">Glow Barely There</span>
+        </span>
+        <span class="glow-meter" aria-hidden="true"><span id="glow-fill"></span></span>
+      </button>
     </header>
+    <aside class="glow-menu" id="glow-menu" aria-label="Glow menu" hidden>
+      <div class="glow-sheet" role="dialog" aria-modal="true" aria-labelledby="glow-sheet-title">
+        <div class="glow-sheet-pill" aria-hidden="true">
+          <span>✦</span>
+          <strong id="glow-sheet-tier">Glow Barely There</strong>
+        </div>
+        <div class="glow-sheet-notch" aria-hidden="true">✦</div>
+        <button class="glow-close" id="glow-close" type="button" aria-label="Close Glow menu">×</button>
+        <div class="glow-explainer">
+          <h2 id="glow-sheet-title">Glow Barely There</h2>
+          <p class="glow-state" id="glow-state">The current belief state is waiting for its first spark.</p>
+          <p>
+            Belief is what you give. Glow is what the Book shows. You earn it by using the page:
+            clicking sections, keeping demo pages, tuning the radio, and closing the book.
+          </p>
+        </div>
+        <nav class="glow-nav" aria-label="Glow commands">
+          <a class="glow-command" href="#academy">
+            <img src="./assets/glow/marginalia-lavender.png" alt="">
+            <span><strong>The Cast</strong><small>Meet the people and give attention somewhere to land.</small></span>
+          </a>
+          <a class="glow-command" href="#mechanics">
+            <img src="./assets/glow/marginalia-compass.png" alt="">
+            <span><strong>Spells</strong><small>Open a Compass Run or Enchantment.</small></span>
+          </a>
+          <a class="glow-command" href="#pages">
+            <img src="./assets/glow/page-fragment.png" alt="">
+            <span><strong>Pages</strong><small>Tune which Pages the Book notices.</small></span>
+          </a>
+          <a class="glow-command" href="#book">
+            <img src="./assets/glow/marginalia-star.png" alt="">
+            <span><strong>Book</strong><small>Open the demo and read the source.</small></span>
+          </a>
+        </nav>
+        <div class="glow-spend">
+          <p class="glow-spend-title">Spend Glow</p>
+          <button type="button" data-glow-cost="2" data-glow-effect="note" data-glow-reward="A margin note appears. The Book likes an early investment.">Reveal a margin note <span>2 Belief</span></button>
+          <button type="button" data-glow-cost="3" data-glow-effect="margins" data-glow-reward="The margins warm. One hidden note is listening.">Warm the margins <span>3 Belief</span></button>
+          <button type="button" data-glow-cost="4" data-glow-effect="pages" data-glow-reward="The page types lean forward. You have told the Book what kind of day to notice.">Favor page types <span>4 Belief</span></button>
+          <button type="button" data-glow-cost="4" data-glow-effect="stacks" data-glow-reward="The Stacks answer softly. Kept pages are easier to find when they have a name.">Ask the Stacks <span>4 Belief</span></button>
+          <button type="button" data-glow-cost="5" data-glow-effect="bookmark" data-glow-reward="A bookmark slips into place. The Book remembers your route.">Set a bookmark <span>5 Belief</span></button>
+          <button type="button" data-glow-cost="6" data-glow-effect="enchantment" data-glow-reward="A small enchantment wakes. The Book will bias toward what you make luminous.">Wake an enchantment <span>6 Belief</span></button>
+          <button type="button" data-glow-cost="7" data-glow-effect="compass" data-glow-reward="A Compass spark turns. The next ordinary detail looks less ordinary.">Call a Compass spark <span>7 Belief</span></button>
+          <button type="button" data-glow-cost="8" data-glow-effect="dial" data-glow-reward="The radio dial glints. Thornwave approves, suspiciously.">Bless the dial <span>8 Belief</span></button>
+          <div class="glow-reveal" id="glow-reveal" hidden>
+            <p class="glow-reveal-title" id="glow-reveal-title">The Book listens back</p>
+            <p id="glow-reveal-copy">Spend Glow to reveal extra notes from the margins.</p>
+          </div>
+          <p class="glow-spend-note" id="glow-spend-note" role="status">Every third golden lore link adds Belief. Keeping, tuning, and closing the Book help too.</p>
+        </div>
+      </div>
+    </aside>
 
     <main id="top">
       <!-- ───────────────────────── HERO ───────────────────────── -->
@@ -43,7 +91,7 @@
           <p class="hero-problem">
             Same commute. Same gray hours. Another day slipping past
             unnoticed — nothing that felt worth remembering.
-            <span>Your life isn't actually that ordinary…</span>
+            <span>Your life isn't actually that forgettable…</span>
           </p>
           <p class="eyebrow">A living book for ordinary days</p>
           <p class="return-note" id="return-note" role="status" hidden></p>
@@ -115,30 +163,37 @@
               <!-- left: the decision page -->
               <div class="leaf leaf-left">
                 <div class="leaf-paper">
-                  <p class="leaf-kicker" id="page-kicker">Weather Page</p>
-                  <h3 class="leaf-title" id="page-title">The Weather Page has opened.</h3>
+                  <p class="leaf-kicker" id="page-kicker">The First Door</p>
+                  <h3 class="leaf-title" id="page-title">The cover opens.</h3>
                   <p class="leaf-body" id="page-body">
-                    <span class="weather-facts" aria-label="Weather details">
-                      <span><strong>Now</strong> 60° · fog</span>
-                      <span><strong>High / Low</strong> 71° / 56°</span>
-                      <span><strong>Wind</strong> E 4 mph</span>
-                      <span><strong>Humidity</strong> 92%</span>
-                    </span>
-                    <span class="private-translation">
-                      <span class="pt-label">✦ Private translation</span>
-                      <span class="pt-line"><strong>Enchanted:</strong> Fog has softened every edge of the world into suggestion. <strong>Plain:</strong> It is foggy.</span>
-                      <span class="pt-moon">Half the moon is lit tonight, like a door left ajar.</span>
-                      <span class="pt-meta">Weather: Now 60° · fog · High 71° / Low 56° · First Quarter</span>
-                    </span>
-                    <span class="weather-place">Over the Stacks · the Book's default sky</span>
+                    You open the app. The first word lifts from the screen and turns to look at you.
+                    Then the sentence breaks its spine. Ink blooms under the glass, cold as rainwater
+                    and impossibly wet, and climbs over your fingers. The room tips. Stories rush past
+                    in layers: green sea-salt, dragonfire underfoot, a train brake screaming somewhere
+                    in another ending. There is no down. There are only chapters.
                   </p>
-                  <p class="leaf-source" id="page-source">Weather doorway · public forecast</p>
+                  <p class="leaf-source" id="page-source">First-run onboarding · the fall</p>
 
-                  <div class="keep-controls" id="keep-controls">
+                  <div class="onboarding-panel" id="onboarding-panel">
+                    <p class="onboarding-panel-title">Get your hands into the page</p>
+                    <div class="onboarding-actions">
+                      <button class="onboarding-action" type="button" data-onboard-action="ink">Touch the wet ink</button>
+                      <button class="onboarding-action" type="button" data-onboard-action="steady">Brace for the landing</button>
+                    </div>
+                    <p class="onboarding-prompt">Words flock around you as you fall. One smaller word catches in your sleeve before the Book can read it.</p>
+                    <div class="onboarding-word-row">
+                      <button class="onboarding-action word" type="button" data-onboard-action="sleeve:GLINT">GLINT</button>
+                      <button class="onboarding-action word" type="button" data-onboard-action="sleeve:MARGIN">MARGIN</button>
+                      <button class="onboarding-action word" type="button" data-onboard-action="sleeve:THRESHOLD">THRESHOLD</button>
+                    </div>
+                    <p class="onboarding-result">Wake the ink, choose the sleeve word, and survive the landing.</p>
+                  </div>
+
+                  <div class="keep-controls" id="keep-controls" hidden>
                     <button class="keep-btn wait" id="btn-wait" type="button">Let it wait</button>
                     <button class="keep-btn keep" id="btn-keep" type="button">Keep this page ✦</button>
                   </div>
-                  <p class="keep-status" id="keep-status">8 pages rising · keep the ones that are true</p>
+                  <p class="keep-status" id="keep-status" hidden>11 pages rising · keep the ones that are true</p>
 
                   <div class="story-choices" id="story-choices" hidden>
                     <p class="story-choices-heading">Choose how the page turns — keep it to brave that future.</p>
@@ -159,7 +214,6 @@
                   </div>
 
                   <div class="wonder-choices" id="wonder-choices" hidden>
-                    <p class="wonder-heading"><strong>The Wonder Compass: A Field Guide to Finding Magic in the Mess</strong> is included free, to pull you out of routine and into Wonder any day.</p>
                     <div class="wonder-options" id="wonder-options" role="group" aria-label="Wonder Compass chapter choices"></div>
                   </div>
 
@@ -205,17 +259,6 @@
                       <span class="souvenir-sparks-label">Stuck? Borrow a line, then bend it toward your day:</span>
                       <div class="souvenir-samples" id="souvenir-samples"></div>
                     </div>
-
-                    <div class="polisher-card" aria-live="polite">
-                      <span class="polisher-mark" aria-hidden="true">✦</span>
-                      <span class="polisher-copy">
-                        <strong id="polisher-status">Wake the sentence</strong>
-                        <span id="polisher-preview">Write one true line and the Book will polish its edges.</span>
-                      </span>
-                    </div>
-                    <div class="polisher-actions">
-                      <button class="polisher-btn" id="polish-btn" type="button">Polish gently</button>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -223,7 +266,7 @@
               <!-- right: the screen (peel the corner or tap Next to turn) -->
               <div class="leaf leaf-right" id="leaf-right">
                 <div class="leaf-screen">
-                  <img id="page-shot" src="./assets/screens/story-page-weather-prose.png" alt="ReEnchanted screen">
+                  <img id="page-shot" src="./assets/screens/home.jpg" alt="ReEnchanted screen">
                   <span class="kept-stamp" id="kept-stamp">Kept</span>
                 </div>
                 <span class="page-corner" id="page-corner" aria-hidden="true" title="Drag to turn the page"></span>
@@ -278,7 +321,8 @@
                   </form>
 
                   <div class="edition-buttons">
-                    <button class="button ghost edition-keep" id="keepsake-btn" type="button">Keep this page ↓</button>
+                    <button class="button ghost edition-keep" id="keepsake-btn" type="button">Download binding PDF ↓</button>
+                    <button class="button ghost edition-close" id="close-book-btn" type="button">Close the book</button>
                     <button class="braid-replay" id="braid-replay" type="button">↺ Turn back to the start</button>
                   </div>
                 </div>
@@ -1208,6 +1252,6 @@
     </div>
 
     <!-- You looked behind the page. Riddlewind approves. Penny misfiled a receipt marked 97.3. -->
-    <script src="./app.js?v=10"></script>
+    <script src="./app.js?v=34"></script>
   </body>
 </html>

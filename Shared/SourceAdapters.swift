@@ -3108,6 +3108,17 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
         let choiceRoles = packet.choices.map { $0.role.title }.joined(separator: " | ")
         let selectedThreads = packet.selectedThreads.map(\.title).joined(separator: ", ")
         let selectedEntities = packet.selectedEntities.map(\.name).joined(separator: ", ")
+        let storySetting = packet.selectedEntities.first { $0.kind == .location }
+        let storySettingDetail = storySetting.map { setting in
+            [
+                setting.unwrittenInterest,
+                setting.traits.isEmpty ? nil : "Traits: \(setting.traits.joined(separator: ", "))",
+                setting.quirks.first.map { "Specific behavior: \($0)" },
+                setting.goals.first.map { "Scene job: \($0)" }
+            ]
+            .compactMap { $0?.nonEmpty }
+            .joined(separator: " ")
+        } ?? ""
         let selectedRelationships = packet.selectedRelationships.map(\.id).joined(separator: ", ")
         let selectedEntityMemories = packet.selectedEntityMemories
             .map { memory in
@@ -3127,6 +3138,9 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
             "selectedThreads": selectedThreads,
             "selectedEntities": selectedEntities,
             "selectedEntityIDs": packet.selectedEntities.map(\.id).joined(separator: ","),
+            "storySettingID": storySetting?.id ?? "",
+            "storySettingName": storySetting?.name ?? "",
+            "storySettingDetail": storySettingDetail,
             "storyFormID": packet.storyFormID ?? "",
             "storyFormName": packet.storyFormName ?? "",
             "storyBeats": (packet.storyFormBeats ?? []).joined(separator: "\n"),
@@ -3159,7 +3173,7 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
             "relationshipPressures": packet.relationshipPressures.joined(separator: "\n"),
             "chapterTalismanMoves": chapterTalismanMoves,
             "chapterTalismanDeltas": chapterTalismanDeltas,
-            "uses": "characters, belief, relationship graph, story threads",
+            "uses": "characters, locations, belief, relationship graph, story threads",
             "cadence": "four-hour simulation"
         ]
         metadata.merge(mechanicMandate.metadata) { _, new in new }
@@ -3337,11 +3351,12 @@ struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
         return [surface(for: pick.entity, imageAsset: pick.imageAsset, context: context, offsets: inputs.entityBeliefOffsets, now: now, manual: false)]
     }
 
-    /// The whole cast: bundled character entities AND the reader's custom cast,
-    /// so everyone gets a turn — not just the one made in onboarding.
+    /// The whole illustration-facing cast: bundled characters, bundled
+    /// locations, and the reader's custom cast, so places can earn pages by
+    /// Belief and narrative weight without becoming speaking characters.
     private func castPool(inputs: BookSourceInputs) -> [(entity: NarrativeWorldEntity, imageAsset: BookPageMediaAsset?)] {
         let bundled = NarrativePackRegistry.entities
-            .filter { $0.kind == .character }
+            .filter { $0.kind == .character || $0.kind == .location }
             .map { (entity: $0, imageAsset: Optional<BookPageMediaAsset>.none) }
         let custom = inputs.customCastMembers
             .map { (entity: $0.entity, imageAsset: $0.imageAsset) }
@@ -3385,16 +3400,17 @@ struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
         let meaning = entity.unwrittenInterest?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let description = entity.quirks.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
         let belief = effectiveBelief(entity, offsets)
+        let isLocation = entity.kind == .location
         let isCustom = entity.packID == "user-cast"
         var metadata = [
             "source": source.id,
-            "illustrationKind": "cast",
+            "illustrationKind": isLocation ? "location" : "cast",
             "entityID": entity.id,
             "entityName": entity.name,
             "entityKind": entity.kind.rawValue,
             "meaning": meaning,
             "description": description,
-            "tags": (entity.tags + ["entity:\(entity.id)", isCustom ? "custom-cast" : "bundled-cast"]).joined(separator: ","),
+            "tags": (entity.tags + ["entity:\(entity.id)", isCustom ? "custom-cast" : (isLocation ? "bundled-location" : "bundled-cast")]).joined(separator: ","),
             "traits": entity.traits.joined(separator: ","),
             "privacy": "private local cast"
         ]
@@ -3413,10 +3429,10 @@ struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
             score: context.distress.isActive ? 44 : min(70, 42 + belief / 3 + entity.narrativeWeight / 5),
             reason: "\(entity.name) has enough Belief to step into the margins.",
             prompt: entity.name,
-            detail: meaning.isEmpty ? "A member of the Book's cast." : meaning,
+            detail: meaning.isEmpty ? (isLocation ? "A place in the Book's living world." : "A member of the Book's cast.") : meaning,
             payload: BookPagePayload(
                 headline: entity.name,
-                body: body.isEmpty ? "\(entity.name) is part of the Book's living cast." : body,
+                body: body.isEmpty ? "\(entity.name) is part of the Book's living world." : body,
                 metadata: metadata
             )
         )
@@ -3430,31 +3446,48 @@ struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
         let name = entity.name
         var lines: [String] = []
 
-        let openings = [
-            "Here is what I have kept on \(name).",
-            "\(name) has stepped far enough into the margins for me to take a proper reading.",
-            "Let me hand you my notes on \(name).",
-            "\(name) earns the page. This is why."
-        ]
+        let openings = entity.kind == .location
+            ? [
+                "Here is where \(name) has begun to matter.",
+                "\(name) has gathered enough Belief to become more than backdrop.",
+                "Let me hand you my map-notes on \(name).",
+                "\(name) earns the page. This is why."
+            ]
+            : [
+                "Here is what I have kept on \(name).",
+                "\(name) has stepped far enough into the margins for me to take a proper reading.",
+                "Let me hand you my notes on \(name).",
+                "\(name) earns the page. This is why."
+            ]
         lines.append(openings[stableIndex(for: "cast-open-\(entity.id)", count: openings.count)])
 
         if !entity.traits.isEmpty {
-            lines.append("What shows first is \(oxfordList(entity.traits)).")
+            lines.append(entity.kind == .location
+                ? "What the room gives first is \(oxfordList(entity.traits))."
+                : "What shows first is \(oxfordList(entity.traits)).")
         }
         if !description.isEmpty {
             lines.append(finishSentence(description))
         }
         if let belief = entity.beliefs.first(where: { !$0.trimmed.isEmpty }) {
-            lines.append("They hold that \(lowerFirst(belief.strippedClause)).")
+            lines.append(entity.kind == .location
+                ? "The place keeps insisting that \(lowerFirst(belief.strippedClause))."
+                : "They hold that \(lowerFirst(belief.strippedClause)).")
         }
         if !meaning.isEmpty {
-            lines.append("Lately they keep circling back to \(lowerFirst(meaning.strippedClause)).")
+            lines.append(entity.kind == .location
+                ? "Lately its doors keep circling back to \(lowerFirst(meaning.strippedClause))."
+                : "Lately they keep circling back to \(lowerFirst(meaning.strippedClause)).")
         }
         if let goal = entity.goals.first(where: { !$0.trimmed.isEmpty }) {
-            lines.append("What they are reaching for is \(lowerFirst(goal.strippedClause)).")
+            lines.append(entity.kind == .location
+                ? "Its job in the story field is to \(lowerFirst(goal.strippedClause))."
+                : "What they are reaching for is \(lowerFirst(goal.strippedClause)).")
         }
         if let fault = entity.faults.first(where: { !$0.trimmed.isEmpty }) {
-            lines.append("The flaw I keep one eye on: \(lowerFirst(fault.strippedClause)).")
+            lines.append(entity.kind == .location
+                ? "The risk I keep one eye on: \(lowerFirst(fault.strippedClause))."
+                : "The flaw I keep one eye on: \(lowerFirst(fault.strippedClause)).")
         }
 
         return lines.joined(separator: " ")

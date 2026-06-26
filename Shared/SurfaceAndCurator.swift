@@ -312,7 +312,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
                 metadata: payload.metadata
             ))
         }
-        if payload.metadata["illustrationKind"] == "cast",
+        if ["cast", "location"].contains(payload.metadata["illustrationKind"]),
            let kindRawValue = nonEmptyMetadataValue("imageAssetKind"),
            let kind = BookPageMediaAsset.Kind(rawValue: kindRawValue),
            let reference = nonEmptyMetadataValue("imageAssetReference") {
@@ -1049,7 +1049,7 @@ struct CuratorMood {
         } else if narrativeHeat == 0, materialGathering.contains(page.type) {
             delta += 4
         }
-        if hasFreshEntityMemory, page.payload.metadata["illustrationKind"] == "cast" {
+        if hasFreshEntityMemory, ["cast", "location"].contains(page.payload.metadata["illustrationKind"]) {
             delta += 4
         }
 

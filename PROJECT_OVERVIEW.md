@@ -23,7 +23,7 @@ durations, relationships, recurring Beliefs, and seasonal shape.
 - Shared SwiftPM package: `InsideCoverCore`
 - Supported runtime target: iOS 17+
 - Shared-core test target: `Tests/InsideCoverCoreTests`
-- Current verified shared suite: 482 tests, 1 skipped
+- Current verified shared suite: 519 tests, 1 skipped
 - Device builds: build/install to a physical device (the local brain only runs on
   device; the iOS Simulator compiles but exercises only the fake fallbacks).
 - Widget status: **shipped** as a Home Screen / Lock Screen extension target,
@@ -143,9 +143,9 @@ it is up, the Glow menu is suppressed.
   names a first belief, before the sequence even ends.
 - `onFinished` → `completeOnboarding(result)`.
 
-### The nine beats
+### The First Door beats
 
-`stepCount = 12` (steps 0–11). Each carries a stage name, header line, SF Symbol,
+`stepCount = 14` (steps 0–13). Each carries a stage name, header line, SF Symbol,
 and in-world prose. Steps that collect input gate their continue button until the
 field is filled.
 
@@ -219,7 +219,7 @@ After completion, two private local source adapters keep the first week sticky:
 
 Relevant files:
 
-- `InsideCoverApp/BookSurfaceViews.swift` (`OnboardingFlowView`, the nine beats)
+- `InsideCoverApp/BookSurfaceViews.swift` (`OnboardingFlowView`, the First Door beats)
 - `InsideCoverApp/ContentView.swift` (presentation, `didCompleteStoryOnboarding`
   gate, `revealGlowPillIfNeeded`)
 - `InsideCoverApp/ContentViewFeatures.swift` (`completeOnboarding`,
@@ -669,8 +669,9 @@ Related pieces:
 ### Story Pages
 
 Story Pages are generated narrative scenes built from the story field. They can
-include selected entities, threads, relationships, memories, recent real-world
-signals, and a three-choice grammar. Ordinary Narrative OS Story Pages now use
+include selected entities, a selected Labyrinth setting, threads, relationships,
+memories, recent real-world signals, and a three-choice grammar. Ordinary
+Narrative OS Story Pages now use
 three separate, recombinable content layers:
 
 - a **Form** supplies the larger arc shape (Threshold, Small Mystery,
@@ -689,12 +690,28 @@ invalid recipe/template token is discarded without invalidating its pack.
 
 Before Gemma writes anything, `StoryScenePacketBuilder` selects one eligible
 recipe and resolves a `StorySceneBlueprint`. The blueprint commits to a cast,
-one exact grounding source, a filled premise, beats, scene mode, directives, and
-a real `StoryTurn`. Grounding prefers a recent kept page, then real signals such
-as weather/body or an authorized self fact, then entity memory or active world
-evidence, with real time/season as a privacy-safe final fallback. Pack recipes
-that require their own entity IDs/tags actively pull matching cast into the
-packet and then recompute relationship and memory context.
+a physical setting, one exact grounding source, a filled premise, beats, scene
+mode, directives, and a real `StoryTurn`. Grounding prefers a recent kept page,
+then real signals such as weather/body or an authorized self fact, then entity
+memory or active world evidence, with real time/season as a privacy-safe final
+fallback. Pack recipes that require their own entity IDs/tags actively pull
+matching cast into the packet and then recompute relationship and memory context.
+
+Story settings are first-class `NarrativeWorldEntity.kind == .location` entries,
+not decorative prompt flavor. `StoryScenePacketBuilder.withSettingLocation(...)`
+ensures ordinary Story Pages carry one location alongside character cast, and
+`NarrativeOSPageSourceAdapter` writes `storySettingID`, `storySettingName`, and
+`storySettingDetail` metadata into the surface. The prompt then separates
+**Character cast** from **Setting**, explicitly telling the model to stage the
+scene in that place while keeping locations from becoming speaking cast members.
+Location Belief offsets can pull a room forward; a high-Glow Kitchens, for
+example, can become the chosen setting.
+
+Bundled Labyrinth settings now include the Outer Stacks, the Stacks, the Great
+Hall, the Kitchens, **the Quillquarium**, **the Book Burrow**, and **the Dorm**.
+The three newer rooms ship with bundled illustration assets
+(`LabyrinthLocationQuillquarium`, `LabyrinthLocationBookBurrow`,
+`LabyrinthLocationDorm`) and are covered by `StoryPageLocationTests`.
 
 The six bundled recipes are:
 
@@ -870,6 +887,12 @@ variants:
 - **The Constellation** - Belief stars and attention lines.
 
 It is the app's knowledge graph disguised as magic.
+
+In the app, the Atlas graph can now open as a full-screen map
+(`MarginsAtlasFullScreenView` in `CapturePageSheet.swift`). The selected node is
+shared between the embedded and full-screen views, and the full-screen version
+keeps the same tappable node card while giving the Loom/Constellation enough
+room for pinch-and-drag exploration.
 
 ### Wonder Compass And Playful Missions
 
@@ -1609,13 +1632,16 @@ echoes into letters and gossip without re-looping the field.
 ## Character Portraits And Illustrations
 
 Every official cast member and Talisman can show real dossier art, and no one is
-ever faceless.
+ever faceless. Illustration surfaces can now also feature bundled Labyrinth
+locations when a place has enough Belief or narrative weight; those pages are
+marked with `illustrationKind: location` so the curator, archive media handling,
+and page copy treat them as places rather than speaking cast members.
 
 - **`CharacterIllustrationProfile`** (in `BookReferenceLibrary.json`, ~60
   profiles) carries each subject's `core`, `signature`, `palette`, `prompt`, and
   `intendedAssetName`. The shipped app only renders art for subjects that are
-  *actual cast entities* (World Register) or the five Talismans; the broader
-  Enchantify roster waits for content packs.
+  *actual cast entities* (World Register), bundled Labyrinth locations, or the
+  five Talismans; the broader Enchantify roster waits for content packs.
 - **`CharacterPortrait`** (resolver) maps a display name → profile → asset.
 - **`CharacterPortraitView`** renders, in order: a custom cast member's own
   attached photo → the official bundled art (auto-detected via `UIImage(named:)`
@@ -1626,8 +1652,9 @@ ever faceless.
   `ILLUSTRATIONS.md` is the generation manifest (subject → asset name → prompt).
 
 Portraits appear on Cast pages, Letters, Two Readings, Cast Bond, gossip, and the
-Pact Map (controlling Talisman). All ten official cast and all five Talismans
-have bundled art.
+Pact Map (controlling Talisman). Location illustrations can appear on
+Illustration pages and as Story Page settings. All ten official cast, all five
+Talismans, and the core Labyrinth rooms have bundled art.
 
 ## Per-Sabbat Palettes And Full-Screen Images
 
@@ -2103,11 +2130,15 @@ interaction layer. Beyond screenshots, radio previews, and Academy copy, it now
 has **hidden lore marginalia**:
 
 - inline `lore-link` buttons are woven through the page copy;
+- the braided page sequence now begins with First Door/onboarding beats (arrival,
+  the Great Unwritten, Zara's first questions, Belief, Wicker, and the first
+  keep/wait rehearsal) before moving into ordinary app pages;
 - `LandingPage/app.js` owns a `LORE` registry covering folklore, systems,
   Chapters, Talismans, Book Fae, cast, locations, and illustrations;
 - the modal can show prose, optional "Try this" prompts, and art;
 - the illustrations entry behaves like a small gallery over the new
   `LandingPage/assets/art/` cast/Fae/location/talisman dossiers;
+- `LandingPage/assets/glow/` holds marginalia/glow art used by the expanded page;
 - `LandingPage/styles.css` contains the parchment modal, dotted inline links,
   gallery controls, and responsive treatment.
 

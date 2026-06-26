@@ -400,6 +400,66 @@ private struct MarginsAtlasNodeCard: View {
     }
 }
 
+private struct MarginsAtlasFullScreenView: View {
+    let variant: MarginsAtlasVariant
+    let graph: NarrativeGraphData
+    @Binding var selectedNodeID: String?
+    @Environment(\.dismiss) private var dismiss
+
+    private var selectedNode: GraphNode? {
+        graph.nodes.first { $0.id == selectedNodeID }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                BookPalette.nightPanel.ignoresSafeArea()
+
+                MarginsAtlasGraphView(
+                    variant: variant,
+                    graph: graph,
+                    selectedNodeID: $selectedNodeID
+                )
+                .ignoresSafeArea(edges: .bottom)
+
+                VStack {
+                    Spacer()
+
+                    Group {
+                        if let selectedNode {
+                            MarginsAtlasNodeCard(node: selectedNode, graph: graph, variant: variant)
+                        } else {
+                            Text(graph.nodes.isEmpty ? "The page has not found enough tracks to draw yet." : "Tap a name to light its threads. Pinch to zoom and drag to move around the map.")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .stroke(BookPalette.lampGold.opacity(0.22), lineWidth: 1)
+                                }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
+                }
+            }
+            .navigationTitle(variant.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        BookFeedback.play(.dismissPage)
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
 private struct RadioSignalMeter: View {
     let stationID: String
     let isPlaying: Bool
@@ -534,6 +594,7 @@ struct CapturePageSheet: View {
     @State private var isAnsweringEnchantedObject = false
     @State private var currentEnchantmentSurface: SurfacePage?
     @State private var selectedAtlasNodeID: String?
+    @State private var isAtlasFullScreenPresented = false
     @State private var proofPhotoImage: UIImage?
     @State private var proofPhotoURL: URL?
     @State private var proofPhotoMessage = ""
@@ -1240,6 +1301,13 @@ struct CapturePageSheet: View {
                         text = result.keepText
                         isGamePagePresented = false
                     }
+                )
+            }
+            .fullScreenCover(isPresented: $isAtlasFullScreenPresented) {
+                MarginsAtlasFullScreenView(
+                    variant: atlasVariant,
+                    graph: atlasGraph,
+                    selectedNodeID: $selectedAtlasNodeID
                 )
             }
             .sheet(item: $inspectedPhraseSource) { source in
@@ -1984,6 +2052,26 @@ struct CapturePageSheet: View {
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(BookPalette.lampGold.opacity(0.24), lineWidth: 1)
+            }
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    BookFeedback.play(.select)
+                    isAtlasFullScreenPresented = true
+                } label: {
+                    Label("Open full screen", systemImage: "arrow.up.left.and.arrow.down.right")
+                        .labelStyle(.iconOnly)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(BookPalette.nightText)
+                        .frame(width: 36, height: 36)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay {
+                            Circle()
+                                .stroke(BookPalette.lampGold.opacity(0.32), lineWidth: 1)
+                        }
+                }
+                .buttonStyle(.plain)
+                .padding(10)
+                .accessibilityLabel("Open \(atlasVariant.title) full screen")
             }
 
             if let selectedNode = graph.nodes.first(where: { $0.id == selectedAtlasNodeID }) {
@@ -8339,6 +8427,9 @@ enum StoryPagePromptBuilder {
             return academyLessonPrompt(for: draft)
         }
         let entities = draft.entities.isEmpty ? "The Book" : draft.entities.joined(separator: ", ")
+        let setting = draft.storySettingName.isEmpty
+            ? "No explicit Labyrinth setting supplied; ground the scene in the concrete material instead of empty atmosphere."
+            : "\(draft.storySettingName): \(draft.storySettingDetail.nonEmpty ?? "Use this as the physical stage, not as a speaking character.")"
         let signals = draft.signals.isEmpty ? "- No strong outside signal; use quiet ordinary evidence." : draft.signals.prefix(8).map { "- \($0)" }.joined(separator: "\n")
         let pressures = draft.pressures.isEmpty ? "- The margins have enough weight to turn." : draft.pressures.prefix(5).map { "- \($0)" }.joined(separator: "\n")
         let memories = draft.memories.isEmpty ? "- No entity memory has been written yet." : draft.memories.prefix(5).map { "- \($0)" }.joined(separator: "\n")
@@ -8396,7 +8487,8 @@ enum StoryPagePromptBuilder {
             SCENE RECIPE — \(blueprint.recipeName):
             Premise: \(blueprint.premise)
             Exact grounding that MUST matter: \(blueprint.grounding.text)
-            Cast: \([blueprint.leadName, blueprint.companionName].compactMap { $0 }.joined(separator: ", "))
+            Character cast: \([blueprint.leadName, blueprint.companionName].compactMap { $0 }.joined(separator: ", "))
+            Setting: \(setting)
             Required beats, in order:
             \(blueprint.beats.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"))
             Required change: \(blueprint.turn.statement)
@@ -8407,6 +8499,7 @@ enum StoryPagePromptBuilder {
 
             HARD RECIPE RULES:
             - Use the exact grounded material as story causation, evidence, a topic, or a threatened detail—not wallpaper.
+            - Stage the scene in SETTING. The location can constrain entrances, objects, hazards, and available actions, but it is not a cast member and should not speak unless explicitly personified by the recipe.
             - Name concrete nouns and actions. Do not replace the premise with vague feelings or generic disagreement.
             - Do not invent a completed real-world action. Everything active happens inside this fictional vignette.
             - Objects may be central when the recipe needs them, but avoid repetitive decorative handling.
@@ -8461,8 +8554,11 @@ enum StoryPagePromptBuilder {
         STRUCTURE:
         \(structure)\(promise)\(engine)\(lens)
 
-        ENTITIES:
+        CAST AND WORLD ENTITIES:
         \(entities)
+
+        SETTING:
+        \(setting)
 
         REAL MATERIAL:
         \(signals)
@@ -9136,6 +9232,9 @@ struct StoryPageSceneDraft: Equatable {
     var surface: SurfacePage
     var thread: String
     var entities: [String]
+    var storySettingID: String
+    var storySettingName: String
+    var storySettingDetail: String
     var signals: [String]
     var pressures: [String]
     var memories: [String]
@@ -9183,6 +9282,9 @@ struct StoryPageSceneDraft: Equatable {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty } ?? ["The Book"]
         }
+        storySettingID = metadata["storySettingID"] ?? ""
+        storySettingName = metadata["storySettingName"] ?? ""
+        storySettingDetail = metadata["storySettingDetail"] ?? ""
         signals = metadata["realSignals"]?
             .split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
