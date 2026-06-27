@@ -444,6 +444,35 @@ final class RadioBanterTests: XCTestCase {
 
         let grey = RadioWorldContext(timeOfDay: "dusk", grey: 45)
         XCTAssertTrue(grey.satisfies(clips["mothlight-grey-keep-the-lamp"]?.conditions))
+
+        let classPage = RadioWorldContext(
+            pageContext: RadioPageContext(recentPageTypeCounts: [.academyClass: 1])
+        )
+        XCTAssertTrue(classPage.satisfies(clips["mothlight-class-resonance"]?.conditions))
+
+        let dusk = RadioWorldContext(timeOfDay: "dusk")
+        XCTAssertTrue(dusk.satisfies(clips["mothlight-class-quiet-hours"]?.conditions))
+
+        let day = RadioWorldContext(timeOfDay: "day")
+        XCTAssertFalse(day.satisfies(clips["mothlight-class-quiet-hours"]?.conditions))
+
+        let inkrest = RadioWorldContext(
+            pageContext: RadioPageContext(recentPageTypeCounts: [.inkrestOfficeHours: 1])
+        )
+        XCTAssertTrue(inkrest.satisfies(clips["mothlight-cast-inkrest"]?.conditions))
+
+        let remembered = RadioWorldContext(
+            pageContext: RadioPageContext(recentPageTypeCounts: [.bookRemembered: 1])
+        )
+        XCTAssertTrue(remembered.satisfies(clips["mothlight-lore-book-remembered"]?.conditions))
+
+        XCTAssertNotNil(clips["mothlight-talisman-tide-glass"])
+        XCTAssertNotNil(clips["mothlight-talisman-moss-clasp"])
+        XCTAssertNotNil(clips["mothlight-cast-serenity"])
+        XCTAssertNotNil(clips["mothlight-psa-samhain"])
+        XCTAssertNotNil(clips["mothlight-psa-yule-newmoon"])
+        XCTAssertNotNil(clips["mothlight-psa-resonance-class"])
+        XCTAssertNotNil(clips["mothlight-psa-quiet-hours"])
     }
 
     func testFaeFiBatchReactiveTriggersAreRegistered() throws {
@@ -520,6 +549,7 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertNotNil(clips["faefi-psa-todays-sky"])
         XCTAssertNotNil(clips["faefi-psa-festivals-wheel"])
         XCTAssertNotNil(clips["faefi-psa-moons-showers"])
+        XCTAssertNotNil(clips["faefi-network-band"])
 
         let clubsNightContext = RadioWorldContext(timeOfDay: "night")
         XCTAssertTrue(clubsNightContext.satisfies(clips["faefi-psa-clubs"]?.conditions))
@@ -702,6 +732,7 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertEqual(faeClips["faefi-psa-todays-sky"], "DJ_faefi_psa_todays_sky_01")
         XCTAssertEqual(faeClips["faefi-psa-festivals-wheel"], "DJ_faefi_psa_festivals_wheel_01")
         XCTAssertEqual(faeClips["faefi-psa-moons-showers"], "DJ_faefi_psa_moons_showers_01")
+        XCTAssertEqual(faeClips["faefi-network-band"], "DJ_faefi_network_band_01")
 
         let mothlight = try XCTUnwrap(RadioStationRegistry.station(id: "mothlight-beats"))
         let mothlightClips = Dictionary(uniqueKeysWithValues: mothlight.resolvedBanters.map { ($0.id, $0.assetName) })
@@ -716,6 +747,17 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertEqual(mothlightClips["mothlight-pages-letter-duet"], "DJ_mothlight_pages_letter_01")
         XCTAssertEqual(mothlightClips["mothlight-pages-kept-today-hum"], "DJ_mothlight_pages_kept_today_gentle_01")
         XCTAssertEqual(mothlightClips["mothlight-grey-keep-the-lamp"], "DJ_mothlight_grey_gentle_01")
+        XCTAssertEqual(mothlightClips["mothlight-class-resonance"], "DJ_mothlight_class_resonance_01")
+        XCTAssertEqual(mothlightClips["mothlight-class-quiet-hours"], "DJ_mothlight_class_quiet_hours_01")
+        XCTAssertEqual(mothlightClips["mothlight-talisman-tide-glass"], "DJ_mothlight_talisman_tide_glass_01")
+        XCTAssertEqual(mothlightClips["mothlight-talisman-moss-clasp"], "DJ_mothlight_talisman_moss_clasp_01")
+        XCTAssertEqual(mothlightClips["mothlight-cast-inkrest"], "DJ_mothlight_cast_inkrest_01")
+        XCTAssertEqual(mothlightClips["mothlight-cast-serenity"], "DJ_mothlight_cast_serenity_01")
+        XCTAssertEqual(mothlightClips["mothlight-lore-book-remembered"], "DJ_mothlight_lore_book_remembered_01")
+        XCTAssertEqual(mothlightClips["mothlight-psa-samhain"], "DJ_mothlight_psa_samhain_01")
+        XCTAssertEqual(mothlightClips["mothlight-psa-yule-newmoon"], "DJ_mothlight_psa_yule_newmoon_01")
+        XCTAssertEqual(mothlightClips["mothlight-psa-resonance-class"], "DJ_mothlight_psa_resonance_class_01")
+        XCTAssertEqual(mothlightClips["mothlight-psa-quiet-hours"], "DJ_mothlight_psa_quiet_hours_01")
 
         let thornwave = try XCTUnwrap(RadioStationRegistry.station(id: "thornwave"))
         let thornClips = Dictionary(uniqueKeysWithValues: thornwave.resolvedBanters.map { ($0.id, $0.assetName) })
@@ -774,6 +816,7 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_faefi_psa_todays_sky_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_faefi_psa_festivals_wheel_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_faefi_psa_moons_showers_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_faefi_network_band_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_pages_memory_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_pages_mood_night_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_weather_rain_01.m4a").path))
@@ -785,6 +828,17 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_pages_letter_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_pages_kept_today_gentle_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_grey_gentle_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_class_resonance_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_class_quiet_hours_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_talisman_tide_glass_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_talisman_moss_clasp_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_cast_inkrest_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_cast_serenity_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_lore_book_remembered_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_psa_samhain_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_psa_yule_newmoon_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_psa_resonance_class_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_psa_quiet_hours_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_pages_story_night_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_pages_bargain_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_weather_storm_grey_01.m4a").path))

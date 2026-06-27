@@ -28,6 +28,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case faeBargain
     case bookFae
     case pactDispatch
+    case pactVerdict
+    case pactErrand
     case festival
     case twoReadings
     case castBond
@@ -101,7 +103,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .lore:
             return "Lore Page"
         case .patreon:
-            return "Patreon Page"
+            return "Creator Notes"
         case .illustration:
             return "An Illustration from the Labyrinth of Stories"
         case .illuminatedPhoto:
@@ -128,6 +130,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Book Fae Page"
         case .pactDispatch:
             return "A Pact Dispatch"
+        case .pactVerdict:
+            return "The Reading"
+        case .pactErrand:
+            return "A Talisman's Errand"
         case .festival:
             return "A Festival of the Wheel"
         case .twoReadings:
@@ -202,7 +208,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .lore:
             return "Lore"
         case .patreon:
-            return "Patreon"
+            return "Notes"
         case .illustration:
             return "Illustration"
         case .illuminatedPhoto:
@@ -229,6 +235,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Book Fae"
         case .pactDispatch:
             return "Dispatch"
+        case .pactVerdict:
+            return "Reading"
+        case .pactErrand:
+            return "Errand"
         case .festival:
             return "Festival"
         case .twoReadings:
@@ -330,6 +340,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "wand.and.stars"
         case .pactDispatch:
             return "flag.2.crossed"
+        case .pactVerdict:
+            return "scalemass"
+        case .pactErrand:
+            return "figure.walk"
         case .festival:
             return "moon.stars.fill"
         case .twoReadings:
@@ -898,14 +912,14 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "patreon-packet",
             type: .patreon,
-            title: "Patreon Packet",
-            shortTitle: "Patreon",
+            title: "Creator Notes",
+            shortTitle: "Notes",
             symbolName: "shippingbox",
             origin: .imported,
             privacy: .publicReference,
-            isActive: true,
-            cadence: "release",
-            note: "Free downloads and Clubhouse doorway."
+            isActive: false,
+            cadence: "retired",
+            note: "Retired creator/support surface kept only for older archives."
         ),
         BookPageSource(
             id: "labyrinth-illustrations",
@@ -1099,6 +1113,10 @@ enum BookPageSourceRegistry {
             return 28
         case .pactDispatch:
             return 26
+        case .pactVerdict:
+            return 26
+        case .pactErrand:
+            return 26
         case .festival:
             return 34
         case .twoReadings:
@@ -1139,6 +1157,10 @@ enum BookPageSourceRegistry {
         case .diary, .souvenir, .faeBargain:
             return 24
         case .pactDispatch:
+            return 22
+        case .pactVerdict:
+            return 22
+        case .pactErrand:
             return 22
         case .festival:
             return 30

@@ -1461,12 +1461,28 @@ struct CapturePageSheet: View {
                 scribeWorkCard(localBrainWorkLabel)
             }
 
+            if let story = surface.payload.metadata["pactShelfStory"]?.nonEmpty {
+                pactFramingCard(
+                    story,
+                    title: surface.payload.metadata["pactShelfTalisman"].map { "\($0) is moving here" } ?? "A Talisman is moving here",
+                    subtitle: surface.payload.metadata["pactShelfTier"]
+                )
+            }
+
             if let framing = surface.payload.metadata["pactFraming"]?.nonEmpty {
-                pactFramingCard(framing, talisman: surface.payload.metadata["pactTalisman"])
+                pactFramingCard(
+                    framing,
+                    title: surface.payload.metadata["pactTalisman"].map { "\($0) frames this page" } ?? "This shelf frames this page",
+                    subtitle: "Controlled+"
+                )
             }
 
             if let epigraph = surface.payload.metadata["pactDoorEpigraph"]?.nonEmpty {
-                pactFramingCard(epigraph, talisman: surface.payload.metadata["pactDoorTalisman"])
+                pactFramingCard(
+                    epigraph,
+                    title: surface.payload.metadata["pactDoorTalisman"].map { "\($0) holds this door" } ?? "This door is held",
+                    subtitle: "Real-world door"
+                )
             }
 
             if (isPreparedPage && !isChapterPrimerPage && !isBookJumpPage) || isCompassPracticePage {
@@ -2119,12 +2135,18 @@ struct CapturePageSheet: View {
         }
     }
 
-    private func pactFramingCard(_ framing: String, talisman: String?) -> some View {
+    private func pactFramingCard(_ framing: String, title: String, subtitle: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label(talisman.map { "\($0) holds this shelf" } ?? "This shelf is held",
-                  systemImage: "seal")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(BookPalette.lampGold.opacity(0.9))
+            HStack(spacing: 6) {
+                Label(title, systemImage: "seal")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold.opacity(0.9))
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.45))
+                }
+            }
             Text(framing)
                 .font(.system(.callout, design: .serif).italic())
                 .foregroundStyle(openPageSecondaryText)

@@ -854,6 +854,13 @@ enum RadioStationRegistry {
                     weight: 3
                 ),
                 RadioBanter(
+                    id: "faefi-network-band", category: .network,
+                    assetName: "DJ_faefi_network_band_01",
+                    caption: "For the record, the whole dial, filed in order: eighty-eight three, me, against my will. Ninety point nine, Euphony at Mothlight. One-oh-three seven, Wicker on Thornwave. And if you can hear Villanelle's Bindery at ninety-nine three, or Melisande's Market at one-oh-five one, you've gone properly nocturnal. Spin the dial. Somebody's playing your weather.",
+                    conditions: nil,
+                    weight: 2
+                ),
+                RadioBanter(
                     id: "faefi-psa-timetable", category: .news,
                     assetName: "DJ_faefi_psa_timetable_01",
                     caption: "Public notice from the records desk, since someone has to keep it straight. The Academy runs on bells: morning classes at nine, afternoon classes at one, and clubs gather at seven, lamps up. Five days of classes, a Saturday field run, and a Sunday that opens in another book entirely. It's all chalked on the board by the Inkworks. I keep the master copy. Naturally.",
@@ -1174,6 +1181,83 @@ enum RadioStationRegistry {
                         maxGrey: 70
                     ),
                     weight: 4
+                ),
+                RadioBanter(
+                    id: "mothlight-class-resonance", category: .news,
+                    assetName: "DJ_mothlight_class_resonance_01",
+                    caption: "Come to the Resonance Chamber some afternoon - Wing Three, where I ring a single glass bell and dim one lamp, and the whole room changes color without a wall ever moving. That's Synesthetic Resonance. The South direction. Sense. We practice hearing a colour, then naming the real evidence underneath it. The senses are serious instruments, you know. Bring yours. They're already tuned - you've only stopped listening.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.academyClass], minRecentPagesOfType: 1),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-class-quiet-hours", category: .gossip,
+                    assetName: "DJ_mothlight_class_quiet_hours_01",
+                    caption: "Professor Stonebrook turned the hourglass on its side again tonight and let the unmoving sand become the entire lesson. Quiet Hours. The Center. Rest is not absence - it's the nervous system sorting the day so that tomorrow can happen at all. A pause chosen before collapse chooses it for you. If you've been running on the last of the light... his door is open. So is mine. Stay inside this song a while first.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-talisman-tide-glass", category: .news,
+                    assetName: "DJ_mothlight_talisman_tide_glass_01",
+                    caption: "My own Chapter's talisman came up tonight - the Tide Glass. Salt-bright, unpredictable, Tidecrest through and through. Consult it and it shows you a different hour every time. It forgets your plans on purpose. And its one belief is a small mercy: the moment is complete in itself. You don't have to finish the day to deserve it. Let this one be complete. Here.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-talisman-moss-clasp", category: .gossip,
+                    assetName: "DJ_mothlight_talisman_moss_clasp_01",
+                    caption: "They say the Moss Clasp - Mossbloom's quiet talisman - grows one new leaf whenever someone is truly listened to. Not spoken at. Listened to. It's older than its setting, and slow to act even when acting would be kind, because it trusts that the larger story is already being written. Someone, somewhere, is growing it a leaf right now, just by being heard. Be that for someone tonight.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-cast-inkrest", category: .gossip,
+                    assetName: "DJ_mothlight_cast_inkrest_01",
+                    caption: "Dr. Inkrest sets the chairs out before the feelings arrive - did you know that? She seats a hard page near a lamp before she asks it to speak a single word. A difficult feeling isn't a verdict in that office. It's a page. And a page can be named, and seated, and revised one hour at a time. If today sat heavy as a low note, her office hours are the kind of door that simply opens. No appointment. Just weather, a chair, and the lamp.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.inkrestOfficeHours, .mood, .diary], minRecentPagesOfType: 1),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-cast-serenity", category: .gossip,
+                    assetName: "DJ_mothlight_cast_serenity_01",
+                    caption: "Serenity Brown swept through the Chamber today, left before the serious plan was finished, and somehow turned the detour into a rescue. She makes the loveliest chord in any room - the kind of laughter that changes its colour. Her whole creed is four words: joy is not a distraction. From magic, she means. From anything. If the day's gone solemn on you, she'd tell you to abandon the plan and go look at the sea. So would I.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-lore-book-remembered", category: .news,
+                    assetName: "DJ_mothlight_lore_book_remembered_01",
+                    caption: "The Book Remembered stirred tonight - an old page surfaced, one you were sure had gone quiet for good. That's how it works: give the Book enough notes and it begins to remember in chords. The quiet ones come back when the harmony is finally full enough to hold them. Don't reach for it. Just leave the lamp on and let it come the rest of the way. It always does, in the end.",
+                    conditions: RadioBanter.Conditions(pageTypes: [.bookRemembered], minRecentPagesOfType: 1),
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-psa-samhain", category: .news,
+                    assetName: "DJ_mothlight_psa_samhain_01",
+                    caption: "A note for the calendar's gentlest night: Samhain - the Thinning - comes at the turn of October, when the door between the kept and the lost stands a little ajar. The Book remembers more than usual then, and is kinder about it. Name someone you've lost, and one thing they left in your keeping. The veil is thin; be honest, be gentle. It isn't a sad feast. It's a held one.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-psa-yule-newmoon", category: .news,
+                    assetName: "DJ_mothlight_psa_yule_newmoon_01",
+                    caption: "For the dark half of the year, two quiet feasts worth keeping. Yule - the Darkest Class - held by candlelight on the longest night, taught honestly, the fireplaces crowded. And every New Moon, the Listening: candles only, the Academy gone contemplative-dark. Both ask the same small thing - name one thing that survives the dark with you, and keep it where the candle can reach. The light always comes back. These feasts simply sit with you until it does.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-psa-resonance-class", category: .news,
+                    assetName: "DJ_mothlight_psa_resonance_class_01",
+                    caption: "A standing invitation, for the record: Synesthetic Resonance meets twice a week - Tuesday afternoons at one bell, and Friday mornings at nine - in the Resonance Chamber, Wing Three. We practice the South direction. Sense. Hearing a colour, then naming the real evidence beneath it. The senses are serious instruments, and yours are only out of practice. Come tune the room with me. Bring nothing - you already carry everything it needs.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-psa-quiet-hours", category: .news,
+                    assetName: "DJ_mothlight_psa_quiet_hours_01",
+                    caption: "Quiet Hours sits on the Wednesday timetable - Professor Stonebrook, the Still Room, one bell in the afternoon. It's the only class that teaches the Center. Rest. Not absence - the nervous system sorting the day so that tomorrow can happen. He turns the hourglass on its side and lets the still sand do the talking. If you've been running on the last of the light, that's the room. No one there will ask you to perform being fine.",
+                    conditions: nil,
+                    weight: 3
                 )
             ]
         ),
@@ -5134,6 +5218,8 @@ enum PactTier: Int, Comparable, Equatable {
 struct PactActionRecord: Codable, Equatable, Identifiable {
     enum Kind: String, Codable, Equatable {
         case push, challenge, raid, consolidate
+        case verdict     // the reader ruled a contested reading of a real page
+        case errand      // the reader paid a talisman's errand with a field report
     }
     var id: String
     var talismanID: String
@@ -5158,19 +5244,78 @@ struct PactDispatch: Codable, Equatable, Identifiable {
     var at: Date
 }
 
+enum PactErrandStatus: String, Codable, Equatable {
+    case owed        // the talisman has asked; a field report is due
+    case delivered   // paid with a real noticing; the talisman gained ground
+    case lapsed      // the deadline passed unpaid
+}
+
+/// A talisman that holds a foothold sends the reader into the real day, paid in a
+/// field report. The Pact War's mirror of a Fae Bargain — but the payment is lived
+/// attention, and the reward is Control Belief on the talisman's own territory.
+struct PactErrand: Identifiable, Codable, Equatable {
+    var id: String
+    var talismanID: String
+    var territoryID: String
+    var openingLine: String      // the talisman's ask, in its Chapter's voice
+    var terms: String            // the noticing/doing owed
+    var offeredAt: Date
+    var deadline: Date
+    var status: PactErrandStatus
+    var fieldReport: String?
+    var talismanResponse: String?
+    var deliveredAt: Date?
+
+    var isOpen: Bool { status == .owed }
+}
+
 /// The war's save state. Optional on the vault for migration.
 struct PactWarState: Codable, Equatable {
     var control: [String: Int] = [:]   // "talismanID|territoryID" -> control belief
     var lastTickAt: Date?
     var log: [PactActionRecord] = []
     var pendingDispatches: [PactDispatch] = []
+    var errands: [PactErrand] = []
 
     init() {}
+
+    // Explicit Codable so older saves (which predate `errands`, and `pendingDispatches`
+    // before it) decode cleanly instead of failing on a missing key.
+    private enum CodingKeys: String, CodingKey {
+        case control, lastTickAt, log, pendingDispatches, errands
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        control = try c.decodeIfPresent([String: Int].self, forKey: .control) ?? [:]
+        lastTickAt = try c.decodeIfPresent(Date.self, forKey: .lastTickAt)
+        log = try c.decodeIfPresent([PactActionRecord].self, forKey: .log) ?? []
+        pendingDispatches = try c.decodeIfPresent([PactDispatch].self, forKey: .pendingDispatches) ?? []
+        errands = try c.decodeIfPresent([PactErrand].self, forKey: .errands) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(control, forKey: .control)
+        try c.encodeIfPresent(lastTickAt, forKey: .lastTickAt)
+        try c.encode(log, forKey: .log)
+        try c.encode(pendingDispatches, forKey: .pendingDispatches)
+        try c.encode(errands, forKey: .errands)
+    }
+
+    var openErrand: PactErrand? { errands.first { $0.status == .owed } }
 
     static func key(_ talismanID: String, _ territoryID: String) -> String { "\(talismanID)|\(territoryID)" }
 
     func control(_ talismanID: String, _ territoryID: String) -> Int {
         control[Self.key(talismanID, territoryID)] ?? 0
+    }
+
+    /// Adjust a talisman's Control Belief on a territory, clamped to 0...100.
+    /// Shared by the reader's verdicts/errands and the engine's own moves.
+    mutating func adjust(_ talismanID: String, _ territoryID: String, by amount: Int) {
+        let key = Self.key(talismanID, territoryID)
+        control[key] = max(0, min(100, (control[key] ?? 0) + amount))
     }
 
     /// The talisman holding a territory: the clear leader, or nil on a tie/empty.
@@ -5258,6 +5403,22 @@ enum PactWarEngine {
         }
 
         // Detect dramatic crossings against the snapshot and queue dispatches.
+        detectCrossings(before: before, into: &state, now: now)
+
+        state.lastTickAt = now
+        state.log = (records + state.log).prefix(24).map { $0 }
+        return records
+    }
+
+    /// Compare a pre-action snapshot against the post-action state, queue a
+    /// `PactDispatch` for any territory that changed hands or crossed into
+    /// Sovereign, and prune the dispatch queue. Returns true if a *new* Sovereign
+    /// crossing was queued (the caller can front a goblin bargain). Shared by the
+    /// daily tick and the reader's verdicts/errands so player moves produce the
+    /// same dramatic beats as the simulation.
+    @discardableResult
+    static func detectCrossings(before: PactWarState, into state: inout PactWarState, now: Date = Date()) -> Bool {
+        var newSovereign = false
         for territory in PactTerritoryRegistry.all {
             let beforeController = before.controller(of: territory.id)
             let afterController = state.controller(of: territory.id)
@@ -5271,6 +5432,7 @@ enum PactWarEngine {
                let after = afterController {
                 queueDispatch(.sovereign, territory: territory, talismanID: after,
                               line: "\(name) now reigns Sovereign over \(territory.name).", into: &state, now: now)
+                newSovereign = true
             }
         }
         // Keep the dispatch queue small and fresh.
@@ -5278,10 +5440,7 @@ enum PactWarEngine {
             .filter { now.timeIntervalSince($0.at) < 4 * 86_400 }
             .suffix(6)
             .map { $0 }
-
-        state.lastTickAt = now
-        state.log = (records + state.log).prefix(24).map { $0 }
-        return records
+        return newSovereign
     }
 
     private static func queueDispatch(
@@ -5311,7 +5470,9 @@ enum PactWarEngine {
         let name = AcademyChapterRegistry.chapter(forTalismanID: talismanID)?.talismanName ?? talismanID
         let seed = abs("\(slot)-\(talismanID)-pact".stableHash)
         let aligned = PactTerritoryRegistry.all.filter { isAligned(talismanID, $0.id) }
-        let pushPotential = max(1, overall / 25)   // 1...4 per push
+        // Gentler than a reader's hand: the autonomous war moves, but a verdict
+        // (+6) or errand (+8) outweighs any single tick action. The reader leads.
+        let pushPotential = max(1, overall / 40)   // 1...2 per push
 
         // RAID: overall >= 50 and a rival sits Dominated+ on a territory this
         // Talisman can out-belief.
@@ -5391,6 +5552,27 @@ enum PactWarEngine {
 /// Controlled+ on a shelf gives that shelf's page kinds a surfacing nudge — its
 /// philosophy "shapes timing." Pure curator math; quiet under distress.
 enum PactWarEffects {
+    static func shelfStory(for type: BookPageType, state: PactWarState) -> (line: String, talisman: String, tier: PactTier)? {
+        guard let shelf = PactTerritoryRegistry.shelf(governing: type),
+              let controller = state.controller(of: shelf.id),
+              let chapter = AcademyChapterRegistry.chapter(forTalismanID: controller) else { return nil }
+        let tier = state.tier(of: shelf.id)
+        switch tier {
+        case .contesting:
+            return ("\(chapter.talismanName) has begun circling \(shelf.name). Nothing changes yet, but its philosophy is in the margins.", chapter.talismanName, tier)
+        case .influenced:
+            return ("\(chapter.talismanName) has a foothold in \(shelf.name). Pages like this may start leaning toward \(chapter.name)'s way of reading.", chapter.talismanName, tier)
+        case .controlled:
+            return ("\(chapter.talismanName) holds \(shelf.name), so this kind of page is a little more likely to surface and speak in \(chapter.name)'s hand.", chapter.talismanName, tier)
+        case .dominated:
+            return ("\(chapter.talismanName) dominates \(shelf.name). The Book is actively favoring this shelf and framing it through \(chapter.name)'s doctrine.", chapter.talismanName, tier)
+        case .sovereign:
+            return ("\(chapter.talismanName) reigns Sovereign over \(shelf.name). It can call pages like this forward without waiting to be asked.", chapter.talismanName, tier)
+        case .none:
+            return nil
+        }
+    }
+
     static func shelfBoost(for type: BookPageType, state: PactWarState) -> Int {
         guard let shelf = PactTerritoryRegistry.shelf(governing: type),
               state.controller(of: shelf.id) != nil else { return 0 }
@@ -5543,12 +5725,199 @@ enum PactVoices {
     }
 }
 
+// MARK: - Pact War readings (static per-Talisman reading of a real kept page)
+//
+// When two Talismans contest one of the reader's real days, each reads the SAME
+// kept page through its Chapter's philosophy, and the reader rules. Pure static
+// templating over the reader's own words — never a model call — so a verdict can
+// surface and be ruled while distress-silent and offline, exactly like the rest
+// of the war.
+enum PactReadings {
+    /// A short clip of the reader's own words, for embedding in a reading.
+    static func clip(_ text: String, max: Int = 90) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "this kept page" }
+        if trimmed.count <= max { return "“\(trimmed)”" }
+        let cut = trimmed.prefix(max).trimmingCharacters(in: .whitespaces)
+        return "“\(cut)…”"
+    }
+
+    /// The Chapter's reading of a kept page, in its Talisman's voice. Built from
+    /// the Chapter philosophy (Emberheart authors / Mossbloom receives / Tidecrest
+    /// dwells in the moment / Riddlewind co-authors / Duskthorn keeps the friction).
+    static func reading(talismanID: String, pageText: String) -> String {
+        let it = clip(pageText)
+        switch talismanID {
+        case "ember-seal":
+            return "You authored \(it). Not the world — you. Read it as proof you hold the pen, and the day bends to whoever writes it."
+        case "moss-clasp":
+            return "Something larger moved through \(it). You didn't make this happen so much as let it. Read it as the world writing a line through you."
+        case "tide-glass":
+            return "\(it) needs no arc and no lesson. It was whole the instant it happened. Read it as a moment, complete, asking nothing more of you."
+        case "wind-cipher":
+            return "You weren't alone in \(it). Another hand is in this page. Read it as something the two of you wrote together, not a thing you did alone."
+        case "dusk-thorn":
+            return "Don't smooth over \(it). The hard edge here is the plot, not the flaw. Read it as the friction that keeps the day from being forgettable."
+        default:
+            return "A reading of \(it)."
+        }
+    }
+
+    /// The one-line claim a Talisman stands on when it asks for the verdict.
+    static func claimLine(talismanID: String) -> String {
+        AcademyChapterRegistry.chapter(forTalismanID: talismanID)?.philosophy
+            ?? "This day means what you decide it means."
+    }
+}
+
+// MARK: - Pact War errands (a Talisman sends the reader into the real day)
+//
+// A talisman that already holds a foothold sends the reader out to *do* something
+// in the real day, paid back in a field report — the Fae's "noticing as payment"
+// move, but each Talisman wants a different kind of noticing, loaded with its
+// Chapter's philosophy. Static catalog; the reward is Control Belief, applied by
+// `PactWarEngine.deliverErrand`.
+enum PactErrands {
+    static let offerGapHours = 20
+    static let paymentWindowHours = 72
+    static let controlReward = 8
+
+    struct Template: Equatable {
+        let openingLine: String
+        let terms: String
+    }
+
+    static func template(talismanID: String) -> Template {
+        switch talismanID {
+        case "ember-seal":
+            return Template(
+                openingLine: "The Ember Seal sets a task before it presses its claim further.",
+                terms: "Author one thing today that wouldn't have happened without you — then write the single sentence that proves you did.")
+        case "moss-clasp":
+            return Template(
+                openingLine: "The Moss Clasp asks for stillness before it takes more ground.",
+                terms: "Sit somewhere quiet and let the world write one sentence through you. Report exactly what it said.")
+        case "tide-glass":
+            return Template(
+                openingLine: "The Tide Glass wants proof that the present is enough.",
+                terms: "Catch one thing today that takes you completely off guard, and report it before the moment is gone.")
+        case "wind-cipher":
+            return Template(
+                openingLine: "The Wind Cipher won't move without another hand in the page.",
+                terms: "Ask someone near you what they noticed today, and report what the two of you saw.")
+        case "dusk-thorn":
+            return Template(
+                openingLine: "The Dusk Thorn asks for the honest thing, not the easy one.",
+                terms: "Write the sentence you've been avoiding, and report that you wrote it.")
+        default:
+            return Template(openingLine: "A Talisman sets a task.", terms: "Notice one true thing today and report it.")
+        }
+    }
+
+    /// The talisman's spoken acknowledgement when the errand is delivered.
+    static func response(talismanID: String) -> String {
+        switch talismanID {
+        case "ember-seal": return "The Ember Seal takes the page from your hand and reads it twice. “Authored,” it says — and the shelf leans your way."
+        case "moss-clasp": return "The Moss Clasp goes quiet, the way a room does when someone is finally listening. The ground settles beneath its philosophy."
+        case "tide-glass": return "The Tide Glass laughs — a small, surprised sound — and the moment is already gone. It has exactly what it wanted."
+        case "wind-cipher": return "The Wind Cipher rearranges itself around the second voice in your report. “Together,” it agrees, and gains."
+        case "dusk-thorn": return "The Dusk Thorn does not soften. “Good,” it says. “That cost you something.” And it holds more of the shelf for it."
+        default: return "The Talisman accepts your noticing and presses its claim."
+        }
+    }
+}
+
+extension PactWarEngine {
+    /// Offer one errand from a talisman that already holds a territory at
+    /// Influenced+ (a real foothold), if the reader has no open errand and the
+    /// cadence allows. Pure local; the reader pays it later with a field report.
+    @discardableResult
+    static func offerErrand(into state: inout PactWarState, now: Date = Date()) -> PactErrand? {
+        guard state.openErrand == nil else { return nil }
+        if let last = state.errands.map(\.offeredAt).max(),
+           now.timeIntervalSince(last) < Double(PactErrands.offerGapHours) * 3_600 { return nil }
+
+        let candidates = PactTerritoryRegistry.all.compactMap { territory -> (String, String)? in
+            guard let holder = state.controller(of: territory.id),
+                  state.tier(of: territory.id) >= .influenced else { return nil }
+            return (holder, territory.id)
+        }
+        guard !candidates.isEmpty else { return nil }
+
+        let seed = abs("\(BookDay.id(for: now))-pact-errand".stableHash)
+        let pick = candidates[seed % candidates.count]
+        let template = PactErrands.template(talismanID: pick.0)
+        let errand = PactErrand(
+            id: "pact-errand-\(pick.1)-\(pick.0)-\(BookDay.id(for: now))",
+            talismanID: pick.0,
+            territoryID: pick.1,
+            openingLine: template.openingLine,
+            terms: template.terms,
+            offeredAt: now,
+            deadline: now.addingTimeInterval(Double(PactErrands.paymentWindowHours) * 3_600),
+            status: .owed,
+            fieldReport: nil,
+            talismanResponse: nil,
+            deliveredAt: nil
+        )
+        guard !state.errands.contains(where: { $0.id == errand.id }) else { return nil }
+        state.errands = (state.errands + [errand]).suffix(8).map { $0 }
+        return errand
+    }
+
+    /// Pay an errand with a real field report: the talisman gains Control Belief on
+    /// its territory and may seize it or cross into Sovereign. Returns whether a new
+    /// Sovereign crossing was queued (so the caller can front a goblin bargain).
+    @discardableResult
+    static func deliverErrand(errandID: String, report: String, into state: inout PactWarState, now: Date = Date()) -> Bool {
+        guard let index = state.errands.firstIndex(where: { $0.id == errandID }) else { return false }
+        let talismanID = state.errands[index].talismanID
+        let territoryID = state.errands[index].territoryID
+        state.errands[index].status = .delivered
+        state.errands[index].fieldReport = report
+        state.errands[index].talismanResponse = PactErrands.response(talismanID: talismanID)
+        state.errands[index].deliveredAt = now
+
+        let before = state
+        state.adjust(talismanID, territoryID, by: PactErrands.controlReward)
+        let name = AcademyChapterRegistry.chapter(forTalismanID: talismanID)?.talismanName ?? talismanID
+        let territoryName = PactTerritoryRegistry.territory(id: territoryID)?.name ?? "its territory"
+        let record = PactActionRecord(
+            id: "\(territoryID)-\(talismanID)-\(Int(now.timeIntervalSince1970))-errand",
+            talismanID: talismanID, territoryID: territoryID, kind: .errand, at: now,
+            line: "\(name) gains \(territoryName) — you ran its errand."
+        )
+        state.log = ([record] + state.log).prefix(24).map { $0 }
+        return detectCrossings(before: before, into: &state, now: now)
+    }
+
+    /// Mark any owed errand past its deadline as lapsed. Returns the ids that lapsed.
+    @discardableResult
+    static func sweepErrandLapses(into state: inout PactWarState, now: Date = Date()) -> [String] {
+        var lapsed: [String] = []
+        for index in state.errands.indices where state.errands[index].status == .owed {
+            guard now > state.errands[index].deadline else { continue }
+            state.errands[index].status = .lapsed
+            lapsed.append(state.errands[index].id)
+        }
+        return lapsed
+    }
+}
+
 extension PactWarEffects {
     /// Annotate a surfaced capture page with the framing of the Talisman that
     /// holds its shelf, so the sheet can speak in that Chapter's hand.
     static func framed(_ page: SurfacePage, state: PactWarState) -> SurfacePage {
         var payload = page.payload
         var changed = false
+
+        // Shelf framing: a controlled shelf rewrites its capture pages' prompt.
+        if let story = shelfStory(for: page.type, state: state) {
+            payload.metadata["pactShelfStory"] = story.line
+            payload.metadata["pactShelfTalisman"] = story.talisman
+            payload.metadata["pactShelfTier"] = story.tier.label
+            changed = true
+        }
 
         // Shelf framing: a controlled shelf rewrites its capture pages' prompt.
         if page.intent == .capture,

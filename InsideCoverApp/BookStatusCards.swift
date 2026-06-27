@@ -2129,6 +2129,8 @@ struct PactMapSheet: View {
     let pactWar: PactWarState
     let boundTalismanID: String?
     var onPressClaim: (String) -> Void = { _ in }   // territoryID
+    var pendingVerdict: SurfacePage? = nil
+    var onRuleVerdict: (_ winnerTalismanID: String, _ loserTalismanID: String) -> Void = { _, _ in }
     @Environment(\.dismiss) private var dismiss
 
     private var boundChapterName: String? {
@@ -2149,6 +2151,15 @@ struct PactMapSheet: View {
                             .font(.footnote.italic())
                             .foregroundStyle(BookPalette.ink.opacity(0.6))
                             .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if let pendingVerdict {
+                        sectionTitle("Awaiting Your Ruling")
+                        Text("Two Talismans read one of your real days differently. Rule it, and the shelf it governs shifts toward the reading you chose.")
+                            .font(.footnote)
+                            .foregroundStyle(BookPalette.ink.opacity(0.6))
+                            .fixedSize(horizontal: false, vertical: true)
+                        PactVerdictOptions(surface: pendingVerdict, onRule: onRuleVerdict)
                     }
 
                     frontSection("The Book's Shelves", territories: PactTerritoryRegistry.shelves)
@@ -2210,6 +2221,10 @@ struct PactMapSheet: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(BookPalette.teal)
                 }
+                Text(territoryStatusLine(territory, chapter: controllerChapter, tier: tier))
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
             }
             ForEach(AcademyChapterRegistry.chapters, id: \.id) { chapter in
                 let value = pactWar.control(chapter.talismanID, territory.id)
@@ -2257,5 +2272,170 @@ struct PactMapSheet: View {
         Text(text.uppercased())
             .font(.caption.weight(.bold))
             .foregroundStyle(BookPalette.ink.opacity(0.5))
+    }
+
+    private func territoryStatusLine(_ territory: PactTerritory, chapter: AcademyChapter, tier: PactTier) -> String {
+        switch tier {
+        case .contesting:
+            return "\(chapter.talismanName) has only a trace here. The territory is noticing its doctrine, but the app is not changing yet."
+        case .influenced:
+            return "\(chapter.talismanName) has a foothold. Verdicts, errands, or pressed claims can turn this into real control."
+        case .controlled:
+            return "\(chapter.talismanName) now shapes this territory: related pages surface more often and may carry its framing."
+        case .dominated:
+            return "\(chapter.talismanName) has a strong hold. This territory is being actively pulled toward \(chapter.name)'s way of reading."
+        case .sovereign:
+            return "\(chapter.talismanName) reigns here. It can act through this territory without waiting to be asked."
+        case .none:
+            return "\(territory.name) is quiet."
+        }
+    }
+}
+
+/// The reader rules a contested reading: two Talismans read one real kept page
+/// through opposite philosophies, and the reader decides which is true. Presented
+/// from the daily feed; the winner gains the territory that governs the page.
+struct PactVerdictSheet: View {
+    let surface: SurfacePage
+    var onRule: (_ winnerTalismanID: String, _ loserTalismanID: String) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Two Talismans stopped on the same page of your life and cannot agree on what it was. The Book won't settle it. You were there — rule for the reading that's true.")
+                        .font(.system(.callout, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    PactVerdictOptions(surface: surface) { winner, loser in
+                        onRule(winner, loser)
+                        dismiss()
+                    }
+                }
+                .padding(20)
+            }
+            .background(BookPalette.page.ignoresSafeArea())
+            .navigationTitle("The Reading")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Not now") { dismiss() } }
+            }
+        }
+    }
+}
+
+/// The two ruling rows, shared by the verdict sheet and the Pact Map's pending
+/// section. Reads the talismans, readings, and territory from the surface payload.
+struct PactVerdictOptions: View {
+    let surface: SurfacePage
+    var onRule: (_ winnerTalismanID: String, _ loserTalismanID: String) -> Void
+
+    var body: some View {
+        let meta = surface.payload.metadata
+        let talismanA = meta["talismanA"] ?? ""
+        let talismanB = meta["talismanB"] ?? ""
+        let territoryName = meta["territoryName"] ?? "this shelf"
+        VStack(spacing: 12) {
+            option(name: meta["talismanAName"] ?? "A Talisman",
+                   reading: meta["readingA"] ?? "",
+                   territoryName: territoryName) { onRule(talismanA, talismanB) }
+            option(name: meta["talismanBName"] ?? "A Talisman",
+                   reading: meta["readingB"] ?? "",
+                   territoryName: territoryName) { onRule(talismanB, talismanA) }
+        }
+    }
+
+    @ViewBuilder
+    private func option(name: String, reading: String, territoryName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(name)
+                    .font(.headline)
+                    .foregroundStyle(BookPalette.ink)
+                Text(reading)
+                    .font(.system(.body, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.86))
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Rule for this reading — \(territoryName) shifts toward it")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.teal)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// A Talisman has sent the reader into the real day; the reader pays the errand
+/// with a genuine field report. The talisman gains Control Belief on its territory.
+struct PactErrandSheet: View {
+    let surface: SurfacePage
+    var onDeliver: (_ report: String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var report = ""
+
+    private var trimmed: String { report.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        let meta = surface.payload.metadata
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(meta["openingLine"] ?? "A Talisman sets a task.")
+                        .font(.system(.callout, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("THE ERRAND")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.5))
+                    Text(meta["terms"] ?? "")
+                        .font(.system(.body, design: .serif))
+                        .foregroundStyle(BookPalette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("YOUR FIELD REPORT")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.5))
+                    TextField("What you actually did, saw, or heard…", text: $report, axis: .vertical)
+                        .lineLimit(3...8)
+                        .font(.system(.body, design: .serif))
+                        .padding(12)
+                        .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 10).stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
+                        }
+
+                    Button {
+                        onDeliver(trimmed)
+                        dismiss()
+                    } label: {
+                        Text("Deliver — \(meta["talismanName"] ?? "the Talisman") gains \(meta["territoryName"] ?? "ground")")
+                            .font(.subheadline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(BookPalette.teal)
+                    .disabled(trimmed.count < 3)
+                }
+                .padding(20)
+            }
+            .background(BookPalette.page.ignoresSafeArea())
+            .navigationTitle("A Talisman's Errand")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Not now") { dismiss() } }
+            }
+        }
     }
 }

@@ -1882,10 +1882,10 @@ struct FirstDoorOriginPageSourceAdapter: BookPageSourceAdapter {
             renderStyle: .loreLetter,
             score: score,
             reason: reason,
-            prompt: "Your First Door",
-            detail: "The private page made from your first answers.",
+            prompt: "Your Origin Page",
+            detail: "The private memory made from your first answers.",
             payload: BookPagePayload(
-                headline: "\(name)'s First Door",
+                headline: name == "Reader" ? "Your Origin Page" : "\(name)'s Origin Page",
                 body: """
                 This is the page the Book made from the first things you gave it.
 
@@ -1910,6 +1910,7 @@ struct FirstDoorOriginPageSourceAdapter: BookPageSourceAdapter {
                     "firstDoorOrigin": "true",
                     "welcomePage": "true",
                     "firstRunStep": "first-door-origin",
+                    "surfaceLabel": "Origin",
                     "playerName": name,
                     "privacy": "private local",
                     "symbol": source.symbolName,
@@ -2720,79 +2721,6 @@ struct EnchantifyLorePageSourceAdapter: BookPageSourceAdapter {
                 headline: snippet.title,
                 body: snippet.body,
                 metadata: metadata
-            )
-        )
-    }
-}
-
-struct PatreonPageSourceAdapter: BookPageSourceAdapter {
-    let source = BookPageSourceRegistry.source(for: .patreon)
-    private let patreonURL = "https://patreon.com/thedoobaleedoos"
-
-    func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
-        patreonSurface(
-            snippet: BookReferenceCatalog.rotatingPatreonShelfSnippet(for: day, now: now, manual: true),
-            day: day,
-            context: context,
-            now: now
-        )
-    }
-
-    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        guard source.isActive else {
-            return []
-        }
-
-        let snippet = BookReferenceCatalog.rotatingPatreonShelfSnippet(for: day, now: now)
-        return [patreonSurface(snippet: snippet, day: day, context: context, now: now)]
-    }
-
-    private func patreonSurface(snippet: ReferenceSnippet, day: BookDay, context: CuratorContext, now: Date) -> SurfacePage {
-        let posts = BookReferenceCatalog.patreonPostSnippets(limit: 6, now: now)
-        let postLinks = posts.compactMap { post -> String? in
-            guard let url = BookReferenceCatalog.firstURL(in: post) else { return nil }
-            return "\(post.title)||\(url)"
-        }
-        let postPreviews = posts.compactMap { post -> String? in
-            guard let url = BookReferenceCatalog.firstURL(in: post) else { return nil }
-            let preview = post.preview?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-                ? post.preview ?? ""
-                : post.body
-            return [
-                post.title,
-                url,
-                post.publishedAt ?? "",
-                preview.replacingOccurrences(of: "\n", with: " ")
-            ].joined(separator: "||")
-        }
-        let postList = posts.isEmpty
-            ? ""
-            : "\n\nNewest articles on the public shelf:\n" + posts.map { post in
-                let published = post.publishedAt?.isEmpty == false ? " (\(post.publishedAt ?? ""))" : ""
-                return "- \(post.title)\(published)"
-            }.joined(separator: "\n")
-        return SurfacePage(
-            id: "\(source.id)-\(snippet.id)",
-            type: .patreon,
-            sourceID: source.id,
-            intent: .importReference,
-            renderStyle: .quoteCard,
-            score: context.distress.isActive ? 48 : 61,
-            reason: "The public shelf should be easy to find without making the private Book less private.",
-            prompt: "The public shelf is open.",
-            detail: "Read free Wonder Compass and Clubhouse posts on Patreon.",
-            payload: BookPagePayload(
-                headline: snippet.title,
-                body: snippet.body + postList,
-                metadata: [
-                    "source": source.id,
-                    "url": patreonURL,
-                    "links": postLinks.joined(separator: "\n"),
-                    "articlePreviews": postPreviews.joined(separator: "\n"),
-                    "snippetID": snippet.id,
-                    "tags": snippet.tags.joined(separator: ","),
-                    "privacy": "public link"
-                ]
             )
         )
     }
@@ -4595,6 +4523,168 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+// Surfaces "The Reading": two rival Talismans read one of the reader's real kept
+// pages through opposite philosophies, and the reader rules. The matchup and the
+// territory at stake are dictated by the live Pact War state. Static prose, no
+// model call; distress-gated, once per ~18h, and never re-asks a page already ruled.
+struct PactVerdictPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .pactVerdict)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive, !context.distress.isActive else { return [] }
+        guard !day.pages.contains(where: { $0.type == .pactVerdict }) else { return [] }
+        guard inputs.surfaceHistory["source:\(source.id)"].map({ now.timeIntervalSince($0.lastShownAt) >= 18 * 3600 }) ?? true else {
+            return []
+        }
+
+        // Pick the most recent kept page a shelf governs and that hasn't been ruled.
+        let ruled = ruledPageIDs(in: inputs.days + [day])
+        let candidate = (inputs.days.flatMap(\.capturedPages) + day.capturedPages)
+            .sorted { $0.createdAt > $1.createdAt }
+            .first { !ruled.contains($0.id) && PactTerritoryRegistry.shelf(governing: $0.type) != nil }
+        guard let page = candidate,
+              let shelf = PactTerritoryRegistry.shelf(governing: page.type) else { return [] }
+
+        // The matchup is dictated by the real territory: its controller (or the
+        // first Talisman aligned to the shelf) vs. a different Talisman that wants it.
+        let aligned = AcademyChapterRegistry.chapters.map(\.talismanID)
+            .filter { PactWarEngine.isAligned($0, shelf.id) }
+        let talismanA = inputs.pactWar.controller(of: shelf.id)
+            ?? aligned.first
+            ?? AcademyChapterRegistry.chapters[0].talismanID
+        let talismanB = pickChallenger(against: talismanA, shelf: shelf, aligned: aligned, state: inputs.pactWar)
+        guard talismanA != talismanB else { return [] }
+
+        let nameA = AcademyChapterRegistry.chapter(forTalismanID: talismanA)?.talismanName ?? "A Talisman"
+        let nameB = AcademyChapterRegistry.chapter(forTalismanID: talismanB)?.talismanName ?? "A Talisman"
+        let readingA = PactReadings.reading(talismanID: talismanA, pageText: page.userInput)
+        let readingB = PactReadings.reading(talismanID: talismanB, pageText: page.userInput)
+
+        let body = """
+        Two Talismans have stopped on the same page of your life — \(PactReadings.clip(page.userInput)) — and they cannot agree on what it was.
+
+        \(nameA): \(readingA)
+
+        \(nameB): \(readingB)
+
+        The Book won't settle it. You were there. Rule for the reading that's true, and \(shelf.name) shifts toward it.
+        """
+
+        return [
+            SurfacePage(
+                id: "\(source.id)-\(page.id)",
+                type: .pactVerdict,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                score: 79,
+                reason: "\(nameA) and \(nameB) are fighting over what one of your real days meant.",
+                prompt: "The Reading",
+                detail: "\(nameA) and \(nameB) read the same kept page differently. You rule — and \(shelf.name) moves.",
+                payload: BookPagePayload(
+                    headline: "The Reading",
+                    body: body,
+                    metadata: [
+                        "source": source.id,
+                        "pageID": page.id,
+                        "territoryID": shelf.id,
+                        "territoryName": shelf.name,
+                        "talismanA": talismanA,
+                        "talismanB": talismanB,
+                        "talismanAName": nameA,
+                        "talismanBName": nameB,
+                        "readingA": readingA,
+                        "readingB": readingB,
+                        "tags": "pact-verdict,pact-war,pact-verdict:\(page.id)"
+                    ]
+                )
+            )
+        ]
+    }
+
+    /// Page ids already ruled (or kept) — tagged `pact-verdict:<pageID>`.
+    private func ruledPageIDs(in days: [BookDay]) -> Set<String> {
+        var ids = Set<String>()
+        for day in days {
+            for page in day.pages {
+                for tag in page.tags where tag.hasPrefix("pact-verdict:") {
+                    ids.insert(String(tag.dropFirst("pact-verdict:".count)))
+                }
+            }
+        }
+        return ids
+    }
+
+    /// A different Talisman that wants this shelf: the strongest aligned rival to
+    /// the holder, else the strongest non-holder by control, else any other.
+    private func pickChallenger(against holder: String, shelf: PactTerritory, aligned: [String], state: PactWarState) -> String {
+        let rivalsAligned = aligned.filter { $0 != holder }
+        if let best = rivalsAligned.max(by: { state.control($0, shelf.id) < state.control($1, shelf.id) }) {
+            return best
+        }
+        let others = AcademyChapterRegistry.chapters.map(\.talismanID).filter { $0 != holder }
+        return others.max(by: { state.control($0, shelf.id) < state.control($1, shelf.id) }) ?? holder
+    }
+}
+
+// Surfaces "A Talisman's Errand": a talisman that holds a foothold sends the reader
+// into the real day, paid in a field report. Mirrors the Fae Bargain's surfacing —
+// one open errand at a time, distress-gated.
+struct PactErrandPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .pactErrand)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive, !context.distress.isActive else { return [] }
+        guard let errand = inputs.pactWar.openErrand else { return [] }
+        return [page(for: errand, now: now)]
+    }
+
+    private func page(for errand: PactErrand, now: Date) -> SurfacePage {
+        let chapter = AcademyChapterRegistry.chapter(forTalismanID: errand.talismanID)
+        let name = chapter?.talismanName ?? "A Talisman"
+        let territory = PactTerritoryRegistry.territory(id: errand.territoryID)
+        let hoursLeft = max(0, Int(errand.deadline.timeIntervalSince(now) / 3_600))
+        let deadlineLine = hoursLeft >= 24
+            ? "about \(hoursLeft / 24) day\(hoursLeft / 24 == 1 ? "" : "s") to run it"
+            : (hoursLeft > 0 ? "about \(hoursLeft) hour\(hoursLeft == 1 ? "" : "s") to run it" : "the errand is due now")
+        let body = """
+        \(errand.openingLine)
+
+        \(name) already holds \(territory?.name ?? "ground in the war") and wants more — but not by simulation. It wants you to go and do something in the real day.
+
+        The errand: \(errand.terms)
+
+        You have \(deadlineLine). Bring back a true field report, and \(name) gains \(territory?.name ?? "its territory") — the noticing you did becomes its ground.\(chapter.map { "\n\n\($0.name)'s doctrine: \($0.philosophy)" } ?? "")
+        """
+        return SurfacePage(
+            id: "\(source.id)-\(errand.id)",
+            type: .pactErrand,
+            sourceID: source.id,
+            intent: .capture,
+            renderStyle: .loreLetter,
+            score: 77,
+            reason: "\(name) has set you an errand in the real day.",
+            prompt: "A Talisman's Errand",
+            detail: errand.terms,
+            payload: BookPagePayload(
+                headline: "A Talisman's Errand",
+                body: body.trimmingCharacters(in: .whitespacesAndNewlines),
+                metadata: [
+                    "source": source.id,
+                    "errandID": errand.id,
+                    "talismanID": errand.talismanID,
+                    "talismanName": name,
+                    "territoryID": errand.territoryID,
+                    "territoryName": territory?.name ?? "",
+                    "terms": errand.terms,
+                    "openingLine": errand.openingLine,
+                    "tags": "pact-errand,pact-war"
+                ]
+            )
+        )
+    }
+}
+
 struct CastBondPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .castBond)
 
@@ -5193,6 +5283,8 @@ enum BookPageSourceAdapters {
         FaeBargainPageSourceAdapter(),
         BookFaePageSourceAdapter(),
         PactDispatchPageSourceAdapter(),
+        PactVerdictPageSourceAdapter(),
+        PactErrandPageSourceAdapter(),
         FestivalPageSourceAdapter(),
         TodaysSkyPageSourceAdapter(),
         RadioPageSourceAdapter(),
@@ -5216,7 +5308,6 @@ enum BookPageSourceAdapters {
         WonderCompassPageSourceAdapter(),
         EnchantifyLorePageSourceAdapter(),
         HelpTipsPageSourceAdapter(),
-        PatreonPageSourceAdapter(),
         LabyrinthIllustrationPageSourceAdapter(),
         IlluminatedPhotoPageSourceAdapter(),
         NarrativeOSPageSourceAdapter(),

@@ -98,8 +98,6 @@ MOTHLIGHT BEATS · 90.9 FM · DJ: Professor Eleanor Euphony
 ### DJ_mothlight_talisman_moss_clasp_01      [gossip · anytime]
 [softly] They say the Moss Clasp — Mossbloom's quiet talisman — grows one new leaf whenever someone is truly listened to. Not spoken at. Listened to. [warmly] It's older than its setting, and slow to act even when acting would be kind, because it trusts that the larger story is already being written. [softly] Someone, somewhere, is growing it a leaf right now, just by being heard. Be that for someone tonight.
 
-### DJ_mothlight_cast_vellum_01      [gossip · after recent Body/Fuel pages]
-[warmly] A note in from Dr. Elowen Vellum, who turns breakfast into field notes and can make a supplement interaction sound like good manners. [softly] She read a couple of your body and fuel pages as one small experiment — no verdict, no shame in it. The body is not a problem to win against, she says. [warmly] So: water, perhaps. A gentler hour. Recovery counts as plot. Let the song carry the rest of it.
 
 ### DJ_mothlight_cast_inkrest_01      [gossip · after Office Hours / Mood / Diary pages]
 [whispers] Dr. Inkrest sets the chairs out before the feelings arrive — did you know that? She seats a hard page near a lamp before she asks it to speak a single word. [softly] A difficult feeling isn't a verdict in that office. It's a page. And a page can be named, and seated, and revised one hour at a time. [warmly] If today sat heavy as a low note, her office hours are the kind of door that simply opens. No appointment. Just weather, a chair, and the lamp.
@@ -239,7 +237,7 @@ CROSS-STATION NETWORK IDs  (whole-band stings)
 ........................................................................
 
 ### DJ_faefi_network_band_01      [network · day · voiced by Penny]
-[dryly] For the record, the whole dial, filed in order: eighty-eight three, me, against my will. Ninety point nine, Euphony at Mothlight. One-oh-three seven, Wicker on Thornwave. [warmly] And if you can hear Villanelle's Bindery at ninety-nine three, or Melisande's Market at one-oh-five one, you've gone properly nocturnal. [dryly] Spin the dial. Somebody's playing your weather.
+[dryly] For the record, the whole dial, filed in order: eighty-eight three, me, against my will. Ninety point nine, Euphony at Mothlight. One-oh-three seven, Wicker on Thornwave. [dryly] Spin the dial. Somebody's playing your weather.
 
 ### DJ_thornwave_network_grey_01      [network · dusk/night · voiced by Wicker]
 [low] One thing the whole band agrees on, and we agree on almost nothing: this is the sound the grey can't get into. [smooth] ReEnchanted Radio. Keep believing out loud — [amused] it's the only thing that's ever worked, and I've spent my whole life trying to prove otherwise. [low] Spin on.

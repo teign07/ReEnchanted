@@ -821,12 +821,12 @@ enum BookReferenceCatalog {
 
     static let fallbackPatreon: [ReferenceSnippet] = [
         ReferenceSnippet(
-            id: "patreon-clubhouse-free-shelf",
+            id: "creator-notes-retired",
             sourceID: "patreon-packet",
-            title: "Patreon Clubhouse",
-            prompt: "The free shelf is open.",
-            body: "The Wonder Compass ebook, printable play-sheets, Spark menus, Playful Mission menus, and Clubhouse notes live at patreon.com/thedoobaleedoos. The practice is free; the attention is real.",
-            tags: ["patreon", "clubhouse", "wonder-compass", "free"]
+            title: "Creator Notes",
+            prompt: "The public shelf is retired.",
+            body: "Creator support notes are retired from the Book's daily pages. The private Book keeps its attention on the reader's own pages.",
+            tags: ["creator-notes", "retired"]
         )
     ]
 

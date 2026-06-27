@@ -625,7 +625,7 @@ enum NarrativePackRegistry {
             belief: 24,
             weight: 18,
             chapter: "Riddlewind",
-            unwrittenInterest: "Indie publishing, ethical marketing, Patreon, open-source storytelling, and the creator economy.",
+            unwrittenInterest: "Indie publishing, ethical marketing, reader-supported storytelling, open-source storytelling, and the creator economy.",
             traits: ["dry", "warm", "observant"],
             quirks: ["files ridiculous evidence", "distrusts sentences that arrive too polished"],
             faults: ["can over-label a perfectly good mystery"],
@@ -2126,6 +2126,14 @@ enum NarrativeEventResolver {
             entityDeltas["the-book", default: 0] += 1
             threadDeltas["ordinary-magic", default: 0] += 1
             createdHint = "A kept dispatch marks a turn in the Talismans' long war over the reader's margins."
+        case .pactVerdict:
+            entityDeltas["the-book", default: 0] += 1
+            threadDeltas["ordinary-magic", default: 0] += 1
+            createdHint = "A ruled reading binds the reader's own verdict into the Talismans' war — the philosophy they chose to read the day by gains ground."
+        case .pactErrand:
+            entityDeltas["the-book", default: 0] += 1
+            threadDeltas["ordinary-magic", default: 0] += 1
+            createdHint = "A delivered errand pays a Talisman in lived attention; the noticing the reader did in the real day becomes the Talisman's ground."
         case .festival:
             entityDeltas["the-book", default: 0] += 2
             threadDeltas["ordinary-magic", default: 0] += 2

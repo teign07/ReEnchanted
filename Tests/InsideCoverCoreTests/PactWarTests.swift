@@ -119,6 +119,21 @@ final class PactWarTests: XCTestCase {
         XCTAssertNil(PactWarEffects.framed(story, state: state).payload.metadata["pactFraming"])
     }
 
+    func testFramedAnnotatesEarlyShelfStoryBeforeControl() {
+        var state = PactWarState()
+        state.control[PactWarState.key("moss-clasp", "shelf-care")] = 12
+        let body = SurfacePage(
+            id: "b", type: .body, sourceID: "body-page", intent: .reflect,
+            renderStyle: .gentleTranslation, score: 50, reason: "", prompt: "p", detail: "d",
+            payload: BookPagePayload(headline: "h", body: "b")
+        )
+        let framed = PactWarEffects.framed(body, state: state)
+        XCTAssertEqual(framed.payload.metadata["pactShelfTalisman"], "The Moss Clasp")
+        XCTAssertEqual(framed.payload.metadata["pactShelfTier"], PactTier.influenced.label)
+        XCTAssertNotNil(framed.payload.metadata["pactShelfStory"])
+        XCTAssertNil(framed.payload.metadata["pactFraming"], "early influence explains itself but does not rewrite the page yet")
+    }
+
     func testWhisperAndHourVoicesShiftByController() {
         XCTAssertNotEqual(PactVoices.braidWhisper(controller: "ember-seal").body,
                           PactVoices.braidWhisper(controller: "moss-clasp").body)
@@ -235,6 +250,110 @@ final class PactWarTests: XCTestCase {
         XCTAssertNil(PactVoices.sovereignWhisper(controller: nil))
         XCTAssertNotEqual(PactVoices.sovereignWhisper(controller: "ember-seal")?.body,
                           PactVoices.sovereignWhisper(controller: "dusk-thorn")?.body)
+    }
+
+    func testVerdictAdapterSurfacesAContestedReadingOfARealPage() {
+        var inputs = BookSourceInputs.empty
+        inputs.pactWar = PactWarState()
+        let day = BookDay(id: BookDay.today().id, date: Date(), pages: [
+            BookPage(type: .diary, promptText: "Diary", userInput: "I walked to the harbor and the fog came in.")
+        ])
+        let adapter = PactVerdictPageSourceAdapter()
+        let surfaced = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: Date())
+        XCTAssertEqual(surfaced.first?.type, .pactVerdict)
+        let meta = surfaced.first?.payload.metadata
+        XCTAssertEqual(meta?["territoryID"], "shelf-reflection", "a diary page is governed by the Reflection shelf")
+        XCTAssertNotEqual(meta?["talismanA"], meta?["talismanB"], "two different Talismans contest the reading")
+        XCTAssertFalse(meta?["readingA"]?.isEmpty ?? true)
+        XCTAssertFalse(meta?["readingB"]?.isEmpty ?? true)
+    }
+
+    func testRuledPageIsNeverReAsked() {
+        var inputs = BookSourceInputs.empty
+        inputs.pactWar = PactWarState()
+        var page = BookPage(type: .diary, promptText: "Diary", userInput: "a kept day")
+        page.tags = ["pact-verdict:\(page.id)"]   // already ruled
+        let day = BookDay(id: BookDay.today().id, date: Date(), pages: [page])
+        let adapter = PactVerdictPageSourceAdapter()
+        let after = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: Date())
+        XCTAssertTrue(after.isEmpty, "a page already ruled is never re-asked")
+    }
+
+    func testReaderVerdictAdjustClampsControl() {
+        var state = PactWarState()
+        state.adjust("ember-seal", "shelf-reflection", by: 6)
+        XCTAssertEqual(state.control("ember-seal", "shelf-reflection"), 6)
+        state.adjust("ember-seal", "shelf-reflection", by: -100)
+        XCTAssertEqual(state.control("ember-seal", "shelf-reflection"), 0, "clamped at 0")
+    }
+
+    func testReaderVerdictCanSeizeATerritoryAndQueueADispatch() {
+        var state = PactWarState()
+        // Moss-clasp sits as a thin controller; the reader rules hard for Emberheart.
+        state.control[PactWarState.key("moss-clasp", "shelf-reflection")] = 4
+        let before = state
+        state.adjust("ember-seal", "shelf-reflection", by: 6)   // verdict winner bump
+        state.adjust("moss-clasp", "shelf-reflection", by: -2)  // loser gives a little
+        let newSovereign = PactWarEngine.detectCrossings(before: before, into: &state, now: Date())
+        XCTAssertFalse(newSovereign)
+        XCTAssertEqual(state.controller(of: "shelf-reflection"), "ember-seal", "the reader's hand changed who holds the shelf")
+        XCTAssertTrue(state.pendingDispatches.contains { $0.kind == .seized && $0.territoryID == "shelf-reflection" })
+    }
+
+    func testPactWarStateDecodesFromJSONMissingErrands() throws {
+        // An older save predates `errands`; decoding must not throw and the field
+        // defaults to empty while the rest survives.
+        let json = """
+        {"control":{"ember-seal|shelf-reflection":30},"log":[],"pendingDispatches":[]}
+        """.data(using: .utf8)!
+        let state = try JSONDecoder().decode(PactWarState.self, from: json)
+        XCTAssertEqual(state.control("ember-seal", "shelf-reflection"), 30)
+        XCTAssertTrue(state.errands.isEmpty)
+        // And it round-trips cleanly with the new field present.
+        let reencoded = try JSONEncoder().encode(state)
+        let again = try JSONDecoder().decode(PactWarState.self, from: reencoded)
+        XCTAssertEqual(again, state)
+    }
+
+    func testErrandIsOnlyOfferedFromARealFoothold() {
+        var state = PactWarState()
+        XCTAssertNil(PactWarEngine.offerErrand(into: &state), "no foothold, no errand")
+        // Give Emberheart an Influenced foothold on the Reflection shelf.
+        state.control[PactWarState.key("ember-seal", "shelf-reflection")] = 20
+        let errand = PactWarEngine.offerErrand(into: &state)
+        XCTAssertEqual(errand?.talismanID, "ember-seal")
+        XCTAssertEqual(errand?.territoryID, "shelf-reflection")
+        XCTAssertEqual(errand?.status, .owed)
+        // Only one open errand at a time.
+        XCTAssertNil(PactWarEngine.offerErrand(into: &state))
+    }
+
+    func testDeliverErrandGainsControlAndMarksDelivered() {
+        var state = PactWarState()
+        state.control[PactWarState.key("moss-clasp", "shelf-care")] = 20
+        let errand = PactWarEngine.offerErrand(into: &state)!
+        let before = state.control("moss-clasp", "shelf-care")
+        let newSovereign = PactWarEngine.deliverErrand(errandID: errand.id, report: "I sat by the window and the rain wrote a line.", into: &state)
+        XCTAssertFalse(newSovereign)
+        XCTAssertEqual(state.control("moss-clasp", "shelf-care") - before, PactErrands.controlReward)
+        let delivered = state.errands.first { $0.id == errand.id }
+        XCTAssertEqual(delivered?.status, .delivered)
+        XCTAssertFalse(delivered?.fieldReport?.isEmpty ?? true)
+        XCTAssertFalse(delivered?.talismanResponse?.isEmpty ?? true)
+        XCTAssertTrue(state.log.contains { $0.kind == .errand })
+    }
+
+    func testErrandLapsesAfterItsDeadline() {
+        var state = PactWarState()
+        state.control[PactWarState.key("tide-glass", "shelf-field")] = 20
+        let now = Date()
+        let errand = PactWarEngine.offerErrand(into: &state, now: now)!
+        // Nothing lapses before the deadline.
+        XCTAssertTrue(PactWarEngine.sweepErrandLapses(into: &state, now: now).isEmpty)
+        // Well past the payment window, the owed errand lapses.
+        let later = errand.deadline.addingTimeInterval(3_600)
+        XCTAssertEqual(PactWarEngine.sweepErrandLapses(into: &state, now: later), [errand.id])
+        XCTAssertEqual(state.openErrand, nil)
     }
 
     func testEveryShelfPageTypeMapsToOneShelf() {

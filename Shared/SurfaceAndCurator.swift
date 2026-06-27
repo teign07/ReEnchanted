@@ -366,6 +366,10 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .simulate
         case .pactDispatch:
             return .importReference
+        case .pactVerdict:
+            return .reflect
+        case .pactErrand:
+            return .capture
         case .festival:
             return .capture
         case .twoReadings:
@@ -1102,7 +1106,9 @@ struct CuratorMood {
         .marginsAtlas,
         .theBleed,
         .bookJump,
-        .pactDispatch
+        .pactDispatch,
+        .pactVerdict,
+        .pactErrand
     ]
 
     private static let firstHoursOrientationBoosts: [BookPageType: Int] = [

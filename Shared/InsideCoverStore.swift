@@ -1663,6 +1663,10 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "the Book Fae stepping out from the margins" : "the Book Fae answering \(clipped)"
         case .pactDispatch:
             return clipped.isEmpty ? "a dispatch from the Pact War" : "a Pact dispatch about \(clipped)"
+        case .pactVerdict:
+            return clipped.isEmpty ? "a reading of the day ruled in the Pact War" : "a Pact reading ruled over \(clipped)"
+        case .pactErrand:
+            return clipped.isEmpty ? "an errand run for a Talisman of the Pact War" : "a Talisman's errand paid with \(clipped)"
         case .festival:
             return clipped.isEmpty ? "a festival of the turning Wheel" : "a festival kept with \(clipped)"
         case .twoReadings:

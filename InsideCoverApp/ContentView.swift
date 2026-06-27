@@ -100,6 +100,8 @@ struct ContentView: View {
     @State var days: [BookDay] = [BookDay.today()]
     @State var generation = GenerationCoordinator()
     @State var selectedSurface: SurfacePage?
+    @State var pactVerdictSurface: SurfacePage?
+    @State var pactErrandSurface: SurfacePage?
     @State var radioManager = BookRadioManager.shared
     @State var isInstallingModel = false
     @State var didRunSmokeBraid = false
@@ -142,6 +144,7 @@ struct ContentView: View {
     @AppStorage("didRequestHealthKitBodySignal") var didRequestHealthKitBodySignal = false
     @AppStorage("didRequestWeatherLocation") var didRequestWeatherLocation = false
     @AppStorage("didRequestAnchorLocation") var didRequestAnchorLocation = false
+    @AppStorage("didGrantLocationContextAccess") var didGrantLocationContextAccess = false
     var vault: PlayerVault { PlayerVault.shared }
     var anchorLedgerData: String {
         get {
@@ -582,6 +585,7 @@ struct ContentView: View {
                             .frame(maxWidth: 920)
                             .frame(maxWidth: .infinity)
                         }
+                        .accessibilityHidden(isOpeningMovieVisible || isStoryOnboardingActive)
                     }
                 }
 
@@ -627,7 +631,6 @@ struct ContentView: View {
                 if isOpeningMovieVisible {
                     OpeningMovieView {
                         Task {
-                            await waitForLaunchStateHydration()
                             withAnimation(.easeInOut(duration: 0.28)) {
                                 isOpeningMovieVisible = false
                             }
@@ -678,7 +681,7 @@ struct ContentView: View {
             }
             .navigationTitle("ReEnchanted")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar(isGlowMenuPresented ? .hidden : .visible, for: .navigationBar)
+            .toolbar((isGlowMenuPresented || isOpeningMovieVisible || isStoryOnboardingActive) ? .hidden : .visible, for: .navigationBar)
             .task {
                 restoreRadioIfNeeded()
                 await runPostLaunchTasksIfNeeded()
@@ -758,6 +761,27 @@ struct ContentView: View {
             }
             .onChange(of: isQuietMechanicsExpanded) { _, expanded in
                 if expanded { tutorTouch("colophon") }
+            }
+            .sheet(item: $pactVerdictSurface) { surface in
+                PactVerdictSheet(surface: surface) { winner, loser in
+                    rulePactVerdict(
+                        winnerTalismanID: winner,
+                        loserTalismanID: loser,
+                        territoryID: surface.payload.metadata["territoryID"] ?? "",
+                        pageID: surface.payload.metadata["pageID"] ?? ""
+                    )
+                    dismissSurface(surface)
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+            .sheet(item: $pactErrandSurface) { surface in
+                PactErrandSheet(surface: surface) { report in
+                    payPactErrand(errandID: surface.payload.metadata["errandID"] ?? "", report: report)
+                    dismissSurface(surface)
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
             .sheet(item: $selectedSurface) { surface in
                 CapturePageSheet(
@@ -895,6 +919,17 @@ struct ContentView: View {
                         if let talismanID = boundTalismanID {
                             pressPactClaim(talismanID: talismanID, territoryID: territoryID)
                         }
+                    },
+                    pendingVerdict: surfaces.first { $0.type == .pactVerdict },
+                    onRuleVerdict: { winner, loser in
+                        guard let verdict = surfaces.first(where: { $0.type == .pactVerdict }) else { return }
+                        rulePactVerdict(
+                            winnerTalismanID: winner,
+                            loserTalismanID: loser,
+                            territoryID: verdict.payload.metadata["territoryID"] ?? "",
+                            pageID: verdict.payload.metadata["pageID"] ?? ""
+                        )
+                        dismissSurface(verdict)
                     }
                 )
                 .presentationDetents([.large])
@@ -1106,7 +1141,7 @@ struct ContentView: View {
         tendConstellations()
         maybeRequestFirstDoorAppReview()
         nearbyPlaces = LocalPlacesScout.cachedPlaces()
-        if didRequestAnchorLocation || didRequestWeatherLocation {
+        if didGrantLocationContextAccess {
             let scouted = await LocalPlacesScout.refreshIfNeeded()
             if scouted.count != nearbyPlaces.count {
                 nearbyPlaces = scouted
@@ -1114,7 +1149,9 @@ struct ContentView: View {
                 nearbyPlaces = scouted
             }
         }
-        await refreshAnchorProximity(isUserInitiated: false)
+        if didGrantLocationContextAccess {
+            await refreshAnchorProximity(isUserInitiated: false)
+        }
         await runLaunchSmokeTestIfRequested()
     }
 
@@ -2441,6 +2478,10 @@ struct ContentView: View {
                                 Task { await generateAndOpenSurface(surface) }
                             } else if surface.type == .bookConnections {
                                 isConnectionsPresented = true
+                            } else if surface.type == .pactVerdict {
+                                pactVerdictSurface = surface
+                            } else if surface.type == .pactErrand {
+                                pactErrandSurface = surface
                             } else if surface.payload.metadata["opensBookShop"] == "true" {
                                 currentStall = buildGoblinStall()
                                 isBookShopPresented = true
@@ -3553,15 +3594,25 @@ struct ContentView: View {
     func tendPact(now: Date = Date()) {
         guard scenePhase == .active else { return }
         var state = vault.data.pactWar ?? PactWarState()
+        let distress = DistressSignals.evaluate(day: today).isActive
         let dispatchesBefore = Set(state.pendingDispatches.map(\.id))
         let records = PactWarEngine.tick(
             into: &state,
             entityBeliefOffsets: entityBeliefLedger,
             boundTalismanID: boundTalismanID,
             now: now,
-            distressActive: DistressSignals.evaluate(day: today).isActive
+            distressActive: distress
         )
-        guard !records.isEmpty else { return }
+
+        // Errands age and arrive independently of the once-a-day tick, but stay
+        // silent under distress like the rest of the war. A talisman with a real
+        // foothold sends the reader out; an unpaid errand eventually lapses.
+        var changed = !records.isEmpty
+        if !distress {
+            if !PactWarEngine.sweepErrandLapses(into: &state, now: now).isEmpty { changed = true }
+            if PactWarEngine.offerErrand(into: &state, now: now) != nil { changed = true }
+        }
+        guard changed else { return }
         vault.data.pactWar = state
 
         // A Talisman reaching Sovereign is "something significant" — the rare
@@ -3657,6 +3708,90 @@ struct ContentView: View {
         }
         surfaceRefreshDate = now
         BookFeedback.play(.select)
+    }
+
+    /// Rule a contested reading: the reader decides which Talisman's philosophy
+    /// truly read one of their real kept pages. The winner gains ground on the
+    /// territory that governs that page, the loser gives a little, and the verdict
+    /// can seize a territory or crown a Sovereign — the reader, not the simulation,
+    /// driving the war. Pure local; no model call.
+    func rulePactVerdict(winnerTalismanID: String, loserTalismanID: String, territoryID: String, pageID: String, now: Date = Date()) {
+        var state = vault.data.pactWar ?? PactWarState()
+        let before = state
+        state.adjust(winnerTalismanID, territoryID, by: 6)
+        state.adjust(loserTalismanID, territoryID, by: -2)
+
+        let winnerName = AcademyChapterRegistry.chapter(forTalismanID: winnerTalismanID)?.talismanName ?? winnerTalismanID
+        let territoryName = PactTerritoryRegistry.territory(id: territoryID)?.name ?? "this territory"
+        let record = PactActionRecord(
+            id: "\(territoryID)-\(winnerTalismanID)-\(Int(now.timeIntervalSince1970))-verdict",
+            talismanID: winnerTalismanID,
+            territoryID: territoryID,
+            kind: .verdict,
+            at: now,
+            line: "\(winnerName) wins your reading of the day, and gains \(territoryName)."
+        )
+        state.log = ([record] + state.log).prefix(24).map { $0 }
+
+        let newSovereign = PactWarEngine.detectCrossings(before: before, into: &state, now: now)
+        vault.data.pactWar = state
+
+        // A reader-made Sovereign crossing fronts a goblin bargain, exactly like the tick.
+        if newSovereign {
+            var fae = vault.data.fae ?? FaePlayerState()
+            if FaeEconomy.canOfferBargain(state: fae, now: now) {
+                FaeEconomy.offerBargain(into: &fae, kind: .goblin, slot: "verdict-sovereign-\(BookDay.id(for: now))", now: now)
+                vault.data.fae = fae
+            }
+        }
+        vault.save()
+
+        // Warm the winning Talisman as a believed-in entity (mirrors pressPactClaim).
+        if let chapter = AcademyChapterRegistry.chapter(forTalismanID: winnerTalismanID) {
+            let talisman = GlowEntityMenuItem(id: winnerTalismanID, name: chapter.talismanName, kind: "talisman", glow: 0, line: chapter.philosophy)
+            adjustEntityBelief(talisman, delta: 1, kind: .beliefInvested)
+        }
+
+        // Tag the original kept page so this reading is never re-asked.
+        if let dayIndex = days.firstIndex(where: { $0.pages.contains { $0.id == pageID } }),
+           let pageIndex = days[dayIndex].pages.firstIndex(where: { $0.id == pageID }) {
+            var day = days[dayIndex]
+            var page = day.pages[pageIndex]
+            if !page.tags.contains("pact-verdict:\(pageID)") {
+                page.tags = Set(page.tags).union(["pact-verdict:\(pageID)"]).sorted()
+                day.pages[pageIndex] = page
+                persist(day: day, message: "You ruled the reading. \(winnerName) gains \(territoryName).")
+            }
+        }
+
+        surfaceRefreshDate = now
+        BookFeedback.play(.braidComplete)
+    }
+
+    /// Pay a Talisman's Errand with a real field report: the talisman gains Control
+    /// Belief on its territory, may seize it or crown a Sovereign, and warms as a
+    /// believed-in entity. The reader's lived noticing becomes the war's ground.
+    func payPactErrand(errandID: String, report: String, now: Date = Date()) {
+        var state = vault.data.pactWar ?? PactWarState()
+        let talismanID = state.errands.first { $0.id == errandID }?.talismanID
+        let newSovereign = PactWarEngine.deliverErrand(errandID: errandID, report: report, into: &state, now: now)
+        vault.data.pactWar = state
+
+        if newSovereign {
+            var fae = vault.data.fae ?? FaePlayerState()
+            if FaeEconomy.canOfferBargain(state: fae, now: now) {
+                FaeEconomy.offerBargain(into: &fae, kind: .goblin, slot: "errand-sovereign-\(BookDay.id(for: now))", now: now)
+                vault.data.fae = fae
+            }
+        }
+        vault.save()
+
+        if let talismanID, let chapter = AcademyChapterRegistry.chapter(forTalismanID: talismanID) {
+            let talisman = GlowEntityMenuItem(id: talismanID, name: chapter.talismanName, kind: "talisman", glow: 0, line: chapter.philosophy)
+            adjustEntityBelief(talisman, delta: 1, kind: .beliefInvested)
+        }
+        surfaceRefreshDate = now
+        BookFeedback.play(.braidComplete)
     }
 
     /// Pay (or repair) a Fae Bargain: closes the debt, thaws the fronted gift,
@@ -5584,6 +5719,7 @@ struct ContentView: View {
             let coordinate = try await AnchorLocationReader.requestLocation()
             AppMemoryLedger.record("anchor-after-location")
             didRequestAnchorLocation = true
+            didGrantLocationContextAccess = true
             lastAnchorReadingLatitude = coordinate.latitude
             lastAnchorReadingLongitude = coordinate.longitude
             if let proximity = AnchorRegistry.nearestAnchor(
@@ -5678,6 +5814,7 @@ struct ContentView: View {
             let signal = try await WeatherLocationReader.requestWeatherSignal()
             AppMemoryLedger.record("weather-after-location")
             didRequestWeatherLocation = true
+            didGrantLocationContextAccess = true
             weatherSignal = signal
             weatherPageSignal = signal
             if shouldEnchant {
