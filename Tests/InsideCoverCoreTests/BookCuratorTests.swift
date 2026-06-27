@@ -183,6 +183,79 @@ final class BookCuratorTests: XCTestCase {
         assertCheckInPrimary(.fuel, atHour: 19, minute: 10)
     }
 
+    func testDeskNeverShowsTwoCardsOfTheSameType() {
+        let now = localDate(year: 2026, month: 6, day: 1, hour: 13)
+        let loreA = loreCandidate(id: "lore-a", score: 100)
+        let loreB = loreCandidate(id: "lore-b", score: 95)
+        let candidates = [
+            loreA,
+            loreB,
+            rankedCandidate(.quip, score: 60),
+            rankedCandidate(.illustration, score: 55)
+        ]
+
+        let pages = BookCurator.rankedPages(from: candidates, limit: 3, mood: .neutral, now: now).map(\.page)
+
+        XCTAssertEqual(pages.filter { $0.type == .lore }.count, 1)
+        XCTAssertEqual(Set(pages.map(\.type)).count, pages.count)
+        XCTAssertEqual(pages.first?.id, "lore-a")
+    }
+
+    func testDeskNeverStacksTwoBlankPagePrompts() {
+        let now = localDate(year: 2026, month: 6, day: 1, hour: 13)
+        let candidates = [
+            rankedCandidate(.diary, score: 100),
+            rankedCandidate(.souvenir, score: 95),
+            rankedCandidate(.mood, score: 90),
+            rankedCandidate(.lore, score: 40),
+            rankedCandidate(.quip, score: 39)
+        ]
+
+        let pages = BookCurator.rankedPages(from: candidates, limit: 3, mood: .neutral, now: now).map(\.page)
+
+        XCTAssertEqual(pages.filter { $0.type.isCompositionPrompt }.count, 1)
+        XCTAssertEqual(pages.first?.type, .diary)
+        XCTAssertTrue(pages.contains { $0.type == .lore })
+        XCTAssertTrue(pages.contains { $0.type == .quip })
+    }
+
+    func testCompositionPromptAlreadyWrittenTodayIsPushedDown() {
+        let now = localDate(year: 2026, month: 6, day: 1, hour: 13)
+        var inputs = BookSourceInputs.empty
+        inputs.days = [
+            BookDay(
+                id: "2026-06-01",
+                date: localDate(year: 2026, month: 6, day: 1, hour: 0),
+                pages: [
+                    BookPage(
+                        id: "todays-diary",
+                        type: .diary,
+                        createdAt: localDate(year: 2026, month: 6, day: 1, hour: 9),
+                        promptText: "What is happening inside this moment?",
+                        userInput: "The kettle clicked like a tiny door latch.",
+                        tags: ["diary"]
+                    )
+                ]
+            )
+        ]
+        let mood = CuratorMood.make(inputs: inputs, now: now)
+        let diary = rankedCandidate(.diary, score: 80)
+        let souvenir = rankedCandidate(.souvenir, score: 80)
+
+        XCTAssertLessThan(
+            mood.adjustment(for: diary, now: now),
+            mood.adjustment(for: souvenir, now: now)
+        )
+        XCTAssertLessThan(mood.adjustment(for: diary, now: now), -20)
+    }
+
+    func testBlankPagePromptsEaseDownLateAtNight() {
+        let midnight = localDate(hour: 0, minute: 30)
+        for type in [BookPageType.diary, .souvenir, .mood, .aboutYou] {
+            XCTAssertLessThan(CuratorTimeAffinity.boost(for: type, at: midnight), 0, "\(type) should ease down late at night")
+        }
+    }
+
     func testFirstHoursCuratorHidesDeepSystemCards() {
         let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
         let candidates = [
@@ -1907,6 +1980,20 @@ final class BookCuratorTests: XCTestCase {
             score: score,
             prompt: type.title,
             detail: "Candidate for \(type.title)."
+        )
+    }
+
+    private func loreCandidate(id: String, score: Int) -> SurfacePage {
+        SurfacePage(
+            id: id,
+            type: .lore,
+            sourceID: "labyrinth-lore",
+            intent: .importReference,
+            renderStyle: .loreLetter,
+            score: score,
+            prompt: "Lore",
+            detail: "Candidate for Lore.",
+            payload: BookPagePayload(headline: "Lore", body: "Candidate for Lore.")
         )
     }
 

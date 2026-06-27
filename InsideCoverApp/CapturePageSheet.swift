@@ -542,6 +542,7 @@ struct CapturePageSheet: View {
     var onBraidMissedMe: (String) -> String = { _ in "" }
     var onImproveNextBraid: (String) async -> String = { _ in "" }
     var onRewriteBraid: (String) async -> String = { _ in "" }
+    var weatherSignal: WeatherSourceSignal?
     let onSave: (SurfacePage, String, [String]) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -627,6 +628,9 @@ struct CapturePageSheet: View {
     @State private var playfulMissionGenerationMessage = ""
     @State private var bleedPDFURL: URL?
     @State private var bleedExportMessage = ""
+    @State private var illuminatedQuoteCardURL: URL?
+    @State private var isPreparingQuoteCard = false
+    @State private var quoteCardMessage = ""
     @State private var inventoryRevision = 0
     @State private var inventoryMessage = ""
     @State private var inventoryUnspokenSentence = ""
@@ -966,6 +970,129 @@ struct CapturePageSheet: View {
         return nil
     }
 
+    private var quoteCardShareURL: URL? {
+        guard let illuminatedQuoteCardURL,
+              FileManager.default.fileExists(atPath: illuminatedQuoteCardURL.path) else {
+            return nil
+        }
+        return illuminatedQuoteCardURL
+    }
+
+    private var canShareIlluminatedQuoteCard: Bool {
+        switch surface.type {
+        case .gamePage:
+            return gameResultSurface != nil && illuminatedQuoteText != nil
+        case .wonderCompass:
+            return illuminatedQuoteText != nil &&
+                (currentCompassStep == .write || isStandalonePlayfulMissionPage || isKeptReadbackPage)
+        case .souvenir, .rest:
+            return illuminatedQuoteText != nil
+        default:
+            return isKeptReadbackPage && illuminatedQuoteText != nil
+        }
+    }
+
+    private var illuminatedQuoteText: String? {
+        let candidates: [String?]
+        switch surface.type {
+        case .gamePage:
+            candidates = [
+                gameResultSurface?.payload.body,
+                surface.payload.metadata["poem"],
+                isKeptReadbackPage ? preparedInput : nil
+            ]
+        case .wonderCompass:
+            candidates = [
+                currentCompassStep == .write ? preparedInput : nil,
+                surface.payload.metadata["souvenir"],
+                surface.payload.metadata["sentence"],
+                surface.payload.metadata["mission"],
+                isKeptReadbackPage ? preparedInput : nil
+            ]
+        case .souvenir, .rest:
+            candidates = [
+                preparedInput,
+                surface.payload.metadata["quote"],
+                surface.payload.metadata["souvenir"],
+                surface.payload.metadata["sentence"],
+                surface.payload.metadata["centerSentence"],
+                isKeptReadbackPage ? surface.payload.body : nil
+            ]
+        default:
+            candidates = [
+                surface.payload.metadata["quote"],
+                surface.payload.metadata["souvenir"],
+                surface.payload.metadata["sentence"],
+                surface.payload.metadata["centerSentence"],
+                surface.payload.metadata["poem"],
+                isKeptReadbackPage ? preparedInput : nil
+            ]
+        }
+        for candidate in candidates {
+            guard let line = quoteCandidate(from: candidate) else { continue }
+            return line
+        }
+        return nil
+    }
+
+    private func quoteCandidate(from raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let cleaned = trimmed
+            .components(separatedBy: "\n\n")
+            .first { block in
+                let lower = block.lowercased()
+                return !lower.hasPrefix("margin note:") &&
+                    !lower.hasPrefix("souvenir prompt:") &&
+                    !lower.hasPrefix("question:") &&
+                    !lower.hasPrefix("response:")
+            }?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? trimmed
+
+        guard !cleaned.isEmpty else { return nil }
+        if cleaned.count <= 420 {
+            return cleaned
+        }
+        let clipped = String(cleaned.prefix(417)).trimmingCharacters(in: .whitespacesAndNewlines)
+        return clipped.isEmpty ? nil : "\(clipped)..."
+    }
+
+    private var quoteCardSourceTitle: String {
+        if surface.type == .gamePage {
+            return "Sentence Runner"
+        }
+        if surface.type == .wonderCompass {
+            return surface.payload.metadata["playfulMissionTitle"]?.nonEmpty ?? "Wonder Compass"
+        }
+        if surface.type == .rest {
+            return "Center Card"
+        }
+        if surface.type == .souvenir {
+            return "One-Sentence Souvenir"
+        }
+        return surface.type.shortTitle
+    }
+
+    private var quoteCardWeatherLine: String {
+        let metadata = surface.payload.metadata
+        let candidate = metadata["weather"]?.nonEmpty ??
+            metadata["weatherPhrase"]?.nonEmpty ??
+            metadata["weatherLine"]?.nonEmpty ??
+            weatherSignal?.phrase.nonEmpty
+        return candidate ?? "Weather unrecorded; the page kept its own light."
+    }
+
+    private var quoteCardDateLine: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: Date())
+    }
+
     private var enchantmentArtifactURL: URL? {
         if let renderedPath = currentEnchantmentSurface?.payload.metadata["renderedPreviewPath"],
            FileManager.default.fileExists(atPath: renderedPath) {
@@ -1226,6 +1353,55 @@ struct CapturePageSheet: View {
                     }
             }
             .foregroundStyle(BookPalette.lampGold)
+        } else if canShareIlluminatedQuoteCard, let cardURL = quoteCardShareURL {
+            VStack(alignment: .leading, spacing: 8) {
+                ShareLink(item: cardURL) {
+                    Label("Share illuminated card", systemImage: "square.and.arrow.up")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
+                        }
+                }
+                .foregroundStyle(BookPalette.lampGold)
+
+                ShareLink(item: sharePageText) {
+                    Label("Share text instead", systemImage: "text.quote")
+                        .font(.caption.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(BookPalette.paper.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .foregroundStyle(openPageSecondaryText)
+            }
+        } else if canShareIlluminatedQuoteCard {
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    Task { await prepareIlluminatedQuoteCard(force: true) }
+                } label: {
+                    Label(isPreparingQuoteCard ? "Illuminating..." : "Prepare share card", systemImage: "wand.and.sparkles")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
+                        }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.lampGold)
+                .disabled(isPreparingQuoteCard)
+
+                if !quoteCardMessage.isEmpty {
+                    Text(quoteCardMessage)
+                        .font(.caption)
+                        .foregroundStyle(openPageSecondaryText)
+                }
+            }
         } else {
             ShareLink(item: sharePageText) {
                 Label("Share page", systemImage: "square.and.arrow.up")
@@ -1346,6 +1522,9 @@ struct CapturePageSheet: View {
             .task {
                 if surface.type == .illuminatedPhoto {
                     await prepareIlluminatedArtifactIfNeeded()
+                }
+                if canShareIlluminatedQuoteCard, quoteCardShareURL == nil {
+                    await prepareIlluminatedQuoteCard(force: false)
                 }
                 if surface.isStoryPlayablePage, !isLocalBrainIssuePage, storyTurns.isEmpty, let storySceneDraft {
                     storyTurns = [StoryPageSessionTurn(draft: storySceneDraft)]
@@ -5641,6 +5820,39 @@ struct CapturePageSheet: View {
             BookFeedback.play(.braidComplete)
         }
         publishCurrentIlluminatedSurfaceIfReady()
+    }
+
+    @MainActor
+    private func prepareIlluminatedQuoteCard(force: Bool = false) async {
+        guard force || quoteCardShareURL == nil else {
+            return
+        }
+        guard canShareIlluminatedQuoteCard,
+              let quote = illuminatedQuoteText else {
+            return
+        }
+        isPreparingQuoteCard = true
+        quoteCardMessage = force ? "The Book is gilding the card." : ""
+        defer { isPreparingQuoteCard = false }
+
+        let renderedURL = IlluminatedQuoteCardRenderer.render(
+            quote: quote,
+            sourceTitle: quoteCardSourceTitle,
+            weatherLine: quoteCardWeatherLine,
+            dateLine: quoteCardDateLine,
+            style: PageVisualStyle.style(for: surface.type),
+            seed: surface.id.stableHash ^ quote.stableHash
+        )
+        illuminatedQuoteCardURL = renderedURL
+        if renderedURL == nil {
+            BookFeedback.play(.error)
+            quoteCardMessage = "The card did not finish drying. Text sharing still works."
+        } else {
+            if force {
+                BookFeedback.play(.braidComplete)
+            }
+            quoteCardMessage = ""
+        }
     }
 
     @MainActor

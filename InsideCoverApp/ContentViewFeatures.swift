@@ -1401,13 +1401,21 @@ extension ContentView {
         let aProfile = metadata["entityAProfile"]?.nonEmpty ?? aName
         let bProfile = metadata["entityBProfile"]?.nonEmpty ?? bName
         let note = metadata["relationshipNote"]?.nonEmpty
+        let pageText = metadata["anchorPageText"]?.nonEmpty
+        let authored = metadata["anchorPageAuthored"] == "1"
 
-        let aStance = stanceLine(for: aProfile, name: aName, fallback: "the pages are asking for care before interpretation")
-        let bStance = stanceLine(for: bProfile, name: bName, fallback: "the pages are asking for movement before certainty")
+        let aStance = stanceLine(for: aProfile, name: aName, fallback: "the page is asking for care before interpretation")
+        let bStance = stanceLine(for: bProfile, name: bName, fallback: "the page is asking for movement before certainty")
         let bridge = note.map { "\n\nBetween them, the old thread hums: \($0)" } ?? ""
+        let opening = pageText.map { text in
+            let quoted = "“\(text)”"
+            return authored
+                ? "\(aName) and \(bName) both stopped on the page you wrote — \(quoted) — and did not come back with the same weather in their hands."
+                : "\(aName) and \(bName) both stopped on the same kept page — \(quoted) — and did not come back with the same weather in their hands."
+        } ?? "\(aName) and \(bName) read the same kept page and did not come back with the same weather in their hands."
 
         return """
-        \(aName) and \(bName) read the same recent pages and did not come back with the same weather in their hands.
+        \(opening)
 
         \(aName) says \(aStance). Not as a verdict. As a lantern held close to the ink.
 

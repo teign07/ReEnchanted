@@ -2317,7 +2317,7 @@ struct PactVerdictSheet: View {
                 .padding(20)
             }
             .background(BookPalette.page.ignoresSafeArea())
-            .navigationTitle("The Reading")
+            .navigationTitle("The Pact War Report")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Not now") { dismiss() } }

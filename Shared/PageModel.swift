@@ -131,7 +131,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .pactDispatch:
             return "A Pact Dispatch"
         case .pactVerdict:
-            return "The Reading"
+            return "The Pact War Report"
         case .pactErrand:
             return "A Talisman's Errand"
         case .festival:

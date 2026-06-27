@@ -889,6 +889,242 @@ enum IlluminatedPageRenderer {
     }
 }
 
+struct IlluminatedQuoteCard: View {
+    let quote: String
+    let sourceTitle: String
+    let weatherLine: String
+    let dateLine: String
+    let style: PageVisualStyle
+    let seed: Int
+
+    private var variation: OrganicPlacementVariation {
+        OrganicPlacementVariation(seed: seed, key: "quote-card", maxOffset: 10, maxRotation: 2.5)
+    }
+
+    private var quoteFontSize: CGFloat {
+        let count = quote.count
+        if count > 260 { return 42 }
+        if count > 180 { return 48 }
+        if count > 110 { return 56 }
+        return 64
+    }
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [style.paperTop, style.paperMiddle, style.paperBottom],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            Image("ParchmentTexture")
+                .resizable()
+                .scaledToFill()
+                .opacity(0.26)
+                .blendMode(.multiply)
+
+            Image("ParchmentFiber")
+                .resizable()
+                .scaledToFill()
+                .opacity(0.18)
+                .blendMode(.overlay)
+
+            quoteCardStains
+            quoteCardMarginalia
+
+            VStack(spacing: 30) {
+                HStack(spacing: 9) {
+                    Image(systemName: "sparkles")
+                    Text(sourceTitle.uppercased())
+                    Image(systemName: "sparkles")
+                }
+                .font(.system(size: 20, weight: .bold, design: .serif))
+                .foregroundStyle(style.accent.opacity(0.86))
+                .tracking(1.8)
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+
+                Text("“\(quote)”")
+                    .font(.system(size: quoteFontSize, weight: .semibold, design: .serif))
+                    .foregroundStyle(BookPalette.ink)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(8)
+                    .minimumScaleFactor(0.62)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(spacing: 12) {
+                    Divider()
+                        .frame(width: 250)
+                        .overlay(style.accent.opacity(0.45))
+
+                    HStack(spacing: 10) {
+                        Image(systemName: "cloud.sun")
+                        Text(weatherLine)
+                    }
+                    .font(.system(size: 22, weight: .semibold, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                    Text(dateLine)
+                        .font(.system(size: 18, weight: .bold, design: .serif))
+                        .foregroundStyle(style.accent.opacity(0.86))
+                        .tracking(1.2)
+
+                    Text("ReEnchanted")
+                        .font(.system(size: 24, weight: .bold, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.66))
+                }
+            }
+            .padding(.horizontal, 88)
+            .padding(.vertical, 92)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .rotationEffect(.degrees(variation.rotationDegrees * 0.18))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 38, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            BookPalette.lampGold.opacity(0.92),
+                            style.accent.opacity(0.56),
+                            BookPalette.lampGold.opacity(0.9)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 14
+                )
+                .padding(30)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(BookPalette.parchmentEdge.opacity(0.35), lineWidth: 2)
+                .padding(52)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 44, style: .continuous))
+        .background(BookPalette.paper)
+    }
+
+    private var quoteCardStains: some View {
+        ZStack {
+            ForEach(0..<5, id: \.self) { index in
+                Circle()
+                    .fill(style.accent.opacity(0.055))
+                    .frame(
+                        width: stainWidth(index),
+                        height: stainHeight(index)
+                    )
+                    .blur(radius: 16)
+                    .position(stainPosition(index))
+            }
+        }
+    }
+
+    private func stainWidth(_ index: Int) -> CGFloat {
+        150 + CGFloat(stableOffset(index: index, multiplier: 31, modulo: 110))
+    }
+
+    private func stainHeight(_ index: Int) -> CGFloat {
+        120 + CGFloat(stableOffset(index: index, multiplier: 17, modulo: 120))
+    }
+
+    private func stainPosition(_ index: Int) -> CGPoint {
+        CGPoint(
+            x: 90 + CGFloat(stableOffset(index: index, multiplier: 149, modulo: 900)),
+            y: 90 + CGFloat(stableOffset(index: index, multiplier: 211, modulo: 1200))
+        )
+    }
+
+    private func stableOffset(index: Int, multiplier: Int, modulo: Int) -> Int {
+        Int((seed &+ index &* multiplier).magnitude % UInt(modulo))
+    }
+
+    private var quoteCardMarginalia: some View {
+        ZStack {
+            Image(style.watermarkMarginalia)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 390)
+                .opacity(style.watermarkOpacity + 0.06)
+                .rotationEffect(.degrees(-8 + variation.rotationDegrees))
+                .position(x: 760 + variation.xOffset, y: 315 + variation.yOffset)
+
+            Image(style.sideMarginalia)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 160)
+                .opacity(style.sideMarginaliaOpacity + 0.10)
+                .rotationEffect(.degrees(-12 + variation.rotationDegrees))
+                .position(x: 138, y: 1010 + variation.yOffset)
+
+            Image(style.cornerMarginalia)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 178)
+                .opacity(style.cornerMarginaliaOpacity + 0.08)
+                .rotationEffect(.degrees(9 + variation.rotationDegrees))
+                .position(x: 945 + variation.xOffset, y: 1045)
+
+            Image(style.smallMarginalia)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 112)
+                .opacity(0.25)
+                .rotationEffect(.degrees(-4))
+                .position(x: 170, y: 230)
+        }
+    }
+}
+
+@MainActor
+enum IlluminatedQuoteCardRenderer {
+    static func render(
+        quote: String,
+        sourceTitle: String,
+        weatherLine: String,
+        dateLine: String,
+        style: PageVisualStyle,
+        seed: Int
+    ) -> URL? {
+        let content = IlluminatedQuoteCard(
+            quote: quote,
+            sourceTitle: sourceTitle,
+            weatherLine: weatherLine,
+            dateLine: dateLine,
+            style: style,
+            seed: seed
+        )
+        .frame(width: 1080, height: 1350)
+
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = 1
+        guard let image = renderer.uiImage,
+              let data = image.pngData() else {
+            return nil
+        }
+
+        do {
+            let directory = try renderedDirectory()
+            let filename = "illuminated-quote-\(seed.magnitude)-\(quote.stableHash.magnitude).png"
+            let url = directory.appendingPathComponent(filename)
+            try data.write(to: url, options: [.atomic])
+            return url
+        } catch {
+            appLog.error("Illuminated quote render failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    private static func renderedDirectory() throws -> URL {
+        let baseURL = InsideCoverStore.containerURL
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let directory = baseURL.appendingPathComponent("IlluminatedQuoteCards", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+}
+
 struct SurfaceCard: View {
     let surface: SurfacePage
     let isBusy: Bool

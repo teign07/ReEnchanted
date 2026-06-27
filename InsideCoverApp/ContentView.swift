@@ -681,7 +681,7 @@ struct ContentView: View {
             }
             .navigationTitle("ReEnchanted")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar((isGlowMenuPresented || isOpeningMovieVisible || isStoryOnboardingActive) ? .hidden : .visible, for: .navigationBar)
+            .toolbar((isGlowMenuPresented || isOpeningMovieVisible || (isStoryOnboardingActive && !didRevealGlowPillInCurrentOnboarding)) ? .hidden : .visible, for: .navigationBar)
             .task {
                 restoreRadioIfNeeded()
                 await runPostLaunchTasksIfNeeded()
@@ -866,7 +866,8 @@ struct ContentView: View {
                     },
                     onRewriteBraid: { pageID in
                         await rewriteBraid(pageID: pageID)
-                    }
+                    },
+                    weatherSignal: weatherPageSignal
                 ) { savedSurface, input, tags in
                     savePage(surface: savedSurface, input: input, tags: tags)
                 }
@@ -969,16 +970,18 @@ struct ContentView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        BookFeedback.play(.openPage)
-                        tutorTouch("search-stacks")
-                        isStacksSearchPresented = true
-                    } label: {
-                        Image(systemName: "sparkle.magnifyingglass")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(BookPalette.lampGold)
+                    if !isStoryOnboardingActive {
+                        Button {
+                            BookFeedback.play(.openPage)
+                            tutorTouch("search-stacks")
+                            isStacksSearchPresented = true
+                        } label: {
+                            Image(systemName: "sparkle.magnifyingglass")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(BookPalette.lampGold)
+                        }
+                        .accessibilityLabel("Search the Stacks")
                     }
-                    .accessibilityLabel("Search the Stacks")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     if shouldShowGlowPill {

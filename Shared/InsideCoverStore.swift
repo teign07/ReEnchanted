@@ -676,25 +676,29 @@ enum LocalModelManager {
         let aProfile = metadata["entityAProfile"] ?? aName
         let bProfile = metadata["entityBProfile"] ?? bName
         let note = metadata["relationshipNote"]?.nonEmpty
-        let evidence = braidEvidenceLines(for: day, characterLimit: 300)
-            .prefix(8)
-            .joined(separator: "\n")
+        let pageText = metadata["anchorPageText"]?.nonEmpty
+            ?? braidEvidenceLines(for: day, characterLimit: 300).first
+            ?? ""
+        let authored = metadata["anchorPageAuthored"] == "1"
+        let pageSource = authored
+            ? "This is a page the reader wrote themselves — treat their words with care."
+            : "This is one of the reader's kept pages."
         return """
-        You are the Labyrinth of Stories inside ReEnchanted, staging "The Two Readings": \(aName) and \(bName) have read the SAME recent pages and reach DIFFERENT conclusions. Write the scene.
+        You are the Labyrinth of Stories inside ReEnchanted, staging "The Two Readings": \(aName) and \(bName) have both read the SAME single page from the reader's book and reach DIFFERENT conclusions about it. Write the scene.
 
         \(aName): \(aProfile)
         \(bName): \(bProfile)
         \(note.map { "Between them: \($0)" } ?? "")
 
-        THE SAME EVIDENCE THEY ARE BOTH READING (the reader's recent kept pages and what the Book has noticed):
-        \(evidence.isEmpty ? "Only a few quiet pages so far — let them disagree about how much that means." : evidence)
+        THE PAGE THEY ARE BOTH READING (\(pageSource)):
+        "\(pageText.isEmpty ? "a quiet, almost empty page" : pageText)"
 
         RULES:
-        - Both read the exact same evidence; their disagreement comes from who they are, not different facts.
-        - \(aName) reaches one honest conclusion; \(bName) reaches a genuinely different one. Each must be defensible — no strawman, no obvious winner.
-        - Let them address each other at least once. They can be warm, dry, or sharp, but never cruel.
-        - Stay in each voice. Attribute clearly by name as they speak. No headings, no lists, no "as an AI".
-        - Use only the supplied evidence; do not invent private facts or claim the reader did things they didn't.
+        - Both read this exact same page; their disagreement comes from who they are, not different facts.
+        - First let each form an honest opinion about THIS page, in character. Then let them argue it to each other — a real verbal disagreement, each defending their side.
+        - \(aName) reaches one honest reading; \(bName) reaches a genuinely different one. Each must be defensible — no strawman, no obvious winner.
+        - Keep them anchored to what the page actually says; quote or echo its words. Do not drift to other days or invent private facts the reader didn't write.
+        - Stay in each voice. Attribute clearly by name as they speak. They can be warm, dry, or sharp, but never cruel. No headings, no lists, no "as an AI".
         - End by leaving it genuinely open — the Book does NOT decide. Close on a line that hands the choice to the reader.
         - 4 to 6 short paragraphs. Simple, concrete sentences.
         """

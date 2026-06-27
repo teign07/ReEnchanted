@@ -4456,15 +4456,21 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
             return []
         }
 
-        let recentPages = (inputs.days.flatMap(\.capturedPages) + day.capturedPages)
+        // Anchor the disagreement on ONE real kept page — preferably one the
+        // reader wrote themselves — so the cast argues about something concrete,
+        // not a vague "what your week is saying". Skip pages already argued over
+        // by either The Two Readings or The Reading.
+        let used = Self.usedPageIDs(in: inputs.days + [day])
+        let allPages = (inputs.days.flatMap(\.capturedPages) + day.capturedPages)
             .sorted { $0.createdAt > $1.createdAt }
-            .prefix(8)
-        let signalLines = inputs.continuity.strongestSignals.prefix(4).map(\.line)
-        guard recentPages.count >= 3 || signalLines.count >= 2 else { return [] }
+            .filter { !used.contains($0.id) && !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard let anchor = allPages.first(where: { $0.origin == .userAuthored }) ?? allPages.first else {
+            return []
+        }
 
-        let evidenceText = (recentPages.map { "\($0.userInput) \($0.tags.joined(separator: " "))" } + signalLines)
-            .joined(separator: " ")
-
+        // Pair selection is biased toward the anchor page so the two voices have
+        // a real stake in this particular entry.
+        let evidenceText = "\(anchor.userInput) \(anchor.tags.joined(separator: " "))"
         let entities = NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity)
         guard let pair = DisagreementEngine.select(
             entities: entities,
@@ -4476,21 +4482,22 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
 
         let aProfile = entities.first { $0.id == pair.aID }.map(Self.profile) ?? pair.aName
         let bProfile = entities.first { $0.id == pair.bID }.map(Self.profile) ?? pair.bName
-        let slot = BookDay.id(for: now)
+        let clipped = PactReadings.clip(anchor.userInput)
+        let authoredNote = anchor.origin == .userAuthored ? "the page you wrote" : "one of your kept pages"
         return [
             SurfacePage(
-                id: "\(source.id)-\(pair.pairKey)-\(slot)",
+                id: "\(source.id)-\(pair.pairKey)-\(anchor.id)",
                 type: .twoReadings,
                 sourceID: source.id,
                 intent: .reflect,
                 renderStyle: .promptCard,
                 score: 76,
-                reason: "\(pair.aName) and \(pair.bName) are reading your recent pages differently.",
+                reason: "\(pair.aName) and \(pair.bName) are reading \(authoredNote) differently.",
                 prompt: "The Two Readings",
-                detail: "\(pair.aName) and \(pair.bName) don't agree about what your week is saying. Open it; you decide.",
+                detail: "\(pair.aName) and \(pair.bName) read \(authoredNote) — \(clipped) — and disagree about it. Open it; you decide.",
                 payload: BookPagePayload(
                     headline: "The Two Readings",
-                    body: "Two of the cast have read the same pages and reached different conclusions. The Book won't settle it for you.",
+                    body: "\(pair.aName) and \(pair.bName) both stopped on the same page of yours — \(clipped) — and came back with different readings. The Book won't settle it for you.",
                     metadata: [
                         "source": source.id,
                         "pairID": pair.pairKey,
@@ -4501,11 +4508,32 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
                         "entityAProfile": aProfile,
                         "entityBProfile": bProfile,
                         "relationshipNote": pair.relationshipNote ?? "",
-                        "tags": "two-readings,entity:\(pair.aID),entity:\(pair.bID),two-readings:\(slot)"
+                        "anchorPageID": anchor.id,
+                        "anchorPageText": anchor.userInput,
+                        "anchorPageAuthored": anchor.origin == .userAuthored ? "1" : "0",
+                        "tags": "two-readings,entity:\(pair.aID),entity:\(pair.bID),two-readings:\(anchor.id)"
                     ]
                 )
             )
         ]
+    }
+
+    /// Page ids already argued over by The Two Readings (`two-readings:<id>`) or
+    /// The Reading (`pact-verdict:<id>`), so the two pages never collide.
+    static func usedPageIDs(in days: [BookDay]) -> Set<String> {
+        var ids = Set<String>()
+        for day in days {
+            for page in day.pages {
+                for tag in page.tags {
+                    if tag.hasPrefix("two-readings:") {
+                        ids.insert(String(tag.dropFirst("two-readings:".count)))
+                    } else if tag.hasPrefix("pact-verdict:") {
+                        ids.insert(String(tag.dropFirst("pact-verdict:".count)))
+                    }
+                }
+            }
+        }
+        return ids
     }
 
     /// A compact stance sketch the prompt can argue from — works for bundled and
@@ -4537,8 +4565,10 @@ struct PactVerdictPageSourceAdapter: BookPageSourceAdapter {
             return []
         }
 
-        // Pick the most recent kept page a shelf governs and that hasn't been ruled.
+        // Pick the most recent kept page a shelf governs and that hasn't been
+        // ruled here or already argued over by The Two Readings.
         let ruled = ruledPageIDs(in: inputs.days + [day])
+            .union(TwoReadingsPageSourceAdapter.usedPageIDs(in: inputs.days + [day]))
         let candidate = (inputs.days.flatMap(\.capturedPages) + day.capturedPages)
             .sorted { $0.createdAt > $1.createdAt }
             .first { !ruled.contains($0.id) && PactTerritoryRegistry.shelf(governing: $0.type) != nil }
@@ -4579,10 +4609,10 @@ struct PactVerdictPageSourceAdapter: BookPageSourceAdapter {
                 renderStyle: .loreLetter,
                 score: 79,
                 reason: "\(nameA) and \(nameB) are fighting over what one of your real days meant.",
-                prompt: "The Reading",
+                prompt: "The Pact War Report",
                 detail: "\(nameA) and \(nameB) read the same kept page differently. You rule — and \(shelf.name) moves.",
                 payload: BookPagePayload(
-                    headline: "The Reading",
+                    headline: "The Pact War Report",
                     body: body,
                     metadata: [
                         "source": source.id,

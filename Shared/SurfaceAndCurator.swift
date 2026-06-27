@@ -669,21 +669,26 @@ enum BookCurator {
                 return leftScore > rightScore
             }
             .map(\.element)
-        // Prefer a desk of different page kinds: fill with unseen types
-        // first, then loosen if the pool is shallow.
+        // Two structural rules shape the desk, honored within rank order:
+        //   1. Never repeat a kind of page — no two lore cards (or two of any
+        //      type) on the shelf at once.
+        //   2. Never stack blank-page "write one thing" prompts — at most one
+        //      composition card (diary / souvenir / mood / about-you) at a time.
+        // We would rather serve a shorter desk than break either rule.
         let deduped = unique(sortedPages)
         var picked: [SurfacePage] = []
         var pickedTypes: Set<BookPageType> = []
+        var compositionCount = 0
+        // One blank-page prompt per three-slot desk: the home shelf (limit 3)
+        // shows at most one, while wider introspection queries still surface the
+        // full set of composition cards.
+        let compositionLimit = max(1, limit / 3)
         for page in deduped where picked.count < limit {
-            if !pickedTypes.contains(page.type) {
-                picked.append(page)
-                pickedTypes.insert(page.type)
-            }
-        }
-        for page in deduped where picked.count < limit {
-            if !picked.contains(where: { $0.id == page.id }) {
-                picked.append(page)
-            }
+            guard !pickedTypes.contains(page.type) else { continue }
+            if page.type.isCompositionPrompt, compositionCount >= compositionLimit { continue }
+            picked.append(page)
+            pickedTypes.insert(page.type)
+            if page.type.isCompositionPrompt { compositionCount += 1 }
         }
         return picked
             .enumerated()
@@ -808,6 +813,20 @@ extension SurfacePage {
     }
 }
 
+extension BookPageType {
+    /// Cards that hand the reader a blank field and ask them to compose an
+    /// original sentence. The desk should never present more than one of these
+    /// at once, and should stop asking once the reader has written today.
+    var isCompositionPrompt: Bool {
+        switch self {
+        case .mood, .diary, .souvenir, .aboutYou:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 /// Penalizes what the reader has already seen, on a forgetting curve.
 enum CuratorVarietyGovernor {
     static func typeKey(for type: BookPageType) -> String {
@@ -903,6 +922,9 @@ enum CuratorTimeAffinity {
             case .lore, .rest, .helpTips, .welcome: return 4
             case .packPage: return 3
             case .illustration, .narrativeOS, .bookFae, .marginsAtlas, .bookConnections, .bookRemembered, .bookJump, .radio: return 2
+            // Late night the desk should soothe, not assign homework: ease
+            // blank-page prompts down so they don't greet a midnight check-in.
+            case .diary, .souvenir, .mood, .aboutYou: return -6
             case .body: return -4
             case .wonderCompass: return -4
             default: return 0
@@ -959,6 +981,7 @@ struct CuratorMood {
     var almanacBoosts: [BookPageType: Int] = [:]
     var isFirstHours: Bool = false
     var keptPageCount: Int = 0
+    var composedTypesToday: Set<BookPageType> = []
 
     static let neutral = CuratorMood()
 
@@ -996,8 +1019,23 @@ struct CuratorMood {
                 .merging(RadioStationRegistry.surfaceBoosts(state: inputs.radio, unlockedPackIDs: inputs.ownedPackIDs)) { $0 + $1 }
                 .merging(RadioStationRegistry.heldSurfaceBoosts(state: inputs.radio)) { $0 + $1 },
             isFirstHours: firstHoursActive(inputs: inputs, now: now),
-            keptPageCount: inputs.keptPageCount
+            keptPageCount: inputs.keptPageCount,
+            composedTypesToday: composedCompositionTypes(in: inputs.days, on: now, calendar: calendar)
         )
+    }
+
+    /// Which blank-page prompts the reader has already answered today — so the
+    /// desk doesn't keep asking for a page they've already written.
+    private static func composedCompositionTypes(in days: [BookDay], on date: Date, calendar: Calendar) -> Set<BookPageType> {
+        var types: Set<BookPageType> = []
+        for day in days {
+            for page in day.pages where page.type.isCompositionPrompt {
+                if calendar.isDate(page.createdAt, inSameDayAs: date) {
+                    types.insert(page.type)
+                }
+            }
+        }
+        return types
     }
 
     func allows(_ page: SurfacePage) -> Bool {
@@ -1031,6 +1069,17 @@ struct CuratorMood {
 
         delta -= CuratorVarietyGovernor.fatiguePenalty(forKey: page.varietyKey, history: surfaceHistory, now: now)
         delta -= quietReflectionPenalty(for: page, now: now)
+
+        // Don't nag for writing the reader has already done today: a page they
+        // already wrote drops hard, and once they've composed anything the
+        // remaining blank-page prompts lean back so the desk can reward instead.
+        if page.type.isCompositionPrompt {
+            if composedTypesToday.contains(page.type) {
+                delta -= 30
+            } else if !composedTypesToday.isEmpty {
+                delta -= 12
+            }
+        }
 
         // A warm Reshelving gift pulls one resting kind of page back to the front.
         if reshelvedSourceIDs.contains(page.sourceID) {
