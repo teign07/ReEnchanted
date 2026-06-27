@@ -4087,7 +4087,8 @@ em .lore-link, .lore-link em { font-style: italic; }
   .site-header { gap: 10px; padding-left: 10px; }
   .glow-pill { margin-left: auto; }
   .hero { grid-template-columns: 1fr; padding-top: 110px; min-height: auto; }
-  .hero-art { order: -1; max-width: 420px; margin: 0 auto; }
+  /* Lead with the words: headline + CTA come first, the art sits below them. */
+  .hero-art { order: 0; max-width: 420px; margin: 40px auto 0; }
   .how-grid, .mechanics-grid { grid-template-columns: 1fr; }
   .braid-proof-section { grid-template-columns: 1fr; }
   .braid-proof-shot { transform: none; }
@@ -4225,7 +4226,11 @@ em .lore-link, .lore-link em { font-style: italic; }
     height: 62px;
     font-size: 2.5rem;
   }
-  .hero-chip { font-size: 0.78rem; }
+  /* On phones the floating cards + chips overlap into a cluttered pile, so show
+     just the main phone, sized to fill its box cleanly. */
+  .hero-art { aspect-ratio: auto; max-width: 300px; }
+  .hero-float, .hero-chip { display: none; }
+  .hero-phone { width: 100%; transform: rotate(-2deg); }
   .radio-top { flex-wrap: wrap; }
   .onair-btn { flex: 1; justify-content: center; }
 }
