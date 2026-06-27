@@ -510,10 +510,21 @@ h2 {
   outline-offset: 8px;
   filter: drop-shadow(0 0 24px rgba(255, 200, 116, 0.14));
 }
-.glow-effect-margins body::before {
+/* Warm the margins — a golden vignette breathes in around the whole page. */
+.glow-effect-margins body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
   box-shadow:
-    inset 0 0 0 1px rgba(255, 200, 116, 0.18),
-    inset 0 0 90px rgba(255, 200, 116, 0.10);
+    inset 0 0 0 2px rgba(255, 200, 116, 0.22),
+    inset 0 0 170px rgba(255, 200, 116, 0.16);
+  animation: glow-margins-in 900ms ease-out both;
+}
+@keyframes glow-margins-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .glow-effect-bookmark .site-header::after {
   content: "Bookmark set";
@@ -538,13 +549,137 @@ h2 {
 .glow-effect-dial .radio-name {
   text-shadow: 0 0 18px rgba(255, 200, 116, 0.36);
 }
-.glow-effect-note .hero-problem span,
-.glow-effect-stacks .privacy-list li,
-.glow-effect-pages .pagetype,
-.glow-effect-enchantment .mechanic,
+/* Margin note — a handwritten line inks itself in beside the hero. */
+.glow-effect-note .hero-problem span { color: var(--gold-soft); }
+.glow-margin-note {
+  position: relative;
+  max-width: 540px;
+  margin: 22px 0 0;
+  padding: 12px 16px 12px 18px;
+  border-left: 2px solid var(--gold-deep);
+  border-radius: 0 12px 12px 0;
+  background: rgba(255, 200, 116, 0.08);
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 0.98rem;
+  line-height: 1.5;
+  color: var(--gold-soft);
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 1100ms ease;
+}
+.glow-margin-note.is-inked { clip-path: inset(0 0 0 0); }
+.glow-margin-note em { color: #fff; }
+.glow-margin-quill { margin-right: 8px; }
+
+/* Favored pages — the deck lifts, gilds, and the glyphs wake. */
+.glow-effect-pages .pagetype {
+  border-color: rgba(255, 200, 116, 0.45);
+  box-shadow: 0 22px 54px rgba(255, 200, 116, 0.14);
+  transform: translateY(-4px);
+  transition: transform 420ms ease, box-shadow 420ms ease, border-color 420ms ease;
+}
+.glow-effect-pages .pagetype-glyph {
+  text-shadow: 0 0 18px rgba(255, 200, 116, 0.5);
+  animation: glow-glyph-pop 620ms ease both;
+}
+.glow-effect-pages .pagetype:nth-child(2) .pagetype-glyph { animation-delay: 90ms; }
+.glow-effect-pages .pagetype:nth-child(3) .pagetype-glyph { animation-delay: 180ms; }
+.glow-effect-pages .pagetype:nth-child(4) .pagetype-glyph { animation-delay: 270ms; }
+.glow-effect-pages .pagetype:nth-child(n+5) .pagetype-glyph { animation-delay: 360ms; }
+@keyframes glow-glyph-pop {
+  0% { transform: scale(0.7); opacity: 0.4; }
+  60% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+/* Ask the Stacks — entries file themselves; an index line answers back. */
+.glow-effect-stacks .privacy-list li {
+  border-left: 2px solid var(--gold-deep);
+  padding-left: 12px;
+  transition: border-color 300ms ease, padding 300ms ease;
+}
+.glow-stacks-index {
+  margin: 18px 0 0;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 200, 116, 0.4);
+  border-radius: 12px;
+  background: rgba(255, 200, 116, 0.08);
+  color: var(--gold-soft);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 600ms ease, transform 600ms ease;
+}
+.glow-stacks-index.is-filed { opacity: 1; transform: none; }
+.glow-stacks-index span { color: var(--gold); margin-right: 6px; }
+
+/* Wake an enchantment — a gold light sweeps across the screenshots. */
+.glow-effect-enchantment .mechanic-shot {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 22px 60px rgba(255, 200, 116, 0.16);
+}
+.glow-effect-enchantment .mechanic-shot img { animation: glow-enchant 1400ms ease both; }
+.glow-effect-enchantment .mechanic-shot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 222, 158, 0.55) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: glow-enchant-sweep 1400ms ease both;
+}
+@keyframes glow-enchant {
+  0% { filter: saturate(0.5) brightness(0.92); }
+  50% { filter: saturate(1.25) brightness(1.08); }
+  100% { filter: saturate(1.08) brightness(1); }
+}
+@keyframes glow-enchant-sweep {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+
+/* Compass spark — a rose spins and drops a noticing prompt into How it works. */
 .glow-effect-compass .how-card {
   border-color: rgba(255, 200, 116, 0.28);
   box-shadow: 0 18px 50px rgba(255, 200, 116, 0.08);
+}
+.glow-compass-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 18px auto 0;
+  max-width: 760px;
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 200, 116, 0.4);
+  border-radius: 16px;
+  background: rgba(255, 200, 116, 0.08);
+}
+.glow-compass-rose {
+  font-size: 1.8rem;
+  color: var(--gold);
+  text-shadow: 0 0 18px rgba(255, 200, 116, 0.5);
+}
+.glow-compass-card.is-spinning .glow-compass-rose {
+  animation: glow-compass-spin 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes glow-compass-spin {
+  0% { transform: rotate(0deg) scale(0.8); }
+  100% { transform: rotate(720deg) scale(1); }
+}
+.glow-compass-label {
+  margin: 0 0 4px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold-deep);
+}
+.glow-compass-prompt {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  color: #fff;
 }
 .header-cta {
   display: none;
@@ -3265,6 +3400,19 @@ h2 {
 .track-meta strong { font-size: 0.98rem; color: #241a0d; }
 .track-meta small { font-size: 0.78rem; color: rgba(42, 32, 20, 0.55); }
 .track-tag { font-size: 0.72rem; font-weight: 700; color: rgba(42, 32, 20, 0.5); }
+.track.blessed-locked {
+  opacity: 1;
+  border-style: dashed;
+  border-color: rgba(255, 200, 116, 0.55);
+  background: rgba(255, 200, 116, 0.12);
+}
+.track.blessed-locked .track-state,
+.track.blessed-locked .track-tag { color: var(--gold-deep); }
+.track.blessed:not(.now-playing) {
+  border-color: var(--gold-deep);
+  background: rgba(255, 200, 116, 0.2);
+}
+.track.blessed .track-tag { color: var(--gold-deep); }
 .radio-note {
   margin: 14px 0 0;
   color: rgba(42, 32, 20, 0.6);

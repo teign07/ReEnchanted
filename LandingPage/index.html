@@ -67,14 +67,14 @@
         </nav>
         <div class="glow-spend">
           <p class="glow-spend-title">Spend Glow</p>
-          <button type="button" data-glow-cost="2" data-glow-effect="note" data-glow-reward="A margin note appears. The Book likes an early investment.">Reveal a margin note <span>2 Belief</span></button>
-          <button type="button" data-glow-cost="3" data-glow-effect="margins" data-glow-reward="The margins warm. One hidden note is listening.">Warm the margins <span>3 Belief</span></button>
-          <button type="button" data-glow-cost="4" data-glow-effect="pages" data-glow-reward="The page types lean forward. You have told the Book what kind of day to notice.">Favor page types <span>4 Belief</span></button>
-          <button type="button" data-glow-cost="4" data-glow-effect="stacks" data-glow-reward="The Stacks answer softly. Kept pages are easier to find when they have a name.">Ask the Stacks <span>4 Belief</span></button>
+          <button type="button" data-glow-cost="2" data-glow-effect="note" data-glow-reward="A handwritten margin note inks itself in beside the hero — in the belief you named.">Reveal a margin note <span>2 Belief</span></button>
+          <button type="button" data-glow-cost="3" data-glow-effect="margins" data-glow-reward="The whole page warms — a golden vignette breathes in around your reading.">Warm the margins <span>3 Belief</span></button>
+          <button type="button" data-glow-cost="4" data-glow-effect="pages" data-glow-reward="The deck of page types lifts and gilds; the glyphs wake one by one.">Favor page types <span>4 Belief</span></button>
+          <button type="button" data-glow-cost="4" data-glow-effect="stacks" data-glow-reward="The Stacks file your entries and answer with an index you can call by name.">Ask the Stacks <span>4 Belief</span></button>
           <button type="button" data-glow-cost="5" data-glow-effect="bookmark" data-glow-reward="A bookmark slips into place. The Book remembers your route.">Set a bookmark <span>5 Belief</span></button>
-          <button type="button" data-glow-cost="6" data-glow-effect="enchantment" data-glow-reward="A small enchantment wakes. The Book will bias toward what you make luminous.">Wake an enchantment <span>6 Belief</span></button>
-          <button type="button" data-glow-cost="7" data-glow-effect="compass" data-glow-reward="A Compass spark turns. The next ordinary detail looks less ordinary.">Call a Compass spark <span>7 Belief</span></button>
-          <button type="button" data-glow-cost="8" data-glow-effect="dial" data-glow-reward="The radio dial glints. Thornwave approves, suspiciously.">Bless the dial <span>8 Belief</span></button>
+          <button type="button" data-glow-cost="6" data-glow-effect="enchantment" data-glow-reward="A wave of gold light sweeps across the screenshots and they come alive.">Wake an enchantment <span>6 Belief</span></button>
+          <button type="button" data-glow-cost="7" data-glow-effect="compass" data-glow-reward="A compass spins and drops a noticing dare into How it works. Spend again to re-roll.">Call a Compass spark <span>7 Belief</span></button>
+          <button type="button" data-glow-cost="8" data-glow-effect="dial" data-glow-reward="The dial wakes. A secret track slips onto every station and the radio begins to play.">Bless the dial — unlock secret tracks <span>8 Belief</span></button>
           <div class="glow-reveal" id="glow-reveal" hidden>
             <p class="glow-reveal-title" id="glow-reveal-title">The Book listens back</p>
             <p id="glow-reveal-copy">Spend Glow to reveal extra notes from the margins.</p>
@@ -176,17 +176,12 @@
 
                   <div class="onboarding-panel" id="onboarding-panel">
                     <p class="onboarding-panel-title">Get your hands into the page</p>
+                    <p class="onboarding-prompt">The screen is becoming a doorway. Choose the one thing you do as the Book pulls you through.</p>
                     <div class="onboarding-actions">
-                      <button class="onboarding-action" type="button" data-onboard-action="ink">Touch the wet ink</button>
-                      <button class="onboarding-action" type="button" data-onboard-action="steady">Brace for the landing</button>
+                      <button class="onboarding-action" type="button" data-onboard-action="fall:ink">Touch the wet ink</button>
+                      <button class="onboarding-action" type="button" data-onboard-action="fall:landing">Brace for the landing</button>
                     </div>
-                    <p class="onboarding-prompt">Words flock around you as you fall. One smaller word catches in your sleeve before the Book can read it.</p>
-                    <div class="onboarding-word-row">
-                      <button class="onboarding-action word" type="button" data-onboard-action="sleeve:GLINT">GLINT</button>
-                      <button class="onboarding-action word" type="button" data-onboard-action="sleeve:MARGIN">MARGIN</button>
-                      <button class="onboarding-action word" type="button" data-onboard-action="sleeve:THRESHOLD">THRESHOLD</button>
-                    </div>
-                    <p class="onboarding-result">Wake the ink, choose the sleeve word, and survive the landing.</p>
+                    <p class="onboarding-result">Choose one way through. The Book only needs one true gesture.</p>
                   </div>
 
                   <div class="keep-controls" id="keep-controls" hidden>
@@ -1252,6 +1247,6 @@
     </div>
 
     <!-- You looked behind the page. Riddlewind approves. Penny misfiled a receipt marked 97.3. -->
-    <script src="./app.js?v=34"></script>
+    <script src="./app.js?v=35"></script>
   </body>
 </html>

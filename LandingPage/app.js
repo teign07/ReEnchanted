@@ -323,9 +323,7 @@ let animating = false;
 const choices = new Array(PAGES.length).fill(null); // null | "keep" | "wait"
 
 const onboarding = {
-  inkWake: false,
-  sleeveWord: "",
-  pageSteady: false,
+  fallChoice: "",
   unwrittenTucked: false,
   snack: "",
   name: "",
@@ -336,7 +334,22 @@ const onboarding = {
   firstSouvenir: "",
 };
 
-const SLEEVE_WORDS = ["GLINT", "MARGIN", "THRESHOLD"];
+const FALL_CHOICES = [
+  {
+    id: "ink",
+    label: "Touch the wet ink",
+    chosen: "Ink slicks your fingers",
+    braid: "wet ink climbed over my fingers",
+    hint: "Ink answered under the glass.",
+  },
+  {
+    id: "landing",
+    label: "Brace for the landing",
+    chosen: "Stone catches your knees",
+    braid: "stone caught me at the bottom of the fall",
+    hint: "Stone met your knees. The page can hold you.",
+  },
+];
 const WICKER_MODES = [
   {
     id: "slice-of-life",
@@ -372,10 +385,14 @@ function wickerMode() {
   return WICKER_MODES.find((mode) => mode.id === onboarding.wickerMode);
 }
 
+function fallChoice() {
+  return FALL_CHOICES.find((choice) => choice.id === onboarding.fallChoice);
+}
+
 function onboardingReady(page = PAGES[index]) {
   switch (page?.onboardingStep) {
     case "fall":
-      return onboarding.inkWake && onboarding.sleeveWord && onboarding.pageSteady;
+      return Boolean(onboarding.fallChoice);
     case "unwritten":
       return onboarding.unwrittenTucked;
     case "snack":
@@ -419,18 +436,14 @@ function renderOnboardingPanel(page) {
   let html = "";
 
   if (page.onboardingStep === "fall") {
-    const sleeveButtons = SLEEVE_WORDS.map((word) =>
-      onboardingButton(`sleeve:${word}`, word, onboarding.sleeveWord === word, "word")
+    const fallButtons = FALL_CHOICES.map((choice) =>
+      onboardingButton(`fall:${choice.id}`, onboarding.fallChoice === choice.id ? choice.chosen : choice.label, onboarding.fallChoice === choice.id)
     ).join("");
     html = `
       <p class="onboarding-panel-title">Get your hands into the page</p>
-      <div class="onboarding-actions">
-        ${onboardingButton("ink", onboarding.inkWake ? "Ink slicks your fingers" : "Touch the wet ink", onboarding.inkWake)}
-        ${onboardingButton("steady", onboarding.pageSteady ? "Stone catches your knees" : "Brace for the landing", onboarding.pageSteady)}
-      </div>
-      <p class="onboarding-prompt">Words flock around you as you fall. One smaller word catches in your sleeve before the Book can read it.</p>
-      <div class="onboarding-word-row">${sleeveButtons}</div>
-      <p class="onboarding-result">${onboardingReady(page) ? "The fall has a handhold. Stone meets you in a crumple." : "Wake the ink, choose the sleeve word, and survive the landing."}</p>
+      <p class="onboarding-prompt">The screen is becoming a doorway. Choose the one thing you do as the Book pulls you through.</p>
+      <div class="onboarding-actions">${fallButtons}</div>
+      <p class="onboarding-result">${onboardingReady(page) ? "Good. The fall has a shape now. Turn the page." : "Choose one way through. The Book only needs one true gesture."}</p>
     `;
   } else if (page.onboardingStep === "unwritten") {
     html = `
@@ -511,9 +524,7 @@ function renderOnboardingPanel(page) {
 }
 
 function resetOnboarding() {
-  onboarding.inkWake = false;
-  onboarding.sleeveWord = "";
-  onboarding.pageSteady = false;
+  onboarding.fallChoice = "";
   onboarding.unwrittenTucked = false;
   onboarding.snack = "";
   onboarding.name = "";
@@ -528,6 +539,7 @@ let glow = 0;
 const glowEarned = new Set();
 let loreLinkClicks = 0;
 let glowTarget = null;
+let dialBlessed = false;
 
 const GLOW_EFFECTS = {
   note: {
@@ -567,7 +579,7 @@ const GLOW_EFFECTS = {
   },
   dial: {
     title: "Blessed Dial",
-    copy: "Stations can become atmosphere for the day. In the full app, music and broadcasts are part of the weather the Book can remember.",
+    copy: "Belief just unlocked a hidden track on every station. Spin the cabinet to 88.3, 90.9, and 103.7 to hear all three — proof the Book turns attention into atmosphere you can keep.",
     target: "#radio",
   },
 };
@@ -606,7 +618,8 @@ function updateGlowUI() {
   if (glowState) glowState.textContent = glowStateText(glow);
   glowFill?.style.setProperty("width", `${(capped / 12) * 100}%`);
   glowMenu?.querySelectorAll("[data-glow-cost]").forEach((button) => {
-    button.disabled = glow < Number(button.dataset.glowCost || 0);
+    const spent = button.dataset.glowEffect === "dial" && dialBlessed;
+    button.disabled = spent || glow < Number(button.dataset.glowCost || 0);
   });
 }
 
@@ -620,21 +633,82 @@ function earnGlow(key, amount = 1, message = "") {
 
 function spendGlow(button) {
   const cost = Number(button.dataset.glowCost || 0);
+  const effect = button.dataset.glowEffect;
+  if (effect === "dial" && dialBlessed) {
+    if (glowSpendNote) glowSpendNote.textContent = "The dial is already blessed. Spin the cabinet to 88.3, 90.9, and 103.7 to hear each secret track.";
+    return;
+  }
   if (glow < cost) {
     if (glowSpendNote) glowSpendNote.textContent = `Needs ${cost} Belief. The Book is patient.`;
     return;
   }
   glow -= cost;
-  const effect = button.dataset.glowEffect;
   applyGlowEffect(effect);
   updateGlowUI();
   if (glowSpendNote) glowSpendNote.textContent = button.dataset.glowReward || "The page warms and settles.";
+}
+
+const COMPASS_PROMPTS = [
+  "Find the oldest thing near you and really look at it.",
+  "Name one colour you can see in five different places.",
+  "Notice the quietest sound in the room right now.",
+  "Find something that was repaired instead of replaced.",
+  "Catch the next thing that moves without being touched.",
+  "Look for a small kindness already in progress nearby.",
+];
+
+function injectMarginNote() {
+  const host = document.querySelector(".hero-copy");
+  if (!host || host.querySelector(".glow-margin-note")) return;
+  const belief = cleanOnboardingValue(onboarding.belief);
+  const note = document.createElement("p");
+  note.className = "glow-margin-note";
+  note.innerHTML = belief
+    ? `<span class="glow-margin-quill" aria-hidden="true">✒</span>The Book noted your belief in the margin — <em>“${escapeHTML(belief)}.”</em> It will start looking for it.`
+    : `<span class="glow-margin-quill" aria-hidden="true">✒</span>The Book leaves a note in the margin: <em>keep what’s true; let the rest wait.</em>`;
+  host.appendChild(note);
+  requestAnimationFrame(() => note.classList.add("is-inked"));
+}
+
+function injectStacksIndex() {
+  const host = document.querySelector("#privacy .privacy-copy");
+  if (!host || host.querySelector(".glow-stacks-index")) return;
+  const entries = document.querySelectorAll("#privacy .privacy-list li").length;
+  const note = document.createElement("p");
+  note.className = "glow-stacks-index";
+  note.innerHTML = `<span aria-hidden="true">✦</span>Filed to the Stacks — ${entries} entries indexed by mood, name, and Glow tier. Kept pages answer when you call them.`;
+  host.appendChild(note);
+  requestAnimationFrame(() => note.classList.add("is-filed"));
+}
+
+function injectCompassPrompt() {
+  const host = document.querySelector("#how");
+  if (!host) return;
+  let card = host.querySelector(".glow-compass-card");
+  if (!card) {
+    card = document.createElement("article");
+    card.className = "glow-compass-card";
+    card.innerHTML = `<span class="glow-compass-rose" aria-hidden="true">✦</span><div><p class="glow-compass-label">Compass Run · today’s noticing</p><p class="glow-compass-prompt"></p></div>`;
+    host.appendChild(card);
+  }
+  card.querySelector(".glow-compass-prompt").textContent =
+    COMPASS_PROMPTS[Math.floor(Math.random() * COMPASS_PROMPTS.length)];
+  card.classList.remove("is-spinning");
+  void card.offsetWidth; // restart the spin animation on every spark
+  card.classList.add("is-spinning");
 }
 
 function applyGlowEffect(effect) {
   if (!effect) return;
   root.classList.add(`glow-effect-${effect}`);
   if (effect === "bookmark") root.style.setProperty("--bookmark-y", `${Math.max(14, Math.round(window.scrollY || 0))}px`);
+  if (effect === "note") injectMarginNote();
+  if (effect === "stacks") injectStacksIndex();
+  if (effect === "compass") injectCompassPrompt();
+  if (effect === "dial") {
+    dialBlessed = true;
+    if (typeof window.blessRadioDial === "function") window.blessRadioDial();
+  }
 
   const reward = GLOW_EFFECTS[effect];
   if (reward && glowReveal && glowRevealTitle && glowRevealCopy) {
@@ -646,6 +720,32 @@ function applyGlowEffect(effect) {
   if (glowTarget) glowTarget.classList.remove("glow-target");
   glowTarget = reward?.target ? document.querySelector(reward.target) : null;
   glowTarget?.classList.add("glow-target");
+
+  // The menu is a full-screen overlay, so the transformation happens behind it.
+  // Close it and bring the changed area into view so the spend actually pays off.
+  closeGlowMenu();
+  const scrollTargets = {
+    note: ".hero-copy",
+    pages: "#pages",
+    stacks: "#privacy",
+    enchantment: "#mechanics",
+    compass: "#how",
+    dial: "#radio",
+  };
+  const sel = scrollTargets[effect];
+  if (sel) {
+    const el = document.querySelector(sel);
+    // On mobile these sections live in collapsed drawers — open the one we're
+    // about to scroll to so the change is actually visible.
+    const drawer = el?.closest("section[data-drawer]");
+    if (drawer?.classList.contains("is-drawer") && !drawer.classList.contains("is-open")) {
+      drawer.classList.add("is-open");
+      drawer.querySelector(".drawer-toggle")?.setAttribute("aria-expanded", "true");
+    }
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  } else {
+    window.scrollTo({ top: 0, behavior: "smooth" }); // margins & bookmark read from the top
+  }
 }
 
 function closeGlowMenu() {
@@ -696,15 +796,9 @@ onboardingPanel?.addEventListener("click", (event) => {
   if (!button) return;
   const action = button.dataset.onboardAction;
 
-  if (action === "ink") {
-    onboarding.inkWake = true;
-    hint.textContent = "Ink answered under the glass.";
-  } else if (action === "steady") {
-    onboarding.pageSteady = true;
-    hint.textContent = "Stone met your feet. The page can hold you.";
-  } else if (action?.startsWith("sleeve:")) {
-    onboarding.sleeveWord = action.split(":")[1] || "";
-    hint.textContent = `${onboarding.sleeveWord} caught in your sleeve.`;
+  if (action?.startsWith("fall:")) {
+    onboarding.fallChoice = action.split(":")[1] || "";
+    hint.textContent = fallChoice()?.hint || "The fall has a shape now.";
   } else if (action === "unwritten") {
     onboarding.unwrittenTucked = true;
     hint.textContent = "The Great Unwritten is tucked into the margin.";
@@ -902,6 +996,23 @@ function choose(kind) {
     : "That's the last page — braid your book ✦";
 }
 
+function onboardingBraidLead() {
+  const pieces = [];
+  const fall = fallChoice();
+  if (fall) pieces.push(`I entered the Book by the way ${fall.braid}`);
+  const name = cleanOnboardingValue(onboarding.name);
+  const snack = cleanOnboardingValue(onboarding.snack);
+  const belief = cleanOnboardingValue(onboarding.belief);
+  if (name) pieces.push(`Zara wrote my name as <em class="reader-own">${escapeHTML(name)}</em>`);
+  if (snack) pieces.push(`she tucked <em class="reader-own">${escapeHTML(snack)}</em> into the margin`);
+  if (belief) pieces.push(`my Belief pointed at <em class="reader-own">${escapeHTML(belief)}</em>`);
+  if (onboarding.wickerRoll) {
+    pieces.push(`Wicker tested it and the page rolled ${onboarding.wickerRoll.total}`);
+  }
+  if (!pieces.length) return "";
+  return `${pieces.join("; ")}.`;
+}
+
 function openBook() {
   if (book.dataset.state !== "closed") return;
   book.dataset.state = "open";
@@ -949,7 +1060,9 @@ function buildBraid() {
 
   // The reader's own true line, if they wrote one, leads the passage in their voice.
   const own = readerLine && !sentencePageKept ? `<em class="reader-own">${escapeHTML(readerLine)}</em>` : "";
-  const lead = own ? `${own}  ` : "";
+  const tutorialLead = onboardingBraidLead();
+  const lead = [tutorialLead, own].filter(Boolean).join("  ");
+  const leadText = lead ? `${lead}  ` : "";
   const woven = keptLines.join("  ");
   const fuelKept = FUEL_INDEX >= 0 && choices[FUEL_INDEX] === "keep";
   const innerWeatherKept = INNER_WEATHER_INDEX >= 0 && choices[INNER_WEATHER_INDEX] === "keep";
@@ -961,28 +1074,28 @@ function buildBraid() {
   if (keptLines.length === 0) {
     if (own) {
       braidIntro.textContent = "Only one true line — and the Book kept it anyway.";
-      return `${own}  Nothing else demanded binding today, and that is its own kind of honest month. The shelf is patient.`;
+      return `${leadText}Nothing else demanded binding today, and that is its own kind of honest month. The shelf is patient.`;
     }
     braidIntro.textContent = everyPageAnswered ? "You let every page wait." : "You kept no page before the binding.";
-    return "An honest month: nothing demanded to be kept, and the Book waited with you. The shelf is patient. Come back when something catches a real edge.";
+    return `${leadText}An honest month: nothing demanded to be kept, and the Book waited with you. The shelf is patient. Come back when something catches a real edge.`;
   }
   if (allKept) {
     braidIntro.textContent = "You kept everything. The Book has concerns. Affectionate ones.";
-    return `${lead}${woven}${supportGuildSurprise}  In the final margin, a small hand wrote in brown ink: sentimental, perhaps, but the shelf was warm where you touched it.`;
+    return `${leadText}${woven}${supportGuildSurprise}  In the final margin, a small hand wrote in brown ink: sentimental, perhaps, but the shelf was warm where you touched it.`;
   }
   if (alternating) {
     braidIntro.textContent = "A Riddlewind pattern appeared between yes and not yet.";
-    return `${lead}${woven}  Every other door stayed shut; together, the open ones breathed keyhole-cold and spelled a question the Book would not translate.`;
+    return `${leadText}${woven}  Every other door stayed shut; together, the open ones breathed keyhole-cold and spelled a question the Book would not translate.`;
   }
   if (quietPagesOnly) {
     braidIntro.textContent = "The Book noticed what kind of pages you chose.";
-    return `${lead}${woven}  No spectacle asked to be remembered. The ordinary things pricked holes in the dark and made a small constellation anyway.`;
+    return `${leadText}${woven}  No spectacle asked to be remembered. The ordinary things pricked holes in the dark and made a small constellation anyway.`;
   }
   braidIntro.textContent = own
     ? `Braided from your own line and the ${keptLines.length} page${keptLines.length === 1 ? "" : "s"} you kept.`
     : `Braided from the ${keptLines.length} page${keptLines.length === 1 ? "" : "s"} you kept.`;
   // each kept line is already a complete sentence — weave them into one passage
-  return `${lead}${woven}${supportGuildSurprise}`;
+  return `${leadText}${woven}${supportGuildSurprise}`;
 }
 
 /* ── the Book of You edition: theme, stats, and The Reader's Sky ── */
@@ -2605,7 +2718,7 @@ const STATIONS = [
       { id: "fae-fi-crushed-pixies", title: "Crushed Pixies", artist: "Fae-Fi", src: "./assets/audio/fae-fi-crushed-pixies.m4a" },
       { id: "fae-fi-fae-fi", title: "Fae Fi", artist: "Fae-Fi", src: "./assets/audio/fae-fi-fae-fi.m4a" },
       { id: "fae-fi-mossy-groove", title: "Mossy Groove", artist: "Fae-Fi", src: "./assets/audio/fae-fi-mossy-groove.m4a" },
-      { id: "fae-fi-to-the-adventure", title: "To the Adventure", artist: "Fae-Fi", src: "./assets/audio/fae-fi-to-the-adventure.m4a" },
+      { id: "fae-fi-to-the-adventure", title: "To the Adventure", artist: "Fae-Fi", blessed: true, blessedSrc: "./assets/audio/fae-fi-to-the-adventure.m4a" },
       { id: "fae-fi-pages-rising", title: "Pages Rising", artist: "Fae-Fi", src: "./assets/audio/fae-fi-pages-rising.m4a" },
     ],
     /* DJ breaks between songs, voiced by Penny Blackletter. A `track` +
@@ -2641,6 +2754,8 @@ const STATIONS = [
         caption: "Filed this morning, off Today's Sky: the grey lost three feet of ground. Somebody noticed one true particular and wrote it down. That's the whole arithmetic of this place." },
       { id: "faefi-news-festival", category: "news", src: "./assets/audio/fae-fi-penny-news-festival.m4a",
         caption: "Festival weather incoming. I'll be in the corner, cataloguing joy as it happens, which is, I'm told, not the point of joy. Bring a souvenir." },
+      { id: "faefi-network-band", category: "network", src: "./assets/audio/fae-fi-penny-network-band.m4a",
+        caption: "For the record, the whole dial, filed in order: eighty-eight three, me, against my will. Ninety point nine, Euphony at Mothlight. One-oh-three seven, Wicker on Thornwave. And if you can hear Villanelle's Bindery at ninety-nine three, or Melisande's Market at one-oh-five one, you've gone properly nocturnal. Spin the dial. Somebody's playing your weather." },
       { id: "faefi-psa-timetable", category: "news", src: "./assets/audio/fae-fi-psa-timetable.m4a",
         caption: "Public notice from the records desk, since someone has to keep it straight. The Academy runs on bells: morning classes at nine, afternoon classes at one, and clubs gather at seven, lamps up. Five days of classes, a Saturday field run, and a Sunday that opens in another book entirely. It's all chalked on the board by the Inkworks. I keep the master copy. Naturally." },
       { id: "faefi-psa-curriculum", category: "news", src: "./assets/audio/fae-fi-psa-curriculum.m4a",
@@ -2679,7 +2794,7 @@ const STATIONS = [
       { id: "mothlight-tales-end", title: "Tale's End", artist: "Mothlight Beats", src: "./assets/audio/mothlight-tales-end.m4a" },
       { id: "mothlight-book-jumping", title: "Book Jumping", artist: "Mothlight Beats", src: "./assets/audio/mothlight-book-jumping.m4a" },
       { id: "mothlight-afternoon-chapters", title: "Afternoon Chapters", artist: "Mothlight Beats", src: "./assets/audio/mothlight-afternoon-chapters.m4a" },
-      { id: "mothlight-porchlight-fading", title: "Porchlight, Fading", artist: "Mothlight Beats", src: "./assets/audio/mothlight-porchlight-fading.m4a" },
+      { id: "mothlight-porchlight-fading", title: "Porchlight, Fading", artist: "Mothlight Beats", blessed: true, blessedSrc: "./assets/audio/mothlight-porchlight-fading.m4a" },
     ],
     banters: [
       { id: "mothlight-id-01", category: "stationID", src: "./assets/audio/mothlight-euphony-id-01.m4a",
@@ -2706,6 +2821,40 @@ const STATIONS = [
       { id: "mothlight-gossip-inkrest-lamp", category: "gossip",
         src: "./assets/audio/mothlight-euphony-gossip-inkrest-lamp.m4a",
         caption: "A note carried in on the dusk: Dr. Inkrest left her office lamp on past hours again. If the day sat heavy as a low note, her door is the kind that opens. No appointment. Just weather, and a chair, and a lamp." },
+      { id: "mothlight-class-resonance", category: "news",
+        src: "./assets/audio/mothlight-euphony-class-resonance.m4a",
+        caption: "Come to the Resonance Chamber some afternoon - Wing Three, where I ring a single glass bell and dim one lamp, and the whole room changes color without a wall ever moving. That's Synesthetic Resonance. The South direction. Sense. We practice hearing a colour, then naming the real evidence underneath it. The senses are serious instruments, you know. Bring yours. They're already tuned - you've only stopped listening." },
+      { id: "mothlight-class-quiet-hours", category: "gossip",
+        src: "./assets/audio/mothlight-euphony-class-quiet-hours.m4a",
+        conditions: { timeOfDay: ["dusk", "night"] },
+        caption: "Professor Stonebrook turned the hourglass on its side again tonight and let the unmoving sand become the entire lesson. Quiet Hours. The Center. Rest is not absence - it's the nervous system sorting the day so that tomorrow can happen at all. A pause chosen before collapse chooses it for you. If you've been running on the last of the light... his door is open. So is mine. Stay inside this song a while first." },
+      { id: "mothlight-talisman-tide-glass", category: "news",
+        src: "./assets/audio/mothlight-euphony-talisman-tide-glass.m4a",
+        caption: "My own Chapter's talisman came up tonight - the Tide Glass. Salt-bright, unpredictable, Tidecrest through and through. Consult it and it shows you a different hour every time. It forgets your plans on purpose. And its one belief is a small mercy: the moment is complete in itself. You don't have to finish the day to deserve it. Let this one be complete. Here." },
+      { id: "mothlight-talisman-moss-clasp", category: "gossip",
+        src: "./assets/audio/mothlight-euphony-talisman-moss-clasp.m4a",
+        caption: "They say the Moss Clasp - Mossbloom's quiet talisman - grows one new leaf whenever someone is truly listened to. Not spoken at. Listened to. It's older than its setting, and slow to act even when acting would be kind, because it trusts that the larger story is already being written. Someone, somewhere, is growing it a leaf right now, just by being heard. Be that for someone tonight." },
+      { id: "mothlight-cast-inkrest", category: "gossip",
+        src: "./assets/audio/mothlight-euphony-cast-inkrest.m4a",
+        caption: "Dr. Inkrest sets the chairs out before the feelings arrive - did you know that? She seats a hard page near a lamp before she asks it to speak a single word. A difficult feeling isn't a verdict in that office. It's a page. And a page can be named, and seated, and revised one hour at a time. If today sat heavy as a low note, her office hours are the kind of door that simply opens. No appointment. Just weather, a chair, and the lamp." },
+      { id: "mothlight-cast-serenity", category: "gossip",
+        src: "./assets/audio/mothlight-euphony-cast-serenity.m4a",
+        caption: "Serenity Brown swept through the Chamber today, left before the serious plan was finished, and somehow turned the detour into a rescue. She makes the loveliest chord in any room - the kind of laughter that changes its colour. Her whole creed is four words: joy is not a distraction. From magic, she means. From anything. If the day's gone solemn on you, she'd tell you to abandon the plan and go look at the sea. So would I." },
+      { id: "mothlight-lore-book-remembered", category: "news",
+        src: "./assets/audio/mothlight-euphony-lore-book-remembered.m4a",
+        caption: "The Book Remembered stirred tonight - an old page surfaced, one you were sure had gone quiet for good. That's how it works: give the Book enough notes and it begins to remember in chords. The quiet ones come back when the harmony is finally full enough to hold them. Don't reach for it. Just leave the lamp on and let it come the rest of the way. It always does, in the end." },
+      { id: "mothlight-psa-samhain", category: "news",
+        src: "./assets/audio/mothlight-euphony-psa-samhain.m4a",
+        caption: "A note for the calendar's gentlest night: Samhain - the Thinning - comes at the turn of October, when the door between the kept and the lost stands a little ajar. The Book remembers more than usual then, and is kinder about it. Name someone you've lost, and one thing they left in your keeping. The veil is thin; be honest, be gentle. It isn't a sad feast. It's a held one." },
+      { id: "mothlight-psa-yule-newmoon", category: "news",
+        src: "./assets/audio/mothlight-euphony-psa-yule-newmoon.m4a",
+        caption: "For the dark half of the year, two quiet feasts worth keeping. Yule - the Darkest Class - held by candlelight on the longest night, taught honestly, the fireplaces crowded. And every New Moon, the Listening: candles only, the Academy gone contemplative-dark. Both ask the same small thing - name one thing that survives the dark with you, and keep it where the candle can reach. The light always comes back. These feasts simply sit with you until it does." },
+      { id: "mothlight-psa-resonance-class", category: "news",
+        src: "./assets/audio/mothlight-euphony-psa-resonance-class.m4a",
+        caption: "A standing invitation, for the record: Synesthetic Resonance meets twice a week - Tuesday afternoons at one bell, and Friday mornings at nine - in the Resonance Chamber, Wing Three. We practice the South direction. Sense. Hearing a colour, then naming the real evidence beneath it. The senses are serious instruments, and yours are only out of practice. Come tune the room with me. Bring nothing - you already carry everything it needs." },
+      { id: "mothlight-psa-quiet-hours", category: "news",
+        src: "./assets/audio/mothlight-euphony-psa-quiet-hours.m4a",
+        caption: "Quiet Hours sits on the Wednesday timetable - Professor Stonebrook, the Still Room, one bell in the afternoon. It's the only class that teaches the Center. Rest. Not absence - the nervous system sorting the day so that tomorrow can happen. He turns the hourglass on its side and lets the still sand do the talking. If you've been running on the last of the light, that's the room. No one there will ask you to perform being fine." },
     ],
   },
   {
@@ -2725,7 +2874,7 @@ const STATIONS = [
       { id: "thornwave-no-conflict-no-story", title: "No Conflict, No Story", artist: "Thornwave", src: "./assets/audio/thornwave-no-conflict-no-story.m4a" },
       { id: "thornwave-magic-margins", title: "Magic Margins", artist: "Thornwave", src: "./assets/audio/thornwave-magic-margins.m4a" },
       { id: "thornwave-velvet-arrears", title: "Velvet Arrears", artist: "Thornwave", src: "./assets/audio/thornwave-velvet-arrears.m4a" },
-      { id: "thornwave-mossy-night", title: "Mossy Night", artist: "Thornwave", src: "./assets/audio/thornwave-mossy-night.m4a" },
+      { id: "thornwave-mossy-night", title: "Mossy Night", artist: "Thornwave", blessed: true, blessedSrc: "./assets/audio/thornwave-mossy-night.m4a" },
     ],
     banters: [
       { id: "thornwave-id-01", category: "stationID", src: "./assets/audio/thornwave-wicker-id-01.m4a",
@@ -3181,12 +3330,18 @@ const STATIONS = [
       const li = document.createElement("li");
       li.className = "track";
       const playable = Boolean(t.src);
+      const locked = Boolean(t.blessed && !t.src);
+      const blessed = Boolean(t.blessed && t.src);
       li.classList.toggle("playable", playable);
+      li.classList.toggle("blessed-locked", locked);
+      li.classList.toggle("blessed", blessed);
       li.classList.toggle("now-playing", onAir && playable && i === trackIndex);
+      const state = onAir && playable && i === trackIndex ? "♫" : locked ? "🔒" : playable ? "▷" : "—";
+      const tag = locked ? "Blessed · spend Belief on the dial" : blessed ? "✦ blessed" : playable ? "" : "no recording yet";
       li.innerHTML = `
-        <span class="track-state" aria-hidden="true">${onAir && playable && i === trackIndex ? "♫" : playable ? "▷" : "—"}</span>
+        <span class="track-state" aria-hidden="true">${state}</span>
         <span class="track-meta"><strong>${t.title}</strong><small>${t.artist}</small></span>
-        <span class="track-tag">${playable ? "" : "no recording yet"}</span>`;
+        <span class="track-tag">${tag}</span>`;
       if (playable) li.addEventListener("click", () => { trackIndex = i; play(); });
       trackList.appendChild(li);
     });
@@ -3419,6 +3574,23 @@ const STATIONS = [
   if (power) power.addEventListener("click", () => {
     if (onAir) powerOffBroadcast();
   });
+
+  // The "Bless the dial" Belief spend (in the Glow menu) unlocks one secret
+  // track per station and brings the cabinet to life on the current frequency.
+  // Returns how many tracks it newly unlocked so the spend can react.
+  window.blessRadioDial = function blessRadioDial() {
+    let unlocked = 0;
+    STATIONS.forEach((station) => {
+      (station.tracks || []).forEach((t) => {
+        if (t.blessed && !t.src && t.blessedSrc) { t.src = t.blessedSrc; unlocked += 1; }
+      });
+    });
+    if (!tuned) { dial.value = STATIONS[0].freq; onDial(); }
+    const idx = tuned ? tuned.tracks.findIndex((t) => t.blessed && t.src) : -1;
+    if (idx >= 0) { trackIndex = idx; play(); }
+    else { renderTracks(); }
+    return unlocked;
+  };
 
   dial.addEventListener("input", onDial);
   window.addEventListener("resize", drawWaveIdle, { passive: true });
