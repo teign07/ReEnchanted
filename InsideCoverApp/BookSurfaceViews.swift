@@ -5565,15 +5565,53 @@ struct OnboardingFlowView: View {
     }
 
     private func onboardingProse(_ text: String) -> some View {
-        Text(text)
-            .font(.system(.callout, design: .serif))
-            .foregroundStyle(BookPalette.ink.opacity(0.86))
-            .lineSpacing(3)
-            .fixedSize(horizontal: false, vertical: true)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                isOnboardingFieldFocused = false
+        InkSettlingProse(text: text) {
+            isOnboardingFieldFocused = false
+        }
+    }
+
+    /// Onboarding prose that settles in like wet ink: each paragraph fades up
+    /// and un-blurs in turn, giving every beat a small reading rhythm instead
+    /// of a wall of text appearing at once. Falls back to an instant render
+    /// when Reduce Motion is on. Re-runs whenever a new beat presents it.
+    private struct InkSettlingProse: View {
+        let text: String
+        var onTap: () -> Void = {}
+
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+        @State private var settled = false
+
+        private var paragraphs: [String] {
+            text
+                .components(separatedBy: "\n\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(Array(paragraphs.enumerated()), id: \.offset) { index, paragraph in
+                    Text(paragraph)
+                        .font(.system(.callout, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.86))
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .opacity(settled ? 1 : 0)
+                        .blur(radius: settled ? 0 : 4)
+                        .offset(y: settled ? 0 : 6)
+                        .animation(
+                            reduceMotion
+                                ? nil
+                                : .easeOut(duration: 0.5).delay(min(Double(index) * 0.12, 1.2)),
+                            value: settled
+                        )
+                }
             }
+            .contentShape(Rectangle())
+            .onTapGesture { onTap() }
+            .onAppear { settled = true }
+        }
     }
 
     private func onboardingField(_ placeholder: String, text: Binding<String>) -> some View {
