@@ -43,10 +43,23 @@ continuous living world:
   `PageTrigger`, so pack pages can surface from clock, weekday, moon phase,
   Almanac celebrations, weather, recent archive tags, absence/quiet days,
   Nothing pressure, rarity, page anniversaries, and active world-event IDs or
-  phases.
+  phases, live-vs-archive event mode, Reader Lexicon size, treaty outcome, and
+  later bargain-seed state.
 - **Dictionary Rebellion groundwork:** the first September/back-to-school arc
   can now surface its own pack page, widget whisper, radio atmosphere, Bleed
   packet, notification, and Book of You pressure while the event is active.
+- **Live + archive event play:** monthly DLC can run on the live calendar or be
+  opened later as a full archive run. Archive runs keep their own start date,
+  phase progression, pause/completion state, and trigger mode, so a December
+  player can experience the September Rebellion without waiting a year while
+  December's live event still colors the main Book.
+- **Reader's Lexicon:** the Dictionary Rebellion now has a persistent ruling
+  layer. Words can be recalled, pardoned, adopted, or freed; those rulings settle
+  into a treaty and become an in-memory Sentence Builder pack that bends future
+  prose without writing generated pack files into Documents.
+- **Wonder Compass widgets:** the Compass widget now supports large/extra-large
+  families and can render a real five-direction run payload from the app, with a
+  deterministic fallback and a Gemma-ready handoff path.
 - **Radio as broadcast:** stations now support authored DJ banter, hidden-band
   interstitial static, audio-backed breaks, world-context gates, run-based track
   rotation, station atmosphere in prose, listening constellations, and held
@@ -437,6 +450,8 @@ conditions must match; omitted fields stay open. Packs can key a page to:
 - recent archive tags, quiet-day count, absence count, and page anniversaries;
 - Nothing pressure (`minGrey` / `maxGrey`);
 - active world-event IDs, world-event phases, and reader touch counts;
+- world-event activation mode (`live`, `archive`, or `preview`);
+- Reader Lexicon state: minimum rulings, treaty outcome, and bargain-seed flags;
 - deterministic daily rarity.
 
 The bundled free pack now includes examples: **The Returning Reader** after
@@ -463,7 +478,9 @@ The BookShop is the Marginalia Goblins' commerce layer:
 
 Current listed packs include **The Nocturne Folio**, **Academy Night Band**, and
 **The Starlit Paper Trial Archive**, with additional story/marginalia packs
-marked as being printed.
+marked as being printed. Archive event listings can open their event directly
+from the shop; the app records an `OpenWorldEventArchive` in the vault rather
+than pretending the calendar changed.
 
 This is the content expansion spine: new pages, event archives, radio stations,
 and story-form bundles can be owned by the save and consumed by registries.
@@ -709,8 +726,10 @@ tinted paper wash, faint fibres, foxing, taped torn scraps in the gutter, torn
 section labels, taped marginalia notes, and stable per-page seeds. A given
 edition re-binds with the same paper, scraps, tape, and ornaments every time.
 
-The lab/export area in `ContentView` exposes `Bind monthly edition`; once
-generated, the control becomes a `ShareLink`.
+The lab/export area in `ContentView` exposes `Bind monthly edition` and annual
+binding controls; once generated, the control becomes a `ShareLink`. Print-style
+tests cover the exported structure so the PDF path remains a book binding
+surface, not a loose report.
 
 This system is intentionally archive-driven. It does not generate a whole book
 from scratch. It binds accumulated artifacts into a coherent monthly volume.
@@ -1522,9 +1541,9 @@ entitlements).
 
 **The shared bridge (`Shared/ReEnchantedWidgetSnapshot.swift`).** A
 `ReEnchantedWidgetSnapshot` is a Codable, privacy-aware value type carrying just
-what the widgets render: a today page, Wonder Compass prompt, a Book Remembered
-memory, Today's Sky line, radio state and station list, enchantment shortcuts,
-world-event status, and a Belief reading. It honors a
+what the widgets render: a today page, Wonder Compass prompt/run payload, a Book
+Remembered memory, Today's Sky line, radio state and station list, enchantment
+shortcuts, world-event status, and a Belief reading. It honors a
 `ReEnchantedWidgetPrivacyMode` (`privateSafe` vs `personalText`) so personal
 prose can be held back on a glanceable surface. The file also defines the
 App-Group `UserDefaults` store and the command/queue types the extension and app
@@ -1543,6 +1562,17 @@ world-event tile in place of the Enchantment tile while an event is active.
 **Wonder Compass**, **Returned From the Stacks** (Book Remembered), and **Glow**,
 across small → extra-large families where it makes sense.
 
+The Wonder Compass widget now has a real run contract,
+`ReEnchantedWidgetCompassRun`: title, mode, time box, place, energy, companions,
+North spark, East destination/delight/definition, South mission, West souvenir,
+Center rest, and an optional hint. Small/medium widgets show the active step;
+large/extra-large widgets render the whole five-direction run. The app exports
+the run from the current Wonder Compass surface metadata when present and falls
+back to a deterministic "Tiny Wonder Run" when no generated/custom run exists.
+Gemma remains app-side and user-initiated; once the app writes a generated run
+into the same metadata keys, the widget can guide it without running a model in
+WidgetKit.
+
 **Interactivity (App Intents).** Two of the widgets act without launching the
 app, via `Shared/ReEnchantedWidgetIntents.swift`:
 
@@ -1553,6 +1583,8 @@ app, via `Shared/ReEnchantedWidgetIntents.swift`:
 - **Wonder Compass** — `ReEnchantedAdvanceCompassIntent` /
   `ReEnchantedResetCompassIntent` step a `ReEnchantedCompassWidgetRun` stored in
   the App Group entirely in-widget, reloading just that timeline.
+  `ReEnchantedOpenCompassIntent` opens the app back to the Compass when the
+  reader is ready to keep the run to the Book.
 
 **Deep links.** Widget taps open the app with a URL handled in
 `InsideCoverApp.swift` (`onOpenURL`), which posts
@@ -1575,7 +1607,7 @@ The model is structured:
 - `WorldEvent` defines title, calendar window, phases, triggers, outcomes,
   effects, and an `EventInfluencePacket`.
 - `WorldEventResolver` resolves the active phase, player touch count, outcome,
-  and effect list for the current date.
+  effect list, and activation mode for the current date.
 - `WorldEventPageSourceAdapter` surfaces active fieldwork prompts as keepable
   pages.
 
@@ -1595,6 +1627,21 @@ through fieldwork, letters, classes, Compass Runs, enchantments, Story Pages,
 or Bleed issues. Extensions on active event arrays provide the shared packets:
 `bleedPacket`, `radioAtmosphereLine`, `widgetWhisperLine`,
 `bookOfYouPromptSection`, and event tags.
+
+World events can be resolved in three modes:
+
+- `liveCalendar` - the normal calendar season, used for the current monthly arc.
+- `openedArchive` - a purchased/owned archive event opened from the BookShop or
+  Almanac. It runs from the reader's `openedAt` date for the event's full
+  duration, with pause/completion state stored as `OpenWorldEventArchive` in the
+  vault.
+- `preview` - DEBUG development mode for reaching an event when nothing is in
+  season.
+
+This lets the Book support "best of all worlds" DLC: the current month remains
+alive, while an older event can be played later at full length instead of as a
+summary. `PageTrigger.worldEventModes` lets pages choose whether they belong to
+live play, archive play, or both.
 
 The bundled pack is **The Living Almanac**, currently including two events:
 **The Dictionary Rebellion**, a September event where words peel away from their
@@ -1627,6 +1674,29 @@ This is the machinery for longer monthly arcs: a "Back to School" September pack
 can ship a Dictionary Rebellion event, pages that wake only during that event,
 radio interruptions, Bleed copy, widget whispers, class/letter/story pressure,
 and a monthly-edition trace, all from authored data.
+
+### The Dictionary Rebellion Kernel
+
+The atmospheric Dictionary Rebellion event is paired with a persistent
+interactive kernel:
+
+- **Reader's Lexicon** (`ReaderLexicon`, `LexiconEntry`) lives in save/vault
+  state and records the reader's rulings on escaped words.
+- Each ruling has a category: recall, pardon, adopt, or free. After enough
+  rulings, `ReaderLexicon.settleTreatyIfReady(...)` derives a directional treaty
+  outcome: Restoration, Reformation, or Secession.
+- `SentenceBuilderPack.composed(... readerLexicon:)` merges the reader's living
+  Lexicon into the active Sentence Builder pack in memory. The Lexicon is save
+  state, not an imported `.sentencepack.json`, so the app does not create
+  generated pack files in Documents.
+- Pack pages can require Lexicon state through trigger fields such as
+  `minLexiconEntries`, `treatyOutcomes`, and `bargainSeedSurfaced`, allowing
+  later Rebellion pages and future Bargain seeds to wake from what the reader
+  actually decided.
+
+The result is a monthly event that can leave durable language behind: the
+atmosphere fades, but the reader's definitions remain part of the Book's future
+syntax.
 
 ## The Almanac (Wheel of the Year + lunar esbats)
 
@@ -2394,7 +2464,8 @@ Important app files:
 - `InsideCoverApp/BookDatabase.swift` - app wrapper over the shared archive.
 - `InsideCoverApp/SearchTheStacksSheet.swift` - local archive search UI.
 - `InsideCoverApp/CustomCastMemberSheet.swift` - custom cast creation UI.
-- `InsideCoverApp/BookShopSheet.swift` - pack/shop UI.
+- `InsideCoverApp/BookShopSheet.swift` - pack/shop UI, including owned/free
+  pack shelves and archive-event opening.
 - `InsideCoverApp/AppSupport.swift` - haptics, quips, radio playback and the DJ
   playout clock,
   location/weather/body readers, nutrition support, the `GenerationCoordinator`
@@ -2404,20 +2475,23 @@ Important app files:
   writing (`EventKitWriter` for Reminders/Calendar), the `OvernightScribe`, and
   cross-cutting helpers.
 - `InsideCoverApp/MonthlyEditionPDF.swift` - PDF rendering for monthly and
-  annual editions, including composted parchment interiors and closing pages.
+  annual editions, including composted parchment interiors, print-style
+  structure, and closing pages.
 - `InsideCoverApp/ReEnchantedWidgetSnapshotWriter.swift` - builds the typed
-  widget snapshot from live app state and publishes it to the shared App Group.
+  widget snapshot, including Compass run payloads and world-event atmosphere,
+  from live app state and publishes it to the shared App Group.
 
 ## Widget Target Files
 
 - `ReEnchantedWidgets/ReEnchantedWidgets.swift` - the `WidgetBundle` (Today,
   Radio, Enchantment, Wonder Compass, Returned From the Stacks, Glow) and their
-  timeline provider/views.
+  timeline provider/views, including large/extra-large Compass runs.
 - `ReEnchantedWidgets/Info.plist`, `ReEnchantedWidgets.entitlements` - extension
   metadata and the shared App Group declaration.
 - Shared with the extension: `Shared/ReEnchantedWidgetSnapshot.swift` (snapshot,
-  command/run stores, App-Group access) and `Shared/ReEnchantedWidgetIntents.swift`
-  (the interactive Compass App Intents).
+  Compass run payload, command/run stores, App-Group access) and
+  `Shared/ReEnchantedWidgetIntents.swift` (interactive Radio/Compass App Intents
+  and the open-Compass handoff).
 
 ## Shared Core Files
 
@@ -2444,9 +2518,9 @@ Important shared files:
   Book Fae economy (bargains, gifts, market, marginalia), the Pact War
   (territories, engine, effects, voices), the Almanac (Wheel of the Year +
   esbats), Today's Sky, and the returning-greeting composer.
-- `Shared/WorldEvents.swift` - event packs, active event resolution, phases,
-  typed touch counts, outcomes, influence packets, event effects, and the
-  cross-surface world-event envelope.
+- `Shared/WorldEvents.swift` - event packs, live/archive/preview event
+  resolution, phases, typed touch counts, outcomes, influence packets, event
+  effects, open archive state, and the cross-surface world-event envelope.
 - `Shared/InsideCoverState.swift` - remaining app state models and archive
   export structures.
 - `Shared/InsideCoverStore.swift` - store/load, local model management,
@@ -2455,9 +2529,11 @@ Important shared files:
 - `Shared/ReferenceLibrary.swift` - reference snippets, quip packs,
   self-knowledge packs, illustration profiles.
 - `Shared/PagePacks.swift` - page archetypes, save file, vault data, BookShop,
-  triggered Page Pack gates, margin tutor, JSON salvage.
+  triggered Page Pack gates (including event mode and Lexicon/treaty gates),
+  margin tutor, JSON salvage.
 - `Shared/SentenceBuilder.swift` - concrete sentence-craft nudges, diagnostics,
-  chips, alchemy levels, and the Shadow Wonder lexicon.
+  chips, alchemy levels, the Shadow Wonder lexicon, and the Reader's Lexicon
+  pack merge used by the Dictionary Rebellion.
 - `Shared/Illumination.swift` - photo illumination templates, packs, composer,
   queue/source adapter.
 - `Shared/StacksSearch.swift` - local search engine.
