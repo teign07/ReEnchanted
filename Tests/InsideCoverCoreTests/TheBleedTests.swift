@@ -12,6 +12,10 @@ final class TheBleedTests: XCTestCase {
         calendar.date(from: DateComponents(timeZone: calendar.timeZone, year: 2026, month: 6, day: day, hour: hour))!
     }
 
+    private func septemberDate(_ day: Int, hour: Int) -> Date {
+        calendar.date(from: DateComponents(timeZone: calendar.timeZone, year: 2026, month: 9, day: day, hour: hour))!
+    }
+
     private func interestFact(_ id: String, _ answer: String) -> SelfFact {
         SelfFact(
             id: "fact-\(id)",
@@ -52,6 +56,18 @@ final class TheBleedTests: XCTestCase {
         XCTAssertTrue(briefs.contains { $0.id == "weather-desk" && !$0.needsLocalBrain })
         XCTAssertTrue(briefs.contains { $0.id == "interest-desk" })
         XCTAssertFalse((announcement?.payload.metadata["bleedInterest"] ?? "").isEmpty)
+    }
+
+    func testAnnouncementCarriesActiveWorldEventPacket() {
+        var inputs = BookSourceInputs.empty
+        inputs.bleedIssueNumber = 13
+        let september = BookDay(id: "2026-09-10", date: septemberDate(10, hour: 0), pages: [])
+        let announcement = TheBleedEditionBuilder.announcementSurface(for: september, inputs: inputs, now: septemberDate(10, hour: 8), calendar: calendar)
+
+        XCTAssertEqual(announcement?.payload.metadata["worldEventIDs"], "dictionary-rebellion")
+        XCTAssertTrue(announcement?.payload.metadata["worldEventBleedPacket"]?.contains("Treat the rebellion as live campus news") == true)
+        XCTAssertTrue(announcement?.payload.metadata["tags"]?.contains("event:dictionary-rebellion") == true)
+        XCTAssertTrue(announcement?.payload.body.contains("Special bulletin: The Dictionary Rebellion") == true)
     }
 
     func testMorningAndEveningPickDifferentInterests() {
@@ -109,6 +125,18 @@ final class TheBleedTests: XCTestCase {
         XCTAssertTrue(body.contains("CASEMENT WEATHER"))
         XCTAssertTrue(body.contains("THE READER'S SHELF: SAILING"))
         XCTAssertTrue(body.contains("P. Blackletter"))
+    }
+
+    func testFrontPagePacketIncludesWorldEventDesk() {
+        let september = BookDay(id: "2026-09-10", date: septemberDate(10, hour: 0), pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs = inputs.resolvingWorldEvents(for: september, now: septemberDate(10, hour: 8))
+
+        let packet = TheBleedEditionBuilder.frontPagePacket(kind: .morning, day: september, inputs: inputs)
+
+        XCTAssertTrue(packet.contains("Active world-event desk"))
+        XCTAssertTrue(packet.contains("The Dictionary Rebellion"))
+        XCTAssertTrue(packet.contains("Treat the rebellion as live campus news"))
     }
 
     func testPreparedCopyCarriesProseAndDropsPlaceholder() {

@@ -18,6 +18,7 @@ struct PageArchetype: Codable, Identifiable, Equatable {
     var renderStyleRaw: String?
     var symbolName: String = "puzzlepiece.extension"
     var tags: [String] = []
+    var trigger: PageTrigger?
     var generation: GenerationSpec?
 
     struct GenerationSpec: Codable, Equatable {
@@ -28,6 +29,216 @@ struct PageArchetype: Codable, Identifiable, Equatable {
 
     var renderStyle: BookPageRenderStyle {
         BookPageRenderStyle(rawValue: renderStyleRaw ?? "") ?? .promptCard
+    }
+}
+
+/// Optional conditions that let pack pages wake up only when the world is in
+/// the right state. All supplied conditions must pass; omitted fields are open.
+struct PageTrigger: Codable, Equatable {
+    var timeBands: [String]? = nil
+    var weekdays: [Int]? = nil
+    var moonPhases: [String]? = nil
+    var festivalActive: Bool? = nil
+    var celebrationIDs: [String]? = nil
+    var weatherTags: [String]? = nil
+    var recentTags: [String]? = nil
+    var activeWorldEventIDs: [String]? = nil
+    var worldEventPhases: [String]? = nil
+    var minWorldEventTouches: Int? = nil
+    var minGrey: Int? = nil
+    var maxGrey: Int? = nil
+    var minQuietDays: Int? = nil
+    var minAbsenceDays: Int? = nil
+    var anniversaryWindowDays: Int? = nil
+    /// 0...1 deterministic daily chance, stable for the day and archetype.
+    var rarity: Double? = nil
+
+    func allows(context: PageTriggerContext, archetypeID: String) -> Bool {
+        if let timeBands, !timeBands.isEmpty,
+           !Self.matches(context.timeBand, in: timeBands) {
+            return false
+        }
+        if let weekdays, !weekdays.isEmpty,
+           !weekdays.contains(context.weekday) {
+            return false
+        }
+        if let moonPhases, !moonPhases.isEmpty,
+           !Self.matches(context.moonPhase, in: moonPhases) {
+            return false
+        }
+        if let festivalActive,
+           festivalActive != context.festivalActive {
+            return false
+        }
+        if let celebrationIDs, !celebrationIDs.isEmpty,
+           !context.celebrations.contains(where: { Self.matches($0.id, in: celebrationIDs) || Self.matches($0.commonName, in: celebrationIDs) }) {
+            return false
+        }
+        if let weatherTags, !weatherTags.isEmpty,
+           !Self.any(weatherTags, isIn: context.weatherTags) {
+            return false
+        }
+        if let recentTags, !recentTags.isEmpty,
+           !Self.any(recentTags, isIn: context.recentTags) {
+            return false
+        }
+        if let activeWorldEventIDs, !activeWorldEventIDs.isEmpty,
+           !context.activeWorldEvents.contains(where: { Self.matches($0.id, in: activeWorldEventIDs) }) {
+            return false
+        }
+        if let worldEventPhases, !worldEventPhases.isEmpty,
+           !context.activeWorldEvents.contains(where: { Self.matches($0.phase.id, in: worldEventPhases) || Self.matches($0.phase.title, in: worldEventPhases) }) {
+            return false
+        }
+        if let minWorldEventTouches,
+           context.activeWorldEvents.map(\.playerTouchCount).max() ?? 0 < minWorldEventTouches {
+            return false
+        }
+        if let minGrey, context.greyPressure < minGrey {
+            return false
+        }
+        if let maxGrey, context.greyPressure > maxGrey {
+            return false
+        }
+        if let minQuietDays, context.quietDays < minQuietDays {
+            return false
+        }
+        if let minAbsenceDays, context.absenceDays < minAbsenceDays {
+            return false
+        }
+        if let anniversaryWindowDays,
+           !context.hasPageAnniversary(withinDays: anniversaryWindowDays) {
+            return false
+        }
+        if let rarity,
+           !context.passesRarity(rarity, archetypeID: archetypeID) {
+            return false
+        }
+        return true
+    }
+
+    private static func matches(_ value: String, in candidates: [String]) -> Bool {
+        let value = key(value)
+        return candidates.contains { key($0) == value }
+    }
+
+    private static func any(_ values: [String], isIn set: Set<String>) -> Bool {
+        values.map(key).contains { set.contains($0) }
+    }
+
+    fileprivate static func key(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .filter { $0.isLetter || $0.isNumber }
+    }
+}
+
+struct PageTriggerContext {
+    var day: BookDay
+    var inputs: BookSourceInputs
+    var now: Date
+    var calendar: Calendar
+    var activeWorldEvents: [ResolvedWorldEvent]
+    var celebrations: [Celebration]
+
+    init(
+        day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar = .current
+    ) {
+        self.day = day
+        self.inputs = inputs
+        self.now = now
+        self.calendar = calendar
+        self.activeWorldEvents = inputs.activeWorldEvents.isEmpty
+            ? inputs.resolvingWorldEvents(for: day, now: now).activeWorldEvents
+            : inputs.activeWorldEvents
+        self.celebrations = Almanac.celebrations(on: now, hemisphere: inputs.hemisphere, calendar: calendar)
+    }
+
+    var timeBand: String {
+        RadioWorldContext.band(for: now, calendar: calendar)
+    }
+
+    var weekday: Int {
+        calendar.component(.weekday, from: now)
+    }
+
+    var moonPhase: String {
+        MoonPhaseCalendar.phase(on: now).name
+    }
+
+    var festivalActive: Bool {
+        !celebrations.isEmpty
+    }
+
+    var weatherTags: Set<String> {
+        Set(RadioPageContext.weatherTags(weather: inputs.weather, enchanted: inputs.enchantedWeather).map(PageTrigger.key))
+    }
+
+    var recentTags: Set<String> {
+        let recentStart = calendar.date(byAdding: .day, value: -14, to: now) ?? now.addingTimeInterval(-14 * 86_400)
+        return Set(recentPages(since: recentStart).flatMap(\.tags).map(PageTrigger.key))
+    }
+
+    var quietDays: Int {
+        max(inputs.quietDays, NothingTide.quietDays(in: inputs.days, today: day.id, calendar: calendar, now: now))
+    }
+
+    var greyPressure: Int {
+        let level = NothingTide.greyLevel(
+            quietDays: quietDays,
+            narrativeHeat: inputs.narrative?.recentEventCount ?? 0,
+            distressActive: false,
+            celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: inputs.hemisphere, calendar: calendar)
+        )
+        return level * 100 / 3
+    }
+
+    var absenceDays: Int {
+        let pages = allPages()
+            .filter { $0.createdAt <= now }
+            .sorted { $0.createdAt > $1.createdAt }
+        guard let latest = pages.first else { return 999 }
+        let latestStart = calendar.startOfDay(for: latest.createdAt)
+        let todayStart = calendar.startOfDay(for: now)
+        return max(0, calendar.dateComponents([.day], from: latestStart, to: todayStart).day ?? 0)
+    }
+
+    func hasPageAnniversary(withinDays window: Int) -> Bool {
+        let currentYear = calendar.component(.year, from: now)
+        let todayStart = calendar.startOfDay(for: now)
+        for page in allPages() {
+            let pageYear = calendar.component(.year, from: page.createdAt)
+            guard pageYear < currentYear else { continue }
+            let pageParts = calendar.dateComponents([.month, .day], from: page.createdAt)
+            guard let anniversary = calendar.date(from: DateComponents(year: currentYear, month: pageParts.month, day: pageParts.day)) else {
+                continue
+            }
+            let distance = abs(calendar.dateComponents([.day], from: calendar.startOfDay(for: anniversary), to: todayStart).day ?? Int.max)
+            if distance <= max(0, window) {
+                return true
+            }
+        }
+        return false
+    }
+
+    func passesRarity(_ chance: Double, archetypeID: String) -> Bool {
+        let clamped = min(1, max(0, chance))
+        if clamped <= 0 { return false }
+        if clamped >= 1 { return true }
+        let bucket = UInt(bitPattern: "\(day.id)-\(archetypeID)-page-trigger-rarity".stableHash) % 10_000
+        return Double(bucket) / 10_000.0 < clamped
+    }
+
+    private func allPages() -> [BookPage] {
+        (inputs.days + [day]).flatMap(\.capturedPages)
+    }
+
+    private func recentPages(since start: Date) -> [BookPage] {
+        allPages().filter { $0.createdAt >= start && $0.createdAt <= now }
     }
 }
 
@@ -183,6 +394,63 @@ enum PageArchetypePackRegistry {
                     renderStyleRaw: "loreLetter",
                     symbolName: "circle.dotted",
                     tags: ["nothing", "return", "gentle"]
+                ),
+                PageArchetype(
+                    id: "returning-reader-threshold",
+                    title: "The Returning Reader",
+                    headline: "The Door Remembered You",
+                    detail: "After quiet days, the Book opens without scolding.",
+                    reason: "Absence has weight in the stacks; return has more.",
+                    bodyTemplate: "The Book has been quiet for {playerName}, but not empty. Dust gathered on the edge of the page and arranged itself into a welcome. Write one sentence from the days away — plain, unfinished, absolutely enough — and the door will know your hand again.",
+                    score: 62,
+                    cadenceHours: 24,
+                    renderStyleRaw: "loreLetter",
+                    symbolName: "door.left.hand.open",
+                    tags: ["return", "absence", "gentle"],
+                    trigger: PageTrigger(minQuietDays: 2, minAbsenceDays: 2)
+                ),
+                PageArchetype(
+                    id: "rain-in-the-stacks",
+                    title: "Rain in the Stacks",
+                    headline: "Petrichor Between Pages",
+                    detail: "Wet weather makes the margins remember differently.",
+                    reason: "Rain has reached the Book's weather desk.",
+                    bodyTemplate: "It is {timeOfDay}, {weather}, and the shelves have begun to smell faintly of pavement, ink, and safe rooms. Keep one rain-detail from wherever you are: a sound, a reflection, a damp sleeve, a window doing its best. The Book will press it between these pages until it dries into memory.",
+                    score: 57,
+                    cadenceHours: 8,
+                    renderStyleRaw: "promptCard",
+                    symbolName: "cloud.rain",
+                    tags: ["weather", "rain", "memory"],
+                    trigger: PageTrigger(weatherTags: ["rain"])
+                ),
+                PageArchetype(
+                    id: "full-moon-marginalia",
+                    title: "Full-Moon Marginalia",
+                    headline: "Write Where It Glows",
+                    detail: "The Luminous Gathering leaves a writable edge.",
+                    reason: "The moon is bright enough to annotate the shelves.",
+                    bodyTemplate: "{moonLine} Tonight the margins are not blank; they are only waiting for light to catch them. Keep one sentence you would not have noticed by daylight. It can be tiny. Full moons are not impressed by size; they are impressed by gleam.",
+                    score: 61,
+                    cadenceHours: 24,
+                    activeHours: [18, 19, 20, 21, 22, 23, 0, 1],
+                    renderStyleRaw: "loreLetter",
+                    symbolName: "moonphase.full.moon",
+                    tags: ["moon", "full-moon", "ritual"],
+                    trigger: PageTrigger(timeBands: ["dusk", "night"], moonPhases: ["Full Moon"])
+                ),
+                PageArchetype(
+                    id: "dictionary-rebellion-picket-line",
+                    title: "Picket Line in the Dictionary",
+                    headline: "Definitions on Strike",
+                    detail: "One word has walked off its page and is making demands.",
+                    reason: "The Dictionary Rebellion is active in the stacks.",
+                    bodyTemplate: "A word has peeled itself out of the dictionary and is pacing the margin with a tiny placard. Choose any ordinary word from your day and give it the definition it wants now — not the official one, the true one. The Book will file it with the rebels.",
+                    score: 66,
+                    cadenceHours: 6,
+                    renderStyleRaw: "promptCard",
+                    symbolName: "textformat.abc",
+                    tags: ["world-event", "dictionary-rebellion", "words"],
+                    trigger: PageTrigger(activeWorldEventIDs: ["dictionary-rebellion"])
                 ),
                 PageArchetype(
                     id: "hearth-inventory",

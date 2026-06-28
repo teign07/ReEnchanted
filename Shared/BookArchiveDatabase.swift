@@ -21,6 +21,7 @@ final class StoredArchivePage {
     var createdAt: Date
     var promptText: String
     var userInput: String
+    var playerReply: String = ""
     var tagsData: Data
     var usedInBookOfYou: Bool
     var sourceID: String
@@ -36,6 +37,7 @@ final class StoredArchivePage {
         createdAt = page.createdAt
         promptText = page.promptText
         userInput = page.userInput
+        playerReply = page.playerReply
         tagsData = (try? JSONEncoder().encode(page.tags)) ?? Data()
         usedInBookOfYou = page.usedInBookOfYou
         sourceID = page.sourceID
@@ -56,6 +58,7 @@ final class StoredArchivePage {
             createdAt: createdAt,
             promptText: promptText,
             userInput: userInput,
+            playerReply: playerReply,
             tags: decodedTags,
             usedInBookOfYou: usedInBookOfYou,
             sourceID: sourceID,

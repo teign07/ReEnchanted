@@ -23,13 +23,50 @@ durations, relationships, recurring Beliefs, and seasonal shape.
 - Shared SwiftPM package: `InsideCoverCore`
 - Supported runtime target: iOS 17+
 - Shared-core test target: `Tests/InsideCoverCoreTests`
-- Current verified shared suite: 519 tests, 1 skipped
+- Current verified shared suite: 565 tests, 1 skipped
 - Device builds: build/install to a physical device (the local brain only runs on
   device; the iOS Simulator compiles but exercises only the fake fallbacks).
 - Widget status: **shipped** as a Home Screen / Lock Screen extension target,
   `ReEnchantedWidgets`, with interactive (App Intents) radio and Wonder Compass
   widgets. It reads a snapshot the app publishes to a shared App Group
   (`group.com.openclaw.enchantify.insidecover`). See "Widgets" below.
+
+## Current Build Snapshot
+
+Recent app work has pushed the Book from "many smart surfaces" toward a more
+continuous living world:
+
+- **Monthly world-event envelope:** active `WorldEvent`s now affect The Bleed,
+  Radio, Book Whispers, widgets, Book of You braids, story packets, letters, and
+  curation metadata, not just their own event door.
+- **Triggered Page Packs:** `PageArchetype` now has an optional Codable
+  `PageTrigger`, so pack pages can surface from clock, weekday, moon phase,
+  Almanac celebrations, weather, recent archive tags, absence/quiet days,
+  Nothing pressure, rarity, page anniversaries, and active world-event IDs or
+  phases.
+- **Dictionary Rebellion groundwork:** the first September/back-to-school arc
+  can now surface its own pack page, widget whisper, radio atmosphere, Bleed
+  packet, notification, and Book of You pressure while the event is active.
+- **Radio as broadcast:** stations now support authored DJ banter, hidden-band
+  interstitial static, audio-backed breaks, world-context gates, run-based track
+  rotation, station atmosphere in prose, listening constellations, and held
+  station effects.
+- **Radio Free Margin:** a hidden unauthorized broadcast layer now ships with
+  static and Penny-adjacent contraband clips that can speak about Wicker's crew,
+  talismans, the Unwritten Chapter, Thorne, and The Bleed's off-record material.
+- **Shadow Wonder / Duskthorn variants:** once the Dusk Thorn has Belief, the
+  app can surface dark-wonder variants across Souvenir, Inner Weather, Wonder
+  Compass, lore, Today's Sky, and the Sentence Runner, with a shared
+  `ShadowWonder` activation model and lexicon.
+- **Center Page deepening:** the Center/Rest family now includes concrete
+  "Gear Shifter" invitations for Alpha/Theta rest, so rest can appear as a
+  specific relief rather than a generic prompt.
+- **Search the Stacks expansion:** archive search is now treated as a first-class
+  product surface in both app and landing page copy, with richer semantic search
+  examples and new screenshots.
+- **Landing page refresh:** the static site now demonstrates the First Door,
+  semantic search, radio dials, hidden lore marginalia, and new audio/screen
+  assets in the separate `teign07/landingpage` repo.
 
 ## Repository Layout
 
@@ -334,6 +371,11 @@ Faculty-flavored capture windows, such as Dr. Inkrest for inner weather and Dr.
 Vellum for fuel/body notes, use structured `FacultyEntry` records so the app
 can tell whether a window has already been logged.
 
+The Center/Rest family now includes **Gear Shifters** from the Wonder Compass's
+Center chapter: concrete Alpha and Theta rest invitations chosen by hour and
+day state. This lets rest surface as a specific nervous-system relief ("soft
+gaze", deeper repair, etc.) instead of a generic "take a break" card.
+
 ### Sentence Builder
 
 `Shared/SentenceBuilder.swift` is the craft helper behind the Book's "make one
@@ -381,10 +423,26 @@ guidance appears exactly where the reader is experimenting.
 
 Page packs are data-driven page plugins. A `PageArchetypePack` supplies
 archetypes with title, body template, cadence, active hours, render style, tags,
-and optional local-brain generation instructions. `PageTemplateRenderer` fills
-safe placeholders such as `{weather}`, `{moonLine}`, `{playerName}`,
-`{keptCount}`, `{lastKeptPage}`, `{timeOfDay}`, and `{season}` from live local
-signals.
+optional local-brain generation instructions, and now an optional **trigger**.
+`PageTemplateRenderer` fills safe placeholders such as `{weather}`,
+`{moonLine}`, `{playerName}`, `{keptCount}`, `{lastKeptPage}`, `{timeOfDay}`,
+and `{season}` from live local signals.
+
+`PageTrigger` is the data-only surfacing gate for living pages. All supplied
+conditions must match; omitted fields stay open. Packs can key a page to:
+
+- time bands (`dawn`, `day`, `dusk`, `night`) and weekdays;
+- moon phases, Almanac celebration IDs, and festival presence;
+- weather tags such as rain, fog, storm, bright, hot, or cold;
+- recent archive tags, quiet-day count, absence count, and page anniversaries;
+- Nothing pressure (`minGrey` / `maxGrey`);
+- active world-event IDs, world-event phases, and reader touch counts;
+- deterministic daily rarity.
+
+The bundled free pack now includes examples: **The Returning Reader** after
+quiet absence, **Rain in the Stacks** during rain, **Full-Moon Marginalia** at
+night on a full moon, and **Picket Line in the Dictionary** while the
+Dictionary Rebellion is active.
 
 Enabled packs come from bundled content plus user-imported
 `*.reenchantedpack.json` files in Documents. Locked bundled packs are enabled by
@@ -432,6 +490,12 @@ After a run, the reader may explicitly ask the local Scribe to braid it.
 and deterministic draft; it may not invent events or expose game machinery.
 `FakeSentenceRunnerProseWriter` preserves the deterministic result when the
 model is unavailable. The game itself is entirely local and makes no model call.
+
+When Shadow Wonder is active, the game can surface **The Shadow Runner**, a
+higher-scored `gamePage` variant that mixes the Dusk Thorn / Thornlight lexicon
+into the reader's own catchable words. It still binds back to the reader's kept
+phrases; shadow vocabulary has no source-page sidecar and is marked as the
+variant's atmospheric layer.
 
 ### Book Of You
 
@@ -825,6 +889,13 @@ word and regrets several"). Issue numbers count kept editions forever.
 Keeping an edition feeds Belief to `penny-blackletter`. A lab control binds
 the latest edition as a broadsheet-style PDF (`BleedPDFWriter`).
 
+Active world events now arrive at The Bleed's desk as authored pressure, not
+generic flavor. `TheBleedEditionBuilder` resolves active events, adds event IDs,
+phase tags, and `worldEventBleedPacket` metadata, and can fold the event into
+both the announcement surface and the front-page packet. The Dictionary
+Rebellion, for example, can make the issue read like live campus news about
+escaped words and Registry concern.
+
 ### Character Letters
 
 Letter Pages are character-authored correspondence. Sender selection considers
@@ -907,6 +978,30 @@ Related pieces:
 - `PlayfulMissionWriter`
 - `MLXWonderCompassChooser`
 - `WonderCompassFallbackChooser`
+
+### Shadow Wonder
+
+`ShadowWonder` is the Dusk Thorn's cross-surface variant system. It is locked
+until the reader has invested Belief in `dusk-thorn`, then activates when the
+world tilts toward the worn edge: night, Duskthorn ascendancy, hard/low body
+signals, or somber weather such as rain, fog, snow, and overcast skies.
+
+When active, it does not replace core page families; it adds darker siblings
+with their own IDs, `variant: shadow-wonder`, `shadowVariantOf`, merged tags,
+and a score boost so the shadow sibling can win the single type slot. Current
+surfaces include:
+
+- Shadow Souvenir: evidence of what passed, remained, and did not need to be
+  cheerful.
+- Inner Weather in a true minor key.
+- Wonder Compass shadow Notice / missions, including `I wonder...` sparks.
+- Shadow Lore from the dark shelf: unseelie folklore, correspondences, deals,
+  and thresholds.
+- Today's Dark Sky: a dark-moon / between-hours reading of the Almanac.
+- The Shadow Sentence Runner, described above.
+
+The shared lexicon comes from `SentenceBuilderPack.shadowWonder`, so the page
+variant, the sentence polisher, and the game vocabulary stay in step.
 
 ### Enchantments And Illuminated Photos
 
@@ -1111,6 +1206,14 @@ Core stations ship in `RadioStationRegistry`:
 Two further stations ship behind pack entitlements: **The Midnight Bindery** and
 **Goblin Market Jazz** (with their own bundled tracks).
 
+The radio system also now includes an off-band layer, **Radio Free Margin**:
+unauthorized static with audio-backed contraband dispatches. It is authored as a
+station-format interruption rather than a normal playlist, with
+`interstitialAssetName` / `interstitialTitle` support on `RadioStation` and
+`BookRadioManager` state for static currently on air and a queued break after
+the static clears. Bundled clips cover Wicker's crew, talisman contraband, the
+Unwritten Chapter, Thorne, and Bleed-adjacent hidden-band warnings.
+
 Radio can also load user or pack stations from `.reenchantedradio.json` files.
 `RadioPlaybackState` persists the active station and tuning state in the vault,
 `BookRadioManager` handles local playback/Haptics in the app, and
@@ -1155,6 +1258,12 @@ tries to finish a full pass through its available tracks before repeating, still
 avoids immediate repeats, and can weight/gate tracks by the same world context.
 Older `.reenchantedradio.json` stations without authored banter remain valid:
 their legacy interlude titles become caption-only transition breaks.
+
+World events can now tint radio directly. `EventInfluencePacket.radioInstruction`
+feeds `ResolvedWorldEvent.radioAtmosphereLine`, and
+`RadioStationRegistry.atmosphereLine(...)` merges the station's own atmosphere
+with active event pressure. During the Dictionary Rebellion, station IDs, ad
+copy, and dedications can sound as if loose words are interrupting the broadcast.
 
 ### The Living Radio (the station leaves marks)
 
@@ -1384,7 +1493,9 @@ reaches *outward* through the system - the literal "bleed-out".
 the evening braid whisper (daily, 20:45), class/club bells (next three days), and
 favor reminders for aging electives. The braid whisper's voice is recolored by
 whoever holds the Pact War's Whisper Channel, and a Sovereign holder adds an
-extra morning whisper. `BookWhisperPresenter` is installed at launch as the
+extra morning whisper. Active world events can also schedule a one-shot morning
+tap through `widgetWhisperLine`, letting a monthly arc reach the reader without a
+new notification system. `BookWhisperPresenter` is installed at launch as the
 notification-center delegate so whispers also appear while the app is in the
 foreground. A "Send a test whisper" control fires one ~10 seconds out to verify
 the pipeline.
@@ -1413,16 +1524,19 @@ entitlements).
 `ReEnchantedWidgetSnapshot` is a Codable, privacy-aware value type carrying just
 what the widgets render: a today page, Wonder Compass prompt, a Book Remembered
 memory, Today's Sky line, radio state and station list, enchantment shortcuts,
-and a Belief reading. It honors a `ReEnchantedWidgetPrivacyMode` (`privateSafe`
-vs `personalText`) so personal prose can be held back on a glanceable surface.
-The file also defines the App-Group `UserDefaults` store and the command/queue
-types the extension and app pass back and forth.
+world-event status, and a Belief reading. It honors a
+`ReEnchantedWidgetPrivacyMode` (`privateSafe` vs `personalText`) so personal
+prose can be held back on a glanceable surface. The file also defines the
+App-Group `UserDefaults` store and the command/queue types the extension and app
+pass back and forth.
 
 **Publishing (`InsideCoverApp/ReEnchantedWidgetSnapshotWriter.swift`).**
 `ReEnchantedWidgetSnapshotWriter.write(...)` builds a snapshot from the current
-day, surfaced pages, kept pages, radio playback, and Belief, then writes it to
-the App Group and reloads timelines. `ContentView` calls it as state changes
-(around `ContentView.swift:5391`).
+day, surfaced pages, kept pages, radio playback, active world events, and
+Belief, then writes it to the App Group and reloads timelines. `ContentView`
+calls it as state changes (around `ContentView.swift:5391`). The radio widget
+can inherit a world-event atmosphere line, and the Open Desk can show a
+world-event tile in place of the Enchantment tile while an event is active.
 
 **The widget bundle (`ReEnchantedWidgets/ReEnchantedWidgets.swift`).** A
 `WidgetBundle` of six widgets: **Today**, **Radio**, **Enchantment**,
@@ -1465,6 +1579,23 @@ The model is structured:
 - `WorldEventPageSourceAdapter` surfaces active fieldwork prompts as keepable
   pages.
 
+`EventInfluencePacket` is now the envelope that lets a monthly arc live beyond
+its fieldwork page. In addition to story/class/letter/monthly-edition pressure,
+it can carry:
+
+- `bleedInstruction` for Penny's press room;
+- `radioInstruction` for station atmosphere and DJ copy;
+- `widgetWhisperLine` for the app/widget snapshot and morning Book Whisper;
+- `bookOfYouInstruction` for nightly braid pressure;
+- `visualTreatment`, lexical rules, and the fieldwork prompt/reward.
+
+`ResolvedWorldEvent` now also keeps typed touch counts (`WorldEventTouchKind`)
+instead of only a total, so the app can tell whether the reader helped an event
+through fieldwork, letters, classes, Compass Runs, enchantments, Story Pages,
+or Bleed issues. Extensions on active event arrays provide the shared packets:
+`bleedPacket`, `radioAtmosphereLine`, `widgetWhisperLine`,
+`bookOfYouPromptSection`, and event tags.
+
 The bundled pack is **The Living Almanac**, currently including two events:
 **The Dictionary Rebellion**, a September event where words peel away from their
 definitions; and **The Starlit Paper Trial**, an archived midnight hearing where
@@ -1491,6 +1622,11 @@ archived event, or the quiet card. In DEBUG, when nothing is in season,
 `WorldEventResolver.previewEvents` / `WorldEventPageSourceAdapter.previewSurface`
 resolve an event against a synthetic window so the full machinery (phases,
 outcomes, packets) is always reachable for development.
+
+This is the machinery for longer monthly arcs: a "Back to School" September pack
+can ship a Dictionary Rebellion event, pages that wake only during that event,
+radio interruptions, Bleed copy, widget whispers, class/letter/story pressure,
+and a monthly-edition trace, all from authored data.
 
 ## The Almanac (Wheel of the Year + lunar esbats)
 
@@ -2125,9 +2261,10 @@ sample photos, app icons, character portraits, and sound effects.
 
 ## Landing Page
 
-`LandingPage/` is a static marketing site with its own ReEnchanted-facing
-interaction layer. Beyond screenshots, radio previews, and Academy copy, it now
-has **hidden lore marginalia**:
+`LandingPage/` is mirrored to the separate `teign07/landingpage` repo. It is a
+static marketing site with its own ReEnchanted-facing interaction layer. Beyond
+screenshots, radio previews, and Academy copy, it now has **hidden lore
+marginalia** and richer live demos:
 
 - inline `lore-link` buttons are woven through the page copy;
 - the braided page sequence now begins with First Door/onboarding beats (arrival,
@@ -2135,6 +2272,10 @@ has **hidden lore marginalia**:
   keep/wait rehearsal) before moving into ordinary app pages;
 - `LandingPage/app.js` owns a `LORE` registry covering folklore, systems,
   Chapters, Talismans, Book Fae, cast, locations, and illustrations;
+- it includes an interactive Search the Stacks demo with sample semantic
+  results and new screenshots for empty, reading, and results states;
+- the radio demo now includes all three core stations plus the Radio Free Margin
+  hidden-band/static preview, with new audio assets;
 - the modal can show prose, optional "Try this" prompts, and art;
 - the illustrations entry behaves like a small gallery over the new
   `LandingPage/assets/art/` cast/Fae/location/talisman dossiers;
@@ -2176,7 +2317,8 @@ Current pack/listing concepts:
 - spark packs,
 - lore packs,
 - marginalia packs,
-- sound packs.
+- sound packs,
+- world event packs.
 
 `BookShopCatalog` lists available or coming-soon packs. `PackEntitlements`
 tracks owned pack IDs in save data. `PageArchetypePackRegistry` and related
@@ -2231,8 +2373,9 @@ Important app files:
 - `InsideCoverApp/CapturePageSheet.swift` - page opening/capture/generation UI
   for capture, story, gossip, Ask, Compass, mission, enchantment, photo,
   Dr. Inkrest's Office Hours, Fae Bargain, Book Fae, Radio, Inventory, Today's
-  Sky, Book Jump, and the Sentence Runner Game Page (plus the Pact War framing
-  card / goblin marginalia shown on pages).
+  Sky, Book Jump, Shadow Wonder variants, Center Gear Shifters, and the Sentence
+  Runner Game Page (plus the Pact War framing card / goblin marginalia shown on
+  pages).
 - `InsideCoverApp/CapturePageSections.swift` - extracted sheet sections such as
   Chapter Binding, Anchor offers, electives, and support guild.
 - `InsideCoverApp/BookStatusCards.swift` - status cards, Glow menu, Belief UI,
@@ -2245,8 +2388,9 @@ Important app files:
 - `InsideCoverApp/LivingTextInput.swift` - `LivingTextEditor`, the
   Sentence-Builder-integrated writing field (nudges, scaffold tokens,
   transmutation chips, alchemy shimmer) used on capture pages.
-- `InsideCoverApp/RadioAudio/` - bundled local radio assets across all three
-  core stations (Fae-Fi, Mothlight Beats, Thornwave) plus pack stations.
+- `InsideCoverApp/RadioAudio/` - bundled local radio assets across core stations
+  (Fae-Fi, Mothlight Beats, Thornwave), pack stations, DJ banter, and Radio Free
+  Margin static/intercepts.
 - `InsideCoverApp/BookDatabase.swift` - app wrapper over the shared archive.
 - `InsideCoverApp/SearchTheStacksSheet.swift` - local archive search UI.
 - `InsideCoverApp/CustomCastMemberSheet.swift` - custom cast creation UI.
@@ -2295,13 +2439,14 @@ Important shared files:
   generator and cross-letter memory.
 - `Shared/WorldSystems.swift` - body/weather signals, moon phase, anchors,
   location math, playable Anchor turns and rolling mini-stories,
-  scheduling/world helpers, radio stations/playback/static, the Academy Chapters
-  and Chapter Binding oracle, class/club turns, the Book Fae economy (bargains,
-  gifts, market, marginalia), the Pact War (territories, engine, effects,
-  voices), the Almanac (Wheel of the Year + esbats), Today's Sky, and the
-  returning-greeting composer.
+  scheduling/world helpers, radio stations/playback/static/DJ banter, Shadow
+  Wonder, the Academy Chapters and Chapter Binding oracle, class/club turns, the
+  Book Fae economy (bargains, gifts, market, marginalia), the Pact War
+  (territories, engine, effects, voices), the Almanac (Wheel of the Year +
+  esbats), Today's Sky, and the returning-greeting composer.
 - `Shared/WorldEvents.swift` - event packs, active event resolution, phases,
-  triggers, outcomes, influence packets, and event effects.
+  typed touch counts, outcomes, influence packets, event effects, and the
+  cross-surface world-event envelope.
 - `Shared/InsideCoverState.swift` - remaining app state models and archive
   export structures.
 - `Shared/InsideCoverStore.swift` - store/load, local model management,
@@ -2310,9 +2455,9 @@ Important shared files:
 - `Shared/ReferenceLibrary.swift` - reference snippets, quip packs,
   self-knowledge packs, illustration profiles.
 - `Shared/PagePacks.swift` - page archetypes, save file, vault data, BookShop,
-  margin tutor, JSON salvage.
+  triggered Page Pack gates, margin tutor, JSON salvage.
 - `Shared/SentenceBuilder.swift` - concrete sentence-craft nudges, diagnostics,
-  chips, and alchemy levels.
+  chips, alchemy levels, and the Shadow Wonder lexicon.
 - `Shared/Illumination.swift` - photo illumination templates, packs, composer,
   queue/source adapter.
 - `Shared/StacksSearch.swift` - local search engine.

@@ -399,7 +399,11 @@ private struct OpenDesk: View {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 9) {
                     DeskTile(title: snapshot.today.title, detail: snapshot.today.body, symbolName: snapshot.today.symbolName, path: snapshot.today.urlPath, tint: .gold)
                     DeskTile(title: "Radio", detail: snapshot.radio?.title ?? "The dial is waiting.", symbolName: "radio", path: "radio", tint: .gold)
-                    DeskTile(title: "Enchantment", detail: snapshot.enchantments.first?.title ?? "Pick a spell and take a photo.", symbolName: "camera.macro", path: "enchantment", tint: .rose)
+                    if let event = snapshot.worldEvent {
+                        DeskTile(title: event.title, detail: event.phase, symbolName: event.symbolName, path: event.urlPath, tint: .rose)
+                    } else {
+                        DeskTile(title: "Enchantment", detail: snapshot.enchantments.first?.title ?? "Pick a spell and take a photo.", symbolName: "camera.macro", path: "enchantment", tint: .rose)
+                    }
                     DeskTile(title: snapshot.compass?.title ?? "Wonder Compass", detail: snapshot.compass?.prompt ?? "Choose one thing to notice.", symbolName: "safari", path: "compass", tint: .teal)
                 }
             }

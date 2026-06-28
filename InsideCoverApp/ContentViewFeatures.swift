@@ -319,7 +319,8 @@ extension ContentView {
             electives: electives,
             whisperController: whisperController,
             whisperSovereign: whisperSovereign,
-            festivalWhisper: festivalWhisperToday
+            festivalWhisper: festivalWhisperToday,
+            eventWhisper: worldEventWhisperToday
         )
     }
 
@@ -444,7 +445,7 @@ extension ContentView {
         electiveLedgerData = encoded
         surfaceRefreshDate = Date()
         rebuildSurfaceCache()
-        BookWhispers.refreshSchedule(enabled: bookWhispersEnabled, electives: list, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisperToday)
+        BookWhispers.refreshSchedule(enabled: bookWhispersEnabled, electives: list, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisperToday, eventWhisper: worldEventWhisperToday)
     }
 
 

@@ -499,7 +499,8 @@ struct MoodPageSourceAdapter: BookPageSourceAdapter {
         guard !FacultyLogCadence.didLog(kind: .innerWeather, day: day, entries: inputs.facultyEntries, now: now) else {
             return []
         }
-        return [
+        let baseTags = "inner-weather,faculty-kind:innerWeather,faculty-window:\(window.id),dr-inkrest,therapy-chart"
+        var pages = [
             SurfacePage(
                 id: "\(source.id)-\(day.id)-\(window.id)",
                 type: .mood,
@@ -520,11 +521,39 @@ struct MoodPageSourceAdapter: BookPageSourceAdapter {
                         "facultyWindowID": window.id,
                         "facultyWindowName": window.name,
                         "chartTitle": FacultyEntryKind.innerWeather.chartTitle,
-                        "tags": "inner-weather,faculty-kind:innerWeather,faculty-window:\(window.id),dr-inkrest,therapy-chart"
+                        "tags": baseTags
                     ]
                 )
             )
         ]
+        // Shadow Wonder: the same chart, but with the book's "harmonize with the
+        // grey" permission — name the inner sky honestly, overcast and all.
+        let shadow = ShadowWonder.state(inputs: inputs, now: now)
+        if shadow.isActive {
+            var metadata = pages[0].payload.metadata
+            metadata["tags"] = ShadowWonder.mergedTags(baseTags + ",mood-match", inputs: inputs, now: now)
+            metadata["shadowVariantOf"] = pages[0].id
+            metadata["variant"] = "shadow-wonder"
+            pages.append(
+                SurfacePage(
+                    id: "\(source.id)-shadow-\(day.id)-\(window.id)",
+                    type: .mood,
+                    sourceID: source.id,
+                    intent: .capture,
+                    renderStyle: .promptCard,
+                    score: (context.distress.isActive ? 72 : 64) + shadow.scoreBoost,
+                    reason: "Shadow Wonder gives you permission to harmonize with the grey instead of brightening it.",
+                    prompt: "What is the weather inside — in its true, minor key?",
+                    detail: "\(window.name). The grey is allowed. Name the inner sky exactly, overcast and all. One honest tap is enough.",
+                    payload: BookPagePayload(
+                        headline: "Inner Weather",
+                        body: "Name the inner sky in its true key. A minor key still holds you. One honest tap is enough.",
+                        metadata: metadata
+                    )
+                )
+            )
+        }
+        return pages
     }
 }
 
@@ -640,7 +669,8 @@ struct SouvenirPageSourceAdapter: BookPageSourceAdapter {
         guard let window = DailyCheckInCadence.activeWindow(for: now) else { return [] }
         guard !didCaptureSouvenir(in: window, day: day) else { return [] }
         let eveningPrompt = window.id == "evening"
-        return [
+        let shadowState = ShadowWonder.state(inputs: inputs, now: now)
+        var pages = [
             SurfacePage(
                 id: "\(source.id)-\(day.id)-\(window.id)",
                 type: .souvenir,
@@ -663,6 +693,34 @@ struct SouvenirPageSourceAdapter: BookPageSourceAdapter {
                 )
             )
         ]
+        if shadowState.isActive {
+            pages.append(
+                SurfacePage(
+                    id: "\(source.id)-shadow-wonder-\(day.id)-\(window.id)",
+                    type: .souvenir,
+                    sourceID: source.id,
+                    intent: .capture,
+                    renderStyle: .quoteCard,
+                    score: (eveningPrompt ? 78 : 58) + shadowState.scoreBoost,
+                    reason: "Shadow Wonder is active; this souvenir variant can honor the worn edge without forcing it bright.",
+                    prompt: "Shadow Souvenir: what worn thing should not be deleted?",
+                    detail: "One sentence of shadow wonder: rust, repair, old evidence, grey beauty.",
+                    payload: BookPagePayload(
+                        headline: "Shadow One-Sentence Souvenir",
+                        body: ShadowWonder.souvenirPrompt,
+                        metadata: [
+                            "source": source.id,
+                            "checkInWindowID": window.id,
+                            "checkInWindowName": window.name,
+                            "shadowVariantOf": "\(source.id)-\(day.id)-\(window.id)",
+                            "variant": "shadow-wonder",
+                            "tags": ShadowWonder.mergedTags("souvenir,check-in-window:\(window.id)", inputs: inputs, now: now)
+                        ]
+                    )
+                )
+            )
+        }
+        return pages
     }
 
     private func didCaptureSouvenir(in window: DailyCheckInWindow, day: BookDay) -> Bool {
@@ -673,6 +731,140 @@ struct SouvenirPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+/// A single "Gear Shifter" from Wonder Compass Chapter 10 (Center = Rest): one small,
+/// concrete way to drop out of Beta (numbing) into Alpha (awake rest) or Theta (deep
+/// rest). The Center Page offers one at a time, chosen by the hour and the day's state —
+/// never as a task, always as a relief. "Find the one that feels like a relief, not a chore."
+struct CenterGearShifter: Equatable {
+    enum Gear: String, Equatable {
+        case alpha
+        case theta
+
+        /// The short label the page shows beside the shifter's name.
+        var label: String {
+            switch self {
+            case .alpha: return "Alpha — recharge, stay awake"
+            case .theta: return "Theta — deeper repair"
+            }
+        }
+    }
+
+    let id: String
+    let title: String
+    let gear: Gear
+    /// The concrete thing to do — phrased as an invitation, not an instruction.
+    let move: String
+    /// Why it works, in the chapter's reassuring voice.
+    let why: String
+    /// An SF Symbol name for the shifter.
+    let symbol: String
+}
+
+/// The Chapter-10 menu of Gear Shifters, plus the logic for choosing which one the
+/// Center Page leads with given the hour and the day's state.
+enum CenterGearShifterMenu {
+    // MARK: Alpha triggers — recharge while staying awake and present.
+
+    static let softGaze = CenterGearShifter(
+        id: "soft-gaze",
+        title: "The Soft Gaze",
+        gear: .alpha,
+        move: "Soften your eyes on one spot ahead. Without moving them, let the far corners of the room arrive in your vision at the same time.",
+        why: "Wide, panoramic vision tells the oldest part of your brain that nothing is hunting you. Your breath slows on its own and your shoulders drop half an inch. It's a biological all-clear.",
+        symbol: "eye"
+    )
+
+    static let rhythmicLoop = CenterGearShifter(
+        id: "rhythmic-loop",
+        title: "The Rhythmic Loop",
+        gear: .alpha,
+        move: "Give your hands one small repeating motion — doodle slow spirals, shuffle a deck, knit a row, slice something for later.",
+        why: "Low-stakes rhythm keeps the fidgety part of you busy so the rest of your mind can finally drift.",
+        symbol: "hand.draw"
+    )
+
+    static let fractalSoak = CenterGearShifter(
+        id: "fractal-soak",
+        title: "The Fractal Soak",
+        gear: .alpha,
+        move: "Find a tree, a cloud, or moving water. Look at it for the length of a few breaths. Don't name it — just let your eyes wander the branches.",
+        why: "Nature is built of fractals: the same pattern as your lungs and the veins in your wrist. Your brain reads it as family and stops spending energy. Oh. Family. I can rest here.",
+        symbol: "leaf"
+    )
+
+    // MARK: Theta triggers — deeper repair and quiet breakthroughs.
+
+    static let boredWalk = CenterGearShifter(
+        id: "bored-walk",
+        title: "The Bored Walk",
+        gear: .theta,
+        move: "Leave the phone here. Walk a route you already know by heart — no podcast, no step count. Just let your feet keep time.",
+        why: "A familiar rhythm lets your mind go down to the basement and sort the day. The answer you've been chasing has been waiting there for the noise to stop.",
+        symbol: "figure.walk"
+    )
+
+    static let auditory = CenterGearShifter(
+        id: "auditory-entrainment",
+        title: "Auditory Entrainment",
+        gear: .theta,
+        move: "Headphones on. Put on brown noise or binaural beats — not white noise, it's too harsh. Let it be the only thing arriving.",
+        why: "Your brain syncs its rhythm to what it hears, like a tuning fork. You're tuning yourself to a slower station.",
+        symbol: "headphones"
+    )
+
+    static let noddies = CenterGearShifter(
+        id: "the-noddies",
+        title: "The Noddies",
+        gear: .theta,
+        move: "Lie down for twenty minutes (a sip of coffee first, if you like — it lands right as you surface). Drift toward the edge of sleep and don't cross it.",
+        why: "That twilight border is where the subconscious leaves gifts. It's where Edison and Dalí went fishing for the ideas no one else could reach.",
+        symbol: "moon.zzz"
+    )
+
+    /// Every shifter, in menu order, so the page can cycle through them when the
+    /// reader asks for another.
+    static let all: [CenterGearShifter] = [
+        softGaze, rhythmicLoop, fractalSoak, boredWalk, auditory, noddies
+    ]
+
+    static func shifter(id: String) -> CenterGearShifter? {
+        all.first { $0.id == id }
+    }
+
+    /// Pick the shifter the Center Page leads with. Distress gets the gentlest
+    /// all-clear; evenings lean toward deep Theta rest; daytime offers awake Alpha
+    /// recharges. The `seed` rotates the choice within a pool day to day.
+    static func choose(hour: Int, distressActive: Bool, daylight: Bool, seed: Int) -> CenterGearShifter {
+        if distressActive {
+            // The fastest, lowest-effort relief when the day is already too much.
+            return softGaze
+        }
+        let evening = hour >= 20 || hour < 6
+        let pool: [CenterGearShifter]
+        if evening {
+            pool = daylight ? [boredWalk, auditory, noddies] : [auditory, noddies]
+        } else if daylight {
+            pool = [fractalSoak, rhythmicLoop, softGaze, boredWalk]
+        } else {
+            pool = [rhythmicLoop, softGaze, auditory]
+        }
+        let index = ((seed % pool.count) + pool.count) % pool.count
+        return pool[index]
+    }
+}
+
+/// The framing prose the Center Page reads before its two small reliefs. Lifted from
+/// Chapter 10's "Numbing vs. Resting" — kept short so the page stays low and gentle.
+enum CenterPageCopy {
+    static let body = """
+    You thought you were resting. Most of us aren't — we're numbing. Two hours of scrolling and you stand up tired but wired, jaw tight, because your brain was running a marathon the whole time. Numbing turns the static down. Rest turns the radio off.
+
+    This page is the radio off. Nothing here needs finishing. Rest isn't the prize you earn after the work — in the physics of the Compass it's the pin the needle turns on. Loosen the pin and the whole needle wobbles.
+
+    So: a minute of doing nothing, then one small relief. Neither is a task. If even sixty seconds feels long, ten is a whole beginning.
+    """
+}
+
 struct RestPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .rest)
 
@@ -681,7 +873,14 @@ struct RestPageSourceAdapter: BookPageSourceAdapter {
         guard context.distress.isActive || context.bleed.pageBias.first == .rest || day.capturedPages.isEmpty || hour >= 20 else {
             return []
         }
-        return [
+        let daylight = (7..<19).contains(hour)
+        let gear = CenterGearShifterMenu.choose(
+            hour: hour,
+            distressActive: context.distress.isActive,
+            daylight: daylight,
+            seed: day.id.stableHash
+        )
+        var pages = [
             SurfacePage(
                 type: .rest,
                 sourceID: source.id,
@@ -693,11 +892,44 @@ struct RestPageSourceAdapter: BookPageSourceAdapter {
                 detail: "No quest. No improvement. Just a small truthful landing.",
                 payload: BookPagePayload(
                     headline: "Center Page",
-                    body: "No quest. No improvement. Just a small truthful landing.",
-                    metadata: ["source": source.id]
+                    body: CenterPageCopy.body,
+                    metadata: [
+                        "source": source.id,
+                        "centerGearID": gear.id
+                    ]
                 )
             )
         ]
+        // Shadow Wonder: the Center kept by lamplight — Quiet Hours in the dark,
+        // rest as the still center of the dark Compass rather than a failure to adventure.
+        let shadow = ShadowWonder.state(inputs: inputs, now: now)
+        if shadow.isActive {
+            pages.append(
+                SurfacePage(
+                    id: "\(source.id)-shadow-rest",
+                    type: .rest,
+                    sourceID: source.id,
+                    intent: .rest,
+                    renderStyle: .gentleTranslation,
+                    score: (context.distress.isActive ? 96 : (context.bleed.pageBias.first == .rest ? 88 : 62)) + shadow.scoreBoost,
+                    reason: "Shadow Wonder keeps the Center by lamplight; rest is the still hub of the dark Compass.",
+                    prompt: "Quiet Hours have opened in the dark.",
+                    detail: "No quest, no fixing, no brightening. Let the room keep its shadows and land here a moment.",
+                    payload: BookPagePayload(
+                        headline: "Center Page",
+                        body: CenterPageCopy.body,
+                        metadata: [
+                            "source": source.id,
+                            "centerGearID": gear.id,
+                            "shadowVariantOf": "\(source.id)-rest",
+                            "variant": "shadow-wonder",
+                            "tags": ShadowWonder.mergedTags("center,rest,quiet-hours", inputs: inputs, now: now)
+                        ]
+                    )
+                )
+            )
+        }
+        return pages
     }
 }
 
@@ -1103,6 +1335,8 @@ struct BookRememberedVisitation: Equatable {
                     "rememberedPageType": page.type.rawValue,
                     "rememberedPageDate": ISO8601DateFormatter().string(from: page.createdAt),
                     "rememberedText": rememberedText,
+                    "rememberedAgeLine": ageLine,
+                    "rememberedUsedInBraid": page.usedInBookOfYou ? "true" : "false",
                     "rhymeReason": reason,
                     "tinyAction": action,
                     "tags": "book-remembered,archive-return,visitation,remembered-page:\(page.id)"
@@ -2454,15 +2688,18 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
 
         let progress = CompassRunProgress.progress(for: day)
         let seed = WonderCompassRunGenerator.seed(for: day, inputs: inputs, progress: progress, now: now)
+        let shadowSeed = WonderCompassRunGenerator.seed(for: day, inputs: inputs, progress: progress, now: now, shadowVariant: true)
         let playfulMission = PlayfulMissionRegistry.mission(for: day, inputs: inputs, now: now)
+        let shadowPlayfulMission = PlayfulMissionRegistry.mission(for: day, inputs: inputs, now: now, shadowVariant: true)
         let snippet = inputs.selectedWonderCompass
             ?? BookReferenceCatalog.relevantWonderCompassSnippet(for: day, inputs: inputs, now: now)
         let selector = inputs.selectedWonderCompassSelector ?? "local-relevance"
         let isGemmaSelected = selector == "gemma"
+        let shadowState = ShadowWonder.state(inputs: inputs, now: now)
         var pages: [SurfacePage] = [
             runSurface(seed: seed, progress: progress, context: context, inputs: inputs, now: now),
-            stepSurface(step: progress.nextStep, seed: seed, progress: progress, context: context, now: now),
-            playfulMissionSurface(playfulMission, seed: seed, context: context, now: now),
+            stepSurface(step: progress.nextStep, seed: seed, progress: progress, context: context, inputs: inputs, now: now),
+            playfulMissionSurface(playfulMission, seed: seed, context: context, inputs: inputs, now: now),
             SurfacePage(
                 id: "\(source.id)-\(snippet.id)",
                 type: .wonderCompass,
@@ -2489,7 +2726,46 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         ]
 
         if progress.completedSteps.isEmpty {
-            pages.append(stepSurface(step: .notice, seed: seed, progress: progress, context: context, now: now, standalone: true))
+            let standaloneNotice = stepSurface(step: .notice, seed: seed, progress: progress, context: context, inputs: inputs, now: now, standalone: true)
+            pages.append(standaloneNotice)
+            // The purest North = Notice "I wonder" card earns its own shadow sibling,
+            // carrying a mono-no-aware spark from the dark shelf.
+            if shadowState.isActive {
+                pages.append(stepSurface(step: .notice, seed: shadowSeed, progress: progress, context: context, inputs: inputs, now: now, standalone: true, shadowVariantOf: standaloneNotice.id))
+            }
+        }
+
+        if shadowState.isActive {
+            pages.append(runSurface(seed: shadowSeed, progress: progress, context: context, inputs: inputs, now: now, shadowVariantOf: "\(source.id)-run-\(seed.id)"))
+            pages.append(stepSurface(step: progress.nextStep, seed: shadowSeed, progress: progress, context: context, inputs: inputs, now: now, shadowVariantOf: "\(source.id)-run-\(seed.id)-\(progress.nextStep.rawValue)"))
+            pages.append(playfulMissionSurface(shadowPlayfulMission, seed: shadowSeed, context: context, inputs: inputs, now: now, shadowVariantOf: "\(source.id)-playful-mission-\(playfulMission.id)-\(SurfaceCadence.slotID(for: now, hours: 2))"))
+            let shadowSnippet = BookReferenceCatalog.fallbackWonderCompass.first { $0.id == "wonder-compass-shadow-wonder" }
+                ?? snippet
+            pages.append(
+                SurfacePage(
+                    id: "\(source.id)-shadow-\(shadowSnippet.id)",
+                    type: .wonderCompass,
+                    sourceID: source.id,
+                    intent: .importReference,
+                    renderStyle: .quoteCard,
+                    score: (context.distress.isActive ? 52 : 66) + shadowState.scoreBoost,
+                    reason: "Shadow Wonder is unlocked; this passage variant can help the Compass honor the worn edge.",
+                    prompt: "Shadow Wonder from the Compass Book",
+                    detail: shadowSnippet.prompt,
+                    payload: BookPagePayload(
+                        headline: "From the Wonder Compass Book: \(shadowSnippet.title)",
+                        body: shadowSnippet.body,
+                        metadata: [
+                            "source": source.id,
+                            "snippetID": shadowSnippet.id,
+                            "shadowVariantOf": "\(source.id)-\(snippet.id)",
+                            "variant": "shadow-wonder",
+                            "tags": ShadowWonder.mergedTags(shadowSnippet.tags.joined(separator: ","), inputs: inputs, now: now),
+                            "selector": selector
+                        ]
+                    )
+                )
+            )
         }
 
         return pages
@@ -2505,8 +2781,12 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         _ mission: PlayfulMission,
         seed: WonderCompassRunSeed,
         context: CuratorContext,
-        now: Date
+        inputs: BookSourceInputs,
+        now: Date,
+        shadowVariantOf: String? = nil
     ) -> SurfacePage {
+        let isShadowVariant = shadowVariantOf != nil
+        let shadowState = ShadowWonder.state(inputs: inputs, now: now)
         var metadata = metadata(for: seed, step: .sense)
         metadata["compassStep"] = "sense"
         metadata["compassMode"] = "standalone"
@@ -2517,18 +2797,23 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         metadata["souvenirPrompt"] = mission.proofPrompt
         metadata["placeholder"] = mission.proofPrompt
         metadata["proofKind"] = mission.allowsPhoto ? "sentence-or-photo" : "sentence"
-        metadata["tags"] = (seed.tags + ["compass-step:sense", "playful-mission"] + mission.tags.map { "mission:\($0)" }).joined(separator: ",")
+        let tags = (seed.tags + ["compass-step:sense", "playful-mission"] + mission.tags.map { "mission:\($0)" }).joined(separator: ",")
+        metadata["tags"] = isShadowVariant ? ShadowWonder.mergedTags(tags, inputs: inputs, now: now) : tags
         metadata["symbol"] = mission.allowsPhoto ? "camera.macro" : "hand.raised"
+        if let shadowVariantOf {
+            metadata["shadowVariantOf"] = shadowVariantOf
+            metadata["variant"] = "shadow-wonder"
+        }
 
         return SurfacePage(
-            id: "\(source.id)-playful-mission-\(mission.id)-\(SurfaceCadence.slotID(for: now, hours: 2))",
+            id: "\(source.id)-\(isShadowVariant ? "shadow-" : "")playful-mission-\(mission.id)-\(SurfaceCadence.slotID(for: now, hours: 2))",
             type: .wonderCompass,
             sourceID: source.id,
             intent: .capture,
             renderStyle: .promptCard,
-            score: context.distress.isActive ? 54 : 64,
-            reason: "A playful mission can turn South into something your senses can actually do.",
-            prompt: "Playful Mission: \(mission.title)",
+            score: (context.distress.isActive ? 54 : 64) + (isShadowVariant ? shadowState.scoreBoost : 0),
+            reason: isShadowVariant ? "This Shadow Wonder variant lets the senses investigate the dark edge safely." : "A playful mission can turn South into something your senses can actually do.",
+            prompt: isShadowVariant ? "Shadow Playful Mission: \(mission.title)" : "Playful Mission: \(mission.title)",
             detail: mission.prompt,
             payload: BookPagePayload(
                 headline: "South = Sense",
@@ -2543,12 +2828,17 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         progress: CompassRunProgress,
         context: CuratorContext,
         inputs: BookSourceInputs = .empty,
-        now: Date
+        now: Date,
+        shadowVariantOf: String? = nil
     ) -> SurfacePage {
         let completed = progress.completedSteps.count
         let isFresh = completed == 0
         let next = progress.isComplete ? CompassRunStep.rest : progress.nextStep
-        let headline = isFresh ? "Compass Run" : (progress.isComplete ? "Compass Run Complete" : "Resume Compass Run")
+        let isShadowVariant = shadowVariantOf != nil
+        let shadowState = ShadowWonder.state(inputs: inputs, now: now)
+        let headline = isShadowVariant
+            ? (isFresh ? "Shadow Compass Run" : (progress.isComplete ? "Shadow Compass Run Complete" : "Resume Shadow Compass Run"))
+            : (isFresh ? "Compass Run" : (progress.isComplete ? "Compass Run Complete" : "Resume Compass Run"))
         let detail = isFresh
             ? "A full N-E-S-W loop customized to now: constraints first, magic after."
             : "\(completed)/5 directions complete. Next: \(next.compassPoint) = \(next.title)."
@@ -2570,15 +2860,21 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         }
         metadata["completedSteps"] = "\(completed)"
         metadata["nextStep"] = next.rawValue
+        if let shadowVariantOf {
+            metadata["shadowVariantOf"] = shadowVariantOf
+            metadata["variant"] = "shadow-wonder"
+        }
 
         return SurfacePage(
-            id: "\(source.id)-run-\(seed.id)",
+            id: "\(source.id)-\(isShadowVariant ? "shadow-" : "")run-\(seed.id)",
             type: .wonderCompass,
             sourceID: source.id,
             intent: .capture,
             renderStyle: .quoteCard,
-            score: context.distress.isActive ? 48 : (isFresh ? 60 : 62),
-            reason: progress.isComplete
+            score: (context.distress.isActive ? 48 : (isFresh ? 60 : 62)) + (isShadowVariant ? shadowState.scoreBoost : 0),
+            reason: isShadowVariant
+                ? "This Shadow Wonder variant can turn the difficult, old, or overlooked thing into a real quest."
+                : progress.isComplete
                 ? "The wheel has turned; the center can hold the page."
                 : "The Compass can turn the current constraints into one small adventure.",
             prompt: headline,
@@ -2596,8 +2892,10 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         seed: WonderCompassRunSeed,
         progress: CompassRunProgress,
         context: CuratorContext,
+        inputs: BookSourceInputs,
         now: Date,
-        standalone: Bool = false
+        standalone: Bool = false,
+        shadowVariantOf: String? = nil
     ) -> SurfacePage {
         var metadata = metadata(for: seed, step: step)
         metadata["compassStep"] = step.rawValue
@@ -2608,18 +2906,26 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         }
         metadata["placeholder"] = step.capturePlaceholder
 
+        let isShadowVariant = shadowVariantOf != nil
+        let shadowState = ShadowWonder.state(inputs: inputs, now: now)
+        if let shadowVariantOf {
+            metadata["shadowVariantOf"] = shadowVariantOf
+            metadata["variant"] = "shadow-wonder"
+        }
         let score = context.distress.isActive && step != .rest
             ? 50
             : (standalone ? 42 : 58 + min(step.scoreBoost, 4))
 
         return SurfacePage(
-            id: "\(source.id)-\(standalone ? "solo" : "run")-\(seed.id)-\(step.rawValue)",
+            id: "\(source.id)-\(isShadowVariant ? "shadow-" : "")\(standalone ? "solo" : "run")-\(seed.id)-\(step.rawValue)",
             type: .wonderCompass,
             sourceID: source.id,
             intent: .capture,
             renderStyle: .promptCard,
-            score: score,
-            reason: standalone
+            score: score + (isShadowVariant ? shadowState.scoreBoost : 0),
+            reason: isShadowVariant
+                ? "This Shadow Wonder variant can start with the thing you usually look past."
+                : standalone
                 ? "\(step.title) can be used on its own without committing to a full run."
                 : "The next Compass direction is ready.",
             prompt: "\(step.compassPoint): \(step.title)",
@@ -2685,7 +2991,9 @@ struct EnchantifyLorePageSourceAdapter: BookPageSourceAdapter {
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
         loreSurface(
             snippet: BookReferenceCatalog.rotatingLoreSnippet(for: day, inputs: inputs, now: now, manual: true),
-            context: context
+            context: context,
+            inputs: inputs,
+            now: now
         )
     }
 
@@ -2695,27 +3003,53 @@ struct EnchantifyLorePageSourceAdapter: BookPageSourceAdapter {
         }
 
         let snippet = BookReferenceCatalog.rotatingLoreSnippet(for: day, inputs: inputs, now: now)
-        return [loreSurface(snippet: snippet, context: context)]
+        var pages = [loreSurface(snippet: snippet, context: context, inputs: inputs, now: now)]
+        if ShadowWonder.state(inputs: inputs, now: now).isActive {
+            pages.append(
+                loreSurface(
+                    snippet: BookReferenceCatalog.rotatingShadowLoreSnippet(for: day, now: now),
+                    context: context,
+                    inputs: inputs,
+                    now: now,
+                    shadowVariantOf: pages[0].id
+                )
+            )
+        }
+        return pages
     }
 
-    private func loreSurface(snippet: ReferenceSnippet, context: CuratorContext) -> SurfacePage {
+    private func loreSurface(
+        snippet: ReferenceSnippet,
+        context: CuratorContext,
+        inputs: BookSourceInputs,
+        now: Date,
+        shadowVariantOf: String? = nil
+    ) -> SurfacePage {
+        let isShadowVariant = shadowVariantOf != nil
+        let shadowState = ShadowWonder.state(inputs: inputs, now: now)
         var metadata = [
             "source": source.id,
             "snippetID": snippet.id,
-            "tags": snippet.tags.joined(separator: ",")
+            "tags": isShadowVariant
+                ? ShadowWonder.mergedTags(snippet.tags.joined(separator: ","), inputs: inputs, now: now)
+                : snippet.tags.joined(separator: ",")
         ]
         if let practice = snippet.practice?.trimmingCharacters(in: .whitespacesAndNewlines), !practice.isEmpty {
             metadata["practice"] = practice
         }
+        if let shadowVariantOf {
+            metadata["shadowVariantOf"] = shadowVariantOf
+            metadata["variant"] = "shadow-wonder"
+        }
         return SurfacePage(
-            id: "\(source.id)-\(snippet.id)",
+            id: "\(source.id)-\(isShadowVariant ? "shadow-" : "")\(snippet.id)",
             type: .lore,
             sourceID: source.id,
             intent: .importReference,
             renderStyle: .loreLetter,
-            score: context.distress.isActive ? 44 : 68,
-            reason: context.distress.isActive ? "Lore waits behind gentler pages when the day is hard." : "A lore card can bring the world closer without asking anything of you.",
-            prompt: snippet.prompt,
+            score: (context.distress.isActive ? 44 : 68) + (isShadowVariant ? shadowState.scoreBoost : 0),
+            reason: isShadowVariant ? "This Shadow Wonder lore variant brings the honest edge forward." : (context.distress.isActive ? "Lore waits behind gentler pages when the day is hard." : "A lore card can bring the world closer without asking anything of you."),
+            prompt: isShadowVariant ? "Shadow Lore: \(snippet.prompt)" : snippet.prompt,
             detail: snippet.title,
             payload: BookPagePayload(
                 headline: snippet.title,
@@ -4397,8 +4731,32 @@ struct TodaysSkyPageSourceAdapter: BookPageSourceAdapter {
         let pct = Int((reading.moon.illuminatedFraction * 100).rounded())
         let body = "\(reading.openingLine)\n\n" + reading.notes.joined(separator: "\n\n")
         let accent = reading.activeShower?.accent ?? (reading.lightTrend == .shortening ? "slate" : "violet")
+        let baseMetadata: [String: String] = [
+            "source": source.id,
+            "openingLine": reading.openingLine,
+            "moonName": reading.moon.name,
+            "moonSymbol": reading.moon.symbolName,
+            "moonIllum": "\(pct)",
+            "moonLine": reading.moon.enchantedLine,
+            "moonSign": reading.moonSign.name,
+            "moonGlyph": reading.moonSign.glyph,
+            "moonElement": reading.moonSign.element,
+            "sunSign": reading.sunSign.name,
+            "sunGlyph": reading.sunSign.glyph,
+            "lightTrend": reading.lightTrend.phrase,
+            "lightSymbol": reading.lightTrend.symbolName,
+            "eventKind": reading.nextEvent.kind,
+            "eventName": reading.nextEvent.name,
+            "eventLine": reading.nextEvent.line,
+            "eventSymbol": reading.nextEvent.symbolName,
+            "eventTimestamp": "\(reading.nextEvent.date.timeIntervalSince1970)",
+            "showerName": reading.activeShower?.commonName ?? "",
+            "accent": accent,
+            "placeholder": "Keep the sky in one true sentence...",
+            "tags": "todays-sky,\(tag),almanac,sky,moon:\(reading.moonSign.name.lowercased())"
+        ]
 
-        return [
+        var pages = [
             SurfacePage(
                 id: "\(source.id)-\(slot)",
                 type: .todaysSky,
@@ -4412,33 +4770,44 @@ struct TodaysSkyPageSourceAdapter: BookPageSourceAdapter {
                 payload: BookPagePayload(
                     headline: "Today's Sky",
                     body: body,
-                    metadata: [
-                        "source": source.id,
-                        "openingLine": reading.openingLine,
-                        "moonName": reading.moon.name,
-                        "moonSymbol": reading.moon.symbolName,
-                        "moonIllum": "\(pct)",
-                        "moonLine": reading.moon.enchantedLine,
-                        "moonSign": reading.moonSign.name,
-                        "moonGlyph": reading.moonSign.glyph,
-                        "moonElement": reading.moonSign.element,
-                        "sunSign": reading.sunSign.name,
-                        "sunGlyph": reading.sunSign.glyph,
-                        "lightTrend": reading.lightTrend.phrase,
-                        "lightSymbol": reading.lightTrend.symbolName,
-                        "eventKind": reading.nextEvent.kind,
-                        "eventName": reading.nextEvent.name,
-                        "eventLine": reading.nextEvent.line,
-                        "eventSymbol": reading.nextEvent.symbolName,
-                        "eventTimestamp": "\(reading.nextEvent.date.timeIntervalSince1970)",
-                        "showerName": reading.activeShower?.commonName ?? "",
-                        "accent": accent,
-                        "placeholder": "Keep the sky in one true sentence...",
-                        "tags": "todays-sky,\(tag),almanac,sky,moon:\(reading.moonSign.name.lowercased())"
-                    ]
+                    metadata: baseMetadata
                 )
             )
         ]
+        // Shadow Wonder: the same almanac read as the Unseelie's sky — the dark
+        // and waning moon, the between-hours, the dark that the stars need to show.
+        let shadow = ShadowWonder.state(inputs: inputs, now: now)
+        if shadow.isActive {
+            let isDarkMoon = reading.moon.illuminatedFraction <= 0.5
+            var metadata = baseMetadata
+            metadata["accent"] = "violet"
+            metadata["placeholder"] = "Keep the dark sky in one true sentence..."
+            metadata["shadowVariantOf"] = "\(source.id)-\(slot)"
+            metadata["variant"] = "shadow-wonder"
+            metadata["tags"] = ShadowWonder.mergedTags(baseMetadata["tags"] ?? "", inputs: inputs, now: now, extra: ["dark-moon", "between-hours"])
+            let shadowOpening = isDarkMoon
+                ? "The moon keeps its own counsel tonight — \(reading.moon.name), barely lit. The old craft calls the dark moon a time for rest and secrets, not for starting things."
+                : "Even at \(reading.moon.name), the sky tonight belongs to the between-hours. The dark is not the absence of the sky; it is what lets the sky be seen at all."
+            pages.append(
+                SurfacePage(
+                    id: "\(source.id)-shadow-\(slot)",
+                    type: .todaysSky,
+                    sourceID: source.id,
+                    intent: .reflect,
+                    renderStyle: .loreLetter,
+                    score: 70 + (reading.nextEvent.daysAway == 0 ? 8 : 0) + (reading.activeShower == nil ? 0 : 6) + shadow.scoreBoost,
+                    reason: "Shadow Wonder reads the Unseelie's sky: \(reading.moon.name) in \(reading.moonSign.name), and the dark that lets the stars show.",
+                    prompt: "Tonight's Dark Sky",
+                    detail: "Keep one true sentence about the dark sky — the moon's quiet, the cold, the between-hour.",
+                    payload: BookPagePayload(
+                        headline: "Today's Sky",
+                        body: "\(shadowOpening)\n\n" + reading.notes.joined(separator: "\n\n"),
+                        metadata: metadata
+                    )
+                )
+            )
+        }
+        return pages
     }
 }
 
@@ -5401,7 +5770,26 @@ struct GamePageSourceAdapter: BookPageSourceAdapter {
         guard phrases.count >= 6 else { return [] }
         let hour = Calendar.current.component(.hour, from: now)
         let score = hour >= 17 ? 64 : 54
-        return [surface(phrases: phrases, greyPool: nothingPool(from: days), day: day, now: now, score: score)]
+        let greyPool = nothingPool(from: days)
+        var pages = [surface(phrases: phrases, greyPool: greyPool, day: day, now: now, score: score)]
+        // The Shadow Sentence Runner: a worn-edge variant of the game that drops the
+        // Thornlight lexicon into the margin alongside the reader's own kept words.
+        // Emitted as a higher-scored variant so it wins the gamePage slot when active.
+        let shadowState = ShadowWonder.state(inputs: inputs, now: now)
+        if shadowState.isActive {
+            pages.append(
+                surface(
+                    phrases: phrases,
+                    greyPool: greyPool,
+                    day: day,
+                    now: now,
+                    score: score + shadowState.scoreBoost,
+                    shadow: shadowState,
+                    shadowInputs: inputs
+                )
+            )
+        }
+        return pages
     }
 
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
@@ -5410,49 +5798,80 @@ struct GamePageSourceAdapter: BookPageSourceAdapter {
         return surface(phrases: phrases, greyPool: nothingPool(from: days), day: day, now: now, score: phrases.count >= 6 ? 62 : 46)
     }
 
-    private func surface(phrases: [(phrase: String, pageID: String, date: Date, label: String)], greyPool: [String], day: BookDay, now: Date, score: Int) -> SurfacePage {
+    private func surface(
+        phrases: [(phrase: String, pageID: String, date: Date, label: String)],
+        greyPool: [String],
+        day: BookDay,
+        now: Date,
+        score: Int,
+        shadow: ShadowWonder.State? = nil,
+        shadowInputs: BookSourceInputs? = nil
+    ) -> SurfacePage {
+        let isShadow = shadow?.isActive == true
         let slotID = SurfaceCadence.slotID(for: now, hours: 6)
-        let seed = "\(day.id)-\(slotID)-sentence-runner"
+        let seed = "\(day.id)-\(slotID)-sentence-runner\(isShadow ? "-shadow" : "")"
         let sourceMap = Dictionary(
             phrases.map { ($0.phrase, (id: $0.pageID, date: $0.date, label: $0.label)) },
             uniquingKeysWith: { first, _ in first }
         )
-        let selected = deterministicPick(phrases.map(\.phrase), count: 12, seed: seed)
+        var selected = deterministicPick(phrases.map(\.phrase), count: 12, seed: seed)
+        if isShadow {
+            // Thread the Thornlight lexicon through the reader's own kept words so
+            // the run reads goblin-core without losing its personal level design.
+            let shadowWords = deterministicPick(ShadowWonder.gameWords, count: 6, seed: "\(seed)-thornlight")
+            selected = Array((Array(selected.prefix(8)) + shadowWords).prefix(14))
+        }
         let grey = deterministicPick(greyPool.isEmpty ? nothingPhrases : greyPool, count: 6, seed: "\(seed)-nothing")
         // Sidecar: phrase¶pageID¶unixTimestamp¶pageTypeTitle — lets the result page
-        // open the exact source page in a modal, dated.
+        // open the exact source page in a modal, dated. Thornlight words have no
+        // source page, so they simply omit a sidecar entry.
         let sources = selected.compactMap { phrase -> String? in
             guard let s = sourceMap[phrase] else { return nil }
             return "\(phrase)¶\(s.id)¶\(s.date.timeIntervalSince1970)¶\(s.label)"
         }
         let ready = selected.count >= 6
+        var metadata: [String: String] = [
+            "source": source.id,
+            "gameID": isShadow ? "shadow-sentence-runner" : "sentence-runner",
+            "gameTitle": isShadow ? "The Shadow Runner" : "The Sentence Runner",
+            "gamePhrases": selected.joined(separator: "||"),
+            "nothingPhrases": grey.joined(separator: "||"),
+            "phraseSources": sources.joined(separator: "||"),
+            "placeholder": ready ? "Run the margin, then keep the result." : "Keep more pages first.",
+            "tags": isShadow
+                ? ShadowWonder.mergedTags("game-page,sentence-runner,loom-run,nothing-words,shadow-runner", inputs: shadowInputs ?? .empty, now: now)
+                : "game-page,sentence-runner,loom-run,nothing-words"
+        ]
+        if isShadow {
+            metadata["variant"] = "shadow-wonder"
+            metadata["shadowVariantOf"] = "\(source.id)-sentence-runner-\(slotID)"
+        }
         return SurfacePage(
-            id: "\(source.id)-sentence-runner-\(slotID)",
+            id: "\(source.id)-sentence-runner-\(slotID)\(isShadow ? "-shadow" : "")",
             type: .gamePage,
             sourceID: source.id,
             intent: .reflect,
             renderStyle: .promptCard,
             score: ready ? score : 42,
-            reason: ready
-                ? "The Loom has loosened kept words into motion."
-                : "The Loom is waiting for a few more kept sentences before it can run.",
-            prompt: "The Sentence Runner",
-            detail: "Jump through words from your own archive. Avoid the Nothing's grey phrases. Keep what the run makes.",
+            reason: isShadow
+                ? "Shadow Wonder is unlocked; the Thornlight lexicon runs the margin with your kept words."
+                : (ready
+                    ? "The Loom has loosened kept words into motion."
+                    : "The Loom is waiting for a few more kept sentences before it can run."),
+            prompt: isShadow ? "The Shadow Runner" : "The Sentence Runner",
+            detail: isShadow
+                ? "Jump through your kept words and the worn-edge lexicon — rust, thorn, dusk. Avoid the Nothing's grey. Keep the dark, honest sentence the run makes."
+                : "Jump through words from your own archive. Avoid the Nothing's grey phrases. Keep what the run makes.",
             payload: BookPagePayload(
-                headline: ready ? "Your old words are moving again." : "The Loom Needs More Thread",
+                headline: ready
+                    ? (isShadow ? "Your worn words are moving in the dark." : "Your old words are moving again.")
+                    : "The Loom Needs More Thread",
                 body: ready
-                    ? "The Loom has pulled phrases from kept pages and set them moving across the margin. Catch the words that still feel alive. Let the grey ones pass if you can."
+                    ? (isShadow
+                        ? "The Loom has pulled phrases from kept pages and laced them with the Thornlight lexicon — rust, dusk, thorn, decay. Catch what time has touched. Beauty here does not need to be cheerful."
+                        : "The Loom has pulled phrases from kept pages and set them moving across the margin. Catch the words that still feel alive. Let the grey ones pass if you can.")
                     : "Keep a few more real sentences, then come back. Game Pages use your archive as their level design.",
-                metadata: [
-                    "source": source.id,
-                    "gameID": "sentence-runner",
-                    "gameTitle": "The Sentence Runner",
-                    "gamePhrases": selected.joined(separator: "||"),
-                    "nothingPhrases": grey.joined(separator: "||"),
-                    "phraseSources": sources.joined(separator: "||"),
-                    "placeholder": ready ? "Run the margin, then keep the result." : "Keep more pages first.",
-                    "tags": "game-page,sentence-runner,loom-run,nothing-words"
-                ]
+                metadata: metadata
             )
         )
     }
@@ -5533,8 +5952,13 @@ struct PackPageSourceAdapter: BookPageSourceAdapter {
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
         let hour = Calendar.current.component(.hour, from: now)
+        let triggerContext = PageTriggerContext(day: day, inputs: inputs, now: now)
         return PageArchetypePackRegistry.archetypes().compactMap { archetype in
             if let activeHours = archetype.activeHours, !activeHours.contains(hour) {
+                return nil
+            }
+            if let trigger = archetype.trigger,
+               !trigger.allows(context: triggerContext, archetypeID: archetype.id) {
                 return nil
             }
             return surface(for: archetype, day: day, inputs: inputs, context: context, now: now)
@@ -5557,8 +5981,13 @@ struct PackPageSourceAdapter: BookPageSourceAdapter {
                 )
             )
         }
+        let triggerContext = PageTriggerContext(day: day, inputs: inputs, now: now)
+        let eligibleArchetypes = archetypes.filter { archetype in
+            archetype.trigger?.allows(context: triggerContext, archetypeID: archetype.id) ?? true
+        }
+        let pool = eligibleArchetypes.isEmpty ? archetypes : eligibleArchetypes
         let slot = abs("\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 2))-pack".stableHash)
-        let archetype = archetypes[slot % archetypes.count]
+        let archetype = pool[slot % pool.count]
         return surface(for: archetype, day: day, inputs: inputs, context: CuratorContext.make(for: day), now: now)
     }
 
@@ -5575,6 +6004,13 @@ struct PackPageSourceAdapter: BookPageSourceAdapter {
             "symbol": archetype.symbolName,
             "tags": (["pack-page", archetype.id] + archetype.tags).joined(separator: ",")
         ]
+        if archetype.trigger != nil {
+            let triggerContext = PageTriggerContext(day: day, inputs: inputs, now: now)
+            metadata["triggered"] = "true"
+            metadata["triggerTimeBand"] = triggerContext.timeBand
+            metadata["triggerMoonPhase"] = triggerContext.moonPhase
+            metadata["triggerWorldEventIDs"] = triggerContext.activeWorldEvents.map(\.id).joined(separator: ",")
+        }
         if let generation = archetype.generation {
             metadata["packPrompt"] = PageTemplateRenderer.render(generation.promptTemplate, day: day, inputs: inputs, now: now)
             metadata["packInstructions"] = generation.instructions

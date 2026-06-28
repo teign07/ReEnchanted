@@ -1671,7 +1671,6 @@ struct LocalBrainWorkingStatusCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var activity: WaitActivity?
     @State private var loosePageSalt = 0
-    @State private var resetStartedAt: Date?
     @State private var radioManager = BookRadioManager.shared
 
     private var descriptor: ScribeWorkDescriptor { ScribeWorkDescriptor(label: label) }
@@ -1792,9 +1791,6 @@ struct LocalBrainWorkingStatusCard: View {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             activity = activity == option ? nil : option
-                            if option == .reset, resetStartedAt == nil {
-                                resetStartedAt = Date()
-                            }
                         }
                     } label: {
                         Label(option.title, systemImage: option.symbol)
@@ -1854,28 +1850,8 @@ struct LocalBrainWorkingStatusCard: View {
     }
 
     private var resetView: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            let started = resetStartedAt ?? timeline.date
-            let elapsed = max(0, Int(timeline.date.timeIntervalSince(started)))
-            let remaining = max(0, 60 - elapsed)
-            let breathIn = (elapsed % 8) < 4
-            HStack(spacing: 12) {
-                Circle()
-                    .fill(descriptor.accent.opacity(breathIn ? 0.28 : 0.13))
-                    .overlay { Circle().stroke(descriptor.accent.opacity(0.56), lineWidth: 1) }
-                    .frame(width: breathIn && !reduceMotion ? 48 : 36, height: breathIn && !reduceMotion ? 48 : 36)
-                    .animation(.easeInOut(duration: 1), value: breathIn)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(remaining == 0 ? "The minute is yours." : (breathIn ? "Breathe in, without improving anything." : "Breathe out. Let the chair hold your weight."))
-                        .font(.caption.weight(.semibold))
-                    Text(remaining == 0 ? "Stay, read, or close the reset." : "\(remaining) seconds — optional, never a requirement.")
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(BookPalette.ink.opacity(0.56))
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        BreathingMinuteView(accent: descriptor.accent, reduceMotion: reduceMotion, startImmediately: true)
             .waitActivitySurface(accent: descriptor.accent)
-        }
     }
 
     private var loosePageText: String {
@@ -1896,6 +1872,94 @@ struct LocalBrainWorkingStatusCard: View {
         if let stationID {
             radioManager.tune(stationID: stationID, unlockedPackIDs: unlocked)
         }
+    }
+}
+
+/// The 60-second "Do Nothing" minute from Wonder Compass Chapter 10 — a single breathing
+/// circle that counts one minute down while the chair holds your weight. Shared by the
+/// scribe wait card and the Center Page. Optional, never a requirement.
+struct BreathingMinuteView: View {
+    var accent: Color
+    var reduceMotion: Bool
+    /// When true the minute begins the moment the view appears (used where opening this
+    /// view is itself the "begin"). Otherwise a gentle start button shows first.
+    var startImmediately: Bool = false
+    /// An optional italic line revealed when the minute lands.
+    var completionNote: String? = nil
+
+    @State private var startedAt: Date?
+
+    var body: some View {
+        Group {
+            if let startedAt {
+                running(from: startedAt)
+            } else {
+                startButton
+            }
+        }
+        .onAppear {
+            if startImmediately, startedAt == nil {
+                startedAt = Date()
+            }
+        }
+    }
+
+    private var startButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                startedAt = Date()
+            }
+        } label: {
+            Label("Begin the minute", systemImage: "circle.dotted")
+                .font(.subheadline.weight(.bold))
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .tint(accent)
+    }
+
+    private func running(from started: Date) -> some View {
+        TimelineView(.periodic(from: started, by: 1)) { timeline in
+            let elapsed = max(0, Int(timeline.date.timeIntervalSince(started)))
+            let remaining = max(0, 60 - elapsed)
+            let breathIn = (elapsed % 8) < 4
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 12) {
+                    Circle()
+                        .fill(accent.opacity(breathIn ? 0.28 : 0.13))
+                        .overlay { Circle().stroke(accent.opacity(0.56), lineWidth: 1) }
+                        .frame(
+                            width: breathIn && !reduceMotion ? 48 : 36,
+                            height: breathIn && !reduceMotion ? 48 : 36
+                        )
+                        .animation(.easeInOut(duration: 1), value: breathIn)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(leadLine(remaining: remaining, breathIn: breathIn))
+                            .font(.callout.weight(.semibold))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(remaining == 0 ? "Stay, read, or close the reset." : "\(remaining) seconds — optional, never a requirement.")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(BookPalette.ink.opacity(0.56))
+                    }
+                    Spacer(minLength: 0)
+                }
+                if remaining == 0, let completionNote {
+                    Text(completionNote)
+                        .font(.system(.caption, design: .serif).italic())
+                        .foregroundStyle(BookPalette.ink.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .transition(.opacity)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func leadLine(remaining: Int, breathIn: Bool) -> String {
+        if remaining == 0 { return "The minute is yours." }
+        return breathIn
+            ? "Breathe in, without improving anything."
+            : "Breathe out. Let the chair hold your weight."
     }
 }
 

@@ -539,6 +539,15 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertNil(RadioStationRegistry.atmosphereLine(state: .off))
     }
 
+    func testRadioAtmosphereLineCarriesWorldEventPressure() {
+        let events = WorldEventResolver.activeEvents(now: date("2026-09-10T12:00:00Z"))
+
+        let line = RadioStationRegistry.atmosphereLine(state: .off, worldEvents: events)
+
+        XCTAssertTrue(line?.contains("The Dictionary Rebellion") == true)
+        XCTAssertTrue(line?.contains("loose words are interrupting") == true)
+    }
+
     func testBraidPromptCarriesNowPlaying() {
         let day = BookDay(id: "2026-06-16", date: date("2026-06-16T20:30:00Z"), pages: [])
         let context = BraidPromptBuilder.Context(nowPlaying: "Mothlight Beats (90.9) — wistful fae-fi")
@@ -547,6 +556,28 @@ final class BraidPromptContextTests: XCTestCase {
 
         XCTAssertTrue(prompt.contains("WHAT'S PLAYING"))
         XCTAssertTrue(prompt.contains("Mothlight Beats (90.9)"))
+    }
+
+    func testBraidPromptCarriesWorldEventPressure() {
+        let day = BookDay(
+            id: "2026-09-10",
+            date: date("2026-09-10T20:30:00Z"),
+            pages: [
+                BookPage(
+                    type: .souvenir,
+                    promptText: "One true thing",
+                    userInput: "The word ordinary felt different after dinner."
+                )
+            ]
+        )
+        let events = WorldEventResolver.activeEvents(now: date("2026-09-10T20:30:00Z"), day: day)
+        let context = BraidPromptBuilder.Context(activeWorldEvents: events)
+
+        let prompt = BraidPromptBuilder.prompt(for: day, context: context)
+
+        XCTAssertTrue(prompt.contains("WORLD EVENT PRESSURE"))
+        XCTAssertTrue(prompt.contains("The Dictionary Rebellion"))
+        XCTAssertTrue(prompt.contains("Let this pressure color the Book of You only when today's kept pages honestly invite it."))
     }
 
     func testBraidPromptOmitsAtmosphereWhenSilent() {

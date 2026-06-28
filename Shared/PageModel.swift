@@ -1265,6 +1265,7 @@ struct BookPage: Codable, Identifiable, Equatable {
     var createdAt: Date
     var promptText: String
     var userInput: String
+    var playerReply: String
     var tags: [String]
     var usedInBookOfYou: Bool
     var sourceID: String
@@ -1279,6 +1280,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         createdAt: Date = Date(),
         promptText: String,
         userInput: String = "",
+        playerReply: String = "",
         tags: [String] = [],
         usedInBookOfYou: Bool = false,
         sourceID: String? = nil,
@@ -1292,6 +1294,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         self.createdAt = createdAt
         self.promptText = promptText
         self.userInput = userInput
+        self.playerReply = playerReply
         self.tags = tags
         self.usedInBookOfYou = usedInBookOfYou
         self.sourceID = sourceID ?? type.rawValue
@@ -1307,6 +1310,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         case createdAt
         case promptText
         case userInput
+        case playerReply
         case tags
         case usedInBookOfYou
         case sourceID
@@ -1323,6 +1327,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         promptText = try container.decode(String.self, forKey: .promptText)
         userInput = try container.decodeIfPresent(String.self, forKey: .userInput) ?? ""
+        playerReply = try container.decodeIfPresent(String.self, forKey: .playerReply) ?? ""
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
         usedInBookOfYou = try container.decodeIfPresent(Bool.self, forKey: .usedInBookOfYou) ?? false
         sourceID = try container.decodeIfPresent(String.self, forKey: .sourceID) ?? type.rawValue

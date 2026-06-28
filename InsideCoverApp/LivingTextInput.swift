@@ -12,6 +12,9 @@ struct LivingTextEditor: View {
     @State private var selectedTokenID: Int?
     @State private var didTransmute = false
     @State private var shimmer = false
+    @State private var starterDraft: SentenceStarterDraft?
+    @State private var selectedStarterSlotID: String?
+    @State private var starterSeed = 0
 
     private var engine: SentenceBuilderEngine {
         SentenceBuilderEngine(pack: builderPack)
@@ -204,14 +207,7 @@ struct LivingTextEditor: View {
                     coachLine
                 }
             } else {
-                Text(builderPack.replayPrompt)
-                    .font(.callout.weight(.bold))
-                    .foregroundStyle(BookPalette.ink.opacity(0.86))
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(builderPack.replayHelper)
-                    .font(.caption)
-                    .foregroundStyle(BookPalette.ink.opacity(0.58))
-                    .fixedSize(horizontal: false, vertical: true)
+                starterOrReplayCard
             }
         }
         .padding(12)
@@ -222,6 +218,183 @@ struct LivingTextEditor: View {
         }
         .shadow(color: BookPalette.lampGold.opacity(shimmer ? 0.45 : 0), radius: shimmer ? 14 : 0)
         .scaleEffect(shimmer ? 1.015 : 1)
+    }
+
+    @ViewBuilder
+    private var starterOrReplayCard: some View {
+        if let starterDraft {
+            starterComposer(draft: starterDraft)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(builderPack.replayPrompt)
+                    .font(.callout.weight(.bold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.86))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(builderPack.replayHelper)
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.ink.opacity(0.58))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if !builderPack.starterTemplates.isEmpty {
+                    Button {
+                        beginStarter()
+                    } label: {
+                        Label("Start one", systemImage: "sparkles")
+                            .font(.caption.weight(.bold))
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 8)
+                            .background(BookPalette.lampGold.opacity(0.16), in: Capsule())
+                            .overlay {
+                                Capsule().stroke(BookPalette.lampGold.opacity(0.34), lineWidth: 1)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(BookPalette.lampGold)
+                    .accessibilityLabel("Start a sentence with chips")
+                }
+            }
+        }
+    }
+
+    private func starterComposer(draft: SentenceStarterDraft) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(engine.render(draft))
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(BookPalette.ink.opacity(0.86))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(BookPalette.lampGold.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.lampGold.opacity(0.24), lineWidth: 1)
+                }
+
+            starterSlotTabs(draft: draft)
+
+            if let slot = selectedStarterSlot(in: draft) {
+                FlowLayout(spacing: 6, lineSpacing: 6) {
+                    ForEach(engine.options(for: slot, in: draft), id: \.self) { option in
+                        Button {
+                            chooseStarterOption(option, slot: slot)
+                        } label: {
+                            Text(option)
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .background(starterOptionTint(option, slot: slot, draft: draft).opacity(0.16), in: Capsule())
+                                .overlay {
+                                    Capsule().stroke(starterOptionTint(option, slot: slot, draft: draft).opacity(0.38), lineWidth: 1)
+                                }
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(starterOptionTint(option, slot: slot, draft: draft))
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    nextStarter()
+                } label: {
+                    Label("Another", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(BookPalette.page.opacity(0.58), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.teal)
+
+                Button {
+                    useStarter(draft)
+                } label: {
+                    Label("Use this", systemImage: "checkmark")
+                        .font(.caption.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(BookPalette.lampGold.opacity(0.22), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.lampGold)
+            }
+        }
+    }
+
+    private func starterSlotTabs(draft: SentenceStarterDraft) -> some View {
+        FlowLayout(spacing: 6, lineSpacing: 6) {
+            ForEach(draft.template.slots) { slot in
+                let isSelected = selectedStarterSlotID == slot.id
+                Button {
+                    withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
+                        selectedStarterSlotID = slot.id
+                    }
+                    BookFeedback.play(.tap)
+                } label: {
+                    Text(slot.title)
+                        .font(.caption2.weight(.bold))
+                        .lineLimit(1)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 6)
+                        .background((isSelected ? BookPalette.teal : BookPalette.page).opacity(isSelected ? 0.16 : 0.58), in: Capsule())
+                        .overlay {
+                            Capsule().stroke((isSelected ? BookPalette.teal : BookPalette.ink).opacity(isSelected ? 0.34 : 0.09), lineWidth: 1)
+                        }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(isSelected ? BookPalette.teal : BookPalette.ink.opacity(0.56))
+            }
+        }
+    }
+
+    private func beginStarter() {
+        starterSeed += 1
+        guard let draft = engine.starterDraft(seed: "\(title)-\(starterSeed)") else { return }
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+            starterDraft = draft
+            selectedStarterSlotID = draft.template.slots.first?.id
+        }
+        BookFeedback.play(.select)
+    }
+
+    private func nextStarter() {
+        beginStarter()
+    }
+
+    private func selectedStarterSlot(in draft: SentenceStarterDraft) -> SentenceStarterSlot? {
+        if let selectedStarterSlotID,
+           let slot = draft.template.slots.first(where: { $0.id == selectedStarterSlotID }) {
+            return slot
+        }
+        return draft.template.slots.first
+    }
+
+    private func chooseStarterOption(_ option: String, slot: SentenceStarterSlot) {
+        guard let draft = starterDraft else { return }
+        starterDraft = engine.selecting(option, for: slot, in: draft)
+        BookFeedback.play(.tap)
+    }
+
+    private func starterOptionTint(_ option: String, slot: SentenceStarterSlot, draft: SentenceStarterDraft) -> Color {
+        if draft.selections[slot.id]?.caseInsensitiveCompare(option) == .orderedSame {
+            return BookPalette.lampGold
+        }
+        switch slot.kind {
+        case .anchor, .motion:
+            return BookPalette.teal
+        case .sense, .crossing:
+            return BookPalette.lampGold
+        }
+    }
+
+    private func useStarter(_ draft: SentenceStarterDraft) {
+        text = engine.render(draft)
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.88)) {
+            starterDraft = nil
+            selectedStarterSlotID = nil
+        }
+        BookFeedback.play(.keepPage)
     }
 
     private var cardEyebrow: String {

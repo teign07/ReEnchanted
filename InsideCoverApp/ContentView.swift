@@ -1130,7 +1130,7 @@ struct ContentView: View {
         }
         loadAnchorLedger()
         if didCompleteStoryOnboarding {
-            BookWhispers.refreshSchedule(enabled: bookWhispersEnabled, electives: electives, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisperToday)
+            BookWhispers.refreshSchedule(enabled: bookWhispersEnabled, electives: electives, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisperToday, eventWhisper: worldEventWhisperToday)
         }
         if bookCalendarEnabled {
             calendarEvents = await CalendarDoorway.upcomingEvents()
@@ -1529,12 +1529,22 @@ struct ContentView: View {
         playerBeliefDelta: Int = 0
     ) {
         var ledger = entityBeliefLedger
+        let previousOffset = ledger[entity.id] ?? 0
         ledger[entity.id, default: 0] += delta
         if let data = try? JSONEncoder().encode(ledger),
            let encoded = String(data: data, encoding: .utf8) {
             entityBeliefLedgerData = encoded
         }
         recordGlowBeliefEvent(entity: entity, delta: delta, kind: kind, playerBeliefDelta: playerBeliefDelta)
+        if entity.id == ShadowWonder.duskThornTalismanID,
+           previousOffset <= 0,
+           (ledger[entity.id] ?? 0) > 0,
+           kind == .beliefInvested {
+            selectedWonderCompassSnippet = nil
+            selectedWonderCompassSelector = nil
+            surfaceRefreshDate = Date()
+            statusMessage = "The Dusk Thorn warms. Shadow Wonder can now surface in quips, lore, missions, and souvenirs after dark or when Duskthorn is ascendant."
+        }
     }
 
     func saveCustomCastMember(_ draft: CustomCastMemberDraft) {
@@ -1803,12 +1813,13 @@ struct ContentView: View {
             weather: weatherPageSignal,
             enchanted: enchantedWeather
         )
+        let activeEvents = sourceInputs.resolvingWorldEvents(for: today, now: now).activeWorldEvents
 
         return RadioPageContext(
             keptToday: keptToday,
             recentPageTypeCounts: recentTypeCounts,
             recentSourceIDs: recentSourceIDs,
-            recentTags: recentTags,
+            recentTags: recentTags.union(activeEvents.eventTags),
             lastKeptPageType: recentPages.first?.type,
             weatherTags: weatherTags
         )
@@ -2855,7 +2866,7 @@ struct ContentView: View {
                     .tint(BookPalette.teal)
                     .onChange(of: bookWhispersEnabled) { _, enabled in
                         BookFeedback.play(enabled ? .sourceRefresh : .dismissPage)
-                        BookWhispers.refreshSchedule(enabled: enabled, electives: electives, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisperToday)
+                        BookWhispers.refreshSchedule(enabled: enabled, electives: electives, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisperToday, eventWhisper: worldEventWhisperToday)
                         statusMessage = enabled
                             ? "The Book may whisper now: bells, the evening braid, and waiting favors."
                             : "The Book will keep its voice inside the covers."
@@ -3358,6 +3369,7 @@ struct ContentView: View {
             type: surface.type,
             promptText: surface.prompt,
             userInput: input,
+            playerReply: surface.payload.metadata["playerReply"] ?? "",
             tags: tags,
             sourceID: surface.sourceID,
             origin: surface.origin,
@@ -3366,6 +3378,7 @@ struct ContentView: View {
         )
         day.pages.append(page)
         recordNarrativeEvent(for: page)
+        recordPenPalReplyMemory(for: page, surface: surface)
         weaveRelationshipField(for: page)
         applyGossipRelationshipMoves(from: surface)
         applyGossipPageBeliefMoves(from: surface)
@@ -3515,6 +3528,32 @@ struct ContentView: View {
         tendConstellations()
     }
 
+    /// When the reader seals and sends a reply to a letter, the sender remembers
+    /// it for good: an oblique entity memory that future letters glance at through
+    /// the per-sender memory packet (StoryEngine.memoryPacket).
+    func recordPenPalReplyMemory(for page: BookPage, surface: SurfacePage) {
+        let reply = page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !reply.isEmpty,
+              let senderID = surface.payload.metadata["senderID"]?.nonEmpty else { return }
+        let senderName = surface.payload.metadata["senderName"]?.nonEmpty ?? "They"
+        let memory = NarrativeEntityMemory(
+            id: "pen-pal-reply-\(page.id)-\(senderID)",
+            entityID: senderID,
+            sourceEventID: "pen-pal-reply-\(page.id)",
+            sourcePageID: page.id,
+            summary: CharacterLetterPageGenerator.penPalReplyMemorySummary(senderName: senderName, reply: reply),
+            tags: ["letter", "reply", "pen-pal", "sender:\(senderID)"],
+            narrativeWeight: 5,
+            createdAt: page.createdAt
+        )
+        do {
+            try BookDatabase.upsertEntityMemory(memory)
+            entityMemories = NarrativeEntityMemoryConsolidator.consolidate(try BookDatabase.entityMemories(limit: 240))
+        } catch {
+            statusMessage = "Your reply is sealed, but one margin note slipped: \(error.localizedDescription)"
+        }
+    }
+
     /// The ArcKeeper checks the field whenever events land: promotion,
     /// phase turns, and completion all announce themselves in-world.
     @MainActor
@@ -3581,6 +3620,14 @@ struct ContentView: View {
     var festivalWhisperToday: (title: String, body: String)? {
         guard let celebration = Almanac.active(on: Date(), hemisphere: Hemisphere.from(latitude: lastAnchorReadingLatitude)) else { return nil }
         return (title: "Tonight: \(celebration.academyTitle)", body: celebration.invitation)
+    }
+
+    /// Today's active authored world event, phrased as a whisper.
+    var worldEventWhisperToday: (title: String, body: String)? {
+        let events = sourceInputs.resolvingWorldEvents(for: today, now: Date()).activeWorldEvents
+        guard let event = events.first,
+              let body = events.widgetWhisperLine else { return nil }
+        return (title: event.title, body: body)
     }
 
     /// The Talisman of the Chapter the reader is Bound to, if any — gets a
@@ -5518,8 +5565,10 @@ struct ContentView: View {
                 learnedNotes: vault.data.learnedBraidNotes ?? [],
                 nowPlaying: RadioStationRegistry.atmosphereLine(
                     state: vault.data.radio ?? .off,
-                    unlockedPackIDs: Set(vault.data.ownedPacks ?? [])
-                )
+                    unlockedPackIDs: Set(vault.data.ownedPacks ?? []),
+                    worldEvents: sourceInputs.resolvingWorldEvents(for: braidDay, now: Date()).activeWorldEvents
+                ),
+                activeWorldEvents: sourceInputs.resolvingWorldEvents(for: braidDay, now: Date()).activeWorldEvents
             )
             var braid = try await braider.braid(day: braidDay, context: braidContext)
             braid = BraidPageDetails.annotated(braid, context: braidContext)
@@ -5634,7 +5683,8 @@ struct ContentView: View {
             selfFacts: selfFacts,
             beliefScore: beliefScore,
             radio: radioManager.playback,
-            radioIsPlaying: radioManager.isPlaying
+            radioIsPlaying: radioManager.isPlaying,
+            activeWorldEvents: sourceInputs.resolvingWorldEvents(for: today, now: Date()).activeWorldEvents
         )
     }
 

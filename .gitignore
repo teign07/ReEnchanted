@@ -8,6 +8,7 @@ build/
 
 # SwiftPM
 .build/
+tmp/
 
 # Node / Remotion
 node_modules/

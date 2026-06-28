@@ -274,13 +274,18 @@ struct MLXBookBraider: Braider {
             let days = await MainActor.run {
                 BookDatabase.loadDays(migratingFrom: BookStore.loadDays())
             }
+            var inputs = BookSourceInputs.empty
+            inputs.days = days
+            let activeWorldEvents = WorldEventResolver.activeEvents(now: Date(), day: day, inputs: inputs)
             context = LocalModelManager.braidContext(
                 for: day,
                 days: days,
                 nowPlaying: RadioStationRegistry.atmosphereLine(
                     state: PlayerVault.shared.data.radio ?? .off,
-                    unlockedPackIDs: Set(PlayerVault.shared.data.ownedPacks ?? [])
-                )
+                    unlockedPackIDs: Set(PlayerVault.shared.data.ownedPacks ?? []),
+                    worldEvents: activeWorldEvents
+                ),
+                activeWorldEvents: activeWorldEvents
             )
         case .task:
             context = .empty

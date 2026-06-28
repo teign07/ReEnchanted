@@ -79,12 +79,18 @@ enum TheBleedEditionBuilder {
         calendar: Calendar = .current
     ) -> SurfacePage? {
         guard let kind = editionKind(for: now, calendar: calendar) else { return nil }
+        let inputs = inputs.resolvingWorldEvents(for: day, now: now)
         let slot = slotID(for: kind, day: day)
         guard !day.pages.contains(where: { $0.tags.contains(slot) }) else { return nil }
         let source = BookPageSourceRegistry.source(for: .theBleed)
         let issueNumber = inputs.bleedIssueNumber
         let interest = selectedInterest(from: inputs.selfFacts, dayID: day.id, kind: kind)
         let briefs = columnBriefs(kind: kind, day: day, inputs: inputs, interest: interest, now: now, calendar: calendar)
+        let eventTags = inputs.activeWorldEvents.eventTags
+        let eventLine = inputs.activeWorldEvents
+            .first
+            .map { "\n\nSpecial bulletin: \($0.title) - \($0.phase.title). \($0.packet.bleedInstruction ?? $0.packet.logline)" } ?? ""
+        let tags = (["the-bleed", slot, "bleed-\(kind.rawValue)"] + eventTags).joined(separator: ",")
 
         return SurfacePage(
             id: "\(source.id)-\(slot)",
@@ -93,12 +99,12 @@ enum TheBleedEditionBuilder {
             intent: .reflect,
             renderStyle: .loreLetter,
             score: kind == .morning ? 90 : 86,
-            reason: "Issue #\(issueNumber) is waiting under the door.",
+            reason: inputs.activeWorldEvents.first.map { "Issue #\(issueNumber) is waiting under the door. \($0.title) has reached the press room." } ?? "Issue #\(issueNumber) is waiting under the door.",
             prompt: "The newest edition of The Bleed is here.",
-            detail: "Open it - Penny Blackletter is holding the presses.",
+            detail: inputs.activeWorldEvents.first.map { "Open it - Penny is holding the presses over \($0.title)." } ?? "Open it - Penny Blackletter is holding the presses.",
             payload: BookPagePayload(
                 headline: "\(kind.mastheadTitle) - Issue #\(issueNumber)",
-                body: kind.announcementLine,
+                body: kind.announcementLine + eventLine,
                 metadata: [
                     "source": source.id,
                     "bleedEditionKind": kind.rawValue,
@@ -106,8 +112,12 @@ enum TheBleedEditionBuilder {
                     "bleedIssueNumber": "\(issueNumber)",
                     "bleedInterest": interest ?? "",
                     "bleedBriefs": encodedBriefs(briefs),
+                    "worldEventIDs": inputs.activeWorldEvents.map(\.id).joined(separator: ","),
+                    "worldEventTitles": inputs.activeWorldEvents.map(\.title).joined(separator: ", "),
+                    "worldEventPacket": inputs.activeWorldEvents.influencePacket,
+                    "worldEventBleedPacket": inputs.activeWorldEvents.bleedPacket,
                     "placeholder": "The presses are inked and waiting. Open the edition to set them running.",
-                    "tags": "the-bleed,\(slot),bleed-\(kind.rawValue)"
+                    "tags": tags
                 ]
             )
         )
@@ -263,6 +273,7 @@ enum TheBleedEditionBuilder {
         let wagers = inputs.wagers.filter(\.isSealed).prefix(2).map { "- \($0.promptLine)" }.joined(separator: "\n")
         let theme = inputs.themes.max { $0.monthKey < $1.monthKey }.map(\.promptLine) ?? "No named theme yet."
         let arc = inputs.currentArc.map { "Current story arc: \($0.title), phase \($0.phase.rawValue)." } ?? "No arc currently promoted."
+        let eventPacket = inputs.activeWorldEvents.bleedPacket.nonEmpty ?? "No authored world event is currently changing the press room."
         let recentPages = day.capturedPages.suffix(5)
             .map { "- \($0.promptText): \($0.userInput.bookPreviewSentenceLimit(1))" }
             .joined(separator: "\n")
@@ -280,6 +291,9 @@ enum TheBleedEditionBuilder {
 
         \(theme)
         \(arc)
+
+        Active world-event desk:
+        \(eventPacket)
 
         The reader's own kept pages today:
         \(recentPages.nonEmpty ?? "- No pages kept yet today.")

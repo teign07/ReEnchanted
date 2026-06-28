@@ -193,7 +193,78 @@ final class WorldSystemsTests: XCTestCase {
             if let hours = archetype.activeHours {
                 XCTAssertTrue(hours.allSatisfy { (0..<24).contains($0) })
             }
+            if let trigger = archetype.trigger {
+                if let weekdays = trigger.weekdays {
+                    XCTAssertTrue(weekdays.allSatisfy { (1...7).contains($0) })
+                }
+                if let rarity = trigger.rarity {
+                    XCTAssertTrue((0...1).contains(rarity))
+                }
+            }
         }
+    }
+
+    func testPageTriggerReadsLiveWorldSignals() {
+        let calendar = utcCalendar
+        let fullMoonDay = MoonPhaseCalendar.nextFullMoon(after: date(2026, 1, 1, hour: 0, calendar: calendar), calendar: calendar)
+        let now = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: fullMoonDay)!
+        let oldDate = calendar.date(byAdding: .day, value: -3, to: now)!
+        let today = BookDay.day(containing: now, calendar: calendar)
+        let oldDay = BookDay(
+            id: BookDay.id(for: oldDate, calendar: calendar),
+            date: calendar.startOfDay(for: oldDate),
+            pages: [
+                BookPage(
+                    type: .souvenir,
+                    createdAt: oldDate,
+                    promptText: "Commuter umbrella",
+                    userInput: "Rain on the train window.",
+                    tags: ["commute", "rain-memory"]
+                )
+            ]
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.days = [oldDay]
+        inputs.quietDays = 3
+        inputs.weather = WeatherSourceSignal(phrase: "steady rain against the glass", source: "test")
+
+        let context = PageTriggerContext(day: today, inputs: inputs, now: now, calendar: calendar)
+
+        XCTAssertTrue(PageTrigger(
+            timeBands: ["day"],
+            moonPhases: ["full moon"],
+            weatherTags: ["rain"],
+            recentTags: ["commute"],
+            minQuietDays: 2,
+            minAbsenceDays: 2
+        ).allows(context: context, archetypeID: "test-rain-moon-return"))
+        XCTAssertFalse(PageTrigger(weatherTags: ["bright"]).allows(context: context, archetypeID: "test-bright"))
+        XCTAssertFalse(PageTrigger(minGrey: 1).allows(context: context, archetypeID: "test-grey"))
+        XCTAssertFalse(PageTrigger(minAbsenceDays: 4).allows(context: context, archetypeID: "test-too-absent"))
+    }
+
+    func testWorldEventPackPageSurfacesOnlyDuringActiveEvent() {
+        let calendar = utcCalendar
+        let adapter = PackPageSourceAdapter()
+        let septemberNow = date(2026, 9, 10, hour: 10, calendar: calendar)
+        let september = BookDay.day(containing: septemberNow, calendar: calendar)
+        let septemberPages = adapter.candidates(
+            for: september,
+            context: CuratorContext.make(for: september),
+            inputs: .empty,
+            now: septemberNow
+        )
+        XCTAssertTrue(septemberPages.contains { $0.id.contains("dictionary-rebellion-picket-line") })
+
+        let julyNow = date(2026, 7, 10, hour: 10, calendar: calendar)
+        let july = BookDay.day(containing: julyNow, calendar: calendar)
+        let julyPages = adapter.candidates(
+            for: july,
+            context: CuratorContext.make(for: july),
+            inputs: .empty,
+            now: julyNow
+        )
+        XCTAssertFalse(julyPages.contains { $0.id.contains("dictionary-rebellion-picket-line") })
     }
 
     // MARK: Margin tutor
@@ -877,6 +948,272 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertFalse(mission.proofPrompt.isEmpty)
     }
 
+    func testShadowWonderActivatesAfterDuskThornInvestmentAtNight() {
+        var inputs = BookSourceInputs.empty
+        inputs.entityBeliefOffsets[ShadowWonder.duskThornTalismanID] = 1
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 12, hour: 19))!
+
+        let state = ShadowWonder.state(inputs: inputs, now: now)
+
+        XCTAssertTrue(state.isUnlocked)
+        XCTAssertTrue(state.isNight)
+        XCTAssertTrue(state.isActive)
+        XCTAssertTrue(ShadowWonder.tags(inputs: inputs, now: now).contains("shadow-wonder"))
+    }
+
+    func testShadowWonderVariantBiasesPlayfulMissionsToShadowPool() {
+        var inputs = BookSourceInputs.empty
+        inputs.entityBeliefOffsets[ShadowWonder.duskThornTalismanID] = 1
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 12, hour: 19))!
+
+        let normalMission = PlayfulMissionRegistry.mission(
+            for: BookDay(id: "shadow-day", date: now, pages: []),
+            inputs: inputs,
+            now: now
+        )
+        let mission = PlayfulMissionRegistry.mission(
+            for: BookDay(id: "shadow-day", date: now, pages: []),
+            inputs: inputs,
+            now: now,
+            shadowVariant: true
+        )
+
+        XCTAssertFalse(normalMission.tags.contains("shadow-wonder"))
+        XCTAssertTrue(ShadowWonder.prefers(mission: mission))
+        XCTAssertTrue(mission.tags.contains("shadow-wonder"))
+    }
+
+    func testShadowWonderAddsSeparateVariantsForExistingPageTypes() throws {
+        var inputs = BookSourceInputs.empty
+        inputs.entityBeliefOffsets[ShadowWonder.duskThornTalismanID] = 1
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 12, hour: 19))!
+        let day = BookDay(id: "shadow-surfaces", date: now, pages: [])
+        let context = CuratorContext.make(for: day)
+
+        let souvenirs = SouvenirPageSourceAdapter().candidates(for: day, context: context, inputs: inputs, now: now)
+        let compassPages = WonderCompassPageSourceAdapter().candidates(for: day, context: context, inputs: inputs, now: now)
+        let quips = QuipPageSourceAdapter().candidates(for: day, context: context, inputs: inputs, now: now)
+        let lore = EnchantifyLorePageSourceAdapter().candidates(for: day, context: context, inputs: inputs, now: now)
+
+        let normalSouvenir = try XCTUnwrap(souvenirs.first { $0.payload.metadata["variant"] == nil })
+        let shadowSouvenir = try XCTUnwrap(souvenirs.first { $0.payload.metadata["variant"] == "shadow-wonder" })
+        let normalCompass = try XCTUnwrap(compassPages.first { $0.payload.metadata["variant"] == nil })
+        let shadowCompass = try XCTUnwrap(compassPages.first { $0.payload.metadata["variant"] == "shadow-wonder" })
+        let normalQuip = try XCTUnwrap(quips.first { $0.payload.metadata["variant"] == nil })
+        let shadowQuip = try XCTUnwrap(quips.first { $0.payload.metadata["variant"] == "shadow-wonder" })
+        let normalLore = try XCTUnwrap(lore.first { $0.payload.metadata["variant"] == nil })
+        let shadowLore = try XCTUnwrap(lore.first { $0.payload.metadata["variant"] == "shadow-wonder" })
+
+        XCTAssertEqual(normalSouvenir.type, .souvenir)
+        XCTAssertEqual(shadowSouvenir.type, .souvenir)
+        XCTAssertEqual(normalCompass.type, .wonderCompass)
+        XCTAssertEqual(shadowCompass.type, .wonderCompass)
+        XCTAssertEqual(normalQuip.type, .quip)
+        XCTAssertEqual(shadowQuip.type, .quip)
+        XCTAssertEqual(normalLore.type, .lore)
+        XCTAssertEqual(shadowLore.type, .lore)
+
+        XCTAssertFalse(normalSouvenir.payload.metadata["tags"]?.contains("shadow-wonder") == true)
+        XCTAssertFalse(normalCompass.payload.metadata["tags"]?.contains("shadow-wonder") == true)
+        XCTAssertFalse(normalQuip.payload.metadata["tags"]?.contains("shadow-wonder") == true)
+        XCTAssertFalse(normalLore.payload.metadata["tags"]?.contains("shadow-wonder") == true)
+        XCTAssertTrue(shadowSouvenir.payload.metadata["tags"]?.contains("shadow-wonder") == true)
+        XCTAssertTrue(shadowCompass.payload.metadata["tags"]?.contains("shadow-wonder") == true)
+        XCTAssertTrue(shadowQuip.payload.metadata["tags"]?.contains("shadow-wonder") == true)
+        XCTAssertTrue(shadowLore.payload.metadata["tags"]?.contains("shadow-wonder") == true)
+        XCTAssertFalse(shadowSouvenir.payload.metadata["shadowVariantOf"]?.isEmpty ?? true)
+        XCTAssertFalse(shadowCompass.payload.metadata["shadowVariantOf"]?.isEmpty ?? true)
+        XCTAssertFalse(shadowQuip.payload.metadata["shadowVariantOf"]?.isEmpty ?? true)
+        XCTAssertFalse(shadowLore.payload.metadata["shadowVariantOf"]?.isEmpty ?? true)
+    }
+
+    func testShadowWonderActivatesOnSomberWeatherInDaylight() {
+        var inputs = BookSourceInputs.empty
+        inputs.entityBeliefOffsets[ShadowWonder.duskThornTalismanID] = 1
+        inputs.weather = WeatherSourceSignal(phrase: "cold rain on the glass", source: "test")
+        // Midday, Duskthorn not ascendant: only the broadened triggers can fire.
+        let noon = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 12, hour: 13))!
+
+        let state = ShadowWonder.state(inputs: inputs, now: noon)
+
+        XCTAssertFalse(state.isNight)
+        XCTAssertTrue(state.isSomberWeather)
+        XCTAssertTrue(state.isActive)
+        XCTAssertTrue(ShadowWonder.tags(inputs: inputs, now: noon).contains("somber-weather"))
+    }
+
+    func testShadowWonderActivatesOnHardDay() {
+        var inputs = BookSourceInputs.empty
+        inputs.entityBeliefOffsets[ShadowWonder.duskThornTalismanID] = 1
+        inputs.body = BodySourceSignal(status: "watch", score: 30, phrase: "running low, take it gently")
+        let noon = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 12, hour: 13))!
+
+        let state = ShadowWonder.state(inputs: inputs, now: noon)
+
+        XCTAssertTrue(state.isHardDay)
+        XCTAssertTrue(state.isActive)
+    }
+
+    func testShadowWonderStaysLockedUntilDuskThornInvested() {
+        var inputs = BookSourceInputs.empty
+        inputs.weather = WeatherSourceSignal(phrase: "fog over everything", source: "test")
+        let night = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 12, hour: 22))!
+
+        let state = ShadowWonder.state(inputs: inputs, now: night)
+
+        XCTAssertFalse(state.isUnlocked)
+        XCTAssertFalse(state.isActive, "Shadow Wonder must stay dormant until the Dusk Thorn is invested in")
+    }
+
+    func testShadowSentenceRunnerVariantSurfacesWhenActive() throws {
+        var inputs = BookSourceInputs.empty
+        inputs.entityBeliefOffsets[ShadowWonder.duskThornTalismanID] = 1
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 12, hour: 21))!
+        // A day with enough distinct kept phrases for the runner to open.
+        let sentences = [
+            "The kettle ticked on the cold sill",
+            "A blue receipt held a coffee ring",
+            "The window fogged at the edges",
+            "Gravel shifted under one slow shoe",
+            "The lamp guttered once and held",
+            "Rain counted itself on the glass",
+            "A hinge complained in the dark hall",
+            "The mug kept the last of the heat"
+        ]
+        let pages = sentences.enumerated().map { i, line in
+            BookPage(
+                id: "kept-\(i)",
+                type: .souvenir,
+                createdAt: now.addingTimeInterval(Double(-i) * 600),
+                promptText: "Souvenir",
+                userInput: line
+            )
+        }
+        let day = BookDay(id: "shadow-game-day", date: now, pages: pages)
+        let context = CuratorContext.make(for: day)
+
+        let games: [SurfacePage] = GamePageSourceAdapter().candidates(for: day, context: context, inputs: inputs, now: now)
+        let normalGame = try XCTUnwrap(games.first(where: { $0.payload.metadata["variant"] == nil }))
+        let shadowGame = try XCTUnwrap(games.first(where: { $0.payload.metadata["variant"] == "shadow-wonder" }))
+
+        XCTAssertEqual(shadowGame.type, .gamePage)
+        XCTAssertEqual(shadowGame.payload.metadata["gameID"], "shadow-sentence-runner")
+        XCTAssertGreaterThan(shadowGame.score, normalGame.score, "The shadow runner should outscore the bright runner so it wins the slot")
+        // The Thornlight lexicon must reach the catchable words.
+        let shadowPhrases = (shadowGame.payload.metadata["gamePhrases"] ?? "").lowercased()
+        XCTAssertTrue(ShadowWonder.gameWords.contains { shadowPhrases.contains($0) },
+                      "Shadow runner should mix the Thornlight lexicon into its words")
+    }
+
+    func testShadowVariantWinsTypeSlotOverBrightSibling() {
+        // The curator never shows two of the same type at once (SurfaceAndCurator's
+        // pickedTypes rule), so a higher-scored shadow variant must take the single
+        // slot for its type rather than appearing alongside its bright sibling.
+        let bright = SurfacePage(
+            id: "souv-bright",
+            type: .souvenir,
+            score: 60,
+            prompt: "One-Sentence Souvenir",
+            detail: "Keep one bright particular.",
+            payload: BookPagePayload(headline: "h", body: "b", metadata: ["source": "one-sentence-souvenir"])
+        )
+        let shadow = SurfacePage(
+            id: "souv-shadow",
+            type: .souvenir,
+            score: 72,
+            prompt: "One-Sentence Souvenir",
+            detail: "Keep one worn particular.",
+            payload: BookPagePayload(headline: "h", body: "b", metadata: [
+                "source": "one-sentence-souvenir",
+                "variant": "shadow-wonder",
+                "shadowVariantOf": "souv-bright"
+            ])
+        )
+
+        let ranked = BookCurator.rankedPages(from: [bright, shadow], limit: 3)
+        let souvenirSlots = ranked.filter { $0.page.type == .souvenir }
+        XCTAssertEqual(souvenirSlots.count, 1, "Only one souvenir may take the shelf")
+        XCTAssertEqual(souvenirSlots.first?.page.payload.metadata["variant"], "shadow-wonder")
+    }
+
+    func testShadowLoreRotatesThroughDarkShelf() {
+        // The Dusk Thorn's shelf must offer a real body of folklore, not one card.
+        let pool = BookReferenceCatalog.shadowLore
+        XCTAssertGreaterThanOrEqual(pool.count, 8, "The shadow lore shelf should be a body of folklore")
+        XCTAssertTrue(pool.allSatisfy { $0.tags.map { $0.lowercased() }.contains("shadow-wonder") })
+        // The real-world lore the reader asked for is reachable.
+        let ids = Set(pool.map(\.id))
+        XCTAssertTrue(ids.contains("shadow-lore-unseelie-court"))
+        XCTAssertTrue(ids.contains("shadow-lore-dealing-with-unseelie"))
+        XCTAssertTrue(ids.contains("shadow-lore-correspondences"))
+
+        // Rotation over the day surfaces more than a single snippet.
+        let day = BookDay(id: "shadow-lore-day", date: Date(), pages: [])
+        var seen = Set<String>()
+        for hour in stride(from: 0, through: 22, by: 2) {
+            let now = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 12, hour: hour))!
+            seen.insert(BookReferenceCatalog.rotatingShadowLoreSnippet(for: day, now: now).id)
+        }
+        XCTAssertGreaterThan(seen.count, 1, "Shadow lore should rotate across the shelf, not repeat one card")
+    }
+
+    func testShadowLoreVariantSurfacesUnseelieFolklore() throws {
+        var inputs = BookSourceInputs.empty
+        inputs.entityBeliefOffsets[ShadowWonder.duskThornTalismanID] = 1
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 12, hour: 22))!
+        let day = BookDay(id: "shadow-lore-surface", date: now, pages: [])
+        let context = CuratorContext.make(for: day)
+
+        let lore: [SurfacePage] = EnchantifyLorePageSourceAdapter().candidates(for: day, context: context, inputs: inputs, now: now)
+        let shadowLore = try XCTUnwrap(lore.first(where: { $0.payload.metadata["variant"] == "shadow-wonder" }))
+
+        XCTAssertEqual(shadowLore.type, .lore)
+        XCTAssertTrue(BookReferenceCatalog.shadowLore.map(\.id).contains(shadowLore.payload.metadata["snippetID"] ?? ""),
+                      "The shadow lore variant should draw from the dark shelf")
+        XCTAssertTrue(shadowLore.payload.metadata["tags"]?.contains("shadow-wonder") == true)
+    }
+
+    func testShadowSparkPoolRotatesIWonderQuestions() {
+        XCTAssertGreaterThanOrEqual(ShadowWonder.shadowSparks.count, 12, "The dark Notice pool should be a real body of sparks")
+        XCTAssertTrue(ShadowWonder.shadowSparks.allSatisfy { $0.text.lowercased().contains("i wonder") })
+
+        var seen = Set<String>()
+        for hour in stride(from: 0, through: 22, by: 2) {
+            let now = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 12, hour: hour))!
+            seen.insert(ShadowWonder.spark(inputs: .empty, now: now, dayID: "spark-day"))
+        }
+        XCTAssertGreaterThan(seen.count, 1, "Shadow sparks should rotate, not repeat one question")
+    }
+
+    func testShadowStandaloneNoticeAndCaptureVariantsSurface() throws {
+        var inputs = BookSourceInputs.empty
+        inputs.entityBeliefOffsets[ShadowWonder.duskThornTalismanID] = 1
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 12, hour: 22))!
+        let day = BookDay(id: "shadow-variants-day", date: now, pages: [])
+        let context = CuratorContext.make(for: day)
+
+        // The standalone North = Notice "I wonder" card has a shadow sibling.
+        let compass: [SurfacePage] = WonderCompassPageSourceAdapter().candidates(for: day, context: context, inputs: inputs, now: now)
+        let shadowNotice = try XCTUnwrap(compass.first(where: {
+            $0.payload.metadata["variant"] == "shadow-wonder"
+                && $0.payload.metadata["compassStep"] == "notice"
+                && $0.payload.metadata["standalone"] == "true"
+        }), "A shadow standalone Notice card should surface on a fresh day")
+        XCTAssertTrue(shadowNotice.payload.body.lowercased().contains("i wonder"))
+
+        // Inner Weather, Center/Rest, and Today's Sky each gain a shadow variant.
+        let mood: [SurfacePage] = MoodPageSourceAdapter().candidates(for: day, context: context, inputs: inputs, now: now)
+        XCTAssertNotNil(mood.first(where: { $0.payload.metadata["variant"] == "shadow-wonder" && $0.type == .mood }))
+
+        let rest: [SurfacePage] = RestPageSourceAdapter().candidates(for: day, context: context, inputs: inputs, now: now)
+        XCTAssertNotNil(rest.first(where: { $0.payload.metadata["variant"] == "shadow-wonder" && $0.type == .rest }))
+
+        let sky: [SurfacePage] = TodaysSkyPageSourceAdapter().candidates(for: day, context: context, inputs: inputs, now: now)
+        let shadowSky = try XCTUnwrap(sky.first(where: { $0.payload.metadata["variant"] == "shadow-wonder" && $0.type == .todaysSky }))
+        let skyTags = shadowSky.payload.metadata["tags"] ?? ""
+        XCTAssertTrue(skyTags.contains("dark-moon") || skyTags.contains("between-hours"))
+    }
+
     func testFallbackOfferUsesRealPlaceWhenAvailable() {
         let surface = SurfacePage(
             id: "offer", type: .elective, sourceID: "unwritten-elective",
@@ -1268,7 +1605,7 @@ final class WorldSystemsTests: XCTestCase {
         ))
 
         XCTAssertEqual(result.readerDelta, -3)
-        XCTAssertEqual(result.entityDeltas["zara-finch"], -2)
+        XCTAssertEqual(result.entityDeltas["zara-finch"], -1)
         XCTAssertEqual(result.pageDeltas[source.id], -2)
     }
 
@@ -1331,7 +1668,7 @@ final class WorldSystemsTests: XCTestCase {
                 .filter { $0.kind == .talisman }
                 .map { ($0.id, $0.belief) }
         )
-        XCTAssertEqual(talismanBelief["dusk-thorn"], 11)
+        XCTAssertEqual(talismanBelief["dusk-thorn"], 10)
         XCTAssertEqual(talismanBelief["ember-seal"], 10)
         XCTAssertEqual(talismanBelief["wind-cipher"], 10)
         XCTAssertEqual(talismanBelief["tide-glass"], 10)

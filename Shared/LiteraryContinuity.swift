@@ -17,6 +17,7 @@ enum BraidPromptBuilder {
         var chapter: AcademyChapter?
         var learnedGuidance: BraidLearningGuidance?
         var nowPlaying: String?
+        var activeWorldEvents: [ResolvedWorldEvent] = []
 
         static let empty = Context()
     }
@@ -28,6 +29,7 @@ enum BraidPromptBuilder {
         entityBeliefOffsets: [String: Int] = [:],
         learnedNotes: [String] = [],
         nowPlaying: String? = nil,
+        activeWorldEvents: [ResolvedWorldEvent] = [],
         calendar: Calendar = .current
     ) -> Context {
         let recentBraids = recentBraidTexts(excludingDayID: day.id, days: days)
@@ -51,7 +53,8 @@ enum BraidPromptBuilder {
             theme: theme,
             chapter: chapter,
             learnedGuidance: merged.signals.isEmpty ? nil : merged,
-            nowPlaying: nowPlaying
+            nowPlaying: nowPlaying,
+            activeWorldEvents: activeWorldEvents
         )
     }
 
@@ -203,7 +206,7 @@ enum BraidPromptBuilder {
         - Prefer one fresh concrete detail over a second sentence explaining the same mood, object, weather, relationship, or threshold.
 
         KEPT PAGES FROM TODAY:
-        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(themeSection)\(chapterSection)\(learnedSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(continuity)
+        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(themeSection)\(chapterSection)\(learnedSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(context.activeWorldEvents.bookOfYouPromptSection)\(continuity)
         """
     }
 

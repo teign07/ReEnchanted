@@ -152,10 +152,64 @@ struct EventInfluencePacket: Codable, Equatable {
     var classInstruction: String
     var letterInstruction: String
     var monthlyEditionLine: String
+    var bleedInstruction: String?
+    var radioInstruction: String?
+    var widgetWhisperLine: String?
+    var bookOfYouInstruction: String?
     var visualTreatment: String?
     var fieldworkPrompt: String
     var fieldworkPlaceholder: String
     var fieldworkRewardLine: String
+}
+
+enum WorldEventTouchKind: String, Codable, Equatable, CaseIterable {
+    case keptRelatedPage
+    case fieldworkCompleted
+    case letterKept
+    case classAnswered
+    case compassRunCompleted
+    case enchantmentCompleted
+    case storyChoiceMade
+    case bleedEditionKept
+
+    var trigger: WorldEventTrigger {
+        switch self {
+        case .keptRelatedPage:
+            return .keptRelatedPage
+        case .fieldworkCompleted:
+            return .keptRelatedPage
+        case .letterKept:
+            return .letterKept
+        case .classAnswered:
+            return .classAnswered
+        case .compassRunCompleted:
+            return .compassRunCompleted
+        case .enchantmentCompleted:
+            return .enchantmentCompleted
+        case .storyChoiceMade:
+            return .keptRelatedPage
+        case .bleedEditionKept:
+            return .keptRelatedPage
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .keptRelatedPage: return "kept page"
+        case .fieldworkCompleted: return "fieldwork"
+        case .letterKept: return "letter"
+        case .classAnswered: return "class"
+        case .compassRunCompleted: return "Compass run"
+        case .enchantmentCompleted: return "enchantment"
+        case .storyChoiceMade: return "Story Page"
+        case .bleedEditionKept: return "Bleed issue"
+        }
+    }
+}
+
+struct WorldEventTouch: Equatable {
+    var kind: WorldEventTouchKind
+    var pageID: String
 }
 
 struct ResolvedWorldEvent: Codable, Identifiable, Equatable {
@@ -168,21 +222,40 @@ struct ResolvedWorldEvent: Codable, Identifiable, Equatable {
     var endsAt: Date
     var progress: Double
     var playerTouchCount: Int
+    var playerTouchCounts: [String: Int]?
     var outcome: WorldEventOutcome?
     var effects: [WorldEventEffect]
     var packet: EventInfluencePacket
 
     var influenceLine: String {
         let outcomeLine = outcome.map { "\nOutcome pressure: \($0.title). \($0.packetLine)" } ?? ""
+        let touchCounts = playerTouchCounts ?? [:]
+        let touchLine = touchCounts.isEmpty
+            ? "Player touches recorded: \(playerTouchCount)"
+            : "Player touches recorded: \(playerTouchCount) (\(Self.touchSummary(from: touchCounts)))"
         return """
         WORLD EVENT: \(title) — \(subtitle)
         Phase: \(phase.title) (\(Int(progress * 100))% through)
         \(packet.logline)
         \(phase.packetLine)
-        Player touches recorded: \(playerTouchCount)
+        \(touchLine)
         Atmosphere: \(packet.atmosphere)
         \(outcomeLine)
         """
+    }
+
+    private static func touchSummary(from counts: [String: Int]) -> String {
+        counts
+            .compactMap { key, count -> (String, Int)? in
+                guard let kind = WorldEventTouchKind(rawValue: key) else { return nil }
+                return (kind.displayName, count)
+            }
+            .sorted { left, right in
+                if left.1 == right.1 { return left.0 < right.0 }
+                return left.1 > right.1
+            }
+            .map { "\($0.0) \($0.1)" }
+            .joined(separator: ", ")
     }
 }
 
@@ -352,6 +425,10 @@ enum WorldEventRegistry {
             classInstruction: "Let the lesson adapt to the rebellion: definitions are not inert labels, they are agreements under pressure.",
             letterInstruction: "Let the sender mention one word that has changed its meaning for them, personally and concretely.",
             monthlyEditionLine: "The Dictionary Rebellion passed through the month, leaving revised meanings and a few escaped words in the binding.",
+            bleedInstruction: "Treat the rebellion as live campus news: quote one escaped word, one Registry concern, and one dry opinion from Penny.",
+            radioInstruction: "Let the broadcast sound as if loose words are interrupting station IDs, ad copy, and dedications.",
+            widgetWhisperLine: "A word has slipped its old definition. Open the Book before it chooses a worse one.",
+            bookOfYouInstruction: "If today's kept pages turn on language, let one ordinary word behave like it is negotiating its meaning.",
             visualTreatment: "loose letters, lifted labels, marginal correction marks",
             fieldworkPrompt: "Choose one ordinary word you used today. Give it a better definition, based on what it actually did.",
             fieldworkPlaceholder: "Example: Fine - a word that covers a room before anyone has checked whether the windows are open.",
@@ -431,6 +508,10 @@ enum WorldEventRegistry {
             classInstruction: "Frame the lesson around evidence, attention, and the difference between proof and meaning.",
             letterInstruction: "Let the sender mention one ordinary record they kept longer than expected.",
             monthlyEditionLine: "The Starlit Paper Trial left a few scraps glowing in the month's binding.",
+            bleedInstruction: "Treat the trial as an archive-desk hearing: quote one scrap of paper and one clerkly objection.",
+            radioInstruction: "Let the broadcast carry docket-room hush, paper shuffling, and a station ID stamped in blue ink.",
+            widgetWhisperLine: "A small scrap has taken the stand. The Book is asking what it proves.",
+            bookOfYouInstruction: "If today's kept pages include lists, receipts, notes, or practical records, let one scrap testify with quiet dignity.",
             visualTreatment: "blue ink rulings, exhibit tags, moonlit paper edges",
             fieldworkPrompt: "Find one scrap of paper nearby. What does it prove happened?",
             fieldworkPlaceholder: "Example: A receipt proves I crossed town for soup and came home with thyme.",
@@ -500,7 +581,9 @@ enum WorldEventResolver {
         let rawProgress = now.timeIntervalSince(interval.start) / duration
         let progress = min(1, max(0, rawProgress))
         let phase = phase(for: event, progress: progress)
-        let touchCount = playerTouchCount(for: event, interval: interval, day: day, inputs: inputs)
+        let touches = playerTouches(for: event, interval: interval, day: day, inputs: inputs)
+        let touchCount = touches.count
+        let touchCounts = Dictionary(grouping: touches, by: \.kind.rawValue).mapValues(\.count)
         let outcome = outcome(for: event, touchCount: touchCount)
         return ResolvedWorldEvent(
             id: event.id,
@@ -512,6 +595,7 @@ enum WorldEventResolver {
             endsAt: interval.end,
             progress: progress,
             playerTouchCount: touchCount,
+            playerTouchCounts: touchCounts,
             outcome: outcome,
             effects: event.effects + (outcome?.effects ?? []),
             packet: event.packet
@@ -532,12 +616,12 @@ enum WorldEventResolver {
             .last { touchCount >= $0.minimumTouchCount }
     }
 
-    private static func playerTouchCount(
+    private static func playerTouches(
         for event: WorldEvent,
         interval: DateInterval,
         day: BookDay?,
         inputs: BookSourceInputs
-    ) -> Int {
+    ) -> [WorldEventTouch] {
         var pagesByID: [String: BookPage] = [:]
         for page in inputs.days.flatMap(\.pages) {
             pagesByID[page.id] = page
@@ -545,11 +629,45 @@ enum WorldEventResolver {
         for page in day?.pages ?? [] {
             pagesByID[page.id] = page
         }
-        return pagesByID.values.filter { page in
-            page.createdAt >= interval.start
-                && page.createdAt < interval.end
-                && page.tags.contains("event:\(event.id)")
-        }.count
+        let eventTag = "event:\(event.id)"
+        return pagesByID.values
+            .filter { page in
+                page.createdAt >= interval.start
+                    && page.createdAt < interval.end
+                    && page.tags.contains(eventTag)
+            }
+            .map { page in
+                WorldEventTouch(kind: touchKind(for: page, event: event), pageID: page.id)
+            }
+    }
+
+    private static func touchKind(for page: BookPage, event: WorldEvent) -> WorldEventTouchKind {
+        let proposed: WorldEventTouchKind
+        if page.tags.contains("event-fieldwork") {
+            proposed = .fieldworkCompleted
+        } else {
+            switch page.type {
+            case .letter:
+                proposed = .letterKept
+            case .academyClass:
+                proposed = .classAnswered
+            case .wonderCompass:
+                proposed = .compassRunCompleted
+            case .enchantment, .illuminatedPhoto:
+                proposed = .enchantmentCompleted
+            case .narrativeOS:
+                proposed = .storyChoiceMade
+            case .theBleed:
+                proposed = .bleedEditionKept
+            default:
+                proposed = .keptRelatedPage
+            }
+        }
+
+        if proposed == .keptRelatedPage || event.triggers.contains(proposed.trigger) {
+            return proposed
+        }
+        return event.triggers.contains(.keptRelatedPage) ? .keptRelatedPage : proposed
     }
 }
 
@@ -557,6 +675,76 @@ extension Array where Element == ResolvedWorldEvent {
     var influencePacket: String {
         guard !isEmpty else { return "" }
         return map(\.influenceLine).joined(separator: "\n\n")
+    }
+
+    var bleedPacket: String {
+        scopedPacket(title: "WORLD EVENT PRESSURE FOR THE BLEED") { event in
+            event.packet.bleedInstruction?.nonEmpty
+                ?? event.packet.monthlyEditionLine.nonEmpty
+                ?? event.packet.atmosphere
+        }
+    }
+
+    var radioAtmosphereLine: String? {
+        let lines = compactMap { event -> String? in
+            let directive = event.packet.radioInstruction?.nonEmpty ?? event.packet.atmosphere.nonEmpty
+            guard let directive else { return nil }
+            return "\(event.title): \(directive)"
+        }
+        return lines.isEmpty ? nil : lines.joined(separator: " ")
+    }
+
+    var widgetWhisperLine: String? {
+        compactMap { event in
+            event.packet.widgetWhisperLine?.nonEmpty
+                ?? event.phase.scene?.nonEmpty
+                ?? event.packet.logline.nonEmpty
+        }
+        .first?
+        .bookPreviewSentenceLimit(1)
+    }
+
+    var bookOfYouPromptSection: String {
+        let packet = scopedPacket(title: "WORLD EVENT PRESSURE") { event in
+            event.packet.bookOfYouInstruction?.nonEmpty
+                ?? event.packet.storyInstruction.nonEmpty
+                ?? event.packet.atmosphere
+        }
+        guard !packet.isEmpty else { return "" }
+        return """
+
+
+        \(packet)
+
+        WORLD EVENT RULE:
+        - Let this pressure color the Book of You only when today's kept pages honestly invite it.
+        - Never invent a world-event action the reader did not keep or report.
+        - A single word, object, or image is enough; do not turn the day into event exposition.
+        """
+    }
+
+    var eventTags: [String] {
+        flatMap { event -> [String] in
+            var tags = ["world-event", "event:\(event.id)", "event-phase:\(event.phase.id)"]
+            if let outcome = event.outcome {
+                tags.append("event-outcome:\(outcome.id)")
+            }
+            return tags
+        }
+    }
+
+    private func scopedPacket(title: String, line: (ResolvedWorldEvent) -> String?) -> String {
+        let entries = compactMap { event -> String? in
+            guard let directive = line(event)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !directive.isEmpty else { return nil }
+            return """
+            \(event.title) — \(event.phase.title)
+            \(directive)
+            Player touches: \(event.playerTouchCount)
+            """
+        }
+        guard !entries.isEmpty else { return "" }
+        return "\(title):\n" + entries.joined(separator: "\n\n")
     }
 
     func scoreBoost(for pageType: BookPageType) -> Int {

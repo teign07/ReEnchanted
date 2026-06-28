@@ -1212,6 +1212,31 @@ struct SurfaceCard: View {
         surface.payload.metadata["surfaceLabel"]?.nonEmpty ?? surface.type.shortTitle
     }
 
+    /// True when the shelf card is a Shadow Wonder variant of an ordinary page
+    /// type — surfaced once the Dusk Thorn is invested in and the world turns
+    /// toward the worn edge. Mirrors the open-page badge in CapturePageSheet.
+    private var isShadowWonderVariant: Bool {
+        surface.payload.metadata["variant"] == "shadow-wonder"
+    }
+
+    /// A compact goblin-core chip so a Shadow Wonder card reads as distinct on the
+    /// shelf, not just once opened.
+    private var shadowWonderChip: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "theatermasks.fill")
+                .font(.system(size: 9, weight: .bold))
+            Text("SHADOW WONDER")
+                .font(.system(size: 9, weight: .black))
+                .tracking(0.8)
+        }
+        .foregroundStyle(BookPalette.violet)
+        .padding(.vertical, 3)
+        .padding(.horizontal, 7)
+        .background(BookPalette.violet.opacity(0.13), in: Capsule())
+        .overlay { Capsule().stroke(BookPalette.violet.opacity(0.30), lineWidth: 1) }
+        .accessibilityLabel("Shadow Wonder variant")
+    }
+
     private var previewLineLimit: Int {
         switch surface.type {
         case .wonderCompass:
@@ -1243,6 +1268,10 @@ struct SurfaceCard: View {
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(visualStyle.accent.opacity(0.82))
                     .padding(.top, 3)
+
+                if isShadowWonderVariant {
+                    shadowWonderChip
+                }
 
                 Spacer()
             }

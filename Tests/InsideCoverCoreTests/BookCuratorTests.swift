@@ -1169,7 +1169,7 @@ final class BookCuratorTests: XCTestCase {
             for: dayWithMusicSouvenir(),
             inputs: inputs,
             now: localDate(hour: 16),
-            limit: 12
+            limit: 24
         )
 
         let storyPage = try XCTUnwrap(pages.first { $0.type == .narrativeOS })
@@ -1499,17 +1499,19 @@ final class BookCuratorTests: XCTestCase {
             ]
         )
 
+        var inputs = richInputs()
+        inputs.days = [day]
         let afternoon = BookCurator.surfacedPages(
             for: day,
-            inputs: richInputs(),
+            inputs: inputs,
             now: localDate(hour: 15),
             limit: 8
         )
         let night = BookCurator.surfacedPages(
             for: day,
-            inputs: richInputs(),
+            inputs: inputs,
             now: localDate(hour: 21),
-            limit: 8
+            limit: 12
         )
 
         XCTAssertFalse(afternoon.contains { $0.type == .bookOfYou })
@@ -1807,6 +1809,39 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(event.playerTouchCount, 3)
         XCTAssertEqual(event.outcome?.id, "lexical-ally")
         XCTAssertTrue(event.influenceLine.contains("Lexical Ally"))
+    }
+
+    func testWorldEventResolverClassifiesTouchKinds() throws {
+        let now = localDate(year: 2026, month: 9, day: 12, hour: 12)
+        let pages = [
+            BookPage(
+                id: "event-letter",
+                type: .letter,
+                createdAt: localDate(year: 2026, month: 9, day: 10, hour: 12),
+                promptText: "Dictionary Rebellion",
+                userInput: "A letter about a changed word.",
+                tags: ["world-event", "event:dictionary-rebellion"]
+            ),
+            BookPage(
+                id: "event-fieldwork",
+                type: .bookNotices,
+                createdAt: localDate(year: 2026, month: 9, day: 11, hour: 12),
+                promptText: "Dictionary Rebellion",
+                userInput: "A better definition.",
+                tags: ["world-event", "event:dictionary-rebellion", "event-fieldwork"]
+            )
+        ]
+        let day = BookDay(id: "2026-09-12", date: localDate(year: 2026, month: 9, day: 12, hour: 0), pages: pages)
+        var inputs = richInputs()
+        inputs.days = [day]
+
+        let event = try XCTUnwrap(WorldEventResolver.activeEvents(now: now, inputs: inputs).first { $0.id == "dictionary-rebellion" })
+
+        XCTAssertEqual(event.playerTouchCount, 2)
+        XCTAssertEqual(event.playerTouchCounts?[WorldEventTouchKind.letterKept.rawValue], 1)
+        XCTAssertEqual(event.playerTouchCounts?[WorldEventTouchKind.fieldworkCompleted.rawValue], 1)
+        XCTAssertTrue(event.influenceLine.contains("letter 1"))
+        XCTAssertTrue(event.influenceLine.contains("fieldwork 1"))
     }
 
     func testDictionaryRebellionOutcomeFeedsStoryPacket() {

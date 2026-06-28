@@ -113,6 +113,15 @@ struct ReEnchantedWidgetBelief: Codable, Equatable {
     var level: Int
 }
 
+struct ReEnchantedWidgetWorldEvent: Codable, Equatable {
+    var id: String
+    var title: String
+    var phase: String
+    var detail: String
+    var symbolName: String
+    var urlPath: String
+}
+
 struct ReEnchantedWidgetSnapshot: Codable, Equatable {
     var generatedAt: Date
     var privacyMode: ReEnchantedWidgetPrivacyMode
@@ -122,6 +131,7 @@ struct ReEnchantedWidgetSnapshot: Codable, Equatable {
     var remembered: ReEnchantedWidgetMemory?
     var sky: ReEnchantedWidgetSky?
     var radio: ReEnchantedWidgetRadio?
+    var worldEvent: ReEnchantedWidgetWorldEvent?
     var enchantments: [ReEnchantedWidgetEnchantment]
     var belief: ReEnchantedWidgetBelief?
 
@@ -166,6 +176,7 @@ struct ReEnchantedWidgetSnapshot: Codable, Equatable {
                 )
             ]
         ),
+        worldEvent: nil,
         enchantments: [
             ReEnchantedWidgetEnchantment(
                 id: "everything-speaks",

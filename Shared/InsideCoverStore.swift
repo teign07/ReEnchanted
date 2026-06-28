@@ -1205,6 +1205,7 @@ enum LocalModelManager {
         entityBeliefOffsets: [String: Int] = [:],
         learnedNotes: [String] = [],
         nowPlaying: String? = nil,
+        activeWorldEvents: [ResolvedWorldEvent] = [],
         calendar: Calendar = .current
     ) -> BraidContext {
         BraidPromptBuilder.context(
@@ -1214,6 +1215,7 @@ enum LocalModelManager {
             entityBeliefOffsets: entityBeliefOffsets,
             learnedNotes: learnedNotes,
             nowPlaying: nowPlaying,
+            activeWorldEvents: activeWorldEvents,
             calendar: calendar
         )
     }

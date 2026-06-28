@@ -18,6 +18,37 @@ struct SentenceBuilderStep: Identifiable, Codable, Equatable {
     var chips: [String]
 }
 
+enum SentenceStarterSlotKind: String, Codable, Equatable, CaseIterable {
+    case anchor
+    case sense
+    case motion
+    case crossing
+}
+
+struct SentenceStarterSlot: Identifiable, Codable, Equatable {
+    var id: String
+    var kind: SentenceStarterSlotKind
+    var title: String
+    var options: [String]
+}
+
+struct SentenceStarterTemplate: Identifiable, Codable, Equatable {
+    var id: String
+    var title: String
+    var pattern: String
+    var slots: [SentenceStarterSlot]
+}
+
+struct SentenceStarterDraft: Identifiable, Equatable {
+    var id: String { template.id }
+    var template: SentenceStarterTemplate
+    var selections: [String: String]
+
+    var slotIDs: [String] {
+        template.slots.map(\.id)
+    }
+}
+
 /// A pocket of vocabulary that hangs together — a kitchen, weather, a bedroom.
 /// When the user's sentence names one of a theme's `anchors`, the builder draws
 /// its replacement chips from that theme first, so suggestions reflect context.
@@ -47,6 +78,7 @@ struct SentenceBuilderPack: Identifiable, Equatable {
     /// Context lexicons. Additive: expansion packs ship more of these.
     var themes: [LexicalTheme] = []
     var steps: [SentenceBuilderStep] = []
+    var starterTemplates: [SentenceStarterTemplate] = []
     /// Pack metadata, mirroring the project's other JSON pack registries.
     var version: Int = 1
     var author: String = "The Book"
@@ -148,7 +180,8 @@ struct SentenceBuilderPack: Identifiable, Equatable {
                 helper: "A sound can have a color. A mood can have a texture. Keep it small.",
                 chips: ["blue sound", "paper quiet", "tin taste", "wool tired", "yellow light", "cold green"]
             )
-        ]
+        ],
+        starterTemplates: SentenceBuilderPack.coreStarterTemplates
     )
 
     static let souvenir = SentenceBuilderPack(
@@ -188,7 +221,8 @@ struct SentenceBuilderPack: Identifiable, Equatable {
                 helper: "A souvenir does not need to speak. It can tug, stay, follow, or hold.",
                 chips: ["kept", "stayed", "followed", "pulled", "tugged"]
             )
-        ]
+        ],
+        starterTemplates: SentenceBuilderPack.souvenirStarterTemplates
     )
 
     func merged(with overlay: SentenceBuilderPack) -> SentenceBuilderPack {
@@ -206,6 +240,7 @@ struct SentenceBuilderPack: Identifiable, Equatable {
             crossingWords: unique(crossingWords + overlay.crossingWords),
             themes: mergedThemes(with: overlay.themes),
             steps: mergedSteps(with: overlay.steps),
+            starterTemplates: mergedStarterTemplates(with: overlay.starterTemplates),
             version: max(version, overlay.version),
             author: overlay.author.isEmpty ? author : overlay.author,
             availability: availability
@@ -219,6 +254,18 @@ struct SentenceBuilderPack: Identifiable, Equatable {
                 merged[index] = step
             } else {
                 merged.append(step)
+            }
+        }
+        return merged
+    }
+
+    private func mergedStarterTemplates(with overlayTemplates: [SentenceStarterTemplate]) -> [SentenceStarterTemplate] {
+        var merged = starterTemplates
+        for template in overlayTemplates {
+            if let index = merged.firstIndex(where: { $0.id == template.id }) {
+                merged[index] = template
+            } else {
+                merged.append(template)
             }
         }
         return merged
@@ -302,13 +349,67 @@ struct SentenceBuilderPack: Identifiable, Equatable {
             crossings: ["wool tired", "warm hum", "velvet dark"]
         )
     ]
+
+    static let coreStarterTemplates: [SentenceStarterTemplate] = [
+        SentenceStarterTemplate(
+            id: "core-tonight-room",
+            title: "Tonight's room",
+            pattern: "Tonight, {anchor} makes the room feel {sense}.",
+            slots: [
+                SentenceStarterSlot(id: "anchor", kind: .anchor, title: "What is outside or nearby?", options: ["the rain", "the window", "the lamp", "the street"]),
+                SentenceStarterSlot(id: "sense", kind: .sense, title: "How does it feel?", options: ["softly lit and quiet", "warm and faint", "silver and still", "damp and gold"])
+            ]
+        ),
+        SentenceStarterTemplate(
+            id: "core-small-witness",
+            title: "Small witness",
+            pattern: "For one second, {anchor} {motion} in {sense} light.",
+            slots: [
+                SentenceStarterSlot(id: "anchor", kind: .anchor, title: "What held the moment?", options: ["the mug", "the door", "the chair", "the floor"]),
+                SentenceStarterSlot(id: "motion", kind: .motion, title: "What did it seem to do?", options: ["waited", "leaned", "held", "listened"]),
+                SentenceStarterSlot(id: "sense", kind: .sense, title: "What kind of light?", options: ["warm", "dim", "gold", "pale"])
+            ]
+        ),
+        SentenceStarterTemplate(
+            id: "core-crossed-sense",
+            title: "Crossed sense",
+            pattern: "The {anchor} {motion} like {crossing}.",
+            slots: [
+                SentenceStarterSlot(id: "anchor", kind: .anchor, title: "Choose a witness.", options: ["window", "clock", "blanket", "kettle"]),
+                SentenceStarterSlot(id: "motion", kind: .motion, title: "Let it act.", options: ["tapped", "sighed", "waited", "flickered"]),
+                SentenceStarterSlot(id: "crossing", kind: .crossing, title: "Give it a borrowed sense.", options: ["paper quiet", "warm hum", "blue sound", "yellow hush"])
+            ]
+        )
+    ]
+
+    static let souvenirStarterTemplates: [SentenceStarterTemplate] = [
+        SentenceStarterTemplate(
+            id: "souvenir-best-part",
+            title: "Best part",
+            pattern: "I want to remember the {sense} {anchor} that {motion}.",
+            slots: [
+                SentenceStarterSlot(id: "sense", kind: .sense, title: "What was its texture?", options: ["creased", "damp", "silver", "smoky"]),
+                SentenceStarterSlot(id: "anchor", kind: .anchor, title: "What came back with it?", options: ["receipt", "key", "cloud", "napkin"]),
+                SentenceStarterSlot(id: "motion", kind: .motion, title: "What did it do?", options: ["stayed", "followed", "tugged", "kept"])
+            ]
+        ),
+        SentenceStarterTemplate(
+            id: "souvenir-still-mind",
+            title: "Still in mind",
+            pattern: "The best part was {anchor}, still {sense} in my mind.",
+            slots: [
+                SentenceStarterSlot(id: "anchor", kind: .anchor, title: "Name the proof.", options: ["the pocket", "the curb", "the mirror", "the cloud"]),
+                SentenceStarterSlot(id: "sense", kind: .sense, title: "What trace did it leave?", options: ["warm", "faded", "smoky", "silver"])
+            ]
+        )
+    ]
 }
 
 extension SentenceBuilderPack: Codable {
     enum CodingKeys: String, CodingKey {
         case id, displayName, ritualTitle, replayPrompt, replayHelper
         case vagueWords, avoidWords, concreteWords, sensoryWords, animateVerbs
-        case crossingWords, themes, steps, version, author, availability
+        case crossingWords, themes, steps, starterTemplates, version, author, availability
     }
 
     /// Lenient decoding: every field defaults, so an upgrade pack can ship only the
@@ -328,6 +429,7 @@ extension SentenceBuilderPack: Codable {
         crossingWords = try c.decodeIfPresent([String].self, forKey: .crossingWords) ?? []
         themes = try c.decodeIfPresent([LexicalTheme].self, forKey: .themes) ?? []
         steps = try c.decodeIfPresent([SentenceBuilderStep].self, forKey: .steps) ?? []
+        starterTemplates = try c.decodeIfPresent([SentenceStarterTemplate].self, forKey: .starterTemplates) ?? []
         version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
         author = try c.decodeIfPresent(String.self, forKey: .author) ?? "The Book"
         availability = try c.decodeIfPresent(String.self, forKey: .availability) ?? "bundledFree"
@@ -380,6 +482,56 @@ extension SentenceBuilderPack {
         version: 1,
         author: "The Goblin Index Empire",
         availability: "locked"
+    )
+
+    /// The Shadow Wonder lexicon — mono no aware made playable: rust, thorn, dusk,
+    /// decay, and the worn edge. Not an entitlement-gated expansion; it is composed
+    /// in-world only while `ShadowWonder` is active (after dark, when Duskthorn is
+    /// ascendant, on hard/grey days, or in somber weather), so a normal run never
+    /// turns goblin-core by accident. It also seeds the Shadow Sentence Runner's
+    /// catchable words via `ShadowWonder.gameWords`.
+    static let shadowWonder = SentenceBuilderPack(
+        id: "pack.shadow-wonder",
+        displayName: "The Thornlight Index",
+        ritualTitle: "Wake the worn edge",
+        replayPrompt: "Close your eyes for one breath. What broken, old, or shadowed thing comes back first?",
+        replayHelper: "Do not fix it. Catch the rust, the dusk, the crack, the thing time has touched — and let it be beautiful without brightening.",
+        vagueWords: [],
+        avoidWords: [],
+        concreteWords: ["rust", "thorn", "dusk", "ash", "moth", "lichen", "hinge",
+                        "ruin", "shard", "cobweb", "ember", "husk", "gravel",
+                        "tarnish", "splinter", "bramble", "shadow", "lantern",
+                        "keyhole", "ledger", "relic", "grate", "soot"],
+        sensoryWords: ["rusted", "tarnished", "dim", "ashen", "thorned", "cracked",
+                       "weathered", "smoke-stained", "violet", "leaden", "frayed",
+                       "moth-eaten", "guttering", "brackish", "mossed", "umber"],
+        animateVerbs: ["rusted", "guttered", "smouldered", "crumbled", "lingered",
+                       "tarnished", "haunted", "outlasted", "weathered", "remembered",
+                       "decayed", "endured", "settled", "festered"],
+        crossingWords: ["rust quiet", "dusk copper", "ash violet", "thorn hush",
+                        "smoke gold", "lichen silver", "ember dark", "grave green",
+                        "tarnished light"],
+        themes: [
+            LexicalTheme(
+                id: "decay",
+                name: "Decay",
+                anchors: ["rust", "ruin", "husk", "ash", "tarnish", "lichen", "cobweb", "splinter"],
+                senses: ["rusted", "tarnished", "ashen", "cracked", "weathered", "moth-eaten"],
+                verbs: ["rusted", "crumbled", "tarnished", "decayed", "outlasted", "endured"],
+                crossings: ["rust quiet", "ash violet", "tarnished light"]
+            ),
+            LexicalTheme(
+                id: "thornlight",
+                name: "Thornlight",
+                anchors: ["thorn", "dusk", "ember", "lantern", "shadow", "bramble", "keyhole"],
+                senses: ["thorned", "dim", "violet", "guttering", "smoke-stained", "leaden"],
+                verbs: ["guttered", "smouldered", "haunted", "lingered", "remembered"],
+                crossings: ["dusk copper", "thorn hush", "ember dark", "smoke gold"]
+            )
+        ],
+        version: 1,
+        author: "The Dusk Thorn",
+        availability: "bundledFree"
     )
 }
 
@@ -871,6 +1023,51 @@ struct SentenceBuilderEngine {
         return unused.isEmpty ? step.chips : unused
     }
 
+    func starterDraft(seed: String = "default") -> SentenceStarterDraft? {
+        guard !pack.starterTemplates.isEmpty else { return nil }
+        let template = pack.starterTemplates[stableIndex(for: seed, count: pack.starterTemplates.count)]
+        var selections: [String: String] = [:]
+        for slot in template.slots {
+            selections[slot.id] = options(for: slot, in: SentenceStarterDraft(template: template, selections: selections), limit: 1).first
+                ?? fallbackOption(for: slot.kind)
+        }
+        return SentenceStarterDraft(template: template, selections: selections)
+    }
+
+    func options(for slot: SentenceStarterSlot, in draft: SentenceStarterDraft, limit: Int = 8) -> [String] {
+        let theme = starterTheme(for: draft)
+        let themed: [String]
+        let global: [String]
+        switch slot.kind {
+        case .anchor:
+            themed = theme?.anchors ?? []
+            global = pack.concreteWords
+        case .sense:
+            themed = theme?.senses ?? []
+            global = pack.sensoryWords
+        case .motion:
+            themed = theme?.verbs ?? []
+            global = pack.animateVerbs
+        case .crossing:
+            themed = theme?.crossings ?? []
+            global = pack.crossingWords
+        }
+        return uniqueStarterOptions(slot.options + themed + global, limit: limit)
+    }
+
+    func selecting(_ option: String, for slot: SentenceStarterSlot, in draft: SentenceStarterDraft) -> SentenceStarterDraft {
+        var updated = draft
+        updated.selections[slot.id] = option
+        return updated
+    }
+
+    func render(_ draft: SentenceStarterDraft) -> String {
+        draft.template.slots.reduce(draft.template.pattern) { rendered, slot in
+            let value = draft.selections[slot.id] ?? fallbackOption(for: slot.kind)
+            return rendered.replacingOccurrences(of: "{\(slot.id)}", with: value)
+        }
+    }
+
     func alchemyLevels(for text: String) -> [SentenceBuilderAlchemyLevel] {
         let analysis = analyze(text)
         return [
@@ -1013,5 +1210,48 @@ struct SentenceBuilderEngine {
 
     private func containsAnyWord(from words: [String], in wordSet: Set<String>) -> Bool {
         words.contains { wordSet.contains($0.lowercased()) }
+    }
+
+    private func starterTheme(for draft: SentenceStarterDraft) -> LexicalTheme? {
+        let selected = Set(draft.selections.values.flatMap { words(in: $0) })
+        var best: (theme: LexicalTheme, score: Int)?
+        for theme in pack.themes {
+            let score = theme.anchors.reduce(0) { $0 + (selected.contains($1.lowercased()) ? 1 : 0) }
+            if score > 0, score > (best?.score ?? 0) {
+                best = (theme, score)
+            }
+        }
+        return best?.theme
+    }
+
+    private func uniqueStarterOptions(_ options: [String], limit: Int) -> [String] {
+        var seen: Set<String> = []
+        var out: [String] = []
+        for option in options {
+            let trimmed = option.trimmingCharacters(in: .whitespacesAndNewlines)
+            let key = trimmed.lowercased()
+            guard !trimmed.isEmpty, seen.insert(key).inserted else { continue }
+            out.append(trimmed)
+            if out.count >= limit { break }
+        }
+        return out
+    }
+
+    private func fallbackOption(for kind: SentenceStarterSlotKind) -> String {
+        switch kind {
+        case .anchor:
+            return pack.concreteWords.first ?? "the room"
+        case .sense:
+            return pack.sensoryWords.first ?? "soft"
+        case .motion:
+            return pack.animateVerbs.first ?? "waited"
+        case .crossing:
+            return pack.crossingWords.first ?? "paper quiet"
+        }
+    }
+
+    private func stableIndex(for seed: String, count: Int) -> Int {
+        guard count > 0 else { return 0 }
+        return Int(seed.stableHash.magnitude % UInt(count))
     }
 }

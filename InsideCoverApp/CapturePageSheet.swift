@@ -508,6 +508,12 @@ private struct CompassChoiceOption: Identifiable, Equatable {
     var detail: String = ""
 }
 
+private struct BookCeremonyEvidence: Identifiable, Hashable {
+    var id: String
+    var text: String
+    var pageID: String?
+}
+
 struct CapturePageSheet: View {
     let surface: SurfacePage
     let day: BookDay
@@ -546,8 +552,13 @@ struct CapturePageSheet: View {
     let onSave: (SurfacePage, String, [String]) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedWeather = ""
+    @State private var centerGearOffset = 0
     @State private var text = ""
+    @State private var letterReply = ""
+    @State private var didSealReply = false
+    @State private var sealStamp = false
     @State private var manualPhotoImage: UIImage?
     @State private var manualPhotoDraft: IlluminatedPhotoDraft?
     @State private var isLoadingManualPhoto = false
@@ -647,6 +658,8 @@ struct CapturePageSheet: View {
     @State private var isImprovingBraid = false
     @State private var isRewritingBraid = false
     @State private var didRewriteBraid = false
+    @State private var didPlayCeremonyOpen = false
+    @State private var didRevealCeremony = false
     @State private var loosePageTurns: [String: Int] = [:]
     @AppStorage("illuminatedPhotoHistory") private var illuminatedPhotoHistoryData = "{}"
     #if canImport(PhotosUI)
@@ -753,6 +766,22 @@ struct CapturePageSheet: View {
         surface.type == .letter && surface.payload.metadata["letterProse"]?.nonEmpty == nil
     }
 
+    /// An opened letter (prose written) from a real sender — the state in which
+    /// the reader can write back.
+    private var isOpenedLetterPage: Bool {
+        surface.type == .letter
+            && surface.payload.metadata["letterProse"]?.nonEmpty != nil
+            && letterSenderID != nil
+    }
+
+    private var letterSenderID: String? {
+        surface.payload.metadata["senderID"]?.nonEmpty
+    }
+
+    private var letterSenderName: String {
+        surface.payload.metadata["senderName"]?.nonEmpty ?? "them"
+    }
+
     private var isEnchantmentPage: Bool {
         surface.type == .enchantment || surface.payload.metadata["source"] == "enchantment"
     }
@@ -778,6 +807,7 @@ struct CapturePageSheet: View {
             surface.type == .narrativeOS ||
             surface.type == .bookFae ||
             surface.type == .gossip ||
+            surface.type == .bookNotices ||
             surface.type == .theBleed ||
             surface.type == .letter ||
             surface.type == .elective ||
@@ -920,6 +950,26 @@ struct CapturePageSheet: View {
             return "Private translation"
         }
         return surface.payload.headline
+    }
+
+    private var keepPageButtonTitle: String {
+        if surface.type == .bookRemembered {
+            return "Bind this return"
+        }
+        if surface.type == .bookNotices {
+            let metadata = surface.payload.metadata
+            if metadata["constellationName"]?.nonEmpty != nil {
+                return "Keep this name"
+            }
+            if metadata["wagerMoment"] == "sealed" {
+                return "Seal this margin"
+            }
+            if metadata["wagerMoment"] == "opened" {
+                return "Keep this verdict"
+            }
+            return "Keep this noticing"
+        }
+        return "Keep this page"
     }
 
     private var externalURL: URL? {
@@ -1443,7 +1493,7 @@ struct CapturePageSheet: View {
                 }
                 if !isKeptReadbackPage && !isBookJumpActivePage {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Keep this page") {
+                        Button(keepPageButtonTitle) {
                             if isCompassRunStartPage {
                                 Task { await generateAndSaveCompassRun() }
                             } else if isCompassRunStepPage {
@@ -1533,6 +1583,7 @@ struct CapturePageSheet: View {
             .onAppear {
                 tutorTouchForThisPage()
                 seedInkrestIntakeIfNeeded()
+                playCeremonyOpenCueIfNeeded()
             }
             .overlay(alignment: .bottom) {
                 if let activeTutorNote {
@@ -1611,11 +1662,51 @@ struct CapturePageSheet: View {
         }
     }
 
+    /// True when the surfaced page is a Shadow Wonder variant of an ordinary page
+    /// type — set by the source adapters once the Dusk Thorn is invested in and the
+    /// world turns toward the worn edge (night, Duskthorn ascendant, hard/grey day,
+    /// or somber weather).
+    private var isShadowWonderVariant: Bool {
+        surface.payload.metadata["variant"] == "shadow-wonder"
+    }
+
+    /// A quiet Duskthorn-toned badge so a Shadow Wonder page reads as distinct from
+    /// its bright sibling rather than looking like an ordinary souvenir or quip.
+    private var shadowWonderBadge: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "theatermasks.fill")
+                .font(.caption.weight(.bold))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("SHADOW WONDER")
+                    .font(.caption2.weight(.black))
+                    .tracking(1.2)
+                Text("Mono no aware — the worn edge, witnessed.")
+                    .font(.caption2)
+                    .opacity(0.85)
+            }
+        }
+        .foregroundStyle(BookPalette.violet)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BookPalette.violet.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.violet.opacity(0.28), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Shadow Wonder variant")
+    }
+
     private var pageSheetContent: some View {
         VStack(alignment: .leading, spacing: 18) {
             Label(surface.type.title, systemImage: surface.type.symbolName)
                 .font(.headline)
                 .foregroundStyle(openPagePrimaryText)
+
+            if isShadowWonderVariant {
+                shadowWonderBadge
+            }
 
             characterPortraitHeader
 
@@ -3920,22 +4011,36 @@ struct CapturePageSheet: View {
                 compassProofPhotoPicker
             }
 
-            HStack(spacing: 8) {
-                if let weatherSymbolName {
-                    Image(systemName: weatherSymbolName)
+            if surface.type == .bookRemembered {
+                bookRememberedOpeningView
+            } else if surface.type == .bookNotices {
+                bookNoticesOpeningView
+            } else {
+                HStack(spacing: 8) {
+                    if let weatherSymbolName {
+                        Image(systemName: weatherSymbolName)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(BookPalette.gold)
+                    }
+                    Text(preparedPageLabel)
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(BookPalette.gold)
+                        .foregroundStyle(BookPalette.teal)
                 }
-                Text(preparedPageLabel)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(BookPalette.teal)
             }
 
-            if !surface.isStoryPlayablePage && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && !isCompassPracticePage && surface.type != .supportGuild && !isPendingLetterPage {
+            if !surface.isStoryPlayablePage && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && surface.type != .bookRemembered && surface.type != .bookNotices && !isCompassPracticePage && surface.type != .supportGuild && !isPendingLetterPage {
                 Text(surface.payload.body)
                     .font(.system(.body, design: .serif))
                     .foregroundStyle(BookPalette.ink)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if surface.type == .rest {
+                centerRestPractice
+            }
+
+            if isOpenedLetterPage {
+                letterReplySection
             }
 
             if let practiceText {
@@ -3950,12 +4055,536 @@ struct CapturePageSheet: View {
         }
     }
 
+    private var bookRememberedOpeningView: some View {
+        let metadata = surface.payload.metadata
+        let rememberedText = metadata["rememberedText"]?.nonEmpty ?? surface.payload.body
+        let reason = metadata["rhymeReason"]?.nonEmpty ?? surface.reason
+        let action = metadata["tinyAction"]?.nonEmpty
+        let provenance = bookRememberedProvenanceLine(metadata)
+        let rememberedPage = metadata["rememberedPageID"].flatMap { keptPage(id: $0) }
+
+        return VStack(alignment: .leading, spacing: 14) {
+            ceremonyHeader(
+                title: "A page has come back.",
+                subtitle: provenance,
+                symbol: "clock.arrow.circlepath",
+                tint: BookPalette.lampGold
+            )
+
+            artifactQuoteCard(rememberedText, symbol: "quote.opening", tint: BookPalette.lampGold)
+
+            if let rememberedPage {
+                returnedPageButton(rememberedPage)
+            }
+
+            ceremonyFindingCard(
+                title: "Why now",
+                text: reason,
+                symbol: "sparkle.magnifyingglass",
+                tint: BookPalette.teal
+            )
+
+            if let action {
+                ritualCard(action)
+            }
+        }
+        .opacity(didRevealCeremony ? 1 : 0.01)
+        .offset(y: didRevealCeremony ? 0 : 8)
+        .animation(.easeOut(duration: 0.55), value: didRevealCeremony)
+    }
+
+    private var bookNoticesOpeningView: some View {
+        let metadata = surface.payload.metadata
+        let opening = bookNoticesOpeningLine(metadata)
+        let subtitle = bookNoticesSubtitle(metadata)
+        let slips = bookNoticesEvidenceSlips(metadata)
+
+        return VStack(alignment: .leading, spacing: 14) {
+            ceremonyHeader(
+                title: opening,
+                subtitle: subtitle,
+                symbol: "sparkle.magnifyingglass",
+                tint: BookPalette.teal
+            )
+
+            if !slips.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Evidence in the margins")
+                        .font(.caption.weight(.bold))
+                        .textCase(.uppercase)
+                        .foregroundStyle(BookPalette.teal)
+                    ForEach(slips) { slip in
+                        evidenceSlip(slip)
+                    }
+                }
+            }
+
+            if let omen = bookNoticesOmen(metadata) {
+                ceremonyFindingCard(
+                    title: omen.title,
+                    text: omen.text,
+                    symbol: omen.symbol,
+                    tint: omen.tint
+                )
+            }
+
+            Text(surface.payload.body)
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ceremonyFindingCard(
+                title: "The Book's caution",
+                text: "I may be wrong. I am still watching.",
+                symbol: "eye",
+                tint: BookPalette.lampGold
+            )
+        }
+        .opacity(didRevealCeremony ? 1 : 0.01)
+        .offset(y: didRevealCeremony ? 0 : 8)
+        .animation(.easeOut(duration: 0.55), value: didRevealCeremony)
+    }
+
+    private func returnedPageButton(_ page: BookPage) -> some View {
+        Button {
+            BookFeedback.play(.openPage)
+            onNavigateToSurface(keptSurface(for: page))
+        } label: {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "arrow.uturn.backward.circle.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold)
+                    .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Open the old page")
+                        .font(.caption.weight(.bold))
+                        .textCase(.uppercase)
+                        .foregroundStyle(BookPalette.lampGold)
+                    Text(page.promptText.nonEmpty ?? page.type.title)
+                        .font(.system(.callout, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.86))
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 6)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.42))
+                    .padding(.top, 3)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(BookPalette.lampGold.opacity(0.09), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(BookPalette.lampGold.opacity(0.26), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func ceremonyHeader(title: String, subtitle: String?, symbol: String, tint: Color) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: symbol)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(BookPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.62))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private func artifactQuoteCard(_ text: String, symbol: String, tint: Color) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: symbol)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(tint)
+                .padding(.top, 2)
+            Text(text)
+                .font(.system(.title3, design: .serif))
+                .italic()
+                .foregroundStyle(BookPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BookPalette.lampGold.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(tint.opacity(0.30), lineWidth: 1)
+        }
+    }
+
+    private func ceremonyFindingCard(title: String, text: String, symbol: String, tint: Color) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: symbol)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(tint)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.caption.weight(.bold))
+                    .textCase(.uppercase)
+                    .foregroundStyle(tint)
+                Text(text)
+                    .font(.system(.callout, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.86))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint.opacity(0.09), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(tint.opacity(0.24), lineWidth: 1)
+        }
+    }
+
+    private func ritualCard(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 8) {
+                Image(systemName: "hand.sparkles")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold)
+                Text("Tiny ritual")
+                    .font(.caption.weight(.bold))
+                    .textCase(.uppercase)
+                    .foregroundStyle(BookPalette.lampGold)
+            }
+            Text(text)
+                .font(.system(.title3, design: .serif))
+                .italic()
+                .foregroundStyle(BookPalette.ink.opacity(0.90))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [BookPalette.lampGold.opacity(0.14), BookPalette.teal.opacity(0.08)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.30), lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder
+    private func evidenceSlip(_ evidence: BookCeremonyEvidence) -> some View {
+        if let pageID = evidence.pageID, let page = keptPage(id: pageID) {
+            Button {
+                BookFeedback.play(.openPage)
+                onNavigateToSurface(keptSurface(for: page))
+            } label: {
+                evidenceSlipBody(evidence.text, linked: true)
+            }
+            .buttonStyle(.plain)
+        } else {
+            evidenceSlipBody(evidence.text, linked: false)
+        }
+    }
+
+    private func evidenceSlipBody(_ text: String, linked: Bool) -> some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: linked ? "text.page.badge.magnifyingglass" : "text.page")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(BookPalette.teal)
+                .padding(.top, 2)
+            Text(text)
+                .font(.system(.callout, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.86))
+                .fixedSize(horizontal: false, vertical: true)
+            if linked {
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.38))
+                    .padding(.top, 4)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BookPalette.paper.opacity(linked ? 0.70 : 0.55), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke((linked ? BookPalette.teal : BookPalette.ink).opacity(linked ? 0.22 : 0.10), lineWidth: 1)
+        }
+    }
+
+    private func bookRememberedProvenanceLine(_ metadata: [String: String]) -> String? {
+        var parts: [String] = []
+        if let ageLine = metadata["rememberedAgeLine"]?.nonEmpty {
+            parts.append(ageLine)
+        } else if let date = metadata["rememberedPageDate"].flatMap(rememberedDateLine) {
+            parts.append(date)
+        }
+        if let type = metadata["rememberedPageType"]?.nonEmpty {
+            parts.append(type.replacingOccurrences(of: "-", with: " ").capitalized)
+        }
+        let usedInBraid = metadata["rememberedUsedInBraid"] == "true"
+        let inventorySaysUsed = metadata["rememberedPageID"].flatMap { keptPage(id: $0) }?.usedInBookOfYou == true
+        if usedInBraid || inventorySaysUsed {
+            parts.append("Used in a braid")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private func rememberedDateLine(_ rawValue: String) -> String? {
+        guard let date = ISO8601DateFormatter().date(from: rawValue) else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return "Kept \(formatter.string(from: date))"
+    }
+
+    private func bookNoticesOpeningLine(_ metadata: [String: String]) -> String {
+        if metadata["constellationName"]?.nonEmpty != nil {
+            return "The Book has named a constellation."
+        }
+        if metadata["wagerMoment"] == "opened" {
+            return "A sealed margin opens."
+        }
+        if metadata["wagerMoment"] == "sealed" {
+            return "The Book is risking a prediction."
+        }
+        return "The Book has noticed a pattern."
+    }
+
+    private func bookNoticesSubtitle(_ metadata: [String: String]) -> String? {
+        if let name = metadata["constellationName"]?.nonEmpty {
+            return name
+        }
+        if let subject = metadata["wagerSubject"]?.nonEmpty {
+            return subject
+        }
+        return surface.reason.nonEmpty
+    }
+
+    private func bookNoticesOmen(_ metadata: [String: String]) -> (title: String, text: String, symbol: String, tint: Color)? {
+        if let name = metadata["constellationName"]?.nonEmpty {
+            return (
+                "Name lit",
+                "\(name) is not a verdict. It is a lamp the Book can find again.",
+                "sparkles.rectangle.stack",
+                BookPalette.lampGold
+            )
+        }
+        if metadata["wagerMoment"] == "sealed", let subject = metadata["wagerSubject"]?.nonEmpty {
+            return (
+                "Sealed margin",
+                "The Book has dated its suspicion about \(subject). It is allowed to be wrong in public.",
+                "seal",
+                BookPalette.lampGold
+            )
+        }
+        if metadata["wagerMoment"] == "opened" {
+            let status = metadata["wagerStatus"] == "right" ? "right" : "wrong"
+            return (
+                "Verdict",
+                "The seal opened and the Book was \(status). A living book has to risk correction.",
+                status == "right" ? "checkmark.seal" : "xmark.seal",
+                status == "right" ? BookPalette.teal : BookPalette.lampGold
+            )
+        }
+        let evidenceCount = bookNoticesEvidencePageIDs(metadata).count
+        if evidenceCount > 0 {
+            return (
+                "Source shelf",
+                "\(evidenceCount) kept page\(evidenceCount == 1 ? "" : "s") helped the Book make this finding.",
+                "books.vertical",
+                BookPalette.teal
+            )
+        }
+        return nil
+    }
+
+    private func bookNoticesEvidenceSlips(_ metadata: [String: String]) -> [BookCeremonyEvidence] {
+        let evidenceIDs = bookNoticesEvidencePageIDs(metadata)
+        let clusters = (metadata["motifClusters"]?.nonEmpty ?? "")
+            .split(separator: "\n")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+        let signals = (metadata["continuitySignals"]?.nonEmpty ?? "")
+            .split(separator: "\n")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+        var slips: [BookCeremonyEvidence] = []
+        if let name = metadata["constellationName"]?.nonEmpty {
+            slips.append(BookCeremonyEvidence(id: "name-\(name.stableHash)", text: "Named: \(name)", pageID: nil))
+        }
+        if let subject = metadata["wagerSubject"]?.nonEmpty {
+            slips.append(BookCeremonyEvidence(id: "wager-\(subject.stableHash)", text: "Subject: \(subject)", pageID: nil))
+        }
+        let sourceTexts = (clusters + signals).filter { !$0.isEmpty }
+        slips += sourceTexts.enumerated().map { index, text in
+            BookCeremonyEvidence(
+                id: "source-\(index)-\(text.stableHash)",
+                text: text,
+                pageID: evidenceIDs.indices.contains(index) ? evidenceIDs[index] : nil
+            )
+        }
+        return Array(slips.prefix(4))
+    }
+
+    private func bookNoticesEvidencePageIDs(_ metadata: [String: String]) -> [String] {
+        (metadata["evidencePageIDs"]?.nonEmpty ?? "")
+            .split(separator: ",")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func keptPage(id: String) -> BookPage? {
+        inventoryKeptPages.first { $0.id == id }
+    }
+
+    private func keptSurface(for page: BookPage) -> SurfacePage {
+        let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = text.isEmpty ? page.promptText : text
+        let source = BookPageSourceRegistry.source(id: page.sourceID, fallbackType: page.type)
+        let title = page.type.title
+        let prompt = page.promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? title
+            : page.promptText
+        return SurfacePage(
+            id: "kept-\(page.id)",
+            type: page.type,
+            sourceID: source.id,
+            intent: .importReference,
+            renderStyle: .quoteCard,
+            score: 80,
+            reason: "This Page is already kept in the Book.",
+            prompt: prompt,
+            detail: "Kept \(page.createdAt.formatted(date: .abbreviated, time: .omitted))",
+            payload: BookPagePayload(
+                headline: title,
+                body: body,
+                metadata: [
+                    "source": source.id,
+                    "keptPageID": page.id,
+                    "keptPage": "true",
+                    "tags": page.tags.joined(separator: ",")
+                ]
+            )
+        )
+    }
+
+    private func playCeremonyOpenCueIfNeeded() {
+        guard !didPlayCeremonyOpen else { return }
+        guard surface.type == .bookRemembered || surface.type == .bookNotices else { return }
+        didPlayCeremonyOpen = true
+        didRevealCeremony = true
+        BookFeedback.play(surface.type == .bookRemembered ? .braidComplete : .sourceRefresh)
+    }
+
     /// The Book's invitation for this page — a small real-world thing to try.
     /// Only lore pages currently carry one, and it reveals when the page opens.
     private var practiceText: String? {
         guard let practice = surface.payload.metadata["practice"]?.trimmingCharacters(in: .whitespacesAndNewlines),
               !practice.isEmpty else { return nil }
         return practice
+    }
+
+    // MARK: Center Page — the interactive Rest practice (Wonder Compass, Chapter 10).
+
+    /// The Gear Shifter the page is currently offering. Starts at the one the curator
+    /// chose for the hour and the day's state; "Offer me another" walks the menu.
+    private var centerGearShifter: CenterGearShifter {
+        let menu = CenterGearShifterMenu.all
+        guard !menu.isEmpty else { return CenterGearShifterMenu.softGaze }
+        let start = surface.payload.metadata["centerGearID"].flatMap { id in
+            menu.firstIndex { $0.id == id }
+        } ?? 0
+        let index = ((start + centerGearOffset) % menu.count + menu.count) % menu.count
+        return menu[index]
+    }
+
+    /// The two small reliefs the Center Page offers: a do-nothing minute, then one
+    /// Gear Shifter to drop from Beta into Alpha or Theta. Neither is a task.
+    private var centerRestPractice: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("The Do-Nothing Minute", systemImage: "circle.dotted")
+                    .font(.caption.weight(.black))
+                    .textCase(.uppercase)
+                    .kerning(0.6)
+                    .foregroundStyle(BookPalette.teal)
+                Text("Phone face down, out of reach. Don't meditate, don't plan dinner — just let the chair do the holding.")
+                    .font(.system(.callout, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+                BreathingMinuteView(
+                    accent: BookPalette.teal,
+                    reduceMotion: reduceMotion,
+                    completionNote: "If a single true line arrived in the quiet, you can keep it below. If not, that's rest too."
+                )
+            }
+
+            centerGearShifterCard
+        }
+        .padding(.top, 4)
+    }
+
+    private var centerGearShifterCard: some View {
+        let shifter = centerGearShifter
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: shifter.symbol)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(BookPalette.gold)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(shifter.title)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(shifter.gear.label)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.55))
+                }
+                Spacer(minLength: 0)
+            }
+            Text(shifter.move)
+                .font(.system(.callout, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.9))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(shifter.why)
+                .font(.system(.caption, design: .serif).italic())
+                .foregroundStyle(BookPalette.ink.opacity(0.66))
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    centerGearOffset += 1
+                }
+            } label: {
+                Label("Offer me another", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.caption.weight(.bold))
+            }
+            .buttonStyle(.bordered)
+            .tint(BookPalette.gold)
+            .padding(.top, 2)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(BookPalette.gold.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.gold.opacity(0.30), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+        )
+        .id(shifter.id)
+        .transition(.opacity)
     }
 
     private func tryThisCallout(_ practice: String) -> some View {
@@ -4409,6 +5038,90 @@ struct CapturePageSheet: View {
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(BookPalette.ink.opacity(0.12), lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder
+    private var letterReplySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Divider().overlay(BookPalette.ink.opacity(0.12))
+
+            if didSealReply {
+                HStack(spacing: 10) {
+                    Image("MarginaliaSeal")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 42, height: 42)
+                        .scaleEffect(sealStamp ? 1 : 1.4)
+                        .opacity(sealStamp ? 1 : 0)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Sealed & sent")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(BookPalette.teal)
+                        Text("Your reply is folded into the margins. \(letterSenderName.capitalized) will carry it.")
+                            .font(.caption2)
+                            .foregroundStyle(BookPalette.ink.opacity(0.6))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            } else {
+                LivingTextEditor(
+                    title: "Write back to \(letterSenderName.capitalized)",
+                    placeholder: "A line back through the margins…",
+                    text: $letterReply,
+                    minHeight: 120
+                )
+
+                Button {
+                    sealAndSendReply()
+                } label: {
+                    Label("Seal & send your reply", systemImage: "seal")
+                        .font(.callout.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(BookPalette.lampGold)
+                .disabled(letterReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
+
+    /// The distinct, ceremonial reply gesture: stamps a wax seal, binds the
+    /// letter with the reply attached (its own keep), and dismisses. The plain
+    /// toolbar "Keep" remains for letters the reader chooses to leave unanswered.
+    private func sealAndSendReply() {
+        let reply = letterReply.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !reply.isEmpty else { return }
+        BookFeedback.chapterBinding()
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.62)) {
+            didSealReply = true
+            sealStamp = true
+        }
+
+        var metadata = surface.payload.metadata
+        metadata["playerReply"] = reply
+        metadata["letterSealed"] = "true"
+        let sealed = SurfacePage(
+            id: surface.id,
+            type: surface.type,
+            sourceID: surface.sourceID,
+            intent: surface.intent,
+            renderStyle: surface.renderStyle,
+            score: surface.score,
+            reason: surface.reason,
+            prompt: surface.prompt,
+            detail: surface.detail,
+            payload: BookPagePayload(
+                headline: surface.payload.headline,
+                body: surface.payload.body,
+                metadata: metadata
+            )
+        )
+        let input = preparedInput
+        onSave(sealed, input, preparedTags(for: sealed) + ["reply", "pen-pal"])
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+            dismiss()
         }
     }
 
@@ -5013,7 +5726,9 @@ struct CapturePageSheet: View {
     private func marginNoteEditor(minHeight: CGFloat) -> some View {
         LivingTextEditor(
             title: "Margin note",
-            placeholder: "Add one true thing the Book should keep.",
+            placeholder: surface.type == .rest
+                ? "One true line, if one arrived in the quiet. Or leave it blank — that's rest too."
+                : "Add one true thing the Book should keep.",
             text: $text,
             minHeight: minHeight
         )

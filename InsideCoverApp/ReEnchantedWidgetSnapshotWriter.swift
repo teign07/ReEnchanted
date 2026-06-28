@@ -11,7 +11,8 @@ enum ReEnchantedWidgetSnapshotWriter {
         selfFacts: [SelfFact],
         beliefScore: Int,
         radio: RadioPlaybackState?,
-        radioIsPlaying: Bool
+        radioIsPlaying: Bool,
+        activeWorldEvents: [ResolvedWorldEvent] = []
     ) {
         let snapshot = makeSnapshot(
             today: today,
@@ -20,7 +21,8 @@ enum ReEnchantedWidgetSnapshotWriter {
             selfFacts: selfFacts,
             beliefScore: beliefScore,
             radio: radio,
-            radioIsPlaying: radioIsPlaying
+            radioIsPlaying: radioIsPlaying,
+            activeWorldEvents: activeWorldEvents
         )
         try? ReEnchantedWidgetSnapshotStore.save(snapshot)
         #if canImport(WidgetKit)
@@ -35,7 +37,8 @@ enum ReEnchantedWidgetSnapshotWriter {
         selfFacts: [SelfFact],
         beliefScore: Int,
         radio: RadioPlaybackState?,
-        radioIsPlaying: Bool
+        radioIsPlaying: Bool,
+        activeWorldEvents: [ResolvedWorldEvent] = []
     ) -> ReEnchantedWidgetSnapshot {
         let readerName = selfFacts
             .first { $0.id == "onboarding:onboarding-name" }?
@@ -47,7 +50,8 @@ enum ReEnchantedWidgetSnapshotWriter {
         let compass = compassPrompt(from: surfaces)
         let remembered = rememberedPage(from: resurfacedPages)
         let sky = skyStatus(from: surfaces)
-        let radio = radioStatus(from: radio, isPlaying: radioIsPlaying)
+        let radio = radioStatus(from: radio, isPlaying: radioIsPlaying, activeWorldEvents: activeWorldEvents)
+        let worldEvent = worldEventStatus(from: activeWorldEvents)
         let enchantments = enchantmentShortcuts()
         let belief = ReEnchantedWidgetBelief(
             title: "Glow",
@@ -64,6 +68,7 @@ enum ReEnchantedWidgetSnapshotWriter {
             remembered: remembered,
             sky: sky,
             radio: radio,
+            worldEvent: worldEvent,
             enchantments: enchantments,
             belief: belief
         )
@@ -147,19 +152,24 @@ enum ReEnchantedWidgetSnapshotWriter {
         return nil
     }
 
-    private static func radioStatus(from playback: RadioPlaybackState?, isPlaying: Bool) -> ReEnchantedWidgetRadio? {
+    private static func radioStatus(
+        from playback: RadioPlaybackState?,
+        isPlaying: Bool,
+        activeWorldEvents: [ResolvedWorldEvent] = []
+    ) -> ReEnchantedWidgetRadio? {
         let stations = RadioStationRegistry.coreStations
         let station = playback?.activeStationID
             .flatMap { RadioStationRegistry.station(id: $0) }
             ?? stations.first
         guard let station else { return nil }
+        let eventLine = activeWorldEvents.radioAtmosphereLine?.bookPreviewSentenceLimit(1)
         return ReEnchantedWidgetRadio(
             activeStationID: station.id,
             title: station.title,
-            detail: station.subtitle.bookPreviewSentenceLimit(1),
+            detail: eventLine ?? station.subtitle.bookPreviewSentenceLimit(1),
             symbolName: "radio",
             frequency: station.displayFrequency,
-            signalLine: station.signalLine.bookPreviewSentenceLimit(1),
+            signalLine: eventLine ?? station.signalLine.bookPreviewSentenceLimit(1),
             isPlaying: isPlaying && playback?.activeStationID == station.id,
             stations: stations.prefix(4).map { station in
                 ReEnchantedWidgetRadioStation(
@@ -170,6 +180,18 @@ enum ReEnchantedWidgetSnapshotWriter {
                     signalLine: station.signalLine.bookPreviewSentenceLimit(1)
                 )
             }
+        )
+    }
+
+    private static func worldEventStatus(from events: [ResolvedWorldEvent]) -> ReEnchantedWidgetWorldEvent? {
+        guard let event = events.first else { return nil }
+        return ReEnchantedWidgetWorldEvent(
+            id: event.id,
+            title: event.title,
+            phase: event.phase.title,
+            detail: (event.packet.widgetWhisperLine ?? event.phase.scene ?? event.packet.logline).bookPreviewSentenceLimit(1),
+            symbolName: "textformat.abc.dottedunderline",
+            urlPath: "today"
         )
     }
 

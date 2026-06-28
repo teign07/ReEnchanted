@@ -3557,6 +3557,14 @@ enum CharacterLetterPageGenerator {
                 .prefix(160)
             let whenLine = ageDays == 0 ? "earlier today" : (ageDays == 1 ? "yesterday" : "about \(ageDays) days ago")
             lines.append("You last wrote to them \(whenLine). Part of that letter: \"\(excerpt)…\" You may refer back to it, naturally.")
+
+            let reply = last.playerReply.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !reply.isEmpty {
+                let replyExcerpt = reply
+                    .replacingOccurrences(of: "\n", with: " ")
+                    .prefix(160)
+                lines.append("After that letter, the reader wrote back to you. Part of what they said: \"\(replyExcerpt)…\" Let it have reached you — answer it once, glancingly, the way someone recalls a line from a letter rather than quoting it back.")
+            }
         }
 
         let sidings = keptPages
@@ -3580,6 +3588,18 @@ enum CharacterLetterPageGenerator {
         }
 
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
+    /// The oblique memory line recorded when the reader writes back to a sender.
+    /// Framed as something the character *remembers* (excerpt-trimmed) so future
+    /// letters can glance at it through the per-sender memory packet rather than
+    /// quoting the reply verbatim.
+    static func penPalReplyMemorySummary(senderName: String, reply: String) -> String {
+        let trimmed = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+        let excerpt = trimmed
+            .replacingOccurrences(of: "\n", with: " ")
+            .prefix(160)
+        return "\(senderName) remembers that the reader wrote back. In their reply: \"\(excerpt)…\""
     }
 
     private static func hasPriorLetter(from entity: NarrativeWorldEntity, day: BookDay, inputs: BookSourceInputs) -> Bool {
@@ -4038,14 +4058,27 @@ struct PlayfulMission: Identifiable, Equatable {
 }
 
 enum PlayfulMissionRegistry {
-    static func mission(for day: BookDay, inputs: BookSourceInputs, now: Date = Date()) -> PlayfulMission {
-        let missions = rankedMissions(for: day, inputs: inputs, now: now)
+    static func mission(for day: BookDay, inputs: BookSourceInputs, now: Date = Date(), shadowVariant: Bool = false) -> PlayfulMission {
+        let missions = rankedMissions(for: day, inputs: inputs, now: now, shadowVariant: shadowVariant)
         let slot = SurfaceCadence.slotID(for: now, hours: 2)
         let seed = abs("\(day.id)-\(slot)-playful-mission".stableHash)
+        if shadowVariant, ShadowWonder.state(inputs: inputs, now: now).isActive {
+            let shadowMissions = missions.filter { $0.tags.map { $0.lowercased() }.contains("shadow-wonder") }
+            if !shadowMissions.isEmpty {
+                return shadowMissions[seed % shadowMissions.count]
+            }
+            let preferred = missions.filter(ShadowWonder.prefers(mission:))
+            if !preferred.isEmpty {
+                return preferred[seed % preferred.count]
+            }
+        }
         return missions[seed % missions.count]
     }
 
-    private static func rankedMissions(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [PlayfulMission] {
+    private static func rankedMissions(for day: BookDay, inputs: BookSourceInputs, now: Date, shadowVariant: Bool) -> [PlayfulMission] {
+        let missionPool = shadowVariant
+            ? missions
+            : missions.filter { !$0.tags.map { $0.lowercased() }.contains("shadow-wonder") }
         let text = [
             inputs.weather?.phrase,
             inputs.body?.status,
@@ -4055,7 +4088,7 @@ enum PlayfulMissionRegistry {
         .joined(separator: " ")
         .lowercased()
 
-        let preferredTags: Set<String>
+        var preferredTags: Set<String>
         if text.contains("rain") || text.contains("storm") || text.contains("fog") {
             preferredTags = ["weather", "sound", "scent", "inside"]
         } else if text.contains("low") || text.contains("tired") || text.contains("rest") {
@@ -4065,10 +4098,13 @@ enum PlayfulMissionRegistry {
         } else {
             preferredTags = ["touch", "visual", "scent", "sound"]
         }
+        if shadowVariant, ShadowWonder.state(inputs: inputs, now: now).isActive {
+            preferredTags.formUnion(["shadow-wonder", "shadow", "night", "history", "threshold", "old"])
+        }
 
-        return missions.sorted { left, right in
-            let leftScore = Set(left.tags).intersection(preferredTags).count
-            let rightScore = Set(right.tags).intersection(preferredTags).count
+        return missionPool.sorted { left, right in
+            let leftScore = Set(left.tags).intersection(preferredTags).count + (shadowVariant && ShadowWonder.prefers(mission: left) ? 4 : 0)
+            let rightScore = Set(right.tags).intersection(preferredTags).count + (shadowVariant && ShadowWonder.prefers(mission: right) ? 4 : 0)
             if leftScore == rightScore {
                 return left.id < right.id
             }
@@ -4076,7 +4112,7 @@ enum PlayfulMissionRegistry {
         }
     }
 
-    static let missions: [PlayfulMission] = coreMissions + attentionMissions
+    static let missions: [PlayfulMission] = coreMissions + attentionMissions + shadowMissions
 
     static let coreMissions: [PlayfulMission] = [
         mission("oldest-smell", "The Oldest Thing", "Find the oldest thing near you and smell it. What does age smell like here?", "Complete this: The oldest thing near me smelled like...", ["scent", "touch", "inside", "low-energy"]),
@@ -4193,6 +4229,22 @@ enum PlayfulMissionRegistry {
         mission("strange-technical-miracle", "Furniture Miracle", "Find one thing in arm's reach that is technically a miracle and is being treated like furniture. Restore its title for one minute.", "Write the restored title.", ["object", "wonder", "inside", "low-energy"])
     ]
 
+    static let shadowMissions: [PlayfulMission] = [
+        mission("shadow-spark-hunt", "Shadow Spark Hunt", "Find one broken, rusty, faded, cracked, or overlooked thing your brain usually deletes. Look for ten seconds before deciding what it is.", "Write what time has done to it.", ["shadow-wonder", "shadow", "history", "visual", "low-energy"]),
+        mission("shadow-mystery-clue", "The Mystery Mission", "Choose one abandoned, closed, old, or half-forgotten thing and find one clue about what it used to be.", "Write the clue and the question it opened.", ["shadow-wonder", "mystery", "history", "public", "visual"]),
+        mission("shadow-tribute-object", "The Tribute Mission", "Find one repaired, worn, or past-its-prime object. Give it thirty seconds of respect without trying to fix it.", "Write one sentence honoring what it survived.", ["shadow-wonder", "tribute", "object", "history", "inside"]),
+        mission("shadow-mood-match", "Mood Match", "Let the grey mood, rain, dim room, or tired hour be the atmosphere instead of the enemy. Find one detail that harmonizes with it.", "Write the detail that matched the weather inside you.", ["shadow-wonder", "mood-match", "night", "weather", "inside"], allowsPhoto: false),
+        mission("shadow-last-light", "Last Light Witness", "Find the last, smallest, or most stubborn light nearby. Ask what it is guarding from the dark.", "Write what the light was guarding.", ["shadow-wonder", "night", "light", "threshold", "inside"]),
+        mission("shadow-offering", "Leave an Offering", "Set out one small, genuine offering with no audience: crumbs for the birds, a saucer on the sill, a kindness no one will trace to you.", "Write what you left, and for whom.", ["shadow-wonder", "offering", "kindness", "fae", "folklore"], allowsPhoto: false),
+        mission("shadow-threshold", "Honor a Threshold", "Find one threshold — a doorway, gate, or the seam where one room becomes another. Pause on it. Notice it is neither in nor out.", "Write what changes the moment you cross.", ["shadow-wonder", "threshold", "liminal", "folklore", "inside"], allowsPhoto: false),
+        mission("shadow-true-name", "The True Name", "Find one heavy, vague feeling and hunt for its exact true name — not 'bad,' but the precise word that fits.", "Write the true name and whether the weight shifted.", ["shadow-wonder", "true-names", "grief", "naming", "low-energy"], allowsPhoto: false),
+        mission("shadow-iron-key", "Mind the Edges", "Find the iron already in your home — a key, a nail, a cast pan — and set it deliberately by a door, the way folklore minds a threshold.", "Write whether a guarded edge changes the room.", ["shadow-wonder", "protection", "iron", "threshold", "folklore", "inside"]),
+        mission("shadow-correspondence", "One Correspondence", "Make one old correspondence literal: salt for protection, rosemary for memory, a dark stone for rest. Place it where you'll see it.", "Write what it now stands for.", ["shadow-wonder", "correspondences", "witchcraft", "folklore", "inside"]),
+        mission("shadow-ending-thing", "The Vanishing", "Find one thing quietly ending right now — light going, a flower past peak, a cup going cold — and witness it leave without stopping it.", "Write one sentence for it before it's gone.", ["shadow-wonder", "mono-no-aware", "memory", "low-energy", "inside"], allowsPhoto: false),
+        mission("shadow-cost", "The Goblin's Question", "Pick one 'free' thing in your day — a scroll, a shortcut, a numbing habit — and ask the Goblin Market's only question of it.", "Write its real, hidden cost in one line.", ["shadow-wonder", "goblin", "bargain", "unseelie"], allowsPhoto: false),
+        mission("shadow-disowned", "Turn the Lamp", "Notice one small thing about today you'd rather not look at. Turn the lamp toward it for ten honest seconds — no fixing, no verdict.", "Write what you actually saw.", ["shadow-wonder", "shadow-self", "grief", "low-energy", "inside"], allowsPhoto: false)
+    ]
+
     private static func mission(
         _ id: String,
         _ title: String,
@@ -4206,26 +4258,29 @@ enum PlayfulMissionRegistry {
 }
 
 enum WonderCompassRunGenerator {
-    static func seed(for day: BookDay, inputs: BookSourceInputs, progress: CompassRunProgress, now: Date = Date()) -> WonderCompassRunSeed {
+    static func seed(for day: BookDay, inputs: BookSourceInputs, progress: CompassRunProgress, now: Date = Date(), shadowVariant: Bool = false) -> WonderCompassRunSeed {
         let mode = mode(for: day, inputs: inputs, now: now)
+        let shadowState = ShadowWonder.state(inputs: inputs, now: now)
+        let useShadow = shadowVariant && shadowState.isActive
         let timeBox = timeBox(for: mode, inputs: inputs, now: now)
         let budget = mode == .budget ? "$0-$10" : "Use what is already available."
-        let place = place(for: mode, inputs: inputs)
+        let place = useShadow ? "shadow wonder: \(ShadowWonder.destination(inputs: inputs))" : place(for: mode, inputs: inputs)
         let energy = energy(for: mode, inputs: inputs)
         let companions = companions(for: day)
         let considerations = considerations(for: mode, inputs: inputs)
         let circumstance = circumstance(for: inputs, now: now)
-        let spark = progress.latestSpark ?? spark(for: mode, inputs: inputs, now: now)
-        let destination = destination(for: mode, spark: spark, place: place)
-        let delight = delight(for: mode, inputs: inputs, now: now)
+        let spark = progress.latestSpark ?? (useShadow ? ShadowWonder.spark(inputs: inputs, now: now) : spark(for: mode, inputs: inputs, now: now))
+        let destination = useShadow ? ShadowWonder.destination(inputs: inputs) : destination(for: mode, spark: spark, place: place)
+        let delight = useShadow ? ShadowWonder.delight(inputs: inputs, now: now) : delight(for: mode, inputs: inputs, now: now)
         let definition = definition(for: mode, timeBox: timeBox)
-        let mission = mission(for: mode, inputs: inputs)
-        let souvenir = souvenirPrompt(for: mode)
+        let mission = useShadow ? ShadowWonder.mission(inputs: inputs) : mission(for: mode, inputs: inputs)
+        let souvenir = useShadow ? ShadowWonder.souvenirPrompt : souvenirPrompt(for: mode)
         let rest = restPrompt(for: inputs)
         let slot = SurfaceCadence.slotID(for: now, hours: 6)
+        let shadowTags = useShadow ? ShadowWonder.tags(inputs: inputs, now: now) : []
 
         return WonderCompassRunSeed(
-            id: "run-\(day.id)-\(slot)-\(mode.rawValue)",
+            id: "run-\(day.id)-\(slot)-\(mode.rawValue)\(useShadow ? "-shadow" : "")",
             mode: mode,
             timeBox: timeBox,
             budget: budget,
@@ -4241,7 +4296,7 @@ enum WonderCompassRunGenerator {
             mission: mission,
             souvenirPrompt: souvenir,
             restPrompt: rest,
-            tags: ["wonder-compass", "wonder-compass-run", "concierge:\(mode.rawValue)"]
+            tags: ["wonder-compass", "wonder-compass-run", "concierge:\(mode.rawValue)"] + shadowTags
         )
     }
 

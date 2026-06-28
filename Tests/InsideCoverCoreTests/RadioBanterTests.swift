@@ -658,6 +658,25 @@ final class RadioBanterTests: XCTestCase {
     }
 
     func testHiddenBleedCanReactToGossipClustersAndNight() throws {
+        let station = try XCTUnwrap(RadioStationRegistry.station(id: "the-bleed"))
+        XCTAssertEqual(station.interstitialAssetName, "RadioFreeMarginStatic")
+        XCTAssertEqual(station.interstitialTitle, "Radio Free Margin Static")
+        let clips = Dictionary(uniqueKeysWithValues: station.resolvedBanters.map { ($0.id, $0) })
+
+        XCTAssertNotNil(clips["bleed-rant-02"])
+        XCTAssertNotNil(clips["bleed-lore-unwritten"])
+
+        let crew = RadioWorldContext(
+            pageContext: RadioPageContext(recentPageTypeCounts: [.illustration: 1, .gossip: 1])
+        )
+        XCTAssertTrue(crew.satisfies(clips["bleed-cast-crew"]?.conditions))
+
+        let grey = RadioWorldContext(grey: 35)
+        XCTAssertTrue(grey.satisfies(clips["bleed-talisman-contraband"]?.conditions))
+
+        let day = RadioWorldContext(timeOfDay: "day")
+        XCTAssertFalse(day.satisfies(clips["bleed-cast-thorne"]?.conditions))
+
         var state = RadioPlaybackState(
             activeStationID: "the-bleed",
             startedAt: Date(timeIntervalSince1970: 1_750_000_000)
@@ -682,6 +701,7 @@ final class RadioBanterTests: XCTestCase {
 
         XCTAssertTrue(seen.contains("bleed-pages-gossip-cluster"))
         XCTAssertTrue(seen.contains("bleed-time-after-midnight"))
+        XCTAssertTrue(seen.contains("bleed-cast-thorne"))
     }
 
     func testOldBanterConditionJSONStillDecodes() throws {
@@ -785,6 +805,15 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertEqual(thornClips["thornwave-psa-beltane"], "DJ_thornwave_psa_beltane_01")
         XCTAssertEqual(thornClips["thornwave-psa-fullmoon"], "DJ_thornwave_psa_fullmoon_01")
 
+        let bleed = try XCTUnwrap(RadioStationRegistry.station(id: "the-bleed"))
+        let bleedClips = Dictionary(uniqueKeysWithValues: bleed.resolvedBanters.map { ($0.id, $0.assetName) })
+        XCTAssertEqual(bleed.interstitialAssetName, "RadioFreeMarginStatic")
+        XCTAssertEqual(bleedClips["bleed-rant-02"], "DJ_bleed_rant_02")
+        XCTAssertEqual(bleedClips["bleed-cast-crew"], "DJ_bleed_cast_crew_01")
+        XCTAssertEqual(bleedClips["bleed-talisman-contraband"], "DJ_bleed_talisman_contraband_01")
+        XCTAssertEqual(bleedClips["bleed-lore-unwritten"], "DJ_bleed_lore_unwritten_01")
+        XCTAssertEqual(bleedClips["bleed-cast-thorne"], "DJ_bleed_cast_thorne_01")
+
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_faefi_pages_souvenir_01.m4a").path))
@@ -861,5 +890,11 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_psa_clubs_night_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_psa_beltane_01.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_psa_fullmoon_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFreeMarginStatic.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_bleed_rant_02.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_bleed_cast_crew_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_bleed_talisman_contraband_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_bleed_lore_unwritten_01.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_bleed_cast_thorne_01.m4a").path))
     }
 }

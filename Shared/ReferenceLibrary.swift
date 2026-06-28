@@ -316,17 +316,29 @@ enum QuipPackRegistry {
     }
 
     static func quip(for day: BookDay, now: Date, tags: [String] = []) -> QuipEntry {
-        let quips = enabledPacks.flatMap(\.quips)
+        let tagSet = Set(tags.map { $0.lowercased() })
+        let wantsShadow = tagSet.contains("shadow-wonder") || tagSet.contains("shadow")
+        let quips = enabledPacks.flatMap(\.quips).filter { quip in
+            wantsShadow || !quip.tags.map { $0.lowercased() }.contains("shadow-wonder")
+        }
         guard !quips.isEmpty else {
             return QuipEntry(id: "fallback", text: "The Book found a small bright thing and kept it.", title: "Filed Under Wonder", tags: ["wonder"], packID: corePackID, weight: 1)
         }
         let slot = SurfaceCadence.slotID(for: now, hours: 3)
         let seed = abs("\(day.id)-\(slot)-\(tags.joined(separator: ","))".stableHash)
-        let tagSet = Set(tags.map { $0.lowercased() })
         let ranked = quips.enumerated().map { index, quip in
             let overlap = tagSet.intersection(Set(quip.tags.map { $0.lowercased() })).count
             let jitter = abs((seed &+ index * 1543).stableScramble % 1000)
             return (quip, overlap * 20 + quip.weight * 3 + jitter)
+        }
+        if wantsShadow {
+            let shadowQuips = ranked.filter {
+                let tags = Set($0.0.tags.map { $0.lowercased() })
+                return !tags.intersection(["shadow-wonder", "shadow", "night", "old", "history"]).isEmpty
+            }
+            if let pick = shadowQuips.sorted(by: { $0.1 > $1.1 }).first?.0 {
+                return pick
+            }
         }
         return ranked.sorted { $0.1 > $1.1 }.first?.0 ?? quips[seed % quips.count]
     }
@@ -373,6 +385,26 @@ enum QuipPackRegistry {
         quip("rust-memory", "Rust is iron remembering it used to be in the ground.", "Whimsical Observation", ["ordinary", "earth"]),
         quip("road-question", "A road is a question the town keeps asking the horizon.", "Whimsical Observation", ["place", "walk"]),
         quip("roots-walk", "Roots are the tree refusing to admit it can't walk.", "Whimsical Observation", ["tree", "nature"]),
+        quip("shadow-rust", "Rust is a slow confession: the metal remembers the ground and starts telling the truth.", "Shadow Wonder", ["shadow-wonder", "shadow", "rust", "history"], weight: 3),
+        quip("shadow-crack", "A crack is a place where the surface stopped pretending it was seamless.", "Shadow Wonder", ["shadow-wonder", "shadow", "broken", "threshold"], weight: 3),
+        quip("shadow-last-light", "The last light in a room is usually guarding something too small to name loudly.", "Shadow Wonder", ["shadow-wonder", "night", "light"], weight: 3),
+        quip("shadow-peeling-paint", "Peeling paint is a building showing you its previous drafts.", "Shadow Wonder", ["shadow-wonder", "old", "history", "place"], weight: 3),
+        quip("shadow-cobweb", "A cobweb is the only architecture that gets more honest the longer it's abandoned.", "Shadow Wonder", ["shadow-wonder", "shadow", "decay", "old"], weight: 3),
+        quip("shadow-moth", "A moth chooses the lamp over the dark and the dark over safety; admire the commitment.", "Shadow Wonder", ["shadow-wonder", "night", "creature", "light"], weight: 3),
+        quip("shadow-keyhole", "An old keyhole is a question the door is still asking about who's allowed in.", "Shadow Wonder", ["shadow-wonder", "threshold", "old", "mystery"], weight: 3),
+        quip("shadow-low-tide", "Low tide isn't the sea leaving; it's the sea showing you what it usually keeps private.", "Shadow Wonder", ["shadow-wonder", "shadow", "water", "hidden"], weight: 3),
+        quip("shadow-frost", "Frost is winter's marginalia, written overnight and erased by anyone who waits too long to read it.", "Shadow Wonder", ["shadow-wonder", "night", "cold", "weather"], weight: 3),
+        quip("shadow-closed-shop", "A shuttered shop still hums with every birthday dinner it ever held; the grey just stops listening.", "Shadow Wonder", ["shadow-wonder", "old", "history", "place"], weight: 3),
+        quip("shadow-grey-sky", "A grey sky isn't an absence of weather. It's the day choosing a minor key, and minor keys hold you.", "Shadow Wonder", ["shadow-wonder", "weather", "somber", "mood-match"], weight: 3),
+        quip("shadow-scar", "A scar is proof the body chose to keep going and kept the receipt.", "Shadow Wonder", ["shadow-wonder", "shadow", "body", "history"], weight: 3),
+        quip("shadow-dusk", "Dusk is the day's threshold, neither in nor out — which is exactly why the fae prefer it.", "Shadow Wonder", ["shadow-wonder", "night", "dusk", "liminal", "fae"], weight: 3),
+        quip("shadow-iron", "Folklore hung iron at the door to mind the edges of a home. You already do it; you just call it a key.", "Shadow Wonder", ["shadow-wonder", "folklore", "protection", "threshold"], weight: 3),
+        quip("shadow-free-thing", "The goblin's only question, and the wisest one in the market: and what does this actually cost me?", "Shadow Wonder", ["shadow-wonder", "goblin", "bargain", "unseelie"], weight: 3),
+        quip("shadow-name", "Name the dread exactly and it stops being weather. A thing with edges is a thing you can walk around.", "Shadow Wonder", ["shadow-wonder", "true-names", "grief", "naming"], weight: 3),
+        quip("shadow-compost", "A compost heap is just grief doing its slow, useful work: nothing wasted, only changed.", "Shadow Wonder", ["shadow-wonder", "decay", "grief", "memory"], weight: 3),
+        quip("shadow-empty-chair", "An empty chair keeps the shape of who sat there. That's not haunting. That's memory holding the door.", "Shadow Wonder", ["shadow-wonder", "grief", "absence", "memory"], weight: 3),
+        quip("shadow-headmistress", "Watch which staircases lie when the Headmistress walks them. No, don't write that down. Penny didn't say it and neither did I.", "Shadow Wonder", ["shadow-wonder", "unseelie", "thorne", "duskthorn", "secret"], weight: 3),
+        quip("shadow-crown", "Some crowns are worn on the head. Some are pinned into the hair, dark, where you'd mistake them for a hairstyle.", "Shadow Wonder", ["shadow-wonder", "unseelie", "thorne", "secret"], weight: 3),
         quip("library-quiet", "A library is the only building designed to be quieter than the people inside it.", "Bookish Oddity", ["book", "library"]),
         quip("book-breath", "An unread book is the most patient object in any house.", "Bookish Oddity", ["book", "home"]),
         quip("photo-key", "A photograph doesn't hold the memory. You do. The photo is just where you left the key.", "Memory Note", ["memory", "photo"]),
@@ -719,6 +751,14 @@ enum BookReferenceCatalog {
             tags: ["wonder-compass", "hard-day", "rest", "survival"]
         ),
         ReferenceSnippet(
+            id: "wonder-compass-shadow-wonder",
+            sourceID: "wonder-compass",
+            title: "Shadow Wonder",
+            prompt: "Let the Compass honor what is worn, old, broken, or passing.",
+            body: "The Compass is not a filter for pretty things. Shadow Wonder uses I wonder to witness rust, decay, closed doors, grey weather, and old evidence with empathy instead of deletion.",
+            tags: ["wonder-compass", "shadow-wonder", "shadow", "notice", "mono-no-aware", "duskthorn"]
+        ),
+        ReferenceSnippet(
             id: "wonder-compass-playful-mission",
             sourceID: "wonder-compass",
             title: "Playful Mission",
@@ -798,8 +838,8 @@ enum BookReferenceCatalog {
             sourceID: "labyrinth-lore",
             title: "Headmistress Seraphina Thorne",
             prompt: "Let authority enter with a hidden page.",
-            body: "Headmistress Seraphina Thorne has the poise of someone who can silence a room by closing a book. Students see the elegant robes, the precise speech, the old authority of a person who knows which staircases lie. What they do not always see is the cost of keeping a school safe when the school itself is a living text with strong opinions and a long memory. Thorne is not soft, but she is not careless. Her office contains a legendary inkwell, officially for safekeeping. Unofficially, students suspect she uses it after midnight.",
-            tags: ["characters", "faculty", "headmistress", "history"]
+            body: "Headmistress Seraphina Thorne has the poise of someone who can silence a room by closing a book. Students see the elegant robes, the precise speech, the old authority of a person who knows which staircases lie. What they do not always see is the cost of keeping a school safe when the school itself is a living text with strong opinions and a long memory. Thorne is not soft, but she is not careless. Her office contains a legendary inkwell, officially for safekeeping. Unofficially, students suspect she uses it after midnight. There is always, around her, the faint cold draft of a window left open onto winter — though no one has ever found the window.",
+            tags: ["characters", "faculty", "headmistress", "history", "duskthorn"]
         ),
         ReferenceSnippet(
             id: "labyrinth-lore-history",
@@ -816,6 +856,122 @@ enum BookReferenceCatalog {
             prompt: "Let the sky annotate the page.",
             body: "Weather at the Academy is never only meteorological, but it is never merely symbolic either. Fog makes professors cancel class to watch the harbor disappear by degrees. Rain turns corridors into quieter arguments. Bright cold sharpens the ink. Heat makes the paper curl and the students theatrical. The Library cloud above the great ceiling changes color when the building is thinking about something it does not intend to say aloud. A weather page should remain legible, but the Book may name the mood of the response. The reader should feel tended, not watched.",
             tags: ["atmosphere", "school", "weather", "world"]
+        )
+    ]
+
+    /// The Shadow Wonder shelf — the Dusk Thorn's reading list. Real-world folklore
+    /// and the canon's "harmonize with the grey" practice, framed the way the
+    /// Labyrinth frames everything: as tradition to witness, not instruction to
+    /// obey. Surfaced as Shadow Lore variants when the Dusk Thorn is invested in
+    /// and the world turns toward the worn edge. Each carries a small, safe
+    /// `practice` — an offering, a noticing, a threshold to honor.
+    static let fallbackShadowLore: [ReferenceSnippet] = [
+        ReferenceSnippet(
+            id: "shadow-lore-what-it-is",
+            sourceID: "labyrinth-lore",
+            title: "Shadow Wonder",
+            prompt: "The Dusk Thorn names wonder with an honest edge.",
+            body: "Duskthorn does not ask the Book to become cruel. It asks the Book to stop sanding the edges off reality. Shadow Wonder is the practice of noticing rust, absence, decay, closed doors, old evidence, and grey weather as things with history instead of mistakes to delete. The bright Compass finds the sunset. The dark Compass finds the abandoned house going beautifully back to ivy — and refuses to look away.",
+            tags: ["lore", "shadow-wonder", "shadow", "duskthorn", "talisman", "mono-no-aware"],
+            practice: "Find one broken, worn, or closed thing nearby and ask it a single honest \"I wonder\" — about its history, not its repair."
+        ),
+        ReferenceSnippet(
+            id: "shadow-lore-unseelie-court",
+            sourceID: "labyrinth-lore",
+            title: "The Unseelie Court",
+            prompt: "Meet the winter half of the fae.",
+            body: "Old folklore splits the fae into two courts. The Seelie are the bright, summer-tempered ones, mischievous but inclined to be kind if you are. The Unseelie are the dark court — winter, dusk, and the long night. They are not evil so much as unsentimental: they keep the rules that bright things forget, and they do not pretend the world is gentle when it isn't. Duskthorn keeps a quiet correspondence with them. The Labyrinth files them under Shadow Wonder for a reason — they are proof that something can be dangerous, beautiful, and worth respecting all at once. And if you ever want to know what one looks like wearing a crown of office — here Penny lowers her voice — watch which staircases lie when a certain Headmistress walks them. Then she changes the subject.",
+            tags: ["lore", "shadow-wonder", "shadow", "unseelie", "fae", "duskthorn", "thorne", "folklore", "night"]
+        ),
+        ReferenceSnippet(
+            id: "shadow-lore-dealing-with-unseelie",
+            sourceID: "labyrinth-lore",
+            title: "Dealing With the Unseelie",
+            prompt: "Honest manners with dangerous guests.",
+            body: "Folklore is full of etiquette for the dark court, and it is mostly about honesty and boundaries — which is why Duskthorn approves of it. Do not say a flat \"thank you,\" which can read as a debt admitted; say \"I'm grateful\" or \"you were kind to me\" instead. Do not give your true name to something that asks too eagerly. Do not eat what is offered until you know its price. Keep your promises exactly, because the Unseelie keep theirs exactly. Offer hospitality and you will usually receive it back. The rules are not superstition; they are an old, sideways lesson in not being careless with powerful things — or powerful people.",
+            tags: ["lore", "shadow-wonder", "shadow", "unseelie", "fae", "duskthorn", "folklore", "protection", "boundaries"],
+            practice: "Tonight, practice one fae-court manner in the real world: thank someone with \"that was kind of you\" instead of a reflexive \"thanks,\" and notice how differently it lands."
+        ),
+        ReferenceSnippet(
+            id: "shadow-lore-the-headmistress",
+            sourceID: "labyrinth-lore",
+            title: "Which Staircases Lie",
+            prompt: "A rumour the sorting ledger won't hold.",
+            body: "Here is a thing the Labyrinth never says aloud, and Penny only ever says sideways. The Headmistress's name is Thorne. The talisman of the dark chapter is the Dusk Thorn. The chapter itself — Duskthorn — keeps no founder in the sorting ledger and no door anyone will point to. Draw the line yourself, or don't. Seraphina Thorne sees the Unwritten, keeps star-cold eyes, wears her hair pinned like a dark crown, and is said to use her inkwell only after midnight. The Unseelie guard their true names for a reason; she guards an entire court behind a school. Nothing is confirmed, you understand. It is only that the west windows go violet at dusk, and the staircases she walks have a quiet habit of lying.",
+            tags: ["lore", "shadow-wonder", "shadow", "unseelie", "thorne", "duskthorn", "secret", "folklore", "night"],
+            practice: "Notice one figure of authority you've only ever seen from the front. Wonder, once and without deciding anything, what they might be guarding when no one is watching."
+        ),
+        ReferenceSnippet(
+            id: "shadow-lore-correspondences",
+            sourceID: "labyrinth-lore",
+            title: "The Table of Correspondences",
+            prompt: "How the old craft sorts the world.",
+            body: "Folk witchcraft keeps a table of correspondences — a way of saying which things rhyme with which. Iron and salt for protection; rosemary for memory; rue and rowan for warding; mugwort for dreams; the waning moon for release and the dark moon for rest and secrets; black for banishing and absorbing, deep violet for the threshold between. None of it is a vending machine. It is a memory system, a way of making an intention concrete enough to hold — which is exactly what a One-Sentence Souvenir does. Shadow Wonder treats a correspondence the way it treats rust: as a real pattern worth witnessing, not a wish worth believing in blindly.",
+            tags: ["lore", "shadow-wonder", "shadow", "correspondences", "witchcraft", "folklore", "herbs", "moon"],
+            practice: "Pick one correspondence and make it literal: set a pinch of salt or a sprig of rosemary somewhere you'll see it, and let it stand for one thing you want to protect or remember this week."
+        ),
+        ReferenceSnippet(
+            id: "shadow-lore-iron-salt-rowan",
+            sourceID: "labyrinth-lore",
+            title: "Iron, Salt, and Rowan",
+            prompt: "The old protective charms.",
+            body: "Three protections turn up in nearly every European folk tradition: cold iron (a nail, a key, a horseshoe over the door), salt (scattered at a threshold or carried in a pocket), and rowan wood with red thread. They were hung at doors and windows — the liminal places — because that is where folklore believed the world was thinnest. Modern eyes can read them plainly: small, deliberate objects that say I am paying attention to the edges of my home. Shadow Wonder doesn't need you to believe a horseshoe stops a spirit. It only asks you to notice that humans have always marked their thresholds, and to wonder why that comforts us still.",
+            tags: ["lore", "shadow-wonder", "shadow", "protection", "iron", "salt", "rowan", "folklore", "threshold"],
+            practice: "Find the iron already in your home — a key, a cast pan, a nail — and place it deliberately by a door for one night. Notice whether a guarded threshold changes how the room feels."
+        ),
+        ReferenceSnippet(
+            id: "shadow-lore-between-hours",
+            sourceID: "labyrinth-lore",
+            title: "The Between Hours",
+            prompt: "Dusk, midnight, and the thin times.",
+            body: "Folklore marks certain hours as liminal — neither one thing nor the other, and therefore powerful. Dusk and dawn, the seams of the day. Midnight, the seam of the date. The threshold of a door, neither in nor out. The dark moon, when the sky keeps its own counsel. These are the Unseelie's hours, and Duskthorn's. The Wonder Compass has always said the same thing in plainer words: the in-between is where attention sharpens, because the brain can no longer run on autopilot. A doorway is a small dusk. A held breath is a small midnight.",
+            tags: ["lore", "shadow-wonder", "shadow", "liminal", "night", "dusk", "folklore", "threshold"],
+            practice: "At the next dusk, stop where you are for one minute and let the light change without fixing it. Write the exact color the sky turns as it crosses over."
+        ),
+        ReferenceSnippet(
+            id: "shadow-lore-mono-no-aware",
+            sourceID: "labyrinth-lore",
+            title: "Mono no Aware",
+            prompt: "The beauty that depends on ending.",
+            body: "The Japanese phrase mono no aware names the gentle ache of things that pass — falling petals, a friend's car turning the corner, the last warm afternoon before the cold. It is the heart of Shadow Wonder. Not sadness exactly, and never despair: a deepening. The cherry blossom is beloved precisely because it does not last. Duskthorn would put it bluntly — a story with no ending has no stakes, and a day you could keep forever you would never actually look at. The grey is not the enemy of wonder. Half of wonder lives there.",
+            tags: ["lore", "shadow-wonder", "shadow", "mono-no-aware", "grief", "memory", "duskthorn", "philosophy"],
+            practice: "Find one thing nearby that is quietly ending — light, a season, a flower, a cup going cold — and keep a single sentence for it before it goes."
+        ),
+        ReferenceSnippet(
+            id: "shadow-lore-goblin-market",
+            sourceID: "labyrinth-lore",
+            title: "The Goblin Market",
+            prompt: "Every bargain names its price.",
+            body: "Beneath the Labyrinth runs the Goblin Market, where the Unseelie trade and the prices are always honest even when they are steep. The oldest rule of the market is the one the bright world keeps forgetting: nothing is free, and the things that pretend to be free cost the most. A goblin will tell you the price up front, which is more than the grey ever does. Shadow Wonder borrows the market's clear eyes — it asks, of a glowing offer or a numbing habit, the goblin's only question: and what does this actually cost me?",
+            tags: ["lore", "shadow-wonder", "shadow", "goblin", "unseelie", "market", "bargain", "folklore"],
+            practice: "Name one \"free\" thing in your day — a scroll, a shortcut, a numbing — and write its real, hidden price in one honest line."
+        ),
+        ReferenceSnippet(
+            id: "shadow-lore-true-names",
+            sourceID: "labyrinth-lore",
+            title: "True Names",
+            prompt: "What is named can be held.",
+            body: "Across folklore, to know a thing's true name is to have power over it — which is why the fae guard theirs and why naming a fear out loud has always been the first step toward facing it. The Unseelie will trade in everything but their names. Shadow Wonder works the same lever in the other direction: the grey, the dread, the heavy mood keeps its power only while it stays unnamed and shapeless. Say the true name of what is sitting on your chest, exactly, and it stops being weather and becomes a thing with edges you can finally see around.",
+            tags: ["lore", "shadow-wonder", "shadow", "true-names", "fae", "naming", "folklore", "grief"],
+            practice: "Give one heavy, vague feeling its exact true name — not \"bad,\" but the precise word. Write the name and notice if the weight shifts once it has edges."
+        ),
+        ReferenceSnippet(
+            id: "shadow-lore-offerings",
+            sourceID: "labyrinth-lore",
+            title: "Offerings and Hospitality",
+            prompt: "The oldest courtesy left at the threshold.",
+            body: "The kindest folklore about the dark court is also the simplest: leave something out. A saucer of milk, a spoon of honey, a crust of bread on the windowsill or the back step. The offering was never really about feeding spirits. It was a nightly act of generosity toward the unseen and the unrepaid — a way of practicing hospitality even when no one was watching to thank you for it. Duskthorn respects it because it costs something small and asks for nothing back. Shadow Wonder counts that as one of its quietest adventures: give a gift the world will never confirm it received.",
+            tags: ["lore", "shadow-wonder", "shadow", "offering", "hospitality", "fae", "folklore", "kindness"],
+            practice: "Leave one small, genuine offering tonight with no audience — crumbs for the birds, a saucer on the sill, a kindness no one will trace back to you."
+        ),
+        ReferenceSnippet(
+            id: "shadow-lore-shadow-self",
+            sourceID: "labyrinth-lore",
+            title: "The Shadow You Disowned",
+            prompt: "Witness the part you keep in the dark.",
+            body: "Old stories are full of disowned things that grow dangerous only because they were locked away — the uninvited thirteenth guest, the cellar no one opens, the name never spoken. The lesson repeats: what you refuse to look at runs your house from the dark. Shadow Wonder is not brooding and it is not wallowing. It is the simple, brave act of turning the lamp toward the thing you usually file under \"ugly, delete\" — the rust, the regret, the unflattering want — and witnessing it without flinching or fixing. The Unseelie respect that. So does the part of you that has been waiting to be seen.",
+            tags: ["lore", "shadow-wonder", "shadow", "shadow-self", "grief", "folklore", "psychology", "duskthorn"],
+            practice: "Notice one small thing about today you'd rather not look at, and look at it for ten honest seconds — no fixing, no verdict. Write what you actually saw."
         )
     ]
 
@@ -860,7 +1016,7 @@ enum BookReferenceCatalog {
         now: Date = Date(),
         limit: Int = 8
     ) -> [ReferenceSnippet] {
-        let snippets = wonderCompass
+        let snippets = wonderCompass.filter { !$0.tags.map { $0.lowercased() }.contains("shadow-wonder") }
         guard !snippets.isEmpty else { return [] }
 
         let contextTerms = wonderCompassContextTerms(for: day, inputs: inputs, now: now)
@@ -918,6 +1074,24 @@ enum BookReferenceCatalog {
         let pool = relevantLoreSnippets(for: day, inputs: inputs, now: now, limit: 8)
         return rotatedSnippet(from: pool, day: day, sourceID: "labyrinth-lore", now: now, manual: manual)
             ?? dailyEnchantifyLoreSnippet(for: day, now: now)
+    }
+
+    /// The Dusk Thorn's shelf — bundled shadow-tagged lore plus the fallback pool.
+    static var shadowLore: [ReferenceSnippet] {
+        let bundled = enchantifyLore.filter { $0.tags.map { $0.lowercased() }.contains("shadow-wonder") }
+        return bundled.isEmpty ? fallbackShadowLore : bundled
+    }
+
+    /// One Shadow Wonder lore card, rotated through the dark shelf so the Unseelie
+    /// etiquette, the correspondences, and the rest take turns rather than repeating.
+    static func rotatingShadowLoreSnippet(
+        for day: BookDay,
+        now: Date = Date(),
+        manual: Bool = false
+    ) -> ReferenceSnippet {
+        rotatedSnippet(from: shadowLore, day: day, sourceID: "labyrinth-lore-shadow", now: now, manual: manual)
+            ?? fallbackShadowLore.first
+            ?? snippet(from: shadowLore, dayID: day.id, sourceID: "labyrinth-lore-shadow", now: now)
     }
 
     static func relevantLoreSnippets(
@@ -1184,10 +1358,32 @@ struct QuipPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
-        return [quipSurface(for: day, context: context, inputs: inputs, now: now, manual: false)]
+        var pages = [quipSurface(for: day, context: context, inputs: inputs, now: now, manual: false)]
+        if ShadowWonder.state(inputs: inputs, now: now).isActive {
+            pages.append(
+                quipSurface(
+                    for: day,
+                    context: context,
+                    inputs: inputs,
+                    now: now,
+                    manual: false,
+                    shadowVariantOf: pages[0].id
+                )
+            )
+        }
+        return pages
     }
 
-    private func quipSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date, manual: Bool) -> SurfacePage {
+    private func quipSurface(
+        for day: BookDay,
+        context: CuratorContext,
+        inputs: BookSourceInputs,
+        now: Date,
+        manual: Bool,
+        shadowVariantOf: String? = nil
+    ) -> SurfacePage {
+        let isShadowVariant = shadowVariantOf != nil
+        let shadowState = ShadowWonder.state(inputs: inputs, now: now)
         let tags = [
             inputs.weather?.phrase,
             inputs.body?.status,
@@ -1195,34 +1391,41 @@ struct QuipPageSourceAdapter: BookPageSourceAdapter {
         ]
             .compactMap(\.self)
             .flatMap { $0.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init) }
+            + (isShadowVariant ? ShadowWonder.tags(inputs: inputs, now: now) : [])
         let quip = QuipPackRegistry.quip(
             for: day,
             now: manual ? now.addingTimeInterval(Double(Int.random(in: 1...10_000))) : now,
             tags: tags
         )
         let hour = Calendar.current.component(.hour, from: now)
-        let score = context.distress.isActive ? 42 : (hour >= 12 && hour <= 18 ? 69 : 58)
+        let score = (context.distress.isActive ? 42 : (hour >= 12 && hour <= 18 ? 69 : 58)) + (isShadowVariant ? shadowState.scoreBoost : 0)
         let slotID = manual ? "\(Int(now.timeIntervalSince1970))" : SurfaceCadence.minuteSlotID(for: now, minutes: 20)
+        let baseTags = quip.tags.joined(separator: ",")
+        var metadata = [
+            "source": source.id,
+            "packID": quip.packID,
+            "quipID": quip.id,
+            "tags": isShadowVariant ? ShadowWonder.mergedTags(baseTags, inputs: inputs, now: now) : baseTags,
+            "privacy": "bundled local text"
+        ]
+        if let shadowVariantOf {
+            metadata["shadowVariantOf"] = shadowVariantOf
+            metadata["variant"] = "shadow-wonder"
+        }
         return SurfacePage(
-            id: "\(source.id)-\(quip.packID)-\(quip.id)-\(slotID)",
+            id: "\(source.id)-\(isShadowVariant ? "shadow-" : "")\(quip.packID)-\(quip.id)-\(slotID)",
             type: .quip,
             sourceID: source.id,
             intent: .importReference,
             renderStyle: .quoteCard,
             score: score,
-            reason: "A small oddity can tilt the day toward wonder without asking for work.",
-            prompt: quip.title,
+            reason: isShadowVariant ? "This Shadow Wonder quip variant tilts the day toward the dark edge without pretending it is bright." : "A small oddity can tilt the day toward wonder without asking for work.",
+            prompt: isShadowVariant ? "Shadow Quip: \(quip.title)" : quip.title,
             detail: "A little perspective-spark from \(QuipPackRegistry.enabledPacks.first { $0.id == quip.packID }?.displayName ?? "the shelf").",
             payload: BookPagePayload(
                 headline: quip.title,
                 body: quip.text,
-                metadata: [
-                    "source": source.id,
-                    "packID": quip.packID,
-                    "quipID": quip.id,
-                    "tags": quip.tags.joined(separator: ","),
-                    "privacy": "bundled local text"
-                ]
+                metadata: metadata
             )
         )
     }

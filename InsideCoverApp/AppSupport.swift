@@ -548,6 +548,9 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     /// True while a spoken break is on air (so the finish handler knows to
     /// resume music rather than count another song).
     private var isPlayingBanter = false
+    /// True while a station-format interstitial (for example pirate static)
+    /// is on air between real broadcast items.
+    private var isPlayingInterstitial = false
     /// A lock-screen pause is reversible. The in-app power/Quiet controls still
     /// call `stop`, which clears the station and removes Now Playing metadata.
     private var isPausedByRemoteControl = false
@@ -555,6 +558,8 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     private var playoutToken = UUID()
     /// Song queued to play once the current DJ break finishes.
     private var pendingTrack: RadioTrack?
+    /// DJ break queued to play once an interstitial finishes.
+    private var pendingBanter: RadioBanter?
 
     /// Optional hook so the app can feed live world-state (the Nothing's grey,
     /// an active festival) into banter selection without coupling the manager to
@@ -598,11 +603,13 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         tracksSinceTune = 0
         tracksSinceBanter = 0
         isPlayingBanter = false
+        isPlayingInterstitial = false
         isPausedByRemoteControl = false
         isPlayingTuningNoise = false
         nowPlayingBanter = nil
         playoutToken = UUID()
         pendingTrack = nil
+        pendingBanter = nil
 
         let track = selectTrack(for: station)
         isPlaying = true
@@ -636,6 +643,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     /// procedural fallback still loops (no sequencing without bundled audio).
     private func beginTrack(_ track: RadioTrack?, for station: RadioStation) {
         isPlayingBanter = false
+        isPlayingInterstitial = false
         nowPlayingBanter = nil
         player.stop()
         filePlayer?.stop()
@@ -676,10 +684,18 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
 
     private func handlePlayoutItemFinished() {
         guard isPlaying, let station = activeStation else { return }
+        if isPlayingInterstitial {
+            resumeAfterInterstitial(for: station)
+            return
+        }
         if isPlayingBanter {
             // A break just ended — play whatever song was queued behind it (an
             // intro's bound song, or the next in rotation) so the order holds.
-            resumeAfterBanter(for: station)
+            if shouldPlayInterstitial(for: station) {
+                playInterstitial(for: station)
+            } else {
+                resumeAfterBanter(for: station)
+            }
             return
         }
         // A song just ended. Look both ways: the song that just finished (for
@@ -707,10 +723,63 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             // Hold the upcoming song so it plays right after the break — this is
             // what makes an intro ("Coming up, Folktronica…") land on its song.
             pendingTrack = upcoming
-            playBanter(banter, for: station)
+            if shouldPlayInterstitial(for: station) {
+                pendingBanter = banter
+                playInterstitial(for: station)
+            } else {
+                playBanter(banter, for: station)
+            }
         } else {
             pendingTrack = nil
-            beginTrack(upcoming, for: station)
+            if shouldPlayInterstitial(for: station) {
+                playInterstitial(for: station)
+            } else {
+                beginTrack(upcoming, for: station)
+            }
+        }
+    }
+
+    private func shouldPlayInterstitial(for station: RadioStation) -> Bool {
+        station.interstitialAssetName.flatMap { resolvedAudioURL(forAssetName: $0) } != nil
+    }
+
+    private func playInterstitial(for station: RadioStation) {
+        guard let asset = station.interstitialAssetName,
+              let url = resolvedAudioURL(forAssetName: asset) else {
+            resumeAfterInterstitial(for: station)
+            return
+        }
+        nowPlayingBanter = nil
+        isPlayingBanter = false
+        isPlayingInterstitial = true
+        statusLine = "\(station.displayFrequency) \(station.title) — static between broadcasts."
+        sourceLine = "On air: \(station.interstitialTitle ?? "Pirate static")."
+        player.stop()
+        filePlayer?.stop()
+        filePlayer = nil
+
+        do {
+            let staticPlayer = try AVAudioPlayer(contentsOf: url)
+            staticPlayer.numberOfLoops = 0
+            staticPlayer.volume = 0.72
+            staticPlayer.delegate = self
+            staticPlayer.prepareToPlay()
+            staticPlayer.play()
+            filePlayer = staticPlayer
+            updateSystemNowPlayingStatic(frequency: station.frequency)
+        } catch {
+            appLog.error("Radio interstitial failed: \(error.localizedDescription, privacy: .public)")
+            resumeAfterInterstitial(for: station)
+        }
+    }
+
+    private func resumeAfterInterstitial(for station: RadioStation) {
+        isPlayingInterstitial = false
+        if let banter = pendingBanter {
+            pendingBanter = nil
+            playBanter(banter, for: station)
+        } else {
+            resumeAfterBanter(for: station)
         }
     }
 
@@ -718,6 +787,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         playback.recordBanter(banter.id)
         tracksSinceBanter = 0
         nowPlayingBanter = banter
+        isPlayingInterstitial = false
         statusLine = "\(station.displayFrequency) \(station.title) — \(station.hostDisplayName) on air."
         player.stop()
         filePlayer?.stop()
@@ -758,6 +828,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     private func resumeAfterBanter(for station: RadioStation) {
         let track = pendingTrack ?? selectNextTrack(for: station)
         pendingTrack = nil
+        pendingBanter = nil
         beginTrack(track, for: station)
     }
 
@@ -788,12 +859,14 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         tracksSinceBanter = 0
         isPlaying = true
         isPlayingBanter = false
+        isPlayingInterstitial = false
         isPausedByRemoteControl = false
         isPlayingTuningNoise = true
         nowPlayingBanter = nil
         activeStation = nil
         activeTrack = nil
         pendingTrack = nil
+        pendingBanter = nil
         playoutToken = UUID()
 
         let noise = min(1, max(0.18, abs(sin(frequency)) * 0.82))
@@ -845,6 +918,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         activeBuffer = nil
         isPlaying = false
         isPlayingBanter = false
+        isPlayingInterstitial = false
         isPausedByRemoteControl = false
         isPlayingTuningNoise = false
         nowPlayingBanter = nil
@@ -852,6 +926,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         tracksSinceBanter = 0
         playoutToken = UUID()
         pendingTrack = nil
+        pendingBanter = nil
         playback = .off
         activeStation = nil
         activeTrack = nil
@@ -974,9 +1049,11 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         configureAudioSession()
         configureSystemNowPlayingIfNeeded()
         pendingTrack = nil
+        pendingBanter = nil
         isPlaying = true
         isPausedByRemoteControl = false
         isPlayingBanter = false
+        isPlayingInterstitial = false
         tracksSinceTune += 1
         beginTrack(selectNextTrack(for: station), for: station)
         PlayerVault.shared.data.radio = playback
@@ -2137,7 +2214,15 @@ import UserNotifications
 enum BookWhispers {
     static let identifierPrefix = "book-whisper-"
 
-    static func refreshSchedule(enabled: Bool, electives: [UnwrittenElective], whisperController: String? = nil, whisperSovereign: Bool = false, festivalWhisper: (title: String, body: String)? = nil, now: Date = Date()) {
+    static func refreshSchedule(
+        enabled: Bool,
+        electives: [UnwrittenElective],
+        whisperController: String? = nil,
+        whisperSovereign: Bool = false,
+        festivalWhisper: (title: String, body: String)? = nil,
+        eventWhisper: (title: String, body: String)? = nil,
+        now: Date = Date()
+    ) {
         #if canImport(UserNotifications)
         let center = UNUserNotificationCenter.current()
         center.getPendingNotificationRequests { pending in
@@ -2146,14 +2231,14 @@ enum BookWhispers {
             guard enabled else { return }
             center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
                 guard granted else { return }
-                schedule(center: center, electives: electives, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisper, now: now)
+                schedule(center: center, electives: electives, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisper, eventWhisper: eventWhisper, now: now)
             }
         }
         #endif
     }
 
     #if canImport(UserNotifications)
-    private static func schedule(center: UNUserNotificationCenter, electives: [UnwrittenElective], whisperController: String?, whisperSovereign: Bool, festivalWhisper: (title: String, body: String)?, now: Date) {
+    private static func schedule(center: UNUserNotificationCenter, electives: [UnwrittenElective], whisperController: String?, whisperSovereign: Bool, festivalWhisper: (title: String, body: String)?, eventWhisper: (title: String, body: String)?, now: Date) {
         var requests: [UNNotificationRequest] = []
         let calendar = Calendar.current
 
@@ -2203,6 +2288,24 @@ enum BookWhispers {
                 identifier: "\(identifierPrefix)festival",
                 content: content,
                 trigger: UNCalendarNotificationTrigger(dateMatching: feastTime, repeats: false)
+            ))
+        }
+
+        // Active monthly world events can tap the glass once in the morning,
+        // making authored arcs feel present outside the app without adding a
+        // separate notification system.
+        if let eventWhisper {
+            let content = UNMutableNotificationContent()
+            content.title = eventWhisper.title
+            content.body = eventWhisper.body
+            content.sound = .default
+            var eventTime = DateComponents()
+            eventTime.hour = 10
+            eventTime.minute = 15
+            requests.append(UNNotificationRequest(
+                identifier: "\(identifierPrefix)world-event",
+                content: content,
+                trigger: UNCalendarNotificationTrigger(dateMatching: eventTime, repeats: false)
             ))
         }
 

@@ -327,6 +327,10 @@ struct RadioStation: Codable, Equatable, Identifiable {
     var signalLine: String
     var tracks: [RadioTrack]
     var interludeTitles: [String]
+    /// Optional audio bed that can be inserted between playout items for stations
+    /// whose format depends on atmosphere, such as hidden pirate static.
+    var interstitialAssetName: String? = nil
+    var interstitialTitle: String? = nil
     var effects: [RadioStationEffect]
     /// Rich DJ breaks. Optional + defaulted so existing stations and older
     /// `.reenchantedradio.json` packs (which predate banters) still decode.
@@ -1665,6 +1669,8 @@ enum RadioStationRegistry {
                 )
             ],
             interludeTitles: [],
+            interstitialAssetName: "RadioFreeMarginStatic",
+            interstitialTitle: "Radio Free Margin Static",
             effects: [
                 RadioStationEffect(pageType: .gossip, boost: 12, reason: "The Bleed puts unauthorized truths into circulation."),
                 RadioStationEffect(pageType: .narrativeOS, boost: 8, reason: "A compromised signal wakes the machinery behind the margins."),
@@ -1698,6 +1704,44 @@ enum RadioStationRegistry {
                     caption: "This is not a station ID. After midnight, IDs become handles. Handles become hooks. Stay anonymous, reader.",
                     conditions: RadioBanter.Conditions(timeOfDay: ["night"]),
                     weight: 3
+                ),
+                RadioBanter(
+                    id: "bleed-rant-02", category: .network,
+                    assetName: "DJ_bleed_rant_02",
+                    caption: "Unauthorized transmission continuing. If the Academy says the margin is blank, check whose hand is covering the ink. Static is not silence. Static is a crowd of facts waiting for one reader with nerve enough to tune between the approved numbers.",
+                    conditions: nil,
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "bleed-cast-crew", category: .network,
+                    assetName: "DJ_bleed_cast_crew_01",
+                    caption: "Unauthorized intercept. The faction the Academy won't name on the record: Wicker's crew. Blackwood keeps its memory; Nights keeps its doubt. Watch which one cracks first - the broker, or the believer. You didn't get this from a station. You didn't get this at all.",
+                    conditions: RadioBanter.Conditions(
+                        pageTypes: [.illustration, .castBond, .gossip],
+                        minRecentPagesOfType: 2
+                    ),
+                    weight: 6
+                ),
+                RadioBanter(
+                    id: "bleed-talisman-contraband", category: .network,
+                    assetName: "DJ_bleed_talisman_contraband_01",
+                    caption: "Hidden-band advisory. Five talismans, one per Chapter, and the Academy lists them like heirlooms. Thorn for conflict. Ember for authorship. Cipher for the work we do together. Glass for the unplanned. Clasp for what you receive. They are not heirlooms. They are tools. The grey is up - pick one up and use it. Quietly.",
+                    conditions: RadioBanter.Conditions(minGrey: 35),
+                    weight: 5
+                ),
+                RadioBanter(
+                    id: "bleed-lore-unwritten", category: .network,
+                    assetName: "DJ_bleed_lore_unwritten_01",
+                    caption: "Off the record, off the band: there's a chapter in this building no one can jump into, no one can assign, no one can grade. Yours. The Unwritten one. Everybody wants a look. Don't sign your name at anyone else's door. Write it from the inside. That's the only lock that holds.",
+                    conditions: nil,
+                    weight: 4
+                ),
+                RadioBanter(
+                    id: "bleed-cast-thorne", category: .network,
+                    assetName: "DJ_bleed_cast_thorne_01",
+                    caption: "This is not a station ID. The Headmistress monitors this frequency - Thorne hears the whole band, and she keeps doors from admitting they're tests. If a threshold opens easy tonight, ask who left it open, and what it's measuring. Stay anonymous, reader. Stay awake.",
+                    conditions: RadioBanter.Conditions(timeOfDay: ["night"]),
+                    weight: 4
                 )
             ]
         )
@@ -1859,8 +1903,23 @@ enum RadioStationRegistry {
     }
 
     /// The tuned station's atmosphere line, for coloring generated prose.
-    static func atmosphereLine(state: RadioPlaybackState, unlockedPackIDs: Set<String> = []) -> String? {
-        station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs)?.atmosphereLine
+    static func atmosphereLine(
+        state: RadioPlaybackState,
+        unlockedPackIDs: Set<String> = [],
+        worldEvents: [ResolvedWorldEvent] = []
+    ) -> String? {
+        let stationLine = station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs)?.atmosphereLine
+        let eventLine = worldEvents.radioAtmosphereLine
+        switch (stationLine, eventLine) {
+        case let (station?, event?):
+            return "\(station) | \(event)"
+        case let (station?, nil):
+            return station
+        case let (nil, event?):
+            return event
+        case (nil, nil):
+            return nil
+        }
     }
 
     /// Days of distinct listening before a station can begin forming a
@@ -3572,6 +3631,208 @@ enum TalismanAscendancy {
         let chapter = AcademyChapterRegistry.chapter(forTalismanID: talisman.id)
         let bias = chapter?.storyBias ?? talisman.goals.first ?? "Let its philosophy color the scene."
         return "The \(chapter?.name ?? "ascendant") talisman \(talisman.name) holds the most Belief right now. \(bias)"
+    }
+}
+
+enum ShadowWonder {
+    static let duskThornTalismanID = "dusk-thorn"
+    static let coreTags = ["shadow-wonder", "shadow", "duskthorn", "mono-no-aware"]
+
+    struct State: Equatable {
+        var isUnlocked: Bool
+        var isNight: Bool
+        var isDuskthornAscendant: Bool
+        var isHardDay: Bool = false
+        var isSomberWeather: Bool = false
+
+        /// Shadow Wonder leans in when the world turns toward the worn edge: after
+        /// dark, when Duskthorn is ascendant, on hard/grey days, or in somber
+        /// weather. All four are nudges, gated behind the in-world unlock.
+        var isActive: Bool {
+            isUnlocked && (isNight || isDuskthornAscendant || isHardDay || isSomberWeather)
+        }
+
+        var scoreBoost: Int {
+            guard isActive else { return 0 }
+            return 6
+                + (isNight ? 3 : 0)
+                + (isDuskthornAscendant ? 5 : 0)
+                + (isHardDay ? 2 : 0)
+                + (isSomberWeather ? 2 : 0)
+        }
+    }
+
+    /// Weather phrases that earn Shadow Wonder its "harmonize with the grey"
+    /// activation — rain, fog, snow, and overcast skies.
+    private static let somberWeatherTerms = [
+        "rain", "storm", "thunder", "drizzle", "fog", "mist", "haze",
+        "snow", "sleet", "overcast", "grey", "gray", "cloud", "gloom"
+    ]
+
+    static func state(
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar = .current,
+        hardDay: Bool = false
+    ) -> State {
+        let hour = calendar.component(.hour, from: now)
+        let isNight = hour >= 19 || hour < 6
+        let unlocked = (inputs.entityBeliefOffsets[duskThornTalismanID] ?? 0) > 0
+        let ascendant = TalismanAscendancy.ascendant(
+            entities: NarrativePackRegistry.entities,
+            beliefOffsets: inputs.entityBeliefOffsets
+        )?.id == duskThornTalismanID
+        let weather = (inputs.weather?.phrase ?? "").lowercased()
+        let somber = somberWeatherTerms.contains { weather.contains($0) }
+        // Hard/grey days: an explicit distress flag from the curator, or the same
+        // low/watch body signal the Recovery Compass leans on. Derived from inputs
+        // so activation and tagging stay consistent at every call site.
+        let bodyStatus = (inputs.body?.status ?? "").lowercased()
+        let bodyHard = bodyStatus.contains("low") || bodyStatus.contains("watch") || bodyStatus.contains("rest")
+        return State(
+            isUnlocked: unlocked,
+            isNight: isNight,
+            isDuskthornAscendant: ascendant,
+            isHardDay: hardDay || bodyHard,
+            isSomberWeather: somber
+        )
+    }
+
+    static func tags(inputs: BookSourceInputs, now: Date, calendar: Calendar = .current) -> [String] {
+        let current = state(inputs: inputs, now: now, calendar: calendar)
+        guard current.isActive else { return [] }
+        var tags = coreTags
+        if current.isNight {
+            tags.append("night")
+        }
+        if current.isDuskthornAscendant {
+            tags.append("duskthorn-ascendant")
+        }
+        if current.isHardDay {
+            tags.append("hard-day")
+        }
+        if current.isSomberWeather {
+            tags.append("somber-weather")
+        }
+        return tags
+    }
+
+    static func mergedTags(_ existing: String?, inputs: BookSourceInputs, now: Date, extra: [String] = []) -> String {
+        let parsed = existing?
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
+        return Array(Set(parsed + extra + tags(inputs: inputs, now: now))).sorted().joined(separator: ",")
+    }
+
+    static func contextTerms(inputs: BookSourceInputs, now: Date, calendar: Calendar = .current) -> [String] {
+        guard state(inputs: inputs, now: now, calendar: calendar).isActive else { return [] }
+        return [
+            "shadow", "dark", "night", "rust", "decay", "broken", "old", "forgotten",
+            "abandoned", "mystery", "tribute", "history", "memory", "duskthorn",
+            "mono-no-aware", "threshold", "grey"
+        ]
+    }
+
+    static func prefers(mission: PlayfulMission) -> Bool {
+        let haystack = ([mission.id, mission.title, mission.prompt, mission.proofPrompt] + mission.tags)
+            .joined(separator: " ")
+            .lowercased()
+        return [
+            "shadow", "night", "dark", "old", "history", "decay", "repair", "rust",
+            "threshold", "forgotten", "witness", "waiting", "mystery", "tribute"
+        ].contains { haystack.contains($0) }
+    }
+
+    /// The North = Notice "I wonder" pool for Shadow Wonder — mono no aware made
+    /// into a question. Selection favors sparks that fit the hour, the weather, and
+    /// what the reader has been keeping, with slot rotation so consecutive runs
+    /// differ. The bright Compass has `WonderSparkRegistry`; this is its dark twin.
+    struct ShadowSpark: Equatable {
+        var id: String
+        var text: String
+        var tags: [String] = []
+    }
+
+    static let shadowSparks: [ShadowSpark] = [
+        ShadowSpark(id: "sw-witness", text: "I wonder what broken, old, shadowed, or overlooked thing nearby is asking to be witnessed?", tags: ["decay"]),
+        ShadowSpark(id: "sw-rust", text: "I wonder how long this rust has been keeping its slow appointment with the ground?", tags: ["decay", "old"]),
+        ShadowSpark(id: "sw-closed-door", text: "I wonder who locked that closed door for the last time, and what they felt walking away?", tags: ["old", "threshold"]),
+        ShadowSpark(id: "sw-lit-window", text: "I wonder which lit window on the street is running an honest errand in the dark right now?", tags: ["night"]),
+        ShadowSpark(id: "sw-dark-rooms", text: "I wonder what the unlit rooms of this place do differently when no one is in them?", tags: ["night"]),
+        ShadowSpark(id: "sw-grey-key", text: "I wonder what this grey weather is in a minor key about, instead of calling it empty?", tags: ["grey", "somber"]),
+        ShadowSpark(id: "sw-worn-edges", text: "I wonder what history is still visible here if I stop deleting the worn edges?", tags: ["old"]),
+        ShadowSpark(id: "sw-last-light", text: "I wonder what the last, most stubborn light in the room is quietly guarding?", tags: ["night"]),
+        ShadowSpark(id: "sw-threshold", text: "I wonder what crossed this threshold before me, and whether it wiped its feet?", tags: ["threshold"]),
+        ShadowSpark(id: "sw-repaired", text: "I wonder what time has done to the most repaired, taped-together thing within reach?", tags: ["decay", "old"]),
+        ShadowSpark(id: "sw-night-smell", text: "I wonder what the night smells like tonight that the day kept to itself?", tags: ["night"]),
+        ShadowSpark(id: "sw-drawer", text: "I wonder what got left behind in the drawer I haven't opened in a month?", tags: ["old"]),
+        ShadowSpark(id: "sw-crack", text: "I wonder what this crack stopped pretending about when it finally opened?", tags: ["decay"]),
+        ShadowSpark(id: "sw-between-hour", text: "I wonder what this between-hour — this dusk, this midnight — is asking me to actually notice?", tags: ["night", "liminal"]),
+        ShadowSpark(id: "sw-compost", text: "I wonder what small, unfashionable grief is composting itself into something useful right now?", tags: ["grief", "somber"]),
+        ShadowSpark(id: "sw-rain", text: "I wonder why this rain on the glass feels cinematic instead of empty?", tags: ["grey", "somber"])
+    ]
+
+    static func spark(inputs: BookSourceInputs, now: Date, dayID: String = BookDay.today().id, calendar: Calendar = .current) -> String {
+        guard !shadowSparks.isEmpty else {
+            return "I wonder what broken, old, shadowed, or overlooked thing is asking to be witnessed?"
+        }
+        var contextTags: Set<String> = []
+        let hour = calendar.component(.hour, from: now)
+        if hour >= 19 || hour < 6 { contextTags.insert("night"); contextTags.insert("liminal") }
+        let text = recentText(inputs: inputs).lowercased()
+        let weather = (inputs.weather?.phrase ?? "").lowercased()
+        if weather.contains("rain") || weather.contains("storm") || weather.contains("fog")
+            || text.contains("grey") || text.contains("gray") { contextTags.insert("grey"); contextTags.insert("somber") }
+        if text.contains("old") || text.contains("history") || text.contains("memory") { contextTags.insert("old") }
+        if text.contains("lost") || text.contains("grief") || text.contains("miss") { contextTags.insert("grief") }
+
+        let slot = SurfaceCadence.slotID(for: now, hours: 2)
+        let scored = shadowSparks.map { spark -> (ShadowSpark, Int) in
+            let affinity = contextTags.intersection(Set(spark.tags)).count * 6
+            let jitter = abs("\(dayID)-\(slot)-\(spark.id)-shadowspark".stableHash % 11)
+            return (spark, affinity + jitter)
+        }
+        return scored.max { $0.1 < $1.1 }?.0.text ?? shadowSparks[0].text
+    }
+
+    static func destination(inputs: BookSourceInputs) -> String {
+        if let place = inputs.nearbyPlaces.first {
+            return "\(place.name), or one overlooked edge on the way there"
+        }
+        return "one nearby threshold, old object, cracked surface, dark window, or forgotten corner"
+    }
+
+    static func delight(inputs: BookSourceInputs, now: Date) -> String {
+        state(inputs: inputs, now: now).isNight
+            ? "low light, a warm drink, and music that lets the room keep its shadows"
+            : "a slow pace, one photograph if it helps, and permission to find beauty without brightening it"
+    }
+
+    static func mission(inputs: BookSourceInputs) -> String {
+        if inputs.nearbyPlaces.contains(where: { "\($0.name) \($0.category)".lowercased().contains("historic") }) {
+            return "Run the Mystery Mission: find one clue about what this place used to be."
+        }
+        return "Run the Tribute Mission: find one broken, repaired, old, or fading thing and honor what it has survived."
+    }
+
+    static let souvenirPrompt = "Write one sentence of evidence: what passed, what remained, and what beauty did not need to be cheerful."
+
+    /// The catchable vocabulary the Shadow Sentence Runner drops into the margin
+    /// when Shadow Wonder is active — the worn-edge lexicon, sourced from the
+    /// `shadowWonder` sentence pack so the game and the polisher stay in step.
+    static var gameWords: [String] {
+        let pack = SentenceBuilderPack.shadowWonder
+        return Array(Set(pack.concreteWords + pack.sensoryWords + pack.animateVerbs + pack.crossingWords)).sorted()
+    }
+
+    private static func recentText(inputs: BookSourceInputs) -> String {
+        inputs.days
+            .suffix(3)
+            .flatMap(\.pages)
+            .suffix(8)
+            .map { "\($0.promptText) \($0.userInput) \($0.tags.joined(separator: " "))" }
+            .joined(separator: " ")
     }
 }
 

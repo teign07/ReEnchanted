@@ -284,6 +284,45 @@ final class SentenceBuilderTests: XCTestCase {
         XCTAssertTrue(engine.moves(for: tide, in: scaffold).contains { $0.word == "pier" || $0.word == "shell" })
     }
 
+    func testStarterDraftRendersCompleteSentence() throws {
+        let engine = SentenceBuilderEngine(pack: .core)
+
+        let draft = try XCTUnwrap(engine.starterDraft(seed: "rainy-night"))
+        let rendered = engine.render(draft)
+
+        XCTAssertFalse(rendered.contains("{"))
+        XCTAssertFalse(rendered.contains("}"))
+        XCTAssertTrue(rendered.hasSuffix("."))
+        XCTAssertTrue(engine.analyze(rendered).canStandAsComplete)
+    }
+
+    func testImportedPackCanAddStarterTemplates() throws {
+        let json = """
+        {
+          "id": "pack.window",
+          "starterTemplates": [{
+            "id": "window-line",
+            "title": "Window line",
+            "pattern": "The {anchor} made the evening {sense}.",
+            "slots": [
+              { "id": "anchor", "kind": "anchor", "title": "Witness", "options": ["window"] },
+              { "id": "sense", "kind": "sense", "title": "Feeling", "options": ["blue"] }
+            ]
+          }]
+        }
+        """.data(using: .utf8)!
+        let importPack = try JSONDecoder().decode(SentenceBuilderPack.self, from: json)
+        let composed = SentenceBuilderPack.core.merged(with: importPack)
+        let engine = SentenceBuilderEngine(pack: composed)
+
+        XCTAssertTrue(composed.starterTemplates.contains { $0.id == "window-line" })
+        let draft = try XCTUnwrap(composed.starterTemplates.first { $0.id == "window-line" }.map {
+            SentenceStarterDraft(template: $0, selections: ["anchor": "window", "sense": "blue"])
+        })
+
+        XCTAssertEqual(engine.render(draft), "The window made the evening blue.")
+    }
+
     func testComposedCoreMergesEntitledExpansionPack() {
         // The locked bundled expansion is invisible until owned…
         PackEntitlements.ownedPackIDs.remove("pack.night-and-garden")
