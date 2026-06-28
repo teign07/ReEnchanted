@@ -169,6 +169,42 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(page.privacy, .localSensitive)
     }
 
+    func testWeatherPreviewSurfacesInDailyWindowsWithoutCachedWeather() throws {
+        var inputs = richInputs()
+        inputs.weather = nil
+        inputs.enchantedWeather = nil
+
+        for (hour, minute, windowID) in [(8, 0, "morning"), (13, 0, "midday"), (18, 0, "evening")] {
+            let pages = BookCurator.surfacedPages(
+                for: emptyDay(),
+                inputs: inputs,
+                now: localDate(hour: hour, minute: minute),
+                limit: 20
+            )
+            let weather = try XCTUnwrap(pages.first { $0.type == .weather }, "Expected Weather preview in \(windowID)")
+
+            XCTAssertEqual(weather.payload.metadata["weatherPreview"], "true")
+            XCTAssertEqual(weather.payload.metadata["requiresWeatherRefresh"], "true")
+            XCTAssertEqual(weather.payload.metadata["checkInWindowID"], windowID)
+            XCTAssertTrue(SurfaceReadinessState(surface: weather).needsLocalBrainToOpen)
+        }
+    }
+
+    func testWeatherPreviewStaysQuietOutsideDailyWindowsWithoutCachedWeather() {
+        var inputs = richInputs()
+        inputs.weather = nil
+        inputs.enchantedWeather = nil
+
+        let pages = BookCurator.surfacedPages(
+            for: emptyDay(),
+            inputs: inputs,
+            now: localDate(hour: 11),
+            limit: 20
+        )
+
+        XCTAssertFalse(pages.contains { $0.type == .weather })
+    }
+
     func testDailyCheckInAffinityStaggersCoreCapturePages() {
         assertCheckInPrimary(.mood, atHour: 7, minute: 15)
         assertCheckInPrimary(.fuel, atHour: 8, minute: 30)
@@ -558,7 +594,7 @@ final class BookCuratorTests: XCTestCase {
             tags: ["souvenir", "fog", "walk"],
             usedInBookOfYou: true
         )
-        var inputs = richInputs()
+        var inputs = richInputs().withMatureLibrary(now: now)
         inputs.weather = WeatherSourceSignal(
             phrase: "Fog at the window.",
             source: "test",
@@ -1829,6 +1865,14 @@ final class BookCuratorTests: XCTestCase {
                 promptText: "Dictionary Rebellion",
                 userInput: "A better definition.",
                 tags: ["world-event", "event:dictionary-rebellion", "event-fieldwork"]
+            ),
+            BookPage(
+                id: "event-word-ruling",
+                type: .wordNegotiation,
+                createdAt: localDate(year: 2026, month: 9, day: 12, hour: 9),
+                promptText: "Rule on almost",
+                userInput: "Almost means a door deciding.",
+                tags: ["word-negotiation", "event:dictionary-rebellion", "event-word-ruled"]
             )
         ]
         let day = BookDay(id: "2026-09-12", date: localDate(year: 2026, month: 9, day: 12, hour: 0), pages: pages)
@@ -1837,11 +1881,70 @@ final class BookCuratorTests: XCTestCase {
 
         let event = try XCTUnwrap(WorldEventResolver.activeEvents(now: now, inputs: inputs).first { $0.id == "dictionary-rebellion" })
 
-        XCTAssertEqual(event.playerTouchCount, 2)
+        XCTAssertEqual(event.playerTouchCount, 3)
         XCTAssertEqual(event.playerTouchCounts?[WorldEventTouchKind.letterKept.rawValue], 1)
         XCTAssertEqual(event.playerTouchCounts?[WorldEventTouchKind.fieldworkCompleted.rawValue], 1)
+        XCTAssertEqual(event.playerTouchCounts?[WorldEventTouchKind.wordRuled.rawValue], 1)
         XCTAssertTrue(event.influenceLine.contains("letter 1"))
         XCTAssertTrue(event.influenceLine.contains("fieldwork 1"))
+        XCTAssertTrue(event.influenceLine.contains("word ruling 1"))
+    }
+
+    func testWordNegotiationAdapterBuildsPackDrivenSurfaceAndSkipsRuledWords() throws {
+        let now = localDate(year: 2026, month: 9, day: 12, hour: 12)
+        let day = BookDay(id: "2026-09-12", date: localDate(year: 2026, month: 9, day: 12, hour: 0), pages: [])
+        var inputs = richInputs()
+        inputs.activeWorldEvents = WorldEventResolver.activeEvents(now: now, inputs: inputs)
+
+        let definition = WordNegotiationDefinition(
+            id: "almost-rebels",
+            word: "almost",
+            originalSense: "not quite",
+            grievance: "It is tired of waiting outside the sentence.",
+            category: .theme,
+            eventID: "dictionary-rebellion",
+            isMissingSeed: true,
+            score: 88,
+            tags: ["test-pack"],
+            choices: [
+                WordNegotiationChoice(
+                    ruling: .adopted,
+                    title: "Adopt",
+                    detail: "Let almost mean a door deciding.",
+                    resultingSense: "a door deciding",
+                    responseLine: "Almost steps into the doorway.",
+                    category: .theme
+                )
+            ]
+        )
+        let adapter = WordNegotiationPageSourceAdapter()
+
+        let surfaces = adapter.candidates(from: [definition], for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now)
+        let surface = try XCTUnwrap(surfaces.first)
+
+        XCTAssertEqual(surface.type, .wordNegotiation)
+        XCTAssertEqual(surface.intent, .capture)
+        XCTAssertEqual(surface.score, 88)
+        XCTAssertEqual(surface.payload.metadata["wordNegotiationID"], "almost-rebels")
+        XCTAssertEqual(surface.payload.metadata["wordNegotiationWordID"], "almost")
+        XCTAssertEqual(surface.payload.metadata["wordNegotiationDefaultRuling"], WordRuling.adopted.rawValue)
+        XCTAssertEqual(surface.payload.metadata["wordNegotiationIsMissingSeed"], "true")
+        XCTAssertEqual(surface.payload.metadata["wordNegotiationChoice.adopted.sense"], "a door deciding")
+        XCTAssertEqual(surface.payload.metadata["worldEventIDs"], "dictionary-rebellion")
+        XCTAssertTrue(surface.payload.metadata["tags"]?.contains("event-word-ruled") == true)
+        XCTAssertTrue(surface.payload.body.contains("Possible rulings"))
+
+        inputs.readerLexicon.upsert(LexiconEntry(
+            word: "almost",
+            originalSense: "not quite",
+            newSense: "a door deciding",
+            ruling: .adopted,
+            category: .theme,
+            origin: .rebellion,
+            ledAt: now
+        ))
+
+        XCTAssertTrue(adapter.candidates(from: [definition], for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now).isEmpty)
     }
 
     func testDictionaryRebellionOutcomeFeedsStoryPacket() {
@@ -1942,6 +2045,7 @@ final class BookCuratorTests: XCTestCase {
 
         let eventDoor = try XCTUnwrap(manual)
         XCTAssertEqual(eventDoor.payload.metadata["worldEventIDs"], "starlit-paper-trial")
+        XCTAssertEqual(eventDoor.payload.metadata["worldEventMode"], WorldEventActivationMode.openedArchive.rawValue)
         // The title heads the page; the body carries the in-world dispatch.
         XCTAssertEqual(eventDoor.payload.headline, "The Starlit Paper Trial")
         XCTAssertTrue(eventDoor.prompt.contains("The Starlit Paper Trial"))

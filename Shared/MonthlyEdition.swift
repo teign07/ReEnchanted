@@ -856,3 +856,115 @@ enum BookForewordWriter {
         return "Here \(year) ends and is kept. Nothing in \(span) can quietly unhappen now; it has been written, named, and bound. Turn back whenever you like — the year will be exactly where you left it, and so, in some way, will you. The next page is always blank on purpose. - The Book"
     }
 }
+
+// MARK: - Physical print specification
+//
+// Everything the binder needs to turn a screen edition into a file a
+// print-on-demand house (Lulu, Blurb, etc.) will accept and bind in cloth.
+// Pure measurement, in inches and points, so it is testable without any
+// graphics framework. The app layer (`MonthlyEditionPDFWriter`) turns these
+// numbers into an interior PDF and a cover wrap.
+//
+// NOTE: `caliperPerPageInches`, `minimumPages`, and `luluPackageID` are sane
+// defaults that MUST be verified against the print partner's current spec
+// sheet before a production order. The interior file is the real deliverable;
+// the cover wrap we generate is a faithful draft — the authoritative cover
+// dimensions come from the partner's per-page-count template at order time.
+
+struct PrintSpec: Equatable {
+    /// Human label, e.g. "6 × 9 Hardcover, cloth & foil".
+    var name: String
+    /// Finished (trimmed) page size, in inches.
+    var trimWidthInches: Double
+    var trimHeightInches: Double
+    /// Bleed past the trim on every interior edge (art must extend this far).
+    var bleedInches: Double
+    /// Safe margin inside the trim that text must not cross.
+    var safeMarginInches: Double
+    /// Extra inner (binding-side) margin so text clears the gutter.
+    var gutterInches: Double
+    /// Thickness contributed by a single interior page, for the spine.
+    var caliperPerPageInches: Double
+    /// The binding's minimum page count; thinner blocks are padded up.
+    var minimumPages: Int
+    /// Hardcase wrap / fold-around allowance on every cover edge.
+    var coverWrapMarginInches: Double
+    /// The partner's product code (Lulu `pod_package_id`); verify before order.
+    var luluPackageID: String
+
+    static let pointsPerInch: Double = 72
+
+    var trimWidthPoints: Double { trimWidthInches * Self.pointsPerInch }
+    var trimHeightPoints: Double { trimHeightInches * Self.pointsPerInch }
+    var bleedPoints: Double { bleedInches * Self.pointsPerInch }
+
+    /// Interior content margins (points), measured from the full-bleed page edge:
+    /// the binding side carries the extra gutter.
+    var interiorMarginsPoints: (top: Double, left: Double, bottom: Double, right: Double) {
+        let edge = (bleedInches + safeMarginInches) * Self.pointsPerInch
+        let inner = (bleedInches + safeMarginInches + gutterInches) * Self.pointsPerInch
+        return (top: edge, left: inner, bottom: edge, right: edge)
+    }
+
+    /// The default keepsake: a classic 6×9 trade hardcover, cloth with a
+    /// foil-stamped spine — the format the edition's "Chapter N" spine copy
+    /// was always written for.
+    static let hardcover6x9 = PrintSpec(
+        name: "6 × 9 Hardcover, cloth & foil",
+        trimWidthInches: 6.0,
+        trimHeightInches: 9.0,
+        bleedInches: 0.125,
+        safeMarginInches: 0.5,
+        gutterInches: 0.25,
+        caliperPerPageInches: 0.0032,
+        minimumPages: 24,
+        coverWrapMarginInches: 0.75,
+        luluPackageID: "0600X0900FCSTDLW060UW444GXX"
+    )
+}
+
+/// The arithmetic that turns a page count into a bound object: how many leaves
+/// the block actually needs, how thick the spine is, and how big the cover wrap
+/// must be. Deterministic and graphics-free, so it is unit-tested directly.
+enum PrintGeometry {
+    /// Round a raw interior page count up to something the bindery will accept:
+    /// at least the binding minimum, and always even (every leaf is two pages).
+    static func boundPageCount(rawPages: Int, spec: PrintSpec) -> Int {
+        var pages = max(rawPages, spec.minimumPages)
+        if pages % 2 != 0 { pages += 1 }
+        return pages
+    }
+
+    /// Spine thickness, in inches, for a finished block of `pageCount` pages.
+    static func spineWidthInches(pageCount: Int, spec: PrintSpec) -> Double {
+        Double(pageCount) * spec.caliperPerPageInches
+    }
+
+    /// The interior page size including bleed, in inches.
+    static func fullBleedTrimInches(spec: PrintSpec) -> (width: Double, height: Double) {
+        (spec.trimWidthInches + spec.bleedInches * 2,
+         spec.trimHeightInches + spec.bleedInches * 2)
+    }
+
+    /// The full cover-wrap canvas — back panel, spine, front panel, plus the
+    /// fold-around margin on every edge — in inches.
+    static func coverWrapSizeInches(pageCount: Int, spec: PrintSpec) -> (width: Double, height: Double) {
+        let spine = spineWidthInches(pageCount: pageCount, spec: spec)
+        let width = spec.coverWrapMarginInches * 2 + spec.trimWidthInches * 2 + spine
+        let height = spec.coverWrapMarginInches * 2 + spec.trimHeightInches
+        return (width, height)
+    }
+
+    /// Where the three panels live on the wrap canvas, in inches, measured from
+    /// the left/top edge. The front panel is on the right (where a closed book
+    /// opens), the back on the left, the spine between them.
+    static func coverPanelsInches(pageCount: Int, spec: PrintSpec)
+        -> (backX: Double, spineX: Double, frontX: Double, panelTopY: Double, spineWidth: Double) {
+        let spine = spineWidthInches(pageCount: pageCount, spec: spec)
+        let backX = spec.coverWrapMarginInches
+        let spineX = backX + spec.trimWidthInches
+        let frontX = spineX + spine
+        return (backX: backX, spineX: spineX, frontX: frontX,
+                panelTopY: spec.coverWrapMarginInches, spineWidth: spine)
+    }
+}

@@ -1114,14 +1114,6 @@ struct GlowCommandMenu: View {
         case .pages:
             pageBeliefSubmenu(compact: compact)
             menuButton(
-                title: "The BookShop",
-                detail: "The Marginalia Goblins' living market: App Store packs, Attention, Belief, and your standing with the Fae.",
-                systemImage: "books.vertical.fill",
-                compact: compact
-            ) {
-                onSelectAction(.openBookShop)
-            }
-            menuButton(
                 title: "The Pact Map",
                 detail: "Watch the Talismans contest the Book's shelves and your real-world doors.",
                 systemImage: "map",
@@ -1150,6 +1142,15 @@ struct GlowCommandMenu: View {
                 Text("Take Belief").tag(GlowBeliefMode.take)
             }
             .pickerStyle(.segmented)
+
+            menuButton(
+                title: "The BookShop",
+                detail: "The Marginalia Goblins' living market: App Store packs, Attention, Belief, and your standing with the Fae.",
+                systemImage: "books.vertical.fill",
+                compact: compact
+            ) {
+                onSelectAction(.openBookShop)
+            }
 
             ForEach(pageTypes) { page in
                 Button {

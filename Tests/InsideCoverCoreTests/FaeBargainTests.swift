@@ -8,21 +8,68 @@ final class FaeBargainTests: XCTestCase {
         Calendar(identifier: .gregorian).date(from: DateComponents(year: year, month: month, day: day)) ?? Date()
     }
 
-    func testOfferFrontsAWorkingGiftAndOwedDebt() {
+    /// Propose a bargain and immediately accept it — the in-app equivalent of the
+    /// reader opening the preview card, which is what fronts the gift now.
+    @discardableResult
+    private func acceptedBargain(into state: inout FaePlayerState, kind: FaeKind, slot: String, now: Date = Date()) -> FaeBargain {
+        let proposed = FaeEconomy.offerBargain(into: &state, kind: kind, slot: slot, now: now)
+        return FaeEconomy.acceptBargain(bargainID: proposed.id, into: &state, now: now) ?? proposed
+    }
+
+    func testOfferOnlyProposesUntilAccepted() {
         var state = FaePlayerState()
         let now = Date()
-        let bargain = FaeEconomy.offerBargain(into: &state, kind: .sentenceSalamander, slot: slot, now: now)
-        XCTAssertEqual(bargain.status, .owed)
+        let proposed = FaeEconomy.offerBargain(into: &state, kind: .sentenceSalamander, slot: slot, now: now)
+
+        // Proposing fronts nothing: no gift, no Claim, no clock. Swiping it away
+        // would cost the reader nothing.
+        XCTAssertEqual(proposed.status, .offered)
         XCTAssertEqual(state.bargains.count, 1)
+        XCTAssertEqual(state.gifts.count, 0, "nothing is fronted before the reader opens the page")
+        XCTAssertEqual(state.claim(for: .sentenceSalamander), 0)
+        XCTAssertNotNil(state.lastBargainOfferedAt)
+    }
+
+    func testAcceptFrontsAWorkingGiftAndOwedDebt() {
+        var state = FaePlayerState()
+        let offerTime = Date()
+        let proposed = FaeEconomy.offerBargain(into: &state, kind: .sentenceSalamander, slot: slot, now: offerTime)
+
+        let acceptTime = offerTime.addingTimeInterval(120)
+        let accepted = FaeEconomy.acceptBargain(bargainID: proposed.id, into: &state, now: acceptTime)
+
+        XCTAssertEqual(accepted?.status, .owed)
         XCTAssertEqual(state.gifts.count, 1)
         let gift = state.gifts.first
         XCTAssertEqual(gift?.isCold, false)
-        XCTAssertEqual(gift?.isActive, true, "a fronted gift works immediately")
-        XCTAssertNotNil(state.lastBargainOfferedAt)
+        XCTAssertEqual(gift?.isActive, true, "an accepted gift works immediately")
         XCTAssertEqual(state.claim(for: .sentenceSalamander), FaeEconomy.claimPerOffer)
-        XCTAssertEqual(bargain.deadline.timeIntervalSince(now),
+        // The payment window starts at acceptance, not at the offer.
+        XCTAssertEqual(accepted?.deadline.timeIntervalSince(acceptTime) ?? 0,
                        Double(FaeEconomy.paymentWindowHours) * 3_600,
                        accuracy: 1)
+    }
+
+    func testAcceptIsIdempotent() {
+        var state = FaePlayerState()
+        let proposed = FaeEconomy.offerBargain(into: &state, kind: .goblin, slot: slot, now: Date())
+        FaeEconomy.acceptBargain(bargainID: proposed.id, into: &state)
+        FaeEconomy.acceptBargain(bargainID: proposed.id, into: &state)
+        XCTAssertEqual(state.gifts.count, 1, "re-opening an accepted bargain does not double-front the gift")
+        XCTAssertEqual(state.claim(for: .goblin), FaeEconomy.claimPerOffer, "Claim is paid once")
+    }
+
+    func testUntouchedOfferExpiresWithoutCost() {
+        var state = FaePlayerState()
+        let stale = Date().addingTimeInterval(-Double(FaeEconomy.offerExpiryHours + 1) * 3_600)
+        FaeEconomy.offerBargain(into: &state, kind: .punctuationPixie, slot: slot, now: stale)
+
+        let withdrawn = FaeEconomy.expireStaleOffers(into: &state, now: Date())
+        XCTAssertEqual(withdrawn.count, 1)
+        XCTAssertTrue(state.bargains.isEmpty, "an unopened offer is simply withdrawn")
+        XCTAssertEqual(state.gifts.count, 0)
+        XCTAssertEqual(state.claim(for: .punctuationPixie), 0, "an untouched offer never costs Claim")
+        XCTAssertTrue(FaeEconomy.canOfferBargain(state: state, now: Date()), "the desk is free for a fresh offer")
     }
 
     func testOnlyOneOpenBargainAtATime() {
@@ -34,7 +81,8 @@ final class FaeBargainTests: XCTestCase {
     func testLapseColdsGiftAndClosesMarket() {
         var state = FaePlayerState()
         let offered = Date().addingTimeInterval(-Double(FaeEconomy.paymentWindowHours + 1) * 3_600)
-        FaeEconomy.offerBargain(into: &state, kind: .punctuationPixie, slot: slot, now: offered)
+        let proposed = FaeEconomy.offerBargain(into: &state, kind: .punctuationPixie, slot: slot, now: offered)
+        FaeEconomy.acceptBargain(bargainID: proposed.id, into: &state, now: offered)
         let lapsed = FaeEconomy.sweepLapses(into: &state, now: Date())
         XCTAssertEqual(lapsed.count, 1)
         XCTAssertEqual(state.bargains.first?.status, .lapsed)
@@ -49,6 +97,7 @@ final class FaeBargainTests: XCTestCase {
     func testDeliveryPaysWarmthAndAttention() {
         var state = FaePlayerState()
         let bargain = FaeEconomy.offerBargain(into: &state, kind: .literaryElf, slot: slot, now: Date())
+        FaeEconomy.acceptBargain(bargainID: bargain.id, into: &state)
         FaeEconomy.deliver(
             bargainID: bargain.id,
             report: "The brass tap over the sink, worn pale where a thousand thumbs have pushed it, still drips at a count of nine.",
@@ -67,6 +116,7 @@ final class FaeBargainTests: XCTestCase {
         var state = FaePlayerState()
         let offered = Date().addingTimeInterval(-Double(FaeEconomy.paymentWindowHours + 1) * 3_600)
         let bargain = FaeEconomy.offerBargain(into: &state, kind: .deepLoreDwarf, slot: slot, now: offered)
+        FaeEconomy.acceptBargain(bargainID: bargain.id, into: &state, now: offered)
         FaeEconomy.sweepLapses(into: &state, now: Date())
         XCTAssertTrue(state.marketIsClosed(for: .deepLoreDwarf))
 
@@ -118,7 +168,8 @@ final class FaeBargainTests: XCTestCase {
         for kind in FaeKind.allCases where kind != .goblin {
             var s = state
             let offered = Date().addingTimeInterval(-Double(FaeEconomy.paymentWindowHours + 1) * 3_600)
-            FaeEconomy.offerBargain(into: &s, kind: kind, slot: "\(slot)-\(kind.rawValue)", now: offered)
+            let proposed = FaeEconomy.offerBargain(into: &s, kind: kind, slot: "\(slot)-\(kind.rawValue)", now: offered)
+            FaeEconomy.acceptBargain(bargainID: proposed.id, into: &s, now: offered)
             FaeEconomy.sweepLapses(into: &s, now: Date())
             state.bargains.append(contentsOf: s.bargains)
             state.gifts.append(contentsOf: s.gifts)
@@ -175,7 +226,7 @@ final class FaeBargainTests: XCTestCase {
 
     func testAdapterSurfacesAnOwedBargain() {
         var state = FaePlayerState()
-        FaeEconomy.offerBargain(into: &state, kind: .bookSprite, slot: slot, now: Date())
+        acceptedBargain(into: &state, kind: .bookSprite, slot: slot, now: Date())
         var inputs = BookSourceInputs.empty
         inputs.faeState = state
         let day = BookDay.today()
@@ -199,7 +250,7 @@ final class FaeBargainTests: XCTestCase {
         let now = fixedDate(2026, 6, 18)
         let scenes = FaeKind.allCases.map { kind -> String in
             var state = FaePlayerState()
-            FaeEconomy.offerBargain(into: &state, kind: kind, slot: "\(slot)-\(kind.rawValue)", now: now)
+            acceptedBargain(into: &state, kind: kind, slot: "\(slot)-\(kind.rawValue)", now: now)
             var inputs = BookSourceInputs.empty
             inputs.faeState = state
 
@@ -227,7 +278,7 @@ final class FaeBargainTests: XCTestCase {
     func testAdapterSurfacesARepairWhenLapsed() {
         var state = FaePlayerState()
         let offered = Date().addingTimeInterval(-Double(FaeEconomy.paymentWindowHours + 1) * 3_600)
-        FaeEconomy.offerBargain(into: &state, kind: .goblin, slot: slot, now: offered)
+        acceptedBargain(into: &state, kind: .goblin, slot: slot, now: offered)
         FaeEconomy.sweepLapses(into: &state, now: Date())
         var inputs = BookSourceInputs.empty
         inputs.faeState = state
@@ -310,7 +361,7 @@ final class FaeBargainTests: XCTestCase {
         let offered = fixedDate(2026, 6, 10)
         let lapsedAt = offered.addingTimeInterval(Double(FaeEconomy.paymentWindowHours + 1) * 3_600)
         let repairedAt = lapsedAt.addingTimeInterval(3_600)
-        let bargain = FaeEconomy.offerBargain(into: &state, kind: .sentenceSalamander, slot: slot, now: offered)
+        let bargain = acceptedBargain(into: &state, kind: .sentenceSalamander, slot: slot, now: offered)
 
         FaeEconomy.sweepLapses(into: &state, now: lapsedAt)
         XCTAssertTrue(state.activeOmens(for: .sentenceSalamander, on: lapsedAt).contains { $0.title == "Cold Gift" })
@@ -339,7 +390,7 @@ final class FaeBargainTests: XCTestCase {
         // No reshelving gift yet.
         XCTAssertTrue(FaeGiftEffects.reshelvedSourceIDs(state: state, surfaceHistory: [:]).isEmpty)
 
-        FaeEconomy.offerBargain(into: &state, kind: .punctuationPixie, slot: slot, now: Date())
+        acceptedBargain(into: &state, kind: .punctuationPixie, slot: slot, now: Date())
         let lifted = FaeGiftEffects.reshelvedSourceIDs(state: state, surfaceHistory: [:])
         XCTAssertEqual(lifted.count, 1, "a warm Reshelving gift lifts exactly one rested source")
 
@@ -348,7 +399,7 @@ final class FaeBargainTests: XCTestCase {
         let offered = Date().addingTimeInterval(-Double(FaeEconomy.paymentWindowHours + 1) * 3_600)
         lapsing.bargains = []
         lapsing.gifts = []
-        FaeEconomy.offerBargain(into: &lapsing, kind: .punctuationPixie, slot: slot, now: offered)
+        acceptedBargain(into: &lapsing, kind: .punctuationPixie, slot: slot, now: offered)
         FaeEconomy.sweepLapses(into: &lapsing, now: Date())
         XCTAssertTrue(FaeGiftEffects.reshelvedSourceIDs(state: lapsing, surfaceHistory: [:]).isEmpty,
                       "a cold Reshelving gift lifts nothing")
@@ -356,7 +407,7 @@ final class FaeBargainTests: XCTestCase {
 
     func testReshelvingHonorsAnExplicitBoundSource() {
         var state = FaePlayerState()
-        FaeEconomy.offerBargain(into: &state, kind: .deepLoreDwarf, slot: slot, now: Date())
+        acceptedBargain(into: &state, kind: .deepLoreDwarf, slot: slot, now: Date())
         let giftIndex = try? XCTUnwrap(state.gifts.firstIndex { $0.effect == .reshelving })
         if let giftIndex = giftIndex.flatMap({ $0 }) {
             state.gifts[giftIndex].boundSourceID = "diary-page"
@@ -366,7 +417,7 @@ final class FaeBargainTests: XCTestCase {
 
     func testCuratorBoostsAReshelvedSource() {
         var state = FaePlayerState()
-        FaeEconomy.offerBargain(into: &state, kind: .punctuationPixie, slot: slot, now: Date())
+        acceptedBargain(into: &state, kind: .punctuationPixie, slot: slot, now: Date())
         var inputs = BookSourceInputs.empty
         inputs.faeState = state
         let mood = CuratorMood.make(inputs: inputs)
@@ -419,13 +470,13 @@ final class FaeBargainTests: XCTestCase {
         XCTAssertEqual(FaeEconomy.canEnterMarket(state: state, now: julyDate()) ,
                        FaeEconomy.marketWindowIsOpen(on: julyDate()))
         // Front a goblin bargain → calling card → market is enterable.
-        FaeEconomy.offerBargain(into: &state, kind: .goblin, slot: slot, now: julyDate())
+        acceptedBargain(into: &state, kind: .goblin, slot: slot, now: julyDate())
         XCTAssertTrue(FaeEconomy.canEnterMarket(state: state, now: julyDate()))
     }
 
     func testLoosePageReadsSomething() {
         var state = FaePlayerState()
-        FaeEconomy.offerBargain(into: &state, kind: .bookSprite, slot: slot, now: Date())
+        acceptedBargain(into: &state, kind: .bookSprite, slot: slot, now: Date())
         let gift = try? XCTUnwrap(state.gifts.first { $0.effect == .loosePage })
         guard let gift = gift.flatMap({ $0 }) else { return XCTFail("no loose page") }
         let text = LoosePageReader.text(for: gift)
@@ -435,7 +486,7 @@ final class FaeBargainTests: XCTestCase {
 
     func testLongMemoryPinsAPageForReturn() {
         var state = FaePlayerState()
-        FaeEconomy.offerBargain(into: &state, kind: .literaryElf, slot: slot, now: Date())
+        acceptedBargain(into: &state, kind: .literaryElf, slot: slot, now: Date())
         let giftIndex = state.gifts.firstIndex { $0.effect == .longMemory }!
         state.gifts[giftIndex].boundSourceID = "kept-page-123"
         XCTAssertEqual(FaeGiftEffects.pinnedPageIDs(state: state), ["kept-page-123"])

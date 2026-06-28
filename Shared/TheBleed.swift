@@ -225,6 +225,19 @@ enum TheBleedEditionBuilder {
         return opening + translation
     }
 
+    static func refreshingWeatherBriefs(
+        _ briefs: [BleedColumnBrief],
+        kind: BleedEditionKind,
+        inputs: BookSourceInputs
+    ) -> [BleedColumnBrief] {
+        briefs.map { brief in
+            guard brief.id == "weather-desk" else { return brief }
+            var refreshed = brief
+            refreshed.composedBody = weatherColumn(kind: kind, inputs: inputs)
+            return refreshed
+        }
+    }
+
     static func almanacColumn(
         kind: BleedEditionKind,
         inputs: BookSourceInputs,

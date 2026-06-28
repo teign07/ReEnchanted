@@ -18,6 +18,40 @@ struct ReEnchantedWidgetCompass: Codable, Equatable {
     var title: String
     var prompt: String
     var point: String
+    var run: ReEnchantedWidgetCompassRun?
+}
+
+struct ReEnchantedWidgetCompassRun: Codable, Equatable {
+    var id: String
+    var title: String
+    var mode: String
+    var timeBox: String
+    var place: String
+    var energy: String
+    var companions: String
+    var north: String
+    var eastDestination: String
+    var eastDelight: String
+    var eastDefinition: String
+    var south: String
+    var west: String
+    var center: String
+    var hint: String?
+
+    func prompt(forStepIndex index: Int) -> String {
+        switch index {
+        case 0:
+            return north
+        case 1:
+            return "Destination: \(eastDestination) Delight: \(eastDelight) Done when: \(eastDefinition)"
+        case 2:
+            return south
+        case 3:
+            return west
+        default:
+            return center
+        }
+    }
 }
 
 struct ReEnchantedWidgetMemory: Codable, Equatable {
@@ -150,7 +184,24 @@ struct ReEnchantedWidgetSnapshot: Codable, Equatable {
         compass: ReEnchantedWidgetCompass(
             title: "Wonder Compass",
             prompt: "Bring back one true sentence from wherever you are.",
-            point: "Center"
+            point: "Center",
+            run: ReEnchantedWidgetCompassRun(
+                id: "fallback-compass-run",
+                title: "Tiny Wonder Run",
+                mode: "Close to Home",
+                timeBox: "10-20 minutes",
+                place: "where you already are",
+                energy: "ordinary tired adult",
+                companions: "solo",
+                north: "I wonder what nearby ordinary thing is quietly asking for attention?",
+                eastDestination: "one threshold, window, shelf, or patch of light nearby",
+                eastDelight: "water, a comfortable pace, or one small treat",
+                eastDefinition: "one answer to the North question appears",
+                south: "Notice one color, one texture, and one sound at the destination.",
+                west: "Write the best sensory moment from the run in one sentence.",
+                center: "Put the phone down for one quiet minute and let the run land.",
+                hint: "Small enough to do is stronger than impressive."
+            )
         ),
         remembered: nil,
         sky: ReEnchantedWidgetSky(

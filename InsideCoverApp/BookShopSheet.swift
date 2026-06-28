@@ -13,10 +13,24 @@ struct BookShopSheet: View {
     let goblinWarmth: Int
     let onBuyWare: (MarketWare) -> Void   // in-world purchase (Attention/Belief)
     let onUnlock: (String) -> Void        // packID, after a verified App Store purchase
+    var onOpenArchive: (String) -> Void = { _ in }
     var onHaggle: (MarketWare) -> Int? = { _ in nil }   // spends 1 Warmth; returns discount, or nil if refused
     var onClerkBanter: () async -> String? = { nil }
     var onOpenBargain: (FaeBargain) -> Void = { _ in }
     var onMarkNextMarket: () -> Void = {}
+
+    // The Bindery shelf: sew a finished month (or year) into a keepable chapter.
+    var binderyMonthLabel: String = ""
+    var binderyMonthPageCount: Int = 0
+    var preparedMonthlyEditionURL: URL? = nil
+    var preparedAnnualEditionURL: URL? = nil
+    var binderyNote: String? = nil
+    var preparedPrintInteriorURL: URL? = nil
+    var preparedPrintCoverURL: URL? = nil
+    var onBindMonth: () -> Void = {}
+    var onBindMonthGemma: () -> Void = {}
+    var onBindYear: () -> Void = {}
+    var onMakePrintReady: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
     @State private var merchantName = ""
@@ -54,6 +68,8 @@ struct BookShopSheet: View {
                         marketHero
                         purseStrip
                         clerkCard
+
+                        binderySection
 
                         if !freePacks.isEmpty {
                             shelfBlock(title: "Free First Folio", subtitle: "One shelf is a gift. The clerk calls it a customer acquisition hex.", symbol: "gift.fill", accent: BookPalette.lampGold) {
@@ -417,6 +433,157 @@ struct BookShopSheet: View {
         }
     }
 
+    /// The Bindery: the discoverable home for binding a finished month or year
+    /// into a chapter the reader can keep, share, or (soon) order in cloth. The
+    /// same actions live in the Colophon's workshop; this surfaces them where a
+    /// reader will actually find them.
+    @ViewBuilder
+    private var binderySection: some View {
+        shelfBlock(
+            title: "The Bindery",
+            subtitle: "Sew a finished month into a chapter — keep it, share it, or send it out for a real cloth binding.",
+            symbol: "books.vertical.fill",
+            accent: BookPalette.lampGold
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .center, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(binderyMonthPageCount > 0 ? binderyMonthLabel : "No finished month yet")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(BookPalette.ink)
+                        Text(binderyMonthPageCount > 0
+                             ? "\(binderyMonthPageCount) \(binderyMonthPageCount == 1 ? "page" : "pages") ready to bind"
+                             : "Keep a few pages and a month will be ready to sew.")
+                            .font(.caption2)
+                            .foregroundStyle(BookPalette.ink.opacity(0.6))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    if let preparedMonthlyEditionURL {
+                        ShareLink(item: preparedMonthlyEditionURL) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                                .font(.caption2.weight(.bold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(BookPalette.lampGold)
+                    } else if binderyMonthPageCount > 0 {
+                        Menu {
+                            Button {
+                                BookFeedback.play(.openPage)
+                                onBindMonth()
+                            } label: {
+                                Label("Bind now (fast)", systemImage: "bolt")
+                            }
+                            Button {
+                                BookFeedback.play(.openPage)
+                                onBindMonthGemma()
+                            } label: {
+                                Label("Bind with Gemma's conclusion", systemImage: "sparkles")
+                            }
+                        } label: {
+                            Label("Bind", systemImage: "book.pages")
+                                .font(.caption2.weight(.bold))
+                        } primaryAction: {
+                            BookFeedback.play(.openPage)
+                            onBindMonth()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(BookPalette.lampGold)
+                    }
+                }
+
+                Divider().overlay(BookPalette.ink.opacity(0.12))
+
+                HStack(alignment: .center, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("The year, bound whole")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(BookPalette.ink)
+                        Text("Every kept month, sewn into one volume.")
+                            .font(.caption2)
+                            .foregroundStyle(BookPalette.ink.opacity(0.6))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    if let preparedAnnualEditionURL {
+                        ShareLink(item: preparedAnnualEditionURL) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                                .font(.caption2.weight(.bold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(BookPalette.lampGold)
+                    } else {
+                        Button {
+                            BookFeedback.play(.openPage)
+                            onBindYear()
+                        } label: {
+                            Label("Bind the year", systemImage: "books.vertical")
+                                .font(.caption2.weight(.bold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(BookPalette.lampGold)
+                    }
+                }
+
+                if let binderyNote {
+                    Text(binderyNote)
+                        .font(.system(.caption2, design: .serif).italic())
+                        .foregroundStyle(BookPalette.ink.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Divider().overlay(BookPalette.ink.opacity(0.12))
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .center, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label("A real cloth-bound copy", systemImage: "shippingbox")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(BookPalette.violet)
+                            Text("Make a print-ready interior + foil-spine cover (6×9 hardcover), then upload them to a printer like Lulu for a mailed book.")
+                                .font(.caption2)
+                                .foregroundStyle(BookPalette.ink.opacity(0.6))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 8)
+                        if preparedPrintInteriorURL == nil {
+                            Button {
+                                BookFeedback.play(.openPage)
+                                onMakePrintReady()
+                            } label: {
+                                Label("Make", systemImage: "hammer")
+                                    .font(.caption2.weight(.bold))
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(BookPalette.violet)
+                        }
+                    }
+                    if let interior = preparedPrintInteriorURL, let cover = preparedPrintCoverURL {
+                        HStack(spacing: 8) {
+                            ShareLink(item: interior) {
+                                Label("Interior PDF", systemImage: "doc.richtext")
+                                    .font(.caption2.weight(.bold))
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(BookPalette.violet)
+                            ShareLink(item: cover) {
+                                Label("Cover PDF", systemImage: "book.closed")
+                                    .font(.caption2.weight(.bold))
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(BookPalette.violet)
+                        }
+                        Text("Proof them free in Lulu's online previewer before you order.")
+                            .font(.caption2)
+                            .foregroundStyle(BookPalette.ink.opacity(0.55))
+                    }
+                }
+            }
+            .padding(10)
+            .background(BookPalette.page.opacity(0.85), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+    }
+
     /// The reader's standing with the Book Fae — folded in from the old Margin:
     /// open debts, gifts in hand, and warmth by species.
     private var standingSection: some View {
@@ -766,6 +933,18 @@ struct BookShopSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
+            if listing.family == .eventPack {
+                Button {
+                    onOpenArchive(listing.packID)
+                } label: {
+                    Image(systemName: "archivebox.fill")
+                        .font(.subheadline.weight(.bold))
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.roundedRectangle(radius: 7))
+                .tint(BookPalette.lampGold)
+                .accessibilityLabel("Open \(listing.title)")
+            }
         }
         .padding(11)
         .background(BookPalette.lampGold.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))

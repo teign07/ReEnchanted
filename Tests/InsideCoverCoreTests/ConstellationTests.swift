@@ -229,7 +229,7 @@ final class ConstellationTests: XCTestCase {
     func testAdapterSurfacesNamingAndWagerPages() {
         let now = date(2026, 6, 10)
         let day = BookDay(id: "2026-06-10", date: date(2026, 6, 10, hour: 0), pages: [])
-        var inputs = BookSourceInputs.empty
+        var inputs = BookSourceInputs.empty.withMatureLibrary(now: now)
         inputs.constellations = [
             Constellation(
                 id: "constellation-pattern-harbor",
@@ -542,7 +542,7 @@ final class ConstellationTests: XCTestCase {
     func testBookNoticesSurfaceCanLeadWithCluster() {
         let now = date(2026, 6, 10)
         let day = BookDay(id: "2026-06-10", date: date(2026, 6, 10, hour: 0), pages: [])
-        var inputs = BookSourceInputs.empty
+        var inputs = BookSourceInputs.empty.withMatureLibrary(now: now)
         inputs.continuity = LiteraryContinuityDigest(
             signals: [
                 signal(id: "pattern-harbor", subjectID: "harbor", subjectName: "Harbor", strength: 74, at: now),

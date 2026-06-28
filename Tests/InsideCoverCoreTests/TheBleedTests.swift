@@ -107,6 +107,65 @@ final class TheBleedTests: XCTestCase {
         XCTAssertTrue(evening.hasPrefix("Tomorrow"))
     }
 
+    func testWeatherBriefCanRefreshFromPlainForecastAtPressTime() throws {
+        let staleBriefs = TheBleedEditionBuilder.columnBriefs(
+            kind: .morning,
+            day: day,
+            inputs: .empty,
+            interest: nil,
+            now: date(10, hour: 8),
+            calendar: calendar
+        )
+        let staleWeather = try XCTUnwrap(staleBriefs.first { $0.id == "weather-desk" })
+        XCTAssertTrue(staleWeather.composedBody.contains("sky declined to file"))
+
+        var inputs = BookSourceInputs.empty
+        inputs.weather = WeatherSourceSignal(
+            phrase: "Current: Rain, 64 F | Forecast: showers later",
+            source: "Open-Meteo",
+            currentTemperature: "64 F",
+            forecast: "showers later",
+            conditionSymbolName: "cloud.rain"
+        )
+
+        let refreshed = TheBleedEditionBuilder.refreshingWeatherBriefs(staleBriefs, kind: .morning, inputs: inputs)
+        let weather = try XCTUnwrap(refreshed.first { $0.id == "weather-desk" })
+
+        XCTAssertTrue(weather.composedBody.contains("Current: Rain, 64 F"))
+        XCTAssertFalse(weather.composedBody.contains("Academy's own translation"))
+    }
+
+    func testWeatherBriefStillUsesGeneratedEnchantedForecastWhenAvailable() throws {
+        var inputs = BookSourceInputs.empty
+        inputs.weather = WeatherSourceSignal(
+            phrase: "Current: Fog, 55 F | Forecast: mist through noon",
+            source: "Open-Meteo",
+            currentTemperature: "55 F",
+            forecast: "mist through noon",
+            conditionSymbolName: "cloud.fog"
+        )
+        inputs.enchantedWeather = EnchantedWeatherSignal(
+            summary: "Fog, 55 F",
+            enchantified: "The world is speaking in pencil.",
+            selector: "gemma-weather",
+            symbolName: "cloud.fog"
+        )
+
+        let briefs = TheBleedEditionBuilder.columnBriefs(
+            kind: .evening,
+            day: day,
+            inputs: .empty,
+            interest: nil,
+            now: date(10, hour: 18),
+            calendar: calendar
+        )
+        let refreshed = TheBleedEditionBuilder.refreshingWeatherBriefs(briefs, kind: .evening, inputs: inputs)
+        let weather = try XCTUnwrap(refreshed.first { $0.id == "weather-desk" })
+
+        XCTAssertTrue(weather.composedBody.contains("Current: Fog, 55 F"))
+        XCTAssertTrue(weather.composedBody.contains("The Academy's own translation: The world is speaking in pencil."))
+    }
+
     func testCompositedBodyReadsLikeAPaper() {
         let briefs = TheBleedEditionBuilder.columnBriefs(
             kind: .morning,

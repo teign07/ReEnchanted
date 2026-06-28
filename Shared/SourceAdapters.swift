@@ -1,6 +1,15 @@
 import Foundation
 
 
+/// Tunable thresholds gating the emergent/reflective pages that comment on the
+/// reader's library rather than capture new material.
+enum EmergentPageMaturity {
+    /// Minimum kept fragments before reflective pages may surface.
+    static let minimumKeptPages = 4
+    /// How long after the first kept page reflective pages stay folded away.
+    static let minimumAgeSeconds: TimeInterval = 6 * 3600
+}
+
 struct BookSourceInputs: Equatable {
     var days: [BookDay] = []
     var body: BodySourceSignal?
@@ -21,6 +30,7 @@ struct BookSourceInputs: Equatable {
     var hemisphere: Hemisphere = .northern
     var surfaceHistory: [String: SurfaceHistoryRecord] = [:]
     var calendarEvents: [CalendarEventSignal] = []
+    var calendarIntegrationEnabled = true
     var nearbyPlaces: [LocalPlaceSignal] = []
     var resurfacingCandidates: [BookPage] = []
     var quietDays: Int = 0
@@ -36,7 +46,9 @@ struct BookSourceInputs: Equatable {
     var bookJump: BookJumpState = BookJumpState()
     var radio: RadioPlaybackState = .off
     var activeWorldEvents: [ResolvedWorldEvent] = []
+    var openWorldEventArchive: OpenWorldEventArchive?
     var ownedPackIDs: Set<String> = []
+    var readerLexicon: ReaderLexicon = ReaderLexicon()
     var localBrainIsReady = false
     var readerBeliefScore: Int = 30
 
@@ -46,6 +58,19 @@ struct BookSourceInputs: Equatable {
 
     var keptPageCount: Int {
         days.reduce(0) { $0 + $1.pages.count }
+    }
+
+    /// Emergent/reflective pages — The Two Readings, the Loom (cast bonds), Book
+    /// Notices, Book Remembers, and Constellations — only mean something once a
+    /// few kept pages have built up and the book has aged past its first hours.
+    /// Holding them back keeps the early days about capturing, not commentary.
+    /// `today` is folded in because the current day usually isn't in `days` yet.
+    func libraryReadyForReflectivePages(includingToday today: BookDay? = nil, now: Date = Date()) -> Bool {
+        let allDays = today.map { days + [$0] } ?? days
+        let captured = allDays.flatMap(\.capturedPages)
+        guard captured.count >= EmergentPageMaturity.minimumKeptPages else { return false }
+        guard let first = captured.map(\.createdAt).min() else { return false }
+        return now.timeIntervalSince(first) >= EmergentPageMaturity.minimumAgeSeconds
     }
     var selectedWonderCompass: ReferenceSnippet?
     var selectedWonderCompassSelector: String?
@@ -93,7 +118,7 @@ struct BookSourceInputs: Equatable {
 
     func resolvingWorldEvents(for day: BookDay? = nil, now: Date = Date()) -> BookSourceInputs {
         var copy = self
-        copy.activeWorldEvents = WorldEventResolver.activeEvents(now: now, day: day, inputs: self)
+        copy.activeWorldEvents = WorldEventResolver.currentEvents(now: now, day: day, inputs: self)
         return copy
     }
 
@@ -966,6 +991,7 @@ struct BookRememberedPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .bookRemembered)
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard inputs.libraryReadyForReflectivePages(includingToday: day, now: now) else { return [] }
         guard !didRememberToday(day) else { return [] }
         guard let visitation = BookRememberedEngine.visitation(
             from: inputs.resurfacingCandidates,
@@ -989,6 +1015,9 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .bookNotices)
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        // Patterns, namings, and wagers only mean something once the library has
+        // enough kept pages to find a pattern in.
+        guard inputs.libraryReadyForReflectivePages(includingToday: day, now: now) else { return [] }
         var pages: [SurfacePage] = []
         pages += namingSurfaces(for: day, inputs: inputs, now: now)
         pages += wagerSurfaces(for: day, inputs: inputs, now: now)
@@ -1551,10 +1580,12 @@ struct WeatherPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .weather)
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        guard source.isActive,
-              let weather = inputs.weather,
-              weather.isAvailable else {
+        guard source.isActive else {
             return []
+        }
+        guard let weather = inputs.weather,
+              weather.isAvailable else {
+            return previewCandidates(for: day, now: now)
         }
         let hour = Calendar.current.component(.hour, from: now)
         let enchanted = inputs.enchantedWeather ?? WeatherEnchanter.fallback(weather: weather, now: now)
@@ -1574,7 +1605,7 @@ struct WeatherPageSourceAdapter: BookPageSourceAdapter {
                 sourceID: source.id,
                 intent: .reflect,
                 renderStyle: .gentleTranslation,
-                score: hour >= 17 ? 87 : 82,
+                score: DailyCheckInCadence.activeWindow(for: now) == nil ? (hour >= 17 ? 87 : 82) : 90,
                 reason: "Outer weather is translated into story mood while keeping the actual forecast legible.",
                 prompt: "The Weather Page has opened.",
                 detail: rawLine,
@@ -1591,6 +1622,44 @@ struct WeatherPageSourceAdapter: BookPageSourceAdapter {
                         "moonPhase": moon.name,
                         "moonSymbol": moon.symbolName,
                         "cadence": "four-hour"
+                    ]
+                )
+            )
+        ]
+    }
+
+    private func previewCandidates(for day: BookDay, now: Date) -> [SurfacePage] {
+        guard let window = DailyCheckInCadence.activeWindow(for: now) else {
+            return []
+        }
+        let moon = MoonPhaseCalendar.phase(on: now)
+        return [
+            SurfacePage(
+                id: "\(source.id)-preview-\(day.id)-\(window.id)",
+                type: .weather,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .gentleTranslation,
+                score: 88,
+                reason: "The Weather Page is near the glass; tap to read the real sky and let Gemma enchant it.",
+                prompt: "The Weather Page is listening at the window.",
+                detail: "Tap to fetch the real forecast and translate it into the Book's weather-words.",
+                payload: BookPagePayload(
+                    headline: "Weather Page",
+                    body: "The page is blank except for a pressed cloud at the corner. Touch it, and the Book will ask the actual sky before it writes.",
+                    metadata: [
+                        "source": source.id,
+                        "uses": "forecast on tap",
+                        "privacy": "public reference",
+                        "selector": "fallback",
+                        "requiresWeatherRefresh": "true",
+                        "weatherPreview": "true",
+                        "symbol": "cloud.sun",
+                        "moonPhase": moon.name,
+                        "moonSymbol": moon.symbolName,
+                        "checkInWindowID": window.id,
+                        "cadence": "check-in-window",
+                        "tags": "weather,preview,\(window.id)"
                     ]
                 )
             )
@@ -4089,9 +4158,73 @@ enum FirstRunPageSequence {
             return [welcome, brain]
         }
 
-        guard !hasKeptFirstSouvenir(day: day, inputs: inputs) else { return nil }
+        let calendarAdapter = CalendarPageSourceAdapter()
+        let calendarDoor = calendarAdapter.previewSurface(for: day)
+        let calendarDoorShown = inputs.surfaceHistory[calendarDoor.varietyKey] != nil
+        if !inputs.calendarIntegrationEnabled, !calendarDoorShown {
+            return [welcome, brain, calendarDoor]
+        }
 
-        return [welcome, brain, firstSouvenirSurface(for: day)]
+        // Onboarding already asks for one true sentence and keeps it as the
+        // reader's first souvenir, so a second "one true sentence" ask here just
+        // duplicates it. If that sentence is already on the shelf, close the
+        // first run with a playful first mission instead. Only fall back to the
+        // souvenir ask when onboarding skipped it, so the Book still gets a
+        // first kept page to braid from.
+        guard hasKeptFirstSouvenir(day: day, inputs: inputs) else {
+            return [welcome, brain, firstSouvenirSurface(for: day)]
+        }
+
+        guard inputs.surfaceHistory["source:\(firstMissionSourceID)"] == nil,
+              !day.pages.contains(where: { $0.tags.contains("first-run-mission") }) else {
+            return nil
+        }
+        return [welcome, brain, firstMissionSurface(playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs))]
+    }
+
+    static let firstMissionSourceID = "first-run-mission"
+
+    private static func firstMissionSurface(playerName: String?) -> SurfacePage {
+        let name = playerName?.nonEmpty ?? "Reader"
+        return SurfacePage(
+            id: "\(firstMissionSourceID)-first-waking",
+            type: .helpTips,
+            sourceID: firstMissionSourceID,
+            intent: .importReference,
+            renderStyle: .loreLetter,
+            score: 99,
+            reason: "The Book has introduced itself and woken its brain; now it sends the reader off with a small first mission.",
+            prompt: "The First Door: Your First Mission",
+            detail: "A small, playful errand to carry into the real day.",
+            payload: BookPagePayload(
+                headline: "A Small Mission, Should You Accept It",
+                body: """
+                There — you, a name, and a working mind. We are properly furnished now, \(name).
+
+                I won't ask you for another sentence. You already gave me one true thing, and it's tucked safely into the shelves; I don't make readers pay the same toll twice.
+
+                Instead, a mission. Small. Deniable. Entirely yours:
+
+                Sometime today, catch the Book one thing from the real world it could not have guessed — a sound through a wall, the exact wrong colour of the sky, a stranger's good sentence, a smell that opened a door in your head. You don't have to write it down this second. Just go looking, on purpose, with the Book in your pocket.
+
+                Three things worth knowing while you're out:
+
+                • Keep the Pages with a pulse, and let the rest go back to sleep. A Book that hoards everything is only a heavy drawer.
+                • The four marks at the foot of the desk — Body, Weather, Location, Radio — are doors, not decorations. Tap one when you want a Page to surface from where you actually are.
+                • Glow is belief made visible. Spend it on the people and ideas you want the Book to take seriously, and it will.
+
+                That's the whole briefing. Go live a little of the day. I'll be here, being a book, doing the one thing I'm unbeatable at: waiting.
+                """,
+                metadata: [
+                    "source": firstMissionSourceID,
+                    "firstRunStep": "first-mission",
+                    "playerName": name,
+                    "privacy": "public reference",
+                    "symbol": "scope",
+                    "tags": "help-tips,first-run,first-run-mission,mission,labyrinth"
+                ]
+            )
+        )
     }
 
     private static func hasKeptFirstSouvenir(day: BookDay, inputs: BookSourceInputs) -> Bool {
@@ -4303,6 +4436,10 @@ struct FaeBargainPageSourceAdapter: BookPageSourceAdapter {
         // Don't crowd a hard day with a debt — the Fae can wait.
         guard !context.distress.isActive else { return [] }
 
+        // A fresh proposal sits on the desk first — opening it is what accepts it.
+        if let offered = state.bargains.first(where: { $0.status == .offered }) {
+            return [page(for: offered, status: .offered, now: now, claim: state.claim(for: offered.faeKind), court: state.literaryElfCourt())]
+        }
         if let owed = state.bargains.first(where: { $0.status == .owed }) {
             return [page(for: owed, status: .owed, now: now, claim: state.claim(for: owed.faeKind), court: state.literaryElfCourt())]
         }
@@ -4336,6 +4473,7 @@ struct FaeBargainPageSourceAdapter: BookPageSourceAdapter {
         court: FaeCourt?
     ) -> SurfacePage {
         let isRepair = status == .lapsed
+        let isOffer = status == .offered
         let hoursLeft = max(0, Int(bargain.deadline.timeIntervalSince(now) / 3_600))
         let deadlineLine = hoursLeft >= 24
             ? "about \(hoursLeft / 24) day\(hoursLeft / 24 == 1 ? "" : "s") to pay"
@@ -4358,6 +4496,18 @@ struct FaeBargainPageSourceAdapter: BookPageSourceAdapter {
             The gift has gone cold. It is still yours, but it no longer answers cleanly; faerie gifts remember the shape of unpaid attention.
 
             \(consequenceLine)
+
+            \(claimLine)\(courtLine)
+            """
+        } else if isOffer {
+            body = """
+            \(scene)
+
+            The \(bargain.faeKind.name) is holding \(bargain.giftName) out across the page — offered, not yet given. It would do this: \(bargain.giftEffectLine)
+
+            \(giftUseLine)
+
+            Open this page to take the gift; the noticing it asks for becomes yours: \(bargain.terms). Leave it unopened and the Fae simply draw the offer back — nothing owed, nothing spent.
 
             \(claimLine)\(courtLine)
             """
@@ -4385,13 +4535,15 @@ struct FaeBargainPageSourceAdapter: BookPageSourceAdapter {
             score: isRepair ? 60 : 79,
             reason: isRepair
                 ? "A bargain lapsed. \(bargain.giftName) has gone cold; the \(bargain.faeKind.name) is closer to the page."
-                : "The \(bargain.faeKind.name) gave first. A sensory return is owed — \(deadlineLine).",
-            prompt: isRepair ? "A Wild Exchange" : "A Fae Bargain",
+                : (isOffer
+                    ? "The \(bargain.faeKind.name) is holding a gift out. Open the page to accept the bargain — or swipe it away, untaken."
+                    : "The \(bargain.faeKind.name) gave first. A sensory return is owed — \(deadlineLine)."),
+            prompt: isRepair ? "A Wild Exchange" : (isOffer ? "A Fae Offer" : "A Fae Bargain"),
             detail: isRepair
                 ? "Repair it with a real noticing. The consequence becomes part of the story."
                 : bargain.terms,
             payload: BookPagePayload(
-                headline: isRepair ? "The Bargain Went Wild" : "A Fae Bargain",
+                headline: isRepair ? "The Bargain Went Wild" : (isOffer ? "A Fae Offer" : "A Fae Bargain"),
                 body: body,
                 metadata: [
                     "source": source.id,
@@ -4819,6 +4971,8 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive, !context.distress.isActive else { return [] }
+        // Hold back until the library has enough kept pages to argue over.
+        guard inputs.libraryReadyForReflectivePages(includingToday: day, now: now) else { return [] }
         // Only when one a day, and only with something worth arguing about.
         guard !day.pages.contains(where: { $0.type == .twoReadings }) else { return [] }
         guard inputs.surfaceHistory["source:\(source.id)"].map({ now.timeIntervalSince($0.lastShownAt) >= 18 * 3600 }) ?? true else {
@@ -5089,6 +5243,8 @@ struct CastBondPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive, !context.distress.isActive else { return [] }
+        // The Loom only changes the web once the reader has kept enough to move it.
+        guard inputs.libraryReadyForReflectivePages(includingToday: day, now: now) else { return [] }
         let entities = NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity)
         let names = Dictionary(uniqueKeysWithValues: entities.map { ($0.id, $0.name) })
         let fired = firedKeys(in: inputs.days + [day])
@@ -5215,6 +5371,96 @@ struct GlowInvitationPageSourceAdapter: BookPageSourceAdapter {
         return days
             .flatMap(\.pages)
             .contains { $0.type == .glowInvitation && $0.createdAt >= cutoff }
+    }
+}
+
+/// Calls the reader to the Bindery at the turn of a month, once the month just
+/// past holds enough bound-worthy pages to earn a cover. It is a nudge, not a
+/// page to keep: tapping it opens the BookShop's Bindery shelf (via the same
+/// `opensBookShop` route the BookShop preview uses), where the actual binding,
+/// sharing, and — later — physical printing live. Swiping it away costs nothing,
+/// and it returns at most once per month.
+struct BinderyPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .bindery)
+
+    /// How many days into a fresh month we still call the reader to the bindery
+    /// for the month just past, while it is still warm.
+    private let bindingWindowDays = 8
+    /// A month must offer at least this many bound-worthy pages (after the
+    /// EditionCurator samples the mundane logs) to be worth a cover. This also
+    /// doubles as a maturity gate: a brand-new library has nothing to bind.
+    private let minimumBoundPages = 3
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive, !context.distress.isActive else { return [] }
+        let calendar = Calendar.current
+
+        // Only early in a fresh month, while the month just past is complete.
+        guard calendar.component(.day, from: now) <= bindingWindowDays else { return [] }
+
+        // Once per month — don't call twice in the same window.
+        let lastShown = inputs.surfaceHistory["source:\(source.id)"]?.lastShownAt ?? .distantPast
+        if lastShown != .distantPast,
+           calendar.isDate(lastShown, equalTo: now, toGranularity: .month) {
+            return []
+        }
+
+        guard let thisMonthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)),
+              let lastMonthStart = calendar.date(byAdding: .month, value: -1, to: thisMonthStart) else {
+            return []
+        }
+
+        // Gather last month's pages and curate them exactly as the binder would,
+        // so the count we promise matches the chapter the reader will get.
+        let lastMonthPages = (inputs.days + [day])
+            .filter { $0.date >= lastMonthStart && $0.date < thisMonthStart }
+            .flatMap(\.pages)
+        guard !lastMonthPages.isEmpty else { return [] }
+
+        let curated = EditionCurator.curate(lastMonthPages, now: now)
+        guard curated.keptCount >= minimumBoundPages else { return [] }
+
+        let monthFormatter = DateFormatter()
+        monthFormatter.dateFormat = "MMMM"
+        let monthName = monthFormatter.string(from: lastMonthStart)
+        let pageWord = curated.keptCount == 1 ? "page" : "pages"
+
+        var detail = "\(monthName) is complete — \(curated.keptCount) \(pageWord) ready to be sewn into a chapter."
+        if let setAside = curated.setAsideLine {
+            detail += " \(setAside)"
+        }
+
+        return [
+            SurfacePage(
+                id: "\(source.id)-\(calendar.component(.year, from: lastMonthStart))-\(calendar.component(.month, from: lastMonthStart))",
+                type: .bindery,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                score: 72,
+                reason: "Last month is ready to bind.",
+                prompt: "The Bindery Is Open",
+                detail: detail,
+                payload: BookPagePayload(
+                    headline: "\(monthName) Wants a Cover",
+                    body: """
+                    The leaves of \(monthName) have stopped turning. \(curated.keptCount) \(pageWord) stand ready to be sewn between covers — yours to keep, to share, or to send out for a real cloth binding.
+
+                    Step into the Bindery and decide how \(monthName) should be remembered.
+                    """,
+                    metadata: [
+                        "source": source.id,
+                        "opensBookShop": "true",
+                        "binderyShelf": "true",
+                        "binderyMonthName": monthName,
+                        "binderyPageCount": "\(curated.keptCount)",
+                        "noBeliefReward": "true",
+                        "symbol": source.symbolName,
+                        "tags": "bindery,binding,edition,monthly-chapter"
+                    ]
+                )
+            )
+        ]
     }
 }
 
@@ -5621,6 +5867,7 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
             "event:\(event.id)",
             "event-phase:\(event.phase.id)",
             "event-outcome:\(event.outcome?.id ?? "none")",
+            "event-mode:\(event.activationMode.rawValue)",
             "event-fieldwork"
         ]
         return SurfacePage(
@@ -5645,6 +5892,7 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
                     "worldEventIDs": event.id,
                     "worldEventTitles": event.title,
                     "worldEventPhase": event.phase.id,
+                    "worldEventMode": event.activationMode.rawValue,
                     "worldEventOutcome": event.outcome?.id ?? "",
                     "worldEventPacket": event.influenceLine,
                     "fieldworkPrompt": event.packet.fieldworkPrompt,
@@ -5691,6 +5939,7 @@ enum BookPageSourceAdapters {
         TwoReadingsPageSourceAdapter(),
         CastBondPageSourceAdapter(),
         GlowInvitationPageSourceAdapter(),
+        BinderyPageSourceAdapter(),
         WeatherPageSourceAdapter(),
         EnchantmentPageSourceAdapter(),
         LabyrinthWelcomePageSourceAdapter(),
@@ -5700,6 +5949,7 @@ enum BookPageSourceAdapters {
         AcademyClassPageSourceAdapter(),
         ElectivePageSourceAdapter(),
         GamePageSourceAdapter(),
+        WordNegotiationPageSourceAdapter(),
         PackPageSourceAdapter(),
         CalendarPageSourceAdapter(),
         QuipPageSourceAdapter(),
@@ -6035,11 +6285,180 @@ struct PackPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+struct WordNegotiationPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .wordNegotiation)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive, !context.distress.isActive else { return [] }
+        return candidates(
+            from: PageArchetypePackRegistry.wordNegotiations(),
+            for: day,
+            context: context,
+            inputs: inputs,
+            now: now
+        )
+    }
+
+    func candidates(
+        from definitions: [WordNegotiationDefinition],
+        for day: BookDay,
+        context: CuratorContext,
+        inputs: BookSourceInputs,
+        now: Date
+    ) -> [SurfacePage] {
+        guard source.isActive, !context.distress.isActive else { return [] }
+        let triggerContext = PageTriggerContext(day: day, inputs: inputs, now: now)
+        return definitions
+            .filter { $0.isEligible(context: triggerContext, readerLexicon: inputs.readerLexicon) }
+            .sorted { left, right in
+                if left.score == right.score {
+                    return "\(day.id)-\(left.id)".stableHash < "\(day.id)-\(right.id)".stableHash
+                }
+                return left.score > right.score
+            }
+            .map { surface(for: $0, day: day, inputs: inputs, now: now) }
+    }
+
+    func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        let triggerContext = PageTriggerContext(day: day, inputs: inputs, now: now)
+        let definitions = PageArchetypePackRegistry.wordNegotiations()
+        let pool = definitions.filter { $0.isEligible(context: triggerContext, readerLexicon: inputs.readerLexicon) }
+        guard let definition = (pool.isEmpty ? definitions : pool).first else {
+            return SurfacePage(
+                id: "\(source.id)-empty-\(Int(now.timeIntervalSince1970))",
+                type: .wordNegotiation,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                score: 34,
+                reason: "No installed pack has offered a living word yet.",
+                prompt: "No Word Is Waiting",
+                detail: "A content pack can add words that ask the reader for a ruling.",
+                payload: BookPagePayload(
+                    headline: "The Dictionary Desk Is Quiet",
+                    body: "No living word is waiting for a ruling. When an installed pack offers one, this desk will open.",
+                    metadata: ["source": source.id, "tags": "word-negotiation,quiet"]
+                )
+            )
+        }
+        return surface(for: definition, day: day, inputs: inputs, now: now)
+    }
+
+    private func surface(
+        for definition: WordNegotiationDefinition,
+        day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date
+    ) -> SurfacePage {
+        let defaultChoice = definition.choice(for: nil)
+        var tags = ["word-negotiation", "lexicon-word:\(definition.stableWordID)"] + definition.tags
+        if let eventID = definition.eventID?.nonEmpty {
+            tags.append("event:\(eventID)")
+            tags.append("event-word-ruled")
+        }
+        if let phaseID = definition.phaseID?.nonEmpty {
+            tags.append("event-phase:\(phaseID)")
+        }
+        if definition.isMissingSeed {
+            tags.append("missing-word-seed")
+        }
+
+        var metadata: [String: String] = [
+            "source": source.id,
+            "wordNegotiationID": definition.id,
+            "wordNegotiationWordID": definition.stableWordID,
+            "wordNegotiationWord": definition.word,
+            "wordNegotiationOriginalSense": definition.originalSense,
+            "wordNegotiationGrievance": definition.grievance,
+            "wordNegotiationCategory": definition.category.rawValue,
+            "wordNegotiationOrigin": definition.origin.rawValue,
+            "wordNegotiationDefaultRuling": defaultChoice?.ruling.rawValue ?? "",
+            "wordNegotiationIsMissingSeed": definition.isMissingSeed ? "true" : "false",
+            "wordNegotiationChoices": encodedChoices(definition.choices),
+            "symbol": definition.symbolName,
+            "placeholder": defaultChoice.map { "Rule: \($0.title). Add one sentence about why." } ?? "Record what the word could not say.",
+            "tags": tags.joined(separator: ",")
+        ]
+        if let eventID = definition.eventID {
+            metadata["worldEventIDs"] = eventID
+            metadata["wordNegotiationEventID"] = eventID
+        }
+        if let phaseID = definition.phaseID {
+            metadata["wordNegotiationPhaseID"] = phaseID
+        }
+        if let eventModes = definition.eventModes, !eventModes.isEmpty {
+            metadata["wordNegotiationEventModes"] = eventModes.joined(separator: ",")
+        }
+        for choice in definition.choices {
+            let prefix = "wordNegotiationChoice.\(choice.ruling.rawValue)"
+            metadata["\(prefix).title"] = choice.title
+            metadata["\(prefix).detail"] = choice.detail
+            metadata["\(prefix).sense"] = choice.resultingSense ?? ""
+            metadata["\(prefix).response"] = choice.responseLine ?? ""
+            metadata["\(prefix).category"] = choice.category?.rawValue ?? ""
+        }
+
+        return SurfacePage(
+            id: "\(source.id)-\(definition.id)-\(SurfaceCadence.slotID(for: now, hours: definition.cadenceHours))",
+            type: .wordNegotiation,
+            sourceID: source.id,
+            intent: .capture,
+            renderStyle: .loreLetter,
+            score: definition.score,
+            reason: "A living word from an installed pack is asking for a ruling.",
+            prompt: "Rule on \(definition.word)",
+            detail: definition.grievance,
+            payload: BookPagePayload(
+                headline: "\(definition.word) has left its old line.",
+                body: body(for: definition),
+                metadata: metadata
+            )
+        )
+    }
+
+    private func body(for definition: WordNegotiationDefinition) -> String {
+        var paragraphs = [
+            "Original sense: \(definition.originalSense)",
+            "Grievance: \(definition.grievance)"
+        ]
+        if definition.isMissingSeed {
+            paragraphs.append("This word is present only as a cold outline. A pack may mark it as missing so the Book can remember that it could not be ruled.")
+        }
+        if !definition.choices.isEmpty {
+            let choices = definition.choices.map { choice in
+                "- \(choice.title): \(choice.detail)"
+            }.joined(separator: "\n")
+            paragraphs.append("Possible rulings:\n\(choices)")
+        }
+        return paragraphs.joined(separator: "\n\n")
+    }
+
+    private func encodedChoices(_ choices: [WordNegotiationChoice]) -> String {
+        choices.map { choice in
+            [
+                choice.ruling.rawValue,
+                choice.title,
+                choice.resultingSense ?? "",
+                choice.responseLine ?? ""
+            ].joined(separator: "¶")
+        }
+        .joined(separator: "||")
+    }
+}
+
 struct CalendarPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .calendar)
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        guard source.isActive, !inputs.calendarEvents.isEmpty else { return [] }
+        guard source.isActive else { return [] }
+        if !inputs.calendarIntegrationEnabled, inputs.calendarEvents.isEmpty {
+            guard !context.distress.isActive,
+                  inputs.surfaceHistory["source:\(source.id)"] == nil else {
+                return []
+            }
+            return [calendarDoorPreview(day: day, score: 78)]
+        }
+        guard !inputs.calendarEvents.isEmpty else { return [] }
         var pages: [SurfacePage] = []
         let formatter = DateFormatter()
         formatter.timeStyle = .short
@@ -6120,6 +6539,42 @@ struct CalendarPageSourceAdapter: BookPageSourceAdapter {
             ))
         }
         return pages
+    }
+
+    func previewSurface(for day: BookDay, score: Int = 96) -> SurfacePage {
+        calendarDoorPreview(day: day, score: score)
+    }
+
+    private func calendarDoorPreview(day: BookDay, score: Int) -> SurfacePage {
+        SurfacePage(
+            id: "\(source.id)-door-preview-\(day.id)",
+            type: .calendar,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: score,
+            reason: "Bellkeeper Elian is offering to open the Calendar Doorway before the wider game fully unfolds.",
+            prompt: "The Calendar Door is waiting.",
+            detail: "Let the Book read today's hinges: appointments, deadlines, departures, and returns stay on this device.",
+            payload: BookPagePayload(
+                headline: "A Door Marked Today",
+                body: """
+                Bellkeeper Elian has found a narrow brass door in the colophon and dragged it into the light.
+
+                Open it, and the Book may read your upcoming Calendar events on this device: not to judge the day, not to publish the day, but to notice its hinges. A meeting can become an Hour Page before it begins. An appointment can leave one clean margin after it lands. The morning paper can print the day's posted turns instead of pretending time is a blank hallway.
+
+                The door is optional. Closed, the Book still works. Open, it gets better at arriving before the hour does.
+                """,
+                metadata: [
+                    "source": source.id,
+                    "calendarDoorPreview": "true",
+                    "requiresCalendarPermission": "true",
+                    "privacy": "calendar stays on device",
+                    "symbol": source.symbolName,
+                    "tags": "calendar,calendar-door,preview,first-run,permission"
+                ]
+            )
+        )
     }
 
     private func hourPage(

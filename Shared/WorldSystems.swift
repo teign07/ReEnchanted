@@ -4259,6 +4259,7 @@ struct FaeGift: Identifiable, Codable, Equatable {
 }
 
 enum FaeBargainStatus: String, Codable, Equatable {
+    case offered     // proposed on the desk; nothing fronted yet — only becomes real when the reader opens the page
     case owed        // gift fronted, payment due
     case delivered   // paid and accepted
     case lapsed      // deadline passed; gift cold, market closed until repaired
@@ -4282,6 +4283,8 @@ struct FaeBargain: Identifiable, Codable, Equatable {
     var deliveredAt: Date?
 
     var isOpen: Bool { status == .owed }
+    /// Proposed but not yet accepted — the gift has not been fronted.
+    var isPending: Bool { status == .offered }
 }
 
 /// A temporary mark left by Fae contact. Omens are not punishments; they are
@@ -4436,8 +4439,9 @@ enum FaeEconomy {
 
     /// Can a fresh, unprompted bargain be offered right now?
     static func canOfferBargain(state: FaePlayerState, now: Date = Date()) -> Bool {
-        // One open bargain at a time keeps the debt legible.
-        guard state.openBargains.isEmpty else { return false }
+        // One live bargain at a time keeps the debt legible — whether it is still
+        // a proposal on the desk (.offered) or an accepted debt (.owed).
+        guard !state.bargains.contains(where: { $0.status == .offered || $0.status == .owed }) else { return false }
         guard let last = state.lastBargainOfferedAt else { return true }
         return now.timeIntervalSince(last) >= Double(offerGapHours) * 3_600
     }
@@ -4861,8 +4865,15 @@ enum FaeEconomy {
 
     // MARK: Lifecycle (pure mutations on FaePlayerState)
 
-    /// Front a new bargain: the fae gives a working gift first, the reader owes
-    /// a field report by the deadline. Returns the created bargain.
+    /// How long a proposed-but-untouched bargain waits on the desk before the
+    /// Fae quietly withdraw the offer. Nothing is fronted, so letting it expire
+    /// costs the reader nothing.
+    static let offerExpiryHours = 72
+
+    /// Propose a bargain. The Fae only *hold the gift out* here — nothing is
+    /// fronted, no Claim is paid, no deadline runs. The exchange becomes real
+    /// only when the reader opens the page (see `acceptBargain`). Swiping the
+    /// preview away therefore costs nothing.
     @discardableResult
     static func offerBargain(
         into state: inout FaePlayerState,
@@ -4873,19 +4884,6 @@ enum FaeEconomy {
         let template = template(for: kind, slot: slot)
         let giftID = "fae-gift-\(kind.rawValue)-\(slot)"
         let bargainID = "fae-bargain-\(kind.rawValue)-\(slot)"
-        let gift = FaeGift(
-            id: giftID,
-            faeKind: kind,
-            name: template.giftName,
-            descriptionText: template.giftDescription,
-            effect: kind.giftEffect,
-            isCold: false,
-            acquiredAt: now,
-            chargesRemaining: kind.giftEffect == .callingCard ? 1 : nil,
-            boundSourceID: nil,
-            activatedAt: kind.giftEffect == .quieting ? now : nil,
-            expiresAt: kind.giftEffect == .quieting ? now.addingTimeInterval(24 * 3_600) : nil
-        )
         let bargain = FaeBargain(
             id: bargainID,
             faeKind: kind,
@@ -4897,21 +4895,69 @@ enum FaeEconomy {
             terms: template.terms,
             offeredAt: now,
             deadline: now.addingTimeInterval(Double(paymentWindowHours) * 3_600),
-            status: .owed,
+            status: .offered,
             fieldReport: nil,
             faeResponse: nil,
             rewardText: nil,
             deliveredAt: nil
         )
-        if !state.gifts.contains(where: { $0.id == giftID }) {
-            state.gifts.append(gift)
-        }
         if !state.bargains.contains(where: { $0.id == bargainID }) {
             state.bargains.append(bargain)
         }
-        adjustClaim(kind, by: claimPerOffer, into: &state)
         state.lastBargainOfferedAt = now
         return bargain
+    }
+
+    /// Accept a proposed bargain when the reader opens its page: NOW the gift is
+    /// fronted, the Claim is paid, and the payment window starts. Idempotent —
+    /// re-opening an already-accepted bargain changes nothing. Returns the live
+    /// bargain (or nil if it no longer exists).
+    @discardableResult
+    static func acceptBargain(
+        bargainID: String,
+        into state: inout FaePlayerState,
+        now: Date = Date()
+    ) -> FaeBargain? {
+        guard let index = state.bargains.firstIndex(where: { $0.id == bargainID }) else { return nil }
+        guard state.bargains[index].status == .offered else { return state.bargains[index] }
+
+        let bargain = state.bargains[index]
+        let kind = bargain.faeKind
+        let gift = FaeGift(
+            id: bargain.giftID,
+            faeKind: kind,
+            name: bargain.giftName,
+            descriptionText: template(for: kind, slot: bargain.slot).giftDescription,
+            effect: kind.giftEffect,
+            isCold: false,
+            acquiredAt: now,
+            chargesRemaining: kind.giftEffect == .callingCard ? 1 : nil,
+            boundSourceID: nil,
+            activatedAt: kind.giftEffect == .quieting ? now : nil,
+            expiresAt: kind.giftEffect == .quieting ? now.addingTimeInterval(24 * 3_600) : nil
+        )
+        if !state.gifts.contains(where: { $0.id == gift.id }) {
+            state.gifts.append(gift)
+        }
+        state.bargains[index].status = .owed
+        state.bargains[index].offeredAt = now
+        state.bargains[index].deadline = now.addingTimeInterval(Double(paymentWindowHours) * 3_600)
+        adjustClaim(kind, by: claimPerOffer, into: &state)
+        return state.bargains[index]
+    }
+
+    /// Drop any proposed bargains the reader never opened past their offer
+    /// window. Nothing was fronted, so there is no penalty — the desk just clears
+    /// so a fresh offer can arrive. Returns the ids withdrawn.
+    @discardableResult
+    static func expireStaleOffers(into state: inout FaePlayerState, now: Date = Date()) -> [String] {
+        let cutoff = Double(offerExpiryHours) * 3_600
+        let expired = state.bargains
+            .filter { $0.status == .offered && now.timeIntervalSince($0.offeredAt) > cutoff }
+            .map(\.id)
+        guard !expired.isEmpty else { return [] }
+        state.bargains.removeAll { expired.contains($0.id) }
+        return expired
     }
 
     /// Mark any owed bargain past its deadline as lapsed: its fronted gift goes

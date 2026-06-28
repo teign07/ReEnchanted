@@ -83,41 +83,15 @@ private struct CompassWidgetView: View {
         CompassWidgetStep.steps[max(0, min(run.stepIndex, CompassWidgetStep.steps.count - 1))]
     }
 
+    var compassRun: ReEnchantedWidgetCompassRun? {
+        entry.snapshot.compass?.run
+    }
+
     var body: some View {
-        ReWidgetBackground {
-            ParchmentPanel(accent: .teal) {
-                VStack(alignment: .leading, spacing: family == .systemSmall ? 7 : 9) {
-                    HStack {
-                        WidgetHeader(title: "Wonder Compass", symbolName: "safari", accent: .teal)
-                        Spacer(minLength: 6)
-                        Text(run.isStarted ? "\(run.stepIndex + 1)/\(CompassWidgetStep.steps.count)" : "Ready")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(ReTheme.teal)
-                    }
-
-                    CompassProgress(stepIndex: run.stepIndex, isStarted: run.isStarted)
-
-                    Text(run.isStarted ? step.title : "Begin a Compass Run")
-                        .font(.system(family == .systemSmall ? .headline : .title3, design: .serif, weight: .bold))
-                        .foregroundStyle(ReTheme.ink)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.72)
-
-                    Text(run.isStarted ? step.prompt : (entry.snapshot.compass?.prompt ?? "Bring back one true sentence from wherever you are."))
-                        .font(family == .systemSmall ? .caption : .callout)
-                        .foregroundStyle(ReTheme.mutedInk)
-                        .lineLimit(family == .systemSmall ? 3 : 4)
-                        .minimumScaleFactor(0.72)
-
-                    Spacer(minLength: 0)
-
-                    if family == .systemSmall {
-                        CompactCompassControls(run: run)
-                    } else {
-                        FullCompassControls(run: run)
-                    }
-                }
-            }
+        if family == .systemLarge || family == .systemExtraLarge {
+            LargeCompassRun(snapshot: entry.snapshot, run: run, step: step, compassRun: compassRun)
+        } else {
+            CompactCompassRun(snapshot: entry.snapshot, run: run, step: step, compassRun: compassRun, isSmall: family == .systemSmall)
         }
     }
 }
@@ -131,35 +105,283 @@ private struct CompassWidgetStep: Identifiable {
     static let steps: [CompassWidgetStep] = [
         CompassWidgetStep(
             id: 0,
-            title: "Ask",
-            prompt: "Hold one plain question. Let it be small enough to walk with.",
-            symbolName: "questionmark.circle"
+            title: "North = Notice",
+            prompt: "Choose the run's goal as one I wonder question.",
+            symbolName: "sparkle.magnifyingglass"
         ),
         CompassWidgetStep(
             id: 1,
-            title: "Walk",
-            prompt: "Move until the usual route loosens. Let the world interrupt you.",
+            title: "East = Embark",
+            prompt: "Make a tiny plan: destination, delight, and definition of done.",
             symbolName: "figure.walk"
         ),
         CompassWidgetStep(
             id: 2,
-            title: "Notice",
-            prompt: "Choose one real detail: color, edge, sound, shadow, smell, or texture.",
-            symbolName: "eye"
+            title: "South = Sense",
+            prompt: "Let the body answer through color, sound, edge, texture, or weather.",
+            symbolName: "hand.draw"
         ),
         CompassWidgetStep(
             id: 3,
-            title: "Record",
-            prompt: "Write one true sentence. Not a lesson. Not a caption. A sentence.",
+            title: "West = Write",
+            prompt: "Keep the best sensory moment from the run in one true sentence.",
             symbolName: "pencil.and.scribble"
         ),
         CompassWidgetStep(
             id: 4,
-            title: "Return",
-            prompt: "Bring the sentence back. The Book can keep it as proof.",
+            title: "Center = Rest",
+            prompt: "Put the phone down for one quiet minute. Then bring the sentence back.",
             symbolName: "book.closed"
         )
     ]
+}
+
+private struct CompactCompassRun: View {
+    var snapshot: ReEnchantedWidgetSnapshot
+    var run: ReEnchantedCompassWidgetRun
+    var step: CompassWidgetStep
+    var compassRun: ReEnchantedWidgetCompassRun?
+    var isSmall: Bool
+
+    var body: some View {
+        ReWidgetBackground {
+            ParchmentPanel(accent: .teal) {
+                VStack(alignment: .leading, spacing: isSmall ? 7 : 9) {
+                    CompassHeader(run: run)
+                    CompassProgress(stepIndex: run.stepIndex, isStarted: run.isStarted)
+
+                    Text(run.isStarted ? step.title : "Begin a Compass Run")
+                        .font(.system(isSmall ? .headline : .title3, design: .serif, weight: .bold))
+                        .foregroundStyle(ReTheme.ink)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.72)
+
+                    if !isSmall, let compassRun {
+                        CompassRunChips(compassRun: compassRun)
+                    }
+
+                    Text(run.isStarted ? promptText : (snapshot.compass?.prompt ?? "Bring back one true sentence from wherever you are."))
+                        .font(isSmall ? .caption : .callout)
+                        .foregroundStyle(ReTheme.mutedInk)
+                        .lineLimit(isSmall ? 3 : 4)
+                        .minimumScaleFactor(0.72)
+
+                    Spacer(minLength: 0)
+
+                    if isSmall {
+                        CompactCompassControls(run: run)
+                    } else {
+                        FullCompassControls(run: run)
+                    }
+                }
+            }
+        }
+    }
+
+    private var promptText: String {
+        compassRun?.prompt(forStepIndex: step.id) ?? step.prompt
+    }
+}
+
+private struct LargeCompassRun: View {
+    var snapshot: ReEnchantedWidgetSnapshot
+    var run: ReEnchantedCompassWidgetRun
+    var step: CompassWidgetStep
+    var compassRun: ReEnchantedWidgetCompassRun?
+
+    var body: some View {
+        ReWidgetBackground {
+            ParchmentPanel(accent: .teal) {
+                VStack(alignment: .leading, spacing: 10) {
+                    CompassHeader(run: run)
+
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(run.isStarted ? step.title : (compassRun?.title ?? "Begin a Compass Run"))
+                                .font(.system(.title2, design: .serif, weight: .bold))
+                                .foregroundStyle(ReTheme.ink)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.7)
+
+                            if let compassRun {
+                                CompassRunChips(compassRun: compassRun)
+                            }
+
+                            Text(run.isStarted ? promptText : introText)
+                                .font(.callout)
+                                .foregroundStyle(ReTheme.mutedInk)
+                                .lineLimit(5)
+                                .minimumScaleFactor(0.72)
+
+                            if let hint = compassRun?.hint?.trimmingCharacters(in: .whitespacesAndNewlines), !hint.isEmpty {
+                                Text(hint)
+                                    .font(.caption)
+                                    .foregroundStyle(ReTheme.ink.opacity(0.72))
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.7)
+                            }
+
+                            Spacer(minLength: 0)
+                            FullCompassControls(run: run)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        VStack(spacing: 6) {
+                            ForEach(CompassWidgetStep.steps) { compassStep in
+                                CompassDirectionRow(
+                                    step: compassStep,
+                                    state: directionState(for: compassStep),
+                                    prompt: compassRun?.prompt(forStepIndex: compassStep.id)
+                                )
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
+    }
+
+    private var introText: String {
+        guard let compassRun else {
+            return snapshot.compass?.prompt ?? "Bring back one true sentence from wherever you are."
+        }
+        return "\(compassRun.north) Start when you can give it \(compassRun.timeBox)."
+    }
+
+    private var promptText: String {
+        compassRun?.prompt(forStepIndex: step.id) ?? step.prompt
+    }
+
+    private func directionState(for compassStep: CompassWidgetStep) -> CompassDirectionRow.State {
+        guard run.isStarted else { return compassStep.id == 0 ? .current : .future }
+        if compassStep.id < run.stepIndex { return .complete }
+        if compassStep.id == run.stepIndex { return .current }
+        return .future
+    }
+}
+
+private struct CompassHeader: View {
+    var run: ReEnchantedCompassWidgetRun
+
+    var body: some View {
+        HStack {
+            WidgetHeader(title: "Wonder Compass", symbolName: "safari", accent: .teal)
+            Spacer(minLength: 6)
+            Text(run.isStarted ? "\(run.stepIndex + 1)/\(CompassWidgetStep.steps.count)" : "Ready")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(ReTheme.teal)
+        }
+    }
+}
+
+private struct CompassDirectionRow: View {
+    enum State {
+        case complete
+        case current
+        case future
+    }
+
+    var step: CompassWidgetStep
+    var state: State
+    var prompt: String?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 7) {
+            Image(systemName: symbolName)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(iconColor)
+                .frame(width: 20, height: 20)
+                .background(iconBackground, in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(step.title)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(ReTheme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(prompt ?? step.prompt)
+                    .font(.caption2)
+                    .foregroundStyle(ReTheme.mutedInk)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 6)
+        .background(rowBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+
+    private var symbolName: String {
+        switch state {
+        case .complete:
+            return "checkmark"
+        case .current:
+            return step.symbolName
+        case .future:
+            return "circle"
+        }
+    }
+
+    private var iconColor: Color {
+        switch state {
+        case .complete:
+            return ReTheme.night
+        case .current:
+            return ReTheme.night
+        case .future:
+            return ReTheme.teal.opacity(0.75)
+        }
+    }
+
+    private var iconBackground: Color {
+        switch state {
+        case .complete:
+            return ReTheme.gold
+        case .current:
+            return ReTheme.teal.opacity(0.28)
+        case .future:
+            return ReTheme.paper.opacity(0.52)
+        }
+    }
+
+    private var rowBackground: Color {
+        switch state {
+        case .current:
+            return ReTheme.teal.opacity(0.12)
+        case .complete:
+            return ReTheme.gold.opacity(0.12)
+        case .future:
+            return ReTheme.paper.opacity(0.20)
+        }
+    }
+}
+
+private struct CompassRunChips: View {
+    var compassRun: ReEnchantedWidgetCompassRun
+
+    var body: some View {
+        HStack(spacing: 5) {
+            CompassRunChip(text: compassRun.mode)
+            CompassRunChip(text: compassRun.timeBox)
+            CompassRunChip(text: compassRun.place)
+        }
+    }
+}
+
+private struct CompassRunChip: View {
+    var text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(ReTheme.teal)
+            .lineLimit(1)
+            .minimumScaleFactor(0.62)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(ReTheme.teal.opacity(0.12), in: Capsule())
+    }
 }
 
 private struct CompassProgress: View {
@@ -184,13 +406,14 @@ private struct CompactCompassControls: View {
     var body: some View {
         HStack(spacing: 6) {
             if run.isComplete {
-                Link(destination: deepLinkURL("compass")) {
+                Button(intent: ReEnchantedOpenCompassIntent()) {
                     Image(systemName: "book.closed")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(ReTheme.night)
                         .frame(width: 34, height: 28)
                         .background(ReTheme.gold, in: Capsule())
                 }
+                .buttonStyle(.plain)
             } else {
                 Button(intent: ReEnchantedAdvanceCompassIntent()) {
                     Image(systemName: run.isStarted ? "arrow.right" : "play.fill")
@@ -220,9 +443,10 @@ private struct FullCompassControls: View {
     var body: some View {
         HStack(spacing: 7) {
             if run.isComplete {
-                Link(destination: deepLinkURL("compass")) {
+                Button(intent: ReEnchantedOpenCompassIntent()) {
                     CompassControlLabel(title: "Keep to Book", symbolName: "book.closed", filled: true)
                 }
+                .buttonStyle(.plain)
             } else {
                 Button(intent: ReEnchantedAdvanceCompassIntent()) {
                     CompassControlLabel(title: run.isStarted ? "Next" : "Start", symbolName: run.isStarted ? "arrow.right" : "play.fill", filled: true)
@@ -1071,8 +1295,8 @@ private struct ReEnchantedCompassWidget: Widget {
             CompassWidgetView(entry: entry)
         }
         .configurationDisplayName("Wonder Compass")
-        .description("A small field prompt for noticing the real world.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .description("Guide a full five-direction Compass Run from noticing to return.")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge])
     }
 }
 

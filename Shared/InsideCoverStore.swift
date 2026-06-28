@@ -1695,6 +1695,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "a favor tucked into the flyleaf" : "a favor answered with \(clipped)"
         case .packPage:
             return clipped.isEmpty ? "a page from an installed pack" : "an installed page noting \(clipped)"
+        case .wordNegotiation:
+            return clipped.isEmpty ? "a living word asking for a ruling" : "a living word negotiating \(clipped)"
         case .gamePage:
             return clipped.isEmpty ? "a Game Page run returning to the archive" : "a Game Page weaving \(clipped)"
         case .calendar:
@@ -1705,6 +1707,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "the Labyrinth opening its first page" : "the Labyrinth welcoming \(clipped)"
         case .inventory:
             return clipped.isEmpty ? "the Inventory's clasp opening" : "an object in the Inventory answering \(clipped)"
+        case .bindery:
+            return clipped.isEmpty ? "the Bindery calling a finished month to a cover" : "the Bindery offering to bind \(clipped)"
         }
     }
 

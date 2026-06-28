@@ -209,12 +209,18 @@ struct SurfaceReadinessState: Codable, Equatable {
             return metadata["selector"] == "fallback"
         case .supportGuild:
             return !hasNonEmptyMetadata("guildProse")
+        case .twoReadings:
+            return !hasNonEmptyMetadata("twoReadingsProse")
+        case .castBond:
+            return !hasNonEmptyMetadata("castBondProse")
         case .academyClass:
             return hasNonEmptyMetadata("sessionID") && !hasNonEmptyMetadata("classProse")
         case .elective:
             return metadata["electiveOffer"] == "true" && !hasNonEmptyMetadata("electiveAsk")
         case .packPage:
             return hasNonEmptyMetadata("packPrompt") && !hasNonEmptyMetadata("packProse")
+        case .wordNegotiation:
+            return false
         case .gamePage:
             return false
         default:
@@ -380,11 +386,11 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .reflect
         case .elective:
             return .capture
-        case .packPage:
+        case .packPage, .wordNegotiation:
             return .reflect
         case .calendar:
             return .reflect
-        case .wonderCompass, .lore, .patreon, .illustration, .quip, .helpTips, .welcome, .marginsAtlas:
+        case .wonderCompass, .lore, .patreon, .illustration, .quip, .helpTips, .welcome, .marginsAtlas, .bindery:
             return .importReference
         case .enchantment:
             return .capture
@@ -920,7 +926,7 @@ enum CuratorTimeAffinity {
         default:
             switch type {
             case .lore, .rest, .helpTips, .welcome: return 4
-            case .packPage: return 3
+            case .packPage, .wordNegotiation: return 3
             case .illustration, .narrativeOS, .bookFae, .marginsAtlas, .bookConnections, .bookRemembered, .bookJump, .radio: return 2
             // Late night the desk should soothe, not assign homework: ease
             // blank-page prompts down so they don't greet a midnight check-in.

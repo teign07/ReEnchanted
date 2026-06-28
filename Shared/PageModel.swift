@@ -41,6 +41,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case academyClass
     case elective
     case packPage
+    case wordNegotiation
     case gamePage
     case calendar
     case helpTips
@@ -52,6 +53,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case glowInvitation
     case theBleed
     case inventory
+    case bindery
 
     var id: String { rawValue }
 
@@ -156,6 +158,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Unwritten Electives"
         case .packPage:
             return "Pack Page"
+        case .wordNegotiation:
+            return "Word Negotiation"
         case .gamePage:
             return "Game Page"
         case .calendar:
@@ -178,6 +182,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "The Bleed"
         case .inventory:
             return "The Inventory"
+        case .bindery:
+            return "The Bindery"
         }
     }
 
@@ -261,6 +267,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Elective"
         case .packPage:
             return "Pack"
+        case .wordNegotiation:
+            return "Word"
         case .gamePage:
             return "Game"
         case .calendar:
@@ -283,6 +291,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Bleed"
         case .inventory:
             return "Inventory"
+        case .bindery:
+            return "Bindery"
         }
     }
 
@@ -366,6 +376,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "envelope.badge"
         case .packPage:
             return "puzzlepiece.extension"
+        case .wordNegotiation:
+            return "textformat.abc.dottedunderline"
         case .gamePage:
             return "gamecontroller"
         case .calendar:
@@ -388,6 +400,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "newspaper"
         case .inventory:
             return "shippingbox.fill"
+        case .bindery:
+            return "books.vertical.fill"
         }
     }
 }
@@ -464,6 +478,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "always available; rises when something changes",
             note: "Fae gifts, Goblin wares, bound objects, and installed folios."
+        ),
+        BookPageSource(
+            id: "bindery-call",
+            type: .bindery,
+            title: "The Bindery",
+            shortTitle: "Bindery",
+            symbolName: "books.vertical.fill",
+            origin: .simulated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "at the turn of a month, when the last one is ready to bind",
+            note: "Sews a finished month into a chapter you can keep, share, or print."
         ),
         BookPageSource(
             id: "inner-weather",
@@ -1064,6 +1090,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "per pack",
             note: "Pages supplied by installed Page Packs — games, rituals, utilities, the Nothing, whatever fits the world."
+        ),
+        BookPageSource(
+            id: "word-negotiation",
+            type: .wordNegotiation,
+            title: "Word Negotiation",
+            shortTitle: "Words",
+            symbolName: "textformat.abc.dottedunderline",
+            origin: .imported,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "when an event or pack gives a word agency",
+            note: "A living word asks the reader to rule on what it may mean in this Book."
         )
     ]
 
@@ -1107,7 +1145,7 @@ enum BookPageSourceRegistry {
             return 32
         case .narrativeOS, .bookFae, .wonderCompass, .anchor, .welcome:
             return 30
-        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory:
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery:
             return 22
         case .diary, .souvenir, .askTheBook, .enchantment, .faeBargain:
             return 28
@@ -1131,7 +1169,7 @@ enum BookPageSourceRegistry {
             return 30
         case .aboutYou, .rest, .helpTips:
             return 24
-        case .lore, .illustration, .illuminatedPhoto, .packPage:
+        case .lore, .illustration, .illuminatedPhoto, .packPage, .wordNegotiation:
             return 22
         case .gamePage:
             return 28
@@ -1146,7 +1184,7 @@ enum BookPageSourceRegistry {
         switch source.type {
         case .narrativeOS, .bookFae:
             return 34
-        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory:
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery:
             return 18
         case .mood, .fuel:
             return 30
@@ -1178,7 +1216,7 @@ enum BookPageSourceRegistry {
             return 26
         case .aboutYou, .rest, .helpTips:
             return 20
-        case .lore, .illustration, .illuminatedPhoto, .packPage:
+        case .lore, .illustration, .illuminatedPhoto, .packPage, .wordNegotiation:
             return 18
         case .gamePage:
             return 26

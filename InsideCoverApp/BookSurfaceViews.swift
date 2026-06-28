@@ -897,8 +897,19 @@ struct IlluminatedQuoteCard: View {
     let style: PageVisualStyle
     let seed: Int
 
-    private var variation: OrganicPlacementVariation {
-        OrganicPlacementVariation(seed: seed, key: "quote-card", maxOffset: 10, maxRotation: 2.5)
+    /// The card is rendered at this fixed size; the content column is inset from
+    /// the edges so the quote always wraps inside the gilded border instead of
+    /// drifting past it.
+    static let renderSize = CGSize(width: 1080, height: 1350)
+    static let horizontalInset: CGFloat = 88
+    static var contentWidth: CGFloat { renderSize.width - horizontalInset * 2 }
+
+    /// A fully deterministic, per-card layout derived from the seed — palette,
+    /// vertical balance, border, label ornament, divider, fonts, stains, and
+    /// marginalia all vary, so no two souvenir cards look alike while the same
+    /// card always re-renders identically.
+    private var composition: QuoteCardComposition {
+        QuoteCardComposition(seed: seed, baseFontSize: quoteFontSize)
     }
 
     private var quoteFontSize: CGFloat {
@@ -910,9 +921,10 @@ struct IlluminatedQuoteCard: View {
     }
 
     var body: some View {
+        let c = composition
         ZStack {
             LinearGradient(
-                colors: [style.paperTop, style.paperMiddle, style.paperBottom],
+                colors: [c.ink.paperTop, c.ink.paperMid, c.ink.paperBottom],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -926,154 +938,352 @@ struct IlluminatedQuoteCard: View {
             Image("ParchmentFiber")
                 .resizable()
                 .scaledToFill()
-                .opacity(0.18)
+                .opacity(c.fiberOpacity)
                 .blendMode(.overlay)
 
-            quoteCardStains
-            quoteCardMarginalia
+            stainsLayer(c)
+            marginaliaLayer(c)
 
-            VStack(spacing: 30) {
-                HStack(spacing: 9) {
-                    Image(systemName: "sparkles")
-                    Text(sourceTitle.uppercased())
-                    Image(systemName: "sparkles")
-                }
-                .font(.system(size: 20, weight: .bold, design: .serif))
-                .foregroundStyle(style.accent.opacity(0.86))
-                .tracking(1.8)
-                .lineLimit(1)
-                .minimumScaleFactor(0.65)
-
-                Text("“\(quote)”")
-                    .font(.system(size: quoteFontSize, weight: .semibold, design: .serif))
-                    .foregroundStyle(BookPalette.ink)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(8)
-                    .minimumScaleFactor(0.62)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                VStack(spacing: 12) {
-                    Divider()
-                        .frame(width: 250)
-                        .overlay(style.accent.opacity(0.45))
-
-                    HStack(spacing: 10) {
-                        Image(systemName: "cloud.sun")
-                        Text(weatherLine)
-                    }
-                    .font(.system(size: 22, weight: .semibold, design: .serif))
-                    .foregroundStyle(BookPalette.ink.opacity(0.72))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-
-                    Text(dateLine)
-                        .font(.system(size: 18, weight: .bold, design: .serif))
-                        .foregroundStyle(style.accent.opacity(0.86))
-                        .tracking(1.2)
-
-                    Text("ReEnchanted")
-                        .font(.system(size: 24, weight: .bold, design: .serif))
-                        .foregroundStyle(BookPalette.ink.opacity(0.66))
-                }
-            }
-            .padding(.horizontal, 88)
-            .padding(.vertical, 92)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .rotationEffect(.degrees(variation.rotationDegrees * 0.18))
+            contentColumn(c)
+                .frame(width: Self.contentWidth)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .offset(y: c.verticalOffset)
+                .rotationEffect(.degrees(c.contentRotation))
         }
-        .overlay {
-            RoundedRectangle(cornerRadius: 38, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            BookPalette.lampGold.opacity(0.92),
-                            style.accent.opacity(0.56),
-                            BookPalette.lampGold.opacity(0.9)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 14
-                )
-                .padding(30)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(BookPalette.parchmentEdge.opacity(0.35), lineWidth: 2)
-                .padding(52)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 44, style: .continuous))
+        .frame(width: Self.renderSize.width, height: Self.renderSize.height)
+        .overlay { borderLayer(c) }
+        .clipShape(RoundedRectangle(cornerRadius: c.cornerRadius, style: .continuous))
         .background(BookPalette.paper)
     }
 
-    private var quoteCardStains: some View {
-        ZStack {
-            ForEach(0..<5, id: \.self) { index in
-                Circle()
-                    .fill(style.accent.opacity(0.055))
-                    .frame(
-                        width: stainWidth(index),
-                        height: stainHeight(index)
-                    )
-                    .blur(radius: 16)
-                    .position(stainPosition(index))
+    @ViewBuilder
+    private func contentColumn(_ c: QuoteCardComposition) -> some View {
+        VStack(spacing: 30) {
+            HStack(spacing: 12) {
+                Image(systemName: c.labelSymbol)
+                Text(sourceTitle.uppercased())
+                Image(systemName: c.labelSymbol)
+            }
+            .font(.system(size: 20, weight: .bold, design: .serif))
+            .foregroundStyle(c.ink.accent.opacity(0.86))
+            .tracking(1.8)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+
+            Text("“\(quote)”")
+                .font(.system(size: c.quoteFontSize, weight: c.quoteWeight, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+                .multilineTextAlignment(.center)
+                .lineSpacing(8)
+                .tracking(c.quoteTracking)
+                .lineLimit(nil)
+                .minimumScaleFactor(0.5)
+                .frame(maxWidth: Self.contentWidth)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 12) {
+                ZStack {
+                    Rectangle()
+                        .fill(c.ink.accent.opacity(0.45))
+                        .frame(width: c.dividerWidth, height: 1.6)
+                    if c.dividerMedallion {
+                        Image(systemName: "diamond.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(c.ink.accent.opacity(0.72))
+                            .padding(.horizontal, 7)
+                            .background(c.ink.paperMid)
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    Image(systemName: c.weatherSymbol)
+                    Text(weatherLine)
+                }
+                .font(.system(size: 22, weight: .semibold, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+                Text(dateLine)
+                    .font(.system(size: 18, weight: .bold, design: .serif))
+                    .foregroundStyle(c.ink.accent.opacity(0.86))
+                    .tracking(1.2)
+
+                Text("ReEnchanted")
+                    .font(.system(size: 24, weight: .bold, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.66))
             }
         }
     }
 
-    private func stainWidth(_ index: Int) -> CGFloat {
-        150 + CGFloat(stableOffset(index: index, multiplier: 31, modulo: 110))
-    }
-
-    private func stainHeight(_ index: Int) -> CGFloat {
-        120 + CGFloat(stableOffset(index: index, multiplier: 17, modulo: 120))
-    }
-
-    private func stainPosition(_ index: Int) -> CGPoint {
-        CGPoint(
-            x: 90 + CGFloat(stableOffset(index: index, multiplier: 149, modulo: 900)),
-            y: 90 + CGFloat(stableOffset(index: index, multiplier: 211, modulo: 1200))
-        )
-    }
-
-    private func stableOffset(index: Int, multiplier: Int, modulo: Int) -> Int {
-        Int((seed &+ index &* multiplier).magnitude % UInt(modulo))
-    }
-
-    private var quoteCardMarginalia: some View {
+    private func stainsLayer(_ c: QuoteCardComposition) -> some View {
         ZStack {
-            Image(style.watermarkMarginalia)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 390)
-                .opacity(style.watermarkOpacity + 0.06)
-                .rotationEffect(.degrees(-8 + variation.rotationDegrees))
-                .position(x: 760 + variation.xOffset, y: 315 + variation.yOffset)
-
-            Image(style.sideMarginalia)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 160)
-                .opacity(style.sideMarginaliaOpacity + 0.10)
-                .rotationEffect(.degrees(-12 + variation.rotationDegrees))
-                .position(x: 138, y: 1010 + variation.yOffset)
-
-            Image(style.cornerMarginalia)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 178)
-                .opacity(style.cornerMarginaliaOpacity + 0.08)
-                .rotationEffect(.degrees(9 + variation.rotationDegrees))
-                .position(x: 945 + variation.xOffset, y: 1045)
-
-            Image(style.smallMarginalia)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 112)
-                .opacity(0.25)
-                .rotationEffect(.degrees(-4))
-                .position(x: 170, y: 230)
+            ForEach(c.stains) { stain in
+                Circle()
+                    .fill(c.ink.accent.opacity(stain.opacity))
+                    .frame(width: stain.size.width, height: stain.size.height)
+                    .blur(radius: 16)
+                    .position(stain.center)
+            }
         }
+    }
+
+    private func marginaliaLayer(_ c: QuoteCardComposition) -> some View {
+        ZStack {
+            marginaliaImage(c.watermark)
+            ForEach(c.edgeMarginalia) { mark in
+                marginaliaImage(mark)
+            }
+        }
+    }
+
+    private func marginaliaImage(_ mark: QuoteCardComposition.MarginaliaPlacement) -> some View {
+        Image(mark.asset)
+            .resizable()
+            .scaledToFit()
+            .frame(width: mark.width)
+            .opacity(mark.opacity)
+            .rotationEffect(.degrees(mark.rotation))
+            .position(mark.center)
+    }
+
+    @ViewBuilder
+    private func borderLayer(_ c: QuoteCardComposition) -> some View {
+        switch c.border {
+        case .doubleGild:
+            ZStack {
+                RoundedRectangle(cornerRadius: max(8, c.cornerRadius - 6), style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [c.ink.gild.opacity(0.92), c.ink.accent.opacity(0.5), c.ink.gild.opacity(0.9)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 14
+                    )
+                    .padding(c.borderInset)
+                RoundedRectangle(cornerRadius: max(6, c.cornerRadius - 14), style: .continuous)
+                    .stroke(BookPalette.parchmentEdge.opacity(0.35), lineWidth: 2)
+                    .padding(c.borderInset + 22)
+            }
+        case .singleHairline:
+            RoundedRectangle(cornerRadius: max(6, c.cornerRadius - 8), style: .continuous)
+                .stroke(c.ink.accent.opacity(0.6), lineWidth: 3)
+                .padding(c.borderInset + 8)
+        case .ribbon:
+            ZStack {
+                RoundedRectangle(cornerRadius: max(8, c.cornerRadius - 6), style: .continuous)
+                    .stroke(c.ink.accent.opacity(0.55), lineWidth: 12)
+                    .padding(c.borderInset)
+                RoundedRectangle(cornerRadius: max(8, c.cornerRadius - 6), style: .continuous)
+                    .stroke(c.ink.gild.opacity(0.85), lineWidth: 2)
+                    .padding(c.borderInset)
+            }
+        case .brackets:
+            ZStack {
+                RoundedRectangle(cornerRadius: max(4, c.cornerRadius - 10), style: .continuous)
+                    .stroke(c.ink.accent.opacity(0.25), lineWidth: 1.5)
+                    .padding(c.borderInset + 6)
+                QuoteCardCornerBrackets(inset: c.borderInset, arm: 120)
+                    .stroke(c.ink.gild.opacity(0.9), style: StrokeStyle(lineWidth: 6, lineCap: .round))
+            }
+        }
+    }
+}
+
+/// Four illuminated corner L-brackets, one of the quote card's border treatments.
+private struct QuoteCardCornerBrackets: Shape {
+    var inset: CGFloat
+    var arm: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let r = rect.insetBy(dx: inset, dy: inset)
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX, y: r.minY + arm))
+        p.addLine(to: CGPoint(x: r.minX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.minX + arm, y: r.minY))
+
+        p.move(to: CGPoint(x: r.maxX - arm, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.minY + arm))
+
+        p.move(to: CGPoint(x: r.maxX, y: r.maxY - arm))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.maxX - arm, y: r.maxY))
+
+        p.move(to: CGPoint(x: r.minX + arm, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.minX, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.minX, y: r.maxY - arm))
+        return p
+    }
+}
+
+/// Deterministic, seed-driven layout plan for one souvenir card — the quote-card
+/// analogue of the illuminated-photo composition engine. Every visual knob is
+/// derived from the seed so the same card always re-renders identically while
+/// different cards each get their own palette, balance, and ornament.
+private struct QuoteCardComposition {
+    struct Ink {
+        let accent: Color
+        let gild: Color
+        let paperTop: Color
+        let paperMid: Color
+        let paperBottom: Color
+    }
+
+    struct MarginaliaPlacement: Identifiable {
+        let id: Int
+        let asset: String
+        let center: CGPoint
+        let width: CGFloat
+        let rotation: Double
+        let opacity: Double
+    }
+
+    struct StainSpec: Identifiable {
+        let id: Int
+        let center: CGPoint
+        let size: CGSize
+        let opacity: Double
+    }
+
+    enum Border {
+        case doubleGild
+        case singleHairline
+        case ribbon
+        case brackets
+    }
+
+    let ink: Ink
+    let verticalOffset: CGFloat
+    let contentRotation: Double
+    let labelSymbol: String
+    let weatherSymbol: String
+    let quoteWeight: Font.Weight
+    let quoteTracking: CGFloat
+    let quoteFontSize: CGFloat
+    let dividerWidth: CGFloat
+    let dividerMedallion: Bool
+    let border: Border
+    let cornerRadius: CGFloat
+    let borderInset: CGFloat
+    let fiberOpacity: Double
+    let stains: [StainSpec]
+    let watermark: MarginaliaPlacement
+    let edgeMarginalia: [MarginaliaPlacement]
+
+    private static let inks: [Ink] = [
+        Ink(accent: Color(red: 0.45, green: 0.13, blue: 0.18), gild: Color(red: 0.86, green: 0.62, blue: 0.34),
+            paperTop: Color(red: 0.96, green: 0.90, blue: 0.78), paperMid: Color(red: 0.89, green: 0.79, blue: 0.64), paperBottom: Color(red: 0.74, green: 0.58, blue: 0.42)),
+        Ink(accent: Color(red: 0.08, green: 0.42, blue: 0.45), gild: BookPalette.lampGold,
+            paperTop: Color(red: 0.94, green: 0.92, blue: 0.82), paperMid: Color(red: 0.83, green: 0.82, blue: 0.69), paperBottom: Color(red: 0.62, green: 0.64, blue: 0.55)),
+        Ink(accent: Color(red: 0.20, green: 0.22, blue: 0.46), gild: Color(red: 0.90, green: 0.74, blue: 0.44),
+            paperTop: Color(red: 0.93, green: 0.91, blue: 0.83), paperMid: Color(red: 0.82, green: 0.80, blue: 0.72), paperBottom: Color(red: 0.60, green: 0.59, blue: 0.58)),
+        Ink(accent: Color(red: 0.16, green: 0.34, blue: 0.22), gild: Color(red: 0.85, green: 0.69, blue: 0.38),
+            paperTop: Color(red: 0.94, green: 0.92, blue: 0.80), paperMid: Color(red: 0.83, green: 0.81, blue: 0.66), paperBottom: Color(red: 0.61, green: 0.62, blue: 0.50)),
+        Ink(accent: Color(red: 0.36, green: 0.19, blue: 0.30), gild: Color(red: 0.88, green: 0.70, blue: 0.46),
+            paperTop: Color(red: 0.95, green: 0.90, blue: 0.82), paperMid: Color(red: 0.86, green: 0.78, blue: 0.70), paperBottom: Color(red: 0.68, green: 0.58, blue: 0.56)),
+        Ink(accent: Color(red: 0.55, green: 0.34, blue: 0.10), gild: BookPalette.lampGold,
+            paperTop: Color(red: 0.96, green: 0.91, blue: 0.77), paperMid: Color(red: 0.88, green: 0.79, blue: 0.61), paperBottom: Color(red: 0.72, green: 0.59, blue: 0.39)),
+        Ink(accent: Color(red: 0.20, green: 0.33, blue: 0.44), gild: Color(red: 0.87, green: 0.72, blue: 0.45),
+            paperTop: Color(red: 0.93, green: 0.92, blue: 0.84), paperMid: Color(red: 0.81, green: 0.81, blue: 0.72), paperBottom: Color(red: 0.59, green: 0.62, blue: 0.58)),
+        Ink(accent: Color(red: 0.60, green: 0.28, blue: 0.13), gild: Color(red: 0.90, green: 0.71, blue: 0.42),
+            paperTop: Color(red: 0.96, green: 0.90, blue: 0.76), paperMid: Color(red: 0.89, green: 0.77, blue: 0.60), paperBottom: Color(red: 0.74, green: 0.56, blue: 0.40))
+    ]
+
+    private static let labelSymbols = [
+        "sparkles", "sparkle", "star.fill", "seal.fill", "leaf.fill", "sun.max.fill", "moon.stars.fill", "laurel.leading"
+    ]
+
+    private static let weatherSymbols = [
+        "cloud.sun.fill", "sun.max.fill", "cloud.fill", "cloud.moon.fill", "sparkles"
+    ]
+
+    private static let marginaliaPool: [String] = {
+        let assets = CoreMarginsPack.pack.doodles + CoreMarginsPack.pack.stamps
+        let names = Set(assets.map(\.assetName))
+        return names.isEmpty ? ["MarginaliaFeather", "MarginaliaStar", "MarginaliaCompass"] : names.sorted()
+    }()
+
+    private static let weights: [Font.Weight] = [.medium, .semibold, .bold]
+
+    init(seed: Int, baseFontSize: CGFloat) {
+        func u(_ key: String) -> Double { Self.unit(seed: seed, key: key) }
+        func d(_ lo: Double, _ hi: Double, _ key: String) -> CGFloat { CGFloat(lo + (hi - lo) * u(key)) }
+        func index(_ count: Int, _ key: String) -> Int { min(count - 1, Int(u(key) * Double(count))) }
+
+        let canvas = IlluminatedQuoteCard.renderSize
+
+        ink = Self.inks[index(Self.inks.count, "ink")]
+        verticalOffset = d(-80, 80, "voff")
+        contentRotation = Double(d(-1.4, 1.4, "crot"))
+        labelSymbol = Self.labelSymbols[index(Self.labelSymbols.count, "label")]
+        weatherSymbol = Self.weatherSymbols[index(Self.weatherSymbols.count, "weather")]
+        quoteWeight = Self.weights[index(Self.weights.count, "weight")]
+        quoteTracking = d(0, 1.1, "track")
+        quoteFontSize = baseFontSize * d(0.95, 1.06, "fscale")
+        dividerWidth = d(180, 320, "divw")
+        dividerMedallion = u("divm") > 0.5
+        border = [Border.doubleGild, .singleHairline, .ribbon, .brackets][index(4, "border")]
+        cornerRadius = d(14, 46, "corner")
+        borderInset = d(26, 40, "binset")
+        fiberOpacity = Double(d(0.12, 0.22, "fiber"))
+
+        let stainCount = 3 + Int(u("stainN") * 4) // 3...6
+        stains = (0..<stainCount).map { i in
+            StainSpec(
+                id: i,
+                center: CGPoint(x: d(90, canvas.width - 90, "sx\(i)"), y: d(120, canvas.height - 120, "sy\(i)")),
+                size: CGSize(width: d(150, 280, "sw\(i)"), height: d(120, 240, "sh\(i)")),
+                opacity: Double(d(0.04, 0.075, "so\(i)"))
+            )
+        }
+
+        let pool = Self.marginaliaPool
+        watermark = MarginaliaPlacement(
+            id: -1,
+            asset: pool[index(pool.count, "wm")],
+            center: CGPoint(x: d(420, 660, "wmx"), y: d(260, 460, "wmy")),
+            width: d(360, 460, "wmw"),
+            rotation: Double(d(-12, 12, "wmr")),
+            opacity: Double(d(0.08, 0.14, "wmo"))
+        )
+
+        // Marginalia live in the margin zones so they frame the text without
+        // ever sitting on top of it.
+        let zones: [CGPoint] = [
+            CGPoint(x: 0.15, y: 0.13), CGPoint(x: 0.85, y: 0.14),
+            CGPoint(x: 0.11, y: 0.49), CGPoint(x: 0.89, y: 0.51),
+            CGPoint(x: 0.17, y: 0.87), CGPoint(x: 0.83, y: 0.86)
+        ]
+        let zoneOrder = Array(0..<zones.count).sorted { u("zone\($0)") < u("zone\($1)") }
+        let edgeCount = 3 + Int(u("edgeN") * 2) // 3...4
+        edgeMarginalia = (0..<min(edgeCount, zones.count)).map { i in
+            let zone = zones[zoneOrder[i]]
+            let asset = pool[(index(pool.count, "ea\(i)") + i * 7) % pool.count]
+            return MarginaliaPlacement(
+                id: i,
+                asset: asset,
+                center: CGPoint(
+                    x: zone.x * canvas.width + d(-18, 18, "ejx\(i)"),
+                    y: zone.y * canvas.height + d(-22, 22, "ejy\(i)")
+                ),
+                width: d(95, 165, "ew\(i)"),
+                rotation: Double(d(-18, 18, "er\(i)")),
+                opacity: Double(d(0.18, 0.34, "eo\(i)"))
+            )
+        }
+    }
+
+    /// FNV-1a over the seed + a per-knob key, mapped to a stable 0...1 value —
+    /// matching the hashing used by the photo engine's placement variation.
+    private static func unit(seed: Int, key: String) -> Double {
+        var hash = UInt64(bitPattern: Int64(seed)) ^ 14_695_981_039_346_656_037
+        for byte in key.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        return Double(hash % 10_000) / 10_000
     }
 }
 
@@ -1095,7 +1305,7 @@ enum IlluminatedQuoteCardRenderer {
             style: style,
             seed: seed
         )
-        .frame(width: 1080, height: 1350)
+        .frame(width: IlluminatedQuoteCard.renderSize.width, height: IlluminatedQuoteCard.renderSize.height)
 
         let renderer = ImageRenderer(content: content)
         renderer.scale = 1
@@ -2679,7 +2889,7 @@ struct PageVisualStyle {
 
     static func style(for type: BookPageType) -> PageVisualStyle {
         switch type {
-        case .inventory:
+        case .inventory, .bindery:
             return PageVisualStyle(
                 accent: Color(red: 0.18, green: 0.43, blue: 0.40),
                 symbolColor: Color(red: 0.18, green: 0.43, blue: 0.40),
@@ -2707,7 +2917,7 @@ struct PageVisualStyle {
                 watermarkMarginalia: "MarginaliaCompass",
                 watermarkOpacity: 0.10
             )
-        case .packPage:
+        case .packPage, .wordNegotiation:
             return PageVisualStyle(
                 accent: Color(red: 0.33, green: 0.36, blue: 0.52),
                 symbolColor: Color(red: 0.33, green: 0.36, blue: 0.52),

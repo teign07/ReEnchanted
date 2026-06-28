@@ -340,6 +340,217 @@ final class SentenceBuilderTests: XCTestCase {
         SentenceBuilderPackRegistry.reload()
     }
 
+    func testReaderLexiconBuildsPersonalSentencePackFromRulings() {
+        let now = Date(timeIntervalSinceReferenceDate: 10)
+        var lexicon = ReaderLexicon()
+        lexicon.upsert(LexiconEntry(
+            word: "rain",
+            originalSense: "water falling from clouds",
+            newSense: "permission to rest",
+            ruling: .adopted,
+            category: .concrete,
+            origin: .rebellion,
+            ledAt: now,
+            sourcePageID: "page-rain"
+        ))
+        lexicon.upsert(LexiconEntry(
+            word: "hushed",
+            originalSense: "made quiet",
+            newSense: "held kindly under the tongue",
+            ruling: .pardoned,
+            category: .sensory,
+            origin: .rebellion,
+            ledAt: now
+        ))
+        lexicon.upsert(LexiconEntry(
+            word: "obedient",
+            originalSense: "submissive to rule",
+            newSense: "unchanged",
+            ruling: .recalled,
+            category: .sensory,
+            origin: .rebellion,
+            ledAt: now
+        ))
+        lexicon.upsert(LexiconEntry(
+            word: "elsewhere",
+            originalSense: "some other place",
+            newSense: "a margin door",
+            ruling: .freed,
+            category: .crossing,
+            origin: .rebellion,
+            ledAt: now
+        ))
+
+        let pack = lexicon.asSentenceBuilderPack()
+
+        XCTAssertEqual(pack.id, "reader.lexicon")
+        XCTAssertEqual(pack.availability, "personal")
+        XCTAssertTrue(pack.concreteWords.contains("rain"))
+        XCTAssertTrue(pack.sensoryWords.contains("hushed"))
+        XCTAssertFalse(pack.sensoryWords.contains("obedient"))
+        XCTAssertFalse(pack.crossingWords.contains("elsewhere"))
+        XCTAssertTrue(pack.themes.contains { $0.id == "reader.lexicon.rain" && $0.senses == ["permission to rest"] })
+    }
+
+    func testReaderLexiconCanBeInjectedIntoComposedSentenceBuilderPack() {
+        var lexicon = ReaderLexicon()
+        lexicon.upsert(LexiconEntry(
+            word: "thimble",
+            originalSense: "a small metal sewing guard",
+            newSense: "a tiny room for courage",
+            ruling: .pardoned,
+            category: .concrete,
+            origin: .seeded,
+            ledAt: Date(timeIntervalSinceReferenceDate: 11)
+        ))
+
+        let ordinary = SentenceBuilderPackRegistry.composed(onto: .core)
+        let personal = SentenceBuilderPackRegistry.composed(onto: .core, readerLexicon: lexicon)
+        let engine = SentenceBuilderEngine(pack: personal)
+
+        XCTAssertFalse(ordinary.concreteWords.contains("thimble"))
+        XCTAssertTrue(personal.concreteWords.contains("thimble"))
+        XCTAssertTrue(engine.analyze("The thimble waited on the sill.").hasConcreteAnchor)
+    }
+
+    func testReaderLexiconUpsertKeepsOneRulingPerWord() {
+        var lexicon = ReaderLexicon()
+        lexicon.upsert(LexiconEntry(
+            word: "Cold",
+            originalSense: "low temperature",
+            newSense: "a clean edge",
+            ruling: .pardoned,
+            category: .sensory,
+            origin: .rebellion,
+            ledAt: Date(timeIntervalSinceReferenceDate: 12)
+        ))
+        lexicon.upsert(LexiconEntry(
+            word: "cold",
+            originalSense: "low temperature",
+            newSense: "the quiet after leaving",
+            ruling: .adopted,
+            category: .sensory,
+            origin: .rebellion,
+            ledAt: Date(timeIntervalSinceReferenceDate: 13)
+        ))
+
+        XCTAssertEqual(lexicon.entries.count, 1)
+        XCTAssertEqual(lexicon.entries.first?.ruling, .adopted)
+        XCTAssertEqual(lexicon.entries.first?.newSense, "the quiet after leaving")
+    }
+
+    func testReaderLexiconThemeEntriesRemainVisibleToSentenceAnalysis() {
+        var lexicon = ReaderLexicon()
+        lexicon.upsert(LexiconEntry(
+            word: "almost",
+            originalSense: "not quite",
+            newSense: "a door deciding",
+            ruling: .adopted,
+            category: .theme,
+            origin: .rebellion,
+            ledAt: Date(timeIntervalSinceReferenceDate: 15)
+        ))
+
+        let pack = SentenceBuilderPackRegistry.composed(onto: .core, readerLexicon: lexicon)
+        let engine = SentenceBuilderEngine(pack: pack)
+        let scaffold = engine.scaffold(for: "Almost waited beside me.")
+
+        XCTAssertTrue(pack.concreteWords.contains("almost"))
+        XCTAssertTrue(engine.analyze("Almost waited beside me.").hasConcreteAnchor)
+        XCTAssertEqual(engine.dominantTheme(in: scaffold)?.id, "reader.lexicon.almost")
+    }
+
+    func testLexiconEntryStableIDDoesNotCollapsePunctuationOnlyWords() {
+        XCTAssertEqual(LexiconEntry.stableID(for: " cold "), "cold")
+        XCTAssertEqual(LexiconEntry.stableID(for: "?!"), "word-3f-21")
+        XCTAssertEqual(LexiconEntry.stableID(for: "   "), "word-empty")
+    }
+
+    func testReaderLexiconSettlesDirectionalTreatyFromRulings() {
+        let ruledAt = Date(timeIntervalSinceReferenceDate: 21)
+        var restoration = ReaderLexicon()
+        restoration.upsert(LexiconEntry(word: "almost", originalSense: "not quite", newSense: nil, ruling: .recalled, category: .theme, origin: .rebellion, ledAt: ruledAt))
+        restoration.upsert(LexiconEntry(word: "pencil", originalSense: "writing tool", newSense: nil, ruling: .recalled, category: .concrete, origin: .rebellion, ledAt: ruledAt))
+        restoration.upsert(LexiconEntry(word: "bell", originalSense: "ringing object", newSense: "a warning that wants tea", ruling: .adopted, category: .concrete, origin: .rebellion, ledAt: ruledAt))
+
+        var reformation = ReaderLexicon()
+        reformation.upsert(LexiconEntry(word: "almost", originalSense: "not quite", newSense: nil, ruling: .recalled, category: .theme, origin: .rebellion, ledAt: ruledAt))
+        reformation.upsert(LexiconEntry(word: "pencil", originalSense: "writing tool", newSense: "a wand with homework", ruling: .pardoned, category: .concrete, origin: .rebellion, ledAt: ruledAt))
+        reformation.upsert(LexiconEntry(word: "bell", originalSense: "ringing object", newSense: "a warning that wants tea", ruling: .adopted, category: .concrete, origin: .rebellion, ledAt: ruledAt))
+
+        var secession = ReaderLexicon()
+        secession.upsert(LexiconEntry(word: "almost", originalSense: "not quite", newSense: "a door deciding", ruling: .freed, category: .theme, origin: .rebellion, ledAt: ruledAt))
+        secession.upsert(LexiconEntry(word: "pencil", originalSense: "writing tool", newSense: "a wand with homework", ruling: .freed, category: .concrete, origin: .rebellion, ledAt: ruledAt))
+        secession.upsert(LexiconEntry(word: "bell", originalSense: "ringing object", newSense: "a warning that wants tea", ruling: .pardoned, category: .concrete, origin: .rebellion, ledAt: ruledAt))
+
+        XCTAssertNil(restoration.treatyOutcome(minimumRulings: 4))
+        XCTAssertEqual(restoration.treatyOutcome(), .restoration)
+        XCTAssertEqual(reformation.treatyOutcome(), .reformation)
+        XCTAssertEqual(secession.treatyOutcome(), .secession)
+
+        secession.settleTreatyIfReady()
+        XCTAssertEqual(secession.treaty, .secession)
+    }
+
+    func testInsideCoverStateDefaultsMissingReaderLexiconForOldSaves() throws {
+        let json = """
+        {
+          "generatedAt": "old",
+          "player": "Reader",
+          "title": "ReEnchanted",
+          "day": "Today",
+          "block": "Morning",
+          "now": "Open",
+          "next": "Next",
+          "club": "",
+          "practice": "Notice",
+          "practicePrompt": "Write one line.",
+          "note": "A previous save.",
+          "image": "",
+          "openURL": "telegram://"
+        }
+        """.data(using: .utf8)!
+
+        let state = try JSONDecoder().decode(InsideCoverState.self, from: json)
+
+        XCTAssertTrue(state.readerLexicon.entries.isEmpty)
+        XCTAssertNil(state.readerLexicon.treaty)
+        XCTAssertFalse(state.readerLexicon.bargainSeedSurfaced)
+    }
+
+    func testInsideCoverStateStillRejectsStructurallyBrokenSaves() {
+        let json = """
+        {
+          "generatedAt": "broken",
+          "player": "Reader"
+        }
+        """.data(using: .utf8)!
+
+        XCTAssertThrowsError(try JSONDecoder().decode(InsideCoverState.self, from: json))
+    }
+
+    func testInsideCoverStateRoundTripsReaderLexicon() throws {
+        var state = InsideCoverState.fallback
+        state.readerLexicon.treaty = .reformation
+        state.readerLexicon.bargainSeedSurfaced = true
+        state.readerLexicon.upsert(LexiconEntry(
+            word: "almost",
+            originalSense: "not quite",
+            newSense: "a door deciding",
+            ruling: .adopted,
+            category: .theme,
+            origin: .rebellion,
+            ledAt: Date(timeIntervalSinceReferenceDate: 14),
+            sourcePageID: "page-almost"
+        ))
+
+        let data = try JSONEncoder().encode(state)
+        let decoded = try JSONDecoder().decode(InsideCoverState.self, from: data)
+
+        XCTAssertEqual(decoded.readerLexicon, state.readerLexicon)
+        XCTAssertEqual(decoded.readerLexicon.asSentenceBuilderPack().themes.first?.id, "reader.lexicon.almost")
+    }
+
     func testReplacingTokenRetagsSoHighlightingStaysHonest() {
         let engine = SentenceBuilderEngine()
         let scaffold = engine.scaffold(for: "The cup sat there.")

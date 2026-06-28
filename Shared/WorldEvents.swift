@@ -162,6 +162,58 @@ struct EventInfluencePacket: Codable, Equatable {
     var fieldworkRewardLine: String
 }
 
+enum WorldEventActivationMode: String, Codable, Equatable, CaseIterable {
+    case liveCalendar
+    case openedArchive
+    case preview
+
+    var displayName: String {
+        switch self {
+        case .liveCalendar: return "live"
+        case .openedArchive: return "archive"
+        case .preview: return "preview"
+        }
+    }
+}
+
+struct OpenWorldEventArchive: Codable, Equatable, Identifiable {
+    var packID: String
+    var eventID: String
+    var openedAt: Date
+    var durationDays: Int?
+    var completedAt: Date?
+    var isPaused: Bool = false
+
+    var id: String { "\(packID):\(eventID)" }
+
+    init(
+        packID: String,
+        eventID: String,
+        openedAt: Date,
+        durationDays: Int? = nil,
+        completedAt: Date? = nil,
+        isPaused: Bool = false
+    ) {
+        self.packID = packID
+        self.eventID = eventID
+        self.openedAt = openedAt
+        self.durationDays = durationDays
+        self.completedAt = completedAt
+        self.isPaused = isPaused
+    }
+
+    func interval(for event: WorldEvent, now: Date) -> DateInterval {
+        let days = max(1, durationDays ?? event.calendar.durationDays)
+        let nominalEnd = openedAt.addingTimeInterval(TimeInterval(days) * 86_400)
+        let end = max(nominalEnd, now.addingTimeInterval(1))
+        return DateInterval(start: openedAt, end: end)
+    }
+
+    func isActive(at now: Date) -> Bool {
+        !isPaused && completedAt == nil && openedAt <= now
+    }
+}
+
 enum WorldEventTouchKind: String, Codable, Equatable, CaseIterable {
     case keptRelatedPage
     case fieldworkCompleted
@@ -171,6 +223,7 @@ enum WorldEventTouchKind: String, Codable, Equatable, CaseIterable {
     case enchantmentCompleted
     case storyChoiceMade
     case bleedEditionKept
+    case wordRuled
 
     var trigger: WorldEventTrigger {
         switch self {
@@ -190,6 +243,8 @@ enum WorldEventTouchKind: String, Codable, Equatable, CaseIterable {
             return .keptRelatedPage
         case .bleedEditionKept:
             return .keptRelatedPage
+        case .wordRuled:
+            return .keptRelatedPage
         }
     }
 
@@ -203,6 +258,7 @@ enum WorldEventTouchKind: String, Codable, Equatable, CaseIterable {
         case .enchantmentCompleted: return "enchantment"
         case .storyChoiceMade: return "Story Page"
         case .bleedEditionKept: return "Bleed issue"
+        case .wordRuled: return "word ruling"
         }
     }
 }
@@ -226,6 +282,7 @@ struct ResolvedWorldEvent: Codable, Identifiable, Equatable {
     var outcome: WorldEventOutcome?
     var effects: [WorldEventEffect]
     var packet: EventInfluencePacket
+    var activationMode: WorldEventActivationMode = .liveCalendar
 
     var influenceLine: String {
         let outcomeLine = outcome.map { "\nOutcome pressure: \($0.title). \($0.packetLine)" } ?? ""
@@ -235,6 +292,7 @@ struct ResolvedWorldEvent: Codable, Identifiable, Equatable {
             : "Player touches recorded: \(playerTouchCount) (\(Self.touchSummary(from: touchCounts)))"
         return """
         WORLD EVENT: \(title) — \(subtitle)
+        Mode: \(activationMode.displayName)
         Phase: \(phase.title) (\(Int(progress * 100))% through)
         \(packet.logline)
         \(phase.packetLine)
@@ -315,6 +373,17 @@ enum WorldEventRegistry {
         enabledPacks(fileManager: fileManager).flatMap { pack in
             pack.events.map { (pack.id, $0) }
         }
+    }
+
+    static func event(packID: String, eventID: String? = nil, fileManager: FileManager = .default) -> (packID: String, event: WorldEvent)? {
+        enabledPacks(fileManager: fileManager)
+            .first { $0.id == packID }
+            .flatMap { pack in
+                let event = eventID
+                    .flatMap { id in pack.events.first { $0.id == id } }
+                    ?? pack.events.first
+                return event.map { (pack.id, $0) }
+            }
     }
 
     static let dictionaryRebellion = WorldEvent(
@@ -534,6 +603,45 @@ enum WorldEventResolver {
         }
     }
 
+    static func currentEvents(
+        now: Date,
+        day: BookDay? = nil,
+        inputs: BookSourceInputs = .empty,
+        calendar: Calendar = .current,
+        fileManager: FileManager = .default
+    ) -> [ResolvedWorldEvent] {
+        let live = activeEvents(now: now, day: day, inputs: inputs, calendar: calendar, fileManager: fileManager)
+        guard let archive = openedArchiveEvent(now: now, day: day, inputs: inputs, calendar: calendar, fileManager: fileManager),
+              !live.contains(where: { $0.id == archive.id }) else {
+            return live
+        }
+        return live + [archive]
+    }
+
+    static func openedArchiveEvent(
+        now: Date,
+        day: BookDay? = nil,
+        inputs: BookSourceInputs = .empty,
+        calendar: Calendar = .current,
+        fileManager: FileManager = .default
+    ) -> ResolvedWorldEvent? {
+        guard let archive = inputs.openWorldEventArchive,
+              archive.isActive(at: now),
+              let resolved = WorldEventRegistry.event(packID: archive.packID, eventID: archive.eventID, fileManager: fileManager) else {
+            return nil
+        }
+        let interval = archive.interval(for: resolved.event, now: now)
+        return resolvedEvent(
+            packID: resolved.packID,
+            event: resolved.event,
+            interval: interval,
+            now: now,
+            day: day,
+            inputs: inputs,
+            activationMode: .openedArchive
+        )
+    }
+
     static func archivedEvents(
         now: Date,
         day: BookDay? = nil,
@@ -543,7 +651,7 @@ enum WorldEventResolver {
     ) -> [ResolvedWorldEvent] {
         WorldEventRegistry.enabledEvents(fileManager: fileManager).compactMap { packID, event in
             guard let interval = event.calendar.archivedInterval(asOf: now, calendar: calendar) else { return nil }
-            return resolvedEvent(packID: packID, event: event, interval: interval, now: interval.end, day: day, inputs: inputs)
+            return resolvedEvent(packID: packID, event: event, interval: interval, now: interval.end, day: day, inputs: inputs, activationMode: .openedArchive)
         }
         .sorted { $0.endsAt > $1.endsAt }
     }
@@ -565,7 +673,7 @@ enum WorldEventResolver {
             let duration = TimeInterval(max(1, event.calendar.durationDays)) * 86_400
             let start = now.addingTimeInterval(-duration * clamped)
             let interval = DateInterval(start: start, duration: duration)
-            return resolvedEvent(packID: packID, event: event, interval: interval, now: now, day: day, inputs: inputs)
+            return resolvedEvent(packID: packID, event: event, interval: interval, now: now, day: day, inputs: inputs, activationMode: .preview)
         }
     }
 
@@ -575,7 +683,8 @@ enum WorldEventResolver {
         interval: DateInterval,
         now: Date,
         day: BookDay?,
-        inputs: BookSourceInputs
+        inputs: BookSourceInputs,
+        activationMode: WorldEventActivationMode = .liveCalendar
     ) -> ResolvedWorldEvent {
         let duration = max(1, interval.duration)
         let rawProgress = now.timeIntervalSince(interval.start) / duration
@@ -598,7 +707,8 @@ enum WorldEventResolver {
             playerTouchCounts: touchCounts,
             outcome: outcome,
             effects: event.effects + (outcome?.effects ?? []),
-            packet: event.packet
+            packet: event.packet,
+            activationMode: activationMode
         )
     }
 
@@ -643,7 +753,9 @@ enum WorldEventResolver {
 
     private static func touchKind(for page: BookPage, event: WorldEvent) -> WorldEventTouchKind {
         let proposed: WorldEventTouchKind
-        if page.tags.contains("event-fieldwork") {
+        if page.tags.contains("event-word-ruled") {
+            proposed = .wordRuled
+        } else if page.tags.contains("event-fieldwork") {
             proposed = .fieldworkCompleted
         } else {
             switch page.type {

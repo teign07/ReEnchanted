@@ -227,6 +227,10 @@ struct ContentView: View {
     @State var preparedContinuityURL: URL?
     @State var preparedMonthlyEditionURL: URL?
     @State var preparedAnnualEditionURL: URL?
+    /// The two files a print-on-demand house needs: a full-bleed interior and a
+    /// spine-aware cover wrap, ready to share or hand-upload to a printer.
+    @State var preparedPrintInteriorURL: URL?
+    @State var preparedPrintCoverURL: URL?
     /// The month the player has chosen to bind. `nil` means "let the Book choose"
     /// — the most recent month that kept pages.
     @State var selectedEditionMonth: Date?
@@ -366,11 +370,13 @@ struct ContentView: View {
         inputs.faeState = vault.data.fae ?? FaePlayerState()
         inputs.pactWar = vault.data.pactWar ?? PactWarState()
         inputs.radio = vault.data.radio ?? .off
+        inputs.openWorldEventArchive = vault.data.openWorldEventArchive
         inputs.ownedPackIDs = Set(vault.data.ownedPacks ?? [])
         inputs.hemisphere = Hemisphere.from(latitude: lastAnchorReadingLatitude)
         inputs.surfaceHistory = vault.data.surfaceHistory ?? [:]
         inputs.readerBeliefScore = beliefScore
         inputs.calendarEvents = calendarEvents
+        inputs.calendarIntegrationEnabled = bookCalendarEnabled
         inputs.nearbyPlaces = nearbyPlaces
         inputs.resurfacingCandidates = resurfacedPages
         var quietDays = NothingTide.quietDays(in: days, today: today.id)
@@ -391,6 +397,7 @@ struct ContentView: View {
         inputs.bleedIssueNumber = days.flatMap(\.pages).filter { $0.type == .theBleed }.count + 1
         inputs.preparedBleedEditionSurface = generation.preparedBleedEditionSurface
         inputs.bookJump = vault.data.bookJump ?? BookJumpState()
+        inputs.readerLexicon = vault.data.readerLexicon ?? ReaderLexicon()
         inputs.preparedAnchorSurface = preparedAnchorSurface
         inputs.selectedWonderCompass = selectedWonderCompassSnippet
         inputs.selectedWonderCompassSelector = selectedWonderCompassSelector
@@ -904,10 +911,22 @@ struct ContentView: View {
                     goblinWarmth: fae.warmth(for: .goblin),
                     onBuyWare: { buyMarketWare($0) },
                     onUnlock: { unlockPack($0) },
+                    onOpenArchive: { activateWorldEventArchive(packID: $0) },
                     onHaggle: { haggleWare($0) },
                     onClerkBanter: { await goblinClerkBanter() },
                     onOpenBargain: { openFaeBargainPage($0) },
-                    onMarkNextMarket: { Task { await addNextMarketToCalendar() } }
+                    onMarkNextMarket: { Task { await addNextMarketToCalendar() } },
+                    binderyMonthLabel: bindableEditionMonths.first?.label ?? "",
+                    binderyMonthPageCount: bindableEditionMonths.first?.pageCount ?? 0,
+                    preparedMonthlyEditionURL: preparedMonthlyEditionURL,
+                    preparedAnnualEditionURL: preparedAnnualEditionURL,
+                    binderyNote: colophonBindingNote,
+                    preparedPrintInteriorURL: preparedPrintInteriorURL,
+                    preparedPrintCoverURL: preparedPrintCoverURL,
+                    onBindMonth: { exportMonthlyEdition() },
+                    onBindMonthGemma: { exportMonthlyEdition(useGemmaClosing: true) },
+                    onBindYear: { exportAnnualEdition() },
+                    onMakePrintReady: { exportPrintReadyEdition() }
                 )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
@@ -2499,6 +2518,10 @@ struct ContentView: View {
                             } else if surface.payload.metadata["opensBookShop"] == "true" {
                                 currentStall = buildGoblinStall()
                                 isBookShopPresented = true
+                            } else if surface.payload.metadata["requiresCalendarPermission"] == "true" {
+                                Task { await openCalendarDoorway(from: surface) }
+                            } else if surface.type == .faeBargain {
+                                openFaeBargainSurface(surface)
                             } else {
                                 selectedSurface = surface
                             }
@@ -3377,6 +3400,7 @@ struct ContentView: View {
             mediaAssets: surface.mediaAssets
         )
         day.pages.append(page)
+        applyWordNegotiationIfNeeded(surface: surface, page: page)
         recordNarrativeEvent(for: page)
         recordPenPalReplyMemory(for: page, surface: surface)
         weaveRelationshipField(for: page)
@@ -3398,6 +3422,59 @@ struct ContentView: View {
         }
         persist(day: day, message: keptMessage)
         retireKeptSurfaceFromRising(surface)
+    }
+
+    func applyWordNegotiationIfNeeded(surface: SurfacePage, page: BookPage) {
+        guard surface.type == .wordNegotiation else { return }
+        let metadata = surface.payload.metadata
+        let isMissingSeed = metadata["wordNegotiationIsMissingSeed"] == "true"
+        var lexicon = vault.data.readerLexicon ?? ReaderLexicon()
+        if isMissingSeed {
+            lexicon.bargainSeedSurfaced = true
+        }
+
+        guard let word = metadata["wordNegotiationWord"]?.nonEmpty,
+              let originalSense = metadata["wordNegotiationOriginalSense"]?.nonEmpty else {
+            vault.data.readerLexicon = lexicon
+            vault.save()
+            return
+        }
+        let rulingTag = page.tags.first { $0.hasPrefix("word-ruling:") }
+        let rulingRaw = rulingTag.map { String($0.dropFirst("word-ruling:".count)) }
+            ?? metadata["wordNegotiationDefaultRuling"]?.nonEmpty
+        guard let rulingRaw,
+              let ruling = WordRuling(rawValue: rulingRaw) else {
+            vault.data.readerLexicon = lexicon
+            vault.save()
+            return
+        }
+
+        let choicePrefix = "wordNegotiationChoice.\(ruling.rawValue)"
+        let categoryRaw = page.tags
+            .first { $0.hasPrefix("lexicon-category:") }
+            .map { String($0.dropFirst("lexicon-category:".count)) }
+            ?? metadata["\(choicePrefix).category"]?.nonEmpty
+            ?? metadata["wordNegotiationCategory"]?.nonEmpty
+        let category = categoryRaw.flatMap(LexiconCategory.init(rawValue:)) ?? .theme
+        let newSense = ruling == .recalled
+            ? nil
+            : (metadata["\(choicePrefix).sense"]?.nonEmpty ?? metadata["wordNegotiationNewSense"]?.nonEmpty)
+        let origin = metadata["wordNegotiationOrigin"]
+            .flatMap(LexiconOrigin.init(rawValue:)) ?? .rebellion
+        let entry = LexiconEntry(
+            id: metadata["wordNegotiationWordID"]?.nonEmpty,
+            word: word,
+            originalSense: originalSense,
+            newSense: newSense,
+            ruling: ruling,
+            category: category,
+            origin: origin,
+            ledAt: page.createdAt,
+            sourcePageID: page.id
+        )
+        lexicon.upsert(entry)
+        vault.data.readerLexicon = lexicon
+        vault.save()
     }
 
     func applyBookFaeChoiceIfNeeded(surface: SurfacePage, tags: [String]) {
@@ -3586,6 +3663,9 @@ struct ContentView: View {
         var state = vault.data.fae ?? FaePlayerState()
         var changed = false
         if !FaeEconomy.sweepLapses(into: &state, now: now).isEmpty {
+            changed = true
+        }
+        if !FaeEconomy.expireStaleOffers(into: &state, now: now).isEmpty {
             changed = true
         }
         if FaeEconomy.canOfferBargain(state: state, now: now) {
@@ -4091,6 +4171,28 @@ struct ContentView: View {
             recentBookJumpCollapse: recentCollapse,
             ownedPackIDs: Set(vault.data.ownedPacks ?? [])
         )
+    }
+
+    /// Open a Fae bargain from the home desk. Opening is the moment of consent:
+    /// if the bargain is still a proposal (.offered), accepting it here is what
+    /// fronts the gift, pays the Claim, and starts the clock. Swiping the preview
+    /// away instead never reaches this, so an untouched offer costs nothing.
+    @MainActor
+    func openFaeBargainSurface(_ surface: SurfacePage) {
+        let metadata = surface.payload.metadata
+        if metadata["status"] == FaeBargainStatus.offered.rawValue,
+           let bargainID = metadata["bargainID"] {
+            var state = vault.data.fae ?? FaePlayerState()
+            if let accepted = FaeEconomy.acceptBargain(bargainID: bargainID, into: &state) {
+                vault.data.fae = state
+                vault.save()
+                BookFeedback.faeArrival(kind: accepted.faeKind.rawValue, court: metadata["faeCourt"])
+                surfaceRefreshDate = Date()
+                selectedSurface = FaeBargainPageSourceAdapter.surface(for: accepted, state: state)
+                return
+            }
+        }
+        selectedSurface = surface
     }
 
     /// Open a specific owed/lapsed Fae bargain's page from the BookShop standing
@@ -4832,7 +4934,8 @@ struct ContentView: View {
             selectedSurface = surface
         case .weather:
             statusMessage = "The Weather Page is asking the sky, then Gemma."
-            if weatherPageSignal == nil {
+            let shouldRefreshWeather = surface.payload.metadata["requiresWeatherRefresh"] == "true"
+            if shouldRefreshWeather || weatherPageSignal == nil {
                 _ = await refreshWeatherSignal(isUserInitiated: true, shouldEnchant: true)
             } else if enchantedWeather == nil {
                 _ = await prepareWeatherPageIfPossible()
@@ -5815,6 +5918,29 @@ struct ContentView: View {
     @MainActor
     func requestWeatherSignal() async {
         await refreshWeatherSignal(isUserInitiated: true, shouldEnchant: true)
+    }
+
+    @MainActor
+    func openCalendarDoorway(from surface: SurfacePage? = nil) async {
+        guard CalendarDoorway.isAvailable else {
+            statusMessage = "This build cannot open the Calendar Doorway."
+            return
+        }
+
+        bookCalendarEnabled = true
+        statusMessage = "Bellkeeper Elian is opening the Calendar Doorway..."
+        let events = await CalendarDoorway.upcomingEvents()
+        calendarEvents = events
+        let now = Date()
+        surfaceRefreshDate = now
+        if let surface {
+            undoSurface = nil
+            undoDayID = nil
+            replaceDismissedSurfaceInCache(surface, now: now)
+        }
+        statusMessage = events.isEmpty
+            ? "The Calendar Doorway is open, but no hinges are inked yet."
+            : "The Book can see \(events.count) inked hour\(events.count == 1 ? "" : "s") ahead."
     }
 
     @MainActor

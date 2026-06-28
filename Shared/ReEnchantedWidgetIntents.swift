@@ -34,3 +34,20 @@ struct ReEnchantedResetCompassIntent: AppIntent {
         return .result()
     }
 }
+
+struct ReEnchantedOpenCompassIntent: AppIntent {
+    static var title: LocalizedStringResource = "Open Wonder Compass"
+    static var description = IntentDescription("Open ReEnchanted to the Wonder Compass run.")
+    static var openAppWhenRun: Bool { true }
+
+    func perform() async throws -> some IntentResult {
+        let command = ReEnchantedCompassWidgetCommand(
+            id: UUID(),
+            action: .openRun,
+            issuedAt: Date()
+        )
+        try ReEnchantedCompassWidgetRunStore.saveCommand(command)
+        WidgetCenter.shared.reloadTimelines(ofKind: "ReEnchantedCompassWidget")
+        return .result()
+    }
+}

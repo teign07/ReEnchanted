@@ -639,6 +639,8 @@ extension ContentView {
             wagers: vault.data.wagers,
             themes: vault.data.themes,
             clusters: clusters,
+            readerLexicon: vault.data.readerLexicon,
+            openWorldEventArchive: vault.data.openWorldEventArchive,
             continuity: continuity
         )
     }
@@ -789,10 +791,26 @@ extension ContentView {
         generation.isPreparingBleedEdition = true
         defer { generation.isPreparingBleedEdition = false }
 
-        let briefs = TheBleedEditionBuilder.decodedBriefs(surface.payload.metadata["bleedBriefs"] ?? "")
+        var briefs = TheBleedEditionBuilder.decodedBriefs(surface.payload.metadata["bleedBriefs"] ?? "")
         guard !briefs.isEmpty else {
             statusMessage = "The type tray came up empty. Penny is re-sorting the briefs."
             return false
+        }
+        let kind = BleedEditionKind(rawValue: surface.payload.metadata["bleedEditionKind"] ?? "") ?? .morning
+        let issueNumber = Int(surface.payload.metadata["bleedIssueNumber"] ?? "") ?? 1
+
+        if briefs.contains(where: { $0.id == "weather-desk" }) {
+            var weatherInputs = sourceInputs
+            if weatherInputs.weather?.isAvailable != true {
+                statusMessage = "Penny is checking the window before the weather desk goes to type..."
+                _ = await refreshWeatherSignal(isUserInitiated: false, shouldEnchant: false)
+                weatherInputs = sourceInputs
+            }
+            briefs = TheBleedEditionBuilder.refreshingWeatherBriefs(
+                briefs,
+                kind: kind,
+                inputs: weatherInputs
+            )
         }
 
         let interest = surface.payload.metadata["bleedInterest"]?.nonEmpty
@@ -815,8 +833,6 @@ extension ContentView {
             columns.append((brief, body))
         }
 
-        let kind = BleedEditionKind(rawValue: surface.payload.metadata["bleedEditionKind"] ?? "") ?? .morning
-        let issueNumber = Int(surface.payload.metadata["bleedIssueNumber"] ?? "") ?? 1
         let body = TheBleedEditionBuilder.compositedBody(
             kind: kind,
             issueNumber: issueNumber,
@@ -896,81 +912,121 @@ extension ContentView {
     /// deterministic `BookForewordWriter.closing(...)`; pass `useGemmaClosing`
     /// to have the on-device brain compose a fresh last word instead (slower,
     /// and it falls back to the deterministic closing if Gemma is quiet).
+    /// Resolves which month the binder should sew: the month named on the shelf,
+    /// else the previous calendar month, else the most recent month that kept
+    /// pages. Returns nil if there is nothing with content to bind. Shared by the
+    /// screen-PDF bind and the print-ready export.
+    @MainActor
+    private func resolveEditionForBinding() -> MonthlyEdition? {
+        let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 5000)) ?? narrativeEvents
+        let archiveMemories = (try? BookDatabase.entityMemories(limit: 5000)) ?? entityMemories
+        let now = Date()
+        func buildMonth(starting monthStart: Date) -> MonthlyEdition {
+            let calendar = Calendar.current
+            let end = calendar.date(byAdding: DateComponents(month: 1, second: -1), to: monthStart) ?? now
+            return MonthlyEditionBuilder.edition(
+                from: days,
+                events: archiveEvents,
+                entityMemories: archiveMemories,
+                entityBelief: entityBeliefLedger,
+                pageBelief: pageBeliefLedger,
+                constellations: vault.data.constellations ?? [],
+                wagers: vault.data.wagers ?? [],
+                themes: vault.data.themes ?? [],
+                readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
+                startDate: monthStart,
+                endDate: end,
+                generatedAt: now
+            )
+        }
+        let edition: MonthlyEdition
+        if let chosen = selectedEditionMonth {
+            edition = buildMonth(starting: chosen)
+        } else {
+            var auto = MonthlyEditionBuilder.previousMonth(
+                from: days,
+                events: archiveEvents,
+                entityMemories: archiveMemories,
+                entityBelief: entityBeliefLedger,
+                pageBelief: pageBeliefLedger,
+                constellations: vault.data.constellations ?? [],
+                wagers: vault.data.wagers ?? [],
+                themes: vault.data.themes ?? [],
+                readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
+                now: now
+            )
+            if auto.isEmpty, let latestMonth = bindableEditionMonths.first?.start {
+                auto = buildMonth(starting: latestMonth)
+            }
+            edition = auto
+        }
+        return edition.isEmpty ? nil : edition
+    }
+
     @MainActor
     func exportMonthlyEdition(useGemmaClosing: Bool = false) {
+        guard let edition = resolveEditionForBinding() else {
+            colophonBindingNote = "I turned to that month and found the leaves still blank. Keep a page or two there first, and I'll have something to sew."
+            BookFeedback.play(.error)
+            return
+        }
+        if useGemmaClosing {
+            // Ask the on-device brain for the last word, then bind.
+            let pending = edition
+            colophonBindingNote = "Asking Gemma for the last word on \(edition.monthName)…"
+            Task { @MainActor in
+                var bound = pending
+                if let gemma = await gemmaMonthlyClosing(for: pending) {
+                    bound.closing = gemma
+                }
+                do {
+                    try bindMonthlyEditionPDF(bound)
+                } catch {
+                    colophonBindingNote = "The thread snapped mid-stitch — the month would not bind. (\(error.localizedDescription))"
+                    BookFeedback.play(.error)
+                }
+            }
+            return
+        }
         do {
-            let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 5000)) ?? narrativeEvents
-            let archiveMemories = (try? BookDatabase.entityMemories(limit: 5000)) ?? entityMemories
-            let now = Date()
-            func buildMonth(starting monthStart: Date) -> MonthlyEdition {
-                let calendar = Calendar.current
-                let end = calendar.date(byAdding: DateComponents(month: 1, second: -1), to: monthStart) ?? now
-                return MonthlyEditionBuilder.edition(
-                    from: days,
-                    events: archiveEvents,
-                    entityMemories: archiveMemories,
-                    entityBelief: entityBeliefLedger,
-                    pageBelief: pageBeliefLedger,
-                    constellations: vault.data.constellations ?? [],
-                    wagers: vault.data.wagers ?? [],
-                    themes: vault.data.themes ?? [],
-                    readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
-                    startDate: monthStart,
-                    endDate: end,
-                    generatedAt: now
-                )
-            }
-            var edition: MonthlyEdition
-            if let chosen = selectedEditionMonth {
-                // The player named a month from the shelf — bind exactly that one.
-                edition = buildMonth(starting: chosen)
-            } else {
-                // No choice made: prefer the previous calendar month, then fall back
-                // to the most recent month that actually kept pages.
-                var auto = MonthlyEditionBuilder.previousMonth(
-                    from: days,
-                    events: archiveEvents,
-                    entityMemories: archiveMemories,
-                    entityBelief: entityBeliefLedger,
-                    pageBelief: pageBeliefLedger,
-                    constellations: vault.data.constellations ?? [],
-                    wagers: vault.data.wagers ?? [],
-                    themes: vault.data.themes ?? [],
-                    readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
-                    now: now
-                )
-                if auto.isEmpty, let latestMonth = bindableEditionMonths.first?.start {
-                    auto = buildMonth(starting: latestMonth)
-                }
-                edition = auto
-            }
-            guard !edition.isEmpty else {
-                colophonBindingNote = "I turned to that month and found the leaves still blank. Keep a page or two there first, and I'll have something to sew."
-                BookFeedback.play(.error)
-                return
-            }
-            if useGemmaClosing {
-                // Ask the on-device brain for the last word, then bind.
-                let pending = edition
-                colophonBindingNote = "Asking Gemma for the last word on \(edition.monthName)…"
-                Task { @MainActor in
-                    var bound = pending
-                    if let gemma = await gemmaMonthlyClosing(for: pending) {
-                        bound.closing = gemma
-                    }
-                    do {
-                        try bindMonthlyEditionPDF(bound)
-                    } catch {
-                        colophonBindingNote = "The thread snapped mid-stitch — the month would not bind. (\(error.localizedDescription))"
-                        BookFeedback.play(.error)
-                    }
-                }
-                return
-            }
-
             try bindMonthlyEditionPDF(edition)
         } catch {
             colophonBindingNote = "The thread snapped mid-stitch — the month would not bind. (\(error.localizedDescription))"
+            BookFeedback.play(.error)
+        }
+    }
+
+    /// Builds the two files a print-on-demand house needs — a full-bleed interior
+    /// and a spine-aware cover wrap — and surfaces both under the share mark. No
+    /// account, backend, or fee: the reader hand-uploads them to a printer (Lulu)
+    /// for a real cloth, foil-spine book.
+    @MainActor
+    func exportPrintReadyEdition(spec: PrintSpec = .hardcover6x9) {
+        guard let edition = resolveEditionForBinding() else {
+            colophonBindingNote = "I turned to that month and found the leaves still blank. Keep a page or two there first, and I'll have something to press."
+            BookFeedback.play(.error)
+            return
+        }
+        colophonBindingNote = "Setting \(edition.monthName) for the press…"
+        do {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM"
+            let stamp = formatter.string(from: edition.startDate)
+            let dir = FileManager.default.temporaryDirectory
+            let interiorURL = dir.appendingPathComponent("ReEnchanted-Print-Interior-\(stamp).pdf")
+            let coverURL = dir.appendingPathComponent("ReEnchanted-Print-Cover-\(stamp).pdf")
+
+            let pages = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: spec, to: interiorURL)
+            try MonthlyEditionPDFWriter.writeCoverWrap(edition, spec: spec, pageCount: pages, to: coverURL)
+
+            preparedPrintInteriorURL = interiorURL
+            preparedPrintCoverURL = coverURL
+            let spine = PrintGeometry.spineWidthInches(pageCount: pages, spec: spec)
+            let trim = "\(String(format: "%g", spec.trimWidthInches))×\(String(format: "%g", spec.trimHeightInches))in"
+            colophonBindingNote = "\(edition.monthName) is ready for the press — a \(trim) interior of \(pages) pages and a cover wrap with a \(String(format: "%.2f", spine))in spine. Share both files, then upload them to a printer like Lulu."
+            BookFeedback.play(.braidComplete)
+        } catch {
+            colophonBindingNote = "The press would not take it — \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
     }
@@ -1145,6 +1201,21 @@ extension ContentView {
                     merged.append(theme)
                 }
                 vault.data.themes = merged.sorted { $0.monthKey < $1.monthKey }
+            }
+            if let importedLexicon = save.readerLexicon {
+                var merged = vault.data.readerLexicon ?? ReaderLexicon()
+                for entry in importedLexicon.entries {
+                    merged.upsert(entry)
+                }
+                if merged.treaty == nil {
+                    merged.treaty = importedLexicon.treaty
+                }
+                merged.bargainSeedSurfaced = merged.bargainSeedSurfaced || importedLexicon.bargainSeedSurfaced
+                vault.data.readerLexicon = merged
+            }
+            if let importedArchive = save.openWorldEventArchive,
+               vault.data.openWorldEventArchive == nil {
+                vault.data.openWorldEventArchive = importedArchive
             }
             vault.save()
             marginTutorSeenData = MarginTutorLedger.encode(Set(save.marginTutorSeen))
@@ -1707,12 +1778,50 @@ extension ContentView {
         guard !PackEntitlements.isUnlocked(packID) else { return }
         PackEntitlements.ownedPackIDs.insert(packID)
         vault.data.ownedPacks = Array(PackEntitlements.ownedPackIDs).sorted()
+        let openedArchive = openWorldEventArchiveIfUseful(forPackID: packID, now: Date())
         vault.save()
         surfaceRefreshDate = Date()
         rebuildSurfaceCache()
         let title = BookShopCatalog.listing(forPackID: packID)?.title ?? packID
-        statusMessage = "\(title) is bound to your save. New pages will find their way to the desk."
+        statusMessage = openedArchive
+            ? "\(title) is bound and opened as your current archive. Its full arc will unfold from today."
+            : "\(title) is bound to your save. New pages will find their way to the desk."
         BookFeedback.play(.braidComplete)
+    }
+
+    @MainActor
+    @discardableResult
+    func openWorldEventArchiveIfUseful(forPackID packID: String, now: Date = Date()) -> Bool {
+        guard BookShopCatalog.listing(forPackID: packID)?.family == .eventPack,
+              let resolved = WorldEventRegistry.event(packID: packID) else {
+            return false
+        }
+        let live = WorldEventResolver.activeEvents(now: now, day: today, inputs: sourceInputs)
+        guard !live.contains(where: { $0.id == resolved.event.id }) else {
+            return false
+        }
+        vault.data.openWorldEventArchive = OpenWorldEventArchive(
+            packID: resolved.packID,
+            eventID: resolved.event.id,
+            openedAt: now,
+            durationDays: resolved.event.calendar.durationDays
+        )
+        return true
+    }
+
+    @MainActor
+    func activateWorldEventArchive(packID: String) {
+        guard PackEntitlements.isUnlocked(packID) else { return }
+        let title = BookShopCatalog.listing(forPackID: packID)?.title ?? packID
+        if openWorldEventArchiveIfUseful(forPackID: packID, now: Date()) {
+            vault.save()
+            surfaceRefreshDate = Date()
+            rebuildSurfaceCache()
+            statusMessage = "\(title) is open as your current archive."
+            BookFeedback.play(.braidComplete)
+        } else {
+            statusMessage = "\(title) is already live in the world, or has no archive event to open."
+        }
     }
 
     // MARK: - Fuel arithmetic

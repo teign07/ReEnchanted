@@ -127,8 +127,8 @@ final class TwoReadingsTests: XCTestCase {
 
     func testAdapterSurfacesWithEnoughEvidence() {
         let adapter = TwoReadingsPageSourceAdapter()
-        let inputs = BookSourceInputs.empty
         let now = Date()
+        let inputs = BookSourceInputs.empty.withMatureLibrary(now: now)
         let pages = [
             BookPage(type: .mood, promptText: "weather", userInput: "Tired and heavy today", tags: ["tired"]),
             BookPage(type: .diary, promptText: "now", userInput: "Did not sleep well", tags: ["sleep"]),
@@ -248,7 +248,7 @@ final class TwoReadingsTests: XCTestCase {
 
     func testCastBondAdapterSurfacesAllianceWhenWarmthCrossesMilestone() {
         let adapter = CastBondPageSourceAdapter()
-        var inputs = BookSourceInputs.empty
+        var inputs = BookSourceInputs.empty.withMatureLibrary()
         inputs.relationshipField = [
             NarrativeGraphData.relationshipPairKey("dr-vellum", "dr-inkrest"): RelationshipTie(warmth: CastBondEngine.milestone, tension: 0, familiarity: 3)
         ]
@@ -263,7 +263,7 @@ final class TwoReadingsTests: XCTestCase {
 
     func testCastBondAdapterSurfacesRivalryWhenTensionCrossesMilestone() {
         let adapter = CastBondPageSourceAdapter()
-        var inputs = BookSourceInputs.empty
+        var inputs = BookSourceInputs.empty.withMatureLibrary()
         inputs.relationshipField = [
             NarrativeGraphData.relationshipPairKey("dr-vellum", "dr-inkrest"): RelationshipTie(warmth: 1, tension: CastBondEngine.milestone + 1, familiarity: 3)
         ]

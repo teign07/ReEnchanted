@@ -17,6 +17,7 @@ struct InsideCoverState: Codable, Equatable {
     var image: String
     var imageData: String?
     var openURL: String
+    var readerLexicon: ReaderLexicon = ReaderLexicon()
 
     static let fallback = InsideCoverState(
         generatedAt: "",
@@ -36,6 +37,34 @@ struct InsideCoverState: Codable, Equatable {
         imageData: nil,
         openURL: "telegram://"
     )
+}
+
+extension InsideCoverState {
+    private enum CodingKeys: String, CodingKey {
+        case generatedAt, player, title, day, block, now, next, club, practice, practicePrompt
+        case classroom, health, note, image, imageData, openURL, readerLexicon
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        generatedAt = try c.decode(String.self, forKey: .generatedAt)
+        player = try c.decode(String.self, forKey: .player)
+        title = try c.decode(String.self, forKey: .title)
+        day = try c.decode(String.self, forKey: .day)
+        block = try c.decode(String.self, forKey: .block)
+        now = try c.decode(String.self, forKey: .now)
+        next = try c.decode(String.self, forKey: .next)
+        club = try c.decode(String.self, forKey: .club)
+        practice = try c.decode(String.self, forKey: .practice)
+        practicePrompt = try c.decode(String.self, forKey: .practicePrompt)
+        classroom = try c.decodeIfPresent(ClassroomState.self, forKey: .classroom)
+        health = try c.decodeIfPresent(HealthState.self, forKey: .health)
+        note = try c.decode(String.self, forKey: .note)
+        image = try c.decode(String.self, forKey: .image)
+        imageData = try c.decodeIfPresent(String.self, forKey: .imageData)
+        openURL = try c.decode(String.self, forKey: .openURL)
+        readerLexicon = try c.decodeIfPresent(ReaderLexicon.self, forKey: .readerLexicon) ?? ReaderLexicon()
+    }
 }
 
 struct ClassroomState: Codable, Equatable {

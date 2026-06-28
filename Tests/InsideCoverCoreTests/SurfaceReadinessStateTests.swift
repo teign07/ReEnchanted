@@ -37,6 +37,16 @@ final class SurfaceReadinessStateTests: XCTestCase {
         XCTAssertFalse(SurfaceReadinessState(type: .weather).needsLocalBrainToOpen)
     }
 
+    func testWeatherPreviewNeedsRefreshBeforeOpen() {
+        XCTAssertTrue(SurfaceReadinessState(
+            type: .weather,
+            metadata: [
+                "selector": "fallback",
+                "requiresWeatherRefresh": "true"
+            ]
+        ).needsLocalBrainToOpen)
+    }
+
     func testCanInitializeFromSurfacePage() {
         let surface = SurfacePage(
             type: .narrativeOS,

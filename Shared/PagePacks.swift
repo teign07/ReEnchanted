@@ -44,7 +44,11 @@ struct PageTrigger: Codable, Equatable {
     var recentTags: [String]? = nil
     var activeWorldEventIDs: [String]? = nil
     var worldEventPhases: [String]? = nil
+    var worldEventModes: [String]? = nil
     var minWorldEventTouches: Int? = nil
+    var minLexiconEntries: Int? = nil
+    var treatyOutcomes: [String]? = nil
+    var bargainSeedSurfaced: Bool? = nil
     var minGrey: Int? = nil
     var maxGrey: Int? = nil
     var minQuietDays: Int? = nil
@@ -82,16 +86,45 @@ struct PageTrigger: Codable, Equatable {
            !Self.any(recentTags, isIn: context.recentTags) {
             return false
         }
-        if let activeWorldEventIDs, !activeWorldEventIDs.isEmpty,
-           !context.activeWorldEvents.contains(where: { Self.matches($0.id, in: activeWorldEventIDs) }) {
-            return false
+        let hasEventScope = (activeWorldEventIDs?.isEmpty == false)
+            || (worldEventPhases?.isEmpty == false)
+            || (worldEventModes?.isEmpty == false)
+        let scopedWorldEvents = context.activeWorldEvents.filter { event in
+            if let activeWorldEventIDs, !activeWorldEventIDs.isEmpty,
+               !Self.matches(event.id, in: activeWorldEventIDs) {
+                return false
+            }
+            if let worldEventPhases, !worldEventPhases.isEmpty,
+               !Self.matches(event.phase.id, in: worldEventPhases),
+               !Self.matches(event.phase.title, in: worldEventPhases) {
+                return false
+            }
+            if let worldEventModes, !worldEventModes.isEmpty,
+               !Self.matches(event.activationMode.rawValue, in: worldEventModes),
+               !Self.matches(event.activationMode.displayName, in: worldEventModes) {
+                return false
+            }
+            return true
         }
-        if let worldEventPhases, !worldEventPhases.isEmpty,
-           !context.activeWorldEvents.contains(where: { Self.matches($0.phase.id, in: worldEventPhases) || Self.matches($0.phase.title, in: worldEventPhases) }) {
+        if hasEventScope, scopedWorldEvents.isEmpty {
             return false
         }
         if let minWorldEventTouches,
-           context.activeWorldEvents.map(\.playerTouchCount).max() ?? 0 < minWorldEventTouches {
+           ((hasEventScope ? scopedWorldEvents : context.activeWorldEvents).map(\.playerTouchCount).max() ?? 0) < minWorldEventTouches {
+            return false
+        }
+        if let minLexiconEntries,
+           context.inputs.readerLexicon.entries.count < minLexiconEntries {
+            return false
+        }
+        if let treatyOutcomes, !treatyOutcomes.isEmpty {
+            guard let treaty = context.inputs.readerLexicon.treaty,
+                  Self.matches(treaty.rawValue, in: treatyOutcomes) else {
+                return false
+            }
+        }
+        if let bargainSeedSurfaced,
+           context.inputs.readerLexicon.bargainSeedSurfaced != bargainSeedSurfaced {
             return false
         }
         if let minGrey, context.greyPressure < minGrey {
@@ -131,6 +164,10 @@ struct PageTrigger: Codable, Equatable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
             .filter { $0.isLetter || $0.isNumber }
+    }
+
+    static func matchesKey(_ left: String, _ right: String) -> Bool {
+        key(left) == key(right)
     }
 }
 
@@ -249,8 +286,132 @@ struct PageArchetypePack: Codable, Identifiable, Equatable {
     var author: String
     var availability: String
     var archetypes: [PageArchetype]
+    var wordNegotiations: [WordNegotiationDefinition]? = nil
 
     var isLocked: Bool { availability == "locked" }
+}
+
+struct WordNegotiationChoice: Codable, Identifiable, Equatable {
+    var ruling: WordRuling
+    var title: String
+    var detail: String
+    var resultingSense: String?
+    var responseLine: String?
+    var category: LexiconCategory?
+
+    var id: String { ruling.rawValue }
+}
+
+struct WordNegotiationDefinition: Codable, Identifiable, Equatable {
+    var id: String
+    var word: String
+    var originalSense: String
+    var grievance: String
+    var category: LexiconCategory
+    var origin: LexiconOrigin = .rebellion
+    var eventID: String?
+    var phaseID: String?
+    var eventModes: [String]?
+    var isMissingSeed: Bool = false
+    var score: Int = 76
+    var cadenceHours: Int = 12
+    var symbolName: String = "textformat.abc.dottedunderline"
+    var tags: [String] = []
+    var choices: [WordNegotiationChoice]
+
+    var stableWordID: String {
+        LexiconEntry.stableID(for: word)
+    }
+
+    init(
+        id: String,
+        word: String,
+        originalSense: String,
+        grievance: String,
+        category: LexiconCategory,
+        origin: LexiconOrigin = .rebellion,
+        eventID: String? = nil,
+        phaseID: String? = nil,
+        eventModes: [String]? = nil,
+        isMissingSeed: Bool = false,
+        score: Int = 76,
+        cadenceHours: Int = 12,
+        symbolName: String = "textformat.abc.dottedunderline",
+        tags: [String] = [],
+        choices: [WordNegotiationChoice]
+    ) {
+        self.id = id
+        self.word = word
+        self.originalSense = originalSense
+        self.grievance = grievance
+        self.category = category
+        self.origin = origin
+        self.eventID = eventID
+        self.phaseID = phaseID
+        self.eventModes = eventModes
+        self.isMissingSeed = isMissingSeed
+        self.score = score
+        self.cadenceHours = cadenceHours
+        self.symbolName = symbolName
+        self.tags = tags
+        self.choices = choices
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, word, originalSense, grievance, category, origin, eventID, phaseID, eventModes
+        case isMissingSeed, score, cadenceHours, symbolName, tags, choices
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        word = try container.decode(String.self, forKey: .word)
+        originalSense = try container.decode(String.self, forKey: .originalSense)
+        grievance = try container.decode(String.self, forKey: .grievance)
+        category = try container.decode(LexiconCategory.self, forKey: .category)
+        origin = try container.decodeIfPresent(LexiconOrigin.self, forKey: .origin) ?? .rebellion
+        eventID = try container.decodeIfPresent(String.self, forKey: .eventID)
+        phaseID = try container.decodeIfPresent(String.self, forKey: .phaseID)
+        eventModes = try container.decodeIfPresent([String].self, forKey: .eventModes)
+        isMissingSeed = try container.decodeIfPresent(Bool.self, forKey: .isMissingSeed) ?? false
+        score = try container.decodeIfPresent(Int.self, forKey: .score) ?? 76
+        cadenceHours = try container.decodeIfPresent(Int.self, forKey: .cadenceHours) ?? 12
+        symbolName = try container.decodeIfPresent(String.self, forKey: .symbolName) ?? "textformat.abc.dottedunderline"
+        tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
+        choices = try container.decode([WordNegotiationChoice].self, forKey: .choices)
+    }
+
+    func isEligible(context: PageTriggerContext, readerLexicon: ReaderLexicon) -> Bool {
+        guard !readerLexicon.entries.contains(where: { $0.id == stableWordID }) else { return false }
+        let hasEventScope = eventID?.isEmpty == false
+            || phaseID?.isEmpty == false
+            || eventModes?.isEmpty == false
+        if hasEventScope,
+           !context.activeWorldEvents.contains(where: { event in
+               if let eventID, !eventID.isEmpty,
+                  !PageTrigger.matchesKey(event.id, eventID) {
+                   return false
+               }
+               if let phaseID, !phaseID.isEmpty,
+                  !PageTrigger.matchesKey(event.phase.id, phaseID),
+                  !PageTrigger.matchesKey(event.phase.title, phaseID) {
+                   return false
+               }
+               if let eventModes, !eventModes.isEmpty,
+                  !eventModes.contains(where: { PageTrigger.matchesKey(event.activationMode.rawValue, $0) || PageTrigger.matchesKey(event.activationMode.displayName, $0) }) {
+                   return false
+               }
+               return true
+           }) {
+            return false
+        }
+        return true
+    }
+
+    func choice(for ruling: WordRuling?) -> WordNegotiationChoice? {
+        guard let ruling else { return choices.first }
+        return choices.first { $0.ruling == ruling }
+    }
 }
 
 /// Fills `{placeholder}` slots in pack templates from live signals, so pack
@@ -496,13 +657,20 @@ enum PageArchetypePackRegistry {
             }
     }
 
-    static func enabledPacks() -> [PageArchetypePack] {
-        (bundledPacks + userPacks()).filter { !$0.isLocked || PackEntitlements.isUnlocked($0.id) }
+    static func enabledPacks(fileManager: FileManager = .default) -> [PageArchetypePack] {
+        (bundledPacks + userPacks(fileManager: fileManager)).filter { !$0.isLocked || PackEntitlements.isUnlocked($0.id) }
     }
 
-    static func archetypes() -> [PageArchetype] {
+    static func archetypes(fileManager: FileManager = .default) -> [PageArchetype] {
         var seen = Set<String>()
-        return enabledPacks().flatMap(\.archetypes).filter { seen.insert($0.id).inserted }
+        return enabledPacks(fileManager: fileManager).flatMap(\.archetypes).filter { seen.insert($0.id).inserted }
+    }
+
+    static func wordNegotiations(fileManager: FileManager = .default) -> [WordNegotiationDefinition] {
+        var seen = Set<String>()
+        return enabledPacks(fileManager: fileManager)
+            .flatMap { $0.wordNegotiations ?? [] }
+            .filter { seen.insert($0.id).inserted }
     }
 }
 
@@ -645,6 +813,8 @@ struct ReEnchantedSaveFile: Codable {
     var wagers: [BookWager]?
     var themes: [BookTheme]?
     var clusters: [BookMotifCluster]?
+    var readerLexicon: ReaderLexicon?
+    var openWorldEventArchive: OpenWorldEventArchive? = nil
     /// The full continuity digest at export time, so the wider Labyrinth
     /// (scene engine, NPC dialogue) can reference what the Book has noticed.
     var continuity: LiteraryContinuityDigest?
@@ -741,6 +911,8 @@ struct PlayerVaultData: Codable, Equatable {
     var bookJump: BookJumpState?
     var radio: RadioPlaybackState?
     var compassKnownPlaces: [CompassKnownPlace]?
+    var readerLexicon: ReaderLexicon?
+    var openWorldEventArchive: OpenWorldEventArchive? = nil
     /// Gemma-authored taste notes earned when the reader marks a braid "missed
     /// me." Each is one short second-person nudge folded into future braid
     /// prompts as reader-taught guidance. Capped to the most recent few.

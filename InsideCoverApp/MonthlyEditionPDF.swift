@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import PDFKit
 import Photos
 
 // MARK: - Edition style
@@ -135,59 +136,240 @@ enum MonthlyEditionPDFWriter {
         let style = EditionStyle.style(for: edition)
         let margins = UIEdgeInsets(top: 60, left: 120, bottom: 64, right: 58)
         let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
-        let marginalia = marginaliaLines(for: edition)
 
         try renderer.writePDF(to: url) { context in
-            var cursor = PDFCursor(bounds: pageBounds, margins: margins)
-            cursor.seed = "\(BookThemeEngine.monthKey(for: edition.startDate))-\(edition.theme?.name ?? "untitled")"
-            var marginaliaIndex = 0
-
-            context.beginPage()
-            drawCover(edition, style: style, bounds: pageBounds)
-
-            if !edition.foreword.isEmpty {
-                beginComposedPage(context, style: style, cursor: &cursor)
-                drawForeword(edition, style: style, context: context, cursor: &cursor)
-            }
-
-            if let theme = edition.theme {
-                beginComposedPage(context, style: style, cursor: &cursor)
-                drawThemePage(theme, edition: edition, style: style, bounds: pageBounds, cursor: &cursor)
-            }
-
-            let aliveConstellations = edition.constellations.filter(\.isAlive)
-            if !aliveConstellations.isEmpty {
-                context.beginPage()
-                drawStarChart(aliveConstellations, edition: edition, style: style, bounds: pageBounds)
-            }
-
-            beginComposedPage(context, style: style, cursor: &cursor)
-            drawContents(edition, style: style, cursor: &cursor)
-
-            for section in edition.sections where section.id != "the-months-theme" {
-                drawSection(
-                    section,
-                    style: style,
-                    marginalia: marginalia,
-                    marginaliaIndex: &marginaliaIndex,
-                    context: context,
-                    cursor: &cursor
-                )
-            }
-
-            // The month's conclusion, on its own composted leaf.
-            let closing = edition.closing ?? BookForewordWriter.closing(
-                monthTitle: edition.monthName,
-                pages: [],
-                dayCount: edition.dayCount,
-                continuity: edition.continuity,
-                constellations: edition.constellations,
-                theme: edition.theme
+            renderInterior(
+                edition,
+                into: context,
+                style: style,
+                pageBounds: pageBounds,
+                margins: margins,
+                designSize: pageBounds.size
             )
-            drawClosing(closing, edition: edition, style: style, context: context, cursor: &cursor)
-
-            drawColophon(edition, style: style, context: context, cursor: &cursor)
         }
+    }
+
+    /// The shared body of every edition: cover, foreword, theme, star chart,
+    /// contents, sections, closing, colophon. The screen export renders it at US
+    /// Letter; the print export renders it at a full-bleed trim with print
+    /// margins. The flowing pages adapt to `pageBounds`/`margins` on their own;
+    /// the two full-bleed art pages are drawn in a fixed 612×792 design space and
+    /// scaled into whatever trim is asked for, so they survive any page size.
+    private static func renderInterior(
+        _ edition: MonthlyEdition,
+        into context: UIGraphicsPDFRendererContext,
+        style: EditionStyle,
+        pageBounds: CGRect,
+        margins: UIEdgeInsets,
+        designSize: CGSize
+    ) {
+        var cursor = PDFCursor(bounds: pageBounds, margins: margins)
+        cursor.seed = "\(BookThemeEngine.monthKey(for: edition.startDate))-\(edition.theme?.name ?? "untitled")"
+        var marginaliaIndex = 0
+        let marginalia = marginaliaLines(for: edition)
+        let designRect = CGRect(origin: .zero, size: designSize)
+
+        context.beginPage()
+        withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
+            drawCover(edition, style: style, bounds: designRect)
+        }
+
+        if !edition.foreword.isEmpty {
+            beginComposedPage(context, style: style, cursor: &cursor)
+            drawForeword(edition, style: style, context: context, cursor: &cursor)
+        }
+
+        if let theme = edition.theme {
+            beginComposedPage(context, style: style, cursor: &cursor)
+            drawThemePage(theme, edition: edition, style: style, bounds: pageBounds, cursor: &cursor)
+        }
+
+        let aliveConstellations = edition.constellations.filter(\.isAlive)
+        if !aliveConstellations.isEmpty {
+            context.beginPage()
+            withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
+                drawStarChart(aliveConstellations, edition: edition, style: style, bounds: designRect)
+            }
+        }
+
+        beginComposedPage(context, style: style, cursor: &cursor)
+        drawContents(edition, style: style, cursor: &cursor)
+
+        for section in edition.sections where section.id != "the-months-theme" {
+            drawSection(
+                section,
+                style: style,
+                marginalia: marginalia,
+                marginaliaIndex: &marginaliaIndex,
+                context: context,
+                cursor: &cursor
+            )
+        }
+
+        // The month's conclusion, on its own composted leaf.
+        let closing = edition.closing ?? BookForewordWriter.closing(
+            monthTitle: edition.monthName,
+            pages: [],
+            dayCount: edition.dayCount,
+            continuity: edition.continuity,
+            constellations: edition.constellations,
+            theme: edition.theme
+        )
+        drawClosing(closing, edition: edition, style: style, context: context, cursor: &cursor)
+
+        drawColophon(edition, style: style, context: context, cursor: &cursor)
+    }
+
+    // MARK: Physical print (interior + cover wrap for a print-on-demand house)
+
+    /// Renders the edition as a print-ready **interior** PDF at the spec's trim
+    /// plus bleed, padded to an even page count at or above the binding minimum.
+    /// Returns the final bound page count (needed to size the cover spine).
+    @discardableResult
+    static func writePrintInterior(
+        _ edition: MonthlyEdition,
+        spec: PrintSpec = .hardcover6x9,
+        to url: URL
+    ) throws -> Int {
+        let fb = PrintGeometry.fullBleedTrimInches(spec: spec)
+        let pageBounds = CGRect(x: 0, y: 0, width: fb.width * PrintSpec.pointsPerInch, height: fb.height * PrintSpec.pointsPerInch)
+        let style = EditionStyle.style(for: edition)
+        let m = spec.interiorMarginsPoints
+        let margins = UIEdgeInsets(top: m.top, left: m.left, bottom: m.bottom, right: m.right)
+        let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
+
+        let data = renderer.pdfData { context in
+            renderInterior(
+                edition,
+                into: context,
+                style: style,
+                pageBounds: pageBounds,
+                margins: margins,
+                designSize: CGSize(width: 612, height: 792)
+            )
+        }
+
+        guard let document = PDFDocument(data: data) else {
+            throw NSError(domain: "Bindery", code: 1, userInfo: [NSLocalizedDescriptionKey: "The interior would not render."])
+        }
+        let rawCount = document.pageCount
+        let target = PrintGeometry.boundPageCount(rawPages: rawCount, spec: spec)
+        if target > rawCount {
+            for _ in 0..<(target - rawCount) {
+                if let blank = blankEndpaper(size: pageBounds.size, style: style) {
+                    document.insert(blank, at: document.pageCount)
+                }
+            }
+        }
+        guard document.write(to: url) else {
+            throw NSError(domain: "Bindery", code: 2, userInfo: [NSLocalizedDescriptionKey: "The interior would not save."])
+        }
+        return target
+    }
+
+    /// Renders the **cover wrap**: one canvas holding back panel, spine, and
+    /// front panel, sized from the final page count. A faithful draft — the
+    /// authoritative dimensions come from the print partner's template for this
+    /// exact page count at order time.
+    static func writeCoverWrap(
+        _ edition: MonthlyEdition,
+        spec: PrintSpec = .hardcover6x9,
+        pageCount: Int,
+        to url: URL
+    ) throws {
+        let wrap = PrintGeometry.coverWrapSizeInches(pageCount: pageCount, spec: spec)
+        let pageBounds = CGRect(x: 0, y: 0, width: wrap.width * PrintSpec.pointsPerInch, height: wrap.height * PrintSpec.pointsPerInch)
+        let style = EditionStyle.style(for: edition)
+        let panels = PrintGeometry.coverPanelsInches(pageCount: pageCount, spec: spec)
+        let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
+        let ppi = PrintSpec.pointsPerInch
+
+        try renderer.writePDF(to: url) { context in
+            context.beginPage()
+            guard let cg = UIGraphicsGetCurrentContext() else { return }
+            drawVerticalWash(in: pageBounds, top: style.palette.paperTop, bottom: style.palette.paperBottom, cg: cg)
+
+            let topY = panels.panelTopY * ppi
+            let tw = spec.trimWidthPoints, th = spec.trimHeightPoints
+            let backRect = CGRect(x: panels.backX * ppi, y: topY, width: tw, height: th)
+            let spineRect = CGRect(x: panels.spineX * ppi, y: topY, width: panels.spineWidth * ppi, height: th)
+            let frontRect = CGRect(x: panels.frontX * ppi, y: topY, width: tw, height: th)
+
+            // Front panel wears the same cover art the screen edition wears.
+            withDesignSpaceMapped(designSize: CGSize(width: 612, height: 792), into: frontRect) {
+                drawCover(edition, style: style, bounds: CGRect(x: 0, y: 0, width: 612, height: 792))
+            }
+            drawCoverBackPanel(edition, style: style, rect: backRect)
+            if spineRect.width >= 18 {  // ~0.25in: enough to read a foil title
+                drawSpineTitle(edition, style: style, rect: spineRect)
+            }
+        }
+    }
+
+    /// Maps a fixed design space (612×792) onto the whole page, scaling to fill.
+    /// Identity when the page already is the design size (the screen export), so
+    /// the screen path is byte-for-byte unchanged.
+    private static func withDesignSpace(designSize: CGSize, pageBounds: CGRect, _ body: () -> Void) {
+        if abs(designSize.width - pageBounds.width) < 0.5, abs(designSize.height - pageBounds.height) < 0.5 {
+            body()
+            return
+        }
+        withDesignSpaceMapped(designSize: designSize, into: pageBounds, body)
+    }
+
+    /// Scales and centers a design-space drawing to fill an arbitrary rect.
+    private static func withDesignSpaceMapped(designSize: CGSize, into rect: CGRect, _ body: () -> Void) {
+        guard let cg = UIGraphicsGetCurrentContext() else { body(); return }
+        cg.saveGState()
+        cg.clip(to: rect)
+        let scale = max(rect.width / designSize.width, rect.height / designSize.height)
+        let scaledWidth = designSize.width * scale
+        let scaledHeight = designSize.height * scale
+        cg.translateBy(x: rect.minX + (rect.width - scaledWidth) / 2, y: rect.minY + (rect.height - scaledHeight) / 2)
+        cg.scaleBy(x: scale, y: scale)
+        body()
+        cg.restoreGState()
+    }
+
+    /// A blank leaf in the edition's paper, used to pad the block to an even,
+    /// at-or-above-minimum page count so the spine math holds and the binding
+    /// has endpapers.
+    private static func blankEndpaper(size: CGSize, style: EditionStyle) -> PDFPage? {
+        let renderer = UIGraphicsPDFRenderer(bounds: CGRect(origin: .zero, size: size))
+        let data = renderer.pdfData { context in
+            context.beginPage()
+            if let cg = UIGraphicsGetCurrentContext() {
+                drawVerticalWash(in: CGRect(origin: .zero, size: size), top: style.palette.paperTop, bottom: style.palette.paperBottom, cg: cg)
+            }
+        }
+        return PDFDocument(data: data)?.page(at: 0)
+    }
+
+    /// The back of the jacket: a quiet echo of the cover, lower on the panel.
+    private static func drawCoverBackPanel(_ edition: MonthlyEdition, style: EditionStyle, rect: CGRect) {
+        let text = style.palette.coverText
+        drawCentered("T H E   B O O K   O F   Y O U", font: .systemFont(ofSize: 11, weight: .semibold), color: text.withAlphaComponent(0.8), y: rect.minY + rect.height * 0.34, in: rect)
+        drawCentered("\(edition.readerName) \u{00B7} Chapter \(edition.chapterNumber)", font: .serifFont(ofSize: 16, weight: .regular), color: text, y: rect.minY + rect.height * 0.40, in: rect)
+        drawCentered(edition.monthName, font: .serifItalicFont(ofSize: 13), color: style.palette.gold, y: rect.minY + rect.height * 0.46, in: rect)
+        drawCentered("\(edition.dayCount) days bound \u{00B7} \(edition.pageCount) kept pages", font: .systemFont(ofSize: 9, weight: .medium), color: text.withAlphaComponent(0.6), y: rect.minY + rect.height * 0.62, in: rect)
+    }
+
+    /// The foil-stamped spine, reading top-to-bottom up the standing book.
+    private static func drawSpineTitle(_ edition: MonthlyEdition, style: EditionStyle, rect: CGRect) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        let title = "THE BOOK OF YOU   \u{00B7}   \(edition.readerName)   \u{00B7}   Chapter \(edition.chapterNumber)   \u{00B7}   \(edition.monthName)"
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.serifFont(ofSize: min(rect.width * 0.42, 13), weight: .semibold),
+            .foregroundColor: style.palette.gold,
+            .kern: 1.5
+        ]
+        let attributed = NSAttributedString(string: title, attributes: attributes)
+        let textSize = attributed.size()
+        cg.saveGState()
+        cg.translateBy(x: rect.midX, y: rect.midY)
+        cg.rotate(by: .pi / 2)  // reads top-to-bottom on a shelved book
+        attributed.draw(at: CGPoint(x: -textSize.width / 2, y: -textSize.height / 2))
+        cg.restoreGState()
     }
 
     // MARK: Annual (the whole year, bound as a book of chapters)

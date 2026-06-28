@@ -522,6 +522,104 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(WorldEventResolver.archivedEvents(now: after, calendar: calendar).first?.id, "starlit-paper-trial")
     }
 
+    func testOpenedArchiveUsesActivationClockOutOfSeason() throws {
+        defer { PackEntitlements.ownedPackIDs = [] }
+        PackEntitlements.ownedPackIDs = ["starlit-paper-trial-archive"]
+        let calendar = Calendar(identifier: .gregorian)
+        let opened = calendar.date(from: DateComponents(year: 2026, month: 12, day: 1, hour: 9))!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 12, day: 4, hour: 9))!
+        var inputs = BookSourceInputs.empty
+        inputs.openWorldEventArchive = OpenWorldEventArchive(
+            packID: "starlit-paper-trial-archive",
+            eventID: "starlit-paper-trial",
+            openedAt: opened
+        )
+
+        let event = try XCTUnwrap(WorldEventResolver.openedArchiveEvent(now: now, inputs: inputs, calendar: calendar))
+
+        XCTAssertEqual(event.id, "starlit-paper-trial")
+        XCTAssertEqual(event.activationMode, .openedArchive)
+        XCTAssertEqual(event.startedAt, opened)
+        XCTAssertEqual(event.phase.id, "hearing")
+    }
+
+    func testCurrentEventsCanCarryLiveSeasonAndOpenedArchiveTogether() {
+        defer { PackEntitlements.ownedPackIDs = [] }
+        PackEntitlements.ownedPackIDs = ["starlit-paper-trial-archive"]
+        let calendar = Calendar(identifier: .gregorian)
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 12, hour: 12))!
+        var inputs = BookSourceInputs.empty
+        inputs.openWorldEventArchive = OpenWorldEventArchive(
+            packID: "starlit-paper-trial-archive",
+            eventID: "starlit-paper-trial",
+            openedAt: calendar.date(from: DateComponents(year: 2026, month: 9, day: 9, hour: 12))!
+        )
+
+        let events = WorldEventResolver.currentEvents(now: now, inputs: inputs, calendar: calendar)
+
+        XCTAssertEqual(Set(events.map(\.id)), ["dictionary-rebellion", "starlit-paper-trial"])
+        XCTAssertEqual(events.first { $0.id == "dictionary-rebellion" }?.activationMode, .liveCalendar)
+        XCTAssertEqual(events.first { $0.id == "starlit-paper-trial" }?.activationMode, .openedArchive)
+    }
+
+    func testOpenedArchiveStaysPlayableAfterNominalDuration() throws {
+        defer { PackEntitlements.ownedPackIDs = [] }
+        PackEntitlements.ownedPackIDs = ["starlit-paper-trial-archive"]
+        let calendar = Calendar(identifier: .gregorian)
+        let opened = calendar.date(from: DateComponents(year: 2026, month: 12, day: 1, hour: 9))!
+        let late = calendar.date(from: DateComponents(year: 2026, month: 12, day: 20, hour: 9))!
+        let page = BookPage(
+            id: "late-archive-fieldwork",
+            type: .bookNotices,
+            createdAt: calendar.date(from: DateComponents(year: 2026, month: 12, day: 18, hour: 9))!,
+            promptText: "The Starlit Paper Trial",
+            userInput: "A receipt takes the stand.",
+            tags: ["world-event", "event:starlit-paper-trial", "event-fieldwork"]
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.days = [BookDay(id: "2026-12-18", date: page.createdAt, pages: [page])]
+        inputs.openWorldEventArchive = OpenWorldEventArchive(
+            packID: "starlit-paper-trial-archive",
+            eventID: "starlit-paper-trial",
+            openedAt: opened
+        )
+
+        let event = try XCTUnwrap(WorldEventResolver.openedArchiveEvent(now: late, inputs: inputs, calendar: calendar))
+
+        XCTAssertEqual(event.phase.id, "verdict")
+        XCTAssertEqual(event.playerTouchCount, 1)
+        XCTAssertEqual(event.playerTouchCounts?[WorldEventTouchKind.fieldworkCompleted.rawValue], 1)
+    }
+
+    func testWorldEventTriggersAreScopedToTheSameEventAndMode() {
+        defer { PackEntitlements.ownedPackIDs = [] }
+        PackEntitlements.ownedPackIDs = ["starlit-paper-trial-archive"]
+        let calendar = Calendar(identifier: .gregorian)
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 12, hour: 12))!
+        let day = BookDay(id: "2026-09-12", date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.openWorldEventArchive = OpenWorldEventArchive(
+            packID: "starlit-paper-trial-archive",
+            eventID: "starlit-paper-trial",
+            openedAt: calendar.date(from: DateComponents(year: 2026, month: 9, day: 1, hour: 12))!
+        )
+        inputs = inputs.resolvingWorldEvents(for: day, now: now)
+        let context = PageTriggerContext(day: day, inputs: inputs, now: now, calendar: calendar)
+
+        let crossedWires = PageTrigger(
+            activeWorldEventIDs: ["dictionary-rebellion"],
+            worldEventPhases: ["verdict"]
+        )
+        let archiveVerdict = PageTrigger(
+            activeWorldEventIDs: ["starlit-paper-trial"],
+            worldEventPhases: ["verdict"],
+            worldEventModes: ["openedArchive"]
+        )
+
+        XCTAssertFalse(crossedWires.allows(context: context, archetypeID: "crossed"))
+        XCTAssertTrue(archiveVerdict.allows(context: context, archetypeID: "archive"))
+    }
+
     func testOneShotWorldEventsCanBeBoundToARealYear() {
         let calendar = Calendar(identifier: .gregorian)
         let inYear = calendar.date(from: DateComponents(year: 2026, month: 5, day: 4, hour: 12))!
@@ -534,8 +632,14 @@ final class WorldSystemsTests: XCTestCase {
     func testVaultCarriesOwnedPacks() throws {
         var data = PlayerVaultData()
         data.ownedPacks = ["nocturne-folio"]
+        data.openWorldEventArchive = OpenWorldEventArchive(
+            packID: "starlit-paper-trial-archive",
+            eventID: "starlit-paper-trial",
+            openedAt: Date(timeIntervalSinceReferenceDate: 42)
+        )
         let decoded = try JSONDecoder().decode(PlayerVaultData.self, from: JSONEncoder().encode(data))
         XCTAssertEqual(decoded.ownedPacks, ["nocturne-folio"])
+        XCTAssertEqual(decoded.openWorldEventArchive?.eventID, "starlit-paper-trial")
     }
 
     // MARK: Wonder sparks
@@ -1343,6 +1447,47 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertFalse(pages.contains { $0.payload.metadata["eventTitle"] == "Far away" })
     }
 
+    func testCalendarDoorPreviewSurfacesWhenIntegrationIsOff() {
+        let adapter = CalendarPageSourceAdapter()
+        var inputs = BookSourceInputs.empty
+        inputs.calendarIntegrationEnabled = false
+        let day = BookDay.today()
+
+        let pages = adapter.candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        )
+        let preview = pages.first
+
+        XCTAssertEqual(preview?.type, .calendar)
+        XCTAssertEqual(preview?.payload.metadata["calendarDoorPreview"], "true")
+        XCTAssertEqual(preview?.payload.metadata["requiresCalendarPermission"], "true")
+        XCTAssertTrue(preview?.payload.body.contains("Hour Page") == true)
+    }
+
+    func testCalendarDoorPreviewDoesNotInterruptExistingCalendarEvents() {
+        let adapter = CalendarPageSourceAdapter()
+        var inputs = BookSourceInputs.empty
+        inputs.calendarIntegrationEnabled = false
+        let now = Date()
+        inputs.calendarEvents = [
+            CalendarEventSignal(id: "e1", title: "Dentist", startsAt: now.addingTimeInterval(30 * 60), isAllDay: false)
+        ]
+        let day = BookDay.today()
+
+        let pages = adapter.candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertTrue(pages.contains { $0.payload.metadata["eventTitle"] == "Dentist" })
+        XCTAssertFalse(pages.contains { $0.payload.metadata["calendarDoorPreview"] == "true" })
+    }
+
     func testHourPageBeforeEventCarriesQuestionAndSupport() {
         let adapter = CalendarPageSourceAdapter()
         var inputs = BookSourceInputs.empty
@@ -1931,7 +2076,7 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(followUp?.map(\.sourceID), ["labyrinth-welcome"])
     }
 
-    func testFirstRunSequenceStillShowsWelcomeWhenOnboardingSouvenirIsAlreadyKept() {
+    func testFirstRunSequenceOffersFirstMissionInsteadOfDuplicateSouvenirAsk() {
         var day = BookDay.today()
         day.pages.append(BookPage(
             type: .souvenir,
@@ -1959,6 +2104,8 @@ final class WorldSystemsTests: XCTestCase {
         ]
         inputs.localBrainIsReady = true
 
+        // The reader already gave a true sentence in onboarding, so the first run
+        // closes with a playful first mission rather than asking for one again.
         let afterWelcomeAndBrain = FirstRunPageSequence.surfaces(
             for: day,
             context: CuratorContext.make(for: day),
@@ -1966,7 +2113,82 @@ final class WorldSystemsTests: XCTestCase {
             now: Date()
         )
 
-        XCTAssertNil(afterWelcomeAndBrain)
+        XCTAssertEqual(afterWelcomeAndBrain?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", FirstRunPageSequence.firstMissionSourceID])
+        let mission = afterWelcomeAndBrain?.last
+        XCTAssertEqual(mission?.type, .helpTips)
+        XCTAssertFalse(mission?.payload.body.lowercased().contains("one true sentence") ?? true)
+
+        // Once the mission has been served, the first run is complete.
+        inputs.surfaceHistory["source:\(FirstRunPageSequence.firstMissionSourceID)"] = SurfaceHistoryRecord(lastShownAt: Date(), recentShowCount: 1)
+        let afterMission = FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        )
+        XCTAssertNil(afterMission)
+    }
+
+    func testFirstRunSequenceOffersCalendarDoorBeforeFirstMissionWhenClosed() {
+        var day = BookDay.today()
+        day.pages.append(BookPage(
+            type: .souvenir,
+            promptText: "What was the first true sentence you kept?",
+            userInput: "The lamp made a small gold island on the desk.",
+            tags: ["souvenir", "first-run-souvenir", "onboarding-first-souvenir"],
+            sourceID: "one-sentence-souvenir",
+            origin: .userAuthored,
+            privacy: .privateLocal
+        ))
+        var inputs = BookSourceInputs.empty
+        inputs.surfaceHistory = [
+            "source:labyrinth-welcome": SurfaceHistoryRecord(lastShownAt: Date(), recentShowCount: 1),
+            "source:local-brain-awake": SurfaceHistoryRecord(lastShownAt: Date(), recentShowCount: 1)
+        ]
+        inputs.localBrainIsReady = true
+        inputs.calendarIntegrationEnabled = false
+
+        let pages = FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        )
+
+        XCTAssertEqual(pages?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", "calendar-page"])
+        XCTAssertEqual(pages?.last?.payload.metadata["calendarDoorPreview"], "true")
+
+        inputs.surfaceHistory["source:calendar-page"] = SurfaceHistoryRecord(lastShownAt: Date(), recentShowCount: 1)
+        let afterCalendarDoor = FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        )
+
+        XCTAssertEqual(afterCalendarDoor?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", FirstRunPageSequence.firstMissionSourceID])
+    }
+
+    func testFirstRunSequenceStillAsksForSouvenirWhenOnboardingSkippedIt() {
+        let day = BookDay.today()
+        var inputs = BookSourceInputs.empty
+        inputs.surfaceHistory = [
+            "source:labyrinth-welcome": SurfaceHistoryRecord(lastShownAt: Date(), recentShowCount: 1),
+            "source:local-brain-awake": SurfaceHistoryRecord(lastShownAt: Date(), recentShowCount: 1)
+        ]
+        inputs.localBrainIsReady = true
+
+        // No kept first souvenir: the Book still needs one real sentence to braid
+        // from, so the souvenir ask remains the fallback.
+        let pages = FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        )
+
+        XCTAssertEqual(pages?.last?.sourceID, "one-sentence-souvenir")
+        XCTAssertEqual(pages?.last?.type, .souvenir)
     }
 
     func testFirstDoorApprenticeshipSurfacesOneDailyPageDuringFirstWeek() {
@@ -2115,6 +2337,24 @@ final class WorldSystemsTests: XCTestCase {
     // MARK: Save file
 
     func testSaveFileRoundTrips() throws {
+        var readerLexicon = ReaderLexicon()
+        readerLexicon.treaty = .reformation
+        readerLexicon.bargainSeedSurfaced = true
+        readerLexicon.upsert(LexiconEntry(
+            word: "almost",
+            originalSense: "not quite",
+            newSense: "a door deciding",
+            ruling: .adopted,
+            category: .theme,
+            origin: .rebellion,
+            ledAt: Date(timeIntervalSinceReferenceDate: 31),
+            sourcePageID: "word-page-almost"
+        ))
+        let openArchive = OpenWorldEventArchive(
+            packID: "starlit-paper-trial-archive",
+            eventID: "starlit-paper-trial",
+            openedAt: Date(timeIntervalSinceReferenceDate: 32)
+        )
         let save = ReEnchantedSaveFile(
             exportedAt: Date(),
             days: [BookDay.today()],
@@ -2141,7 +2381,9 @@ final class WorldSystemsTests: XCTestCase {
             pageBeliefLedger: ["inner-weather": -3],
             marginTutorSeen: ["glow-menu"],
             didCompleteStoryOnboarding: true,
-            sourcePreferences: ["quip-page": false]
+            sourcePreferences: ["quip-page": false],
+            readerLexicon: readerLexicon,
+            openWorldEventArchive: openArchive
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -2154,6 +2396,49 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(decoded.marginTutorSeen, ["glow-menu"])
         XCTAssertEqual(decoded.compassKnownPlaces?.first?.context, .library)
         XCTAssertEqual(decoded.days.count, 1)
+        XCTAssertEqual(decoded.readerLexicon, readerLexicon)
+        XCTAssertEqual(decoded.openWorldEventArchive, openArchive)
+    }
+
+    func testWordNegotiationDefinitionsDecodePackFriendlyDefaults() throws {
+        let json = """
+        {
+          "id": "test-pack",
+          "displayName": "Test Pack",
+          "version": 1,
+          "author": "Tests",
+          "availability": "bundledFree",
+          "archetypes": [],
+          "wordNegotiations": [
+            {
+              "id": "almost-rebels",
+              "word": "almost",
+              "originalSense": "not quite",
+              "grievance": "It is tired of standing outside the sentence.",
+              "category": "theme",
+              "choices": [
+                {
+                  "ruling": "adopted",
+                  "title": "Adopt",
+                  "detail": "Let almost mean a door deciding.",
+                  "resultingSense": "a door deciding"
+                }
+              ]
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+
+        let pack = try JSONDecoder().decode(PageArchetypePack.self, from: json)
+        let definition = try XCTUnwrap(pack.wordNegotiations?.first)
+
+        XCTAssertEqual(definition.origin, .rebellion)
+        XCTAssertEqual(definition.score, 76)
+        XCTAssertEqual(definition.cadenceHours, 12)
+        XCTAssertEqual(definition.symbolName, "textformat.abc.dottedunderline")
+        XCTAssertEqual(definition.tags, [])
+        XCTAssertFalse(definition.isMissingSeed)
+        XCTAssertEqual(definition.stableWordID, "almost")
     }
 
     func testDefaultAnchorsShipEmpty() {
@@ -2486,7 +2771,7 @@ final class WorldSystemsTests: XCTestCase {
     func testBookNoticesPageSurfacesContinuitySignals() {
         let calendar = utcCalendar
         let now = date(2026, 6, 12, hour: 12, calendar: calendar)
-        var inputs = BookSourceInputs.empty
+        var inputs = BookSourceInputs.empty.withMatureLibrary(now: now, calendar: calendar)
         inputs.continuity = LiteraryContinuityDigest(
             signals: [
                 LiteraryContinuitySignal(

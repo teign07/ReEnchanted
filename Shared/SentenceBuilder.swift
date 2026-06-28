@@ -63,6 +63,214 @@ struct LexicalTheme: Identifiable, Codable, Equatable {
     var crossings: [String]
 }
 
+enum WordRuling: String, Codable, Equatable, CaseIterable {
+    case recalled
+    case pardoned
+    case adopted
+    case freed
+}
+
+enum LexiconOrigin: String, Codable, Equatable, CaseIterable {
+    case rebellion
+    case compassRecruit
+    case seeded
+}
+
+enum LexiconCategory: String, Codable, Equatable, CaseIterable {
+    case concrete
+    case sensory
+    case animateVerb
+    case crossing
+    case theme
+}
+
+enum TreatyOutcome: String, Codable, Equatable, CaseIterable {
+    case restoration
+    case reformation
+    case secession
+}
+
+struct LexiconEntry: Identifiable, Codable, Equatable {
+    var id: String
+    var word: String
+    var originalSense: String
+    var newSense: String?
+    var ruling: WordRuling
+    var category: LexiconCategory
+    var origin: LexiconOrigin
+    var ledAt: Date
+    var sourcePageID: String?
+
+    init(
+        id: String? = nil,
+        word: String,
+        originalSense: String,
+        newSense: String? = nil,
+        ruling: WordRuling,
+        category: LexiconCategory,
+        origin: LexiconOrigin,
+        ledAt: Date,
+        sourcePageID: String? = nil
+    ) {
+        let cleanWord = word.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.id = id ?? LexiconEntry.stableID(for: cleanWord)
+        self.word = cleanWord
+        self.originalSense = originalSense
+        self.newSense = newSense
+        self.ruling = ruling
+        self.category = category
+        self.origin = origin
+        self.ledAt = ledAt
+        self.sourcePageID = sourcePageID
+    }
+
+    static func stableID(for word: String) -> String {
+        let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let slug = trimmed
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .joined(separator: "-")
+        if !slug.isEmpty { return slug }
+        guard !trimmed.isEmpty else { return "word-empty" }
+        let scalars = trimmed.unicodeScalars.map { String($0.value, radix: 16) }.joined(separator: "-")
+        return "word-\(scalars)"
+    }
+}
+
+struct ReaderLexicon: Codable, Equatable {
+    var entries: [LexiconEntry] = []
+    var treaty: TreatyOutcome?
+    var bargainSeedSurfaced: Bool = false
+
+    var packEntries: [LexiconEntry] {
+        entries.filter { $0.ruling == .pardoned || $0.ruling == .adopted }
+    }
+
+    mutating func upsert(_ entry: LexiconEntry) {
+        if let index = entries.firstIndex(where: { $0.id == entry.id }) {
+            entries[index] = entry
+        } else {
+            entries.append(entry)
+        }
+    }
+
+    func treatyOutcome(minimumRulings: Int = 3) -> TreatyOutcome? {
+        let ruled = entries.filter { $0.origin == .rebellion }
+        guard ruled.count >= minimumRulings else { return nil }
+        let order = ruled.filter { $0.ruling == .recalled }.count
+        let reform = ruled.filter { $0.ruling == .pardoned || $0.ruling == .adopted }.count
+        let chaos = ruled.filter { $0.ruling == .freed }.count
+        if order > reform, order > chaos { return .restoration }
+        if chaos > order, chaos > reform { return .secession }
+        return .reformation
+    }
+
+    mutating func settleTreatyIfReady(minimumRulings: Int = 3) {
+        guard treaty == nil else { return }
+        treaty = treatyOutcome(minimumRulings: minimumRulings)
+    }
+
+    func asSentenceBuilderPack() -> SentenceBuilderPack {
+        var concreteWords: [String] = []
+        var sensoryWords: [String] = []
+        var animateVerbs: [String] = []
+        var crossingWords: [String] = []
+        var themes: [LexicalTheme] = []
+
+        for entry in packEntries {
+            switch entry.category {
+            case .concrete:
+                concreteWords.append(entry.word)
+            case .sensory:
+                sensoryWords.append(entry.word)
+            case .animateVerb:
+                animateVerbs.append(entry.word)
+            case .crossing:
+                crossingWords.append(entry.word)
+            case .theme:
+                concreteWords.append(entry.word)
+            }
+
+            if let theme = entry.lexicalTheme, entry.category == .theme || entry.ruling == .adopted {
+                themes.append(theme)
+            }
+        }
+
+        return SentenceBuilderPack(
+            id: "reader.lexicon",
+            displayName: "",
+            ritualTitle: "",
+            replayPrompt: "",
+            replayHelper: "",
+            vagueWords: [],
+            avoidWords: [],
+            concreteWords: concreteWords.uniquedPreservingOrder(),
+            sensoryWords: sensoryWords.uniquedPreservingOrder(),
+            animateVerbs: animateVerbs.uniquedPreservingOrder(),
+            crossingWords: crossingWords.uniquedPreservingOrder(),
+            themes: themes.uniquedPreservingOrder(by: \.id),
+            version: 1,
+            author: "The Reader",
+            availability: "personal"
+        )
+    }
+}
+
+private extension LexiconEntry {
+    var lexicalTheme: LexicalTheme? {
+        let cleanWord = word.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanWord.isEmpty else { return nil }
+        let cleanSense = newSense?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+        let themeName = cleanWord.prefix(1).uppercased() + cleanWord.dropFirst()
+        return LexicalTheme(
+            id: "reader.lexicon.\(id)",
+            name: String(themeName),
+            anchors: [cleanWord],
+            senses: cleanSense.map { [$0] } ?? [],
+            verbs: category == .animateVerb ? [cleanWord] : [],
+            crossings: category == .crossing ? [cleanWord] : []
+        )
+    }
+}
+
+private extension Array where Element == String {
+    func uniquedPreservingOrder() -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for value in self {
+            let clean = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !clean.isEmpty else { continue }
+            let key = clean.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(clean)
+        }
+        return result
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
+    }
+}
+
+private extension Array where Element == LexicalTheme {
+    func uniquedPreservingOrder(by keyPath: KeyPath<LexicalTheme, String>) -> [LexicalTheme] {
+        var seen = Set<String>()
+        var result: [LexicalTheme] = []
+        for value in self {
+            let key = value[keyPath: keyPath]
+            guard !key.isEmpty, !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(value)
+        }
+        return result
+    }
+}
+
 struct SentenceBuilderPack: Identifiable, Equatable {
     var id: String
     var displayName: String
@@ -581,6 +789,18 @@ enum SentenceBuilderPackRegistry {
             .reduce(base) { $0.merged(with: $1) }
     }
 
+    /// Merge installed content packs and the player's living Lexicon in memory.
+    /// The Lexicon is save-state, not an imported `*.sentencepack.json`, so it
+    /// never writes generated pack files into Documents.
+    static func composed(
+        onto base: SentenceBuilderPack,
+        readerLexicon: ReaderLexicon,
+        fileManager: FileManager = .default
+    ) -> SentenceBuilderPack {
+        composed(onto: base, fileManager: fileManager)
+            .merged(with: readerLexicon.asSentenceBuilderPack())
+    }
+
     /// Cached convenience for the two common rituals, so reused views don't rescan
     /// Documents on every render. Cleared by `reload()` after an import/unlock.
     nonisolated(unsafe) private static var cache: [String: SentenceBuilderPack] = [:]
@@ -592,11 +812,19 @@ enum SentenceBuilderPackRegistry {
         return pack
     }
 
+    static func composedCore(readerLexicon: ReaderLexicon) -> SentenceBuilderPack {
+        composed(onto: .core, readerLexicon: readerLexicon)
+    }
+
     static func composedSouvenir() -> SentenceBuilderPack {
         if let hit = cache["souvenir"] { return hit }
         let pack = composed(onto: .core.merged(with: .souvenir))
         cache["souvenir"] = pack
         return pack
+    }
+
+    static func composedSouvenir(readerLexicon: ReaderLexicon) -> SentenceBuilderPack {
+        composed(onto: .core.merged(with: .souvenir), readerLexicon: readerLexicon)
     }
 
     static func reload() { cache.removeAll() }

@@ -128,7 +128,40 @@ enum ReEnchantedWidgetSnapshotWriter {
         return ReEnchantedWidgetCompass(
             title: surface.payload.headline.nonEmpty ?? "Wonder Compass",
             prompt: privateSafeLine(body: surface.payload.body.nonEmpty ?? surface.detail, fallback: surface.prompt),
-            point: point
+            point: point,
+            run: compassRun(from: surface)
+        )
+    }
+
+    private static func compassRun(from surface: SurfacePage) -> ReEnchantedWidgetCompassRun? {
+        let metadata = surface.payload.metadata
+        let id = metadata["runID"]?.nonEmpty ?? surface.id.nonEmpty ?? "compass-run"
+        guard let spark = metadata["spark"]?.nonEmpty,
+              let destination = metadata["destination"]?.nonEmpty,
+              let delight = metadata["delight"]?.nonEmpty,
+              let definition = metadata["definition"]?.nonEmpty,
+              let mission = metadata["mission"]?.nonEmpty,
+              let souvenirPrompt = metadata["souvenirPrompt"]?.nonEmpty,
+              let restPrompt = metadata["restPrompt"]?.nonEmpty else {
+            return nil
+        }
+
+        return ReEnchantedWidgetCompassRun(
+            id: id,
+            title: surface.payload.headline.nonEmpty ?? surface.prompt.nonEmpty ?? "Compass Run",
+            mode: metadata["conciergeMode"]?.split(separator: "-").map { $0.capitalized }.joined(separator: " ") ?? "Wonder",
+            timeBox: metadata["timeBox"]?.nonEmpty ?? "10-20 minutes",
+            place: metadata["place"]?.nonEmpty ?? "where you are",
+            energy: metadata["energy"]?.nonEmpty ?? "ordinary",
+            companions: metadata["companions"]?.nonEmpty ?? "solo",
+            north: spark,
+            eastDestination: destination,
+            eastDelight: delight,
+            eastDefinition: definition,
+            south: mission,
+            west: souvenirPrompt,
+            center: restPrompt,
+            hint: metadata["hint"]?.nonEmpty
         )
     }
 
