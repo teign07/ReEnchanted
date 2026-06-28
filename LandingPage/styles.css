@@ -510,7 +510,7 @@ h2 {
   outline-offset: 8px;
   filter: drop-shadow(0 0 24px rgba(255, 200, 116, 0.14));
 }
-/* Warm the margins — a golden vignette breathes in around the whole page. */
+/* Warm the margins - a golden vignette breathes in around the whole page. */
 .glow-effect-margins body::after {
   content: "";
   position: fixed;
@@ -549,7 +549,7 @@ h2 {
 .glow-effect-dial .radio-name {
   text-shadow: 0 0 18px rgba(255, 200, 116, 0.36);
 }
-/* Margin note — a handwritten line inks itself in beside the hero. */
+/* Margin note - a handwritten line inks itself in beside the hero. */
 .glow-effect-note .hero-problem span { color: var(--gold-soft); }
 .glow-margin-note {
   position: relative;
@@ -571,7 +571,7 @@ h2 {
 .glow-margin-note em { color: #fff; }
 .glow-margin-quill { margin-right: 8px; }
 
-/* Favored pages — the deck lifts, gilds, and the glyphs wake. */
+/* Favored pages - the deck lifts, gilds, and the glyphs wake. */
 .glow-effect-pages .pagetype {
   border-color: rgba(255, 200, 116, 0.45);
   box-shadow: 0 22px 54px rgba(255, 200, 116, 0.14);
@@ -592,7 +592,7 @@ h2 {
   100% { transform: scale(1); }
 }
 
-/* Ask the Stacks — entries file themselves; an index line answers back. */
+/* Ask the Stacks - entries file themselves; an index line answers back. */
 .glow-effect-stacks .privacy-list li {
   border-left: 2px solid var(--gold-deep);
   padding-left: 12px;
@@ -614,7 +614,7 @@ h2 {
 .glow-stacks-index.is-filed { opacity: 1; transform: none; }
 .glow-stacks-index span { color: var(--gold); margin-right: 6px; }
 
-/* Wake an enchantment — a gold light sweeps across the screenshots. */
+/* Wake an enchantment - a gold light sweeps across the screenshots. */
 .glow-effect-enchantment .mechanic-shot {
   position: relative;
   overflow: hidden;
@@ -639,7 +639,7 @@ h2 {
   100% { transform: translateX(120%); }
 }
 
-/* Compass spark — a rose spins and drops a noticing prompt into How it works. */
+/* Compass spark - a rose spins and drops a noticing prompt into How it works. */
 .glow-effect-compass .how-card {
   border-color: rgba(255, 200, 116, 0.28);
   box-shadow: 0 18px 50px rgba(255, 200, 116, 0.08);
@@ -3469,6 +3469,208 @@ h2 {
   box-shadow: 0 30px 80px rgba(0,0,0,0.5);
 }
 
+/* ───────────────────────── stacks search ───────────────────────── */
+.stacks-search-section {
+  width: min(var(--maxw), calc(100% - 40px));
+  margin: 0 auto;
+  padding: clamp(36px, 6vw, 78px) 0 clamp(66px, 8vw, 110px);
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(420px, 1fr);
+  gap: clamp(32px, 6vw, 76px);
+  align-items: center;
+}
+.stacks-search-copy p {
+  margin: 18px 0 0;
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  line-height: 1.65;
+}
+.semantic-search-demo {
+  margin: 28px 0 0;
+}
+.semantic-search-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+}
+.semantic-search-form .margin-note {
+  margin: 0;
+}
+.semantic-search-form input[type="search"] {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid rgba(255, 200, 116, 0.45);
+  border-radius: 18px;
+  padding: 0 18px;
+  color: var(--paper-ink);
+  background: linear-gradient(180deg, #f6e6c0, #e9d7aa);
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.26), 0 16px 34px rgba(0,0,0,0.24);
+}
+.semantic-search-form input[type="search"]::placeholder {
+  color: rgba(42, 32, 20, 0.46);
+}
+.semantic-search-submit {
+  min-height: 52px;
+  padding: 0 18px;
+  border: 1px solid rgba(76, 192, 189, 0.36);
+  border-radius: 18px;
+  color: var(--paper);
+  background: rgba(20, 86, 86, 0.36);
+  font-weight: 800;
+  cursor: pointer;
+}
+.semantic-search-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 12px 0 0;
+}
+.semantic-search-suggestions button {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid rgba(76, 192, 189, 0.30);
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--teal) 78%, var(--paper));
+  background: rgba(76, 192, 189, 0.08);
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 600;
+  cursor: pointer;
+}
+.semantic-search-results {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+}
+.semantic-search-count {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.86rem;
+}
+.semantic-search-count strong {
+  color: var(--gold);
+}
+.semantic-result {
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 200, 116, 0.24);
+  border-radius: 14px;
+  color: rgba(42, 32, 20, 0.76);
+  background: linear-gradient(180deg, rgba(246, 230, 192, 0.98), rgba(229, 210, 164, 0.96));
+  box-shadow: 0 16px 38px rgba(0,0,0,0.18);
+}
+.semantic-result span {
+  display: block;
+  margin-bottom: 5px;
+  color: #0f7778;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.semantic-result strong {
+  display: block;
+  color: var(--paper-ink);
+  font-family: var(--serif);
+  font-size: 1.08rem;
+}
+.semantic-result p {
+  margin: 5px 0 0;
+  color: rgba(42, 32, 20, 0.68);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+.book-search-demo {
+  padding: 14px;
+  border: 1px solid rgba(255, 200, 116, 0.22);
+  border-radius: 16px;
+  background: rgba(30, 22, 13, 0.08);
+}
+.book-search-demo .semantic-search-form {
+  grid-template-columns: 1fr;
+}
+.book-search-demo .semantic-search-submit {
+  min-height: 40px;
+}
+.book-search-demo .semantic-search-results {
+  max-height: 240px;
+  overflow: auto;
+}
+.book-search-demo .semantic-search-count {
+  color: rgba(42, 32, 20, 0.62);
+}
+.stacks-search-points {
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+.stacks-search-points li {
+  position: relative;
+  padding: 13px 16px 13px 42px;
+  border: 1px solid rgba(76, 192, 189, 0.24);
+  border-radius: 999px;
+  color: var(--paper);
+  background: rgba(76, 192, 189, 0.075);
+}
+.stacks-search-points li::before {
+  content: "⌕";
+  position: absolute;
+  left: 17px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--teal);
+  font-weight: 800;
+}
+.stacks-search-art {
+  position: relative;
+  min-height: clamp(420px, 48vw, 620px);
+}
+.stacks-phone {
+  position: absolute;
+  margin: 0;
+  width: min(36vw, 250px);
+  border-radius: 30px;
+  border: 1px solid rgba(255, 200, 116, 0.18);
+  overflow: hidden;
+  background: #080612;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.48);
+}
+.stacks-phone img {
+  width: 100%;
+  aspect-ratio: 473 / 1024;
+  object-fit: cover;
+  object-position: top;
+}
+.stacks-phone.phone-empty {
+  left: 0;
+  top: 8%;
+  transform: rotate(-5deg);
+  z-index: 1;
+}
+.stacks-phone.phone-results {
+  left: 32%;
+  top: 0;
+  transform: rotate(3deg);
+  z-index: 3;
+}
+.stacks-phone.phone-reading {
+  right: 0;
+  top: 14%;
+  transform: rotate(7deg);
+  z-index: 2;
+}
+.stacks-phone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), transparent 18%, transparent 78%, rgba(7,6,17,0.18));
+}
+
 /* ───────────────────────── ebook ───────────────────────── */
 .ebook-section {
   width: min(var(--maxw), calc(100% - 40px));
@@ -4122,6 +4324,12 @@ em .lore-link, .lore-link em { font-style: italic; }
   .weave-grid { grid-template-columns: 1fr; }
   .packs-feature { grid-template-columns: 1fr; }
   .privacy-section { grid-template-columns: 1fr; }
+  .stacks-search-section { grid-template-columns: 1fr; }
+  .stacks-search-art {
+    min-height: clamp(360px, 70vw, 560px);
+    order: -1;
+  }
+  .stacks-phone { width: min(34vw, 220px); }
   .ebook-section { grid-template-columns: 1fr; }
   .ebook-art { order: -1; }
   .privacy-art { justify-self: center; }
@@ -4142,6 +4350,15 @@ em .lore-link, .lore-link em { font-style: italic; }
   .leaf-left { border-radius: 14px 14px 0 0; border: 1px solid rgba(0,0,0,0.4); }
   .leaf-right { border-radius: 0 0 14px 14px; }
   .spread::after { display: none; }
+  .stacks-search-section { padding-top: 48px; }
+  .stacks-search-art { min-height: 430px; }
+  .stacks-phone { width: min(44vw, 178px); border-radius: 22px; }
+  .stacks-phone.phone-empty { left: 0; top: 34px; }
+  .stacks-phone.phone-results { left: 27%; top: 0; }
+  .stacks-phone.phone-reading { right: 0; top: 56px; }
+  .stacks-search-points li { border-radius: 16px; }
+  .semantic-search-form { grid-template-columns: 1fr; }
+  .semantic-search-submit { min-height: 44px; }
   .leaf-screen { aspect-ratio: 9 / 13; }
   .onboarding-mode-grid { grid-template-columns: 1fr; }
   .onboarding-roll { grid-template-columns: 1fr; }
@@ -4330,7 +4547,7 @@ em .lore-link, .lore-link em { font-style: italic; }
 
   /* the toggle bar already carries the title, so hide the in-body heading */
   .is-drawer .section-head { display: none; }
-  /* sections without a .section-head carry their title inside a copy column —
+  /* sections without a .section-head carry their title inside a copy column -
      hide that block's eyebrow + heading so it isn't duplicated by the bar */
   .is-drawer .ebook-copy > .eyebrow,
   .is-drawer .ebook-copy > h2,
