@@ -175,6 +175,13 @@ enum BraidPromptBuilder {
         - Let that final line loop back to the spine: carry one concrete thing from how the day began into how it is kept, so the page closes the circle it opened.
         - On a phone, the braid should feel like a full page of the Book without becoming a scroll chore.
 
+        PROVENANCE GRAVITY:
+        - Treat reader-authored and imported real-world pages as anchor threads. One-Sentence Souvenirs are especially strong spine candidates because they are the reader choosing one true line.
+        - Treat generated or simulated story pages as color threads: let them tint metaphors, motifs, cast pressure, and fairy-tale logic, but do not let them overrule what the reader actually wrote or what an imported real-world source says.
+        - If a generated page carries a reader reply, upgraded choice, or user-edited line, treat that response as reader-endorsed fiction: stronger than ordinary generated color, still lighter than a real souvenir or direct user-authored page.
+        - When anchor and color threads conflict, the anchor wins. Let the fiction bleed into the real without drowning it.
+        - Build the spine from anchor threads first, then weave color threads around it so the day feels half true record, half spell.
+
         VOICE:
         - Write with varied literary cadence: some sentences should be short, plain, and surprising; others may be longer and more flowing, turning through image and thought before they land.
         - Let the voice feel like a clear old tale told beside a modern lamp: mythic but not ornate, intimate but not sentimental, concrete before abstract.
@@ -267,14 +274,35 @@ enum BraidPromptBuilder {
                 let text = clippedText(page.userInput, limit: characterLimit)
                 let tags = page.tags.isEmpty ? "none" : page.tags.joined(separator: ", ")
                 let media = mediaEvidence(for: page)
+                let reply = clippedText(page.playerReply, limit: 260)
                 return """
                 \(index + 1). \(page.type.title) - kept at \(timeFormatter.string(from: page.createdAt))
+                Thread gravity: \(threadGravity(for: page))
                 Prompt: \(prompt.isEmpty ? "none" : prompt)
                 Kept text: \(text.isEmpty ? "(blank)" : text)
+                Reader reply: \(reply.isEmpty ? "none" : reply)
                 Visual evidence: \(media.isEmpty ? "none" : media)
                 Tags: \(tags)
                 """
             }
+    }
+
+    private static func threadGravity(for page: BookPage) -> String {
+        let hasReaderReply = !page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        switch page.origin {
+        case .userAuthored:
+            if page.type == .souvenir {
+                return "reader-authored anchor; one-sentence souvenir; highest gravity"
+            }
+            return "reader-authored anchor; high gravity"
+        case .imported:
+            return "imported real-world anchor; high gravity"
+        case .generated, .simulated:
+            if hasReaderReply {
+                return "reader-endorsed fiction; medium gravity"
+            }
+            return "generated fiction color; lower gravity"
+        }
     }
 
     private static func mediaEvidence(for page: BookPage) -> String {

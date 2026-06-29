@@ -566,9 +566,9 @@ struct ContentView: View {
         #endif
     }
 
-    var body: some View {
-        NavigationStack {
-            ZStack {
+    @ViewBuilder
+    private var rootStack: some View {
+        ZStack {
                 if localBrainTelemetry.isReading {
                     LocalBrainReadingRoom()
                 } else {
@@ -685,7 +685,21 @@ struct ContentView: View {
                     ))
                     .zIndex(15)
                 }
-            }
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            presentationRoot
+        }
+    }
+
+    // The view body is split into layered computed properties — rootStack →
+    // chromeRoot → presentationRoot → body — so each is type-checked as its own
+    // small expression. Keep it this way: a single inlined chain of this many
+    // modifiers sits right at the Swift type-checker's complexity ceiling.
+    private var chromeRoot: some View {
+        rootStack
             .navigationTitle("ReEnchanted")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar((isGlowMenuPresented || isOpeningMovieVisible || (isStoryOnboardingActive && !didRevealGlowPillInCurrentOnboarding)) ? .hidden : .visible, for: .navigationBar)
@@ -769,6 +783,10 @@ struct ContentView: View {
             .onChange(of: isQuietMechanicsExpanded) { _, expanded in
                 if expanded { tutorTouch("colophon") }
             }
+    }
+
+    private var presentationRoot: some View {
+        chromeRoot
             .sheet(item: $pactVerdictSurface) { surface in
                 PactVerdictSheet(surface: surface) { winner, loser in
                     rulePactVerdict(
@@ -791,96 +809,7 @@ struct ContentView: View {
                 .presentationDragIndicator(.visible)
             }
             .sheet(item: $selectedSurface) { surface in
-                CapturePageSheet(
-                    surface: surface,
-                    day: today,
-                    isLocalBrainWorking: localBrainTelemetry.isWorking,
-                    localBrainWorkLabel: localBrainTelemetry.currentLabel,
-                    localBrainWorkStartedAt: localBrainTelemetry.startedAt,
-                    localBrainQueuedCount: localBrainTelemetry.currentQueuedCount,
-                    onReplaceIlluminatedSurface: { replacement in
-                        generation.automaticIlluminatedSurface = replacement
-                        surfaceRefreshDate = Date()
-                    },
-                    onNavigateToSurface: { nextSurface in
-                        selectedSurface = nextSurface
-                    },
-                    onCompleteCompassRun: { completedSurface in
-                        completeCompassRunIfNeeded(completedSurface)
-                    },
-                    compassAnchors: anchorLedger,
-                    onStoryMechanicCompleted: { completedSurface, outcome in
-                        openStoryMechanicReturnPage(from: completedSurface, outcome: outcome)
-                    },
-                    onGenerateLetter: { draft in
-                        Task { await generateLetterFromSheet(draft) }
-                    },
-                    onGeneratePlayfulMission: { draft in
-                        Task { await generatePlayfulMissionFromSheet(draft) }
-                    },
-                    onAnchorPlace: { draft in
-                        Task { await anchorPlace(from: draft) }
-                    },
-                    onBindChapter: { chapterID in
-                        bindChapter(id: chapterID)
-                    },
-                    activeElectives: electives.filter(\.isActive),
-                    onCompleteElective: { electiveID, proof in
-                        completeElective(id: electiveID, proof: proof)
-                    },
-                    onPayFaeBargain: { bargainID, report, faeResponse in
-                        payFaeBargain(bargainID: bargainID, report: report, faeResponse: faeResponse)
-                    },
-                    onTwoReadingsSided: { chosenID, chosenName, otherID, otherName in
-                        applyTwoReadingsSiding(chosenID: chosenID, chosenName: chosenName, otherID: otherID, otherName: otherName)
-                    },
-                    radioPlayback: vault.data.radio ?? .off,
-                    onTuneRadio: { stationID in
-                        tuneRadio(stationID: stationID)
-                    },
-                    onStopRadio: {
-                        stopRadio()
-                    },
-                    inventoryKeptPages: days.flatMap(\.pages).sorted { $0.createdAt > $1.createdAt },
-                    inventoryStoryObjects: customCastMembers.filter { $0.kind == .object },
-                    inventoryObjectBeliefOffsets: entityBeliefLedger,
-                    onUseInventoryGift: { giftID, targetID in
-                        useInventoryGift(giftID: giftID, targetID: targetID)
-                    },
-                    onOpenInventoryMarket: {
-                        selectedSurface = nil
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            currentStall = buildGoblinStall()
-                            isBookShopPresented = true
-                        }
-                    },
-                    onOpenInventoryBargain: { bargain in
-                        selectedSurface = nil
-                        let fae = vault.data.fae ?? FaePlayerState()
-                        let bargainSurface = FaeBargainPageSourceAdapter.surface(for: bargain, state: fae)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            selectedSurface = bargainSurface
-                        }
-                    },
-                    onLoveBraid: { pageID in
-                        markLovedBraid(pageID: pageID)
-                    },
-                    onBraidMissedMe: { pageID in
-                        markBraidMissedMe(pageID: pageID)
-                    },
-                    onImproveNextBraid: { pageID in
-                        await improveNextBraidFromMiss(pageID: pageID)
-                    },
-                    onRewriteBraid: { pageID in
-                        await rewriteBraid(pageID: pageID)
-                    },
-                    weatherSignal: weatherPageSignal
-                ) { savedSurface, input, tags in
-                    savePage(surface: savedSurface, input: input, tags: tags)
-                }
-                .id(surface.id)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
+                captureSheet(for: surface)
             }
             .sheet(isPresented: $isSourceSettingsPresented) {
                 SourceSettingsSheet(
@@ -901,60 +830,8 @@ struct ContentView: View {
                     importSaveFile(from: url)
                 }
             }
-            .sheet(isPresented: $isBookShopPresented) {
-                let fae = vault.data.fae ?? FaePlayerState()
-                BookShopSheet(
-                    stall: currentStall ?? buildGoblinStall(),
-                    fae: fae,
-                    attention: fae.attention,
-                    belief: beliefScore,
-                    goblinWarmth: fae.warmth(for: .goblin),
-                    onBuyWare: { buyMarketWare($0) },
-                    onUnlock: { unlockPack($0) },
-                    onOpenArchive: { activateWorldEventArchive(packID: $0) },
-                    onHaggle: { haggleWare($0) },
-                    onClerkBanter: { await goblinClerkBanter() },
-                    onOpenBargain: { openFaeBargainPage($0) },
-                    onMarkNextMarket: { Task { await addNextMarketToCalendar() } },
-                    binderyMonthLabel: bindableEditionMonths.first?.label ?? "",
-                    binderyMonthPageCount: bindableEditionMonths.first?.pageCount ?? 0,
-                    preparedMonthlyEditionURL: preparedMonthlyEditionURL,
-                    preparedAnnualEditionURL: preparedAnnualEditionURL,
-                    binderyNote: colophonBindingNote,
-                    preparedPrintInteriorURL: preparedPrintInteriorURL,
-                    preparedPrintCoverURL: preparedPrintCoverURL,
-                    onBindMonth: { exportMonthlyEdition() },
-                    onBindMonthGemma: { exportMonthlyEdition(useGemmaClosing: true) },
-                    onBindYear: { exportAnnualEdition() },
-                    onMakePrintReady: { exportPrintReadyEdition() }
-                )
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-            }
-            .sheet(isPresented: $isPactMapPresented) {
-                PactMapSheet(
-                    pactWar: vault.data.pactWar ?? PactWarState(),
-                    boundTalismanID: boundTalismanID,
-                    onPressClaim: { territoryID in
-                        if let talismanID = boundTalismanID {
-                            pressPactClaim(talismanID: talismanID, territoryID: territoryID)
-                        }
-                    },
-                    pendingVerdict: surfaces.first { $0.type == .pactVerdict },
-                    onRuleVerdict: { winner, loser in
-                        guard let verdict = surfaces.first(where: { $0.type == .pactVerdict }) else { return }
-                        rulePactVerdict(
-                            winnerTalismanID: winner,
-                            loserTalismanID: loser,
-                            territoryID: verdict.payload.metadata["territoryID"] ?? "",
-                            pageID: verdict.payload.metadata["pageID"] ?? ""
-                        )
-                        dismissSurface(verdict)
-                    }
-                )
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-            }
+            .sheet(isPresented: $isBookShopPresented) { bookShopSheet }
+            .sheet(isPresented: $isPactMapPresented) { pactMapSheet }
             .sheet(isPresented: $isStacksSearchPresented) {
                 SearchTheStacksSheet(
                     dataset: stacksSearchDataset,
@@ -987,40 +864,98 @@ struct ContentView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if !isStoryOnboardingActive {
-                        Button {
-                            BookFeedback.play(.openPage)
-                            tutorTouch("search-stacks")
-                            isStacksSearchPresented = true
-                        } label: {
-                            Image(systemName: "sparkle.magnifyingglass")
-                                .font(.subheadline.weight(.bold))
-                                .foregroundStyle(BookPalette.lampGold)
-                        }
-                        .accessibilityLabel("Search the Stacks")
-                    }
+            .toolbar { mainToolbar }
+        }
+
+    private var bookShopSheet: some View {
+        let fae = vault.data.fae ?? FaePlayerState()
+        return BookShopSheet(
+            stall: currentStall ?? buildGoblinStall(),
+            fae: fae,
+            attention: fae.attention,
+            belief: beliefScore,
+            goblinWarmth: fae.warmth(for: .goblin),
+            onBuyWare: { buyMarketWare($0) },
+            onUnlock: { unlockPack($0) },
+            onOpenArchive: { activateWorldEventArchive(packID: $0) },
+            onHaggle: { haggleWare($0) },
+            onClerkBanter: { await goblinClerkBanter() },
+            onOpenBargain: { openFaeBargainPage($0) },
+            onMarkNextMarket: { Task { await addNextMarketToCalendar() } },
+            binderyMonthLabel: bindableEditionMonths.first?.label ?? "",
+            binderyMonthPageCount: bindableEditionMonths.first?.pageCount ?? 0,
+            preparedMonthlyEditionURL: preparedMonthlyEditionURL,
+            preparedAnnualEditionURL: preparedAnnualEditionURL,
+            binderyNote: colophonBindingNote,
+            preparedPrintInteriorURL: preparedPrintInteriorURL,
+            preparedPrintCoverURL: preparedPrintCoverURL,
+            onBindMonth: { exportMonthlyEdition() },
+            onBindMonthGemma: { exportMonthlyEdition(useGemmaClosing: true) },
+            onBindYear: { exportAnnualEdition() },
+            onMakePrintReady: { exportPrintReadyEdition() }
+        )
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var pactMapSheet: some View {
+        PactMapSheet(
+            pactWar: vault.data.pactWar ?? PactWarState(),
+            boundTalismanID: boundTalismanID,
+            onPressClaim: { territoryID in
+                if let talismanID = boundTalismanID {
+                    pressPactClaim(talismanID: talismanID, territoryID: territoryID)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    if shouldShowGlowPill {
-                        Button {
-                            toggleGlowMenu()
-                        } label: {
-                            BeliefScoreBadge(score: beliefScore)
-                                .overlay {
-                                    GlowPillRevealAura(isActive: isGlowPillRevealing)
-                                }
-                                .scaleEffect(isGlowPillRevealing && !reduceMotion ? 1.08 : 1.0)
-                        }
-                        .buttonStyle(.bookPress())
-                        .accessibilityLabel(isGlowMenuPresented ? "Close Glow menu" : "Open Glow menu")
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.5)),
-                            removal: .opacity
-                        ))
-                    }
+            },
+            pendingVerdict: pendingPactVerdictSurface,
+            onRuleVerdict: { winner, loser in
+                guard let verdict = pendingPactVerdictSurface else { return }
+                rulePactVerdict(
+                    winnerTalismanID: winner,
+                    loserTalismanID: loser,
+                    territoryID: verdict.payload.metadata["territoryID"] ?? "",
+                    pageID: verdict.payload.metadata["pageID"] ?? ""
+                )
+                dismissSurface(verdict)
+            }
+        )
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    @ToolbarContentBuilder
+    private var mainToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            if !isStoryOnboardingActive {
+                Button {
+                    BookFeedback.play(.openPage)
+                    tutorTouch("search-stacks")
+                    isStacksSearchPresented = true
+                } label: {
+                    Image(systemName: "sparkle.magnifyingglass")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(BookPalette.lampGold)
                 }
+                .accessibilityLabel("Search the Stacks")
+            }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            if shouldShowGlowPill {
+                Button {
+                    toggleGlowMenu()
+                } label: {
+                    BeliefScoreBadge(score: beliefScore)
+                        .overlay {
+                            GlowPillRevealAura(isActive: isGlowPillRevealing)
+                        }
+                        .scaleEffect(isGlowPillRevealing && !reduceMotion ? 1.08 : 1.0)
+                }
+                .buttonStyle(.bookPress())
+                .accessibilityLabel(isGlowMenuPresented ? "Close Glow menu" : "Open Glow menu")
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.5)),
+                    removal: .opacity
+                ))
             }
         }
     }
@@ -3424,6 +3359,127 @@ struct ContentView: View {
         retireKeptSurfaceFromRising(surface)
     }
 
+    /// The reader's living Lexicon, hoisted out of the view body so the
+    /// `??` coalescing doesn't add to the body's type-check budget.
+    private var activeReaderLexicon: ReaderLexicon {
+        vault.data.readerLexicon ?? ReaderLexicon()
+    }
+
+    /// Hoisted out of the `body` modifier chain: computing this inline twice in
+    /// the Pact Map sheet pushed the body over the type-checker's budget.
+    private var pendingPactVerdictSurface: SurfacePage? {
+        surfaces.first { $0.type == .pactVerdict }
+    }
+
+    /// Hoisted out of the Capture sheet's argument list so that giant call stays
+    /// under the type-checker's budget once it gained the `readerLexicon` arg.
+    private var inventoryKeptPagesSorted: [BookPage] {
+        days.flatMap(\.pages).sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private var inventoryStoryObjectList: [CustomCastMember] {
+        customCastMembers.filter { $0.kind == .object }
+    }
+
+    /// The Capture sheet, lifted out of `body` so its ~40-argument call is
+    /// type-checked in isolation. Inlining it kept the whole `body` expression at
+    /// the Swift type-checker's complexity ceiling, where adding even one argument
+    /// (`readerLexicon`) tipped it into "unable to type-check in reasonable time".
+    @ViewBuilder
+    private func captureSheet(for surface: SurfacePage) -> some View {
+        CapturePageSheet(
+            surface: surface,
+            day: today,
+            isLocalBrainWorking: localBrainTelemetry.isWorking,
+            localBrainWorkLabel: localBrainTelemetry.currentLabel,
+            localBrainWorkStartedAt: localBrainTelemetry.startedAt,
+            localBrainQueuedCount: localBrainTelemetry.currentQueuedCount,
+            onReplaceIlluminatedSurface: { replacement in
+                generation.automaticIlluminatedSurface = replacement
+                surfaceRefreshDate = Date()
+            },
+            onNavigateToSurface: { nextSurface in
+                selectedSurface = nextSurface
+            },
+            onCompleteCompassRun: { completedSurface in
+                completeCompassRunIfNeeded(completedSurface)
+            },
+            compassAnchors: anchorLedger,
+            onStoryMechanicCompleted: { completedSurface, outcome in
+                openStoryMechanicReturnPage(from: completedSurface, outcome: outcome)
+            },
+            onGenerateLetter: { draft in
+                Task { await generateLetterFromSheet(draft) }
+            },
+            onGeneratePlayfulMission: { draft in
+                Task { await generatePlayfulMissionFromSheet(draft) }
+            },
+            onAnchorPlace: { draft in
+                Task { await anchorPlace(from: draft) }
+            },
+            onBindChapter: { chapterID in
+                bindChapter(id: chapterID)
+            },
+            activeElectives: electives.filter(\.isActive),
+            onCompleteElective: { electiveID, proof in
+                completeElective(id: electiveID, proof: proof)
+            },
+            onPayFaeBargain: { bargainID, report, faeResponse in
+                payFaeBargain(bargainID: bargainID, report: report, faeResponse: faeResponse)
+            },
+            onTwoReadingsSided: { chosenID, chosenName, otherID, otherName in
+                applyTwoReadingsSiding(chosenID: chosenID, chosenName: chosenName, otherID: otherID, otherName: otherName)
+            },
+            radioPlayback: vault.data.radio ?? .off,
+            onTuneRadio: { stationID in
+                tuneRadio(stationID: stationID)
+            },
+            onStopRadio: {
+                stopRadio()
+            },
+            inventoryKeptPages: inventoryKeptPagesSorted,
+            inventoryStoryObjects: inventoryStoryObjectList,
+            inventoryObjectBeliefOffsets: entityBeliefLedger,
+            onUseInventoryGift: { giftID, targetID in
+                useInventoryGift(giftID: giftID, targetID: targetID)
+            },
+            onOpenInventoryMarket: {
+                selectedSurface = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    currentStall = buildGoblinStall()
+                    isBookShopPresented = true
+                }
+            },
+            onOpenInventoryBargain: { bargain in
+                selectedSurface = nil
+                let fae = vault.data.fae ?? FaePlayerState()
+                let bargainSurface = FaeBargainPageSourceAdapter.surface(for: bargain, state: fae)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    selectedSurface = bargainSurface
+                }
+            },
+            onLoveBraid: { pageID in
+                markLovedBraid(pageID: pageID)
+            },
+            onBraidMissedMe: { pageID in
+                markBraidMissedMe(pageID: pageID)
+            },
+            onImproveNextBraid: { pageID in
+                await improveNextBraidFromMiss(pageID: pageID)
+            },
+            onRewriteBraid: { pageID in
+                await rewriteBraid(pageID: pageID)
+            },
+            weatherSignal: weatherPageSignal,
+            readerLexicon: activeReaderLexicon
+        ) { savedSurface, input, tags in
+            savePage(surface: savedSurface, input: input, tags: tags)
+        }
+        .id(surface.id)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
     func applyWordNegotiationIfNeeded(surface: SurfacePage, page: BookPage) {
         guard surface.type == .wordNegotiation else { return }
         let metadata = surface.payload.metadata
@@ -3473,6 +3529,12 @@ struct ContentView: View {
             sourcePageID: page.id
         )
         lexicon.upsert(entry)
+        // Recompute the Treaty live: nil until `minimumRulings` rebellion rulings
+        // exist, then it tracks the player's running tilt (order/reform/chaos) and
+        // naturally holds its final value once rulings stop. The Thorned Bargain
+        // reads `treaty == .secession` in Feb. (Switch to lock-at-season-end later
+        // if aftermath pages should not key off it mid-season.)
+        lexicon.treaty = lexicon.treatyOutcome()
         vault.data.readerLexicon = lexicon
         vault.save()
     }

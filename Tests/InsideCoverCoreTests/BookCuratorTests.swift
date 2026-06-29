@@ -1890,6 +1890,36 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(event.influenceLine.contains("word ruling 1"))
     }
 
+    func testDictionaryRebellionPackIsLockedButGrantedFreeAtLaunch() {
+        // The content ships in a locked pack...
+        let rebellion = PageArchetypePackRegistry.bundledPacks.first { $0.id == "dictionary-rebellion" }
+        XCTAssertNotNil(rebellion, "the dictionary-rebellion content pack should be bundled")
+        XCTAssertTrue(rebellion?.isLocked ?? false, "content pack must ship availability:\"locked\"")
+
+        // ...but the launch grant unlocks it with no purchase written into ownedPackIDs.
+        let savedOwned = PackEntitlements.ownedPackIDs
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
+        PackEntitlements.ownedPackIDs = []
+        XCTAssertTrue(PackEntitlements.isUnlocked("dictionary-rebellion"),
+                      "launchGrantedPackIDs should keep the season free for now")
+
+        // So the negotiable words actually load through the entitlement-gated registry.
+        let words = PageArchetypePackRegistry.wordNegotiations()
+        let byWord = Dictionary(words.map { ($0.word, $0) }, uniquingKeysWith: { first, _ in first })
+        XCTAssertNotNil(byWord["fine"])
+        XCTAssertNotNil(byWord["wonder"])
+
+        // The Bargain seed: a word that cannot be ruled.
+        XCTAssertEqual(byWord["remember"]?.isMissingSeed, true)
+        XCTAssertTrue(byWord["remember"]?.choices.isEmpty ?? false)
+
+        // Every rulable rebellion word offers the full four-verb negotiation.
+        for word in words where word.eventID == "dictionary-rebellion" && !word.isMissingSeed {
+            XCTAssertEqual(Set(word.choices.map(\.ruling)), [.recalled, .pardoned, .adopted, .freed],
+                           "\(word.word) should offer all four rulings")
+        }
+    }
+
     func testWordNegotiationAdapterBuildsPackDrivenSurfaceAndSkipsRuledWords() throws {
         let now = localDate(year: 2026, month: 9, day: 12, hour: 12)
         let day = BookDay(id: "2026-09-12", date: localDate(year: 2026, month: 9, day: 12, hour: 0), pages: [])

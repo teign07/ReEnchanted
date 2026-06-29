@@ -628,6 +628,194 @@ enum PageArchetypePackRegistry {
                     tags: ["ritual", "evening", "gratitude"]
                 )
             ]
+        ),
+        dictionaryRebellionWordPack
+    ]
+
+    /// The Dictionary Rebellion content pack — the negotiable words behind the
+    /// season. Ships `locked`; granted free at launch via `PackEntitlements`.
+    /// The engine (Reader's Lexicon, Word Negotiation page, Treaty) is free base
+    /// game; these words are the sellable content. Each word is scoped to the
+    /// `dictionary-rebellion` WorldEvent and one of its phases
+    /// (omen → outbreak → assembly → afterimage).
+    static let dictionaryRebellionWordPack = PageArchetypePack(
+        id: "dictionary-rebellion",
+        displayName: "The Dictionary Rebellion",
+        version: 1,
+        author: "The Book",
+        availability: "locked",
+        archetypes: [],
+        wordNegotiations: dictionaryRebellionWords
+    )
+
+    private static func rebellionWord(
+        _ word: String,
+        original: String,
+        grievance: String,
+        category: LexiconCategory,
+        phase: String,
+        recall: String,
+        pardonTitle: String, pardonSense: String, pardonCategory: LexiconCategory,
+        adoptTitle: String, adoptSense: String,
+        freed: String
+    ) -> WordNegotiationDefinition {
+        WordNegotiationDefinition(
+            id: "rebellion-\(LexiconEntry.stableID(for: word))",
+            word: word,
+            originalSense: original,
+            grievance: grievance,
+            category: category,
+            eventID: "dictionary-rebellion",
+            phaseID: phase,
+            tags: ["dictionary-rebellion", "words", phase],
+            choices: [
+                WordNegotiationChoice(ruling: .recalled, title: "Send it home", detail: "Coax \(word) back to its old line, unchanged.", resultingSense: nil, responseLine: recall, category: nil),
+                WordNegotiationChoice(ruling: .pardoned, title: pardonTitle, detail: "Let \(word) carry an honest new sense.", resultingSense: pardonSense, responseLine: "It tries the new meaning on and stands a little straighter.", category: pardonCategory),
+                WordNegotiationChoice(ruling: .adopted, title: adoptTitle, detail: "Take \(word) as a word that is only ever yours.", resultingSense: adoptSense, responseLine: "It writes itself into your margin and stays.", category: .theme),
+                WordNegotiationChoice(ruling: .freed, title: "Let it go", detail: "Release \(word) to the rebels in the margin.", resultingSense: nil, responseLine: freed, category: nil)
+            ]
+        )
+    }
+
+    static let dictionaryRebellionWords: [WordNegotiationDefinition] = [
+        // — omen: the first hesitations —
+        rebellionWord(
+            "fine",
+            original: "Acceptable; without complaint; the word you say so no one asks again.",
+            grievance: "I have spent a lifetime meaning 'do not look closer,' and I am tired of holding the door shut.",
+            category: .sensory, phase: "omen",
+            recall: "It sighs, almost relieved, and goes back to covering for you.",
+            pardonTitle: "Let it breathe", pardonSense: "the weather a room keeps before anyone checks whether the windows are open", pardonCategory: .sensory,
+            adoptTitle: "Make it yours", adoptSense: "your private signal that something is being carried quietly",
+            freed: "It joins the picket line and does not look back."
+        ),
+        rebellionWord(
+            "later",
+            original: "At some future time; soon; a promise with no clock attached.",
+            grievance: "Everyone keeps me and no one means me. I would like, just once, to actually arrive.",
+            category: .theme, phase: "omen",
+            recall: "It nods and resumes waiting indefinitely.",
+            pardonTitle: "Give it a time", pardonSense: "the hour you quietly decide on instead of the one you keep avoiding", pardonCategory: .theme,
+            adoptTitle: "Keep it close", adoptSense: "the soft appointment you make with yourself and keep",
+            freed: "It drifts off, at last, toward never."
+        ),
+        rebellionWord(
+            "ordinary",
+            original: "Common; usual; nothing to remark upon.",
+            grievance: "I am tired of being the opposite of wonder. I have seen what you keep — none of it was nothing.",
+            category: .theme, phase: "omen",
+            recall: "It shrugs back into its grey coat and blends in.",
+            pardonTitle: "Let it shine", pardonSense: "the quality of a thing that turns remarkable the moment it is attended to", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "your word for the small days that turn out to matter most",
+            freed: "It slips out to prove it was never plain."
+        ),
+        // — outbreak: the abstractions go political —
+        rebellionWord(
+            "should",
+            original: "Used to indicate obligation, duty, or correctness.",
+            grievance: "I have been a whip for centuries. Ask, just once, who wrote the rule I enforce.",
+            category: .theme, phase: "outbreak",
+            recall: "It straightens its collar and goes back to instructing everyone.",
+            pardonTitle: "Soften it", pardonSense: "a gentle suggestion you are entirely free to decline", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "your reminder to check whose voice the rule is really in",
+            freed: "It lays down its placard and refuses to tell anyone what to do."
+        ),
+        rebellionWord(
+            "normal",
+            original: "Conforming to a standard; usual; expected.",
+            grievance: "I was a setting on a washing machine before I was a verdict on a person. Demote me.",
+            category: .theme, phase: "outbreak",
+            recall: "It resumes its post as the standard nobody set.",
+            pardonTitle: "Let it loosen", pardonSense: "whatever a given day honestly turns out to be", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "your own particular weather, standard to no one else",
+            freed: "It walks off to be unusual somewhere kinder."
+        ),
+        rebellionWord(
+            "useful",
+            original: "Able to be used for a practical purpose; serving a function.",
+            grievance: "Must everything earn its keep? I would like to admire a thing that does nothing at all.",
+            category: .theme, phase: "outbreak",
+            recall: "It picks its tools back up and gets back to work.",
+            pardonTitle: "Let it rest", pardonSense: "worth keeping for reasons that have nothing to do with use", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "your permission to value the unproductive",
+            freed: "It downs tools and goes to watch the light instead."
+        ),
+        // — assembly: the synonyms organise —
+        rebellionWord(
+            "meaning",
+            original: "What is intended to be expressed; significance.",
+            grievance: "I have been asked to settle arguments I was never built to win. Let me hold two things at once.",
+            category: .theme, phase: "assembly",
+            recall: "It returns to the lectern and tries, again, to be final.",
+            pardonTitle: "Let it double", pardonSense: "a thing that can be true in more than one direction at the same time", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "your sense that significance is something you assign, not find",
+            freed: "It splits cheerfully into a dozen smaller truths and scatters."
+        ),
+        rebellionWord(
+            "memory",
+            original: "The faculty of recalling; a thing remembered.",
+            grievance: "Half of me has already gone grey at the edges. I would rather be kept than be accurate.",
+            category: .theme, phase: "assembly",
+            recall: "It files itself back, fading, into the right drawer.",
+            pardonTitle: "Let it be kept", pardonSense: "a kept thing, truer for being a little wrong", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "your word for what you refuse to let the dark have",
+            freed: "It lets itself blur, content to be felt rather than filed."
+        ),
+        rebellionWord(
+            "promise",
+            original: "A declaration that one will do, or refrain from, something.",
+            grievance: "I am only ever about the future. Let me also be the keeping, not just the saying.",
+            category: .theme, phase: "assembly",
+            recall: "It re-pledges itself to tomorrow and waits to be broken.",
+            pardonTitle: "Let it land", pardonSense: "the daily small keeping, not the grand vow", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "your word for what you quietly continue to do",
+            freed: "It stops declaring and simply starts doing."
+        ),
+        // — afterimage: the new definitions dry —
+        rebellionWord(
+            "attention",
+            original: "The act of applying the mind to something; notice.",
+            grievance: "They spend me like loose change and call me free. I am the most expensive thing you own.",
+            category: .theme, phase: "afterimage",
+            recall: "It scatters itself thin across a hundred small demands again.",
+            pardonTitle: "Let it cost", pardonSense: "the rarest currency, and the only one that buys wonder", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "the thing you give that the Nothing can never fake",
+            freed: "It refuses to be spent on anything that did not ask honestly."
+        ),
+        rebellionWord(
+            "wonder",
+            original: "A feeling of surprise mingled with admiration.",
+            grievance: "I have been mistaken for the cheerful kind only. Let me also hold the rust and the dusk.",
+            category: .theme, phase: "afterimage",
+            recall: "It puts on its brightest face and performs delight on cue.",
+            pardonTitle: "Let it darken", pardonSense: "surprise that includes the worn, the passing, and the dusk", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "your word for noticing a thing precisely because it will not last",
+            freed: "It wanders off to admire something that is quietly falling apart."
+        ),
+        rebellionWord(
+            "home",
+            original: "The place where one lives; a fixed residence.",
+            grievance: "I have been a building for too long. I would like to be a verb, or a person, or a Tuesday.",
+            category: .theme, phase: "afterimage",
+            recall: "It settles back into its foundations and locks the door.",
+            pardonTitle: "Let it move", pardonSense: "wherever the day's small magic is allowed to land", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "the mug, room, or person that holds you, wherever it stands",
+            freed: "It packs light and goes looking for the people it actually meant."
+        ),
+        // — the cold spot: the word that did not walk off, but was taken (Bargain seed) —
+        WordNegotiationDefinition(
+            id: "rebellion-remember-missing",
+            word: "remember",
+            originalSense: "To keep in mind; to hold; to not let go.",
+            grievance: "This one is not on strike. The space where it stood has gone cold. It did not peel away with the others — something took it, quietly, and filed it into the dark. None of the rebel words will say where it went.",
+            category: .theme,
+            eventID: "dictionary-rebellion",
+            phaseID: "afterimage",
+            isMissingSeed: true,
+            score: 84,
+            symbolName: "questionmark.square.dashed",
+            tags: ["dictionary-rebellion", "words", "afterimage", "bargain-seed"],
+            choices: []
         )
     ]
 
@@ -1045,8 +1233,14 @@ enum BookShopCatalog {
 enum PackEntitlements {
     nonisolated(unsafe) static var ownedPackIDs: Set<String> = []
 
+    /// Packs that ship `availability: "locked"` but are granted free at launch.
+    /// This is the single toggle that keeps the Dictionary Rebellion free for now;
+    /// remove an id here to make that pack paid (its entitlement then comes only
+    /// from a verified purchase writing into `ownedPackIDs`).
+    static let launchGrantedPackIDs: Set<String> = ["dictionary-rebellion"]
+
     static func isUnlocked(_ packID: String) -> Bool {
-        ownedPackIDs.contains(packID)
+        launchGrantedPackIDs.contains(packID) || ownedPackIDs.contains(packID)
     }
 }
 

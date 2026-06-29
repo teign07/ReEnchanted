@@ -1251,14 +1251,35 @@ enum LocalModelManager {
                 let text = clippedBraidText(page.userInput, limit: characterLimit)
                 let tags = page.tags.isEmpty ? "none" : page.tags.joined(separator: ", ")
                 let media = braidMediaEvidence(for: page)
+                let reply = clippedBraidText(page.playerReply, limit: 260)
                 return """
                 \(index + 1). \(page.type.title) — kept at \(timeFormatter.string(from: page.createdAt))
+                Thread gravity: \(braidThreadGravity(for: page))
                 Prompt: \(prompt.isEmpty ? "none" : prompt)
                 Kept text: \(text.isEmpty ? "(blank)" : text)
+                Reader reply: \(reply.isEmpty ? "none" : reply)
                 Visual evidence: \(media.isEmpty ? "none" : media)
                 Tags: \(tags)
                 """
             }
+    }
+
+    private static func braidThreadGravity(for page: BookPage) -> String {
+        let hasReaderReply = !page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        switch page.origin {
+        case .userAuthored:
+            if page.type == .souvenir {
+                return "reader-authored anchor; one-sentence souvenir; highest gravity"
+            }
+            return "reader-authored anchor; high gravity"
+        case .imported:
+            return "imported real-world anchor; high gravity"
+        case .generated, .simulated:
+            if hasReaderReply {
+                return "reader-endorsed fiction; medium gravity"
+            }
+            return "generated fiction color; lower gravity"
+        }
     }
 
     private static func braidMediaEvidence(for page: BookPage) -> String {

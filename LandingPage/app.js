@@ -1265,7 +1265,26 @@ function buildBraid() {
 }
 
 /* ── the Book of You edition: theme, stats, and The Reader's Sky ── */
-const PAGE_WORDS = ["Weather", "Chart", "Music", "Fuel", "Weather", "Sentence", "Character", "Light", "Wonder", "Light"];
+const PAGE_WORDS = [
+  "Door",
+  "Unwritten",
+  "Snack",
+  "Name",
+  "Belief",
+  "Wicker",
+  "Sentence",
+  "Weather",
+  "Chart",
+  "Music",
+  "Archive",
+  "Fuel",
+  "Inner Weather",
+  "Sentence",
+  "Character",
+  "Light",
+  "Wonder",
+  "Light",
+];
 
 function hashStr(s) {
   let h = 0;
@@ -1405,9 +1424,79 @@ function pageSummary(page, i) {
   return plainText(page.bodyHTML || page.body || page.braid || `Page ${i + 1}`);
 }
 
+function pageBindingNote(page, i) {
+  if (page.fuelPrompt) {
+    return fuelEstimateLine
+      ? `Vellum's margin keeps the estimate humane: ${fuelEstimateLine}. The numbers are present, but the binding treats them as pattern evidence, not judgment.`
+      : "Vellum's margin is here to prove the care pages belong in the same book as the uncanny ones: food, rest, medicine, and ordinary upkeep can all become story material without becoming a score.";
+  }
+  if (page.innerWeatherPrompt) {
+    const weather = INNER_WEATHER_OPTIONS.find((w) => w.id === selectedInnerWeatherId);
+    return weather
+      ? `Inkrest files ${weather.label.toLowerCase()} as weather, not identity. The binding keeps the feeling visible while leaving the reader room to move.`
+      : "Inkrest's page keeps feeling as context. It gives the Book a gentler way to remember the day than triumph, failure, or blankness.";
+  }
+  if (page.sentencePrompt) {
+    return "One exact sentence acts like a stitch: small enough to keep, specific enough to pull a whole day back through the binding.";
+  }
+  if (page.radioPrompt) {
+    return "The chosen station colors the final voice of the book. Music is not decoration here; it is weather the archive can hear.";
+  }
+  if (page.searchPrompt) {
+    return "Search proves the private archive is semantic, not merely sorted. The Book can retrieve a feeling, a half-image, or a thread the reader barely knows how to name.";
+  }
+  if (page.storyPrompt) {
+    return "A choice page lets the reader shape the fiction and then carry that shape into the braid, so play leaves a visible thread.";
+  }
+  if (page.characterPrompt) {
+    return "Cast pages give the archive social gravity. A person, rival, guide, or marginal voice can return later with memory attached.";
+  }
+  if (page.enchantmentPrompt) {
+    return "The spell page turns one ordinary image into close reading. It shows how the app treats real life as inspectable, not replaceable.";
+  }
+  if (page.wonderPrompt) {
+    return "The Compass page is the bridge back out of the screen: a short practice, a small errand, a reason to notice the real world again.";
+  }
+  if (page.onboardingStep) {
+    return "This threshold beat teaches the Book one stable rule about the reader before the demo begins asking them to keep or release pages.";
+  }
+  if (i === WEATHER_INDEX) {
+    return "The Weather Page grounds the fantasy in public conditions, letting the day's sky become a factual door into the story.";
+  }
+  return "This page contributes texture to the sample edition: a source, a choice state, and a thread the final braid can either carry or leave waiting.";
+}
+
+function bindingFolioGroups() {
+  return [
+    { title: "Threshold Folio", subtitle: "The Book learns how the reader arrived.", indices: [0, 1, 2] },
+    { title: "Name, Belief, and the First Test", subtitle: "The demo's onboarding threads, condensed for binding.", indices: [3, 4, 5, 6] },
+    { title: "Weather, Story, and Radio", subtitle: "World signals that can color a Book of You entry.", indices: [7, 8, 9] },
+    { title: "Archive and Care Pages", subtitle: "Search, fuel, and inner weather kept on the same shelf.", indices: [10, 11, 12] },
+    { title: "Personal Threads", subtitle: "A sentence, a cast member, and one enchanted image.", indices: [13, 14, 15] },
+    { title: "Wonder and the Quiet Proof", subtitle: "The field guide and the ordinary scene it helps keep.", indices: [16, 17] },
+  ].map((group) => ({
+    ...group,
+    indices: group.indices.filter((i) => PAGES[i]),
+  })).filter((group) => group.indices.length);
+}
+
+function folioParagraphs(group) {
+  return group.indices.flatMap((i) => {
+    const page = PAGES[i];
+    const choice = pageChoiceLabel(i);
+    const threadLabel = choices[i] === "keep" ? "Thread braided" : "Thread available";
+    return [
+      `${i + 1}. ${page.kicker || page.title} - ${choice}`,
+      `Opened from ${page.source || "the demo"}: ${pageSummary(page, i)}`,
+      `Binding note: ${pageBindingNote(page, i)}`,
+      `${threadLabel}: ${plainText(page.braid)}`,
+    ];
+  });
+}
+
 function bindingPages() {
   const data = lastEdition || editionData();
-  const passage = pdfClean(braidText.textContent || buildBraid());
+  const passage = pdfClean(braidText.textContent || plainText(buildBraid()));
   const my = monthYear();
   const place = [weatherCtx.city || "the Stacks", weatherCtx.cond].filter(Boolean).join(" - ");
   const kept = PAGES.map((_, i) => i).filter((i) => choices[i] === "keep");
@@ -1420,25 +1509,29 @@ function bindingPages() {
     subtitle: "A one-day sample binding",
     paragraphs: [
       "This little edition was bound from the interactive book demo: every page you opened, every page you kept, and every page you let wait.",
-      "The real monthly binding gathers many days. This sample keeps the same promise in miniature: ordinary choices, given a cover, a contents page, and a final braid."
+      "The real monthly binding gathers many days. This sample keeps the same promise in miniature: ordinary choices, given a cover, a contents page, and a final braid.",
+      "Short practical pages are gathered into folios instead of left thin on the page. Fuel, inner weather, search, and sentence work now sit beside the larger story beats where their context can breathe."
     ],
   });
   pages.push({
     title: "Contents",
     subtitle: `${PAGES.length} pages offered - ${kept.length} kept - ${answered.length} answered`,
-    paragraphs: PAGES.map((page, i) => `${i + 1}. ${page.kicker || page.title} - ${pageChoiceLabel(i)}`),
+    paragraphs: [
+      ...bindingFolioGroups().map((group) => {
+        const range = `${group.indices[0] + 1}-${group.indices[group.indices.length - 1] + 1}`;
+        return `${range}. ${group.title} - ${group.indices.length} demo page${group.indices.length === 1 ? "" : "s"}`;
+      }),
+      "Braid. The final passage printed in full",
+      data.words.length ? "Reader's Sky. The noticed constellations" : "Reader's Sky. No constellations claimed this sample",
+      "Colophon. Binding facts and imprint"
+    ],
   });
 
-  PAGES.forEach((page, i) => {
-    const paragraphs = [
-      `${pageChoiceLabel(i)} - ${page.source || "Demo"}`,
-      pageSummary(page, i),
-    ];
-    if (choices[i] === "keep") paragraphs.push(`Binding line: ${plainText(page.braid)}`);
+  bindingFolioGroups().forEach((group) => {
     pages.push({
-      title: page.title || `Page ${i + 1}`,
-      subtitle: `Page ${i + 1} - ${page.kicker || "Book page"}`,
-      paragraphs,
+      title: group.title,
+      subtitle: group.subtitle,
+      paragraphs: folioParagraphs(group),
     });
   });
 
@@ -1452,7 +1545,11 @@ function bindingPages() {
     pages.push({
       title: "The Reader's Sky",
       subtitle: "Constellations the Book noticed in this sample.",
-      paragraphs: data.words.map((w) => `${w.label} - ${w.count} sighting${w.count === 1 ? "" : "s"}`),
+      paragraphs: [
+        "These are not personality labels. They are the stars this small binding used to navigate: repeated textures, page-types, and kinds of attention that showed up while the reader turned the demo.",
+        ...data.words.map((w) => `${w.label} - ${w.count} sighting${w.count === 1 ? "" : "s"}`),
+        "In a real monthly edition, this sky grows stranger and more useful. Weather can lean toward music; fuel can sit beside rest; a sentence can become the hinge that explains why a whole week kept opening to the same question."
+      ],
     });
   }
 
@@ -1462,7 +1559,8 @@ function bindingPages() {
     paragraphs: [
       `Bound as a demo PDF on ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`,
       `${data.keptCount} kept page${data.keptCount === 1 ? "" : "s"} - ${place || "weather default"} - ${data.theme}`,
-      "A real month braids many days. This one kept the shape of a promise."
+      "The final braid is included here as the binding thread, not as an afterword. It is the passage the kept pages become when the Book stops sorting and starts remembering.",
+      "A real month braids many days. This one kept the shape of a promise: every practical note, story choice, weather signal, and small true sentence can belong in the same volume."
     ],
   });
   return pages;

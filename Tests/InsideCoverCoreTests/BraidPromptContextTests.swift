@@ -80,6 +80,61 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertFalse(recent.joined().contains("Current day"))
     }
 
+    func testBraidPromptWeightsUserSouvenirsAboveGeneratedFiction() {
+        let day = BookDay(
+            id: "2026-06-16",
+            date: date("2026-06-16T20:30:00Z"),
+            pages: [
+                BookPage(
+                    type: .souvenir,
+                    createdAt: date("2026-06-16T08:00:00Z"),
+                    promptText: "One true thing",
+                    userInput: "The coffee cup sat beside the laptop while rain tapped the window.",
+                    origin: .userAuthored
+                ),
+                BookPage(
+                    type: .narrativeOS,
+                    createdAt: date("2026-06-16T12:00:00Z"),
+                    promptText: "Story choice",
+                    userInput: "Wicker opened a green door under the stairs.",
+                    origin: .generated
+                )
+            ]
+        )
+
+        let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
+
+        XCTAssertTrue(prompt.contains("PROVENANCE GRAVITY"))
+        XCTAssertTrue(prompt.contains("One-Sentence Souvenirs are especially strong spine candidates"))
+        XCTAssertTrue(prompt.contains("generated or simulated story pages as color threads"))
+        XCTAssertTrue(prompt.contains("Let the fiction bleed into the real without drowning it."))
+        XCTAssertTrue(prompt.contains("reader-authored anchor; one-sentence souvenir; highest gravity"))
+        XCTAssertTrue(prompt.contains("generated fiction color; lower gravity"))
+    }
+
+    func testBraidPromptUpgradesGeneratedFictionWhenReaderReplies() {
+        let day = BookDay(
+            id: "2026-06-16",
+            date: date("2026-06-16T20:30:00Z"),
+            pages: [
+                BookPage(
+                    type: .narrativeOS,
+                    createdAt: date("2026-06-16T12:00:00Z"),
+                    promptText: "Story choice",
+                    userInput: "The corridor offered three doors.",
+                    playerReply: "I chose the blue door because it felt honest.",
+                    origin: .generated
+                )
+            ]
+        )
+
+        let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
+
+        XCTAssertTrue(prompt.contains("reader-endorsed fiction; medium gravity"))
+        XCTAssertTrue(prompt.contains("Reader reply: I chose the blue door because it felt honest."))
+        XCTAssertTrue(prompt.contains("still lighter than a real souvenir or direct user-authored page"))
+    }
+
     func testAnnotatedBraidKeepsTitleAndContextTags() {
         let page = BookPage(
             type: .bookOfYou,

@@ -549,6 +549,10 @@ struct CapturePageSheet: View {
     var onImproveNextBraid: (String) async -> String = { _ in "" }
     var onRewriteBraid: (String) async -> String = { _ in "" }
     var weatherSignal: WeatherSourceSignal?
+    /// The reader's living Lexicon, so word rulings actually bend the sentence
+    /// scaffold the player writes with. Defaults empty for previews/callers that
+    /// don't have a vault.
+    var readerLexicon: ReaderLexicon = ReaderLexicon()
     let onSave: (SurfacePage, String, [String]) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -2324,7 +2328,7 @@ struct CapturePageSheet: View {
                 placeholder: placeholder,
                 text: $text,
                 minHeight: 92,
-                builderPack: phase == "after" ? SentenceBuilderPackRegistry.composedSouvenir() : SentenceBuilderPackRegistry.composedCore()
+                builderPack: phase == "after" ? SentenceBuilderPackRegistry.composedSouvenir(readerLexicon: readerLexicon) : SentenceBuilderPackRegistry.composedCore(readerLexicon: readerLexicon)
             )
         }
     }
@@ -5069,7 +5073,8 @@ struct CapturePageSheet: View {
                     title: "Write back to \(letterSenderName.capitalized)",
                     placeholder: "A line back through the margins…",
                     text: $letterReply,
-                    minHeight: 120
+                    minHeight: 120,
+                    builderPack: SentenceBuilderPackRegistry.composedCore(readerLexicon: readerLexicon)
                 )
 
                 Button {
@@ -5730,7 +5735,8 @@ struct CapturePageSheet: View {
                 ? "One true line, if one arrived in the quiet. Or leave it blank — that's rest too."
                 : "Add one true thing the Book should keep.",
             text: $text,
-            minHeight: minHeight
+            minHeight: minHeight,
+            builderPack: SentenceBuilderPackRegistry.composedCore(readerLexicon: readerLexicon)
         )
     }
 
