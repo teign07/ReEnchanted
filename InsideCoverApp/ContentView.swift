@@ -234,6 +234,7 @@ struct ContentView: View {
     /// The month the player has chosen to bind. `nil` means "let the Book choose"
     /// — the most recent month that kept pages.
     @State var selectedEditionMonth: Date?
+    @AppStorage("includePrivateWeatherInMonthlyBinding") var includePrivateWeatherInMonthlyBinding = false
     /// An in-character line the Colophon's binding desk speaks back to the player.
     @State var colophonBindingNote: String?
     @State var bookJumpCustomTitle: String = ""
@@ -3143,6 +3144,21 @@ struct ContentView: View {
                             }
                         }
 
+                        Toggle(isOn: $includePrivateWeatherInMonthlyBinding) {
+                            Label("Include Fuel & Inner Weather", systemImage: "heart.text.square")
+                                .font(.caption2.weight(.semibold))
+                        }
+                        .toggleStyle(.switch)
+                        .tint(BookPalette.lampGold)
+                        .font(.caption2)
+                        .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                        .onChange(of: includePrivateWeatherInMonthlyBinding) { _, _ in
+                            preparedMonthlyEditionURL = nil
+                            preparedPrintInteriorURL = nil
+                            preparedPrintCoverURL = nil
+                            colophonBindingNote = nil
+                        }
+
                         if let colophonBindingNote {
                             StatusBanner(message: colophonBindingNote)
                                 .transition(.opacity.combined(with: .move(edge: .top)))
@@ -5733,7 +5749,8 @@ struct ContentView: View {
                     unlockedPackIDs: Set(vault.data.ownedPacks ?? []),
                     worldEvents: sourceInputs.resolvingWorldEvents(for: braidDay, now: Date()).activeWorldEvents
                 ),
-                activeWorldEvents: sourceInputs.resolvingWorldEvents(for: braidDay, now: Date()).activeWorldEvents
+                activeWorldEvents: sourceInputs.resolvingWorldEvents(for: braidDay, now: Date()).activeWorldEvents,
+                readerLexicon: vault.data.readerLexicon ?? ReaderLexicon()
             )
             var braid = try await braider.braid(day: braidDay, context: braidContext)
             braid = BraidPageDetails.annotated(braid, context: braidContext)

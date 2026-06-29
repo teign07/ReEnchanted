@@ -414,6 +414,40 @@ struct SurfacePage: Identifiable, Equatable, Codable {
 }
 
 extension SurfacePage {
+    func withReaderLexiconLanguageLaw(_ lexicon: ReaderLexicon) -> SurfacePage {
+        let section = lexicon.languageLawSection().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !section.isEmpty else { return self }
+        var metadata = payload.metadata
+        metadata["readerLexiconPromptSection"] = section
+        metadata["readerLexiconRedefinedWords"] = lexicon.redefinedEntries
+            .map(\.word)
+            .uniqueLexiconWords()
+            .joined(separator: ",")
+        metadata["readerLexiconEatenWords"] = lexicon.eatenEntries
+            .map(\.word)
+            .uniqueLexiconWords()
+            .joined(separator: ",")
+        if let treaty = lexicon.treaty {
+            metadata["readerLexiconTreaty"] = treaty.rawValue
+        }
+        return SurfacePage(
+            id: id,
+            type: type,
+            sourceID: sourceID,
+            intent: intent,
+            renderStyle: renderStyle,
+            score: score,
+            reason: reason,
+            prompt: prompt,
+            detail: detail,
+            payload: BookPagePayload(
+                headline: payload.headline,
+                body: payload.body,
+                metadata: metadata
+            )
+        )
+    }
+
     static func illuminatedPhotoSurface(
         draft: IlluminatedPhotoDraft,
         renderedURL: URL?,
@@ -457,6 +491,19 @@ extension SurfacePage {
                 metadata: metadata
             )
         )
+    }
+}
+
+private extension Array where Element == String {
+    func uniqueLexiconWords() -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for word in self {
+            let key = word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !key.isEmpty, seen.insert(key).inserted else { continue }
+            result.append(word)
+        }
+        return result
     }
 }
 
@@ -643,7 +690,9 @@ enum BookCurator {
             }
         }
 
-        return picked.map { PactWarEffects.framed($0, state: inputs.pactWar) }
+        return picked
+            .map { PactWarEffects.framed($0, state: inputs.pactWar) }
+            .map { $0.withReaderLexiconLanguageLaw(inputs.readerLexicon) }
     }
 
     static func rankedPages(

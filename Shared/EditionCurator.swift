@@ -48,7 +48,7 @@ enum EditionCurator {
                 }
                 .prefix(5)
                 .map { type, count in
-                    "\(count) \(type.title.lowercased())\(count == 1 ? "" : "s")"
+                    countPhrase(type: type, count: count)
                 }
             let joined: String
             switch parts.count {
@@ -58,6 +58,17 @@ enum EditionCurator {
             default: joined = "\(parts.dropLast().joined(separator: ", ")), and \(parts.last ?? "")"
             }
             return "The month also held \(joined) - kept in the archive, but not bound here."
+        }
+
+        private func countPhrase(type: BookPageType, count: Int) -> String {
+            var title = type.title.lowercased()
+            if title.hasPrefix("a ") {
+                title.removeFirst(2)
+            } else if title.hasPrefix("an ") {
+                title.removeFirst(3)
+            }
+            let number = count == 1 ? "one" : "\(count)"
+            return "\(number) \(title)\(count == 1 ? "" : "s")"
         }
     }
 
@@ -69,6 +80,9 @@ enum EditionCurator {
     static let notableKeepThreshold = 34
     /// A sampled mundane page still has to carry this much above its floor.
     static let mundaneSubstanceFloor = 10
+    /// Intimate logs stay in the private archive unless a future export option
+    /// explicitly asks to bind them.
+    static let defaultPrivateTypes: Set<BookPageType> = [.body, .fuel]
 
     // MARK: Scoring
 
@@ -127,6 +141,10 @@ enum EditionCurator {
         for page in pages {
             let body = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
             let hasContent = !body.isEmpty || !page.mediaAssets.isEmpty || page.usedInBookOfYou
+            if defaultPrivateTypes.contains(page.type) {
+                if hasContent { setAside[page.type, default: 0] += 1 }
+                continue
+            }
 
             let keep: Bool
             switch tier(for: page.type) {

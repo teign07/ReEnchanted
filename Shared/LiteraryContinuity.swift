@@ -18,6 +18,7 @@ enum BraidPromptBuilder {
         var learnedGuidance: BraidLearningGuidance?
         var nowPlaying: String?
         var activeWorldEvents: [ResolvedWorldEvent] = []
+        var readerLexicon: ReaderLexicon = ReaderLexicon()
 
         static let empty = Context()
     }
@@ -30,6 +31,7 @@ enum BraidPromptBuilder {
         learnedNotes: [String] = [],
         nowPlaying: String? = nil,
         activeWorldEvents: [ResolvedWorldEvent] = [],
+        readerLexicon: ReaderLexicon = ReaderLexicon(),
         calendar: Calendar = .current
     ) -> Context {
         let recentBraids = recentBraidTexts(excludingDayID: day.id, days: days)
@@ -54,7 +56,8 @@ enum BraidPromptBuilder {
             chapter: chapter,
             learnedGuidance: merged.signals.isEmpty ? nil : merged,
             nowPlaying: nowPlaying,
-            activeWorldEvents: activeWorldEvents
+            activeWorldEvents: activeWorldEvents,
+            readerLexicon: readerLexicon
         )
     }
 
@@ -213,7 +216,7 @@ enum BraidPromptBuilder {
         - Prefer one fresh concrete detail over a second sentence explaining the same mood, object, weather, relationship, or threshold.
 
         KEPT PAGES FROM TODAY:
-        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(themeSection)\(chapterSection)\(learnedSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(context.activeWorldEvents.bookOfYouPromptSection)\(continuity)
+        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(themeSection)\(chapterSection)\(learnedSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(continuity)
         """
     }
 
@@ -1282,12 +1285,13 @@ enum LiteraryContinuityProjector {
         calendar: Calendar
     ) -> LiteraryContinuitySignal {
         let appearances = lifecycle.pageCount == 1 ? "one kept page" : "\(lifecycle.pageCount) kept pages"
+        let events = lifecycle.eventCount == 1 ? "one event" : "\(lifecycle.eventCount) events"
         return LiteraryContinuitySignal(
             id: "belief-lifecycle-\(lifecycle.id)",
             kind: .beliefLifecycle,
             subjectID: lifecycle.id,
             subjectName: lifecycle.name,
-            line: "\(lifecycle.name) has become a living thread: \(appearances), \(lifecycle.eventCount) events, current Glow \(lifecycle.currentGlow).",
+            line: "\(lifecycle.name) has become a living thread: \(appearances), \(events), current Glow \(lifecycle.currentGlow).",
             evidencePageIDs: lifecycle.evidencePageIDs,
             relatedEntityIDs: lifecycle.relatedEntityIDs,
             tags: ["belief", "lifecycle", "literary-continuity", lifecycle.id],

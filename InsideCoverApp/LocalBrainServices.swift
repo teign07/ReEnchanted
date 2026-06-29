@@ -285,7 +285,8 @@ struct MLXBookBraider: Braider {
                     unlockedPackIDs: Set(PlayerVault.shared.data.ownedPacks ?? []),
                     worldEvents: activeWorldEvents
                 ),
-                activeWorldEvents: activeWorldEvents
+                activeWorldEvents: activeWorldEvents,
+                readerLexicon: PlayerVault.shared.data.readerLexicon ?? ReaderLexicon()
             )
         case .task:
             context = .empty
@@ -456,7 +457,7 @@ enum MLXBraidLegacyTaskRunner {
 struct MLXAskTheBookAnswerer: AskTheBookAnswering {
     var maxTokens = 520
 
-    func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn]) async throws -> String {
+    func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn], readerLexicon: ReaderLexicon = ReaderLexicon()) async throws -> String {
         guard let modelDirectory = LocalModelManager.activeModelDirectory else {
             throw LocalModelError.missingModel(LocalModelManager.report())
         }
@@ -464,7 +465,8 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
         let taskPrompt = LocalModelManager.askTheBookPrompt(
             prompt: prompt,
             day: day,
-            previousTurns: previousTurns
+            previousTurns: previousTurns,
+            readerLexicon: readerLexicon
         )
 
         let response = try await LocalBrainInferenceGate.shared.run(
@@ -1030,6 +1032,8 @@ struct FacultyResearchPromptBuilder {
         Chart packet:
         \(surface.payload.body)
 
+        \(surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty ?? "")
+
         Write the saved research note for tonight's Support Guild page. Make it feel like real faculty research conducted through the Margin-Glass, but keep it clinically humble.
         """
     }
@@ -1085,7 +1089,9 @@ struct CharacterLetterPromptBuilder {
     Use live web research clippings when supplied, especially details connected to the player's actual home context.
     If no live clippings are supplied, fall back to your own general knowledge, but do not pretend you browsed or cite fake sources.
     Do not invent completed real-world actions by the player. Do not diagnose, prescribe, or moralize.
-    Format as a real letter: greeting, 3-6 short paragraphs, signoff from the sender, optional P.S. if it fits the voice.
+    Format as a real letter: greeting, 2-4 short paragraphs, signoff from the sender, optional P.S. if it fits the voice.
+    Avoid generic openings like "I find myself compelled to write", "I have been observing", "my work centers on", or polished academic self-summaries.
+    Anchor the letter in one concrete object, weather detail, phrase, or kept page from the packet before naming any idea.
     """
 
     static func prompt(for surface: SurfacePage, nowPlaying: String? = nil) -> String {
@@ -1123,9 +1129,9 @@ struct CharacterLetterPromptBuilder {
         \(clippings)
 
         Research source URLs:
-        \(sources)\(RadioAtmosphere.promptSection(nowPlaying))
+        \(sources)\(RadioAtmosphere.promptSection(nowPlaying))\(surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
 
-        Write the finished letter. It should feel researched, personal, and specific to the sender. Blend real-world facts with the sender's voice and relationship to the player. For an introduction-stage letter, introduce before escalating: no callbacks, no assumed intimacy, no urgent plot demand. Start with a greeting that uses "\(playerName)" exactly. Never write "[Player Name]". If a chapter talisman move is supplied, make it a real small action or confession in the letter; the app will apply its talisman Belief delta when the letter is kept. If no move is supplied, do not invent one.
+        Write the finished letter. It should feel researched, personal, and specific to the sender, but never like a professional biography. Blend real-world facts with the sender's voice and relationship to the player. Open from one concrete thing in the draft packet or clippings before explaining the sender's interest. Give each sender a distinct cadence; do not reuse stock first-letter shapes. For an introduction-stage letter, introduce before escalating: no callbacks, no assumed intimacy, no urgent plot demand. Start with a greeting that uses "\(playerName)" exactly. Never write "[Player Name]". If a chapter talisman move is supplied, make it a real small action or confession in the letter; the app will apply its talisman Belief delta when the letter is kept. If no move is supplied, do not invent one.
         """
     }
 
@@ -2998,7 +3004,9 @@ struct CharacterLetterWriter {
             Use live web research clippings when supplied, especially details connected to the player's actual home context.
             If no live clippings are supplied, fall back to your own general knowledge, but do not pretend you browsed or cite fake sources.
             Do not invent completed real-world actions by the player. Do not diagnose, prescribe, or moralize.
-            Format as a real letter: greeting, 3-6 short paragraphs, signoff from the sender, optional P.S. if it fits the voice.
+            Format as a real letter: greeting, 2-4 short paragraphs, signoff from the sender, optional P.S. if it fits the voice.
+            Avoid generic openings like "I find myself compelled to write", "I have been observing", "my work centers on", or polished academic self-summaries.
+            Anchor the letter in one concrete object, weather detail, phrase, or kept page from the packet before naming any idea.
             """,
             maxTokens: 620,
             sourceID: "letter-page",
@@ -3039,9 +3047,9 @@ struct CharacterLetterWriter {
         \(clippings)
 
         Research source URLs:
-        \(sources)
+        \(sources)\(surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
 
-        Write the finished letter. It should feel researched, personal, and specific to the sender. Blend real-world facts with the sender's voice and relationship to the player. For an introduction-stage letter, introduce before escalating: no callbacks, no assumed intimacy, no urgent plot demand. Start with a greeting that uses "\(playerName)" exactly. Never write "[Player Name]".
+        Write the finished letter. It should feel researched, personal, and specific to the sender, but never like a professional biography. Blend real-world facts with the sender's voice and relationship to the player. Open from one concrete thing in the draft packet or clippings before explaining the sender's interest. Give each sender a distinct cadence; do not reuse stock first-letter shapes. For an introduction-stage letter, introduce before escalating: no callbacks, no assumed intimacy, no urgent plot demand. Start with a greeting that uses "\(playerName)" exactly. Never write "[Player Name]".
         """
     }
 
@@ -3129,6 +3137,8 @@ struct PlayfulMissionWriter {
         Title: \(surface.payload.metadata["playfulMissionTitle"] ?? surface.prompt)
         Mission: \(currentMission)
         Tags: \(currentTags)
+
+        \(surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty ?? "")
 
         Authoring grammar:
         - Aim at the world or the body, never at self-analysis. Use find, track, press, count, follow, taste, listen, touch, compare, or report.

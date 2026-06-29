@@ -1550,6 +1550,7 @@ struct BodyPageSourceAdapter: BookPageSourceAdapter {
         }
 
         let isLow = body.score > 0 && body.score <= 35
+        let fieldReport = bodyFieldReport(body: body, day: day, context: context, inputs: inputs, now: now)
         return [
             SurfacePage(
                 id: "\(source.id)-\(body.status.lowercased())-\(SurfaceCadence.slotID(for: now, hours: 4))",
@@ -1558,21 +1559,161 @@ struct BodyPageSourceAdapter: BookPageSourceAdapter {
                 intent: .reflect,
                 renderStyle: .gentleTranslation,
                 score: context.distress.isActive || isLow ? 92 : 60,
-                reason: "The Book translated today's body signals privately.",
-                prompt: isLow ? "The Body Page has lowered the lamps." : "The Body Page is listening quietly.",
-                detail: "A soft translation, ready to keep as-is or annotate in the margin.",
+                reason: fieldReport.reason,
+                prompt: fieldReport.prompt,
+                detail: fieldReport.detail,
                 payload: BookPagePayload(
-                    headline: "Body Page",
-                    body: body.phrase,
+                    headline: fieldReport.headline,
+                    body: fieldReport.body,
                     metadata: [
                         "source": source.id,
                         "status": body.status,
                         "uses": "translated health, fuel, mood",
-                        "privacy": "name response, not source"
+                        "privacy": "name response, not source",
+                        "bodyGlyph": fieldReport.glyph,
+                        "vellumReading": fieldReport.vellumReading,
+                        "crossThread": fieldReport.crossThread,
+                        "experiment": fieldReport.experiment,
+                        "metrics": body.metrics.prefix(8).map(\.displayText).joined(separator: " | ")
                     ]
                 )
             )
         ]
+    }
+
+    private struct BodyFieldReport {
+        var headline: String
+        var prompt: String
+        var detail: String
+        var reason: String
+        var body: String
+        var glyph: String
+        var vellumReading: String
+        var crossThread: String
+        var experiment: String
+    }
+
+    private func bodyFieldReport(
+        body: BodySourceSignal,
+        day: BookDay,
+        context: CuratorContext,
+        inputs: BookSourceInputs,
+        now: Date
+    ) -> BodyFieldReport {
+        let glyph = bodyGlyph(for: body, context: context)
+        let vellum = vellumReading(for: body)
+        let crossThread = crossThreadLine(day: day, inputs: inputs, now: now)
+        let experiment = bodyExperiment(for: body, context: context, inputs: inputs)
+        let prompt: String
+        if context.distress.isActive || body.score <= 35 {
+            prompt = "The Body Page has lowered the lamps."
+        } else if body.score >= 70 {
+            prompt = "The Body Page has found a current."
+        } else {
+            prompt = "The Body Page is drawing a private weather map."
+        }
+        let detail = "A private field report from Vellum's chart: body signals, fuel, and inner weather braided into one humane next move."
+        let text = [
+            "\(glyph) \(body.phrase)",
+            "",
+            "Vellum reads the chart this way: \(vellum)",
+            "",
+            "Cross-thread: \(crossThread)",
+            "",
+            "One small experiment: \(experiment)",
+            "",
+            "Keep one sentence after you try it. The Book wants evidence, not obedience."
+        ].joined(separator: "\n")
+        return BodyFieldReport(
+            headline: "Body Page: \(glyph)",
+            prompt: prompt,
+            detail: detail,
+            reason: "The Book braided body signals with fuel and inner weather without exposing the sources.",
+            body: text,
+            glyph: glyph,
+            vellumReading: vellum,
+            crossThread: crossThread,
+            experiment: experiment
+        )
+    }
+
+    private func bodyGlyph(for body: BodySourceSignal, context: CuratorContext) -> String {
+        let status = body.status.lowercased()
+        if context.distress.isActive || status.contains("watch") { return "Low Lantern" }
+        if status.contains("low") { return "Small Hearth" }
+        if status.contains("bright") { return "Walking Star" }
+        return "Steady Compass"
+    }
+
+    private func vellumReading(for body: BodySourceSignal) -> String {
+        let metrics = body.metrics
+        let sleep = metricValue("Sleep", in: metrics)
+        let steps = metricValue("Steps", in: metrics)
+        let active = metricValue("Active energy", in: metrics)
+        if sleep > 0 && sleep < 6 {
+            return "recovery gets first chair today; everything else should be interpreted through short sleep."
+        }
+        if steps > 5_500 {
+            return "motion has already spoken, so the useful question is what restores the body after the current, not how to prove effort."
+        }
+        if steps > 0 && steps < 1_500 && active < 150 {
+            return "the chart is quiet; this may be a small-threshold day, where warm fuel and one soft errand count."
+        }
+        if !metrics.isEmpty {
+            return "there is enough chart ink to watch timing: energy, rest, food, and mood may be telling one story in different alphabets."
+        }
+        return "there is not enough chart ink for certainty, which is itself useful: ask the body one kinder question and write down the answer."
+    }
+
+    private func crossThreadLine(day: BookDay, inputs: BookSourceInputs, now: Date) -> String {
+        let recentEntries = inputs.facultyEntries
+            .filter { $0.dayID == day.id || $0.createdAt > Calendar.current.date(byAdding: .day, value: -2, to: now) ?? now }
+            .sorted { $0.createdAt > $1.createdAt }
+        let hasFuel = recentEntries.contains { $0.kind == .fuel }
+        let hasWeather = recentEntries.contains { $0.kind == .innerWeather }
+        let keptText = day.capturedPages
+            .suffix(5)
+            .map { ($0.userInput.isEmpty ? $0.promptText : $0.userInput).lowercased() }
+            .joined(separator: " ")
+        if hasFuel && hasWeather {
+            return "fuel and inner weather are both on the desk; compare timing and texture before inventing a moral."
+        }
+        if hasFuel {
+            return "fuel has left evidence; add one inner-weather word after the next meal or drink so Vellum and Inkrest can compare notes."
+        }
+        if hasWeather {
+            return "inner weather has a name; pair it with one body fact, like water, sleep, motion, warmth, or stillness."
+        }
+        if keptText.contains("tired") || keptText.contains("heavy") || keptText.contains("rain") || keptText.contains("static") {
+            return "today's kept words already lean toward weather; let the body answer in one plain sensation."
+        }
+        return "the body, fuel, and mood have not formed a pattern yet; this page is the first pin in the map."
+    }
+
+    private func bodyExperiment(for body: BodySourceSignal, context: CuratorContext, inputs: BookSourceInputs) -> String {
+        let status = body.status.lowercased()
+        let sleep = metricValue("Sleep", in: body.metrics)
+        let steps = metricValue("Steps", in: body.metrics)
+        if context.distress.isActive {
+            return "for one bell window, lower the demand by one notch and keep a sentence about what becomes possible."
+        }
+        if sleep > 0 && sleep < 6 {
+            return "choose recovery before ambition: warm fuel, water, one necessary task, then one sentence about inner weather."
+        }
+        if status.contains("bright") || steps > 5_500 {
+            return "spend ten minutes of that current on something future-you can touch, then stop before the page turns into a scoreboard."
+        }
+        if status.contains("low") || status.contains("watch") || steps < 1_500 {
+            return "make the smallest useful circuit: water, food or warmth, five gentle minutes of movement, and one word for the after."
+        }
+        if inputs.facultyEntries.contains(where: { $0.kind == .fuel }) {
+            return "after the next ordinary fuel note, check whether the body asks for motion, quiet, or company."
+        }
+        return "ask the body for a threshold: one action so small it cannot become a performance, only evidence."
+    }
+
+    private func metricValue(_ label: String, in metrics: [BodySourceSignal.Metric]) -> Double {
+        metrics.first { $0.label == label }.flatMap { Double($0.value) } ?? 0
     }
 }
 

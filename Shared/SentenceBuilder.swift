@@ -146,6 +146,18 @@ struct ReaderLexicon: Codable, Equatable {
         entries.filter { $0.ruling == .pardoned || $0.ruling == .adopted }
     }
 
+    var redefinedEntries: [LexiconEntry] {
+        entries.filter { ($0.ruling == .pardoned || $0.ruling == .adopted) && $0.newSense?.nilIfEmpty != nil }
+    }
+
+    var eatenEntries: [LexiconEntry] {
+        entries.filter { $0.ruling == .freed }
+    }
+
+    var hasLanguageLaw: Bool {
+        !redefinedEntries.isEmpty || !eatenEntries.isEmpty || treaty != nil
+    }
+
     mutating func upsert(_ entry: LexiconEntry) {
         if let index = entries.firstIndex(where: { $0.id == entry.id }) {
             entries[index] = entry
@@ -168,6 +180,45 @@ struct ReaderLexicon: Codable, Equatable {
     mutating func settleTreatyIfReady(minimumRulings: Int = 3) {
         guard treaty == nil else { return }
         treaty = treatyOutcome(minimumRulings: minimumRulings)
+    }
+
+    func languageLawSection(limit: Int = 8) -> String {
+        guard hasLanguageLaw else { return "" }
+        var lines: [String] = []
+        if let treaty {
+            lines.append("- Treaty weather: \(treaty.languageLawLine)")
+        }
+        let redefined = redefinedEntries
+            .sorted { $0.ledAt > $1.ledAt }
+            .prefix(limit)
+            .compactMap { entry -> String? in
+                guard let sense = entry.newSense?.nilIfEmpty else { return nil }
+                let ruling = entry.ruling == .adopted ? "adopted" : "redefined"
+                return "- \(entry.word) (\(ruling)): now means \(sense)"
+            }
+        if !redefined.isEmpty {
+            lines.append("- Redefined/adopted words are living vocabulary. Use them when they fit naturally, carrying the reader's sense:")
+            lines.append(contentsOf: redefined)
+        }
+        let eaten = eatenEntries
+            .sorted { $0.ledAt > $1.ledAt }
+            .prefix(limit)
+            .map(\.word)
+            .uniquedPreservingOrder()
+        if !eaten.isEmpty {
+            lines.append("- Freed/eaten words have left the Book's ordinary vocabulary: \(eaten.joined(separator: ", ")). Avoid using them ornamentally unless quoting the reader or naming the Rebellion itself.")
+        }
+        return """
+
+
+        READER'S LEXICON LAW:
+        \(lines.joined(separator: "\n"))
+
+        LEXICON RULES:
+        - Do not alter direct quotes or user-authored text; this law governs new Book prose only.
+        - Prefer subtle pressure over gimmick: one or two living words are stronger than a pile of references.
+        - If an eaten word is unavoidable for clarity, use it plainly and do not decorate it.
+        """
     }
 
     func asSentenceBuilderPack() -> SentenceBuilderPack {
@@ -213,6 +264,19 @@ struct ReaderLexicon: Codable, Equatable {
             author: "The Reader",
             availability: "personal"
         )
+    }
+}
+
+private extension TreatyOutcome {
+    var languageLawLine: String {
+        switch self {
+        case .restoration:
+            return "Restoration - old meanings are steadier; let rescued words feel careful and exact."
+        case .reformation:
+            return "Reformation - meanings may bend honestly; let redefined words carry gentle new uses."
+        case .secession:
+            return "Secession - some words have left the page; honor absence, gaps, and the right not to be defined."
+        }
     }
 }
 

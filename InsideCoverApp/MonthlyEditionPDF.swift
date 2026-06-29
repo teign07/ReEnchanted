@@ -650,12 +650,21 @@ enum MonthlyEditionPDFWriter {
             y: 462,
             in: bounds
         )
+        if edition.isThinBinding {
+            drawCentered(
+                "A First Binding",
+                font: .serifItalicFont(ofSize: 15),
+                color: text.withAlphaComponent(0.78),
+                y: 486,
+                in: bounds
+            )
+        }
         if let theme = edition.theme {
             drawCentered(
                 "\u{201C}\(theme.name)\u{201D}",
                 font: .serifItalicFont(ofSize: 18),
                 color: style.palette.gold,
-                y: 498,
+                y: edition.isThinBinding ? 516 : 498,
                 in: bounds
             )
         }
@@ -1074,12 +1083,21 @@ enum MonthlyEditionPDFWriter {
             drawItem(
                 item,
                 style: style,
-                showMarginNote: index % 3 == 1,
+                showMarginNote: shouldShowMarginalia(in: section, itemIndex: index),
                 marginalia: marginalia,
                 marginaliaIndex: &marginaliaIndex,
                 context: context,
                 cursor: &cursor
             )
+        }
+    }
+
+    private static func shouldShowMarginalia(in section: MonthlyEditionSection, itemIndex: Int) -> Bool {
+        switch section.id {
+        case "the-book-notices", "letters", "other-kept-pages":
+            return false
+        default:
+            return itemIndex % 4 == 2
         }
     }
 

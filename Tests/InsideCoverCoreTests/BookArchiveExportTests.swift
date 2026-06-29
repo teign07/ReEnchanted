@@ -157,6 +157,143 @@ final class BookArchiveExportTests: XCTestCase {
         XCTAssertTrue(item?.body.contains("[Excerpted for the monthly binding.]") == true)
     }
 
+    func testMonthlyEditionCleansMarkdownBeforeBinding() {
+        let page = BookPage(
+            id: "faculty",
+            type: .facultyResearch,
+            createdAt: date(day: 4, hour: 9),
+            promptText: "Research",
+            userInput: """
+            ## Research Note for Support Guild
+            **Faculty:** Dr. Elowen Vellum
+            ***
+            **Field Finding:** The rain made the page useful.
+            """
+        )
+
+        let edition = MonthlyEditionBuilder.edition(
+            from: [BookDay(id: "2026-06-04", date: date(day: 4, hour: 0), pages: [page])],
+            readerName: "bj",
+            startDate: date(day: 1, hour: 0),
+            endDate: date(day: 30, hour: 23),
+            generatedAt: date(day: 30, hour: 23),
+            calendar: calendar
+        )
+
+        let item = edition.sections.flatMap(\.items).first { $0.id == "faculty" }
+        XCTAssertNotNil(item)
+        XCTAssertFalse(item?.body.contains("##") == true)
+        XCTAssertFalse(item?.body.contains("**") == true)
+        XCTAssertFalse(item?.body.contains("***") == true)
+        XCTAssertTrue(item?.body.contains("Field Finding: The rain made the page useful.") == true)
+    }
+
+    func testMonthlyEditionOmitsDebugThemeExcerpts() {
+        let theme = BookTheme(
+            id: "theme-2026-06",
+            monthKey: "2026-06",
+            name: "Rain and Notes",
+            motifs: ["rain", "notes"],
+            line: "Rain and notes kept tapping.",
+            strength: 40,
+            evidencePageIDs: [],
+            excerptLines: [
+                "## Research Note for Support Guild **Faculty:** Dr.",
+                "A pocket is a tiny private museum."
+            ],
+            discoveredAt: date(day: 30, hour: 12)
+        )
+        let page = BookPage(id: "souvenir", type: .souvenir, createdAt: date(day: 4, hour: 9), promptText: "One line", userInput: "A pocket is a tiny private museum.")
+
+        let edition = MonthlyEditionBuilder.edition(
+            from: [BookDay(id: "2026-06-04", date: date(day: 4, hour: 0), pages: [page])],
+            themes: [theme],
+            readerName: "bj",
+            startDate: date(day: 1, hour: 0),
+            endDate: date(day: 30, hour: 23),
+            generatedAt: date(day: 30, hour: 23),
+            calendar: calendar
+        )
+
+        let themeItems = edition.sections.first { $0.id == "the-months-theme" }?.items ?? []
+        XCTAssertFalse(themeItems.contains { $0.body.contains("Research Note for Support Guild") })
+        XCTAssertTrue(themeItems.contains { $0.body.contains("A pocket is a tiny private museum.") })
+    }
+
+    func testThinMonthlyEditionNamesItselfAsFirstBinding() {
+        let page = BookPage(id: "souvenir", type: .souvenir, createdAt: date(day: 4, hour: 9), promptText: "One line", userInput: "Rain on the window.")
+
+        let edition = MonthlyEditionBuilder.edition(
+            from: [BookDay(id: "2026-06-04", date: date(day: 4, hour: 0), pages: [page])],
+            readerName: "bj",
+            startDate: date(day: 1, hour: 0),
+            endDate: date(day: 30, hour: 23),
+            generatedAt: date(day: 30, hour: 23),
+            calendar: calendar
+        )
+
+        XCTAssertTrue(edition.isThinBinding)
+        XCTAssertTrue(edition.foreword.contains("first binding"))
+        XCTAssertTrue(edition.foreword.contains("not enough month to name the whole weather"))
+        XCTAssertTrue(edition.closing?.contains("not calling this the whole sky yet") == true)
+    }
+
+    func testMonthlyEditionKeepsBodyAndFuelOutOfDefaultBinding() {
+        let fuel = BookPage(id: "fuel", type: .fuel, createdAt: date(day: 4, hour: 9), promptText: "Fuel", userInput: "Four coffees.")
+        let body = BookPage(id: "body", type: .body, createdAt: date(day: 4, hour: 10), promptText: "Body", userInput: "A sensitive body note.")
+        let souvenir = BookPage(id: "souvenir", type: .souvenir, createdAt: date(day: 4, hour: 11), promptText: "One line", userInput: "The cup steamed.")
+
+        let edition = MonthlyEditionBuilder.edition(
+            from: [BookDay(id: "2026-06-04", date: date(day: 4, hour: 0), pages: [fuel, body, souvenir])],
+            readerName: "bj",
+            startDate: date(day: 1, hour: 0),
+            endDate: date(day: 30, hour: 23),
+            generatedAt: date(day: 30, hour: 23),
+            calendar: calendar
+        )
+
+        let boundIDs = Set(edition.sections.flatMap(\.items).map(\.id))
+        XCTAssertTrue(boundIDs.contains("souvenir"))
+        XCTAssertFalse(boundIDs.contains("fuel"))
+        XCTAssertFalse(boundIDs.contains("body"))
+        let setAside = edition.sections.flatMap(\.items).first { $0.id == "kept-not-bound" }?.body
+        XCTAssertTrue(setAside?.contains("one body page") == true)
+        XCTAssertTrue(setAside?.contains("one fuel log") == true)
+    }
+
+    func testMonthlyEditionCanIncludePrivateWeatherSummaryWithoutRawLogs() {
+        let pages = [
+            BookPage(id: "fuel-1", type: .fuel, createdAt: date(day: 4, hour: 9), promptText: "Fuel", userInput: "Coffee and toast. Energy felt steady."),
+            BookPage(id: "body-1", type: .body, createdAt: date(day: 4, hour: 10), promptText: "Body", userInput: "Inner weather was steady but tender."),
+            BookPage(id: "fuel-2", type: .fuel, createdAt: date(day: 5, hour: 20), promptText: "Fuel", userInput: "Soup. Steady evening, tender appetite."),
+            BookPage(id: "souvenir", type: .souvenir, createdAt: date(day: 5, hour: 21), promptText: "One line", userInput: "The bowl warmed both hands.")
+        ]
+
+        let edition = MonthlyEditionBuilder.edition(
+            from: [BookDay(id: "2026-06-04", date: date(day: 4, hour: 0), pages: Array(pages.prefix(2))),
+                   BookDay(id: "2026-06-05", date: date(day: 5, hour: 0), pages: Array(pages.suffix(2)))],
+            readerName: "bj",
+            startDate: date(day: 1, hour: 0),
+            endDate: date(day: 30, hour: 23),
+            generatedAt: date(day: 30, hour: 23),
+            calendar: calendar,
+            includePrivateWeatherSummary: true
+        )
+
+        let section = edition.sections.first { $0.id == "fuel-and-inner-weather" }
+        XCTAssertEqual(section?.title, "Fuel & Inner Weather")
+        let text = section?.items.map(\.body).joined(separator: "\n") ?? ""
+        XCTAssertTrue(text.contains("pattern-weather, not diagnosis"))
+        XCTAssertTrue(text.contains("fuel and inner weather were both kept"))
+        XCTAssertTrue(text.contains("steady"))
+        XCTAssertFalse(text.contains("Coffee and toast"))
+        XCTAssertFalse(text.contains("Soup."))
+        let boundIDs = Set(edition.sections.flatMap(\.items).map(\.id))
+        XCTAssertFalse(boundIDs.contains("fuel-1"))
+        XCTAssertFalse(boundIDs.contains("body-1"))
+        XCTAssertTrue(boundIDs.contains("souvenir"))
+    }
+
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt

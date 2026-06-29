@@ -102,7 +102,7 @@ protocol WeatherEnchanting {
 }
 
 protocol AskTheBookAnswering {
-    func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn]) async throws -> String
+    func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn], readerLexicon: ReaderLexicon) async throws -> String
 }
 
 protocol FaeBargainResponding {
@@ -627,7 +627,12 @@ enum LocalModelManager {
         return fragments.isEmpty ? "No task page was supplied." : fragments
     }
 
-    static func askTheBookPrompt(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn]) -> String {
+    static func askTheBookPrompt(
+        prompt: String,
+        day: BookDay,
+        previousTurns: [AskTheBookTurn],
+        readerLexicon: ReaderLexicon = ReaderLexicon()
+    ) -> String {
         let recentPages = braidEvidenceLines(for: day, characterLimit: 360)
             .prefix(8)
             .joined(separator: "\n\n")
@@ -662,7 +667,7 @@ enum LocalModelManager {
         \(recentPages.isEmpty ? "No kept pages supplied." : recentPages)
 
         CURRENT ASK CHAIN:
-        \(history.isEmpty ? "This is the first ask in the chain." : history)
+        \(history.isEmpty ? "This is the first ask in the chain." : history)\(readerLexicon.languageLawSection())
 
         READER PROMPT:
         \(prompt)
@@ -1206,6 +1211,7 @@ enum LocalModelManager {
         learnedNotes: [String] = [],
         nowPlaying: String? = nil,
         activeWorldEvents: [ResolvedWorldEvent] = [],
+        readerLexicon: ReaderLexicon = ReaderLexicon(),
         calendar: Calendar = .current
     ) -> BraidContext {
         BraidPromptBuilder.context(
@@ -1216,6 +1222,7 @@ enum LocalModelManager {
             learnedNotes: learnedNotes,
             nowPlaying: nowPlaying,
             activeWorldEvents: activeWorldEvents,
+            readerLexicon: readerLexicon,
             calendar: calendar
         )
     }
@@ -1768,7 +1775,7 @@ struct ResilientBraider: Braider {
 }
 
 struct FakeAskTheBookAnswerer: AskTheBookAnswering {
-    func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn]) async throws -> String {
+    func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn], readerLexicon: ReaderLexicon = ReaderLexicon()) async throws -> String {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let question = trimmed.isEmpty ? "the blank place on the page" : trimmed
         let callback = day.capturedPages.last.map { page in
@@ -1777,10 +1784,13 @@ struct FakeAskTheBookAnswerer: AskTheBookAnswering {
         let chainLine = previousTurns.isEmpty
             ? "This is the first door."
             : "The earlier doors are still open."
+        let lexiconLine = readerLexicon.hasLanguageLaw
+            ? "\nThe Dictionary has changed its weather. I will mind the words you freed and the meanings you kept."
+            : ""
 
         return """
         I hear the question: \(question).
-        \(callback)
+        \(callback)\(lexiconLine)
 
         \(chainLine) Make the thought small enough to hold. Name the next true action. Then let the nearest object help: a door, a cup, a shoe, a page. Start there.
         """

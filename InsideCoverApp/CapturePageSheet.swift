@@ -7853,11 +7853,11 @@ struct CapturePageSheet: View {
             let answer: String
             #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
             appLog.info("Ask the Book sending prompt to Gemma; prompt characters: \(prompt.count, privacy: .public); previous turns: \(askTurns.count, privacy: .public)")
-            answer = try await MLXAskTheBookAnswerer().answer(prompt: prompt, day: day, previousTurns: askTurns)
+            answer = try await MLXAskTheBookAnswerer().answer(prompt: prompt, day: day, previousTurns: askTurns, readerLexicon: readerLexicon)
             appLog.info("Ask the Book Gemma answer returned; answer characters: \(answer.count, privacy: .public)")
             #else
             appLog.info("Ask the Book using preview fallback; native local brain is not available in this build.")
-            answer = try await FakeAskTheBookAnswerer().answer(prompt: prompt, day: day, previousTurns: askTurns)
+            answer = try await FakeAskTheBookAnswerer().answer(prompt: prompt, day: day, previousTurns: askTurns, readerLexicon: readerLexicon)
             #endif
             askTurns.append(AskTheBookTurn(prompt: prompt, answer: answer))
             askPrompt = ""
@@ -9267,7 +9267,7 @@ enum GossipPagePromptBuilder {
         \(metadata["realInterestClippings"] ?? "none")
 
         Real-world sources, for grounding only:
-        \(metadata["realInterestSources"] ?? "none")\(RadioAtmosphere.promptSection(nowPlaying))
+        \(metadata["realInterestSources"] ?? "none")\(RadioAtmosphere.promptSection(nowPlaying))\(metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
 
         Return only the finished Gossip Page text.
         """
@@ -9375,7 +9375,7 @@ enum StoryPageResultPromptBuilder {
         \(context.selectedChoice.effectLine)
 
         RECENT THREAD MEMORY:
-        \(prior.isEmpty ? "No prior turns." : prior)
+        \(prior.isEmpty ? "No prior turns." : prior)\(context.draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
 
         REQUIREMENTS:
         - Return only the result prose.
@@ -9559,7 +9559,7 @@ enum StoryPagePromptBuilder {
         \(memories)
 
         CHAPTER TALISMAN MOVES:
-        \(talismanMoves)\(faeDirective)\(RadioAtmosphere.promptSection(nowPlaying))
+        \(talismanMoves)\(faeDirective)\(RadioAtmosphere.promptSection(nowPlaying))\(draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
         \(continuation)
 
         MECHANIC PLAN:
@@ -9663,7 +9663,7 @@ enum StoryPagePromptBuilder {
         Reader interaction: \(interaction)
         Real-world practice invitation: \(practice)
         \(socialTurn)
-        \(continuation)
+        \(continuation)\(metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
 
         MECHANIC PLAN:
         \(mechanicPlan)

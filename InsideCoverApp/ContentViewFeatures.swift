@@ -936,7 +936,8 @@ extension ContentView {
                 readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
                 startDate: monthStart,
                 endDate: end,
-                generatedAt: now
+                generatedAt: now,
+                includePrivateWeatherSummary: includePrivateWeatherInMonthlyBinding
             )
         }
         let edition: MonthlyEdition
@@ -953,7 +954,8 @@ extension ContentView {
                 wagers: vault.data.wagers ?? [],
                 themes: vault.data.themes ?? [],
                 readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
-                now: now
+                now: now,
+                includePrivateWeatherSummary: includePrivateWeatherInMonthlyBinding
             )
             if auto.isEmpty, let latestMonth = bindableEditionMonths.first?.start {
                 auto = buildMonth(starting: latestMonth)
@@ -1327,7 +1329,8 @@ extension ContentView {
             days: days,
             themes: vault.data.themes ?? [],
             entityBeliefOffsets: entityBeliefLedger,
-            learnedNotes: vault.data.learnedBraidNotes ?? []
+            learnedNotes: vault.data.learnedBraidNotes ?? [],
+            readerLexicon: vault.data.readerLexicon ?? ReaderLexicon()
         )
         let weak = BraidLearningLoop.weakDimensionNotes(for: page, context: context)
         let prompt = LocalModelManager.braidTasteNotePrompt(
@@ -1368,7 +1371,8 @@ extension ContentView {
             days: days,
             themes: vault.data.themes ?? [],
             entityBeliefOffsets: entityBeliefLedger,
-            learnedNotes: vault.data.learnedBraidNotes ?? []
+            learnedNotes: vault.data.learnedBraidNotes ?? [],
+            readerLexicon: vault.data.readerLexicon ?? ReaderLexicon()
         )
         let weak = BraidLearningLoop.weakDimensionNotes(for: page, context: context)
         let prompt = LocalModelManager.braidRewritePrompt(

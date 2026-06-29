@@ -30,6 +30,10 @@ struct MonthlyEdition: Codable, Equatable {
     var isEmpty: Bool {
         pageCount == 0 && sections.allSatisfy(\.items.isEmpty)
     }
+
+    var isThinBinding: Bool {
+        dayCount > 0 && dayCount < 7
+    }
 }
 
 /// A whole year, bound as a real book: a year-level foreword and closing wrap a
@@ -97,7 +101,8 @@ enum MonthlyEditionBuilder {
         themes: [BookTheme] = [],
         readerName: String = "friend",
         now: Date = Date(),
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        includePrivateWeatherSummary: Bool = false
     ) -> MonthlyEdition {
         let currentMonthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? calendar.startOfDay(for: now)
         let start = calendar.date(byAdding: .month, value: -1, to: currentMonthStart) ?? currentMonthStart
@@ -115,7 +120,8 @@ enum MonthlyEditionBuilder {
             startDate: start,
             endDate: end,
             generatedAt: now,
-            calendar: calendar
+            calendar: calendar,
+            includePrivateWeatherSummary: includePrivateWeatherSummary
         )
     }
 
@@ -161,7 +167,8 @@ enum MonthlyEditionBuilder {
                 startDate: monthStart,
                 endDate: monthEnd,
                 generatedAt: now,
-                calendar: calendar
+                calendar: calendar,
+                includePrivateWeatherSummary: false
             )
             if !chapter.isEmpty { chapters.append(chapter) }
         }
@@ -230,7 +237,8 @@ enum MonthlyEditionBuilder {
         startDate: Date,
         endDate: Date,
         generatedAt: Date = Date(),
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        includePrivateWeatherSummary: Bool = false
     ) -> MonthlyEdition {
         let monthDays = BookArchiveExport(days: days, calendar: calendar).days.filter { day in
             day.date >= calendar.startOfDay(for: startDate) && day.date <= calendar.startOfDay(for: endDate)
@@ -264,6 +272,9 @@ enum MonthlyEditionBuilder {
         // only the strongest of the daily logs, and tells us what it set aside.
         let curated = EditionCurator.curate(pages, now: generatedAt)
         let boundPages = curated.pages
+        let privateWeatherSection = includePrivateWeatherSummary
+            ? fuelAndInnerWeatherSection(from: pages, calendar: calendar)
+            : MonthlyEditionSection(id: "fuel-and-inner-weather", title: "Fuel & Inner Weather", note: "", items: [])
 
         let title = "Book of You: \(monthTitle(for: startDate, calendar: calendar))"
         let subtitle = theme?.name ?? "\(dateLine(startDate, calendar: calendar)) - \(dateLine(endDate, calendar: calendar))"
@@ -278,6 +289,7 @@ enum MonthlyEditionBuilder {
                 pages: boundPages.filter { $0.type == .bookOfYou },
                 limit: 31
             ),
+            privateWeatherSection,
             pageSection(
                 id: "souvenirs",
                 title: "One-Sentence Souvenirs",
@@ -364,7 +376,7 @@ enum MonthlyEditionBuilder {
                 id: theme.id,
                 kind: .continuity,
                 title: theme.name,
-                body: theme.line,
+                body: cleanedBookText(theme.line),
                 date: nil,
                 pageType: nil,
                 sourceID: nil,
@@ -373,11 +385,13 @@ enum MonthlyEditionBuilder {
             )
         ]
         for (index, excerpt) in theme.excerptLines.enumerated() {
+            let cleaned = cleanedBookText(excerpt)
+            guard isUsableThemeExcerpt(cleaned) else { continue }
             items.append(MonthlyEditionItem(
                 id: "\(theme.id)-excerpt-\(index)",
                 kind: .continuity,
                 title: "From the pages",
-                body: "\u{201C}\(excerpt)\u{201D}",
+                body: "\u{201C}\(cleaned)\u{201D}",
                 date: nil,
                 pageType: nil,
                 sourceID: nil,
@@ -494,6 +508,149 @@ enum MonthlyEditionBuilder {
         }
     }
 
+    private static func fuelAndInnerWeatherSection(from pages: [BookPage], calendar: Calendar) -> MonthlyEditionSection {
+        let privatePages = pages
+            .filter { $0.type == .fuel || $0.type == .body }
+            .sorted { $0.createdAt < $1.createdAt }
+        guard !privatePages.isEmpty else {
+            return MonthlyEditionSection(id: "fuel-and-inner-weather", title: "Fuel & Inner Weather", note: "", items: [])
+        }
+
+        let fuelCount = privatePages.filter { $0.type == .fuel }.count
+        let bodyCount = privatePages.filter { $0.type == .body }.count
+        let dayCount = Set(privatePages.map { calendar.startOfDay(for: $0.createdAt) }).count
+        let days = dayCount == 1 ? "one day" : "\(dayCount) days"
+        let counts = [
+            fuelCount > 0 ? "\(fuelCount == 1 ? "one fuel note" : "\(fuelCount) fuel notes")" : nil,
+            bodyCount > 0 ? "\(bodyCount == 1 ? "one inner-weather note" : "\(bodyCount) inner-weather notes")" : nil
+        ].compactMap { $0 }
+
+        var items: [MonthlyEditionItem] = [
+            MonthlyEditionItem(
+                id: "fuel-weather-overview",
+                kind: .continuity,
+                title: "Private Weather, Summarized",
+                body: "With permission, the Book looked at \(naturalList(counts)) across \(days). It keeps this as pattern-weather, not diagnosis: clues about how the month moved through appetite, energy, body, and mood.",
+                date: privatePages.first?.createdAt,
+                pageType: nil,
+                sourceID: nil,
+                mediaAssets: [],
+                tags: ["monthly-edition", "private-weather"]
+            )
+        ]
+
+        let timePatterns = timeOfDayPatterns(from: privatePages, calendar: calendar)
+        if !timePatterns.isEmpty {
+            items.append(MonthlyEditionItem(
+                id: "fuel-weather-time-patterns",
+                kind: .continuity,
+                title: "When It Appeared",
+                body: timePatterns,
+                date: privatePages.last?.createdAt,
+                pageType: nil,
+                sourceID: nil,
+                mediaAssets: [],
+                tags: ["monthly-edition", "private-weather", "pattern"]
+            ))
+        }
+
+        let motifLine = privateWeatherMotifs(from: privatePages)
+        if !motifLine.isEmpty {
+            items.append(MonthlyEditionItem(
+                id: "fuel-weather-motifs",
+                kind: .continuity,
+                title: "Words That Carried Weight",
+                body: motifLine,
+                date: privatePages.last?.createdAt,
+                pageType: nil,
+                sourceID: nil,
+                mediaAssets: [],
+                tags: ["monthly-edition", "private-weather", "language"]
+            ))
+        }
+
+        let pairedDays = pairedFuelWeatherDays(from: privatePages, calendar: calendar)
+        if pairedDays > 0 {
+            let line = pairedDays == 1
+                ? "On one day, fuel and inner weather were both kept. The Book treats that as a useful place to be gentle and curious, not as proof of cause."
+                : "On \(pairedDays) days, fuel and inner weather were both kept. The Book treats those overlaps as useful places to be gentle and curious, not as proof of cause."
+            items.append(MonthlyEditionItem(
+                id: "fuel-weather-overlaps",
+                kind: .continuity,
+                title: "Where They Touched",
+                body: line,
+                date: privatePages.last?.createdAt,
+                pageType: nil,
+                sourceID: nil,
+                mediaAssets: [],
+                tags: ["monthly-edition", "private-weather", "connection"]
+            ))
+        }
+
+        return MonthlyEditionSection(
+            id: "fuel-and-inner-weather",
+            title: "Fuel & Inner Weather",
+            note: "An opt-in private summary of body, fuel, mood, and energy patterns. No raw logs, no medical claims.",
+            items: items
+        )
+    }
+
+    private static func timeOfDayPatterns(from pages: [BookPage], calendar: Calendar) -> String {
+        let buckets = Dictionary(grouping: pages) { page -> String in
+            let hour = calendar.component(.hour, from: page.createdAt)
+            switch hour {
+            case 5..<12: return "morning"
+            case 12..<17: return "afternoon"
+            case 17..<22: return "evening"
+            default: return "night"
+            }
+        }
+        let parts = buckets
+            .sorted { left, right in
+                if left.value.count == right.value.count { return left.key < right.key }
+                return left.value.count > right.value.count
+            }
+            .prefix(2)
+            .map { "\($0.key) (\($0.value.count))" }
+        guard !parts.isEmpty else { return "" }
+        return "These notes gathered most often around \(naturalList(Array(parts))). The timing may be ordinary logistics; the Book only marks where attention kept landing."
+    }
+
+    private static func privateWeatherMotifs(from pages: [BookPage]) -> String {
+        let stopWords: Set<String> = [
+            "about", "after", "again", "also", "because", "been", "being", "body", "could",
+            "day", "did", "does", "dont", "down", "feel", "felt", "fuel", "have", "into",
+            "just", "like", "little", "more", "much", "note", "only", "really", "some",
+            "still", "that", "the", "then", "there", "this", "today", "very", "was",
+            "were", "what", "when", "with", "would", "your"
+        ]
+        let text = pages
+            .map { cleanedBookText($0.userInput.isEmpty ? $0.promptText : $0.userInput).lowercased() }
+            .joined(separator: " ")
+        let words = text
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.count >= 4 && !stopWords.contains($0) && Int($0) == nil }
+        let counts = Dictionary(grouping: words, by: { $0 }).mapValues(\.count)
+        let motifs = counts
+            .filter { $0.value >= 2 }
+            .sorted { left, right in
+                if left.value == right.value { return left.key < right.key }
+                return left.value > right.value
+            }
+            .prefix(5)
+            .map(\.key)
+        guard !motifs.isEmpty else { return "" }
+        return "A few words kept weight in the private weather: \(naturalList(Array(motifs))). The Book would read them as invitations to notice conditions, not verdicts about you."
+    }
+
+    private static func pairedFuelWeatherDays(from pages: [BookPage], calendar: Calendar) -> Int {
+        let byDay = Dictionary(grouping: pages) { calendar.startOfDay(for: $0.createdAt) }
+        return byDay.values.filter { group in
+            group.contains { $0.type == .fuel } && group.contains { $0.type == .body }
+        }.count
+    }
+
     private static func naturalList(_ values: [String]) -> String {
         let cleaned = values.filter { !$0.isEmpty }
         switch cleaned.count {
@@ -602,7 +759,48 @@ enum MonthlyEditionBuilder {
     private static func pageBody(_ page: BookPage) -> String {
         let userInput = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
         let raw = userInput.isEmpty ? page.promptText.trimmingCharacters(in: .whitespacesAndNewlines) : userInput
-        return excerptForMonthlyBinding(raw, pageType: page.type)
+        return excerptForMonthlyBinding(cleanedBookText(raw), pageType: page.type)
+    }
+
+    private static func isUsableThemeExcerpt(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 12 else { return false }
+        let lowered = trimmed.lowercased()
+        if lowered.hasPrefix("research note for") { return false }
+        if lowered == "faculty:" || lowered.hasPrefix("faculty: dr.") { return false }
+        if lowered.contains("focus:") && lowered.contains("faculty:") { return false }
+        return true
+    }
+
+    static func cleanedBookText(_ text: String) -> String {
+        var lines: [String] = []
+        for rawLine in text.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n") {
+            var line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else {
+                if lines.last?.isEmpty == false { lines.append("") }
+                continue
+            }
+            if line.allSatisfy({ $0 == "*" || $0 == "-" || $0 == "_" }) { continue }
+            while line.hasPrefix("#") {
+                line.removeFirst()
+                line = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            if line.hasPrefix("- ") || line.hasPrefix("* ") {
+                line.removeFirst(2)
+                line = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            line = line
+                .replacingOccurrences(of: "**", with: "")
+                .replacingOccurrences(of: "__", with: "")
+                .replacingOccurrences(of: "*", with: "")
+                .replacingOccurrences(of: "`", with: "")
+                .replacingOccurrences(of: "  ", with: " ")
+            lines.append(line)
+        }
+        return lines
+            .joined(separator: "\n")
+            .replacingOccurrences(of: "\n\n\n", with: "\n\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func excerptForMonthlyBinding(_ text: String, pageType: BookPageType) -> String {
@@ -688,7 +886,11 @@ enum BookForewordWriter {
 
         let pageLine = pages.count == 1 ? "one page" : "\(pages.count) pages"
         let dayLine = dayCount == 1 ? "a single day" : "\(dayCount) days"
-        paragraphs.append("This is what \(monthTitle) left in my keeping: \(pageLine) across \(dayLine), each one kept on purpose. I do not bind months to flatter them. I bind them so they cannot quietly unhappen.")
+        if dayCount > 0 && dayCount < 7 {
+            paragraphs.append("This is a first binding from \(monthTitle): \(pageLine) across \(dayLine), not enough month to name the whole weather, but enough to keep what already refused to disappear. I do not bind months to flatter them. I bind them so they cannot quietly unhappen.")
+        } else {
+            paragraphs.append("This is what \(monthTitle) left in my keeping: \(pageLine) across \(dayLine), each one kept on purpose. I do not bind months to flatter them. I bind them so they cannot quietly unhappen.")
+        }
 
         let signals = continuity.strongestSignals.prefix(3)
         if !signals.isEmpty {
@@ -768,7 +970,13 @@ enum BookForewordWriter {
             paragraphs.append("\(firstNamed.displayName) is still alight in the margins, and I have left it burning on purpose. A thread I have named does not get blown out at the end of a month; it carries into the next one, waiting for you to write it forward.")
         }
 
-        if let theme {
+        if dayCount > 0 && dayCount < 7 {
+            if let theme {
+                paragraphs.append("The early thread this month was \u{201C}\(theme.name)\u{201D}. I am not calling it the whole sky yet; I am only saying these words kept tapping the glass.")
+            } else {
+                paragraphs.append("I am not calling this the whole sky yet. I am only saying these first pages kept tapping the glass, and I heard them.")
+            }
+        } else if let theme {
             paragraphs.append("The theme this month was \u{201C}\(theme.name)\u{201D}, and it had the last word as often as the first. Whether you chose it or it chose you, it is bound here now, and cannot be unsaid.")
         }
 

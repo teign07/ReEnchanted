@@ -756,6 +756,61 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertNotEqual(morningWeather.id, nextWindowWeather.id)
     }
 
+    func testBodyPageBraidsFuelAndInnerWeatherIntoPrivateFieldReport() throws {
+        let now = localDate(hour: 10)
+        var inputs = richInputs()
+        inputs.body = BodySourceSignal(
+            status: "LOW",
+            score: 24,
+            phrase: "The lamps are low in the stacks.",
+            metrics: [
+                BodySourceSignal.Metric(id: "stepCount", label: "Steps", value: "640", kind: "sum"),
+                BodySourceSignal.Metric(id: "sleepAnalysis", label: "Sleep", value: "4.8", unit: "h", kind: "category")
+            ]
+        )
+        inputs.facultyEntries = [
+            FacultyEntry(kind: .fuel, dayID: "2026-06-01", createdAt: localDate(hour: 8), windowID: "morning", windowName: "Morning", rawText: "Coffee and toast."),
+            FacultyEntry(kind: .innerWeather, dayID: "2026-06-01", createdAt: localDate(hour: 9), windowID: "morning", windowName: "Morning", rawText: "Static and rain.")
+        ]
+
+        let surface = try XCTUnwrap(BookCurator.surfacedPages(
+            for: emptyDay(),
+            inputs: inputs,
+            now: now,
+            limit: 20
+        ).first { $0.type == .body })
+
+        XCTAssertEqual(surface.payload.metadata["bodyGlyph"], "Small Hearth")
+        XCTAssertTrue(surface.payload.body.contains("Vellum reads the chart this way"))
+        XCTAssertTrue(surface.payload.body.contains("fuel and inner weather are both on the desk"))
+        XCTAssertTrue(surface.payload.body.contains("not obedience"))
+        XCTAssertTrue(surface.payload.metadata["metrics"]?.contains("Sleep 4.8 h") == true)
+    }
+
+    func testBrightBodyPageOffersCurrentWithoutScoreboard() throws {
+        var inputs = richInputs()
+        inputs.body = BodySourceSignal(
+            status: "BRIGHT",
+            score: 78,
+            phrase: "There is motion in the margins.",
+            metrics: [
+                BodySourceSignal.Metric(id: "stepCount", label: "Steps", value: "7200", kind: "sum")
+            ]
+        )
+
+        let surface = try XCTUnwrap(BookCurator.surfacedPages(
+            for: emptyDay(),
+            inputs: inputs,
+            now: localDate(hour: 14),
+            limit: 20
+        ).first { $0.type == .body })
+
+        XCTAssertEqual(surface.payload.metadata["bodyGlyph"], "Walking Star")
+        XCTAssertTrue(surface.prompt.contains("found a current"))
+        XCTAssertTrue(surface.payload.body.contains("future-you can touch"))
+        XCTAssertTrue(surface.payload.body.contains("scoreboard"))
+    }
+
     func testDismissalLedgerLetsPagesReturnAfterRestWindow() {
         let now = localDate(hour: 12)
         var ledger = SurfaceDismissalLedger()
