@@ -390,7 +390,7 @@ enum WorldEventRegistry {
         id: "dictionary-rebellion",
         title: "The Dictionary Rebellion",
         subtitle: "Words are peeling off their definitions and gathering in the air.",
-        calendar: WorldEventCalendar(startMonth: 9, startDay: 8, durationDays: 14, recurrence: .annual),
+        calendar: WorldEventCalendar(startMonth: 9, startDay: 8, durationDays: 16, recurrence: .annual),
         phases: [
             WorldEventPhase(
                 id: "omen",

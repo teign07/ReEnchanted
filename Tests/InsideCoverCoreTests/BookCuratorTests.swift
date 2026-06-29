@@ -1973,6 +1973,21 @@ final class BookCuratorTests: XCTestCase {
             XCTAssertEqual(Set(word.choices.map(\.ruling)), [.recalled, .pardoned, .adopted, .freed],
                            "\(word.word) should offer all four rulings")
         }
+
+        // Enough rulable words to keep a 16-day season varied and to settle a Treaty.
+        let rulable = words.filter { $0.eventID == "dictionary-rebellion" && !$0.isMissingSeed }
+        XCTAssertGreaterThanOrEqual(rulable.count, 20)
+
+        // Each Treaty outcome has a keepable aftermath page, gated to the
+        // settling (afterimage) phase and that outcome.
+        let aftermath = (rebellion?.archetypes ?? []).filter { $0.tags.contains("aftermath") }
+        let outcomesCovered = Set(aftermath.compactMap { $0.trigger?.treatyOutcomes?.first })
+        XCTAssertEqual(outcomesCovered, ["restoration", "reformation", "secession"])
+        for page in aftermath {
+            XCTAssertEqual(page.trigger?.worldEventPhases ?? [], ["afterimage"],
+                           "\(page.id) should surface in the rebellion's afterimage phase")
+            XCTAssertEqual(page.trigger?.activeWorldEventIDs ?? [], ["dictionary-rebellion"])
+        }
     }
 
     func testWordNegotiationAdapterBuildsPackDrivenSurfaceAndSkipsRuledWords() throws {

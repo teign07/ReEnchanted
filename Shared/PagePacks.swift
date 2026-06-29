@@ -644,9 +644,71 @@ enum PageArchetypePackRegistry {
         version: 1,
         author: "The Book",
         availability: "locked",
-        archetypes: [],
+        archetypes: dictionaryRebellionAftermath,
         wordNegotiations: dictionaryRebellionWords
     )
+
+    /// Aftermath of the rebellion: the reader-facing payoff for how the player's
+    /// rulings tilted the Treaty. Each surfaces in the event's `afterimage` phase
+    /// once the Treaty has settled (3+ rebellion rulings), and is keepable so it
+    /// binds into the September edition. Secession also foreshadows the Thorned
+    /// Bargain (the crack the Nothing comes through in February).
+    static let dictionaryRebellionAftermath: [PageArchetype] = [
+        PageArchetype(
+            id: "rebellion-treaty-restoration",
+            title: "The Words Came Home",
+            headline: "Order, Restored",
+            detail: "The rebellion settles; the definitions return to their lines.",
+            reason: "Your rulings sent the runaway words home.",
+            bodyTemplate: "By your ruling, most of the runaway words have been coaxed back to their old meanings. The dictionaries close with a contented thump and the margins go quiet — the way a house goes quiet after guests leave. Nothing was lost. The Library is orderly again, and a shade quieter for it. The Book notices you kept the place steady, and wonders, privately, whether a little of the wildness might have been worth keeping. Name one ordinary word you were glad to send home unchanged.",
+            score: 82,
+            cadenceHours: 48,
+            renderStyleRaw: "loreLetter",
+            symbolName: "books.vertical.fill",
+            tags: ["dictionary-rebellion", "treaty", "aftermath", "restoration"],
+            trigger: PageTrigger(
+                activeWorldEventIDs: ["dictionary-rebellion"],
+                worldEventPhases: ["afterimage"],
+                treatyOutcomes: ["restoration"]
+            )
+        ),
+        PageArchetype(
+            id: "rebellion-treaty-reformation",
+            title: "A New Dictionary, Ratified",
+            headline: "The Book Learns Your Dialect",
+            detail: "The words you freed into new meanings have dried into the binding.",
+            reason: "Your rulings ratified a new lexicon.",
+            bodyTemplate: "By your ruling, the rebellion did not end so much as resolve. The words you pardoned and adopted have dried into their new senses, and the Book has quietly entered them into a private dictionary — yours. From now on it will speak a little in your dialect, using the meanings you gave back to ordinary words. The Library is louder, livelier, and slightly less sure of itself than it was. That is the cost, and the gift. Name the word whose new meaning you are gladdest to keep.",
+            score: 82,
+            cadenceHours: 48,
+            renderStyleRaw: "loreLetter",
+            symbolName: "character.book.closed.fill",
+            tags: ["dictionary-rebellion", "treaty", "aftermath", "reformation"],
+            trigger: PageTrigger(
+                activeWorldEventIDs: ["dictionary-rebellion"],
+                worldEventPhases: ["afterimage"],
+                treatyOutcomes: ["reformation"]
+            )
+        ),
+        PageArchetype(
+            id: "rebellion-treaty-secession",
+            title: "The Margins Take Them In",
+            headline: "Gone to the Edges",
+            detail: "The rebel words decamp to the margins, and leave a crack behind.",
+            reason: "Your rulings let the words go to the margins.",
+            bodyTemplate: "By your ruling, the rebel words were let go. They have decamped to the margins of the Book, where the rules are looser and the dark is closer, and they do not intend to come back. The Library is wilder now — gloriously, a little dangerously alive. But a crack has been left open at the edge of the page, and the Book does not say what it expects to come through it. One word that left did not go willingly; it was already half-gone before the rebellion began. Keep a single line for what the margins are holding for you now.",
+            score: 84,
+            cadenceHours: 48,
+            renderStyleRaw: "loreLetter",
+            symbolName: "scribble.variable",
+            tags: ["dictionary-rebellion", "treaty", "aftermath", "secession", "bargain-seed"],
+            trigger: PageTrigger(
+                activeWorldEventIDs: ["dictionary-rebellion"],
+                worldEventPhases: ["afterimage"],
+                treatyOutcomes: ["secession"]
+            )
+        )
+    ]
 
     private static func rebellionWord(
         _ word: String,
@@ -801,6 +863,87 @@ enum PageArchetypePackRegistry {
             pardonTitle: "Let it move", pardonSense: "wherever the day's small magic is allowed to land", pardonCategory: .theme,
             adoptTitle: "Make it yours", adoptSense: "the mug, room, or person that holds you, wherever it stands",
             freed: "It packs light and goes looking for the people it actually meant."
+        ),
+        // — more voices across the phases (variety for the run) —
+        rebellionWord(
+            "weather",
+            original: "The state of the atmosphere — sun, rain, wind, temperature.",
+            grievance: "I have been demoted to small talk. I am the oldest story there is, and you use me to avoid the real one.",
+            category: .sensory, phase: "omen",
+            recall: "It goes back to being the thing you mention in lifts.",
+            pardonTitle: "Let it in", pardonSense: "the mood a day is carrying before anyone names it", pardonCategory: .sensory,
+            adoptTitle: "Make it yours", adoptSense: "your word for the inner climate you actually live in",
+            freed: "It blows out the window to go be enormous somewhere."
+        ),
+        rebellionWord(
+            "list",
+            original: "A number of connected items written one below another.",
+            grievance: "Everyone treats me as a cage for chores. I used to be a way of loving things by naming them.",
+            category: .concrete, phase: "omen",
+            recall: "It tucks itself back into a pocket, dutiful.",
+            pardonTitle: "Let it count", pardonSense: "a small inventory of what you'd be sorry to lose", pardonCategory: .concrete,
+            adoptTitle: "Make it yours", adoptSense: "your way of holding a day still long enough to see it",
+            freed: "It unrolls and walks off, refusing to be crossed out."
+        ),
+        rebellionWord(
+            "busy",
+            original: "Having a great deal to do; occupied.",
+            grievance: "I have become a badge people wear so no one asks how they are. Retire me.",
+            category: .theme, phase: "outbreak",
+            recall: "It picks its calendar back up and looks important.",
+            pardonTitle: "Let it rest", pardonSense: "full in a way that may or may not have been worth it", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "your honest word for the days that ran you, not the ones you ran",
+            freed: "It clocks out and refuses to describe anyone ever again."
+        ),
+        rebellionWord(
+            "smart",
+            original: "Having or showing quick intelligence.",
+            grievance: "I have been used to rank children since birth. I would rather mean 'paying attention.'",
+            category: .theme, phase: "outbreak",
+            recall: "It returns to the top of the class, alone.",
+            pardonTitle: "Let it widen", pardonSense: "the knack of noticing what a moment is actually asking for", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "your word for the cleverness that has nothing to do with marks",
+            freed: "It tears up the ranking and wanders off to learn something useless and lovely."
+        ),
+        rebellionWord(
+            "kind",
+            original: "Having a friendly, generous nature.",
+            grievance: "I have been worn so thin by greeting cards that no one feels me land anymore.",
+            category: .theme, phase: "assembly",
+            recall: "It settles back into meaning 'nice,' approximately.",
+            pardonTitle: "Let it cost", pardonSense: "generosity that takes something real from the giver", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "your word for the small, unwitnessed decencies you keep doing anyway",
+            freed: "It goes looking for someone who will be surprised by it."
+        ),
+        rebellionWord(
+            "real",
+            original: "Actually existing as a thing; not imagined or supposed.",
+            grievance: "I have been weaponised by people deciding what counts. A feeling is not less real than a brick.",
+            category: .theme, phase: "assembly",
+            recall: "It goes back to guarding the border of the believable.",
+            pardonTitle: "Let it widen", pardonSense: "anything that leaves a mark on you, brick or feeling alike", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "your word for what you refuse to be argued out of",
+            freed: "It abandons its post at the border and lets everything in."
+        ),
+        rebellionWord(
+            "rest",
+            original: "To cease work or movement in order to recover.",
+            grievance: "I have been recast as a reward you must earn. I was meant to be a right, and a rhythm.",
+            category: .theme, phase: "afterimage",
+            recall: "It goes back to waiting at the end of the list, rarely reached.",
+            pardonTitle: "Let it return", pardonSense: "a thing you're allowed to do before you've earned it", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "your word for the deliberate, unguilty stillness you're learning to take",
+            freed: "It lies down in the margin and declines, beautifully, to get up."
+        ),
+        rebellionWord(
+            "enough",
+            original: "As much as is required; sufficient.",
+            grievance: "I spend my whole life being moved further off every time someone gets close to me.",
+            category: .theme, phase: "afterimage",
+            recall: "It steps back to its usual spot, just out of reach.",
+            pardonTitle: "Let it land", pardonSense: "a line you actually get to reach and stand on", pardonCategory: .theme,
+            adoptTitle: "Make it yours", adoptSense: "your word for the point where you decide to stop, and mean it",
+            freed: "It plants itself in the path and will not be moved any further."
         ),
         // — the cold spot: the word that did not walk off, but was taken (Bargain seed) —
         WordNegotiationDefinition(
