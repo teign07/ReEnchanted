@@ -105,6 +105,9 @@
           <div class="hero-actions">
             <a class="button primary" href="#book">Open the Book ↓</a>
             <a class="button ghost" href="#how">See how it works</a>
+            <button type="button" class="button ghost promo-trigger" data-promo-open>
+              <span class="promo-play" aria-hidden="true">▶</span> Watch the promo
+            </button>
           </div>
           <ul class="trust-row" aria-label="Principles">
             <li>Open source</li>
@@ -116,7 +119,13 @@
 
         <div class="hero-art" aria-hidden="true">
           <div class="hero-glow"></div>
-          <img class="hero-phone" src="./assets/screens/home.jpg" alt="">
+          <div class="hero-phone hero-carousel">
+            <img class="hero-screen" src="./assets/screens/home.jpg" alt="" style="--i:0">
+            <img class="hero-screen" src="./assets/screens/book-of-you.jpg" alt="" style="--i:1">
+            <img class="hero-screen" src="./assets/screens/story-page-weather-prose.png" alt="" style="--i:2">
+            <img class="hero-screen" src="./assets/screens/real-life-kept.jpg" alt="" style="--i:3">
+            <img class="hero-screen" src="./assets/screens/radio.jpg" alt="" style="--i:4">
+          </div>
           <figure class="hero-float float-1">
             <img src="./assets/screens/keep-page.jpg" alt="">
           </figure>
@@ -125,6 +134,43 @@
           </figure>
           <span class="hero-chip chip-1">Keep this page</span>
           <span class="hero-chip chip-2">The Book is listening</span>
+        </div>
+      </section>
+
+      <!-- ──────────────────── HOW IT WORKS ──────────────────── -->
+      <section id="how" class="how-section">
+        <div class="section-head">
+          <p class="eyebrow">How it works</p>
+          <h2>Three honest steps.</h2>
+        </div>
+        <div class="how-grid">
+          <article class="how-card">
+            <span class="how-num">01</span>
+            <h3>Pages arrive. Play with them.</h3>
+            <p>
+              The day shows up as little doors: weather, body signals, places, music,
+              questions, one-sentence souvenirs, photos. No blank page, no streak to defend.
+            </p>
+          </article>
+          <article class="how-card">
+            <span class="how-num">02</span>
+            <h3>You keep some</h3>
+            <p>
+              Keep a page when it catches a real edge. Let the rest wait. The Book is
+              built on consent and taste - you choose what becomes part of the story.
+            </p>
+          </article>
+          <article class="how-card">
+            <span class="how-num">03</span>
+            <h3>It braids</h3>
+            <p>
+              Each night the Book weaves your real day into a fairy tale - your kept
+              pages, what you noticed, what you ate, your one-sentence check-ins, the
+              weather - braided together with the choices you made in the game. That's
+              your <em>Book of You</em>: one story a day, gathering into monthly and
+              annual volumes you can hold.
+            </p>
+          </article>
         </div>
       </section>
 
@@ -422,43 +468,6 @@
             <p class="edition-preview-cap">
               No two months bind alike - each picks its own palette, cover, and
               ornament. <em>A mockup; yours fills in as you keep pages.</em>
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <!-- ──────────────────── HOW IT WORKS ──────────────────── -->
-      <section id="how" class="how-section">
-        <div class="section-head">
-          <p class="eyebrow">How it works</p>
-          <h2>Three honest steps.</h2>
-        </div>
-        <div class="how-grid">
-          <article class="how-card">
-            <span class="how-num">01</span>
-            <h3>Pages arrive. Play with them.</h3>
-            <p>
-              The day shows up as little doors: weather, body signals, places, music,
-              questions, one-sentence souvenirs, photos. No blank page, no streak to defend.
-            </p>
-          </article>
-          <article class="how-card">
-            <span class="how-num">02</span>
-            <h3>You keep some</h3>
-            <p>
-              Keep a page when it catches a real edge. Let the rest wait. The Book is
-              built on consent and taste - you choose what becomes part of the story.
-            </p>
-          </article>
-          <article class="how-card">
-            <span class="how-num">03</span>
-            <h3>It braids</h3>
-            <p>
-              Each night the Book weaves your real day into a fairy tale - your kept
-              pages, what you noticed, what you ate, your one-sentence check-ins, the
-              weather - braided together with the choices you made in the game. That's
-              your <em>Book of You</em>: one story a day, gathering into monthly and
-              annual volumes you can hold.
             </p>
           </article>
         </div>
@@ -1307,6 +1316,47 @@
     </div>
 
     <!-- You looked behind the page. Riddlewind approves. Penny misfiled a receipt marked 97.3. -->
-    <script src="./app.js?v=36"></script>
+    <div class="promo-lightbox" id="promo-lightbox" hidden>
+      <div class="promo-lightbox-backdrop" data-promo-close></div>
+      <div class="promo-lightbox-inner" role="dialog" aria-modal="true" aria-label="ReEnchanted promo video">
+        <button type="button" class="promo-lightbox-close" data-promo-close aria-label="Close video">&times;</button>
+        <video class="promo-video" controls playsinline preload="none"
+               poster="./assets/video/promo-poster.jpg">
+          <source src="./assets/video/reenchanted-promo.mp4" type="video/mp4">
+        </video>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var box = document.getElementById('promo-lightbox');
+        if (!box) return;
+        var video = box.querySelector('.promo-video');
+        var lastFocus = null;
+        function open() {
+          lastFocus = document.activeElement;
+          box.hidden = false;
+          document.body.style.overflow = 'hidden';
+          requestAnimationFrame(function () { box.classList.add('is-open'); });
+          if (video) { try { video.play(); } catch (e) {} }
+        }
+        function close() {
+          box.classList.remove('is-open');
+          document.body.style.overflow = '';
+          if (video) { video.pause(); }
+          setTimeout(function () { box.hidden = true; }, 220);
+          if (lastFocus && lastFocus.focus) lastFocus.focus();
+        }
+        document.querySelectorAll('[data-promo-open]').forEach(function (b) {
+          b.addEventListener('click', open);
+        });
+        box.querySelectorAll('[data-promo-close]').forEach(function (b) {
+          b.addEventListener('click', close);
+        });
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape' && !box.hidden) close();
+        });
+      })();
+    </script>
+    <script src="./app.js?v=38"></script>
   </body>
 </html>
