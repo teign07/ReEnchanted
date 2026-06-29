@@ -68,6 +68,11 @@ struct RadioBanter: Codable, Equatable, Identifiable {
         var weatherTags: [String]?
         /// Require that the most recent kept page is one of these types.
         var lastKeptPageTypes: [BookPageType]?
+        /// Only while one of these world events is active (e.g. the Dictionary
+        /// Rebellion). Gates banters to a content-pack season. The host must
+        /// populate `RadioWorldContext.activeWorldEventIDs` for this to fire; until
+        /// then, banters carrying this condition stay silent (no leak).
+        var activeWorldEventIDs: [String]?
 
         init(
             timeOfDay: [String]? = nil,
@@ -82,7 +87,8 @@ struct RadioBanter: Codable, Equatable, Identifiable {
             sourceTags: [String]? = nil,
             minKeptToday: Int? = nil,
             weatherTags: [String]? = nil,
-            lastKeptPageTypes: [BookPageType]? = nil
+            lastKeptPageTypes: [BookPageType]? = nil,
+            activeWorldEventIDs: [String]? = nil
         ) {
             self.timeOfDay = timeOfDay
             self.minGrey = minGrey
@@ -97,6 +103,7 @@ struct RadioBanter: Codable, Equatable, Identifiable {
             self.minKeptToday = minKeptToday
             self.weatherTags = weatherTags
             self.lastKeptPageTypes = lastKeptPageTypes
+            self.activeWorldEventIDs = activeWorldEventIDs
         }
 
         var isUnconditional: Bool {
@@ -105,6 +112,7 @@ struct RadioBanter: Codable, Equatable, Identifiable {
                 && pageTypes == nil && minRecentPagesOfType == nil
                 && sourceIDs == nil && sourceTags == nil && minKeptToday == nil
                 && weatherTags == nil && lastKeptPageTypes == nil
+                && activeWorldEventIDs == nil
         }
     }
 
@@ -248,6 +256,10 @@ struct RadioWorldContext: Equatable {
     var weekday: Int?
     /// Recent kept-page and weather summary for prerecorded reactive DJ clips.
     var pageContext: RadioPageContext
+    /// IDs of world events active right now, so banters can gate to a content-pack
+    /// season (e.g. ["dictionary-rebellion"]). Defaults empty; populate from the
+    /// app's active world events when rebellion banters are wired.
+    var activeWorldEventIDs: [String]
 
     init(
         timeOfDay: String = "day",
@@ -255,7 +267,8 @@ struct RadioWorldContext: Equatable {
         festivalActive: Bool = false,
         listeningDays: Int = 0,
         weekday: Int? = nil,
-        pageContext: RadioPageContext = RadioPageContext()
+        pageContext: RadioPageContext = RadioPageContext(),
+        activeWorldEventIDs: [String] = []
     ) {
         self.timeOfDay = timeOfDay
         self.grey = grey
@@ -263,6 +276,7 @@ struct RadioWorldContext: Equatable {
         self.listeningDays = listeningDays
         self.weekday = weekday
         self.pageContext = pageContext
+        self.activeWorldEventIDs = activeWorldEventIDs
     }
 
     /// Convenience: derive the time-of-day band from a date.
@@ -310,6 +324,10 @@ struct RadioWorldContext: Equatable {
         }
         if let lastTypes = conditions.lastKeptPageTypes, !lastTypes.isEmpty {
             guard let last = pageContext.lastKeptPageType, lastTypes.contains(last) else { return false }
+        }
+        if let eventIDs = conditions.activeWorldEventIDs, !eventIDs.isEmpty,
+           !eventIDs.contains(where: { activeWorldEventIDs.contains($0) }) {
+            return false
         }
         return true
     }

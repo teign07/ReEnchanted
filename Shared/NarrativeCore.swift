@@ -589,7 +589,10 @@ enum NarrativePackRegistry {
     ]
 
     static var enabledPacks: [NarrativePack] {
-        bundledPacks.filter { $0.availability != .locked }
+        // Locked character packs are gated by entitlement, so cast members
+        // (e.g. the Back-to-School professors) only exist when their content
+        // pack is owned — keeping the base game self-contained.
+        bundledPacks.filter { $0.availability != .locked || PackEntitlements.isUnlocked($0.id) }
     }
 
     static var entities: [NarrativeWorldEntity] {

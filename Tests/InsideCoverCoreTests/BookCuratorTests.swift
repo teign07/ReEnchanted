@@ -1990,6 +1990,32 @@ final class BookCuratorTests: XCTestCase {
         }
     }
 
+    func testDictionaryRebellionContentIsFullyGatedByOnePack() {
+        let savedGrant = PackEntitlements.launchGrantedPackIDs
+        let savedOwned = PackEntitlements.ownedPackIDs
+        defer {
+            PackEntitlements.launchGrantedPackIDs = savedGrant
+            PackEntitlements.ownedPackIDs = savedOwned
+        }
+
+        // No entitlement -> the whole season is absent from the base game:
+        // no world event, no negotiable words, no aftermath pages.
+        PackEntitlements.launchGrantedPackIDs = []
+        PackEntitlements.ownedPackIDs = []
+        XCTAssertFalse(WorldEventRegistry.enabledEvents().contains { $0.event.id == "dictionary-rebellion" },
+                       "the rebellion world event must not surface without its content pack")
+        XCTAssertTrue(PageArchetypePackRegistry.wordNegotiations().allSatisfy { $0.eventID != "dictionary-rebellion" },
+                      "no negotiable words without the pack")
+        XCTAssertTrue(PageArchetypePackRegistry.archetypes().allSatisfy { !$0.tags.contains("aftermath") },
+                      "no treaty aftermath pages without the pack")
+
+        // Granting the single pack id restores every channel at once.
+        PackEntitlements.launchGrantedPackIDs = ["dictionary-rebellion"]
+        XCTAssertTrue(WorldEventRegistry.enabledEvents().contains { $0.event.id == "dictionary-rebellion" })
+        XCTAssertFalse(PageArchetypePackRegistry.wordNegotiations().filter { $0.eventID == "dictionary-rebellion" }.isEmpty)
+        XCTAssertEqual(PageArchetypePackRegistry.archetypes().filter { $0.tags.contains("aftermath") }.count, 3)
+    }
+
     func testWordNegotiationAdapterBuildsPackDrivenSurfaceAndSkipsRuledWords() throws {
         let now = localDate(year: 2026, month: 9, day: 12, hour: 12)
         let day = BookDay(id: "2026-09-12", date: localDate(year: 2026, month: 9, day: 12, hour: 0), pages: [])

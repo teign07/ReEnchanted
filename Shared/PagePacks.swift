@@ -1380,7 +1380,7 @@ enum PackEntitlements {
     /// This is the single toggle that keeps the Dictionary Rebellion free for now;
     /// remove an id here to make that pack paid (its entitlement then comes only
     /// from a verified purchase writing into `ownedPackIDs`).
-    static let launchGrantedPackIDs: Set<String> = ["dictionary-rebellion"]
+    nonisolated(unsafe) static var launchGrantedPackIDs: Set<String> = ["dictionary-rebellion"]
 
     static func isUnlocked(_ packID: String) -> Bool {
         launchGrantedPackIDs.contains(packID) || ownedPackIDs.contains(packID)

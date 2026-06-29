@@ -321,12 +321,17 @@ enum WorldEventRegistry {
     static let userPackFileSuffix = ".reenchantedevents.json"
 
     static let bundledPacks: [WorldEventPack] = [
+        // The Dictionary Rebellion ships locked so the whole season is
+        // self-contained in one content pack (no entitlement => no event, no
+        // negotiation pages, no aftermath). Granted free at launch via
+        // PackEntitlements.launchGrantedPackIDs; the same "dictionary-rebellion"
+        // id gates the PageArchetypePack of words/aftermath too.
         WorldEventPack(
-            id: "living-almanac",
-            displayName: "The Living Almanac",
+            id: "dictionary-rebellion",
+            displayName: "The Dictionary Rebellion",
             version: 1,
             author: "The Book",
-            availability: .bundledFree,
+            availability: .locked,
             events: [
                 dictionaryRebellion
             ]
