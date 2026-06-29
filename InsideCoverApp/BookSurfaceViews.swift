@@ -4068,7 +4068,12 @@ struct OnboardingFlowView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var isOnboardingFieldFocused: Bool
-    @State private var step = 0
+    // Persisted so a player who closes mid-onboarding reopens on the same page
+    // instead of restarting. Reset to 0 when onboarding finishes (see `advance`
+    // / `finishWithDefaults`) so a future re-onboard starts clean.
+    @AppStorage("onboardingStep") private var step = 0
+    // Shown on relaunch when there is saved onboarding progress to resume.
+    @State private var showResumePrompt = false
     @State private var snack = ""
     @State private var name = ""
     @State private var belief = ""
@@ -4106,7 +4111,7 @@ struct OnboardingFlowView: View {
         BenefitChecklistItem(
             id: "autopilot",
             title: "Stop losing whole weeks",
-            detail: "Research found minds wandering 46.9% of the time. When days stop blurring, time feels bigger because more of it actually gets lived.",
+            detail: "Research found our minds wander for 46.9% of our day; almost half your waking hours tuned out, on autopilot. When days stop blurring, time feels bigger because more of it actually gets lived.",
             symbol: "eye"
         ),
         BenefitChecklistItem(
@@ -4305,6 +4310,10 @@ struct OnboardingFlowView: View {
                 }
                 .frame(width: proxy.size.width, height: proxy.size.height)
             }
+
+            if showResumePrompt {
+                resumePrompt
+            }
         }
         .transition(.opacity)
         #if canImport(QuickLook)
@@ -4325,6 +4334,8 @@ struct OnboardingFlowView: View {
         }
         #endif
         .onAppear {
+            // If the player closed the app partway through, offer to resume.
+            if step > 0 { showResumePrompt = true }
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
                 shimmer = true
@@ -6367,8 +6378,80 @@ struct OnboardingFlowView: View {
         }
     }
 
+    private var resumePrompt: some View {
+        ZStack {
+            Color.black.opacity(0.55)
+                .ignoresSafeArea()
+                .onTapGesture { }
+
+            VStack(spacing: 16) {
+                Text("Welcome back")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold)
+                Text("You left off partway through. Pick up where you were, or begin again from the first page.")
+                    .font(.callout)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.white.opacity(0.9))
+                Text("Step \(step + 1) of \(stepCount)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.6))
+
+                VStack(spacing: 10) {
+                    Button {
+                        BookFeedback.play(.openPage)
+                        withAnimation(.easeOut(duration: 0.2)) { showResumePrompt = false }
+                    } label: {
+                        Text("Continue").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(BookPalette.lampGold)
+
+                    Button {
+                        BookFeedback.play(.openPage)
+                        resetOnboardingInputs()
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            step = 0
+                            showResumePrompt = false
+                        }
+                    } label: {
+                        Text("Start fresh").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(BookPalette.lampGold)
+                }
+                .padding(.top, 4)
+            }
+            .padding(24)
+            .frame(maxWidth: 340)
+            .background(BookPalette.nightPanel.opacity(0.97), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(BookPalette.lampGold.opacity(0.4), lineWidth: 1)
+            }
+            .padding(.horizontal, 32)
+            .shadow(color: .black.opacity(0.4), radius: 18, x: 0, y: 8)
+        }
+        .transition(.opacity)
+        .zIndex(50)
+    }
+
+    /// Clears the player's entered onboarding inputs so "Start fresh" begins clean.
+    private func resetOnboardingInputs() {
+        snack = ""
+        name = ""
+        belief = ""
+        investedBelief = false
+        rehearsalChoice = nil
+        firstSouvenir = ""
+        sleeveWord = nil
+        drawnChapterID = ""
+        didWakeFirstInk = false
+        didTuckUnwrittenWord = false
+    }
+
     private func advance() {
         if step >= stepCount - 1 {
+            step = 0
             onFinished(onboardingResult(useDefaults: false))
             return
         }
@@ -6380,6 +6463,7 @@ struct OnboardingFlowView: View {
     private func finishWithDefaults() {
         isOnboardingFieldFocused = false
         BookFeedback.play(.openPage)
+        step = 0
         onFinished(onboardingResult(useDefaults: true))
     }
 
