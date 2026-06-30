@@ -675,7 +675,7 @@ enum BookCurator {
             }
         }
 
-        if BookSchedule.shouldAutoBraid(now),
+        if BookSchedule.isBraidSurfaceTime(now),
            !picked.contains(where: { $0.type == .bookOfYou }),
            let braid = candidates.first(where: { candidate in
                candidate.type == .bookOfYou
@@ -724,12 +724,14 @@ enum BookCurator {
                 return leftScore > rightScore
             }
             .map(\.element)
-        // Two structural rules shape the desk, honored within rank order:
-        //   1. Never repeat a kind of page — no two lore cards (or two of any
+        // Three structural rules shape the desk, honored within rank order:
+        //   1. Never repeat a source family — no two variants from the same
+        //      preview system occupy the home shelf at once.
+        //   2. Never repeat a kind of page — no two lore cards (or two of any
         //      type) on the shelf at once.
-        //   2. Never stack blank-page "write one thing" prompts — at most one
+        //   3. Never stack blank-page "write one thing" prompts — at most one
         //      composition card (diary / souvenir / mood / about-you) at a time.
-        // We would rather serve a shorter desk than break either rule.
+        // We would rather serve a shorter desk than break these rules.
         let deduped = unique(sortedPages)
         var picked: [SurfacePage] = []
         var pickedTypes: Set<BookPageType> = []
@@ -753,7 +755,10 @@ enum BookCurator {
     private static func unique(_ pages: [SurfacePage]) -> [SurfacePage] {
         var seen = Set<String>()
         return pages.filter { page in
-            seen.insert(page.id).inserted
+            let keys = page.curatorDeskExclusionKeys
+            guard keys.isDisjoint(with: seen) else { return false }
+            seen.formUnion(keys)
+            return true
         }
     }
 }
@@ -864,6 +869,28 @@ extension SurfacePage {
         var keys: [String] = []
         if let id = payload.metadata["storyFormID"]?.nonEmpty { keys.append("form:\(id)") }
         if let id = payload.metadata["storyGenreID"]?.nonEmpty { keys.append("genre:\(id)") }
+        return keys
+    }
+
+    var curatorServedHistoryKeys: [String] {
+        var keys = [
+            varietyKey,
+            "source:\(sourceID)",
+            CuratorVarietyGovernor.typeKey(for: type)
+        ]
+        keys.append(contentsOf: supplementalStoryVarietyKeys)
+
+        var uniqueKeys: [String] = []
+        var seen = Set<String>()
+        for key in keys where seen.insert(key).inserted {
+            uniqueKeys.append(key)
+        }
+        return uniqueKeys
+    }
+
+    var curatorDeskExclusionKeys: Set<String> {
+        var keys = Set(curatorServedHistoryKeys)
+        keys.insert(id)
         return keys
     }
 }

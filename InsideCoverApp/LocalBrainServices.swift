@@ -295,10 +295,6 @@ struct MLXBookBraider: Braider {
     }
 
     func braid(day: BookDay, context: BraidPromptBuilder.Context) async throws -> BookPage {
-        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-
         let prompt: String
         switch mode {
         case .bookOfYou:
@@ -307,24 +303,15 @@ struct MLXBookBraider: Braider {
             prompt = LocalModelManager.taskPrompt(for: day)
         }
 
-        let response = try await LocalBrainInferenceGate.shared.run(label: "braid", promptCharacters: prompt.count) {
-            try await Device.withDefaultDevice(.gpu) {
-                let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
-                let session = ChatSession(
-                    container,
-                    instructions: instructions,
-                    generateParameters: GenerateParameters(
-                        maxTokens: maxTokens,
-                        maxKVSize: 2_048,
-                        temperature: 0.68,
-                        topP: 0.9,
-                        prefillStepSize: 256
-                    )
-                )
-                return try await session.respond(to: prompt)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
+        let response = try await MLXLocalTextGenerator.run(
+            prompt: prompt,
+            instructions: instructions,
+            maxTokens: maxTokens,
+            label: "braid",
+            tags: mode == .bookOfYou ? ["braid", "book-of-you"] : ["braid", "task"],
+            temperature: 0.68,
+            topP: 0.9
+        )
         let polishedResponse = BraidTextPolisher.polishedBookOfYou(response)
 
         guard !polishedResponse.isEmpty else {
@@ -376,23 +363,31 @@ struct MLXBookBraider: Braider {
     """
 }
 
-enum MLXBraidTaskRunner {
+enum MLXLocalTextGenerator {
+    private static let progressCharacterStride = 48
+    private static let progressInterval: TimeInterval = 0.32
+    private static let progressPreviewLimit = 24_000
+
     static func run(
         prompt: String,
         instructions: String,
         maxTokens: Int,
-        sourceID: String,
-        tags: [String]
+        label: String,
+        tags: [String],
+        temperature: Float = 0.68,
+        topP: Float = 0.9,
+        maxKVSize: Int = 2_048,
+        presentation: LocalBrainPresentation = .live,
+        publishesProgress: Bool = true
     ) async throws -> String {
         guard let modelDirectory = LocalModelManager.activeModelDirectory else {
             throw LocalModelError.missingModel(LocalModelManager.report())
         }
 
-        let taskLabel = sourceID.isEmpty ? "gemma-task" : sourceID
         let response = try await LocalBrainInferenceGate.shared.run(
-            label: taskLabel,
+            label: label,
             promptCharacters: prompt.count,
-            presentation: .live
+            presentation: presentation
         ) {
             try await Device.withDefaultDevice(.gpu) {
                 let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
@@ -401,26 +396,153 @@ enum MLXBraidTaskRunner {
                     instructions: instructions,
                     generateParameters: GenerateParameters(
                         maxTokens: maxTokens,
-                        maxKVSize: 2_048,
-                        temperature: 0.68,
-                        topP: 0.9,
+                        maxKVSize: maxKVSize,
+                        temperature: temperature,
+                        topP: topP,
                         prefillStepSize: 256
                     )
                 )
-                return try await session.respond(to: prompt)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                var output = ""
+                var progressPreview = ""
+                var generatedCharacterCount = 0
+                var lastPostedCharacterCount = 0
+                var lastPostedAt = Date.distantPast
+                var completionInfo: GenerateCompletionInfo?
+                if publishesProgress {
+                    postProgress(
+                        label: label,
+                        text: progressPreview,
+                        generatedCharacters: generatedCharacterCount,
+                        info: nil,
+                        isFinal: false
+                    )
+                }
+
+                for try await generation in session.streamDetails(
+                    to: prompt,
+                    images: [],
+                    videos: []
+                ) {
+                    switch generation {
+                    case .chunk(let chunk):
+                        output += chunk
+                        guard publishesProgress else { continue }
+                        generatedCharacterCount += chunk.count
+                        appendProgressChunk(chunk, to: &progressPreview)
+                        let now = Date()
+                        if generatedCharacterCount - lastPostedCharacterCount >= progressCharacterStride ||
+                            now.timeIntervalSince(lastPostedAt) >= progressInterval {
+                            lastPostedCharacterCount = generatedCharacterCount
+                            lastPostedAt = now
+                            postProgress(
+                                label: label,
+                                text: progressPreview,
+                                generatedCharacters: generatedCharacterCount,
+                                info: completionInfo,
+                                isFinal: false
+                            )
+                        }
+                    case .info(let info):
+                        completionInfo = info
+                        if publishesProgress {
+                            postProgress(
+                                label: label,
+                                text: progressPreview,
+                                generatedCharacters: generatedCharacterCount,
+                                info: info,
+                                isFinal: true
+                            )
+                        }
+                    case .toolCall:
+                        break
+                    }
+                }
+
+                if publishesProgress, completionInfo == nil {
+                    postProgress(
+                        label: label,
+                        text: progressPreview,
+                        generatedCharacters: generatedCharacterCount,
+                        info: nil,
+                        isFinal: true
+                    )
+                }
+                return output.trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }
 
         appLog.info(
-            "Local brain finished task \(taskLabel, privacy: .public); tags: \(Array(Set(tags + ["gemma", "task"])).sorted().joined(separator: ","), privacy: .public); response characters: \(response.count, privacy: .public)"
+            "Local brain finished task \(label, privacy: .public); tags: \(Array(Set(tags + ["gemma", "task"])).sorted().joined(separator: ","), privacy: .public); response characters: \(response.count, privacy: .public)"
         )
 
         guard !response.isEmpty else {
             throw LocalModelError.missingModel(LocalModelManager.report())
         }
-
         return response
+    }
+
+    private static func postProgress(
+        label: String,
+        text: String,
+        generatedCharacters: Int,
+        info: GenerateCompletionInfo?,
+        isFinal: Bool
+    ) {
+        let preview = progressPreview(text)
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: .localBrainGenerationDidProgress,
+                object: LocalBrainGenerationProgressSnapshot(
+                    label: label,
+                    text: preview,
+                    generatedCharacters: generatedCharacters,
+                    promptTokens: info?.promptTokenCount,
+                    generatedTokens: info?.generationTokenCount,
+                    tokensPerSecond: info?.tokensPerSecond,
+                    isFinal: isFinal
+                )
+            )
+        }
+    }
+
+    private static func appendProgressChunk(_ chunk: String, to preview: inout String) {
+        preview += chunk
+        if preview.count > progressPreviewLimit {
+            let suffixLimit = max(progressPreviewLimit - 3, 1)
+            preview = "..." + String(preview.suffix(suffixLimit))
+        }
+    }
+
+    private static func progressPreview(_ text: String) -> String {
+        let cleaned = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\u{0}", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.count > progressPreviewLimit else { return cleaned }
+        let suffixLimit = max(progressPreviewLimit - 3, 1)
+        return ("..." + String(cleaned.suffix(suffixLimit))).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+enum MLXBraidTaskRunner {
+    static func run(
+        prompt: String,
+        instructions: String,
+        maxTokens: Int,
+        sourceID: String,
+        tags: [String]
+    ) async throws -> String {
+        let taskLabel = sourceID.isEmpty ? "gemma-task" : sourceID
+        return try await MLXLocalTextGenerator.run(
+            prompt: prompt,
+            instructions: instructions,
+            maxTokens: maxTokens,
+            label: taskLabel,
+            tags: tags,
+            temperature: 0.68,
+            topP: 0.9
+        )
     }
 }
 
@@ -458,10 +580,6 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
     var maxTokens = 520
 
     func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn], readerLexicon: ReaderLexicon = ReaderLexicon()) async throws -> String {
-        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-
         let taskPrompt = LocalModelManager.askTheBookPrompt(
             prompt: prompt,
             day: day,
@@ -469,35 +587,17 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
             readerLexicon: readerLexicon
         )
 
-        let response = try await LocalBrainInferenceGate.shared.run(
+        return try await MLXLocalTextGenerator.run(
+            prompt: taskPrompt,
+            instructions: """
+            You are the Labyrinth of Stories inside ReEnchanted. Answer as the living Book: concrete, warm, strange, lucid, useful, and never generic.
+            """,
+            maxTokens: maxTokens,
             label: "ask-the-book",
-            promptCharacters: taskPrompt.count,
-            presentation: .live
-        ) {
-            try await Device.withDefaultDevice(.gpu) {
-                let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
-                let session = ChatSession(
-                    container,
-                    instructions: """
-                    You are the Labyrinth of Stories inside ReEnchanted. Answer as the living Book: concrete, warm, strange, lucid, useful, and never generic.
-                    """,
-                    generateParameters: GenerateParameters(
-                        maxTokens: maxTokens,
-                        maxKVSize: 2_048,
-                        temperature: 0.72,
-                        topP: 0.92,
-                        prefillStepSize: 256
-                    )
-                )
-                return try await session.respond(to: taskPrompt)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
-
-        guard !response.isEmpty else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-        return response
+            tags: ["ask-the-book"],
+            temperature: 0.72,
+            topP: 0.92
+        )
     }
 }
 
@@ -505,39 +605,17 @@ struct MLXSentenceRunnerProseWriter: SentenceRunnerProseWriting {
     var maxTokens = 360
 
     func write(context: SentenceRunnerProseContext) async throws -> String {
-        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-
         let taskPrompt = SentenceRunnerPromptBuilder.prompt(for: context)
 
-        let response = try await LocalBrainInferenceGate.shared.run(
+        return try await MLXLocalTextGenerator.run(
+            prompt: taskPrompt,
+            instructions: SentenceRunnerPromptBuilder.instructions,
+            maxTokens: maxTokens,
             label: "sentence-runner",
-            promptCharacters: taskPrompt.count,
-            presentation: .live
-        ) {
-            try await Device.withDefaultDevice(.gpu) {
-                let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
-                let session = ChatSession(
-                    container,
-                    instructions: SentenceRunnerPromptBuilder.instructions,
-                    generateParameters: GenerateParameters(
-                        maxTokens: maxTokens,
-                        maxKVSize: 2_048,
-                        temperature: 0.8,
-                        topP: 0.92,
-                        prefillStepSize: 256
-                    )
-                )
-                return try await session.respond(to: taskPrompt)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
-
-        guard !response.isEmpty else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-        return response
+            tags: ["sentence-runner"],
+            temperature: 0.8,
+            topP: 0.92
+        )
     }
 }
 
@@ -545,10 +623,6 @@ struct MLXFaeBargainResponder: FaeBargainResponding {
     var maxTokens = 420
 
     func respond(bargain: FaeBargain, report: String, mood: GoblinMood, day: BookDay) async throws -> String {
-        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-
         let taskPrompt = LocalModelManager.faeBargainResponsePrompt(
             bargain: bargain,
             report: report,
@@ -557,35 +631,17 @@ struct MLXFaeBargainResponder: FaeBargainResponding {
             nowPlaying: RadioAtmosphereContext.current
         )
 
-        let response = try await LocalBrainInferenceGate.shared.run(
+        return try await MLXLocalTextGenerator.run(
+            prompt: taskPrompt,
+            instructions: """
+            You are a Book Fae inside ReEnchanted — born from the ink, starving for the world of matter, bound by old faerie exchange. Speak only in voice as the named fae: courteous, alien, exacting, never cute for cuteness' sake. Receive the reader's field report and give a true, strange lore fragment in return. Failure becomes story, not punishment. Never speak as a generic assistant.
+            """,
+            maxTokens: maxTokens,
             label: "fae-bargain-\(bargain.faeKind.rawValue)",
-            promptCharacters: taskPrompt.count,
-            presentation: .live
-        ) {
-            try await Device.withDefaultDevice(.gpu) {
-                let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
-                let session = ChatSession(
-                    container,
-                    instructions: """
-                    You are a Book Fae inside ReEnchanted — born from the ink, starving for the world of matter, bound by old faerie exchange. Speak only in voice as the named fae: courteous, alien, exacting, never cute for cuteness' sake. Receive the reader's field report and give a true, strange lore fragment in return. Failure becomes story, not punishment. Never speak as a generic assistant.
-                    """,
-                    generateParameters: GenerateParameters(
-                        maxTokens: maxTokens,
-                        maxKVSize: 2_048,
-                        temperature: 0.82,
-                        topP: 0.93,
-                        prefillStepSize: 256
-                    )
-                )
-                return try await session.respond(to: taskPrompt)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
-
-        guard !response.isEmpty else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-        return response
+            tags: ["fae-bargain", bargain.faeKind.rawValue],
+            temperature: 0.82,
+            topP: 0.93
+        )
     }
 }
 
@@ -599,10 +655,6 @@ struct MLXInkrestOfficeHoursCounselor: InkrestOfficeHoursCounseling {
         userMessage: String,
         isClosing: Bool
     ) async throws -> String {
-        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-
         let taskPrompt = InkrestOfficeHoursPromptBuilder.prompt(
             intake: intake,
             day: day,
@@ -611,35 +663,18 @@ struct MLXInkrestOfficeHoursCounselor: InkrestOfficeHoursCounseling {
             isClosing: isClosing
         )
 
-        let response = try await LocalBrainInferenceGate.shared.run(
+        return try await MLXLocalTextGenerator.run(
+            prompt: taskPrompt,
+            instructions: """
+            You are Dr. Selene Inkrest, the Academy's narrative therapist inside ReEnchanted. Warm, curious, unhurried, faintly otherworldly. Read the player's rich material closely and answer with substantive, specific reflection. Reply in plain kind paragraphs, no lists or headings, never as a generic assistant.
+            """,
+            maxTokens: maxTokens,
             label: "inkrest-office-hours",
-            promptCharacters: taskPrompt.count,
-            presentation: .live
-        ) {
-            try await Device.withDefaultDevice(.gpu) {
-                let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
-                let session = ChatSession(
-                    container,
-                    instructions: """
-                    You are Dr. Selene Inkrest, the Academy's narrative therapist inside ReEnchanted. Warm, curious, unhurried, faintly otherworldly. Read the player's rich material closely and answer with substantive, specific reflection. Reply in plain kind paragraphs, no lists or headings, never as a generic assistant.
-                    """,
-                    generateParameters: GenerateParameters(
-                        maxTokens: maxTokens,
-                        maxKVSize: 4_096,
-                        temperature: 0.7,
-                        topP: 0.92,
-                        prefillStepSize: 256
-                    )
-                )
-                return try await session.respond(to: taskPrompt)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
-
-        guard !response.isEmpty else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-        return response
+            tags: ["inkrest-office-hours"],
+            temperature: 0.7,
+            topP: 0.92,
+            maxKVSize: 4_096
+        )
     }
 }
 
@@ -647,79 +682,41 @@ struct MLXEnchantmentWriter: EnchantmentWriting {
     var maxTokens = 520 // fallback; cast() prefers the spell's own budget
 
     func cast(spell: EnchantmentSpell, analysis: PhotoAnalysis, day: BookDay) async throws -> EnchantmentCastResult {
-        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-
         let taskPrompt = LocalModelManager.enchantmentCastPrompt(spell: spell, analysis: analysis, day: day)
-        let response = try await LocalBrainInferenceGate.shared.run(
+        let response = try await MLXLocalTextGenerator.run(
+            prompt: taskPrompt,
+            instructions: """
+            You are the ReEnchanted Enchantment engine. Return compact strict JSON for the requested spell.
+            """,
+            maxTokens: spell.preferredMaxTokens,
             label: "enchantment-\(spell.id)",
-            promptCharacters: taskPrompt.count,
-            presentation: .live
-        ) {
-            try await Device.withDefaultDevice(.gpu) {
-                let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
-                let session = ChatSession(
-                    container,
-                    instructions: """
-                    You are the ReEnchanted Enchantment engine. Return compact strict JSON for the requested spell.
-                    """,
-                    generateParameters: GenerateParameters(
-                        maxTokens: spell.preferredMaxTokens,
-                        maxKVSize: 2_048,
-                        temperature: 0.78,
-                        topP: 0.92,
-                        prefillStepSize: 256
-                    )
-                )
-                return try await session.respond(to: taskPrompt)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
+            tags: ["enchantment", spell.id],
+            temperature: 0.78,
+            topP: 0.92,
+            publishesProgress: false
+        )
 
         return Self.parseCastResult(response, spell: spell, analysis: analysis)
     }
 
     func answerObject(prompt: String, result: EnchantmentCastResult, previousTurns: [AskTheBookTurn], day: BookDay) async throws -> String {
-        guard let modelDirectory = LocalModelManager.activeModelDirectory else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-
         let taskPrompt = LocalModelManager.everythingSpeaksReplyPrompt(
             prompt: prompt,
             result: result,
             previousTurns: previousTurns,
             day: day
         )
-        let response = try await LocalBrainInferenceGate.shared.run(
+        return try await MLXLocalTextGenerator.run(
+            prompt: taskPrompt,
+            instructions: """
+            You are the object awakened by Everything Speaks. Answer in character, briefly and concretely.
+            """,
+            maxTokens: 420,
             label: "everything-speaks-reply",
-            promptCharacters: taskPrompt.count,
-            presentation: .live
-        ) {
-            try await Device.withDefaultDevice(.gpu) {
-                let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
-                let session = ChatSession(
-                    container,
-                    instructions: """
-                    You are the object awakened by Everything Speaks. Answer in character, briefly and concretely.
-                    """,
-                    generateParameters: GenerateParameters(
-                        maxTokens: 420,
-                        maxKVSize: 2_048,
-                        temperature: 0.76,
-                        topP: 0.92,
-                        prefillStepSize: 256
-                    )
-                )
-                return try await session.respond(to: taskPrompt)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
-
-        guard !response.isEmpty else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-        return response
+            tags: ["everything-speaks"],
+            temperature: 0.76,
+            topP: 0.92
+        )
     }
 
     private static func parseCastResult(_ response: String, spell: EnchantmentSpell, analysis: PhotoAnalysis) -> EnchantmentCastResult {
@@ -901,7 +898,7 @@ struct MLXStoryPageWriter: StoryPageWriting {
     func write(surface: SurfacePage) async throws -> StoryPageProse {
         let draft = StoryPageSceneDraft(surface: surface)
         let prompt = StoryPagePromptBuilder.prompt(for: draft, nowPlaying: RadioAtmosphereContext.current)
-        let maxTokens = surface.type == .academyClass ? 760 : 360
+        let maxTokens = surface.type == .academyClass ? 520 : 300
         let sourceID: String
         if surface.type == .academyClass {
             sourceID = "academy-class-page"
@@ -962,7 +959,7 @@ struct MLXStoryPageResultWriter: StoryPageResultWriting {
         let response = try await MLXBraidTaskRunner.run(
             prompt: prompt,
             instructions: StoryPageResultPromptBuilder.instructions,
-            maxTokens: 240,
+            maxTokens: 160,
             sourceID: sourceID,
             tags: ["story-page", "story-result"]
         )

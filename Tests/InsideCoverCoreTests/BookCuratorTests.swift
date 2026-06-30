@@ -38,6 +38,32 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertNotEqual(firstPass.map(\.id), secondPass.map(\.id))
     }
 
+    func testDismissingSurfaceFamilyBlocksSiblingPreviewCards() {
+        let run = wonderCompassCandidate(
+            id: "wonder-run",
+            score: 90,
+            metadata: ["runID": "morning-loop"]
+        )
+        let reference = wonderCompassCandidate(
+            id: "wonder-reference",
+            score: 88,
+            metadata: ["snippetID": "wonder-compass-core-loop"]
+        )
+        let fallback = rankedCandidate(.quip, score: 40)
+        let preferences = CuratorSurfacePreferences(dismissedSurfaceIDs: run.curatorDeskExclusionKeys)
+
+        let pages = BookCurator.rankedPages(
+            from: [run, reference, fallback],
+            limit: 2,
+            preferences: preferences,
+            mood: .neutral,
+            now: localDate(hour: 21)
+        ).map(\.page)
+
+        XCTAssertFalse(pages.contains { $0.type == .wonderCompass })
+        XCTAssertEqual(pages.map(\.type), [.quip])
+    }
+
     func testMutedSourceIsExcludedInsideCurator() {
         let pages = BookCurator.surfacedPages(
             for: emptyDay(),
@@ -235,6 +261,54 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(pages.filter { $0.type == .lore }.count, 1)
         XCTAssertEqual(Set(pages.map(\.type)).count, pages.count)
         XCTAssertEqual(pages.first?.id, "lore-a")
+    }
+
+    func testDeskNeverShowsTwoCardsFromSameSourceFamily() {
+        let now = localDate(year: 2026, month: 6, day: 1, hour: 13)
+        let familyA = SurfacePage(
+            id: "shared-family-wonder",
+            type: .wonderCompass,
+            sourceID: "shared-preview-family",
+            score: 100,
+            prompt: "Wonder Compass",
+            detail: "A guide card."
+        )
+        let familyB = SurfacePage(
+            id: "shared-family-lore",
+            type: .lore,
+            sourceID: "shared-preview-family",
+            score: 95,
+            prompt: "Lore",
+            detail: "A sibling guide card."
+        )
+        let candidates = [
+            familyA,
+            familyB,
+            rankedCandidate(.quip, score: 60),
+            rankedCandidate(.illustration, score: 55)
+        ]
+
+        let pages = BookCurator.rankedPages(from: candidates, limit: 3, mood: .neutral, now: now).map(\.page)
+
+        XCTAssertEqual(pages.filter { $0.sourceID == "shared-preview-family" }.count, 1)
+        XCTAssertEqual(pages.first?.id, "shared-family-wonder")
+        XCTAssertTrue(pages.contains { $0.type == .quip })
+        XCTAssertTrue(pages.contains { $0.type == .illustration })
+    }
+
+    func testWonderCompassVariantsShareCuratorDeskFamily() {
+        let run = wonderCompassCandidate(
+            id: "wonder-run",
+            score: 62,
+            metadata: ["runID": "morning-loop"]
+        )
+        let reference = wonderCompassCandidate(
+            id: "wonder-reference",
+            score: 66,
+            metadata: ["snippetID": "wonder-compass-core-loop"]
+        )
+
+        XCTAssertFalse(run.curatorDeskExclusionKeys.isDisjoint(with: reference.curatorDeskExclusionKeys))
     }
 
     func testDeskNeverStacksTwoBlankPagePrompts() {
@@ -663,6 +737,39 @@ final class BookCuratorTests: XCTestCase {
         )
 
         XCTAssertTrue(pages.isEmpty)
+    }
+
+    func testBookRememberedExplainsRelationshipReturns() {
+        let now = localDate(hour: 9, minute: 15)
+        let oldDate = Calendar.current.date(byAdding: .day, value: -45, to: now) ?? now.addingTimeInterval(-45 * 24 * 3600)
+        let remembered = BookPage(
+            id: "inkrest-letter",
+            type: .letter,
+            createdAt: oldDate,
+            promptText: "A letter from Dr. Inkrest.",
+            userInput: "Dr. Inkrest asked me to keep the difficult page without making it smaller.",
+            tags: ["letter", "relationship"],
+            usedInBookOfYou: true
+        )
+        var inputs = richInputs().withMatureLibrary(now: now)
+        inputs.resurfacingCandidates = [remembered]
+        inputs.relationshipField = [
+            "book-authors-reader": RelationshipTie(warmth: 2, tension: 1, familiarity: 4)
+        ]
+        let today = BookDay(id: BookDay.id(for: now), date: Calendar.current.startOfDay(for: now), pages: [])
+
+        let pages = BookRememberedPageSourceAdapter().candidates(
+            for: today,
+            context: CuratorContext.make(for: today),
+            inputs: inputs,
+            now: now
+        )
+
+        let page = pages.first { $0.type == BookPageType.bookRemembered }
+        XCTAssertEqual(
+            page?.payload.metadata["rhymeReason"],
+            "Dr. Selene Inkrest is moving in the margins again, so this old page has become evidence."
+        )
     }
 
     func testIllustrationSurfaceExposesBundledMediaAsset() throws {
@@ -1818,10 +1925,14 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testIllustrationCopyIsWrittenByTheBookInsteadOfExposingDossierMetadata() {
+        // A synthetic slug so this exercises the generated dossier path, not a
+        // bespoke CastDossier entry — this test guards the generator's voice and
+        // its refusal to leak production metadata. The canonical bespoke prose is
+        // covered by testEverySurfacingCharacterPlateUsesBespokeDossier.
         let profile = CharacterIllustrationProfile(
-            id: "dr-elowen-vellum",
+            id: "generator-probe-character",
             characterName: "Dr. Elowen Vellum",
-            slug: "dr-elowen-vellum",
+            slug: "generator-probe-character",
             status: "canonical",
             chapter: nil,
             core: "Precise in her care; sharp kind eyes",
@@ -1851,6 +1962,47 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertFalse(body.localizedCaseInsensitiveContains("silhouette:"))
         XCTAssertFalse(body.localizedCaseInsensitiveContains("production"))
         XCTAssertFalse(body.contains("|"))
+    }
+
+    func testEverySurfacingCharacterPlateUsesBespokeDossier() {
+        // The bespoke catalog is exactly the canonical Cast that can surface as a
+        // plate. This count is independent of how the reference library loads, so
+        // it locks the set even though the bundled JSON is unavailable under SwiftPM.
+        XCTAssertEqual(CastDossier.bios.count, 22, "Expected 22 bespoke Cast dossiers")
+
+        // Every bespoke dossier reads like real, longer narrative prose in the
+        // Book's voice and never leaks the dossier production metadata.
+        for (slug, prose) in CastDossier.bios {
+            XCTAssertEqual(CastDossier.bio(forSlug: slug), prose)
+            XCTAssertTrue(prose.contains("\n\n"), "\(slug) should be multi-paragraph")
+            XCTAssertGreaterThan(prose.count, 400, "\(slug) should be substantial prose")
+            XCTAssertFalse(prose.contains("|"), "\(slug) leaked a metadata separator")
+            XCTAssertFalse(prose.localizedCaseInsensitiveContains("silhouette:"), "\(slug) leaked metadata")
+            XCTAssertFalse(prose.localizedCaseInsensitiveContains("dossier"), "\(slug) leaked metadata")
+        }
+
+        // Wherever a bundled character profile is actually available in this
+        // environment, the plate body must use its bespoke prose verbatim — never
+        // the generic generator.
+        let bundled = BookReferenceCatalog.bundledCharacterIllustrationAssetNames
+        let available = BookReferenceCatalog.characterIllustrations.filter { profile in
+            let asset = (profile.assetName?.isEmpty == false)
+                ? (profile.assetName ?? profile.intendedAssetName)
+                : profile.intendedAssetName
+            return bundled.contains(asset) && asset.hasPrefix("LabyrinthCharacter")
+        }
+        XCTAssertFalse(available.isEmpty, "No bundled character profiles were available to check")
+        for profile in available {
+            guard let bespoke = CastDossier.bio(forSlug: profile.slug) else {
+                XCTFail("No bespoke dossier for \(profile.characterName) [\(profile.slug)]")
+                continue
+            }
+            XCTAssertEqual(
+                LabyrinthIllustrationPageSourceAdapter.bookPageBody(for: profile),
+                bespoke,
+                "bookPageBody did not return the bespoke dossier for \(profile.slug)"
+            )
+        }
     }
 
     func testWorldEventResolverActivatesDictionaryRebellionByCalendar() throws {

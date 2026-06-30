@@ -521,6 +521,8 @@ struct CapturePageSheet: View {
     let localBrainWorkLabel: String
     let localBrainWorkStartedAt: Date?
     let localBrainQueuedCount: Int
+    let localBrainGenerationPreview: String?
+    let localBrainProgressLine: String?
     let onReplaceIlluminatedSurface: (SurfacePage) -> Void
     let onNavigateToSurface: (SurfacePage) -> Void
     let onCompleteCompassRun: (SurfacePage) -> Void
@@ -1279,7 +1281,25 @@ struct CapturePageSheet: View {
 
     private var sheetHasLocalBrainActions: Bool {
         switch surface.type {
-        case .illuminatedPhoto, .narrativeOS, .bookFae, .askTheBook, .enchantment, .inkrestOfficeHours, .faeBargain:
+        case .illuminatedPhoto,
+             .narrativeOS,
+             .bookFae,
+             .academyClass,
+             .askTheBook,
+             .enchantment,
+             .inkrestOfficeHours,
+             .faeBargain,
+             .wonderCompass,
+             .letter,
+             .gossip,
+             .facultyResearch,
+             .supportGuild,
+             .twoReadings,
+             .castBond,
+             .bookJump,
+             .elective,
+             .packPage,
+             .theBleed:
             return true
         default:
             return isEnchantmentPage
@@ -1287,6 +1307,12 @@ struct CapturePageSheet: View {
     }
 
     private var pageOwnedScribeLabel: String? {
+        if let label = localPageOwnedScribeLabel { return label }
+        if let label = ambientPageOwnedScribeLabel { return label }
+        return nil
+    }
+
+    private var localPageOwnedScribeLabel: String? {
         if isCastingEnchantment { return "enchantment" }
         if isAnsweringEnchantedObject { return "everything-speaks-reply" }
         if isLoadingManualPhoto || isChoosingBookPhoto { return "photo-illumination" }
@@ -1295,13 +1321,47 @@ struct CapturePageSheet: View {
         if isAskingTheBook { return "ask-the-book" }
         if isInkrestSitting { return "inkrest-office-hours" }
         if isFaePaying { return "fae-bargain" }
-        if isGeneratingCompassRun || isGeneratingPlayfulMission { return "wonder-compass-playful-mission" }
+        if isGeneratingCompassRun { return "wonder-compass-run" }
+        if isGeneratingPlayfulMission { return "wonder-compass-playful-mission" }
         if isRewritingBraid { return "braid-rewrite" }
         if isImprovingBraid { return "braid-taste-note" }
-        if isPendingLetterPage, isLocalBrainWorking, localBrainWorkLabel.lowercased().contains("letter") {
-            return localBrainWorkLabel
-        }
         return nil
+    }
+
+    private var ambientPageOwnedScribeLabel: String? {
+        guard isLocalBrainWorking, sheetHasLocalBrainActions else { return nil }
+        let label = localBrainWorkLabel.lowercased()
+        if isPendingLetterPage, label.contains("letter") { return localBrainWorkLabel }
+        switch surface.type {
+        case .letter where label.contains("letter"):
+            return localBrainWorkLabel
+        case .gossip where label.contains("gossip"):
+            return localBrainWorkLabel
+        case .facultyResearch where label.contains("faculty") || label.contains("research"):
+            return localBrainWorkLabel
+        case .supportGuild where label.contains("support-guild"):
+            return localBrainWorkLabel
+        case .twoReadings where label.contains("two-readings"):
+            return localBrainWorkLabel
+        case .castBond where label.contains("cast-bond"):
+            return localBrainWorkLabel
+        case .bookJump where label.contains("book-jump"):
+            return localBrainWorkLabel
+        case .elective where label.contains("elective"):
+            return localBrainWorkLabel
+        case .packPage where label.contains("pack-page"):
+            return localBrainWorkLabel
+        case .theBleed where label.contains("the-bleed"):
+            return localBrainWorkLabel
+        case .wonderCompass where label.contains("wonder-compass"):
+            return localBrainWorkLabel
+        case .narrativeOS where label.contains("story-page") || label.contains("narrative"):
+            return localBrainWorkLabel
+        case .bookFae where label.contains("fae") || label.contains("book-fae"):
+            return localBrainWorkLabel
+        default:
+            return nil
+        }
     }
 
     private func scribeWorkCard(
@@ -1314,6 +1374,8 @@ struct CapturePageSheet: View {
             quip: quip,
             startedAt: localBrainWorkStartedAt,
             queuedCount: localBrainQueuedCount,
+            liveText: localBrainGenerationPreview,
+            progressLine: localBrainProgressLine,
             presentation: presentation
         )
     }
@@ -1731,8 +1793,8 @@ struct CapturePageSheet: View {
 
             pageShareControl
 
-            if isLocalBrainWorking, sheetHasLocalBrainActions, pageOwnedScribeLabel == nil {
-                scribeWorkCard(localBrainWorkLabel)
+            if isLocalBrainWorking, sheetHasLocalBrainActions, localPageOwnedScribeLabel == nil {
+                scribeWorkCard(pageOwnedScribeLabel ?? localBrainWorkLabel)
             }
 
             if let story = surface.payload.metadata["pactShelfStory"]?.nonEmpty {
@@ -5024,7 +5086,9 @@ struct CapturePageSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if isLocalBrainWorking {
-                scribeWorkCard("letter-page")
+                Label("Opening now", systemImage: "wand.and.stars")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.teal)
             } else {
                 Button {
                     BookFeedback.play(.sourceRefresh)
@@ -5981,7 +6045,7 @@ struct CapturePageSheet: View {
 
                 if currentStoryArc?.isComplete == true {
                     VStack(spacing: 8) {
-                        Text("The story has found its ending.")
+                        Text("The vignette is ready to keep.")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(BookPalette.gold)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -5999,23 +6063,24 @@ struct CapturePageSheet: View {
                 } else {
                     HStack(spacing: 10) {
                         Button {
-                            BookFeedback.play(.braidStart)
-                            Task { await continueStoryPage(from: draft, choice: selectedStoryChoice) }
-                        } label: {
-                            Label(isContinuingStoryPage ? "Ink drying..." : "Continue the scene", systemImage: "arrow.turn.down.right")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isContinuingStoryPage || isGeneratingStoryResult || isLocalBrainWorking || (selectedStoryChoice.mechanic.kind != .none && resolvedStoryMechanics[selectedStoryChoice.id] == nil))
-
-                        Button {
                             BookFeedback.play(.select)
                             text = "The Book should keep this thread here."
                         } label: {
-                            Label("Keep here", systemImage: "bookmark")
+                            Label("Keep this page", systemImage: "bookmark")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isGeneratingStoryResult || (selectedStoryChoice.mechanic.kind != .none && resolvedStoryMechanics[selectedStoryChoice.id] == nil))
+
+                        Button {
+                            BookFeedback.play(.braidStart)
+                            Task { await continueStoryPage(from: draft, choice: selectedStoryChoice) }
+                        } label: {
+                            Label(isContinuingStoryPage ? "Ink drying..." : "One more beat", systemImage: "arrow.turn.down.right")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
+                        .disabled(isContinuingStoryPage || isGeneratingStoryResult || isLocalBrainWorking || (selectedStoryChoice.mechanic.kind != .none && resolvedStoryMechanics[selectedStoryChoice.id] == nil))
                     }
                     .font(.caption.weight(.bold))
                     .tint(BookPalette.teal)
@@ -6717,7 +6782,18 @@ struct CapturePageSheet: View {
             }
             guard storyTurns.indices.contains(turnIndex) else { return }
             storyTurns[turnIndex].generatedResults[choiceID] = result
-            storyContinuationMessage = "The path has answered. You can continue, or keep the page here."
+            let arc = StoryArcShape(
+                beats: storyTurns[turnIndex].draft.formBeats,
+                turnsWritten: max(storyTurns.count, 1),
+                formName: storyTurns[turnIndex].draft.formName,
+                promiseSeed: storyTurns[turnIndex].draft.promiseSeed,
+                turnStatement: storyTurns[turnIndex].draft.turnStatement,
+                turnCharacter: storyTurns[turnIndex].draft.turnCharacter,
+                turnLanding: StoryTurnLanding.resolve(storyTurns[turnIndex].draft.turnLandings, choiceID: choiceID) ?? ""
+            )
+            storyContinuationMessage = arc.isComplete
+                ? "The vignette is ready to keep."
+                : "The path has answered. Keep the page here, or ask for one more beat."
             BookFeedback.play(.braidComplete)
         } catch {
             guard storyTurns.indices.contains(turnIndex) else { return }
@@ -6729,12 +6805,16 @@ struct CapturePageSheet: View {
 
     @MainActor
     private func continueStoryPage(from draft: StoryPageSceneDraft, choice: StoryPageChoiceDraft) async {
+        guard currentStoryArc?.isComplete != true else {
+            storyContinuationMessage = "The vignette is already ready to keep."
+            return
+        }
         guard !isContinuingStoryPage, !isGeneratingStoryResult, !isLocalBrainWorking else {
             storyContinuationMessage = "The local brain is already writing. Let that ink dry first."
             return
         }
         isContinuingStoryPage = true
-        storyContinuationMessage = "The Book is turning the same thread over in wet ink."
+        storyContinuationMessage = "The Book is writing one more beat."
         defer { isContinuingStoryPage = false }
 
         let context = StoryPageContinuationContext(turns: storyTurns, currentDraft: draft, selectedChoice: choice)
@@ -6760,7 +6840,7 @@ struct CapturePageSheet: View {
                 let sentences = s.split { ".!?".contains($0) }.filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).count > 3 }.count
                 let words = s.split { $0 == " " || $0 == "\n" }.count
                 let rejectsAtmosphere = draft.blueprint.map { $0.sceneMode == .conversation } ?? true
-                return sentences >= 4 && words >= 70
+                return sentences >= 3 && words >= 45
                     && !StoryTurnValidator.isNearDuplicate(s, of: priorScene)
                     && (!rejectsAtmosphere || !StoryTurnValidator.isAtmosphereDominated(s, characterNames: names))
             }
@@ -6771,7 +6851,7 @@ struct CapturePageSheet: View {
             let nextDraft = StoryPageSceneDraft(surface: nextSurface)
             storyTurns.append(StoryPageSessionTurn(draft: nextDraft))
             selectedStoryChoice = nil
-            storyContinuationMessage = "A new turn has surfaced from the choice you made."
+            storyContinuationMessage = "One more beat has surfaced. Choose how it lands."
             BookFeedback.play(.braidComplete)
         } catch {
             storyContinuationMessage = "The ink did not finish the next turn. The current page is still safe to keep."
@@ -6779,8 +6859,8 @@ struct CapturePageSheet: View {
         }
     }
 
-    /// The current vignette's arc position, used to gate continuation and show
-    /// the reader where they are in the beginning/middle/end shape.
+    /// The current vignette's arc position, used to gate the single optional
+    /// final beat.
     private var currentStoryArc: StoryArcShape? {
         guard let draft = storyTurns.last?.draft ?? storySceneDraft else { return nil }
         return StoryArcShape(
@@ -8865,12 +8945,11 @@ struct StoryPageSessionTurn: Identifiable, Equatable {
     }
 }
 
-/// Maps a Story Page's authored beats onto a felt three-act arc so each
-/// continuation knows whether it is rising, turning, or closing — and so the
-/// vignette ends on a real resolution instead of an endless "door ajar" coda.
+/// Maps a playable page's authored beats onto a snack-sized loop: setup,
+/// choice, consequence, and at most one final choice/consequence.
 struct StoryArcShape: Equatable {
     enum Act {
-        case beginning, rising, turn, resolution, epilogue
+        case beginning, resolution, epilogue
     }
 
     var beats: [String]
@@ -8888,81 +8967,47 @@ struct StoryArcShape: Equatable {
     var turnCharacter: String = ""
     var turnLanding: String = ""
 
-    /// The beat this next turn should render, clamped to the final beat.
-    var nextBeatIndex: Int { min(max(turnsWritten, 0), max(beats.count - 1, 0)) }
+    var condensedBeats: [String] { StoryVignetteBeats.snackSized(beats) }
 
-    /// True once the final authored beat (the resolution) has been written, so
-    /// the vignette has a definite end rather than perpetual continuation.
+    /// The beat this next turn should render, clamped to the two-beat vignette.
+    var nextBeatIndex: Int { min(max(turnsWritten, 0), max(condensedBeats.count - 1, 0)) }
+
+    /// True after the optional final beat has received a choice/consequence.
     var isComplete: Bool {
-        guard !beats.isEmpty else { return false }
-        return turnsWritten >= beats.count
+        turnsWritten >= StoryVignetteBeats.maximumInteractiveTurns
     }
 
     var act: Act {
-        guard !beats.isEmpty else { return .rising }
-        if turnsWritten >= beats.count { return .epilogue }
-        let last = beats.count - 1
-        let index = nextBeatIndex
-        if index <= 0 { return .beginning }
-        if index >= last { return .resolution }
-        if index == last - 1 { return .turn }
-        return .rising
+        if isComplete { return .epilogue }
+        return turnsWritten <= 0 ? .beginning : .resolution
     }
 
     /// Short reader-facing arc position for the page chrome.
     var progressLabel: String {
-        guard beats.count > 1 else { return "" }
         switch act {
         case .beginning: return "Beginning"
-        case .rising: return "Rising"
-        case .turn: return "The turn"
-        case .resolution: return "Ending"
-        case .epilogue: return "Ended"
+        case .resolution: return "Final beat"
+        case .epilogue: return "Ready to keep"
         }
     }
 
     /// The beat directive handed to the writer for the next continuation.
     var directive: String {
-        guard !beats.isEmpty else {
-            // Parleys and Classes carry a committed turn but no authored form
-            // beats — still drive them toward the change rather than drift.
-            if !turnLanding.isEmpty {
-                let who = turnCharacter.isEmpty ? "the character" : turnCharacter
-                return "Move one real step toward the change. By the end this is now TRUE: \(turnLanding) \(who) enacts it through speech or action — do not re-describe the scene."
-            }
-            if !turnStatement.isEmpty {
-                return "Move one real step toward: \(turnStatement). Someone acts or decides; do not merely restate the mood."
-            }
-            return "Move the thread one real step past the consequence, then let it begin to settle."
-        }
         if isComplete {
-            return "The arc is closed. Write only a brief epilogue — one image that shows the new normal holding. No fresh conflict, no new door."
+            return "The vignette is ready to keep. Write only a brief afterimage if asked: one concrete sign that the new normal is holding. No fresh conflict, no new door."
         }
-        let beat = beats[nextBeatIndex]
         let who = turnCharacter.isEmpty ? "the character" : turnCharacter
-        let landingLine = turnLanding.isEmpty
-            ? (turnStatement.isEmpty ? "" : "\nBy the end this is now true: \(turnStatement). \(who) enacts it through speech or action — not atmosphere.")
-            : "\nBy the end of this beat this is now TRUE: \(turnLanding)\n\(who) enacts it through what they say or do. Do not merely re-describe the scene; change it."
-        switch act {
-        case .resolution:
-            return """
-            FINAL BEAT — the RESOLUTION of "\(formName)". Close the mini-story now (felt, never labeled):
-            \(beat)\(landingLine)
-            End on a different note than the page opened. No cliffhanger.
-            """
-        case .turn:
-            return """
-            THE TURN of "\(formName)" — the hinge the whole vignette has leaned toward (felt, never labeled):
-            \(beat)\(landingLine)
-            This is where the reader's chosen path pays off or costs. \(who) reacts to that choice, not to the scenery.
-            """
-        default:
-            return """
-            NEXT BEAT of "\(formName)" — rising action (write this one now, felt not labeled):
-            \(beat)
-            Tilt the situation toward: \(turnStatement.isEmpty ? "the change still owed" : turnStatement). \(who) must react to the reader's last choice, not just the room.
-            """
-        }
+        let beat = condensedBeats.indices.contains(nextBeatIndex) ? condensedBeats[nextBeatIndex] : ""
+        let owedChange = turnLanding.nonEmpty ?? turnStatement.nonEmpty ?? "the reader's last choice matters in one visible way"
+        let formLine = formName.isEmpty ? "the playable page" : "\"\(formName)\""
+        let beatLine = beat.isEmpty ? "" : "\nFinal beat to set up: \(beat)"
+        return """
+        FINAL SETUP for \(formLine) — write the final playable scene before the last choice.
+        The previous consequence has already happened. Let it alter what \(who) says or does next.
+        Keep the vignette small: no new subplot, no new phase, no cliffhanger.
+        Leave the final landing for the reader's next choice/result. Do not resolve a new choice inside SCENE.
+        Owed change for the final consequence: \(owedChange)\(beatLine)
+        """
     }
 }
 
@@ -9035,14 +9080,15 @@ struct StoryPageContinuationContext: Equatable {
         }
 
         return """
-        The reader pressed Continue. Everything under "already written" has ALREADY BEEN READ — it is context, not material.
+        The reader asked for the one optional final beat. Everything under "already written" has ALREADY BEEN READ — it is context, not material.
 
         THE CONTRACT FOR THE NEW SCENE:
         - Repeating a sentence, image, object description, or opening line from earlier turns is a failure. Do not re-describe the setting; it exists. Do NOT reopen with the same line as a prior turn.
-        - Do NOT restate the chosen action as a flat sentence ("You point toward the window."). Skip past the action and dramatize its CONSEQUENCE through what a person says next.
+        - Do NOT restate the chosen action as a flat sentence ("You point toward the window."). The consequence has already happened; start from what it changed.
         \(recipeContinuation)
-        - Write at least 4 full sentences. Begin at a new point in the conversation, not with a new object description.
-        - The chosen action has consequences now: show its cost or gift through what a character says to another character.
+        - Write 3-5 full sentences. Begin at a new point in the conversation, not with a new object description.
+        - This is the final setup before the final reader choice. Keep it snack-sized and do not open a third beat.
+        - The chosen action has consequences now: show its cost or gift through what a character says to another character, then leave the final landing to the next choice result.
         \(beatDirective)\(lensLine)
 
         \(rendered)
@@ -9104,12 +9150,16 @@ enum StoryRecipeValidator {
         }
         let words = scene.split { $0.isWhitespace }.count
         let sentences = scene.split { ".!?".contains($0) }.count
-        if words < 90 || sentences < 4 { failures.append("Write a complete vignette of at least four sentences."); score -= 20 }
+        if words < 55 || sentences < 3 { failures.append("Write a complete snack-sized vignette of at least three sentences."); score -= 20 }
         let dialogueMarks = prose.scene.filter { $0 == "\"" || $0 == "“" || $0 == "”" }.count
         if blueprint.sceneMode == .conversation && dialogueMarks < 4 {
             failures.append("Let conversation carry this conversation-mode recipe."); score -= 15
         }
-        let generic = ["follow the thread", "stay with it", "look closer", "do something surprising"]
+        let generic = [
+            "follow the thread", "stay with it", "look closer", "do something surprising",
+            "press the want", "open a side door", "choose the detail", "move the plot",
+            "ask softly", "let them act", "let it act", "follow the clue"
+        ]
         if prose.choices.contains(where: { choice in generic.contains { choice.title.lowercased().contains($0) || choice.prompt.lowercased().contains($0) } }) {
             failures.append("Anchor every choice to this exact scene."); score -= 10
         }
@@ -9379,8 +9429,8 @@ enum StoryPageResultPromptBuilder {
 
         REQUIREMENTS:
         - Return only the result prose.
-        - 90-150 words.
-        - 4-7 sentences.
+        - 55-95 words.
+        - 3-5 sentences.
         - Make the consequence specific to the selected action, not generic.
         - \(context.draft.blueprint == nil ? "Make most of this result spoken exchange and include no more than one small physical action." : recipeResultRule)
         - Let one relationship, secret, refusal, promise, or question gain weight.
@@ -9432,16 +9482,17 @@ enum StoryPagePromptBuilder {
         } ?? ""
         let mechanicPlan = mechanicPlanPrompt(for: draft.mechanicMandate)
         let structure: String
-        if draft.formBeats.isEmpty {
-            structure = "A vignette with a beginning, a turn, and a landing."
+        let formBeats = StoryVignetteBeats.snackSized(draft.formBeats)
+        if formBeats.isEmpty {
+            structure = "A snack-sized vignette with setup, choice, consequence, and a landing."
         } else {
-            let beats = draft.formBeats.enumerated()
+            let beats = formBeats.enumerated()
                 .map { "\($0.offset + 1). \($0.element)" }
                 .joined(separator: "\n")
             structure = """
             This page follows the shape called "\(draft.formName)". Its beats, in order:
             \(beats)
-            Write the FIRST beat as this scene's spine, leaning toward the second. Beats are felt, never labeled or numbered in the prose.
+            Write the FIRST beat as this scene's spine. The second beat is only for the optional final beat after the reader chooses. Beats are felt, never labeled or numbered in the prose.
             """
         }
         let promise: String
@@ -9479,7 +9530,7 @@ enum StoryPagePromptBuilder {
             Character cast: \([blueprint.leadName, blueprint.companionName].compactMap { $0 }.joined(separator: ", "))
             Setting: \(setting)
             Required beats, in order:
-            \(blueprint.beats.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"))
+            \(StoryVignetteBeats.snackSized(blueprint.beats).enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"))
             Required change: \(blueprint.turn.statement)
             Grounding direction: \(blueprint.groundingDirective)
             Tone: \(blueprint.toneDirective)
@@ -9567,7 +9618,7 @@ enum StoryPagePromptBuilder {
 
         OUTPUT FORMAT, EXACTLY:
         SCENE:
-        \(isBookFae ? "240-360" : "170-240") words. A vignette with a beginning, a turn, and a landing. Address the reader as "you" only when it feels natural. Make it feel like real life becoming a fantasy story, not like a quest log.
+        \(isBookFae ? "140-220" : "110-170") words. A snack-sized vignette with setup, choice pressure, and a landing held for the reader. Address the reader as "you" only when it feels natural. Make it feel like real life becoming a fantasy story, not like a quest log.
         \(draft.blueprint == nil ? "The vignette must be mostly dialogue when a character is present. Use actions sparingly and keep rooms and props as backdrop." : "Follow SCENE RECIPE's mode. Concrete details, environments, actions, and dialogue may carry the scene in the proportions that mode requires.")
         Chapter talisman moves appear only when the packet supplies one. If one is supplied, make it a visible character/world-entity action; the app will apply the matching talisman delta when the page is kept. If none is supplied, do not invent a talisman move.
         If CONTINUATION MEMORY is present, this scene must be the next beat of that same thread. Do not recap everything; let the previous consequence alter the first paragraph.
@@ -9603,6 +9654,7 @@ enum StoryPagePromptBuilder {
         Choice design rule:
         The three choices must be bespoke to this vignette, not generic. They are internally typed as Slice of Life, Progress Arc, and Surprise, but the visible titles and prompts should read like natural story actions.
         \(draft.blueprint == nil ? "Every visible choice must be something a character says, asks, decides, gives, refuses, admits, interrupts, or does. Do not make atmosphere-only choices." : "Every visible choice must act on a specific person, clue, object, place, threat, or fact established in this scene. Speech, action, exploration, protection, and exact noticing are all valid when the recipe supports them.")
+        Do not use framework titles or near-framework titles such as Stay With It, Follow the Thread, Look Closer, Press the Want, Open a Side Door, Choose the Detail, Move the Plot, Ask Softly, or Let Them Act. Name the actual story action: the cup, note, alarm, bargain, door, test, line of dialogue, refusal, clue, or handoff that appeared in SCENE.
         Mechanics rule:
         - Follow MECHANIC PLAN exactly.
         - At most one choice may offer a mechanic.
@@ -9644,7 +9696,7 @@ enum StoryPagePromptBuilder {
         return """
         Write one ReEnchanted Academy \(isClub ? "Club Page" : "Class Page") using the Story Page format.
 
-        This page is a lesson first and a vignette second. It should read like the reader has actually stepped into a useful class, not like a teaser for one. Give the subject room to breathe through spoken teaching: define the idea plainly, let a student test it aloud, use one brief demonstration, and leave the reader with one concrete practice.
+        This page is a compact lesson first and a vignette second. It should read like the reader has actually stepped into a useful class, not like a teaser for one. Define the idea plainly, let a student test it aloud, use one brief demonstration, and leave the reader with one concrete practice.
 
         SESSION:
         \(isClub ? "Club" : "Class"): \(metadata["sessionName"] ?? "an Academy session")
@@ -9671,9 +9723,9 @@ enum StoryPagePromptBuilder {
         HARD RULES:
         - \(leader) must be physically present, must teach, and must speak at least twice.
         - Most of SCENE should be dialogue: lecture lines, student answers, corrections, and the reader-facing question.
-        - This must teach the real subject, not merely mention it. Include at least two accurate mini-lecture beats and one demonstrated example.
-        - Use the supplied lecture beats in order. Do not skip the middle beat just to reach the choices.
-        - Spend most of SCENE on the class exchange: explanation, student response, correction, and reader question. Keep arrival/setup and object handling brief.
+        - This must teach the real subject, not merely mention it. Include two accurate mini-lecture beats and one demonstrated example.
+        - Use the first two supplied lecture beats in order. Do not skip the lesson just to reach the choices.
+        - Spend most of SCENE on the class exchange: explanation, student response, correction, and reader question. Keep arrival/setup to one sentence.
         - The professor or leader asks the reader one direct, answerable classroom question.
         - At least one companion reacts in a small characterful way.
         - Include only one room texture detail total.
@@ -9681,17 +9733,16 @@ enum StoryPagePromptBuilder {
         - Do not claim the reader completed the practice, attended earlier, or did any real-world task.
         - Complete every sentence. If space gets tight, shorten description before cutting the lesson, question, or practice invitation.
         - If CONTINUATION MEMORY is present, everything in it has already been read. Continue from the consequence; do not repeat the previous classroom scene, opening setup, image, dialogue, or chosen action.
-        - A continued class scene must start one beat later: someone has moved, the lesson has advanced, or the room has visibly changed.
+        - A continued class scene must start one beat later: the lesson has advanced, or someone has visibly changed their answer.
         - Simple concrete sentences. No assistant language, no headings or labels inside SCENE.
 
         OUTPUT FORMAT, EXACTLY:
         SCENE:
-        360-520 words. A living classroom scene with the lesson already underway, the required leader visibly teaching, and the reader invited into the exercise.
-        Structure the SCENE as 4 short paragraphs, with no headings:
+        220-320 words. A living classroom scene with the lesson already underway, the required leader visibly teaching, and the reader invited into the exercise.
+        Structure the SCENE as 3 short paragraphs, with no headings:
         1. The lesson already underway, one vivid classroom detail, and the leader's spoken thesis.
-        2. The leader's mini-lecture using two supplied lecture beats and one concrete example.
-        3. A student's spoken test, mistake, or objection, plus the leader's correction.
-        4. The reader's direct question and one real-world practice invitation for later.
+        2. The leader's mini-lecture using two supplied lecture beats, one concrete example, and a student's spoken test or mistake.
+        3. The leader's correction, the reader's direct question, and one real-world practice invitation for later.
 
         SLICE_OF_LIFE_CHOICE:
         A bespoke button title, 2-5 words, for staying with one ordinary classroom detail.
@@ -10291,10 +10342,10 @@ struct StoryPageSceneDraft: Equatable {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty } ?? []
         formName = metadata["storyFormName"] ?? ""
-        formBeats = metadata["storyBeats"]?
+        formBeats = StoryVignetteBeats.snackSized(metadata["storyBeats"]?
             .split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty } ?? []
+            .filter { !$0.isEmpty } ?? [])
         genreName = metadata["storyGenreName"] ?? ""
         genreLens = metadata["storyGenreLens"] ?? ""
         promiseSeed = metadata["storyPromiseSeed"] ?? ""
@@ -10331,7 +10382,7 @@ struct StoryPageSceneDraft: Equatable {
                 companionName: metadata["storyRecipeCompanionName"]?.nonEmpty,
                 premise: metadata["storyRecipePremise"] ?? "",
                 grounding: StoryGrounding(kind: groundingKind, sourceID: metadata["storyRecipeGroundingSourceID"] ?? "", text: groundingText),
-                beats: metadata["storyRecipeBeats"]?.split(separator: "\n").map(String.init) ?? [],
+                beats: StoryVignetteBeats.snackSized(metadata["storyRecipeBeats"]?.split(separator: "\n").map(String.init) ?? []),
                 groundingDirective: metadata["storyRecipeGroundingDirective"] ?? "",
                 toneDirective: metadata["storyRecipeToneDirective"] ?? "",
                 choiceDirective: metadata["storyRecipeChoiceDirective"] ?? "",
@@ -10487,24 +10538,24 @@ struct StoryPageSceneDraft: Equatable {
         return [
             StoryPageChoiceDraft(
                 id: "sliceoflife",
-                title: "Ask \(storyActorShort) Softly",
-                prompt: "Let \(storyActor) answer without forcing the thread forward.",
+                title: "Ask the Small Thing",
+                prompt: "Ask \(storyActor) about one exact detail in the room.",
                 effectLine: turnLandings["slice-of-life"]?.nonEmpty ?? "\(storyActor) reveals one small truth in ordinary conversation.",
                 symbolName: "leaf",
                 tint: BookPalette.violet
             ),
             StoryPageChoiceDraft(
                 id: "progressarc",
-                title: "Let \(storyActorShort) Act",
-                prompt: "Let \(storyActor) make the next concrete move.",
+                title: "Make the Move",
+                prompt: "Let \(storyActor) choose the next visible action.",
                 effectLine: turnLandings["progress-arc"]?.nonEmpty ?? "\(storyActor) advances \(thread) through a visible decision.",
                 symbolName: "point.3.connected.trianglepath.dotted",
                 tint: BookPalette.teal
             ),
             StoryPageChoiceDraft(
                 id: "surprise",
-                title: "Press the Want",
-                prompt: "Ask what \(storyActor) is not saying yet.",
+                title: "Name the Wrongness",
+                prompt: "Ask which part of this scene is pretending to be ordinary.",
                 effectLine: turnLandings["surprise"]?.nonEmpty ?? "\(storyActor)'s want slips sideways and changes the scene.",
                 symbolName: "sparkles",
                 tint: BookPalette.gold

@@ -1555,7 +1555,7 @@ enum StoryScenePacketBuilder {
             blueprint: blueprint,
             storyFormID: storyForm.id,
             storyFormName: storyForm.name,
-            storyFormBeats: storyForm.beats,
+            storyFormBeats: StoryVignetteBeats.snackSized(storyForm.beats),
             storyGenreID: storyGenre.id,
             storyGenreName: storyGenre.name,
             storyGenreLens: storyGenre.lens,
@@ -1683,7 +1683,7 @@ enum StoryScenePacketBuilder {
         return StorySceneBlueprint(
             recipeID: recipe.id, recipeName: recipe.name, recipePackID: packID, sceneMode: recipe.sceneMode,
             leadID: lead.id, leadName: lead.name, companionID: companion?.id, companionName: companion?.name,
-            premise: fill(recipe.premiseTemplate), grounding: grounding, beats: recipe.beats.map(fill),
+            premise: fill(recipe.premiseTemplate), grounding: grounding, beats: StoryVignetteBeats.snackSized(recipe.beats.map(fill)),
             groundingDirective: fill(recipe.groundingDirective), toneDirective: fill(recipe.toneDirective),
             choiceDirective: fill(recipe.choiceDirective), continuationDirective: fill(recipe.continuationDirective),
             turn: turn
@@ -4536,6 +4536,16 @@ struct StoryForm: Identifiable, Codable, Equatable {
     var beats: [String]
 }
 
+enum StoryVignetteBeats {
+    static let maximumInteractiveTurns = 2
+
+    static func snackSized(_ beats: [String]) -> [String] {
+        guard beats.count > maximumInteractiveTurns else { return beats }
+        guard let first = beats.first, let last = beats.last else { return [] }
+        return [first, last]
+    }
+}
+
 enum StoryRecipeRequirement: String, Codable, Equatable {
     case groundedSource
     case character
@@ -4681,10 +4691,8 @@ enum StoryFormRegistry {
                     name: "The Threshold",
                     directorNote: "An ordinary boundary becomes a real one.",
                     beats: [
-                        "Arrive: ground the scene in one real signal; everything is normal except one small thing.",
-                        "Disturb: the small thing asks something of the reader; a character notices too.",
-                        "Cross: a line is stepped over — physical, social, or spoken; it costs a little.",
-                        "Settle: the new normal, one shade different; name what came through the door."
+                        "Arrive: ground the scene in one real signal; everything is normal except one small thing asks to be crossed.",
+                        "Settle: the chosen crossing leaves the new normal one shade different; name what came through the door."
                     ]
                 ),
                 StoryForm(
@@ -4692,10 +4700,8 @@ enum StoryFormRegistry {
                     name: "The Small Mystery",
                     directorNote: "Something doesn't add up, at kitchen scale.",
                     beats: [
-                        "Notice: one specific oddity, stated plainly, no spookiness.",
-                        "Investigate: a character and the reader each find one clue; the clues disagree.",
-                        "Reveal: part of the answer, which makes the rest stranger.",
-                        "Leave the thread: the mystery is smaller but not gone; someone keeps a souvenir of it."
+                        "Notice: one specific oddity, stated plainly, and let one possible answer fail.",
+                        "Reveal: the chosen answer makes the mystery smaller but not gone; someone keeps a souvenir of it."
                     ]
                 ),
                 StoryForm(
@@ -4703,10 +4709,8 @@ enum StoryFormRegistry {
                     name: "The Visitation",
                     directorNote: "Someone arrives mid-task with their own agenda.",
                     beats: [
-                        "Interrupt: a character arrives while something real is half-done; they need something.",
-                        "Agenda: what they actually want surfaces sideways, through behavior not announcement.",
-                        "Exchange: a gift, a favor, or a truth changes hands; the half-done task participates.",
-                        "Residue: they leave; something of theirs remains, physical and slightly wrong."
+                        "Interrupt: a character arrives while something real is half-done, needing something they do not name cleanly.",
+                        "Residue: after the reader's answer, something changes hands or remains behind, physical and slightly wrong."
                     ]
                 ),
                 StoryForm(
@@ -4714,10 +4718,8 @@ enum StoryFormRegistry {
                     name: "The Quiet Epic",
                     directorNote: "Tiny stakes carried with mythic seriousness.",
                     beats: [
-                        "The quest is declared: something domestic and small, treated as if kingdoms depend on it.",
-                        "The attempt: real effort, real obstacles, the world resists in petty believable ways.",
-                        "The setback: comic or tender, never humiliating; an ally appears from the cast.",
-                        "The modest triumph: the small thing is done; the scale of feeling stays epic."
+                        "The quest is declared: something domestic and small is treated as if kingdoms depend on it.",
+                        "The modest triumph: the chosen response changes the small thing; the scale of feeling stays epic."
                     ]
                 ),
                 StoryForm(
@@ -4725,10 +4727,8 @@ enum StoryFormRegistry {
                     name: "The Correspondence",
                     directorNote: "The scene happens around a piece of writing.",
                     beats: [
-                        "Found: a note, letter, label, or margin scrawl turns up where it shouldn't be.",
-                        "Read: its contents, quoted; what it asks for is not quite what it says.",
-                        "Answer: the reader or a character writes back, in real ink, with one true line.",
-                        "Sealed: the reply leaves by an odd route; what was unsaid stays behind, named."
+                        "Found: a note, letter, label, or margin scrawl turns up where it should not be, asking more than it says.",
+                        "Sealed: the chosen answer leaves by an odd route; what was unsaid stays behind, named."
                     ]
                 ),
                 StoryForm(
@@ -4736,10 +4736,8 @@ enum StoryFormRegistry {
                     name: "The Nocturne",
                     directorNote: "Night logic; the Nothing tests the edges.",
                     beats: [
-                        "Lamp: the scene begins in low light with one warm source and one sound.",
-                        "Fray: at the edge of attention, something has gone grey — a detail half-erased.",
-                        "Hold: the reader and one character keep the detail lit by naming it precisely.",
-                        "Ledger: dawn or sleep approaches; what was kept is written down, what was lost is admitted."
+                        "Lamp: the scene begins in low light as one precise detail starts to fray at the edge of attention.",
+                        "Ledger: after the chosen response, what was kept is written down and what was lost is admitted."
                     ]
                 )
             ],
@@ -4785,39 +4783,69 @@ enum StoryFormRegistry {
     }
 
     static let coreRecipes: [StoryRecipe] = [
-        recipe("dorm-room-visit", "Dorm-Room Visit", requirements: [.groundedSource, .character], mode: .conversation,
+        recipe("dorm-room-visit", "Dorm-Room Visit", weight: 5, requirements: [.groundedSource, .character], mode: .conversation,
             premise: "{{lead}} visits your dorm because {{grounding}} has given them a concrete reason to knock.",
-            beats: ["The knock interrupts an ordinary moment.", "{{lead}} names the exact reason for the visit.", "The conversation makes {{grounding}} mean something new.", "The visitor leaves a small residue behind."],
-            turn: turn(.revealWant, want: "to talk with the reader about {{grounding}} without turning it into a confrontation", obstacle: "{{lead}} is not sure how plainly to begin", statement: "By the end, {{lead}} has said or learned one specific thing about {{grounding}}.", slice: "The visit becomes easy company, and {{lead}} stays a little longer.", progress: "What {{lead}} says moves {{thread}} one honest step.", surprise: "The real reason for the visit is stranger and kinder than it first appeared."),
+            beats: ["The knock interrupts an ordinary moment and {{lead}} names the exact reason for the visit.", "After the reader's answer, the visit leaves a small residue behind and {{grounding}} means something new."],
+            turn: turn(.revealWant, want: "to ask the reader one careful question about {{grounding}}", obstacle: "{{lead}} has brought the wrong opening line and knows it", statement: "By the end, {{lead}} has said or learned one specific thing about {{grounding}}.", slice: "The visit becomes easy company, and {{lead}} stays a little longer.", progress: "What {{lead}} says moves {{thread}} one honest step.", surprise: "The real reason for the visit is stranger and kinder than it first appeared."),
             tags: ["daily", "care", "rest"], forms: ["visitation"], genres: ["pastoral", "kindly-ghost"],
             grounding: "Use the grounded detail as the visitor's real pretext, not decorative flavor.", tone: "Intimate and unhurried; disagreement is optional and usually absent.", choices: "Offer ways to ask, share, invite, joke, or let the moment rest.", continuation: "Let the visit deepen or end; do not manufacture a quarrel."),
+        recipe("misdelivered-object", "Misdelivered Object", requirements: [.groundedSource], mode: .balanced,
+            premise: "A small item tied to {{grounding}} arrives in the wrong place and insists it belongs to {{thread}}.",
+            beats: ["Show the object, its wrong address, and the first practical problem it creates.", "After the chosen response, the object is kept, returned, opened, or proven to have chosen its destination."],
+            turn: turn(.handOff, want: "to find where the misdelivered part of {{grounding}} belongs", obstacle: "every label on it names a different owner", statement: "By the end, the misdelivered thing is kept, returned, opened, or reassigned with consequences.", slice: "The reader studies one ordinary mark on the item before deciding.", progress: "The corrected delivery moves {{thread}} one visible step.", surprise: "The item was not misdelivered; it was avoiding its intended recipient."),
+            tags: ["objects", "daily", "letters"], forms: ["correspondence", "small-mystery"], genres: ["cozy-mystery", "field-naturalist"],
+            grounding: "Make the grounded detail physically legible on the object: a mark, smell, label, crease, stain, sound, or note.", tone: "Curious and practical; let the problem be small enough to handle.", choices: "Offer inspecting, returning, opening, refusing, trading, or asking the named owner.", continuation: "Follow the object's consequence; do not send the same item to another wrong address."),
+        recipe("tiny-heist", "Tiny Heist", requirements: [.groundedSource, .character, .activeThread], mode: .action,
+            premise: "{{lead}} proposes a tiny harmless caper using {{grounding}} to retrieve, swap, hide, or protect one thing in {{thread}}.",
+            beats: ["State the caper and the ridiculous constraint that makes it hard.", "After the chosen response, the plan succeeds, fails neatly, or reveals a better target."],
+            turn: turn(.smallDecision, want: "to pull off one harmless precise maneuver involving {{grounding}}", obstacle: "the plan depends on timing nobody quite controls", statement: "By the end, the caper has succeeded, failed neatly, or changed targets.", slice: "The reader handles the smallest part of the plan with care.", progress: "The maneuver changes where {{thread}} can go next.", surprise: "The wrong target turns out to be the right one."),
+            tags: ["mission", "energy", "objects"], forms: ["quiet-epic", "threshold-crossing"], genres: ["tiny-heist", "serial-adventure"],
+            grounding: "Make the grounded detail necessary to the caper, not merely present.", tone: "Quick, playful, competent, and bounded; no real crime, no real-world assignment.", choices: "Offer planning, acting, aborting, improvising, distracting, hiding, swapping, or protecting.", continuation: "Show the plan's consequence in motion; never reset to planning."),
+        recipe("false-alarm", "False Alarm", requirements: [.groundedSource], mode: .environmental,
+            premise: "{{grounding}} trips an alarm inside {{thread}}, but the warning is almost certainly wrong.",
+            beats: ["Let the alarm interrupt one ordinary action and show the evidence that argues against panic.", "After the chosen response, the alarm is silenced, obeyed, repurposed, or revealed to warn about something smaller."],
+            turn: turn(.factLearned, want: "to learn what {{grounding}} is actually warning about", obstacle: "the loudest signal is pointing at the wrong danger", statement: "By the end, the warning has been silenced, obeyed, repurposed, or corrected.", slice: "The reader notices the small harmless clue underneath the noise.", progress: "The corrected warning points directly into {{thread}}.", surprise: "The alarm is not warning anyone; it is asking to be noticed."),
+            tags: ["weather", "body", "grey", "evidence"], forms: ["small-mystery", "nocturne"], genres: ["gentle-horror", "cozy-mystery"],
+            grounding: "Let the grounded detail cause the warning and also contain the evidence that revises it.", tone: "Tense for a breath, then lucid and humane.", choices: "Offer checking, silencing, following, naming, sheltering, or refusing the false urgency.", continuation: "Advance from the corrected warning; do not ring the same alarm again."),
+        recipe("field-test", "Field Test", requirements: [.groundedSource, .character], mode: .action,
+            premise: "{{lead}} needs to test a small theory about {{grounding}} before trusting it inside {{thread}}.",
+            beats: ["Name the theory and the tiny safe test that could disprove it.", "After the chosen response, the test produces a partial result that changes the next question."],
+            turn: turn(.factLearned, want: "to test whether {{grounding}} behaves the way {{lead}} suspects", obstacle: "the first result can be read two ways", statement: "By the end, the test has produced one partial result that changes the next question.", slice: "The reader records the smallest observable result.", progress: "The result gives {{thread}} a usable fact.", surprise: "The test answers a different question than the one {{lead}} asked."),
+            tags: ["wonder", "research", "objects"], forms: ["small-mystery", "threshold-crossing"], genres: ["field-naturalist", "cozy-mystery"],
+            grounding: "Make the test safe, fictional, bounded, and based on observable features of the grounded detail.", tone: "Investigative and exact, with room for a small laugh.", choices: "Offer measuring, comparing, repeating, stopping, asking, or changing the test.", continuation: "Move to a new question created by the result; do not retest the same claim."),
         recipe("nothing-library-corner", "Nothing in the Library Corner", requirements: [.groundedSource, .nothingPressure], mode: .environmental,
             premise: "In a library corner, the Nothing begins erasing one precise part of {{grounding}} while the reader is close enough to intervene.",
-            beats: ["Show the first exact absence.", "Let the Nothing advance through the setting.", "Make the reader's available responses materially different.", "Leave one protected detail or admitted loss."],
+            beats: ["Show the first exact absence and make the reader's available responses materially different.", "After the chosen response, leave one protected detail or admitted loss."],
             turn: turn(.smallDecision, want: "to keep {{grounding}} from being flattened by the Nothing", obstacle: "the erasure advances whenever nobody names what is actually there", statement: "By the end, one exact part of {{grounding}} is protected, changed, or honestly lost.", slice: "The reader protects one modest detail and lets the rest wait.", progress: "The defense exposes how the Nothing is entering {{thread}}.", surprise: "What looked erased has moved somewhere unexpected instead."),
             tags: ["grey", "night", "quiet"], forms: ["nocturne", "small-mystery"], genres: ["gentle-horror"],
             grounding: "Name exactly what is greying or vanishing.", tone: "Eerie but humane; the environment is allowed to act.", choices: "Offer concrete ways to name, shelter, move, trade for, or release the threatened detail.", continuation: "The Nothing may act again; advance the physical consequence rather than forcing dialogue."),
         recipe("small-discovery", "Small Discovery", requirements: [.groundedSource], mode: .balanced,
             premise: "A small inconsistency in {{grounding}} becomes a clue inside {{thread}}.",
-            beats: ["State the oddity plainly.", "Test it with one action or question.", "Reveal a useful partial answer.", "Let the discovery alter the next choice."],
+            beats: ["State the oddity plainly and test it with one action or question.", "After the chosen response, reveal a useful partial answer that alters what can happen next."],
             turn: turn(.factLearned, want: "to understand why {{grounding}} does not quite add up", obstacle: "the first explanation is tidy but wrong", statement: "By the end, a concrete fact about {{grounding}} recolors {{thread}}.", slice: "The reader keeps the discovery small and learns what it means nearby.", progress: "The clue points directly into {{thread}}.", surprise: "The clue belongs to someone or something nobody suspected."),
             tags: ["wonder", "objects", "evidence"], forms: ["small-mystery"], genres: ["cozy-mystery", "field-naturalist"],
             grounding: "The clue must be an observable feature of the grounded detail.", tone: "Curious, lucid, and specific rather than ominously vague.", choices: "Offer investigation, disclosure, preservation, or a plausible sideways test.", continuation: "Advance to a new clue or consequence; never rediscover the same oddity."),
         recipe("odd-favor", "Odd Favor", requirements: [.groundedSource, .character, .activeThread], mode: .action,
             premise: "{{lead}} asks the reader for one bounded fictional favor involving {{grounding}} and {{thread}}.",
-            beats: ["State the favor in concrete terms.", "Show why {{lead}} cannot simply do it alone.", "Expose one complication.", "Make acceptance, revision, and refusal all interesting."],
+            beats: ["State the favor in concrete terms and show why {{lead}} cannot simply do it alone.", "After the chosen response, the favor is accepted, revised, refused, or handed elsewhere with clear consequences."],
             turn: turn(.handOff, want: "the reader's help with a specific fictional task involving {{grounding}}", obstacle: "{{lead}} has omitted one inconvenient part of the favor", statement: "By the end, the favor is accepted, changed, refused, or handed elsewhere with clear consequences.", slice: "The reader helps only with the small immediate part.", progress: "The favor moves {{thread}} through a visible action.", surprise: "The reader rewrites who the favor is really for."),
             tags: ["mission", "momentum"], forms: ["quiet-epic", "threshold-crossing"], genres: ["tiny-heist", "serial-adventure"],
             grounding: "Make the grounded detail necessary to the fictional favor.", tone: "Playful and bounded, never a real-world assignment falsely marked complete.", choices: "Offer help, renegotiation, refusal, delegation, or an inventive fictional method.", continuation: "Show the favor's consequence in action; do not repeat the request."),
         recipe("shared-quiet", "Shared Quiet", requirements: [.groundedSource, .character], mode: .balanced,
             premise: "{{lead}} shares an ordinary quiet activity with the reader while {{grounding}} sits naturally between them.",
-            beats: ["Begin with the activity already underway.", "Let one exact detail earn attention.", "Allow a small truth or joke without demanding confession.", "End with companionship or noticing changed by one notch."],
+            beats: ["Begin with the activity already underway and let one exact detail earn attention.", "After the chosen response, end with companionship or noticing changed by one notch."],
             turn: turn(.realNoticing, want: "to spend unforced time with the reader around {{grounding}}", obstacle: "the moment will flatten if either person tries to make it profound", statement: "By the end, {{lead}} and the reader have noticed or understood one small true thing together.", slice: "They keep doing the ordinary thing, now with a private shared detail.", progress: "The noticing gives {{thread}} a quiet new fact.", surprise: "A sideways joke or observation changes how the moment is remembered."),
             tags: ["rest", "care", "quiet"], forms: ["quiet-epic", "correspondence"], genres: ["pastoral", "field-naturalist"],
             grounding: "Let the detail participate in the shared activity without becoming a symbol lecture.", tone: "Warm, low-pressure, and comfortable with silence.", choices: "Offer small actions, honest noticing, a question, a joke, or simply staying.", continuation: "Keep the pressure low; deepen attention instead of inventing conflict."),
-        recipe("concrete-disagreement", "Concrete Disagreement", weight: 2, requirements: [.groundedSource, .character, .secondCharacter], mode: .conversation,
+        recipe("trade-at-the-margin", "Trade at the Margin", requirements: [.groundedSource, .character], mode: .balanced,
+            premise: "{{lead}} offers a small exchange at the edge of {{thread}}: one favor, fact, token, or permission for one piece of {{grounding}}.",
+            beats: ["State the offered trade and what makes it tempting but not free.", "After the chosen response, the bargain is accepted, refused, revised, or paid by someone unexpected."],
+            turn: turn(.handOff, want: "to trade for one specific part of {{grounding}}", obstacle: "the price is small but not meaningless", statement: "By the end, the trade is accepted, refused, revised, or paid by someone unexpected.", slice: "The reader asks what the small price actually is.", progress: "The exchange moves {{thread}} through a real transfer.", surprise: "Someone else pays the price before the reader can answer."),
+            tags: ["daily", "faction", "objects"], forms: ["threshold-crossing", "correspondence"], genres: ["cozy-mystery", "serial-adventure"],
+            grounding: "Make the grounded detail the thing traded for, traded with, or used to set the price.", tone: "Courteous, exact, and faintly dangerous without becoming a formal fae bargain.", choices: "Offer accepting, refusing, revising terms, naming the cost, or redirecting the payment.", continuation: "Honor the trade's price or refusal; do not offer the same bargain again."),
+        recipe("concrete-disagreement", "Concrete Disagreement", weight: 7, requirements: [.groundedSource, .character, .secondCharacter], mode: .conversation,
             premise: "{{lead}} and {{companion}} disagree about one concrete consequence of {{grounding}}, not about vague principles.",
-            beats: ["Both characters name the same evidence.", "Each gives a distinct fair interpretation.", "The practical consequence becomes clear.", "Leave the reader a meaningful way to intervene."],
+            beats: ["Both characters name the same evidence and give distinct fair interpretations.", "After the chosen intervention, the practical consequence becomes clear and changes what they will do next."],
             turn: turn(.relationshipShift, want: "{{companion}} to accept {{lead}}'s reading of {{grounding}}", obstacle: "{{companion}} sees the same evidence and reaches a different practical conclusion", statement: "By the end, the disagreement about {{grounding}} changes what {{lead}} and {{companion}} will do next.", slice: "The reader finds the small point both can live with.", progress: "One reading wins enough ground to move {{thread}}.", surprise: "The reader names a third reading that changes the dispute."),
             tags: ["tension", "evidence"], forms: ["small-mystery"], genres: ["cozy-mystery"],
             grounding: "Repeat the exact named evidence both characters are interpreting.", tone: "Fair, concrete, and practical; never generic bickering.", choices: "Offer siding, reframing, asking for evidence, or declining to judge.", continuation: "Show what the disagreement changes; do not merely restate both positions.", suppressedBy: [.twoReadings], suppressionHours: 72)

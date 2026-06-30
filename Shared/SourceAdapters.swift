@@ -1491,6 +1491,11 @@ enum BookRememberedEngine {
             reasons.append(signal.line)
         }
 
+        if let relationshipReason = relationshipReturnReason(for: page, inputs: inputs) {
+            score += 16
+            reasons.insert(relationshipReason, at: 0)
+        }
+
         if page.type == .souvenir {
             score += 8
         }
@@ -1502,6 +1507,42 @@ enum BookRememberedEngine {
             reasons.append("It came back softly, for no louder reason than timing.")
         }
         return (page, score, reasons[0])
+    }
+
+    private static func relationshipReturnReason(for page: BookPage, inputs: BookSourceInputs) -> String? {
+        let pageText = "\(page.promptText) \(page.userInput) \(page.tags.joined(separator: " "))".lowercased()
+        if pageText.contains("inkrest") {
+            return "Dr. Selene Inkrest is moving in the margins again, so this old page has become evidence."
+        }
+        if pageText.contains("vellum") {
+            return "Dr. Elowen Vellum is moving in the margins again, so this old page has become evidence."
+        }
+        let entities = NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity)
+        let namedEntities = entities
+            .filter { entity in
+                pageText.contains(entity.id.lowercased())
+                    || pageText.contains(entity.name.lowercased())
+                    || entity.name
+                        .lowercased()
+                        .split { !$0.isLetter && !$0.isNumber }
+                        .contains { token in token.count >= 5 && pageText.contains(token) }
+            }
+        if let entity = namedEntities.max(by: { $0.narrativeWeight + $0.belief < $1.narrativeWeight + $1.belief }) {
+            return "\(entity.name) is moving in the margins again, so this old page has become evidence."
+        }
+
+        let activeTie = inputs.relationshipField
+            .filter { _, tie in tie.warmth + tie.tension + tie.familiarity >= 5 }
+            .sorted { left, right in
+                let leftWeight = left.value.warmth + left.value.tension + left.value.familiarity
+                let rightWeight = right.value.warmth + right.value.tension + right.value.familiarity
+                return leftWeight > rightWeight
+            }
+            .first
+        if activeTie != nil, page.type == .letter || page.tags.contains("relationship") || page.tags.contains("friend") || page.tags.contains("family") {
+            return "A living relationship has shifted, and this page now reads like an earlier clue."
+        }
+        return nil
     }
 
     private static func meaningfulWords(in text: String) -> Set<String> {
@@ -3398,6 +3439,12 @@ struct LabyrinthIllustrationPageSourceAdapter: BookPageSourceAdapter {
     }
 
     static func bookPageBody(for profile: CharacterIllustrationProfile) -> String {
+        // A hand-authored dossier always wins over the generated one. Only the
+        // canonical Cast has bespoke prose; locations, talismans, Book Fae, and
+        // any character without an entry fall through to the generator below.
+        if let bespoke = CastDossier.bio(forSlug: profile.slug) {
+            return bespoke
+        }
         let name = profile.characterName
         let core = coreProse(for: profile)
         let palette = paletteLine(for: profile)
@@ -3892,7 +3939,19 @@ struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
             metadata["imageAssetKind"] = imageAsset.kind.rawValue
             metadata["imageAssetReference"] = imageAsset.reference
         }
-        let body = Self.castBody(for: entity, description: description, meaning: meaning)
+        // A bundled cast member with real dossier art should show that full
+        // illustration in the body and shelf preview — not just the medallion
+        // in the header. When a matching illustration profile exists we also
+        // hand the page that profile's richer, character-specific prose so the
+        // card reads like a dossier instead of a filled-in form.
+        let profile = imageAsset == nil ? CharacterPortrait.profile(forName: entity.name) : nil
+        if let profile, let bundledAsset = CharacterPortrait.bundledAssetName(forName: entity.name) {
+            metadata["assetName"] = bundledAsset
+            metadata["characterID"] = profile.id
+            metadata["characterSlug"] = profile.slug
+        }
+        let body = profile.map(LabyrinthIllustrationPageSourceAdapter.bookPageBody(for:))
+            ?? Self.castBody(for: entity, description: description, meaning: meaning)
         let slotID = manual ? "\(Int(now.timeIntervalSince1970))" : SurfaceCadence.minuteSlotID(for: now, minutes: 20)
         return SurfacePage(
             id: "\(source.id)-cast-\(entity.id)-\(slotID)",
@@ -3903,7 +3962,8 @@ struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
             score: context.distress.isActive ? 44 : min(70, 42 + belief / 3 + entity.narrativeWeight / 5),
             reason: "\(entity.name) has enough Belief to step into the margins.",
             prompt: entity.name,
-            detail: meaning.isEmpty ? (isLocation ? "A place in the Book's living world." : "A member of the Book's cast.") : meaning,
+            detail: profile.map(LabyrinthIllustrationPageSourceAdapter.bookDetail(for:))
+                ?? (meaning.isEmpty ? (isLocation ? "A place in the Book's living world." : "A member of the Book's cast.") : meaning),
             payload: BookPagePayload(
                 headline: entity.name,
                 body: body.isEmpty ? "\(entity.name) is part of the Book's living world." : body,

@@ -52,6 +52,14 @@ final class LocalBrainTelemetryStateTests: XCTestCase {
     func testFinishWorkClearsTransientCountersAndRecordsFinishTime() {
         var telemetry = LocalBrainTelemetryState()
         _ = telemetry.beginOrUpdateWork(label: "Gossip Page", promptCharacters: 800, queuedCount: 3)
+        telemetry.updateGenerationProgress(
+            label: "Gossip Page",
+            text: "The first line is arriving.",
+            generatedCharacters: 27,
+            promptTokens: 120,
+            generatedTokens: 6,
+            tokensPerSecond: 8.5
+        )
         let finishedAt = Date(timeIntervalSince1970: 200)
 
         telemetry.finishWork(now: finishedAt)
@@ -60,6 +68,8 @@ final class LocalBrainTelemetryStateTests: XCTestCase {
         XCTAssertNil(telemetry.startedAt)
         XCTAssertEqual(telemetry.currentPromptCharacters, 0)
         XCTAssertEqual(telemetry.currentQueuedCount, 0)
+        XCTAssertNil(telemetry.currentGenerationPreview)
+        XCTAssertNil(telemetry.currentGenerationProgressLine)
         XCTAssertEqual(telemetry.lastFinishedAt, finishedAt)
         XCTAssertEqual(telemetry.lastLabel, "Gossip Page")
         XCTAssertEqual(telemetry.lastPromptCharacters, 800)
@@ -91,6 +101,41 @@ final class LocalBrainTelemetryStateTests: XCTestCase {
 
         XCTAssertNil(telemetry.currentWorkStatus)
         XCTAssertEqual(telemetry.lastWorkStatus { _ in "12:00:00" }, "Braid · 900 chars · 12:00:00")
+    }
+
+    func testGenerationProgressTracksPreviewAndPerformanceLine() {
+        var telemetry = LocalBrainTelemetryState()
+        _ = telemetry.beginOrUpdateWork(label: "story-page", promptCharacters: 1200, queuedCount: 0)
+
+        telemetry.updateGenerationProgress(
+            label: "story-page",
+            text: " SCENE:\nA door writes itself open.",
+            generatedCharacters: 34,
+            promptTokens: 412,
+            generatedTokens: 9,
+            tokensPerSecond: 7.25
+        )
+
+        XCTAssertEqual(telemetry.currentGenerationPreview, "SCENE:\nA door writes itself open.")
+        XCTAssertEqual(telemetry.currentGenerationProgressLine, "9 tokens · 7.2 tok/s · 412 prompt tokens")
+    }
+
+    func testChangingWorkLabelClearsPreviousGenerationProgress() {
+        var telemetry = LocalBrainTelemetryState()
+        _ = telemetry.beginOrUpdateWork(label: "story-page", promptCharacters: 1200, queuedCount: 0)
+        telemetry.updateGenerationProgress(
+            label: "story-page",
+            text: "Wet ink.",
+            generatedCharacters: 8,
+            promptTokens: nil,
+            generatedTokens: nil,
+            tokensPerSecond: nil
+        )
+
+        _ = telemetry.beginOrUpdateWork(label: "gossip-page", promptCharacters: 900, queuedCount: 0)
+
+        XCTAssertNil(telemetry.currentGenerationPreview)
+        XCTAssertNil(telemetry.currentGenerationProgressLine)
     }
 
     func testErrorCanBeRecordedAndCleared() {

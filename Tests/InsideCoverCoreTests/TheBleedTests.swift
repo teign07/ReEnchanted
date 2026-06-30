@@ -31,6 +31,10 @@ final class TheBleedTests: XCTestCase {
         )
     }
 
+    private func themePage(_ id: String, day: Int, text: String) -> BookPage {
+        BookPage(id: id, type: .diary, createdAt: date(day, hour: 10), promptText: "Diary", userInput: text)
+    }
+
     private var day: BookDay {
         BookDay(id: "2026-06-10", date: date(10, hour: 0), pages: [])
     }
@@ -56,6 +60,64 @@ final class TheBleedTests: XCTestCase {
         XCTAssertTrue(briefs.contains { $0.id == "weather-desk" && !$0.needsLocalBrain })
         XCTAssertTrue(briefs.contains { $0.id == "interest-desk" })
         XCTAssertFalse((announcement?.payload.metadata["bleedInterest"] ?? "").isEmpty)
+    }
+
+    func testThemeDeskReportsUnstableThemeInTheBleed() throws {
+        let pages = [
+            themePage("theme-1", day: 1, text: "The harbor kept a secret and the secret kept the harbor."),
+            themePage("theme-2", day: 3, text: "The harbor made the secret sound like weather."),
+            themePage("theme-3", day: 5, text: "The secret came back to the harbor before breakfast.")
+        ]
+        let theme = try XCTUnwrap(BookThemeEngine.theme(
+            for: pages,
+            digest: .empty,
+            monthKey: "2026-06",
+            now: date(5, hour: 12),
+            calendar: calendar
+        ))
+        var inputs = BookSourceInputs.empty
+        inputs.days = [BookDay(id: "2026-06-theme", date: date(5, hour: 0), pages: pages)]
+        inputs.themes = [theme]
+
+        let announcement = try XCTUnwrap(TheBleedEditionBuilder.announcementSurface(for: day, inputs: inputs, now: date(10, hour: 8), calendar: calendar))
+        let briefs = TheBleedEditionBuilder.decodedBriefs(announcement.payload.metadata["bleedBriefs"] ?? "")
+        let themeBrief = try XCTUnwrap(briefs.first { $0.id == "theme-desk" })
+
+        XCTAssertEqual(announcement.payload.metadata["monthlyThemeStatus"], "provisional")
+        XCTAssertTrue(announcement.payload.body.contains("still unstable"))
+        XCTAssertTrue(themeBrief.composedBody.contains("UNSTABLE THEME WATCH"))
+        XCTAssertTrue(themeBrief.composedBody.contains("reading the headline in pencil"))
+    }
+
+    func testThemeDeskReportsStableThemeInTheBleed() throws {
+        let pages = [
+            themePage("theme-1", day: 1, text: "The harbor kept a secret and the secret kept the harbor."),
+            themePage("theme-2", day: 3, text: "The harbor made the secret sound like weather."),
+            themePage("theme-3", day: 5, text: "The secret came back to the harbor before breakfast."),
+            themePage("theme-4", day: 7, text: "The harbor wrote the secret in rainwater."),
+            themePage("theme-5", day: 9, text: "The secret returned to the harbor with salt on it."),
+            themePage("theme-6", day: 11, text: "The harbor held the secret up to the light."),
+            themePage("theme-7", day: 13, text: "The secret and the harbor finally agreed on a name.")
+        ]
+        let theme = try XCTUnwrap(BookThemeEngine.theme(
+            for: pages,
+            digest: .empty,
+            monthKey: "2026-06",
+            now: date(13, hour: 12),
+            calendar: calendar
+        ))
+        var inputs = BookSourceInputs.empty
+        inputs.days = [BookDay(id: "2026-06-theme", date: date(13, hour: 0), pages: pages)]
+        inputs.themes = [theme]
+
+        let announcement = try XCTUnwrap(TheBleedEditionBuilder.announcementSurface(for: day, inputs: inputs, now: date(13, hour: 8), calendar: calendar))
+        let briefs = TheBleedEditionBuilder.decodedBriefs(announcement.payload.metadata["bleedBriefs"] ?? "")
+        let themeBrief = try XCTUnwrap(briefs.first { $0.id == "theme-desk" })
+
+        XCTAssertEqual(announcement.payload.metadata["monthlyThemeStatus"], "stable")
+        XCTAssertTrue(announcement.payload.body.contains("is stable for the month"))
+        XCTAssertTrue(themeBrief.composedBody.contains("STABLE MONTHLY THEME"))
+        XCTAssertTrue(themeBrief.composedBody.contains("set in type for the month"))
     }
 
     func testAnnouncementCarriesActiveWorldEventPacket() {

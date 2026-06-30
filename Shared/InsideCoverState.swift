@@ -677,6 +677,11 @@ struct LocalBrainTelemetryState: Codable, Equatable {
     private(set) var currentLabel = "the Book"
     private(set) var currentPromptCharacters = 0
     private(set) var currentQueuedCount = 0
+    private(set) var currentGeneratedText = ""
+    private(set) var currentGeneratedCharacters = 0
+    private(set) var currentPromptTokens: Int?
+    private(set) var currentGeneratedTokens: Int?
+    private(set) var currentTokensPerSecond: Double?
     private(set) var startedAt: Date?
     private(set) var lastLabel = "none"
     private(set) var lastPromptCharacters = 0
@@ -686,6 +691,27 @@ struct LocalBrainTelemetryState: Codable, Equatable {
     var currentWorkStatus: String? {
         guard isWorking else { return nil }
         return "\(currentLabel) · \(currentPromptCharacters) chars · \(currentQueuedCount) queued"
+    }
+
+    var currentGenerationPreview: String? {
+        let preview = currentGeneratedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return preview.isEmpty ? nil : preview
+    }
+
+    var currentGenerationProgressLine: String? {
+        var parts: [String] = []
+        if let currentGeneratedTokens {
+            parts.append("\(currentGeneratedTokens) tokens")
+        } else if currentGeneratedCharacters > 0 {
+            parts.append("\(currentGeneratedCharacters) chars")
+        }
+        if let currentTokensPerSecond {
+            parts.append("\(String(format: "%.1f", currentTokensPerSecond)) tok/s")
+        }
+        if let currentPromptTokens {
+            parts.append("\(currentPromptTokens) prompt tokens")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     func lastWorkStatus(formatDate: (Date) -> String) -> String {
@@ -712,13 +738,36 @@ struct LocalBrainTelemetryState: Codable, Equatable {
             startedAt = now
         }
         let displayLabel = label ?? "the Book"
+        let didChangeLabel = currentLabel != displayLabel
         isWorking = true
         currentLabel = displayLabel
         currentPromptCharacters = promptCharacters
         currentQueuedCount = queuedCount
+        if didBegin || didChangeLabel {
+            clearGenerationProgress()
+        }
         lastLabel = displayLabel
         lastPromptCharacters = promptCharacters
         return didBegin
+    }
+
+    mutating func updateGenerationProgress(
+        label: String?,
+        text: String,
+        generatedCharacters: Int,
+        promptTokens: Int?,
+        generatedTokens: Int?,
+        tokensPerSecond: Double?
+    ) {
+        if let label, !label.isEmpty {
+            currentLabel = label
+            lastLabel = label
+        }
+        currentGeneratedText = text
+        currentGeneratedCharacters = generatedCharacters
+        currentPromptTokens = promptTokens
+        currentGeneratedTokens = generatedTokens
+        currentTokensPerSecond = tokensPerSecond
     }
 
     mutating func finishWork(now: Date = Date()) {
@@ -726,6 +775,7 @@ struct LocalBrainTelemetryState: Codable, Equatable {
         startedAt = nil
         currentQueuedCount = 0
         currentPromptCharacters = 0
+        clearGenerationProgress()
         lastFinishedAt = now
     }
 
@@ -735,6 +785,7 @@ struct LocalBrainTelemetryState: Codable, Equatable {
         startedAt = nil
         currentQueuedCount = 0
         currentPromptCharacters = 0
+        clearGenerationProgress()
     }
 
     mutating func recordError(_ error: String) {
@@ -743,6 +794,14 @@ struct LocalBrainTelemetryState: Codable, Equatable {
 
     mutating func clearError() {
         lastError = nil
+    }
+
+    private mutating func clearGenerationProgress() {
+        currentGeneratedText = ""
+        currentGeneratedCharacters = 0
+        currentPromptTokens = nil
+        currentGeneratedTokens = nil
+        currentTokensPerSecond = nil
     }
 }
 
@@ -1590,9 +1649,7 @@ struct CuratorSurfacePreferences: Equatable {
     }
 
     func allows(_ page: SurfacePage) -> Bool {
-        !dismissedSurfaceIDs.contains(page.id)
-            && !dismissedSurfaceIDs.contains(page.varietyKey)
-            && !dismissedSurfaceIDs.contains("source:\(page.sourceID)")
+        dismissedSurfaceIDs.isDisjoint(with: page.curatorDeskExclusionKeys)
             && !disabledSourceIDs.contains(page.sourceID)
     }
 

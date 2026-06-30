@@ -346,16 +346,23 @@ struct StoryFieldStatusCard: View {
         surface?.payload.metadata ?? [:]
     }
 
+    private var hasPreparedPage: Bool {
+        metadata["storyScene"]?.nonEmpty != nil
+    }
+
     private var title: String {
-        surface == nil ? "Story Field" : "Story Page ready"
+        hasPreparedPage ? "Story Page ready" : "Story Field"
     }
 
     private var statusText: String {
         if isPreparing {
             return "ink moving"
         }
-        if surface != nil {
+        if hasPreparedPage {
             return "page waiting"
+        }
+        if surface != nil {
+            return "packet chosen"
         }
         return "listening"
     }
@@ -429,9 +436,7 @@ struct StoryFieldStatusCard: View {
                 }
             }
 
-            Text(surface == nil
-                 ? "The Book has not laid a Story Page in the margin yet."
-                 : "The next Story Page has enough weight to open.")
+            Text(statusBody)
                 .font(.system(.body, design: .serif))
                 .foregroundStyle(BookPalette.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -479,6 +484,16 @@ struct StoryFieldStatusCard: View {
         }
         .padding(16)
         .parchmentSurface(accent: BookPalette.violet, isActive: surface != nil || isPreparing)
+    }
+
+    private var statusBody: String {
+        if hasPreparedPage {
+            return "The next Story Page has enough weight to open."
+        }
+        if surface != nil {
+            return "The next Story Page is gathering around this exact packet."
+        }
+        return "The Book has not laid a Story Page in the margin yet."
     }
 
     private func metadataList(_ key: String) -> [String] {
@@ -1667,6 +1682,8 @@ struct LocalBrainWorkingStatusCard: View {
     var quip: String? = nil
     var startedAt: Date? = nil
     var queuedCount = 0
+    var liveText: String? = nil
+    var progressLine: String? = nil
     var presentation: ScribeWorkPresentation = .page
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -1676,6 +1693,12 @@ struct LocalBrainWorkingStatusCard: View {
 
     private var descriptor: ScribeWorkDescriptor { ScribeWorkDescriptor(label: label) }
     private var isCompact: Bool { presentation == .compact }
+    private var livePreview: String? {
+        liveText?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+    private var progressCaption: String? {
+        progressLine?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
 
     private enum WaitActivity: String, CaseIterable {
         case loosePage
@@ -1735,6 +1758,11 @@ struct LocalBrainWorkingStatusCard: View {
             }
 
             if !isCompact {
+                if let livePreview {
+                    liveInkPreview(livePreview)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+
                 Text(quip?.nonEmpty ?? descriptor.quip)
                     .font(.system(.body, design: .serif, weight: .semibold))
                     .lineSpacing(3)
@@ -1758,6 +1786,35 @@ struct LocalBrainWorkingStatusCard: View {
         .parchmentSurface(accent: descriptor.accent, isActive: true)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(descriptor.scribe). \(descriptor.title). Writing privately on this iPhone.")
+    }
+
+    private func liveInkPreview(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 8) {
+                Label("Wet ink", systemImage: "text.cursor")
+                    .font(.caption2.weight(.black))
+                    .textCase(.uppercase)
+                    .foregroundStyle(descriptor.accent)
+                Spacer(minLength: 8)
+                if let progressCaption {
+                    Text(progressCaption)
+                        .font(.caption2.monospacedDigit().weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.46))
+                        .lineLimit(1)
+                }
+            }
+
+            GhostInkText(text: text, reduceMotion: reduceMotion)
+                .font(.system(.callout, design: .serif))
+                .lineSpacing(3)
+                .foregroundStyle(BookPalette.ink.opacity(0.82))
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
+                .contentTransition(.opacity)
+        }
+        .waitActivitySurface(accent: descriptor.accent)
+        .animation(.easeInOut(duration: 0.18), value: text.count)
     }
 
     private var scribePortrait: some View {
@@ -1872,6 +1929,69 @@ struct LocalBrainWorkingStatusCard: View {
             ?? RadioStationRegistry.stations(unlockedPackIDs: unlocked).first?.id
         if let stationID {
             radioManager.tune(stationID: stationID, unlockedPackIDs: unlocked)
+        }
+    }
+}
+
+private struct GhostInkText: View {
+    let text: String
+    let reduceMotion: Bool
+
+    @State private var visibleText = ""
+    @State private var visibleCharacterCount = 0
+
+    var body: some View {
+        Text(visibleText)
+            .task(id: text) {
+                await reveal(text)
+            }
+            .onAppear {
+                if reduceMotion {
+                    visibleText = text
+                    visibleCharacterCount = text.count
+                }
+            }
+    }
+
+    @MainActor
+    private func reveal(_ target: String) async {
+        guard !reduceMotion else {
+            visibleText = target
+            visibleCharacterCount = target.count
+            return
+        }
+
+        if target.isEmpty {
+            visibleText = ""
+            visibleCharacterCount = 0
+            return
+        }
+
+        guard target.hasPrefix(visibleText), visibleCharacterCount <= target.count else {
+            visibleText = target
+            visibleCharacterCount = target.count
+            return
+        }
+
+        let targetCount = target.count
+        guard visibleCharacterCount < targetCount else {
+            visibleText = target
+            visibleCharacterCount = targetCount
+            return
+        }
+
+        let remaining = targetCount - visibleCharacterCount
+        let step = max(1, min(12, remaining / 18 + 1))
+
+        while visibleCharacterCount < targetCount && !Task.isCancelled {
+            visibleCharacterCount = min(targetCount, visibleCharacterCount + step)
+            visibleText = String(target.prefix(visibleCharacterCount))
+            try? await Task.sleep(for: .milliseconds(24))
+        }
+
+        if !Task.isCancelled {
+            visibleText = target
+            visibleCharacterCount = targetCount
         }
     }
 }

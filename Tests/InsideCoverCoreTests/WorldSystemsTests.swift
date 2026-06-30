@@ -794,13 +794,17 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(StoryFormRegistry.forms.count, 6)
         XCTAssertGreaterThanOrEqual(StoryFormRegistry.genres.count, 8)
         for form in StoryFormRegistry.forms {
-            XCTAssertGreaterThanOrEqual(form.beats.count, 3, "\(form.id) needs at least 3 beats")
+            XCTAssertEqual(form.beats.count, StoryVignetteBeats.maximumInteractiveTurns, "\(form.id) should stay snack-sized")
         }
         for genre in StoryFormRegistry.genres {
             XCTAssertFalse(genre.lens.isEmpty)
         }
-        XCTAssertEqual(StoryFormRegistry.coreRecipes.count, 6)
+        XCTAssertEqual(StoryFormRegistry.coreRecipes.count, 11)
         XCTAssertTrue(StoryFormRegistry.coreRecipes.allSatisfy(StoryFormRegistry.recipeIsValid))
+        XCTAssertTrue(StoryFormRegistry.coreRecipes.allSatisfy { $0.beats.count == StoryVignetteBeats.maximumInteractiveTurns })
+        XCTAssertFalse(StoryFormRegistry.coreRecipes.contains { recipe in
+            recipe.turns.contains { $0.wantTemplate.localizedCaseInsensitiveContains("without turning it into a confrontation") }
+        })
     }
 
     func testLegacyStoryFormPackDecodesWithoutRecipes() throws {

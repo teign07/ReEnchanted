@@ -1319,6 +1319,11 @@ enum LiteraryContinuityProjector {
 // as chapter subtitles, theme pages, and margin material. Like everything
 // else in the Book, a theme is a literary observation, never a verdict.
 
+enum BookThemeStability: String, Codable, Equatable {
+    case provisional
+    case stable
+}
+
 struct BookTheme: Identifiable, Codable, Equatable {
     var id: String
     var monthKey: String
@@ -1329,13 +1334,118 @@ struct BookTheme: Identifiable, Codable, Equatable {
     var evidencePageIDs: [String]
     var excerptLines: [String]
     var discoveredAt: Date
+    var stability: BookThemeStability
+    var observedDayCount: Int
+    var settledAt: Date?
 
     var promptLine: String {
-        "This month's theme: \(name). \(line)"
+        "\(stabilityTitle): \(name). \(line) \(stabilityDetail)"
+    }
+
+    var isStable: Bool {
+        stability == .stable
+    }
+
+    var stabilityTitle: String {
+        switch stability {
+        case .provisional: return "Provisional monthly theme"
+        case .stable: return "Settled monthly theme"
+        }
+    }
+
+    var stabilityDetail: String {
+        switch stability {
+        case .provisional:
+            return "Status: unstable; the Book is still updating this theme as the month gathers more days."
+        case .stable:
+            return "Status: stable; the Book has stopped resetting this theme for the month."
+        }
+    }
+
+    var readerStatusLine: String {
+        "\(stabilityTitle): \(name). \(stabilityDetail)"
+    }
+
+    init(
+        id: String,
+        monthKey: String,
+        name: String,
+        motifs: [String],
+        line: String,
+        strength: Int,
+        evidencePageIDs: [String],
+        excerptLines: [String],
+        discoveredAt: Date,
+        stability: BookThemeStability = .stable,
+        observedDayCount: Int = 7,
+        settledAt: Date? = nil
+    ) {
+        self.id = id
+        self.monthKey = monthKey
+        self.name = name
+        self.motifs = motifs
+        self.line = line
+        self.strength = strength
+        self.evidencePageIDs = evidencePageIDs
+        self.excerptLines = excerptLines
+        self.discoveredAt = discoveredAt
+        self.stability = stability
+        self.observedDayCount = observedDayCount
+        self.settledAt = settledAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case monthKey
+        case name
+        case motifs
+        case line
+        case strength
+        case evidencePageIDs
+        case excerptLines
+        case discoveredAt
+        case stability
+        case observedDayCount
+        case settledAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        monthKey = try container.decode(String.self, forKey: .monthKey)
+        name = try container.decode(String.self, forKey: .name)
+        motifs = try container.decode([String].self, forKey: .motifs)
+        line = try container.decode(String.self, forKey: .line)
+        strength = try container.decode(Int.self, forKey: .strength)
+        evidencePageIDs = try container.decode([String].self, forKey: .evidencePageIDs)
+        excerptLines = try container.decode([String].self, forKey: .excerptLines)
+        discoveredAt = try container.decode(Date.self, forKey: .discoveredAt)
+        stability = try container.decodeIfPresent(BookThemeStability.self, forKey: .stability) ?? .stable
+        observedDayCount = try container.decodeIfPresent(Int.self, forKey: .observedDayCount) ?? 7
+        settledAt = try container.decodeIfPresent(Date.self, forKey: .settledAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(monthKey, forKey: .monthKey)
+        try container.encode(name, forKey: .name)
+        try container.encode(motifs, forKey: .motifs)
+        try container.encode(line, forKey: .line)
+        try container.encode(strength, forKey: .strength)
+        try container.encode(evidencePageIDs, forKey: .evidencePageIDs)
+        try container.encode(excerptLines, forKey: .excerptLines)
+        try container.encode(discoveredAt, forKey: .discoveredAt)
+        try container.encode(stability, forKey: .stability)
+        try container.encode(observedDayCount, forKey: .observedDayCount)
+        try container.encodeIfPresent(settledAt, forKey: .settledAt)
     }
 }
 
 enum BookThemeEngine {
+    static let minimumObservedDaysForTheme = 3
+    static let stableObservedDaysForTheme = 7
+
     /// Words too structural to be a theme, on top of the continuity stop list.
     private static let themeStop: Set<String> = [
         "today", "yesterday", "tomorrow", "morning", "evening", "night",
@@ -1352,8 +1462,12 @@ enum BookThemeEngine {
         digest: LiteraryContinuityDigest,
         constellations: [Constellation] = [],
         monthKey: String,
-        now: Date = Date()
+        now: Date = Date(),
+        calendar: Calendar = .current
     ) -> BookTheme? {
+        let observedDayCount = observedDayCount(for: pages, calendar: calendar)
+        guard observedDayCount >= minimumObservedDaysForTheme else { return nil }
+
         var weights: [String: Int] = [:]
         var evidence: [String: [String]] = [:]
 
@@ -1396,6 +1510,7 @@ enum BookThemeEngine {
         let strength = min(100, ranked[0].1 * 3 + ranked[1].1 * 2)
         let evidenceIDs = Array(Set(motifs.flatMap { evidence[$0] ?? [] })).sorted()
         let excerpts = excerptLines(for: motifs, in: pages)
+        let stability: BookThemeStability = observedDayCount >= stableObservedDaysForTheme ? .stable : .provisional
 
         return BookTheme(
             id: "theme-\(monthKey)",
@@ -1406,19 +1521,29 @@ enum BookThemeEngine {
             strength: strength,
             evidencePageIDs: evidenceIDs,
             excerptLines: excerpts,
-            discoveredAt: now
+            discoveredAt: now,
+            stability: stability,
+            observedDayCount: observedDayCount,
+            settledAt: stability == .stable ? now : nil
         )
     }
 
     /// Upserts the current month's theme into the remembered ledger. Old
-    /// months keep their themes forever; only the live month is rewritten.
+    /// months and already-settled live themes keep their names; only the live
+    /// provisional theme keeps being rewritten as the month gathers evidence.
     static func remembered(
         _ existing: [BookTheme],
         observing current: BookTheme?,
         monthKey: String
     ) -> [BookTheme] {
+        let existingTheme = existing.first { $0.monthKey == monthKey }
+        if existingTheme?.isStable == true {
+            return existing.sorted { $0.monthKey < $1.monthKey }
+        }
+
         var kept = existing.filter { $0.monthKey != monthKey }
-        if let current {
+        if var current {
+            current.discoveredAt = existingTheme?.discoveredAt ?? current.discoveredAt
             kept.append(current)
         }
         return kept.sorted { $0.monthKey < $1.monthKey }
@@ -1426,6 +1551,10 @@ enum BookThemeEngine {
 
     static func theme(forMonth monthKey: String, in themes: [BookTheme]) -> BookTheme? {
         themes.first { $0.monthKey == monthKey }
+    }
+
+    static func observedDayCount(for pages: [BookPage], calendar: Calendar = .current) -> Int {
+        Set(pages.map { BookDay.id(for: $0.createdAt, calendar: calendar) }).count
     }
 
     static func monthKey(for date: Date, calendar: Calendar = .current) -> String {

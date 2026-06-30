@@ -628,6 +628,13 @@ final class BookThemeTests: XCTestCase {
         ]
     }
 
+    private var settledHarborPages: [BookPage] {
+        harborPages + [
+            page("p6", day: 15, text: "The harbor held the secret without asking for a receipt."),
+            page("p7", day: 18, text: "By the harbor again, the secret had learned the color of rain.")
+        ]
+    }
+
     func testThemeEngineFindsAndNamesTheme() {
         let theme = BookThemeEngine.theme(
             for: harborPages,
@@ -656,6 +663,49 @@ final class BookThemeTests: XCTestCase {
         XCTAssertNil(BookThemeEngine.theme(for: sparse, digest: .empty, monthKey: "2026-06", now: date(2026, 6, 15)))
     }
 
+    func testThemeWaitsForAFewKeptDays() {
+        let twoDays = [
+            page("p1", day: 1, text: "The harbor kept a secret in its pocket."),
+            page("p2", day: 2, text: "The harbor kept the same secret under glass.")
+        ]
+
+        XCTAssertNil(BookThemeEngine.theme(
+            for: twoDays,
+            digest: .empty,
+            monthKey: "2026-06",
+            now: date(2026, 6, 2),
+            calendar: calendar
+        ))
+    }
+
+    func testThemeIsProvisionalUntilEnoughDaysSettleIt() throws {
+        let provisional = try XCTUnwrap(BookThemeEngine.theme(
+            for: harborPages,
+            digest: .empty,
+            monthKey: "2026-06",
+            now: date(2026, 6, 15),
+            calendar: calendar
+        ))
+        XCTAssertEqual(provisional.stability, .provisional)
+        XCTAssertFalse(provisional.isStable)
+        XCTAssertEqual(provisional.observedDayCount, 5)
+        XCTAssertNil(provisional.settledAt)
+        XCTAssertTrue(provisional.promptLine.contains("unstable"))
+
+        let settled = try XCTUnwrap(BookThemeEngine.theme(
+            for: settledHarborPages,
+            digest: .empty,
+            monthKey: "2026-06",
+            now: date(2026, 6, 20),
+            calendar: calendar
+        ))
+        XCTAssertEqual(settled.stability, .stable)
+        XCTAssertTrue(settled.isStable)
+        XCTAssertEqual(settled.observedDayCount, 7)
+        XCTAssertNotNil(settled.settledAt)
+        XCTAssertTrue(settled.promptLine.contains("stable"))
+    }
+
     func testRememberedThemesKeepOldMonths() {
         let may = BookTheme(
             id: "theme-2026-05",
@@ -673,6 +723,48 @@ final class BookThemeTests: XCTestCase {
         XCTAssertEqual(remembered.count, 2)
         XCTAssertEqual(BookThemeEngine.theme(forMonth: "2026-05", in: remembered)?.name, "Rain and Lamps")
         XCTAssertNotNil(BookThemeEngine.theme(forMonth: "2026-06", in: remembered))
+    }
+
+    func testRememberedThemeCanEvolveUntilItSettles() throws {
+        let provisional = try XCTUnwrap(BookThemeEngine.theme(
+            for: harborPages,
+            digest: .empty,
+            monthKey: "2026-06",
+            now: date(2026, 6, 15),
+            calendar: calendar
+        ))
+        let firstLedger = BookThemeEngine.remembered([], observing: provisional, monthKey: "2026-06")
+        XCTAssertEqual(firstLedger.first?.stability, .provisional)
+
+        let revised = BookTheme(
+            id: "theme-2026-06",
+            monthKey: "2026-06",
+            name: "Lamps and Keys",
+            motifs: ["lamps", "keys"],
+            line: "Lamps and Keys kept changing seats.",
+            strength: 44,
+            evidencePageIDs: ["fresh"],
+            excerptLines: [],
+            discoveredAt: date(2026, 6, 16),
+            stability: .provisional,
+            observedDayCount: 6
+        )
+        let revisedLedger = BookThemeEngine.remembered(firstLedger, observing: revised, monthKey: "2026-06")
+        XCTAssertEqual(BookThemeEngine.theme(forMonth: "2026-06", in: revisedLedger)?.name, "Lamps and Keys")
+        XCTAssertEqual(BookThemeEngine.theme(forMonth: "2026-06", in: revisedLedger)?.discoveredAt, provisional.discoveredAt)
+
+        let settled = try XCTUnwrap(BookThemeEngine.theme(
+            for: settledHarborPages,
+            digest: .empty,
+            monthKey: "2026-06",
+            now: date(2026, 6, 20),
+            calendar: calendar
+        ))
+        let stableLedger = BookThemeEngine.remembered(revisedLedger, observing: settled, monthKey: "2026-06")
+        XCTAssertEqual(BookThemeEngine.theme(forMonth: "2026-06", in: stableLedger)?.stability, .stable)
+
+        let afterStable = BookThemeEngine.remembered(stableLedger, observing: revised, monthKey: "2026-06")
+        XCTAssertEqual(afterStable, stableLedger)
     }
 
     func testEditionCarriesChapterHeadingAndThemeSection() {

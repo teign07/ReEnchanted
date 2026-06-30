@@ -286,6 +286,8 @@ struct ContentView: View {
     @State var isAnchoringPlace = false
     @State var didHydrateLaunchState = false
     @State var didRunPostLaunchTasks = false
+    @State var didRunIdleLocationRefresh = false
+    @State var surfaceBuildToken = 0
     @State var isChangingAppLock = false
 
     let braider: Braider
@@ -573,9 +575,13 @@ struct ContentView: View {
                 if localBrainTelemetry.isReading {
                     LocalBrainReadingRoom()
                 } else {
-                    BookBackground()
+                    BookBackground(isQuiet: localBrainTelemetry.isWorking)
 
-                    if didHydrateLaunchState {
+                    // The opening movie is fully opaque, so this whole shelf
+                    // stack is invisible behind it. Building it mid-movie is a
+                    // heavy layout pass that stalls the animation on the main
+                    // actor — wait until the movie clears, then lay it out.
+                    if didHydrateLaunchState && !isOpeningMovieVisible {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 26) {
                                 AnyView(topBanner)
@@ -705,7 +711,6 @@ struct ContentView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar((isGlowMenuPresented || isOpeningMovieVisible || (isStoryOnboardingActive && !didRevealGlowPillInCurrentOnboarding)) ? .hidden : .visible, for: .navigationBar)
             .task {
-                restoreRadioIfNeeded()
                 await runPostLaunchTasksIfNeeded()
                 handlePendingRadioWidgetCommand()
                 handlePendingCompassWidgetCommand()
@@ -741,6 +746,18 @@ struct ContentView: View {
                     localBrainTelemetry.finishWork()
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .localBrainGenerationDidProgress)) { notification in
+                guard let snapshot = notification.object as? LocalBrainGenerationProgressSnapshot else { return }
+                guard localBrainTelemetry.isWorking else { return }
+                localBrainTelemetry.updateGenerationProgress(
+                    label: snapshot.label,
+                    text: snapshot.text,
+                    generatedCharacters: snapshot.generatedCharacters,
+                    promptTokens: snapshot.promptTokens,
+                    generatedTokens: snapshot.generatedTokens,
+                    tokensPerSecond: snapshot.tokensPerSecond
+                )
+            }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     handlePendingRadioWidgetCommand()
@@ -762,6 +779,13 @@ struct ContentView: View {
                 handlePendingRadioWidgetCommand()
                 handlePendingCompassWidgetCommand()
                 handlePendingWidgetDeepLink()
+                writeWidgetSnapshot()
+            }
+            .onChange(of: isOpeningMovieVisible) { _, visible in
+                // The movie has cleared — build the desk that was deferred so its
+                // continuity projection never competed with the intro animation.
+                guard !visible, didHydrateLaunchState else { return }
+                rebuildSurfaceCache()
                 writeWidgetSnapshot()
             }
             .onReceive(NotificationCenter.default.publisher(for: .reEnchantedWidgetDeepLinkReceived)) { _ in
@@ -1057,9 +1081,12 @@ struct ContentView: View {
         facultyEntries = payload.facultyEntries
         modelReport = payload.modelReport
         didHydrateLaunchState = true
-        runBeliefEconomyDailyTick()
-        tendBookJump()
-        refreshContinuityCache(force: true)
+        // The daily ticks and the whole-archive continuity projection are heavy
+        // and only feed the home desk — which stays hidden behind the opening
+        // movie. Running them here freezes the animation on its first frame, so
+        // they wait for the movie to clear: the ticks run in
+        // runPostLaunchTasksIfNeeded, the projection in the surface rebuild that
+        // onChange(isOpeningMovieVisible) kicks once the desk is actually shown.
     }
 
     @MainActor
@@ -1070,13 +1097,30 @@ struct ContentView: View {
     }
 
     @MainActor
+    func waitForOpeningMovieToFinish() async {
+        while isOpeningMovieVisible && !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+    }
+
+    @MainActor
     func runPostLaunchTasksIfNeeded() async {
         guard !didRunPostLaunchTasks else { return }
         await waitForLaunchStateHydration()
+        // The opening movie animates on the main actor, so any launch chore
+        // running underneath it shows up as a stalled first frame. Hold every
+        // follow-up task until the movie has played out (or been tapped away).
+        await waitForOpeningMovieToFinish()
         guard !Task.isCancelled, !didRunPostLaunchTasks else { return }
+        // Let the home screen paint its first frame before the chores below.
+        try? await Task.sleep(for: .milliseconds(120))
 
         didRunPostLaunchTasks = true
         AppMemoryLedger.record("app-launch-idle")
+        // Deferred out of hydration so they never run under the opening movie.
+        runBeliefEconomyDailyTick()
+        tendBookJump()
+        restoreRadioIfNeeded()
         if generation.preparedStoryPageSurface == nil,
            let overnight = OvernightScribe.adoptDraft() {
             generation.preparedStoryPageSurface = overnight
@@ -1099,18 +1143,54 @@ struct ContentView: View {
         tendConstellations()
         maybeRequestFirstDoorAppReview()
         nearbyPlaces = LocalPlacesScout.cachedPlaces()
-        if didGrantLocationContextAccess {
-            let scouted = await LocalPlacesScout.refreshIfNeeded()
-            if scouted.count != nearbyPlaces.count {
-                nearbyPlaces = scouted
-            } else {
-                nearbyPlaces = scouted
-            }
-        }
-        if didGrantLocationContextAccess {
-            await refreshAnchorProximity(isUserInitiated: false)
-        }
         await runLaunchSmokeTestIfRequested()
+
+        // Location is the heaviest launch chore (GPS wake + map searches) and
+        // the reader never needs it in the opening moments — defer it to a
+        // genuine idle gap so it never competes with launch or an active braid.
+        scheduleIdleLocationRefreshIfNeeded()
+    }
+
+    @MainActor
+    func scheduleIdleLocationRefreshIfNeeded() {
+        guard didGrantLocationContextAccess, !didRunIdleLocationRefresh else { return }
+        Task { await runIdleLocationRefreshIfNeeded() }
+    }
+
+    /// The Book only reaches for GPS once the desk is quiet — after the opening
+    /// movie, after onboarding, and while nothing is braiding or reading. This
+    /// keeps the location ping (and its map-search follow-up) off the launch path.
+    @MainActor
+    func runIdleLocationRefreshIfNeeded() async {
+        guard didGrantLocationContextAccess, !didRunIdleLocationRefresh else { return }
+        await waitForIdleMoment()
+        guard !Task.isCancelled,
+              didGrantLocationContextAccess,
+              !didRunIdleLocationRefresh else { return }
+        didRunIdleLocationRefresh = true
+
+        nearbyPlaces = await LocalPlacesScout.refreshIfNeeded()
+        await refreshAnchorProximity(isUserInitiated: false)
+    }
+
+    /// Holds until the app is genuinely idle: a short settle, then a wait for a
+    /// frame with no movie, no onboarding, and nothing braiding/reading/installing.
+    @MainActor
+    func waitForIdleMoment() async {
+        try? await Task.sleep(for: .seconds(2))
+        while !Task.isCancelled && !isAppIdleForBackgroundWork {
+            try? await Task.sleep(for: .milliseconds(400))
+        }
+    }
+
+    @MainActor
+    var isAppIdleForBackgroundWork: Bool {
+        scenePhase == .active
+            && !isOpeningMovieVisible
+            && didCompleteStoryOnboarding
+            && !generation.isBraiding
+            && !localBrainTelemetry.isReading
+            && !isInstallingModel
     }
 
     @MainActor
@@ -1125,58 +1205,242 @@ struct ContentView: View {
         #endif
     }
 
+    /// Snapshot of the inputs the off-main surface build needs, captured on the
+    /// main actor. Shared by the full rebuild and the dismissal replacement.
+    @MainActor
+    func makeSurfaceBuildRequest(now: Date) -> SurfaceBuildRequest {
+        let entityBelief = entityBeliefLedger
+        let pageBelief = pageBeliefLedger
+        let signature = continuityCacheSignatureString(
+            entityBeliefCount: entityBelief.count,
+            pageBeliefCount: pageBelief.count
+        )
+        return SurfaceBuildRequest(
+            today: today,
+            inputs: sourceInputs,
+            preferences: CuratorSurfacePreferences(
+                dismissedSurfaceIDs: dismissedSurfaceIDs(for: today.id, now: now),
+                disabledSourceIDs: disabledSourceIDs(),
+                pageBeliefProfiles: Dictionary(
+                    uniqueKeysWithValues: pageBeliefProfiles.map { ($0.sourceID, $0) }
+                )
+            ),
+            now: now,
+            needsDigest: signature != continuityCacheSignature,
+            signature: signature,
+            cachedDigest: cachedContinuityDigest,
+            cachedClusters: cachedMotifClusters,
+            days: days,
+            events: narrativeEvents,
+            entityMemories: entityMemories,
+            entityBelief: entityBelief,
+            pageBelief: pageBelief
+        )
+    }
+
     @MainActor
     func rebuildSurfaceCache() {
         guard didHydrateLaunchState else {
             surfacedPages = []
             return
         }
+        // The desk is hidden behind the opening movie, so skip the continuity
+        // projection + curator build this would run; onChange(isOpeningMovieVisible)
+        // kicks it once, the moment the movie clears.
+        guard !isOpeningMovieVisible else { return }
         guard !isRetiringKeptSurface else {
             return
         }
-        refreshContinuityCache()
-        let previousTopID = surfacedPages.first?.id
-        let refreshed = buildCuratorSurfaces(now: surfaceRefreshDate)
-        surfacedPages = refreshed
-        if let top = refreshed.first, previousTopID != nil, top.id != previousTopID {
-            BookFeedback.pageRising(rarity: top.score)
+
+        // Snapshot the inputs on the main actor (cheap value copies), then run the
+        // whole-archive continuity projection + curation OFF the main thread so the
+        // UI never freezes. A token supersedes any in-flight build, and results are
+        // applied back on the main actor. The signature gate means an unchanged
+        // archive reuses the cached digest and only re-runs the (lighter) curator.
+        surfaceBuildToken &+= 1
+        let token = surfaceBuildToken
+        let now = surfaceRefreshDate
+        let request = makeSurfaceBuildRequest(now: now)
+
+        Task {
+            let result = await ContentView.computeSurfaceBuild(request)
+            guard token == surfaceBuildToken else { return }
+            if result.didRecomputeDigest {
+                continuityCacheSignature = result.signature
+                cachedContinuityDigest = result.digest
+                cachedMotifClusters = result.clusters
+            }
+            let previousTopID = surfacedPages.first?.id
+            surfacedPages = result.surfaces
+            if let top = result.surfaces.first, previousTopID != nil, top.id != previousTopID {
+                BookFeedback.pageRising(rarity: top.score)
+            }
+            recordServedSurfaces(surfacedPages)
         }
-        recordServedSurfaces(surfacedPages)
     }
 
+    /// Immutable snapshot handed to the detached surface build. Every field is a
+    /// value type captured on the main actor; `@unchecked Sendable` matches the
+    /// existing LaunchHydrationPayload pattern (read-only across the boundary).
+    struct SurfaceBuildRequest: @unchecked Sendable {
+        var today: BookDay
+        var inputs: BookSourceInputs
+        var preferences: CuratorSurfacePreferences
+        var now: Date
+        var needsDigest: Bool
+        var signature: String
+        var cachedDigest: LiteraryContinuityDigest
+        var cachedClusters: [BookMotifCluster]
+        var days: [BookDay]
+        var events: [NarrativeEvent]
+        var entityMemories: [NarrativeEntityMemory]
+        var entityBelief: [String: Int]
+        var pageBelief: [String: Int]
+    }
+
+    struct SurfaceBuildResult: @unchecked Sendable {
+        var digest: LiteraryContinuityDigest
+        var clusters: [BookMotifCluster]
+        var surfaces: [SurfacePage]
+        var didRecomputeDigest: Bool
+        var signature: String
+    }
+
+    /// The heavy lifting: whole-archive continuity projection + motif clusters +
+    /// curation, all off the main actor. Pure functions over value types, so it is
+    /// `nonisolated` and runs on a detached, user-initiated executor.
+    nonisolated static func computeSurfaceBuild(_ request: SurfaceBuildRequest) async -> SurfaceBuildResult {
+        await Task.detached(priority: .userInitiated) { () -> SurfaceBuildResult in
+            let digest: LiteraryContinuityDigest
+            let clusters: [BookMotifCluster]
+            if request.needsDigest {
+                var built = LiteraryContinuityProjector.digest(
+                    days: request.days,
+                    events: request.events,
+                    entityMemories: request.entityMemories,
+                    entityBelief: request.entityBelief,
+                    pageBelief: request.pageBelief,
+                    now: request.now
+                )
+                built.signals += RadioStationRegistry.listeningSignals(
+                    state: request.inputs.radio,
+                    unlockedPackIDs: request.inputs.ownedPackIDs,
+                    now: request.now
+                )
+                digest = built
+                clusters = BookMotifClusterEngine.clusters(
+                    from: built,
+                    constellations: request.inputs.constellations,
+                    themes: request.inputs.themes,
+                    now: request.now
+                )
+            } else {
+                digest = request.cachedDigest
+                clusters = request.cachedClusters
+            }
+
+            var inputs = request.inputs
+            inputs.continuity = digest
+            inputs.clusters = clusters
+
+            let surfaces: [SurfacePage]
+            if let firstRun = FirstRunPageSequence.surfaces(
+                for: request.today,
+                context: CuratorContext.make(for: request.today),
+                inputs: inputs,
+                now: request.now
+            ) {
+                surfaces = firstRun.filter { request.preferences.allows($0) }
+            } else {
+                surfaces = BookCurator.surfacedPages(
+                    for: request.today,
+                    inputs: inputs,
+                    now: request.now,
+                    limit: 3,
+                    preferences: request.preferences
+                )
+            }
+
+            return SurfaceBuildResult(
+                digest: digest,
+                clusters: clusters,
+                surfaces: surfaces,
+                didRecomputeDigest: request.needsDigest,
+                signature: request.signature
+            )
+        }.value
+    }
+
+    @MainActor
     func replaceDismissedSurfaceInCache(_ surface: SurfacePage, now: Date) {
-        var nextPages = surfacedPages.filter { $0.id != surface.id }
-        let retainedIDs = Set(nextPages.map(\.id))
+        // Supersede any in-flight async build so a stale result can't clobber
+        // this dismissal.
+        surfaceBuildToken &+= 1
+        let token = surfaceBuildToken
 
-        if nextPages.count < 3 {
-            let replacement = buildCuratorSurfaces(now: now).first { candidate in
-                candidate.id != surface.id && !retainedIDs.contains(candidate.id)
-            }
-            if let replacement {
-                nextPages.append(replacement)
-            }
-        }
-
+        // Slide the dismissed page away immediately — this is cheap, so the swipe
+        // never waits on the curator.
+        let nextPages = surfacedPages.filter { $0.id != surface.id }
         withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) {
             surfacedPages = Array(nextPages.prefix(3))
         }
         recordServedSurfaces(surfacedPages, now: now)
+
+        // A gap to fill? Curate the replacement OFF the main thread and slide it in
+        // when ready, so the desk refills without a hitch.
+        guard nextPages.count < 3 else { return }
+        let retainedIDs = Set(nextPages.map(\.id))
+        var occupiedKeys = surface.curatorDeskExclusionKeys
+        nextPages.forEach { occupiedKeys.formUnion($0.curatorDeskExclusionKeys) }
+        let request = makeSurfaceBuildRequest(now: now)
+
+        Task {
+            let result = await ContentView.computeSurfaceBuild(request)
+            guard token == surfaceBuildToken else { return }
+            if result.didRecomputeDigest {
+                continuityCacheSignature = result.signature
+                cachedContinuityDigest = result.digest
+                cachedMotifClusters = result.clusters
+            }
+            let replacement = result.surfaces.first { candidate in
+                candidate.id != surface.id
+                    && !retainedIDs.contains(candidate.id)
+                    && candidate.curatorDeskExclusionKeys.isDisjoint(with: occupiedKeys)
+            }
+            guard let replacement,
+                  surfacedPages.count < 3,
+                  !surfacedPages.contains(where: { $0.id == replacement.id }) else { return }
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) {
+                surfacedPages.append(replacement)
+            }
+            recordServedSurfaces(surfacedPages, now: now)
+        }
     }
 
     /// Recompute the continuity digest + motif clusters over the whole archive,
     /// but only when the underlying data actually changed. This is the single
     /// place that pays for the projection; everything else reads the cache.
-    func refreshContinuityCache(force: Bool = false) {
-        let signature = [
+    /// Cheap fingerprint of the archive inputs the continuity projection reads.
+    /// Belief-ledger counts are passed in so callers that already decoded the
+    /// ledgers (the off-main surface build) don't pay for the decode twice.
+    func continuityCacheSignatureString(entityBeliefCount: Int, pageBeliefCount: Int) -> String {
+        [
             "\(days.count)",
             "\(days.last?.pages.count ?? 0)",
             "\(narrativeEvents.count)",
             "\(entityMemories.count)",
-            "\(entityBeliefLedger.count)",
-            "\(pageBeliefLedger.count)",
+            "\(entityBeliefCount)",
+            "\(pageBeliefCount)",
             "\(vault.data.constellations?.count ?? 0)",
             "\(vault.data.themes?.count ?? 0)"
         ].joined(separator: "-")
+    }
+
+    func refreshContinuityCache(force: Bool = false) {
+        let signature = continuityCacheSignatureString(
+            entityBeliefCount: entityBeliefLedger.count,
+            pageBeliefCount: pageBeliefLedger.count
+        )
         guard force || signature != continuityCacheSignature else { return }
         continuityCacheSignature = signature
 
@@ -1214,13 +1478,9 @@ struct ContentView: View {
     /// itself. Only newly-shown content keys are written (30-minute grace).
     func recordServedSurfaces(_ pages: [SurfacePage], now: Date = Date()) {
         let history = vault.data.surfaceHistory ?? [:]
-        let servedKeys = pages.flatMap { page -> [String] in
-            let typeKey = CuratorVarietyGovernor.typeKey(for: page.type)
-            let primary = page.type == .twoReadings
-                ? [page.varietyKey, "source:\(page.sourceID)", typeKey]
-                : [page.varietyKey, typeKey]
-            return primary + page.supplementalStoryVarietyKeys
-        }
+        let servedKeys = pages
+            .filter { $0.type != .bookOfYou }
+            .flatMap(\.curatorServedHistoryKeys)
         let newKeys = servedKeys.filter { key in
             guard let record = history[key] else { return true }
             return now.timeIntervalSince(record.lastShownAt) > 30 * 60
@@ -1921,7 +2181,7 @@ struct ContentView: View {
         case .narrativeOS:
             if generation.preparedStoryPageSurface == nil {
                 statusMessage = "The Story Page is calling the local Book brain..."
-                _ = await prepareStoryPageIfPossible(force: true)
+                _ = await prepareStoryPageIfPossible(force: true, draftOverride: storyFieldPreviewSurface)
             }
             selectedSurface = generation.preparedStoryPageSurface ?? localBrainIssueSurface(
                 type: type,
@@ -1955,6 +2215,8 @@ struct ContentView: View {
             statusMessage = ""
         case .letter:
             selectedSurface = freshManualSurface(for: .letter)
+        case .bookOfYou:
+            await openBookOfYouPageFromMenu()
         case .bookConnections:
             isConnectionsPresented = true
         case .weather:
@@ -1974,6 +2236,20 @@ struct ContentView: View {
         default:
             selectedSurface = surface(forManualPageType: type)
         }
+    }
+
+    @MainActor
+    func openBookOfYouPageFromMenu() async {
+        if let bookPage = today.bookOfYou {
+            openKeptPage(bookPage)
+            return
+        }
+        guard !today.capturedPages.isEmpty else {
+            BookFeedback.play(.error)
+            statusMessage = "The Book needs one true fragment before it can braid today."
+            return
+        }
+        await braidToday(openWhenComplete: true)
     }
 
     func localBrainIssueSurface(type: BookPageType, title: String, action: String) -> SurfacePage {
@@ -2057,6 +2333,20 @@ struct ContentView: View {
             "keptPage": "true",
             "tags": page.tags.joined(separator: ",")
         ]
+        if page.type == .letter {
+            metadata["letterProse"] = displayBody
+            metadata["proseStatus"] = "kept"
+            metadata["playerReply"] = page.playerReply
+            if !page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                metadata["letterSealed"] = "true"
+            }
+            if let senderID = page.tags.first(where: { $0.hasPrefix("sender:") })?.dropFirst("sender:".count) {
+                metadata["senderID"] = String(senderID)
+            }
+            if let senderName = letterSenderName(from: page) {
+                metadata["senderName"] = senderName
+            }
+        }
         metadata.merge(keptPageMediaMetadata(for: page), uniquingKeysWith: { current, _ in current })
 
         return SurfacePage(
@@ -2075,6 +2365,24 @@ struct ContentView: View {
                 metadata: metadata
             )
         )
+    }
+
+    func letterSenderName(from page: BookPage) -> String? {
+        let candidates = [page.promptText, page.tags.first(where: { $0.hasPrefix("sender-name:") })]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty }
+        for candidate in candidates {
+            if candidate.hasPrefix("sender-name:") {
+                return String(candidate.dropFirst("sender-name:".count))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .nonEmpty
+            }
+            if let range = candidate.range(of: "letter from ", options: [.caseInsensitive]) {
+                return String(candidate[range.upperBound...])
+                    .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+                    .nonEmpty
+            }
+        }
+        return nil
     }
 
     func markLovedBraid(pageID: String) -> String {
@@ -2173,6 +2481,8 @@ struct ContentView: View {
                 label: localBrainTelemetry.currentLabel,
                 startedAt: localBrainTelemetry.startedAt,
                 queuedCount: localBrainTelemetry.currentQueuedCount,
+                liveText: localBrainTelemetry.currentGenerationPreview,
+                progressLine: localBrainTelemetry.currentGenerationProgressLine,
                 presentation: .shelf
             )
             .transition(.opacity.combined(with: .move(edge: .top)))
@@ -2568,6 +2878,19 @@ struct ContentView: View {
         )
     }
 
+
+    var storyFieldPreviewSurface: SurfacePage? {
+        if let prepared = generation.preparedStoryPageSurface {
+            return prepared
+        }
+        var inputs = sourceInputs
+        inputs.preparedStoryPageSurface = nil
+        return NarrativeOSPageSourceAdapter.draftCandidate(
+            for: today,
+            inputs: inputs,
+            now: surfaceRefreshDate
+        )
+    }
 
     var labPanelShelf: some View {
         let eligibleBraidCount = today.capturedPages.filter { !$0.usedInBookOfYou }.count
@@ -3097,6 +3420,8 @@ struct ContentView: View {
                                 label: "monthly-closing",
                                 startedAt: localBrainTelemetry.startedAt,
                                 queuedCount: localBrainTelemetry.currentQueuedCount,
+                                liveText: localBrainTelemetry.currentGenerationPreview,
+                                progressLine: localBrainTelemetry.currentGenerationProgressLine,
                                 presentation: .page
                             )
                         }
@@ -3293,7 +3618,7 @@ struct ContentView: View {
                     }
 
                     StoryFieldStatusCard(
-                        surface: generation.preparedStoryPageSurface,
+                        surface: storyFieldPreviewSurface,
                         events: narrativeEvents,
                         isPreparing: generation.isPreparingStoryPage
                     )
@@ -3410,6 +3735,8 @@ struct ContentView: View {
             localBrainWorkLabel: localBrainTelemetry.currentLabel,
             localBrainWorkStartedAt: localBrainTelemetry.startedAt,
             localBrainQueuedCount: localBrainTelemetry.currentQueuedCount,
+            localBrainGenerationPreview: localBrainTelemetry.currentGenerationPreview,
+            localBrainProgressLine: localBrainTelemetry.currentGenerationProgressLine,
             onReplaceIlluminatedSurface: { replacement in
                 generation.automaticIlluminatedSurface = replacement
                 surfaceRefreshDate = Date()
@@ -4978,7 +5305,7 @@ struct ContentView: View {
         switch surface.type {
         case .narrativeOS:
             statusMessage = "The Story Page is calling the local Book brain..."
-            _ = await prepareStoryPageIfPossible(force: true)
+            _ = await prepareStoryPageIfPossible(force: true, draftOverride: surface)
             selectedSurface = generation.preparedStoryPageSurface ?? localBrainIssueSurface(
                 type: surface.type,
                 title: "Story Page",
@@ -5204,7 +5531,7 @@ struct ContentView: View {
 
     @MainActor
     @discardableResult
-    func prepareStoryPageIfPossible(force: Bool = false) async -> Bool {
+    func prepareStoryPageIfPossible(force: Bool = false, draftOverride: SurfacePage? = nil) async -> Bool {
         let slot = SurfaceCadence.slotID(for: surfaceRefreshDate, hours: 4)
         if force {
             guard !generation.isPreparingStoryPage, !localBrainTelemetry.isWorking else {
@@ -5223,13 +5550,18 @@ struct ContentView: View {
             }
         }
 
-        var draftInputs = sourceInputs
-        draftInputs.preparedStoryPageSurface = nil
-        let draft = NarrativeOSPageSourceAdapter.draftCandidate(
-            for: today,
-            inputs: draftInputs,
-            now: surfaceRefreshDate
-        )
+        let draft: SurfacePage
+        if let draftOverride, draftOverride.type == .narrativeOS {
+            draft = draftOverride
+        } else {
+            var draftInputs = sourceInputs
+            draftInputs.preparedStoryPageSurface = nil
+            draft = NarrativeOSPageSourceAdapter.draftCandidate(
+                for: today,
+                inputs: draftInputs,
+                now: surfaceRefreshDate
+            )
+        }
 
         generation.isPreparingStoryPage = true
         defer { generation.isPreparingStoryPage = false }
@@ -5513,9 +5845,8 @@ struct ContentView: View {
         undoDayID = nil
         let now = Date()
         var ledger = decodedDismissalLedger()
-        ledger.dismiss(surfaceID: surface.id, dayID: today.id, at: now)
+        dismissSurfaceFamily(surface, in: &ledger, at: now)
         if surface.type == .twoReadings {
-            ledger.dismiss(surfaceID: "source:\(surface.sourceID)", dayID: today.id, at: now)
             var history = vault.data.surfaceHistory ?? [:]
             history = CuratorVarietyGovernor.recordingServed(
                 keys: [
@@ -5532,6 +5863,12 @@ struct ContentView: View {
         ledger.prune(now: now, ttl: surfaceDismissalTTL)
         dismissedSurfaceLedgerV2 = encodedDismissalLedger(ledger)
         replaceDismissedSurfaceInCache(surface, now: now)
+    }
+
+    func dismissSurfaceFamily(_ surface: SurfacePage, in ledger: inout SurfaceDismissalLedger, at now: Date) {
+        for key in surface.curatorDeskExclusionKeys {
+            ledger.dismiss(surfaceID: key, dayID: today.id, at: now)
+        }
     }
 
     func clearPreparedSurfaceIfNeeded(_ surface: SurfacePage) {
@@ -5615,11 +5952,17 @@ struct ContentView: View {
     func dismissSurface(_ surface: SurfacePage) {
         tutorTouch("dismiss-surface")
         BookFeedback.play(.dismissPage)
+        if surface.type == .bookOfYou {
+            undoSurface = nil
+            undoDayID = nil
+            statusMessage = "The Book of You page will stay until today's fragments are braided."
+            return
+        }
         undoRemovedPage = nil
         undoRemovedPageDayID = nil
         var ledger = decodedDismissalLedger()
         let now = Date()
-        ledger.dismiss(surfaceID: surface.id, dayID: today.id, at: now)
+        dismissSurfaceFamily(surface, in: &ledger, at: now)
         ledger.prune(now: now, ttl: surfaceDismissalTTL)
         dismissedSurfaceLedgerV2 = encodedDismissalLedger(ledger)
         if surface.type == .illuminatedPhoto,
@@ -5711,7 +6054,7 @@ struct ContentView: View {
         return encoded
     }
 
-    func braidToday() async {
+    func braidToday(openWhenComplete: Bool = false) async {
         guard !generation.isBraiding else { return }
         guard workBlockingState.canStartBraid else {
             BookFeedback.play(.error)
@@ -5762,6 +6105,9 @@ struct ContentView: View {
                 persist(day: day, message: "The model doorway answered. On the phone, the braid will be local.")
             } else {
                 persist(day: day, message: "The ink dried. Today's Book of You page is kept.")
+            }
+            if openWhenComplete {
+                selectedSurface = keptSurface(for: braid)
             }
             BookFeedback.play(.braidComplete)
             modelReport = LocalModelManager.report()
@@ -5857,7 +6203,9 @@ struct ContentView: View {
     }
 
     func writeWidgetSnapshot() {
-        guard didHydrateLaunchState else { return }
+        // Hold the encode + App Group write until the opening movie clears; it is
+        // re-run the moment the desk appears and on every later surface refresh.
+        guard didHydrateLaunchState, !isOpeningMovieVisible else { return }
         ReEnchantedWidgetSnapshotWriter.write(
             today: today,
             surfaces: surfaces,

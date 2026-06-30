@@ -1483,6 +1483,7 @@ extension Notification.Name {
     static let localBrainDidWake = Notification.Name("localBrainDidWake")
     static let localBrainDidRest = Notification.Name("localBrainDidRest")
     static let localBrainWorkDidChange = Notification.Name("localBrainWorkDidChange")
+    static let localBrainGenerationDidProgress = Notification.Name("localBrainGenerationDidProgress")
 }
 
 enum LocalBrainPresentation {
@@ -1495,6 +1496,16 @@ struct LocalBrainWorkSnapshot {
     var label: String?
     var promptCharacters: Int
     var queuedCount: Int
+}
+
+struct LocalBrainGenerationProgressSnapshot {
+    var label: String
+    var text: String
+    var generatedCharacters: Int
+    var promptTokens: Int?
+    var generatedTokens: Int?
+    var tokensPerSecond: Double?
+    var isFinal: Bool
 }
 
 enum AppMemoryLedger {

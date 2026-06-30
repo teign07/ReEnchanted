@@ -376,7 +376,7 @@ enum MonthlyEditionBuilder {
                 id: theme.id,
                 kind: .continuity,
                 title: theme.name,
-                body: cleanedBookText(theme.line),
+                body: cleanedBookText("\(theme.line)\n\n\(theme.stabilityDetail)"),
                 date: nil,
                 pageType: nil,
                 sourceID: nil,
@@ -402,7 +402,9 @@ enum MonthlyEditionBuilder {
         return MonthlyEditionSection(
             id: "the-months-theme",
             title: "The Month's Theme",
-            note: "One current the Book found running under the month, named and held up to the light.",
+            note: theme.isStable
+                ? "One current the Book found running under the month, named and held up to the light."
+                : "One early current the Book found running under the month, still marked provisional.",
             items: items
         )
     }
@@ -970,7 +972,9 @@ enum BookForewordWriter {
             paragraphs.append("\(firstNamed.displayName) is still alight in the margins, and I have left it burning on purpose. A thread I have named does not get blown out at the end of a month; it carries into the next one, waiting for you to write it forward.")
         }
 
-        if dayCount > 0 && dayCount < 7 {
+        if let theme, !theme.isStable {
+            paragraphs.append("The early thread this month was \u{201C}\(theme.name)\u{201D}. I am not calling it the whole sky yet; I am only saying these words kept tapping the glass.")
+        } else if dayCount > 0 && dayCount < 7 {
             if let theme {
                 paragraphs.append("The early thread this month was \u{201C}\(theme.name)\u{201D}. I am not calling it the whole sky yet; I am only saying these words kept tapping the glass.")
             } else {

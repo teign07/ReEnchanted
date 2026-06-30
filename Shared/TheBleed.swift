@@ -90,6 +90,7 @@ enum TheBleedEditionBuilder {
         let eventLine = inputs.activeWorldEvents
             .first
             .map { "\n\nSpecial bulletin: \($0.title) - \($0.phase.title). \($0.packet.bleedInstruction ?? $0.packet.logline)" } ?? ""
+        let themeLine = "\n\nTheme desk: \(themeDeskAnnouncementLine(day: day, inputs: inputs, now: now, calendar: calendar))"
         let tags = (["the-bleed", slot, "bleed-\(kind.rawValue)"] + eventTags).joined(separator: ",")
 
         return SurfacePage(
@@ -104,7 +105,7 @@ enum TheBleedEditionBuilder {
             detail: inputs.activeWorldEvents.first.map { "Open it - Penny is holding the presses over \($0.title)." } ?? "Open it - Penny Blackletter is holding the presses.",
             payload: BookPagePayload(
                 headline: "\(kind.mastheadTitle) - Issue #\(issueNumber)",
-                body: kind.announcementLine + eventLine,
+                body: kind.announcementLine + themeLine + eventLine,
                 metadata: [
                     "source": source.id,
                     "bleedEditionKind": kind.rawValue,
@@ -116,6 +117,7 @@ enum TheBleedEditionBuilder {
                     "worldEventTitles": inputs.activeWorldEvents.map(\.title).joined(separator: ", "),
                     "worldEventPacket": inputs.activeWorldEvents.influencePacket,
                     "worldEventBleedPacket": inputs.activeWorldEvents.bleedPacket,
+                    "monthlyThemeStatus": currentTheme(for: day, inputs: inputs, now: now, calendar: calendar)?.stability.rawValue ?? "unnamed",
                     "placeholder": "The presses are inked and waiting. Open the edition to set them running.",
                     "tags": tags
                 ]
@@ -154,11 +156,20 @@ enum TheBleedEditionBuilder {
         ))
 
         briefs.append(BleedColumnBrief(
+            id: "theme-desk",
+            title: "Theme Desk",
+            byline: "from the unstable type tray",
+            composedBody: themeDeskColumn(day: day, inputs: inputs, now: now, calendar: calendar),
+            packet: "",
+            maxTokens: 0
+        ))
+
+        briefs.append(BleedColumnBrief(
             id: "front-page",
             title: kind == .morning ? "The Morning Ledger" : "The Evening Ledger",
             byline: "by Penny Blackletter, Records Clerk, Department of Attestation",
             composedBody: "",
-            packet: frontPagePacket(kind: kind, day: day, inputs: inputs),
+            packet: frontPagePacket(kind: kind, day: day, inputs: inputs, now: now, calendar: calendar),
             maxTokens: 380
         ))
 
@@ -276,15 +287,60 @@ enum TheBleedEditionBuilder {
         return "\(dayWord)'s hinges, as posted:\n\(lines)\n\(pressure)"
     }
 
+    static func themeDeskColumn(
+        day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> String {
+        let monthKey = BookThemeEngine.monthKey(for: now, calendar: calendar)
+        let monthPages = pagesForThemeDesk(day: day, inputs: inputs, monthKey: monthKey, calendar: calendar)
+        let observedDays = BookThemeEngine.observedDayCount(for: monthPages, calendar: calendar)
+
+        guard let theme = currentTheme(for: day, inputs: inputs, now: now, calendar: calendar) else {
+            if observedDays < BookThemeEngine.minimumObservedDaysForTheme {
+                let remaining = BookThemeEngine.minimumObservedDaysForTheme - observedDays
+                let dayWord = remaining == 1 ? "one more kept day" : "\(remaining) more kept days"
+                return "No monthly theme has been named yet. The Book waits for \(dayWord) before pretending a month has a weather system."
+            }
+            return "No monthly theme has been named yet. There are enough days on file, but the motifs have not repeated loudly enough for a responsible headline."
+        }
+
+        switch theme.stability {
+        case .provisional:
+            let remaining = max(0, BookThemeEngine.stableObservedDaysForTheme - theme.observedDayCount)
+            let dayLine = remaining == 1
+                ? "one more kept day could settle it"
+                : "\(remaining) more kept days could settle it"
+            return """
+            UNSTABLE THEME WATCH: \(theme.name).
+            \(theme.line)
+            The Book has seen this across \(theme.observedDayCount) kept days; \(dayLine). Penny advises reading the headline in pencil.
+            """
+        case .stable:
+            return """
+            STABLE MONTHLY THEME: \(theme.name).
+            \(theme.line)
+            The Book has seen this across \(theme.observedDayCount) kept days. The headline is now set in type for the month.
+            """
+        }
+    }
+
     // MARK: Model packets
 
-    static func frontPagePacket(kind: BleedEditionKind, day: BookDay, inputs: BookSourceInputs) -> String {
+    static func frontPagePacket(
+        kind: BleedEditionKind,
+        day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date? = nil,
+        calendar: Calendar = .current
+    ) -> String {
         let signals = inputs.continuity.strongestSignals.prefix(4).map { "- \($0.line)" }.joined(separator: "\n")
         let constellations = ConstellationKeeper.namedConstellations(inputs.constellations).prefix(3)
             .map { "- \($0.displayName): \($0.latestLine)" }
             .joined(separator: "\n")
         let wagers = inputs.wagers.filter(\.isSealed).prefix(2).map { "- \($0.promptLine)" }.joined(separator: "\n")
-        let theme = inputs.themes.max { $0.monthKey < $1.monthKey }.map(\.promptLine) ?? "No named theme yet."
+        let theme = themeDeskColumn(day: day, inputs: inputs, now: now ?? day.date, calendar: calendar)
         let arc = inputs.currentArc.map { "Current story arc: \($0.title), phase \($0.phase.rawValue)." } ?? "No arc currently promoted."
         let eventPacket = inputs.activeWorldEvents.bleedPacket.nonEmpty ?? "No authored world event is currently changing the press room."
         let recentPages = day.capturedPages.suffix(5)
@@ -302,6 +358,7 @@ enum TheBleedEditionBuilder {
         Sealed wagers pending:
         \(wagers.nonEmpty ?? "- None.")
 
+        Theme desk:
         \(theme)
         \(arc)
 
@@ -410,6 +467,44 @@ enum TheBleedEditionBuilder {
     private static func encodedBriefs(_ briefs: [BleedColumnBrief]) -> String {
         guard let data = try? JSONEncoder().encode(briefs) else { return "" }
         return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    private static func themeDeskAnnouncementLine(
+        day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar
+    ) -> String {
+        guard let theme = currentTheme(for: day, inputs: inputs, now: now, calendar: calendar) else {
+            return "no monthly theme has been named yet."
+        }
+        switch theme.stability {
+        case .provisional:
+            return "\(theme.name) is still unstable and may update as the month gathers evidence."
+        case .stable:
+            return "\(theme.name) is stable for the month."
+        }
+    }
+
+    private static func currentTheme(
+        for day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar
+    ) -> BookTheme? {
+        let monthKey = BookThemeEngine.monthKey(for: now, calendar: calendar)
+        return BookThemeEngine.theme(forMonth: monthKey, in: inputs.themes)
+    }
+
+    private static func pagesForThemeDesk(
+        day: BookDay,
+        inputs: BookSourceInputs,
+        monthKey: String,
+        calendar: Calendar
+    ) -> [BookPage] {
+        (inputs.days + [day])
+            .flatMap(\.pages)
+            .filter { BookThemeEngine.monthKey(for: $0.createdAt, calendar: calendar) == monthKey }
     }
 }
 

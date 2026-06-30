@@ -2774,10 +2774,12 @@ struct PageTurnWipe: View {
 }
 
 struct BookBackground: View {
+    var isQuiet = false
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let date = Date()
+        let date = isQuiet ? Date(timeIntervalSinceReferenceDate: 0) : Date()
 
         LinearGradient(
             colors: [
@@ -2808,6 +2810,11 @@ struct BookBackground: View {
                 .offset(x: ambientDrift(date, scale: 5, phase: 0.8), y: ambientDrift(date, scale: 7, phase: 2.2))
                 .blendMode(.plusLighter)
         }
+        .overlay {
+            AmbientLetterField(isPaused: isQuiet)
+                .blendMode(.plusLighter)
+                .allowsHitTesting(false)
+        }
         .overlay(alignment: .bottomLeading) {
             MarginaliaImage(name: "MarginaliaLavender", width: 130, opacity: 0.11)
                 .rotationEffect(.degrees(-8))
@@ -2829,12 +2836,12 @@ struct BookBackground: View {
     }
 
     private func ambientDrift(_ date: Date, scale: Double, phase: Double = 0) -> CGFloat {
-        guard !reduceMotion else { return 0 }
+        guard !reduceMotion, !isQuiet else { return 0 }
         return CGFloat(sin(date.timeIntervalSinceReferenceDate / 18 + phase) * scale)
     }
 
     private func ambientOpacity(_ date: Date) -> Double {
-        guard !reduceMotion else { return 0.2 }
+        guard !reduceMotion, !isQuiet else { return 0.2 }
         return (sin(date.timeIntervalSinceReferenceDate / 12) + 1) / 2
     }
 }
@@ -3989,6 +3996,301 @@ private struct StarSpeckle: Shape {
     }
 }
 
+private struct AmbientLetterField: View {
+    let isPaused: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        if reduceMotion || isPaused {
+            Canvas { context, size in
+                AmbientLetterFieldRenderer.draw(in: context, size: size, time: 0, reduceMotion: true)
+            }
+            .opacity(isPaused ? 0.24 : 0.36)
+        } else {
+            TimelineView(.animation(minimumInterval: 1 / 24)) { timeline in
+                Canvas { context, size in
+                    AmbientLetterFieldRenderer.draw(
+                        in: context,
+                        size: size,
+                        time: timeline.date.timeIntervalSinceReferenceDate,
+                        reduceMotion: false
+                    )
+                }
+            }
+            .opacity(0.64)
+        }
+    }
+}
+
+private enum AmbientLetterFieldRenderer {
+    private struct Letter {
+        var glyph: Character
+        var position: CGPoint
+        var size: CGFloat
+        var depth: CGFloat
+        var angle: Double
+        var color: Color
+        var alpha: Double
+        var flash: Double
+    }
+
+    private static let glyphs = Array("REENCHANTEDBOOKOFYOUPAGESKEPTSTORY")
+    private static let colors = [
+        BookPalette.lampGold,
+        Color(red: 1.0, green: 0.86, blue: 0.56),
+        BookPalette.teal,
+        Color(red: 0.54, green: 0.45, blue: 0.77)
+    ]
+    private static let pixieColor = Color(red: 1.0, green: 0.88, blue: 0.66)
+
+    static func draw(in context: GraphicsContext, size: CGSize, time: TimeInterval, reduceMotion: Bool) {
+        guard size.width > 4, size.height > 4 else { return }
+
+        let clock = reduceMotion ? 0 : time
+        let count = letterCount(for: size)
+        let gather = reduceMotion ? 0 : gatherStrength(at: clock)
+        let targetIndex = count == 0 ? 0 : Int(floor(clock / 16).truncatingRemainder(dividingBy: Double(count)))
+        let pixie = pixiePosition(size: size, time: clock, targetIndex: targetIndex, gather: gather)
+        let letters = (0..<count).map {
+            letter(at: $0, count: count, size: size, time: clock, pixie: pixie, gather: gather)
+        }
+
+        drawLetters(letters, in: context)
+        if !reduceMotion {
+            drawCollisionSparks(letters, in: context, time: clock)
+            drawPixie(at: pixie, in: context, size: size, time: clock, targetIndex: targetIndex, gather: gather)
+        }
+    }
+
+    private static func letterCount(for size: CGSize) -> Int {
+        let area = size.width * size.height
+        return min(30, max(16, Int(area / 26_000)))
+    }
+
+    private static func letter(
+        at index: Int,
+        count: Int,
+        size: CGSize,
+        time: TimeInterval,
+        pixie: CGPoint,
+        gather: Double
+    ) -> Letter {
+        let seed = Double(index + 1)
+        let depth = CGFloat(0.44 + random(seed, 0) * 0.72)
+        let base = CGPoint(
+            x: size.width * CGFloat(0.06 + random(seed, 1) * 0.88),
+            y: size.height * CGFloat(0.06 + random(seed, 2) * 0.88)
+        )
+        let driftScale = 10 + 18 * depth
+        let drift = CGPoint(
+            x: CGFloat(sin(time * (0.045 + random(seed, 3) * 0.035) + seed * 1.7)) * driftScale
+                + CGFloat(cos(time * 0.023 + seed)) * driftScale * 0.42,
+            y: CGFloat(cos(time * (0.038 + random(seed, 4) * 0.028) + seed * 1.3)) * driftScale
+                + CGFloat(sin(time * 0.025 + seed * 0.6)) * driftScale * 0.36
+        )
+
+        let wandering = wrapped(
+            CGPoint(x: base.x + drift.x, y: base.y + drift.y),
+            in: size,
+            margin: 34
+        )
+        let dx = pixie.x - wandering.x
+        let dy = pixie.y - wandering.y
+        let distance = hypot(dx, dy)
+        let radius = 94 + 62 * Double(depth)
+        let localPull = gather * smoothstep(1, 0, distance / radius)
+        let orbit = CGPoint(
+            x: CGFloat(sin(time * 1.4 + seed)) * CGFloat(localPull) * 18,
+            y: CGFloat(cos(time * 1.1 + seed * 0.8)) * CGFloat(localPull) * 12
+        )
+        let pulled = CGPoint(
+            x: wandering.x + dx * CGFloat(localPull * 0.58) + orbit.x,
+            y: wandering.y + dy * CGFloat(localPull * 0.58) + orbit.y
+        )
+        let baseSize = CGFloat(7.0 + random(seed, 5) * 9.0)
+        let flash = min(1, localPull * 0.65)
+
+        return Letter(
+            glyph: glyphs[index % glyphs.count],
+            position: wrapped(pulled, in: size, margin: 40),
+            size: baseSize * (0.72 + depth * 0.62),
+            depth: depth,
+            angle: sin(time * (0.08 + random(seed, 6) * 0.08) + seed) * 0.24 + flash * 0.16,
+            color: colors[index % colors.count],
+            alpha: 0.055 + random(seed, 7) * 0.12 + flash * 0.26,
+            flash: flash
+        )
+    }
+
+    private static func drawLetters(_ letters: [Letter], in context: GraphicsContext) {
+        for letter in letters {
+            var letterContext = context
+            letterContext.translateBy(x: letter.position.x, y: letter.position.y)
+            letterContext.rotate(by: .radians(letter.angle))
+
+            let text = Text(String(letter.glyph))
+                .font(.system(size: letter.size * (1 + CGFloat(letter.flash) * 0.18), weight: .semibold, design: .serif))
+                .foregroundStyle(letter.color.opacity(min(0.48, letter.alpha)))
+
+            letterContext.addFilter(.shadow(
+                color: letter.color.opacity(0.12 + letter.flash * 0.30),
+                radius: 3 + letter.depth * 5 + CGFloat(letter.flash) * 7
+            ))
+            letterContext.draw(text, at: .zero, anchor: .center)
+        }
+    }
+
+    private static func drawCollisionSparks(_ letters: [Letter], in context: GraphicsContext, time: TimeInterval) {
+        guard letters.count > 1 else { return }
+
+        for first in 0..<(letters.count - 1) {
+            for second in (first + 1)..<letters.count {
+                let a = letters[first]
+                let b = letters[second]
+                let dx = b.position.x - a.position.x
+                let dy = b.position.y - a.position.y
+                let distance = hypot(dx, dy)
+                let threshold = (a.size + b.size) * 0.36 + 5
+                guard distance < threshold else { continue }
+
+                let pairSeed = Double(first * 31 + second * 17)
+                let pulse = max(0, sin(time * 13 + pairSeed))
+                let strength = Double(1 - distance / threshold) * (0.35 + pulse * 0.65)
+                guard strength > 0.18 else { continue }
+
+                let center = CGPoint(x: (a.position.x + b.position.x) * 0.5, y: (a.position.y + b.position.y) * 0.5)
+                for spark in 0..<3 {
+                    let seed = pairSeed + Double(spark) * 2.7
+                    let angle = seed + time * 1.4
+                    let distance = CGFloat(2 + random(seed, 1) * 8) * CGFloat(strength)
+                    let point = CGPoint(
+                        x: center.x + cos(angle) * distance,
+                        y: center.y + sin(angle) * distance
+                    )
+                    let radius = CGFloat(0.55 + random(seed, 2) * 1.15) * CGFloat(strength)
+                    let color = spark.isMultiple(of: 2) ? a.color : b.color
+                    var sparkContext = context
+                    sparkContext.addFilter(.shadow(color: color.opacity(0.45 * strength), radius: 7))
+                    sparkContext.fill(
+                        Path(ellipseIn: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)),
+                        with: .color(color.opacity(0.62 * strength))
+                    )
+                }
+            }
+        }
+    }
+
+    private static func drawPixie(
+        at point: CGPoint,
+        in context: GraphicsContext,
+        size: CGSize,
+        time: TimeInterval,
+        targetIndex: Int,
+        gather: Double
+    ) {
+        for index in (1...12).reversed() {
+            let trailTime = time - Double(index) * 0.11
+            let trailGather = gatherStrength(at: trailTime)
+            let trailPoint = pixiePosition(size: size, time: trailTime, targetIndex: targetIndex, gather: trailGather)
+            let opacity = Double(13 - index) / 12 * 0.12
+            let radius = CGFloat(0.8 + Double(13 - index) / 12 * 1.3)
+            context.fill(
+                Path(ellipseIn: CGRect(x: trailPoint.x - radius, y: trailPoint.y - radius, width: radius * 2, height: radius * 2)),
+                with: .color(pixieColor.opacity(opacity))
+            )
+        }
+
+        var pixieContext = context
+        pixieContext.translateBy(x: point.x, y: point.y)
+        pixieContext.rotate(by: .radians(heading(time: time) + .pi / 2))
+
+        let flap = 0.82 + sin(time * 22) * 0.18
+        for side in [-1.0, 1.0] {
+            var wingContext = pixieContext
+            wingContext.scaleBy(x: side * flap, y: 1)
+            let wing = Path(ellipseIn: CGRect(x: 2.2, y: -2.5, width: 5.6, height: 3.1))
+            wingContext.fill(wing, with: .color(pixieColor.opacity(0.13 + gather * 0.16)))
+        }
+
+        let halo = CGFloat(5.2 + gather * 6.5 + sin(time * 6) * 0.6)
+        pixieContext.addFilter(.shadow(color: pixieColor.opacity(0.40 + gather * 0.26), radius: halo))
+        pixieContext.fill(
+            Path(ellipseIn: CGRect(x: -halo, y: -halo, width: halo * 2, height: halo * 2)),
+            with: .radialGradient(
+                Gradient(colors: [
+                    pixieColor.opacity(0.42 + gather * 0.18),
+                    pixieColor.opacity(0.08),
+                    .clear
+                ]),
+                center: .zero,
+                startRadius: 0,
+                endRadius: halo
+            )
+        )
+        pixieContext.fill(
+            Path(ellipseIn: CGRect(x: -1.35, y: -1.35, width: 2.7, height: 2.7)),
+            with: .color(Color.white.opacity(0.88))
+        )
+    }
+
+    private static func pixiePosition(size: CGSize, time: TimeInterval, targetIndex: Int, gather: Double) -> CGPoint {
+        let wander = CGPoint(
+            x: size.width * CGFloat(0.50 + sin(time * 0.071) * 0.32 + cos(time * 0.029) * 0.08),
+            y: size.height * CGFloat(0.46 + cos(time * 0.063 + 0.7) * 0.24 + sin(time * 0.041) * 0.08)
+        )
+        let targetSeed = Double(targetIndex + 1)
+        let target = CGPoint(
+            x: size.width * CGFloat(0.08 + random(targetSeed, 1) * 0.84),
+            y: size.height * CGFloat(0.08 + random(targetSeed, 2) * 0.82)
+        )
+        let pull = gather * 0.72
+        let point = CGPoint(
+            x: wander.x + (target.x - wander.x) * CGFloat(pull),
+            y: wander.y + (target.y - wander.y) * CGFloat(pull)
+        )
+        return wrapped(point, in: size, margin: 50)
+    }
+
+    private static func heading(time: TimeInterval) -> Double {
+        let dx = cos(time * 0.071) * 0.32 - sin(time * 0.029) * 0.08
+        let dy = -sin(time * 0.063 + 0.7) * 0.24 + cos(time * 0.041) * 0.08
+        return atan2(dy, dx)
+    }
+
+    private static func gatherStrength(at time: TimeInterval) -> Double {
+        let phase = (time.truncatingRemainder(dividingBy: 16) + 16).truncatingRemainder(dividingBy: 16) / 16
+        let rise = smoothstep(0.16, 0.36, phase)
+        let fall = 1 - smoothstep(0.62, 0.86, phase)
+        return max(0, min(1, rise * fall))
+    }
+
+    private static func smoothstep(_ edge0: Double, _ edge1: Double, _ x: Double) -> Double {
+        guard edge0 != edge1 else { return x < edge0 ? 0 : 1 }
+        let t = max(0, min(1, (x - edge0) / (edge1 - edge0)))
+        return t * t * (3 - 2 * t)
+    }
+
+    private static func random(_ seed: Double, _ salt: Double) -> Double {
+        let value = sin(seed * 12.9898 + salt * 78.233) * 43_758.5453
+        return value - floor(value)
+    }
+
+    private static func wrapped(_ point: CGPoint, in size: CGSize, margin: CGFloat) -> CGPoint {
+        let width = max(size.width + margin * 2, 1)
+        let height = max(size.height + margin * 2, 1)
+        return CGPoint(
+            x: wrap(point.x + margin, width) - margin,
+            y: wrap(point.y + margin, height) - margin
+        )
+    }
+
+    private static func wrap(_ value: CGFloat, _ max: CGFloat) -> CGFloat {
+        let remainder = value.truncatingRemainder(dividingBy: max)
+        return remainder >= 0 ? remainder : remainder + max
+    }
+}
+
 private struct LabyrinthBackdrop: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
@@ -4044,6 +4346,14 @@ struct OnboardingFlowView: View {
         var id: String
         var title: String
         var detail: String
+        var symbol: String
+    }
+
+    private struct ScienceCitationItem: Identifiable {
+        var id: String
+        var title: String
+        var finding: String
+        var source: String
         var symbol: String
     }
 
@@ -4111,7 +4421,7 @@ struct OnboardingFlowView: View {
         BenefitChecklistItem(
             id: "autopilot",
             title: "Stop losing whole weeks",
-            detail: "Research found our minds wander for 46.9% of our day; almost half your waking hours tuned out, on autopilot. When days stop blurring, time feels bigger because more of it actually gets lived.",
+            detail: "A large experience-sampling study found people were mind-wandering 46.9% of the time. ReEnchanted is built to interrupt that blur with small, specific attention.",
             symbol: "eye"
         ),
         BenefitChecklistItem(
@@ -4137,6 +4447,36 @@ struct OnboardingFlowView: View {
             title: "Have more small adventures",
             detail: "Walks, errands, weather, rooms, and photos become little quests worth noticing. Ordinary days get more chances to surprise you.",
             symbol: "safari"
+        )
+    ]
+    private let scienceCitationItems = [
+        ScienceCitationItem(
+            id: "mind-wandering",
+            title: "Autopilot is measurable",
+            finding: "People reported mind-wandering during 46.9% of waking moments, and it tracked with lower happiness.",
+            source: "Killingsworth & Gilbert, Science (2010)",
+            symbol: "brain.head.profile"
+        ),
+        ScienceCitationItem(
+            id: "awe-walks",
+            title: "Awe can be practiced",
+            finding: "Awe walks increased positive emotion and the small-self feeling compared with ordinary walks.",
+            source: "Sturm et al., Emotion (2020)",
+            symbol: "figure.walk"
+        ),
+        ScienceCitationItem(
+            id: "small-self",
+            title: "Wonder changes scale",
+            finding: "Awe research links the small self with more connection, generosity, and prosocial attention.",
+            source: "Piff et al., JPSP (2015)",
+            symbol: "person.2.wave.2"
+        ),
+        ScienceCitationItem(
+            id: "habit-memory",
+            title: "Tiny records matter",
+            finding: "Habits usually form over weeks, and self-generated details are easier to remember than passive impressions.",
+            source: "Lally et al., EJSP (2010); Slamecka & Graf, JEP (1978)",
+            symbol: "bookmark"
         )
     ]
     private let tasteChoices = [
@@ -4532,6 +4872,8 @@ struct OnboardingFlowView: View {
             "Most people think they're forgetting their lives. Usually they never quite recorded them. The Book helps with that. It catches the small, stupid, shining details before the day sweeps them away."
             """)
 
+            onboardingScienceLedger
+
             onboardingUnwrittenMarginDrag()
 
             onboardingProse("""
@@ -4712,7 +5054,7 @@ struct OnboardingFlowView: View {
             onboardingBenefitCard(
                 symbol: "bookmark",
                 title: "What this does for you",
-                body: "A kept sentence is a memory hook. Later, one specific line can bring back the room, the mood, and the reason the moment mattered."
+                body: "A kept sentence is a memory hook. Writing the detail yourself uses the generation effect: one specific line can bring back the room, the mood, and the reason the moment mattered."
             )
             onboardingPracticePage
             continueButton(
@@ -6214,6 +6556,93 @@ struct OnboardingFlowView: View {
         }
     }
 
+    private var onboardingScienceLedger: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "text.book.closed")
+                    .font(.system(size: 17, weight: .black))
+                    .foregroundStyle(BookPalette.nightText)
+                    .frame(width: 34, height: 34)
+                    .background(BookPalette.nightPanel.opacity(0.92), in: Circle())
+                    .overlay {
+                        Circle()
+                            .stroke(BookPalette.lampGold.opacity(0.46), lineWidth: 1)
+                    }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Evidence under the enchantment")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(BookPalette.ink.opacity(0.84))
+                    Text("Zara files the unromantic part in plain ink: attention, awe, habit, and memory research give the Book its bones.")
+                        .font(.system(.caption, design: .default))
+                        .foregroundStyle(BookPalette.ink.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            VStack(spacing: 8) {
+                ForEach(scienceCitationItems) { item in
+                    onboardingScienceRow(item)
+                }
+            }
+
+            Text("Citations, not endorsements. ReEnchanted is a wonder practice, not medical care.")
+                .font(.system(size: 10, weight: .semibold, design: .default))
+                .foregroundStyle(BookPalette.ink.opacity(0.54))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BookPalette.paper.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(BookPalette.lampGold.opacity(0.9))
+                .frame(width: 3)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isOnboardingFieldFocused = false
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.28), lineWidth: 1)
+        }
+    }
+
+    private func onboardingScienceRow(_ item: ScienceCitationItem) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: item.symbol)
+                .font(.system(size: 14, weight: .black))
+                .foregroundStyle(BookPalette.teal)
+                .frame(width: 26, height: 26)
+                .background(BookPalette.teal.opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.title)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(BookPalette.ink.opacity(0.78))
+                Text(item.finding)
+                    .font(.system(.caption2, design: .default))
+                    .foregroundStyle(BookPalette.ink.opacity(0.66))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(item.source)
+                    .font(.system(size: 10, weight: .black, design: .default))
+                    .foregroundStyle(BookPalette.teal.opacity(0.86))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(BookPalette.page.opacity(0.52), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.ink.opacity(0.08), lineWidth: 1)
+        }
+    }
+
     private var onboardingBenefitChecklist: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
@@ -6237,10 +6666,10 @@ struct OnboardingFlowView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Why this is worth opening")
+                    Text("The science under the door")
                         .font(.headline.weight(.black))
                         .foregroundStyle(BookPalette.ink)
-                    Text("Not more screen time. More of your actual life remembered.")
+                    Text("Not more screen time. More of your actual life noticed, generated, and remembered.")
                         .font(.system(.caption, design: .default))
                         .foregroundStyle(BookPalette.ink.opacity(0.72))
                         .fixedSize(horizontal: false, vertical: true)
