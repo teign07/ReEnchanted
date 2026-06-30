@@ -22,6 +22,13 @@
         <span class="brand-mark" aria-hidden="true">✦</span>
         <span class="brand-name">ReEnchanted</span>
       </a>
+      <div class="header-radio" role="group" aria-label="Radio">
+        <button class="header-radio-toggle" id="header-radio-toggle" type="button" aria-pressed="false" aria-label="Play radio" title="Play radio">
+          <span class="hr-icon" aria-hidden="true">▶</span>
+        </button>
+        <label class="sr-only" for="header-radio-station">Radio station</label>
+        <select class="header-radio-select" id="header-radio-station" aria-label="Radio station"></select>
+      </div>
       <button class="glow-pill" id="glow-pill" type="button" aria-controls="glow-menu" aria-expanded="false">
         <span class="glow-orb" aria-hidden="true"></span>
         <span class="glow-copy">
@@ -88,16 +95,18 @@
       <!-- ───────────────────────── HERO ───────────────────────── -->
       <section class="hero">
         <div class="hero-copy">
-          <p class="hero-problem">
-            Same commute. Same gray hours. Another day slipping past
-            unnoticed - nothing that felt worth remembering.
-            <span>Your life isn't actually that forgettable…</span>
+          <p class="hero-problem hero-reveal-group">
+            <span class="hero-problem-line hero-reveal hero-reveal-1">
+              Same commute. Same gray hours. Another day slipping past
+              unnoticed - nothing that felt worth remembering.
+            </span>
+            <span class="hero-problem-belief hero-reveal hero-reveal-2">Your life isn't actually that forgettable…</span>
           </p>
-          <p class="eyebrow">A living book for ordinary days</p>
+          <p class="eyebrow hero-reveal hero-reveal-3">A living book for ordinary days</p>
           <p class="return-note" id="return-note" role="status" hidden></p>
-          <h1>Real Life,<br><span class="accent">ReEnchanted</span></h1>
-          <p class="hero-tagline">Play with Pages. <span>Keep Some.</span> Read Your Story.</p>
-          <p class="hero-lede">
+          <h1 class="hero-reveal hero-reveal-4">Real Life,<br><span class="accent">ReEnchanted</span></h1>
+          <p class="hero-tagline hero-reveal hero-reveal-5">Play with Pages. <span>Keep Some.</span> Read Your Story.</p>
+          <p class="hero-lede hero-reveal hero-reveal-6">
             A free, magical iPhone book that turns the day you actually lived - weather, walks,
             moods, music, the people who pass through - into pages you can keep.
             Keep what's true. Let the rest wait. Watch it braid into a story only you could write.
@@ -120,11 +129,14 @@
         <div class="hero-art" aria-hidden="true">
           <div class="hero-glow"></div>
           <div class="hero-phone hero-carousel">
-            <img class="hero-screen" src="./assets/screens/home.jpg" alt="" style="--i:0">
-            <img class="hero-screen" src="./assets/screens/book-of-you.jpg" alt="" style="--i:1">
-            <img class="hero-screen" src="./assets/screens/story-page-weather-prose.png" alt="" style="--i:2">
-            <img class="hero-screen" src="./assets/screens/real-life-kept.jpg" alt="" style="--i:3">
-            <img class="hero-screen" src="./assets/screens/radio.jpg" alt="" style="--i:4">
+            <div class="hero-screen-track">
+              <img class="hero-screen" src="./assets/screens/home.jpg" alt="">
+              <img class="hero-screen" src="./assets/screens/book-of-you.jpg" alt="">
+              <img class="hero-screen" src="./assets/screens/story-page-weather-prose.png" alt="">
+              <img class="hero-screen" src="./assets/screens/real-life-kept.jpg" alt="">
+              <img class="hero-screen" src="./assets/screens/radio.jpg" alt="">
+              <img class="hero-screen" src="./assets/screens/home.jpg" alt="">
+            </div>
           </div>
           <figure class="hero-float float-1">
             <img src="./assets/screens/keep-page.jpg" alt="">
@@ -303,7 +315,7 @@
                       <span class="radio-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
                       <span class="radio-now" id="radio-now">Nothing playing yet - tap a station.</span>
                     </div>
-                    <audio id="radio-audio" preload="none" loop></audio>
+                    <audio id="radio-audio" preload="none"></audio>
                   </div>
 
                   <div class="sentence-polisher" id="sentence-polisher" hidden>
@@ -1357,6 +1369,6 @@
         });
       })();
     </script>
-    <script src="./app.js?v=38"></script>
+    <script src="./app.js?v=43"></script>
   </body>
 </html>

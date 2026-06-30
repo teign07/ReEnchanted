@@ -2072,8 +2072,9 @@ function stopRadio() {
 
 async function playStationTrack(st, options = {}) {
   if (!st || !radioAudio) return;
+  window.stopRadioBroadcast?.(); // never overlap the opening dial radio
   radioPhase = "track";
-  radioAudio.loop = true;
+  radioAudio.loop = false; // the book demo plays through once, no repeat
   if (!options.keepSource) radioAudio.src = "./assets/audio/" + st.src;
   else radioAudio.currentTime = 0;
   radioAudio.volume = options.fadeIn ? 0 : radioAudio.volume;
@@ -2087,6 +2088,7 @@ async function selectStation(id) {
   const st = BOOK_STATIONS.find((s) => s.id === id);
   if (!st || !radioAudio) return;
   if (selectedStationId === id && radioOn) { stopRadio(); return; } // tap the playing one to pause
+  window.stopRadioBroadcast?.(); // the book demo radio takes over from the opening dial radio
   selectedStationId = id;
   earnGlow(`book-radio-${id}`, 2, `${st.name} tuned. The dial pays in shimmer.`);
   if (RADIO_INDEX >= 0) PAGES[RADIO_INDEX].braid = st.braid; // the chosen station shapes the binding
@@ -2102,11 +2104,15 @@ async function selectStation(id) {
 
 radioAudio?.addEventListener("ended", () => {
   const st = BOOK_STATIONS.find((s) => s.id === selectedStationId);
-  if (!st || !radioOn || radioPhase !== "intro") return;
-  if (st.intro === st.src) {
-    playStationTrack(st, { keepSource: true, fadeIn: false });
-  } else {
-    playStationTrack(st, { fadeIn: false });
+  if (!st || !radioOn) return;
+  if (radioPhase === "intro") {
+    if (st.intro === st.src) {
+      playStationTrack(st, { keepSource: true, fadeIn: false });
+    } else {
+      playStationTrack(st, { fadeIn: false });
+    }
+  } else if (radioPhase === "track") {
+    stopRadio(); // play through once, then stop - no repeat
   }
 });
 
@@ -3637,6 +3643,9 @@ const STATIONS = [
     if (power) power.disabled = !state;
     if (state) startWaveLoop();
     else stopWaveLoop();
+    window.dispatchEvent(new CustomEvent("radiostatechange", {
+      detail: { onAir, stationId: tuned ? tuned.id : null },
+    }));
   }
 
   function powerOffBroadcast(message = "Broadcast off. Press Tune In to return to the station.") {
@@ -3920,6 +3929,38 @@ const STATIONS = [
     if (idx >= 0) { trackIndex = idx; play(); }
     else { renderTracks(); }
     return unlocked;
+  };
+
+  // Lets the page open with the dial already broadcasting a station, fully
+  // wired to the real controls (dial, power, volume, track list).
+  window.startRadioBroadcast = function startRadioBroadcast(stationId) {
+    const station = STATIONS.find((s) => s.id === stationId);
+    if (!station || !dial) return false;
+    window.stopRadio?.(); // never overlap the book demo's radio page
+    dial.value = station.freq;
+    onDial(); // tunes the dial to the station
+    if (firstPlayableIndex() >= 0) {
+      trackIndex = Math.max(0, selectCuratedTrackIndex(tuned));
+      play();
+    }
+    return onAir;
+  };
+  // Stations offered in the header picker (skip the hidden pirate signal).
+  window.getRadioStations = function getRadioStations() {
+    return STATIONS
+      .filter((s) => !s.hidden && (s.tracks || []).some((t) => t.src))
+      .map((s) => ({ id: s.id, name: s.name }));
+  };
+  window.getRadioState = function getRadioState() {
+    return { onAir, stationId: tuned ? tuned.id : null };
+  };
+  // Re-attempt playback after a user gesture (autoplay is blocked until then).
+  window.ensureRadioPlaying = function ensureRadioPlaying() {
+    if (onAir) audio.play().catch(() => {});
+  };
+  // Power the dial radio down (used when the book demo's radio page takes over).
+  window.stopRadioBroadcast = function stopRadioBroadcast() {
+    if (onAir) powerOffBroadcast();
   };
 
   dial.addEventListener("input", onDial);
@@ -4299,6 +4340,246 @@ function initField() {
   requestAnimationFrame(draw);
 }
 initField();
+
+/* ───────────────────────── pixie-written hero intro ─────────────────────────
+ * Each hero line is written, in order, at the centre of the left column
+ * (level with the carousel) by a leading pixie - letters swirl in behind it
+ * and spark as they land - then the finished line glides to its real slot
+ * before the next one begins. Falls back to an instant reveal when motion is
+ * reduced or anything is missing. */
+function initHeroWrite() {
+  const hero = document.querySelector(".hero");
+  const copy = document.querySelector(".hero-copy");
+  if (!hero || !copy) return;
+
+  const lines = [
+    document.querySelector(".hero-problem-line"),
+    document.querySelector(".hero-problem-belief"),
+    document.querySelector(".hero-copy .eyebrow.hero-reveal"),
+    document.querySelector(".hero-copy h1.hero-reveal"),
+    document.querySelector(".hero-tagline"),
+    document.querySelector(".hero-lede"),
+  ].filter(Boolean);
+  const tail = [
+    document.querySelector(".hero-actions"),
+    document.querySelector(".trust-row"),
+  ].filter(Boolean);
+
+  if (reduceMotion || !lines.length) return; // default CSS shows everything
+
+  hero.classList.add("hero-anim");
+
+  const stage = document.createElement("div");
+  stage.className = "hero-write-stage";
+  stage.setAttribute("aria-hidden", "true");
+  copy.appendChild(stage);
+
+  const pixie = document.createElement("span");
+  pixie.className = "hw-pixie";
+  stage.appendChild(pixie);
+
+  const SPARK_CLASS = ["", "teal", "paper"];
+  const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  let pixieReady = false;
+  let prevBottom = null; // bottom (copy-relative) of the last placed line
+  function movePixie(x, y, glide) {
+    pixie.style.transition = glide
+      ? "transform 150ms cubic-bezier(0.3,0.7,0.3,1), opacity 400ms ease"
+      : "opacity 400ms ease";
+    pixie.style.transform = `translate(${x}px, ${y}px)`;
+    if (!pixieReady) { pixie.style.opacity = "1"; pixieReady = true; }
+  }
+
+  function spark(x, y) {
+    const s = document.createElement("span");
+    s.className = "hw-spark " + SPARK_CLASS[(Math.random() * 3) | 0];
+    const ang = Math.random() * Math.PI - Math.PI / 2; // upward-ish
+    const dist = 5 + Math.random() * 9;
+    s.style.left = x + "px";
+    s.style.top = y + "px";
+    s.style.setProperty("--sx", Math.cos(ang) * dist + "px");
+    s.style.setProperty("--sy", (-Math.abs(Math.sin(ang)) * dist - 3) + "px");
+    stage.appendChild(s);
+    s.addEventListener("animationend", () => s.remove());
+  }
+
+  // Wrap every character of a node (recursing into <span>, skipping <br>)
+  // in its own .hw-letter so each can swirl in independently.
+  function splitLetters(node, out) {
+    const kids = Array.from(node.childNodes);
+    for (const child of kids) {
+      if (child.nodeType === 3) {
+        const frag = document.createDocumentFragment();
+        for (const ch of child.textContent) {
+          if (ch === " " || ch === "\n") {
+            frag.appendChild(document.createTextNode(ch === "\n" ? " " : " "));
+          } else {
+            const span = document.createElement("span");
+            span.className = "hw-letter";
+            span.textContent = ch;
+            frag.appendChild(span);
+            out.push(span);
+          }
+        }
+        child.replaceWith(frag);
+      } else if (child.nodeType === 1 && child.tagName !== "BR") {
+        splitLetters(child, out);
+      }
+    }
+  }
+
+  async function writeLine(el) {
+    const copyRect = copy.getBoundingClientRect();
+    const artEl = document.querySelector(".hero-carousel") || document.querySelector(".hero-art");
+    const artRect = artEl ? artEl.getBoundingClientRect() : copyRect;
+    const centerY = artRect.top + artRect.height / 2 - copyRect.top;
+
+    const finalRect = el.getBoundingClientRect();
+    const fx = finalRect.left - copyRect.left;
+    const fy = finalRect.top - copyRect.top;
+
+    // Clone the line, keeping its typography classes but dropping the
+    // reveal/animation ones, and let it hug its content so short lines
+    // truly centre in the column.
+    const clone = el.cloneNode(true);
+    clone.removeAttribute("id");
+    ["hero-reveal", "hero-reveal-1", "hero-reveal-2", "hero-reveal-3",
+      "hero-reveal-4", "hero-reveal-5", "hero-reveal-6", "is-placed"]
+      .forEach((c) => clone.classList.remove(c));
+    clone.classList.add("hw-clone");
+    clone.style.display = "inline-block";
+    clone.style.textAlign = "left";
+    clone.style.maxWidth = Math.ceil(finalRect.width) + "px";
+    stage.appendChild(clone);
+
+    const letters = [];
+    splitLetters(clone, letters);
+
+    // Centre the clone horizontally; write level with the carousel, but never
+    // on top of lines already placed above - drop beneath them if it'd overlap.
+    const cloneRect = clone.getBoundingClientRect();
+    const startLeft = copyRect.width / 2 - cloneRect.width / 2;
+    let startTop = centerY - cloneRect.height / 2;
+    if (prevBottom != null && startTop < prevBottom + 16) {
+      startTop = prevBottom + 16;
+    }
+    clone.style.left = startLeft + "px";
+    clone.style.top = startTop + "px";
+
+    // Record each letter's resting centre (transform doesn't shift layout).
+    const targets = letters.map((s) => {
+      const r = s.getBoundingClientRect();
+      return { x: r.left - copyRect.left + r.width / 2, y: r.top - copyRect.top + r.height / 2 };
+    });
+    // Give each letter a random swirl-in vector.
+    letters.forEach((s) => {
+      const a = Math.random() * Math.PI * 2;
+      const d = 16 + Math.random() * 26;
+      s.style.setProperty("--dx", Math.cos(a) * d + "px");
+      s.style.setProperty("--dy", Math.sin(a) * d + "px");
+      s.style.setProperty("--rot", (Math.random() * 50 - 25) + "deg");
+    });
+
+    // Write left-to-right, the pixie leading just ahead of each letter.
+    const stagger = clamp(1700 / Math.max(letters.length, 1), 32, 95);
+    if (targets.length) movePixie(targets[0].x, targets[0].y, false);
+    for (let i = 0; i < letters.length; i++) {
+      const t = targets[i];
+      const lead = targets[Math.min(i + 1, targets.length - 1)];
+      movePixie(lead.x, lead.y, true);
+      letters[i].classList.add("lit");
+      if (i % 2 === 0) spark(t.x, t.y);
+      await delay(stagger);
+    }
+
+    await delay(320); // a breath, then settle into place
+
+    const dx = fx - startLeft;
+    const dy = fy - startTop;
+    clone.style.transition = "transform 680ms cubic-bezier(0.2,0.85,0.25,1), opacity 360ms ease";
+    clone.style.transform = `translate(${dx}px, ${dy}px)`;
+    await delay(430);
+    el.classList.add("is-placed"); // reveal the real, left-aligned line
+    clone.style.opacity = "0";
+    prevBottom = (el.getBoundingClientRect().bottom - copy.getBoundingClientRect().top);
+    await delay(300);
+    clone.remove();
+  }
+
+  (async () => {
+    await delay(360);
+    for (const el of lines) await writeLine(el);
+    movePixie(copy.getBoundingClientRect().width * 0.5, -40, true);
+    pixie.style.opacity = "0";
+    for (const el of tail) { el.classList.add("is-placed"); await delay(180); }
+    await delay(500);
+    stage.remove();
+    hero.classList.remove("hero-anim");
+  })();
+}
+initHeroWrite();
+
+/* ───────────────────────── opening radio ─────────────────────────
+ * Tune the real dial radio to Thornwave on first load so music plays under
+ * the hero intro - and every radio control (dial, power, volume, tracks)
+ * governs it from there. Autoplay is blocked until a gesture, so attempt it
+ * now and, if silent, resume on the first interaction. */
+function initOpeningRadio() {
+  if (typeof window.startRadioBroadcast !== "function") return;
+  window.startRadioBroadcast("thornwave");
+
+  const kick = () => {
+    window.ensureRadioPlaying?.();
+    window.removeEventListener("pointerdown", kick);
+    window.removeEventListener("keydown", kick);
+    window.removeEventListener("scroll", kick);
+  };
+  window.addEventListener("pointerdown", kick, { passive: true });
+  window.addEventListener("keydown", kick);
+  window.addEventListener("scroll", kick, { passive: true });
+}
+initOpeningRadio();
+
+/* ───────────────────────── header radio controls ─────────────────────────
+ * Play/pause and a station dropdown in the top bar, governing the same dial
+ * radio - so the music is easy to play with from anywhere on the page. */
+function initHeaderRadio() {
+  const toggle = document.querySelector("#header-radio-toggle");
+  const select = document.querySelector("#header-radio-station");
+  const icon = toggle && toggle.querySelector(".hr-icon");
+  if (!toggle || !select || typeof window.getRadioStations !== "function") return;
+
+  const stations = window.getRadioStations();
+  if (!stations.length) { toggle.closest(".header-radio")?.remove(); return; }
+  select.innerHTML = stations
+    .map((s) => `<option value="${s.id}">${s.name}</option>`)
+    .join("");
+
+  function render() {
+    const st = window.getRadioState ? window.getRadioState() : { onAir: false, stationId: null };
+    if (st.stationId && select.value !== st.stationId) select.value = st.stationId;
+    toggle.classList.toggle("is-playing", st.onAir);
+    toggle.setAttribute("aria-pressed", st.onAir ? "true" : "false");
+    toggle.setAttribute("aria-label", st.onAir ? "Pause radio" : "Play radio");
+    toggle.title = st.onAir ? "Pause radio" : "Play radio";
+    if (icon) icon.textContent = st.onAir ? "❚❚" : "▶";
+  }
+
+  toggle.addEventListener("click", () => {
+    const st = window.getRadioState();
+    if (st.onAir) window.stopRadioBroadcast();
+    else { window.startRadioBroadcast(select.value); window.ensureRadioPlaying?.(); }
+  });
+  select.addEventListener("change", () => {
+    window.startRadioBroadcast(select.value);
+    window.ensureRadioPlaying?.();
+  });
+  window.addEventListener("radiostatechange", render);
+  render();
+}
+initHeaderRadio();
 
 /* ───────────────────────── hidden lore marginalia ─────────────────────────
  * Words across the page are quietly clickable. Each opens a scrap of the
