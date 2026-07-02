@@ -1,0 +1,25 @@
+name = "reenchanted-physical-books"
+main = "lulu-quote-worker.mjs"
+compatibility_date = "2026-06-30"
+workers_dev = true
+
+[vars]
+LULU_API_BASE_URL = "https://api.lulu.com"
+LULU_AUTH_URL = "https://api.lulu.com/auth/realms/glasstree/protocol/openid-connect/token"
+# PUBLIC_PRINT_FILE_BASE_URL should point at the public/custom domain that
+# serves the PHYSICAL_BOOK_FILES R2 bucket contents.
+PUBLIC_PRINT_FILE_BASE_URL = "https://pub-5b7523b9556d44fb9ca7e927528c6738.r2.dev"
+
+# Optional: override the shipping levels shown by the iOS app.
+# LULU_SHIPPING_LEVELS_JSON = "[{\"id\":\"MAIL\",\"displayName\":\"Mail\",\"estimatedDaysMin\":5,\"estimatedDaysMax\":10}]"
+
+# Bind this to a private R2 bucket used for generated interior/cover PDFs.
+[[r2_buckets]]
+binding = "PHYSICAL_BOOK_FILES"
+bucket_name = "reenchanted-physical-book-files"
+
+# Bind this before production so repeated /orders calls do not create duplicate
+# Lulu print jobs for the same Stripe PaymentIntent.
+[[kv_namespaces]]
+binding = "PHYSICAL_BOOK_ORDERS"
+id = "6413f2a5fc084312834b48cfaaf12440"

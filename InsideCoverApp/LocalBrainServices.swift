@@ -531,7 +531,9 @@ enum MLXBraidTaskRunner {
         instructions: String,
         maxTokens: Int,
         sourceID: String,
-        tags: [String]
+        tags: [String],
+        temperature: Float = 0.68,
+        topP: Float = 0.9
     ) async throws -> String {
         let taskLabel = sourceID.isEmpty ? "gemma-task" : sourceID
         return try await MLXLocalTextGenerator.run(
@@ -540,8 +542,12 @@ enum MLXBraidTaskRunner {
             maxTokens: maxTokens,
             label: taskLabel,
             tags: tags,
-            temperature: 0.68,
-            topP: 0.9
+            temperature: temperature,
+            topP: topP,
+            // Braid-task prompts (Story Pages especially, with recipe packets
+            // and continuation memory) can pass 2k tokens; a 2_048 rotating KV
+            // cache silently evicts the instructions at exactly that point.
+            maxKVSize: 4_096
         )
     }
 }
@@ -916,7 +922,8 @@ struct MLXStoryPageWriter: StoryPageWriting {
                 instructions: StoryPagePromptBuilder.instructions,
                 maxTokens: maxTokens,
                 sourceID: sourceID,
-                tags: tags
+                tags: tags,
+                temperature: 0.74
             )
             appLog.info("Story Page Gemma raw response (\(response.count, privacy: .public) chars): \(StoryPageDebugLog.preview(response), privacy: .public)")
             return try StoryPageProseParser.parse(response, fallback: draft)
@@ -961,7 +968,9 @@ struct MLXStoryPageResultWriter: StoryPageResultWriting {
             instructions: StoryPageResultPromptBuilder.instructions,
             maxTokens: 160,
             sourceID: sourceID,
-            tags: ["story-page", "story-result"]
+            tags: ["story-page", "story-result"],
+            temperature: 0.8,
+            topP: 0.92
         )
 
         let cleaned = StoryPageResultPromptBuilder.clean(response)

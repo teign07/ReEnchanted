@@ -546,6 +546,48 @@ enum SurfaceCadence {
     }
 }
 
+/// From 5pm, a one-line teaser naming the threads tonight's braid has already
+/// caught — anticipation for the Book of You without moving its reveal.
+enum BraidEmber {
+    static func teaser(for day: BookDay, now: Date = Date(), calendar: Calendar = .current) -> String? {
+        guard calendar.component(.hour, from: now) >= 17 else { return nil }
+        let threads = threadLabels(for: day)
+        guard threads.count >= 2 else { return nil }
+        let countWord = threads.count == 2 ? "two" : "three"
+        let joined = threads.count == 2
+            ? "\(threads[0]) and \(threads[1])"
+            : "\(threads[0]), \(threads[1]), and \(threads[2])"
+        return "Tonight\u{2019}s braid has caught \(countWord) threads: \(joined)."
+    }
+
+    /// Up to three short labels for today's captured pages, strongest first.
+    /// A page with prose is named by its most vivid word; a wordless log is
+    /// named by its page type.
+    static func threadLabels(for day: BookDay) -> [String] {
+        let ranked = day.capturedPages.sorted {
+            let left = StorySpark.score($0.userInput.nonEmpty ?? $0.promptText)
+            let right = StorySpark.score($1.userInput.nonEmpty ?? $1.promptText)
+            if left == right { return $0.createdAt > $1.createdAt }
+            return left > right
+        }
+        var labels: [String] = []
+        for page in ranked {
+            let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            let label: String
+            if let word = KeepMarginalia.featuredWord(in: text) {
+                label = "the \(word)"
+            } else if !text.isEmpty {
+                label = "the \(page.type.shortTitle.lowercased())"
+            } else {
+                label = "a \(page.type.shortTitle.lowercased())"
+            }
+            if !labels.contains(label) { labels.append(label) }
+            if labels.count == 3 { break }
+        }
+        return labels
+    }
+}
+
 struct DailyCheckInWindow: Equatable {
     var id: String
     var name: String
@@ -1089,6 +1131,7 @@ struct CuratorMood {
                 celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: inputs.hemisphere)
                     + BookJumpEngine.greyShift(state: inputs.bookJump, now: now)
                     + RadioStationRegistry.greyShift(state: inputs.radio, now: now)
+                    + inputs.nothingGreyOffset
             ),
             reshelvedSourceIDs: FaeGiftEffects.reshelvedSourceIDs(
                 state: inputs.faeState,

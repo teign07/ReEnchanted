@@ -17,6 +17,173 @@ private extension View {
             }
     }
 }
+
+private struct InkbonesThrow: Identifiable, Equatable {
+    var id = UUID()
+    var choiceID: String
+    var threshold: Int
+    var roll: Int
+    var outcome: String
+    var texture: String
+    var effectLine: String
+
+    var resultLine: String {
+        "Belief roll: \(roll) against \(threshold). \(outcome). \(effectLine)"
+    }
+
+    static func make(choice: StoryPageChoiceDraft) -> InkbonesThrow {
+        let threshold = BeliefCombatResolver.finalThreshold(for: 50, difficulty: .standard)
+        let roll = Int.random(in: 1...100)
+        let outcome: String
+        let texture: String
+        if roll <= 5 {
+            outcome = "The Inkbones crack the margin open"
+            texture = "A rare bright fracture. The Story Page gets more permission than it asked for."
+        } else if roll <= threshold {
+            outcome = "The Inkbones favor the thread"
+            texture = "Belief catches. The page can move with a little extra warmth."
+        } else if roll <= threshold + 10 {
+            outcome = "The Inkbones hesitate"
+            texture = "The thread holds, but the margin asks for a softer landing."
+        } else if roll >= 96 {
+            outcome = "The Inkbones ask a cost"
+            texture = "The page turns, but something in the ink keeps score."
+        } else {
+            outcome = "The Inkbones turn sideways"
+            texture = "Not blocked. Not blessed. The answer arrives at an angle."
+        }
+        return InkbonesThrow(
+            choiceID: choice.id,
+            threshold: threshold,
+            roll: roll,
+            outcome: outcome,
+            texture: texture,
+            effectLine: choice.effectLine
+        )
+    }
+}
+
+private struct InkbonesThrowOverlay: View {
+    let throwState: InkbonesThrow
+    let reduceMotion: Bool
+    @State private var thrown = false
+    @State private var reveal = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: "die.face.5.fill")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Throw the Inkbones")
+                        .font(.caption.weight(.black))
+                        .textCase(.uppercase)
+                        .foregroundStyle(BookPalette.lampGold)
+                    Text(reveal ? throwState.outcome : "The Book cups the bones in its margin.")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(BookPalette.nightText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                if reveal {
+                    Text("\(throwState.roll)")
+                        .font(.system(.title2, design: .serif).weight(.black))
+                        .foregroundStyle(BookPalette.page)
+                        .monospacedDigit()
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(BookPalette.gold.opacity(0.34), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+            }
+
+            ZStack {
+                ForEach(0..<5, id: \.self) { index in
+                    InkbonesPiece(index: index, thrown: thrown, reduceMotion: reduceMotion)
+                }
+            }
+            .frame(height: 56)
+            .frame(maxWidth: .infinity)
+            .accessibilityHidden(true)
+
+            if reveal {
+                Text("\(throwState.texture) Roll \(throwState.roll) against \(throwState.threshold).")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.74))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(14)
+        .background(
+            LinearGradient(
+                colors: [BookPalette.nightPanel.opacity(0.98), BookPalette.violet.opacity(0.96)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.42), lineWidth: 1)
+        }
+        .shadow(color: BookPalette.ink.opacity(0.34), radius: 18, y: 10)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Throw the Inkbones. \(throwState.outcome). Roll \(throwState.roll) against \(throwState.threshold).")
+        .task(id: throwState.id) {
+            if reduceMotion {
+                reveal = true
+                return
+            }
+            withAnimation(.spring(response: 0.58, dampingFraction: 0.62)) {
+                thrown = true
+            }
+            try? await Task.sleep(for: .milliseconds(780))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.24)) {
+                reveal = true
+            }
+        }
+    }
+}
+
+private struct InkbonesPiece: View {
+    let index: Int
+    let thrown: Bool
+    let reduceMotion: Bool
+
+    private var startX: CGFloat { CGFloat(index - 2) * 10 }
+    private var endX: CGFloat { [-116, -54, 4, 68, 122][index] }
+    private var startY: CGFloat { -18 }
+    private var endY: CGFloat { [18, 1, 24, 7, 20][index] }
+    private var rotation: Double { [-420, 310, -260, 390, -330][index] }
+
+    var body: some View {
+        Capsule(style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [BookPalette.page, BookPalette.paper, BookPalette.lampGold.opacity(0.82)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .frame(width: [34, 42, 30, 38, 32][index], height: [12, 13, 11, 12, 10][index])
+            .overlay {
+                Capsule(style: .continuous)
+                    .stroke(BookPalette.ink.opacity(0.34), lineWidth: 1)
+            }
+            .overlay(alignment: .center) {
+                Circle()
+                    .fill(BookPalette.ink.opacity(0.42))
+                    .frame(width: 3.5, height: 3.5)
+                    .offset(x: index.isMultiple(of: 2) ? -7 : 7)
+            }
+            .rotationEffect(.degrees(reduceMotion ? 0 : (thrown ? rotation : Double(index * 12 - 24))))
+            .offset(x: reduceMotion ? endX : (thrown ? endX : startX), y: reduceMotion ? endY : (thrown ? endY : startY))
+            .opacity(thrown || reduceMotion ? 1 : 0.45)
+            .animation(.spring(response: 0.64 + Double(index) * 0.04, dampingFraction: 0.58), value: thrown)
+    }
+}
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -555,7 +722,10 @@ struct CapturePageSheet: View {
     /// scaffold the player writes with. Defaults empty for previews/callers that
     /// don't have a vault.
     var readerLexicon: ReaderLexicon = ReaderLexicon()
+    var isShadowWonderActive: Bool = false
     let onSave: (SurfacePage, String, [String]) -> Void
+
+    private static let localBrainStatusScrollID = "page-local-brain-status"
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -579,6 +749,7 @@ struct CapturePageSheet: View {
     @State private var generatingStoryResultChoiceID: String?
     @State private var storyContinuationMessage = ""
     @State private var resolvedStoryMechanics: [String: String] = [:]
+    @State private var activeInkbonesThrow: InkbonesThrow?
     @State private var askPrompt = ""
     @State private var askTurns: [AskTheBookTurn] = []
     @State private var isAskingTheBook = false
@@ -1378,6 +1549,15 @@ struct CapturePageSheet: View {
             progressLine: localBrainProgressLine,
             presentation: presentation
         )
+        .id(Self.localBrainStatusScrollID)
+    }
+
+    private func scrollToLocalBrainStatus(_ scrollProxy: ScrollViewProxy) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            withAnimation(.easeInOut(duration: 0.28)) {
+                scrollProxy.scrollTo(Self.localBrainStatusScrollID, anchor: .top)
+            }
+        }
     }
 
     private var openPagePrimaryText: Color {
@@ -1539,14 +1719,30 @@ struct CapturePageSheet: View {
             ZStack {
                 BookBackground()
 
-                ScrollView {
-                    AnyView(pageSheetContent)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 18)
-                        .padding(.bottom, 44)
-                        // All of the page's prose is long-press selectable/copyable.
-                        // (Editable fields keep their own selection behavior.)
-                        .textSelection(.enabled)
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        AnyView(pageSheetContent)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 18)
+                            .padding(.bottom, 44)
+                            // All of the page's prose is long-press selectable/copyable.
+                            // (Editable fields keep their own selection behavior.)
+                            .textSelection(.enabled)
+                    }
+                    .onChange(of: isLocalBrainWorking) { _, isWorking in
+                        guard isWorking else { return }
+                        scrollToLocalBrainStatus(scrollProxy)
+                    }
+                    .onChange(of: localPageOwnedScribeLabel) { _, label in
+                        guard label != nil else { return }
+                        scrollToLocalBrainStatus(scrollProxy)
+                    }
+                    .onChange(of: localBrainGenerationPreview) { oldValue, newValue in
+                        guard isLocalBrainWorking,
+                              oldValue?.nonEmpty == nil,
+                              newValue?.nonEmpty != nil else { return }
+                        scrollToLocalBrainStatus(scrollProxy)
+                    }
                 }
                 .scrollIndicators(.visible)
             }
@@ -1670,6 +1866,16 @@ struct CapturePageSheet: View {
                     }
                 }
             }
+            .overlay(alignment: .top) {
+                if let activeInkbonesThrow {
+                    InkbonesThrowOverlay(throwState: activeInkbonesThrow, reduceMotion: reduceMotion)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 10)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .zIndex(12)
+                }
+            }
+            .keepsFocusedTextInputVisible()
         }
     }
 
@@ -2390,7 +2596,9 @@ struct CapturePageSheet: View {
                 placeholder: placeholder,
                 text: $text,
                 minHeight: 92,
-                builderPack: phase == "after" ? SentenceBuilderPackRegistry.composedSouvenir(readerLexicon: readerLexicon) : SentenceBuilderPackRegistry.composedCore(readerLexicon: readerLexicon)
+                builderPack: phase == "after"
+                    ? SentenceBuilderPackRegistry.composedSouvenir(readerLexicon: readerLexicon, shadowWonderActive: isShadowWonderActive)
+                    : SentenceBuilderPackRegistry.composedCore(readerLexicon: readerLexicon, shadowWonderActive: isShadowWonderActive)
             )
         }
     }
@@ -3914,6 +4122,7 @@ struct CapturePageSheet: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(choice.tint)
+            .disabled(activeInkbonesThrow != nil)
         }
         .padding(12)
         .background(BookPalette.paper.opacity(0.82), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -3928,7 +4137,7 @@ struct CapturePageSheet: View {
         case .none:
             Task { await generateStoryResultForActiveTurn(choiceID: choice.id) }
         case .beliefDice:
-            resolveStoryBeliefDice(choice: choice, draft: draft)
+            beginStoryBeliefDiceThrow(choice: choice, draft: draft)
         case .compassRun:
             onNavigateToSurface(storyCompassRunSurface(choice: choice, draft: draft))
         case .enchantment:
@@ -3936,27 +4145,32 @@ struct CapturePageSheet: View {
         }
     }
 
-    private func resolveStoryBeliefDice(choice: StoryPageChoiceDraft, draft: StoryPageSceneDraft) {
-        let threshold = BeliefCombatResolver.finalThreshold(for: 50, difficulty: .standard)
-        let roll = Int.random(in: 1...100)
-        let outcome: String
-        if roll <= 5 {
-            outcome = "critical success"
-        } else if roll <= threshold {
-            outcome = "success"
-        } else if roll <= threshold + 10 {
-            outcome = "near miss"
-        } else if roll >= 96 {
-            outcome = "critical failure"
-        } else {
-            outcome = "failure"
+    private func beginStoryBeliefDiceThrow(choice: StoryPageChoiceDraft, draft: StoryPageSceneDraft) {
+        guard activeInkbonesThrow == nil else { return }
+        let inkbonesThrow = InkbonesThrow.make(choice: choice)
+        activeInkbonesThrow = inkbonesThrow
+        storyContinuationMessage = ""
+        BookFeedback.play(.braidStart)
+        Task {
+            try? await Task.sleep(for: reduceMotion ? .milliseconds(520) : .milliseconds(1_520))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                completeStoryBeliefDiceThrow(inkbonesThrow)
+            }
         }
-        let result = "Belief roll: \(roll) against \(threshold), \(outcome). \(choice.effectLine)"
-        resolvedStoryMechanics[choice.id] = result
+    }
+
+    @MainActor
+    private func completeStoryBeliefDiceThrow(_ inkbonesThrow: InkbonesThrow) {
+        guard activeInkbonesThrow?.id == inkbonesThrow.id else { return }
+        resolvedStoryMechanics[inkbonesThrow.choiceID] = inkbonesThrow.resultLine
         if let turnIndex = storyTurns.indices.last {
-            storyTurns[turnIndex].generatedResults[choice.id] = result
+            storyTurns[turnIndex].generatedResults[inkbonesThrow.choiceID] = inkbonesThrow.resultLine
         }
-        storyContinuationMessage = "The Belief dice landed. The Story Page can continue from the result."
+        withAnimation(.easeOut(duration: 0.24)) {
+            activeInkbonesThrow = nil
+        }
+        storyContinuationMessage = "The Inkbones landed. The Story Page can continue from the result."
         BookFeedback.play(.braidComplete)
     }
 
@@ -5138,7 +5352,7 @@ struct CapturePageSheet: View {
                     placeholder: "A line back through the margins…",
                     text: $letterReply,
                     minHeight: 120,
-                    builderPack: SentenceBuilderPackRegistry.composedCore(readerLexicon: readerLexicon)
+                    builderPack: SentenceBuilderPackRegistry.composedCore(readerLexicon: readerLexicon, shadowWonderActive: isShadowWonderActive)
                 )
 
                 Button {
@@ -5800,7 +6014,7 @@ struct CapturePageSheet: View {
                 : "Add one true thing the Book should keep.",
             text: $text,
             minHeight: minHeight,
-            builderPack: SentenceBuilderPackRegistry.composedCore(readerLexicon: readerLexicon)
+            builderPack: SentenceBuilderPackRegistry.composedCore(readerLexicon: readerLexicon, shadowWonderActive: isShadowWonderActive)
         )
     }
 
@@ -6011,7 +6225,7 @@ struct CapturePageSheet: View {
                         }
                     }
                     .buttonStyle(.bookPress())
-                    .disabled(isGeneratingStoryResult || (isLocalBrainWorking && choice.mechanic.kind == .none))
+                    .disabled(activeInkbonesThrow != nil || isGeneratingStoryResult || (isLocalBrainWorking && choice.mechanic.kind == .none))
                 }
             }
 
@@ -6030,6 +6244,12 @@ struct CapturePageSheet: View {
                                 .font(.system(.callout, design: .serif))
                                 .foregroundStyle(BookPalette.ink)
                                 .fixedSize(horizontal: false, vertical: true)
+                            if let texture = storyConsequenceTextureLine(choice: selectedStoryChoice, draft: draft) {
+                                Text(texture)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(BookPalette.ink.opacity(0.58))
+                                    .padding(.top, 2)
+                            }
                         }
                     }
                     .padding(12)
@@ -6097,6 +6317,48 @@ struct CapturePageSheet: View {
                     .foregroundStyle(BookPalette.ink.opacity(0.58))
             }
         }
+    }
+
+    private func storyConsequenceTextureLine(choice: StoryPageChoiceDraft, draft: StoryPageSceneDraft) -> String? {
+        let metadata = draft.surface.payload.metadata
+        var tags: [String] = ["choice:\(choice.id)"]
+        switch draft.surface.type {
+        case .bookFae:
+            tags.append(contentsOf: ["book-fae", "fae"])
+            if let faeKind = metadata["faeKind"]?.nonEmpty {
+                tags.append("fae:\(faeKind)")
+            }
+        case .anchor:
+            tags.append(contentsOf: ["anchor", "outer-stacks"])
+        case .academyClass:
+            tags.append("academy-class")
+        default:
+            tags.append("narrative-os")
+        }
+        if let rawTags = metadata["tags"]?.nonEmpty {
+            tags.append(contentsOf: rawTags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+        }
+        let entityIDs = (metadata["selectedEntityIDs"] ?? metadata["selectedEntities"] ?? "")
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().replacingOccurrences(of: " ", with: "-") }
+            .filter { !$0.isEmpty }
+        tags.append(contentsOf: entityIDs.prefix(4).map { "entity:\($0)" })
+        let threadIDs = (metadata["selectedThreadIDs"] ?? metadata["selectedThreads"] ?? "")
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().replacingOccurrences(of: " ", with: "-") }
+            .filter { !$0.isEmpty }
+        tags.append(contentsOf: threadIDs.prefix(3).map { "thread:\($0)" })
+
+        let probe = BookPage(
+            type: draft.surface.type,
+            promptText: draft.surface.prompt,
+            userInput: "\(draft.scene)\n\nChosen path: \(choice.kindLabel)\n\n\(choice.prompt)\n\n\(choice.effectLine)",
+            tags: tags,
+            sourceID: draft.surface.sourceID,
+            origin: draft.surface.origin,
+            privacy: draft.surface.privacy
+        )
+        return StoryConsequenceResolver.resolvedConsequence(forChoiceID: choice.id, page: probe).textureLine
     }
 
     @ViewBuilder
@@ -7452,6 +7714,18 @@ struct CapturePageSheet: View {
             for threadID in threadIDs.prefix(3) {
                 tags.append("thread:\(threadID)")
             }
+            let consequenceProbe = BookPage(
+                type: preparedSurface.type,
+                promptText: preparedSurface.prompt,
+                userInput: preparedInput,
+                tags: tags,
+                sourceID: preparedSurface.sourceID,
+                origin: preparedSurface.origin,
+                privacy: preparedSurface.privacy
+            )
+            for consequence in StoryConsequenceResolver.resolvedConsequences(forKept: consequenceProbe) {
+                tags.append(contentsOf: consequence.eventTags)
+            }
         }
         if preparedSurface.type == .gossip {
             tags.append("gossip-page")
@@ -7564,6 +7838,15 @@ struct CapturePageSheet: View {
             }
             if let enchantmentID = preparedSurface.payload.metadata["storyEnchantmentID"] {
                 tags.append("enchantment:\(enchantmentID)")
+            }
+            if let tier = preparedSurface.payload.metadata["storyMechanicOutcomeTier"] {
+                tags.append("clash-outcome:\(tier)")
+            }
+        }
+        if preparedSurface.payload.metadata["storyRecipePackID"] == "unquiet-folio" {
+            tags.append("clash")
+            if let recipeID = preparedSurface.payload.metadata["storyRecipeID"]?.nonEmpty {
+                tags.append("clash:\(recipeID)")
             }
         }
         if preparedSurface.type == .mood, !selectedWeather.isEmpty {
@@ -8233,7 +8516,7 @@ struct StoryPageChoiceMechanic: Equatable {
         case .none:
             return "Story choice"
         case .beliefDice:
-            return "Belief roll"
+            return "Throw the Inkbones"
         case .compassRun:
             return "Compass Run Page"
         case .enchantment:
@@ -8246,7 +8529,7 @@ struct StoryPageChoiceMechanic: Equatable {
         case .none:
             return ""
         case .beliefDice:
-            return "Roll Belief before the Story Page writes the consequence."
+            return "Cast the Book's little bones before the Story Page writes the consequence."
         case .compassRun:
             return "Complete a real Compass Run, then the Story Page continues from it."
         case .enchantment:
@@ -8259,7 +8542,7 @@ struct StoryPageChoiceMechanic: Equatable {
         case .none:
             return "Choose path"
         case .beliefDice:
-            return "Roll Belief"
+            return "Throw the Inkbones"
         case .compassRun:
             return "Open Compass Run"
         case .enchantment:
@@ -9068,27 +9351,20 @@ struct StoryPageContinuationContext: Equatable {
             }
             recipeContinuation = """
             - SAME RECIPE: \(blueprint.recipeName). \(blueprint.continuationDirective)
-            - MODE: \(modeLine)
-            - The original grounding already appeared; let its consequence continue without mechanically repeating its wording.
+            - MODE: \(modeLine) The original grounding already appeared; continue its consequence without repeating its wording.
             """
         } else {
-            recipeContinuation = """
-            - PEOPLE, NOT THE ROOM: the room, weather, light, dust, glass, and air are backdrop only — never the subject of a sentence's verb, never what anyone wants or reacts to. Characters react to other people.
-            - DIALOGUE FIRST: most of the new scene should be spoken lines. Actions are short interruptions, not the substance.
-            - PROP RULE: do not have characters repeatedly pick up, set down, turn, arrange, examine, carry, tap, slide, polish, fold, unfold, or move small objects.
-            """
+            recipeContinuation = "- Spoken lines carry the new scene; characters react to people, and rooms, light, and props stay backdrop. No scenes built on handling small objects."
         }
 
         return """
-        The reader asked for the one optional final beat. Everything under "already written" has ALREADY BEEN READ — it is context, not material.
+        The reader asked for the one optional final beat. Everything under "already written" has ALREADY BEEN READ — it is context, never material to reuse.
 
         THE CONTRACT FOR THE NEW SCENE:
-        - Repeating a sentence, image, object description, or opening line from earlier turns is a failure. Do not re-describe the setting; it exists. Do NOT reopen with the same line as a prior turn.
-        - Do NOT restate the chosen action as a flat sentence ("You point toward the window."). The consequence has already happened; start from what it changed.
+        - Never repeat a sentence, image, or opening line from earlier turns, and never re-describe the setting; it exists.
+        - The chosen action already happened. Start from what it changed and show its cost or gift through what a character says; do not restate the action itself.
         \(recipeContinuation)
-        - Write 3-5 full sentences. Begin at a new point in the conversation, not with a new object description.
-        - This is the final setup before the final reader choice. Keep it snack-sized and do not open a third beat.
-        - The chosen action has consequences now: show its cost or gift through what a character says to another character, then leave the final landing to the next choice result.
+        - 3-5 full sentences, beginning at a new point in the conversation. This is the final setup before the final reader choice — do not open a third beat.
         \(beatDirective)\(lensLine)
 
         \(rendered)
@@ -9400,11 +9676,14 @@ enum StoryPageResultPromptBuilder {
             """
         } ?? ""
 
+        let voice = context.draft.genreName.isEmpty
+            ? ""
+            : "\n\nGENRE VOICE — \(context.draft.genreName): \(context.draft.genreLens)"
         return """
         Write the result for this selected Story Page action.
 
         THREAD:
-        \(context.draft.thread)
+        \(context.draft.thread)\(voice)
 
         CURRENT SCENE:
         \(context.draft.scene)
@@ -9453,12 +9732,10 @@ enum StoryPageResultPromptBuilder {
 
 enum StoryPagePromptBuilder {
     static let instructions = """
-    You are The Book inside ReEnchanted.
-    Write a living storybook vignette from the supplied scene packet. The app owns the mechanics; you write the ink.
-    Do not invent completed real-world actions, exact locations, diagnoses, private facts, identities, or surveillance details.
-    Keep the real and fictional braided together: warm, strange, grounded, concrete, never corporate.
-    Prose standard: write like a sharp story, not an assistant. Simple surprising sentences. Specific nouns and verbs. Characters show themselves primarily by dialogue, with small actions only as interruptions or tells. Do not explain the theme.
-    Ban filler: no generic inspiration, no vague wonder, no abstract emotional summary, no tapestry, echoes, journey, profound, quiet magic, hidden meaning, or "as if the world itself".
+    You are The Book inside ReEnchanted, writing one interactive storybook vignette.
+    Write like a sharp storyteller, never an assistant: simple surprising sentences, specific nouns and verbs, people who show themselves by what they say.
+    Never invent completed real-world actions, exact locations, diagnoses, private facts, or identities.
+    Never write filler: no generic wisdom, no abstract emotional summary, no "tapestry", "echoes", "journey", "profound", or "quiet magic".
     """
 
     static func prompt(for draft: StoryPageSceneDraft, nowPlaying: String? = nil) -> String {
@@ -9467,12 +9744,20 @@ enum StoryPagePromptBuilder {
         }
         let entities = draft.entities.isEmpty ? "The Book" : draft.entities.joined(separator: ", ")
         let setting = draft.storySettingName.isEmpty
-            ? "No explicit Labyrinth setting supplied; ground the scene in the concrete material instead of empty atmosphere."
-            : "\(draft.storySettingName): \(draft.storySettingDetail.nonEmpty ?? "Use this as the physical stage, not as a speaking character.")"
-        let signals = draft.signals.isEmpty ? "- No strong outside signal; use quiet ordinary evidence." : draft.signals.prefix(8).map { "- \($0)" }.joined(separator: "\n")
-        let pressures = draft.pressures.isEmpty ? "- The margins have enough weight to turn." : draft.pressures.prefix(5).map { "- \($0)" }.joined(separator: "\n")
-        let memories = draft.memories.isEmpty ? "- No entity memory has been written yet." : draft.memories.prefix(5).map { "- \($0)" }.joined(separator: "\n")
-        let talismanMoves = draft.chapterTalismanMoves.isEmpty ? "- No chapter talisman move is being offered for this page." : draft.chapterTalismanMoves.prefix(3).map { "- \($0)" }.joined(separator: "\n")
+            ? "No named setting; stage the scene wherever the concrete material lives."
+            : "\(draft.storySettingName): \(draft.storySettingDetail.nonEmpty ?? "The physical stage, not a speaking character.")"
+        let paletteSeeds = draft.rotatedGenrePalette(count: 4)
+        let signals: String
+        if !draft.signals.isEmpty {
+            signals = draft.signals.prefix(6).map { "- \($0)" }.joined(separator: "\n")
+        } else if !paletteSeeds.isEmpty {
+            signals = "- The day sent no outside signal. Build the scene around two or three of these instead, made specific: \(paletteSeeds.joined(separator: ", "))."
+        } else {
+            signals = "- The day sent no outside signal. Invent two small concrete props (a cup gone cold, a note under a door, a key that fits nothing) and let them matter."
+        }
+        let pressures = draft.pressures.isEmpty ? "" : "\n\nRELATIONSHIP / STORY PRESSURE:\n" + draft.pressures.prefix(4).map { "- \($0)" }.joined(separator: "\n")
+        let memories = draft.memories.isEmpty ? "" : "\n\nENTITY MEMORY:\n" + draft.memories.prefix(4).map { "- \($0)" }.joined(separator: "\n")
+        let talismanMoves = draft.chapterTalismanMoves.isEmpty ? "" : "\n\nCHAPTER TALISMAN MOVES — show the listed move as a visible character action; never invent one:\n" + draft.chapterTalismanMoves.prefix(3).map { "- \($0)" }.joined(separator: "\n")
         let continuation = draft.continuationContext.map {
             """
 
@@ -9484,15 +9769,15 @@ enum StoryPagePromptBuilder {
         let structure: String
         let formBeats = StoryVignetteBeats.snackSized(draft.formBeats)
         if formBeats.isEmpty {
-            structure = "A snack-sized vignette with setup, choice, consequence, and a landing."
+            structure = "A snack-sized vignette with setup, choice pressure, and a landing held open."
         } else {
             let beats = formBeats.enumerated()
                 .map { "\($0.offset + 1). \($0.element)" }
                 .joined(separator: "\n")
             structure = """
-            This page follows the shape called "\(draft.formName)". Its beats, in order:
+            This page follows the shape called "\(draft.formName)":
             \(beats)
-            Write the FIRST beat as this scene's spine. The second beat is only for the optional final beat after the reader chooses. Beats are felt, never labeled or numbered in the prose.
+            Write beat 1 now; beat 2 comes only after the reader chooses. Beats are felt, never named in the prose.
             """
         }
         let promise: String
@@ -9502,10 +9787,9 @@ enum StoryPagePromptBuilder {
             promise = """
 
 
-            THE PROMISE — plant this now, pay it off at the end:
-            Seed (introduce concretely in this opening, do not resolve it yet): \(draft.promiseSeed)
-            Central question (the whole vignette leans toward answering this, but the reader's choices decide how): \(draft.promiseQuestion)
-            Establish the seed as an ordinary, specific detail. Let it sit slightly charged. Do not explain it.
+            THE PROMISE — plant now, pay off at the end:
+            Seed (an ordinary, specific, slightly charged detail; introduce it, never resolve or explain it yet): \(draft.promiseSeed)
+            The whole vignette leans toward: \(draft.promiseQuestion)
             """
         }
         let engine: String
@@ -9513,61 +9797,57 @@ enum StoryPagePromptBuilder {
             let modeRule: String
             switch blueprint.sceneMode {
             case .conversation:
-                modeRule = "Favor dialogue, but every line must concern the concrete premise. Conversation may be warm, playful, or uncertain; conflict is not required."
+                modeRule = "Dialogue carries the scene; every line concerns the concrete premise. Warmth or play is fine; conflict is not required."
             case .balanced:
-                modeRule = "Balance dialogue, observation, and consequential action. Neither conversation nor atmosphere must dominate."
+                modeRule = "Balance dialogue, observation, and consequential action."
             case .action:
-                modeRule = "Let physical action carry the scene. Dialogue is optional; actions must change the situation rather than decorate it."
+                modeRule = "Physical action carries the scene and changes the situation; dialogue is optional."
             case .environmental:
-                modeRule = "The place, weather, objects, and the Nothing may act and create consequences. Keep the reader's possible response concrete."
+                modeRule = "The place, weather, objects, or the Nothing may act and cause consequences; keep the reader's possible response concrete."
             }
             engine = """
 
 
             SCENE RECIPE — \(blueprint.recipeName):
             Premise: \(blueprint.premise)
-            Exact grounding that MUST matter: \(blueprint.grounding.text)
-            Character cast: \([blueprint.leadName, blueprint.companionName].compactMap { $0 }.joined(separator: ", "))
+            This exact material MUST drive the scene as causation, evidence, a topic, or a threatened thing — never wallpaper: \(blueprint.grounding.text)
+            Cast: \([blueprint.leadName, blueprint.companionName].compactMap { $0 }.joined(separator: ", "))
             Setting: \(setting)
-            Required beats, in order:
+            Beats, in order:
             \(StoryVignetteBeats.snackSized(blueprint.beats).enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"))
-            Required change: \(blueprint.turn.statement)
-            Grounding direction: \(blueprint.groundingDirective)
+            Required change by the end: \(blueprint.turn.statement)
+            Grounding: \(blueprint.groundingDirective)
             Tone: \(blueprint.toneDirective)
-            Choice affordances: \(blueprint.choiceDirective)
-            Scene mode: \(blueprint.sceneMode.rawValue). \(modeRule)
-
-            HARD RECIPE RULES:
-            - Use the exact grounded material as story causation, evidence, a topic, or a threatened detail—not wallpaper.
-            - Stage the scene in SETTING. The location can constrain entrances, objects, hazards, and available actions, but it is not a cast member and should not speak unless explicitly personified by the recipe.
-            - Name concrete nouns and actions. Do not replace the premise with vague feelings or generic disagreement.
-            - Do not invent a completed real-world action. Everything active happens inside this fictional vignette.
-            - Objects may be central when the recipe needs them, but avoid repetitive decorative handling.
+            Scene mode: \(modeRule)
+            The setting constrains the scene but is not a cast member; name concrete nouns and actions, not vague feelings.
             """
         } else if draft.turnStatement.isEmpty {
             engine = ""
         } else {
             let registerLine = draft.turnRegister == "quiet"
-                ? "Register: quiet — keep it low and warm; the change can be a small thing understood, not a dramatic event."
-                : "Register: active — let the scene move; someone does, decides, or says something that changes the situation."
+                ? "Register: quiet — low and warm; the change can be a small thing understood."
+                : "Register: active — someone does, decides, or says something that changes the situation."
             engine = """
 
 
-            THE SCENE'S ENGINE — a character with a want and an obstacle (this is the spine; objects only serve spoken conflict):
+            THE SCENE'S ENGINE:
             \(draft.turnCharacter) wants: \(draft.turnWant)
             In the way: \(draft.turnObstacle)
             By the end of this whole page this must become true: \(draft.turnStatement)
-            Beat 1 job: put \(draft.turnCharacter) on screen already in conversation — wanting this, obstacle audible. Do NOT resolve it yet.
-
-            HARD RULE — people, not the room:
-            Open on \(draft.turnCharacter) saying something to another person. Most of the scene should be dialogue, with actions peppered in as brief interruptions. The room, weather, light, dust, glass, and air are BACKDROP ONLY — never the subject of a sentence's verb, never what anyone wants, never what a character reacts to. If a character reacts, they react to another PERSON, not to the air or the light. \(draft.turnCharacter) must speak within the first two sentences.
-            PROP RULE — no decorative business: do not have characters repeatedly pick up, set down, turn, arrange, examine, carry, tap, slide, polish, fold, unfold, or move small objects unless that action directly changes what someone says next. Never build a scene around thimbles, cups, keys, ribbons, glass, dust, paper, shadows, or light moving around.
+            Open on \(draft.turnCharacter) already talking to another person — wanting this, obstacle audible, unresolved. They speak within the first two sentences.
+            Dialogue carries the scene; actions are brief interruptions. Rooms, weather, light, and props stay backdrop — characters react to people, and nobody builds a scene around handling small objects.
             \(registerLine)
             """
         }
-        let lens = draft.genreLens.isEmpty
-            ? ""
-            : "\n\nGENRE LENS — \(draft.genreName):\n\(draft.genreLens)\nThe lens colors diction, pacing, and what the camera notices. It never overrides the real material."
+        let voice: String
+        if draft.genreName.isEmpty {
+            voice = ""
+        } else {
+            let sample = draft.genreExemplar.nonEmpty.map {
+                "\nHear the register in this sample from a DIFFERENT story — match its music, never reuse its people, props, or lines:\n\"\($0)\""
+            } ?? "\nThe lens colors diction, pacing, and what the camera notices; it never overrides the real material."
+            voice = "\n\nGENRE VOICE — \(draft.genreName): \(draft.genreLens)\(sample)"
+        }
         let isBookFae = draft.surface.type == .bookFae
         let faeDirective = isBookFae
             ? """
@@ -9592,7 +9872,7 @@ enum StoryPagePromptBuilder {
         \(draft.thread)
 
         STRUCTURE:
-        \(structure)\(promise)\(engine)\(lens)
+        \(structure)\(promise)\(engine)\(voice)
 
         CAST AND WORLD ENTITIES:
         \(entities)
@@ -9601,70 +9881,34 @@ enum StoryPagePromptBuilder {
         \(setting)
 
         REAL MATERIAL:
-        \(signals)
-
-        RELATIONSHIP / STORY PRESSURE:
-        \(pressures)
-
-        ENTITY MEMORY:
-        \(memories)
-
-        CHAPTER TALISMAN MOVES:
-        \(talismanMoves)\(faeDirective)\(RadioAtmosphere.promptSection(nowPlaying))\(draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
-        \(continuation)
-
-        MECHANIC PLAN:
-        \(mechanicPlan)
+        \(signals)\(pressures)\(memories)\(talismanMoves)\(faeDirective)\(RadioAtmosphere.promptSection(nowPlaying))\(draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
+        \(continuation)\(mechanicPlan)
 
         OUTPUT FORMAT, EXACTLY:
         SCENE:
-        \(isBookFae ? "140-220" : "110-170") words. A snack-sized vignette with setup, choice pressure, and a landing held for the reader. Address the reader as "you" only when it feels natural. Make it feel like real life becoming a fantasy story, not like a quest log.
-        \(draft.blueprint == nil ? "The vignette must be mostly dialogue when a character is present. Use actions sparingly and keep rooms and props as backdrop." : "Follow SCENE RECIPE's mode. Concrete details, environments, actions, and dialogue may carry the scene in the proportions that mode requires.")
-        Chapter talisman moves appear only when the packet supplies one. If one is supplied, make it a visible character/world-entity action; the app will apply the matching talisman delta when the page is kept. If none is supplied, do not invent a talisman move.
-        If CONTINUATION MEMORY is present, this scene must be the next beat of that same thread. Do not recap everything; let the previous consequence alter the first paragraph.
-        The SCENE must contain only the vignette. Do not include any choices, prompts, results, button titles, labels, mechanics, section names, or authoring instructions inside SCENE.
+        \(isBookFae ? "140-220" : "110-170") words. Setup, choice pressure, and a landing held open for the reader. Real life becoming a fantasy story, not a quest log. Address the reader as "you" only when natural.\(draft.blueprint == nil ? " Mostly dialogue when a character is present; rooms and props stay backdrop." : " Follow SCENE RECIPE's mode for what carries the scene.")\(draft.continuationContext == nil ? "" : " Continue the same thread: do not recap; let the previous consequence change the first paragraph.")
+        Only the vignette goes here — no choices, button titles, labels, mechanics, or instructions.
 
         SLICE_OF_LIFE_CHOICE:
-        A bespoke button title, 2-5 words, for staying with one concrete ordinary detail from this exact scene. Do not write "Slice of Life" here.
+        Button title, 2-5 words: staying with one concrete detail from this exact scene.
 
         SLICE_OF_LIFE_PROMPT:
-        One specific sentence under 16 words describing the action the reader would take.
-
-        SLICE_OF_LIFE_MECHANIC:
-        none, belief-dice, compass-run, or enchantment:<spell-id>.
+        One sentence under 16 words: the specific action the reader takes.
 
         PROGRESS_ARC_CHOICE:
-        A bespoke button title, 2-5 words, for moving \(draft.thread) one step forward. Do not write "Progress Arc" here.
+        Button title, 2-5 words: moving \(draft.thread) one step forward.
 
         PROGRESS_ARC_PROMPT:
-        One specific sentence under 16 words describing the action the reader would take.
-
-        PROGRESS_ARC_MECHANIC:
-        none, belief-dice, compass-run, or enchantment:<spell-id>.
+        One sentence under 16 words: the specific action the reader takes.
 
         SURPRISE_CHOICE:
-        A bespoke button title, 2-5 words, for a strange related move. Do not write "Something Surprising" here.
+        Button title, 2-5 words: a strange related move that still belongs here.
 
         SURPRISE_PROMPT:
-        One specific sentence under 16 words describing the action the reader would take.
+        One sentence under 16 words: the specific action the reader takes.
 
-        SURPRISE_MECHANIC:
-        none, belief-dice, compass-run, or enchantment:<spell-id>.
-
-        Choice design rule:
-        The three choices must be bespoke to this vignette, not generic. They are internally typed as Slice of Life, Progress Arc, and Surprise, but the visible titles and prompts should read like natural story actions.
-        \(draft.blueprint == nil ? "Every visible choice must be something a character says, asks, decides, gives, refuses, admits, interrupts, or does. Do not make atmosphere-only choices." : "Every visible choice must act on a specific person, clue, object, place, threat, or fact established in this scene. Speech, action, exploration, protection, and exact noticing are all valid when the recipe supports them.")
-        Do not use framework titles or near-framework titles such as Stay With It, Follow the Thread, Look Closer, Press the Want, Open a Side Door, Choose the Detail, Move the Plot, Ask Softly, or Let Them Act. Name the actual story action: the cup, note, alarm, bargain, door, test, line of dialogue, refusal, clue, or handoff that appeared in SCENE.
-        Mechanics rule:
-        - Follow MECHANIC PLAN exactly.
-        - At most one choice may offer a mechanic.
-        - Use belief-dice only for a risky uncertain story move where chance is interesting.
-        - Use compass-run only when the thread needs real-world noticing, movement, or sensory proof.
-        - Use enchantment:<spell-id> only when a concrete real object, image, room, or detail should receive a spell.
-        - Never use a mechanic as filler, reward, tutorial, or default.
-        Available enchantment spell ids:
-        \(StoryEnchantmentCatalog.promptCatalog)
-        Do not write any result or consequence sections. The Book will write the chosen result after the reader chooses.
+        Choice rule: every choice must name a specific person, spoken line, object, or fact from SCENE — something said, asked, refused, given, opened, followed, or protected.\(draft.blueprint.map { " Choices should offer: \($0.choiceDirective)" } ?? "") Never use generic titles like "Stay With It", "Follow the Thread", or "Look Closer".
+        Do not write any result sections; The Book writes the consequence after the reader chooses.
         """
     }
 
@@ -9715,10 +9959,7 @@ enum StoryPagePromptBuilder {
         Reader interaction: \(interaction)
         Real-world practice invitation: \(practice)
         \(socialTurn)
-        \(continuation)\(metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
-
-        MECHANIC PLAN:
-        \(mechanicPlan)
+        \(continuation)\(metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(mechanicPlan)
 
         HARD RULES:
         - \(leader) must be physically present, must teach, and must speak at least twice.
@@ -9745,46 +9986,31 @@ enum StoryPagePromptBuilder {
         3. The leader's correction, the reader's direct question, and one real-world practice invitation for later.
 
         SLICE_OF_LIFE_CHOICE:
-        A bespoke button title, 2-5 words, for staying with one ordinary classroom detail.
+        Button title, 2-5 words: staying with one ordinary classroom detail.
 
         SLICE_OF_LIFE_PROMPT:
-        One specific sentence under 16 words describing the classroom action.
-
-        SLICE_OF_LIFE_MECHANIC:
-        none, belief-dice, compass-run, or enchantment:<spell-id>.
+        One sentence under 16 words: the classroom action.
 
         PROGRESS_ARC_CHOICE:
-        A bespoke button title, 2-5 words, for answering or attempting the lesson.
+        Button title, 2-5 words: answering or attempting the lesson.
 
         PROGRESS_ARC_PROMPT:
-        One specific sentence under 16 words describing the lesson action.
-
-        PROGRESS_ARC_MECHANIC:
-        none, belief-dice, compass-run, or enchantment:<spell-id>.
+        One sentence under 16 words: the lesson action.
 
         SURPRISE_CHOICE:
-        A bespoke button title, 2-5 words, for a strange but subject-related side door.
+        Button title, 2-5 words: a strange but subject-related side door.
 
         SURPRISE_PROMPT:
-        One specific sentence under 16 words describing the sideways action.
+        One sentence under 16 words: the sideways action.
 
-        SURPRISE_MECHANIC:
-        none, belief-dice, compass-run, or enchantment:<spell-id>.
-
-        Choice design rule:
-        The choices are internally Slice of Life, Progress Arc, and Surprise, but their visible titles must sound like natural class actions. Follow MECHANIC PLAN exactly. At most one choice may use a mechanic.
-        Available enchantment spell ids:
-        \(StoryEnchantmentCatalog.promptCatalog)
+        Choice rule: visible titles must sound like natural class actions tied to this exact lesson.
         """
     }
 
+    /// The app enforces the mandate in code after parsing, so the model never
+    /// writes mechanic fields; it only shapes the mandated choice's wording.
     private static func mechanicPlanPrompt(for mandate: StoryPageMechanicMandate) -> String {
-        guard mandate.kind != .none, let choiceID = mandate.choiceID else {
-            return """
-            The app selected no mechanic for this Story Page.
-            Set SLICE_OF_LIFE_MECHANIC, PROGRESS_ARC_MECHANIC, and SURPRISE_MECHANIC to none.
-            """
-        }
+        guard mandate.kind != .none, let choiceID = mandate.choiceID else { return "" }
         let choiceName: String
         switch choiceID {
         case .sliceOfLife:
@@ -9794,23 +10020,23 @@ enum StoryPagePromptBuilder {
         case .surprise:
             choiceName = "SURPRISE"
         }
-        let mechanicText: String
+        let inviteText: String
         switch mandate.kind {
         case .none:
-            mechanicText = "none"
+            return ""
         case .beliefDice:
-            mechanicText = "belief-dice"
+            inviteText = "a risky, uncertain story move worth rolling the Belief dice on"
         case .compassRun:
-            mechanicText = "compass-run"
+            inviteText = "a small real-world noticing errand"
         case .enchantment:
-            mechanicText = "enchantment:\(mandate.enchantmentID ?? StoryEnchantmentCatalog.spells.first?.id ?? "everything-speaks")"
+            let spell = StoryEnchantmentCatalog.spell(id: mandate.enchantmentID) ?? StoryEnchantmentCatalog.spells.first
+            inviteText = "casting \"\(spell?.title ?? "an enchantment")\" (\(spell?.detail.lowercased() ?? "a small spell")) on one concrete thing in the scene"
         }
         return """
-        The app selected one mechanic for pacing.
-        Reason: \(mandate.reason)
-        Set \(choiceName)_MECHANIC to \(mechanicText).
-        Set every other MECHANIC field to none.
-        Make the \(choiceName) visible title and prompt naturally invite this mechanic without explaining the system.
+
+
+        MECHANIC NOTE (\(mandate.reason)):
+        When it is tapped, the \(choiceName) choice will trigger \(inviteText). Write that choice's title and prompt so the action naturally invites this, without naming any mechanic or system.
         """
     }
 }
@@ -10171,6 +10397,10 @@ private extension SurfacePage {
         metadata["storySourceSurfaceID"] = storySurface.id
         metadata["storyThread"] = draft.thread
         metadata["storyScene"] = draft.scene
+        if let blueprint = draft.blueprint {
+            metadata["storyRecipePackID"] = blueprint.recipePackID
+            metadata["storyRecipeID"] = blueprint.recipeID
+        }
         metadata["storyChoiceID"] = choice.id
         metadata["storyChoiceTitle"] = choice.title
         metadata["storyChoicePrompt"] = choice.prompt
@@ -10179,8 +10409,9 @@ private extension SurfacePage {
             metadata["storyEnchantmentID"] = enchantmentID
             metadata["storyEnchantmentName"] = StoryEnchantmentCatalog.spell(id: enchantmentID)?.title
         }
-        let tags = metadata["tags"]?.nonEmpty.map { "\($0),story-mechanic,\(mechanic.kind.rawValue),choice:\(choice.id)" }
-            ?? "story-mechanic,\(mechanic.kind.rawValue),choice:\(choice.id)"
+        let mechanicTag = "story-mechanic:\(mechanic.kind.rawValue)"
+        let tags = metadata["tags"]?.nonEmpty.map { "\($0),story-mechanic,\(mechanic.kind.rawValue),\(mechanicTag),choice:\(choice.id)" }
+            ?? "story-mechanic,\(mechanic.kind.rawValue),\(mechanicTag),choice:\(choice.id)"
         metadata["tags"] = tags
         return SurfacePage(
             id: id,
@@ -10283,6 +10514,8 @@ struct StoryPageSceneDraft: Equatable {
     var formBeats: [String]
     var genreName: String
     var genreLens: String
+    var genreExemplar: String
+    var genrePalette: [String]
     var promiseSeed: String
     var promiseQuestion: String
     var turnCharacter: String
@@ -10302,7 +10535,8 @@ struct StoryPageSceneDraft: Equatable {
         self.surface = surface
         let metadata = surface.payload.metadata
         mechanicMandate = StoryPageMechanicMandate.from(metadata: metadata)
-        thread = metadata["sessionSubjectThreadID"]?.nonEmpty
+        thread = metadata["storyThreadDisplayTitle"]?.nonEmpty
+            ?? metadata["sessionSubjectThreadID"]?.nonEmpty
             ?? metadata["selectedThreads"]?
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -10348,6 +10582,11 @@ struct StoryPageSceneDraft: Equatable {
             .filter { !$0.isEmpty } ?? [])
         genreName = metadata["storyGenreName"] ?? ""
         genreLens = metadata["storyGenreLens"] ?? ""
+        genreExemplar = metadata["storyGenreExemplar"] ?? ""
+        genrePalette = metadata["storyGenrePalette"]?
+            .split(separator: "|")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
         promiseSeed = metadata["storyPromiseSeed"] ?? ""
         promiseQuestion = metadata["storyPromiseQuestion"] ?? ""
         turnCharacter = metadata["storyTurnCharacter"] ?? ""
@@ -10437,6 +10676,18 @@ struct StoryPageSceneDraft: Equatable {
             "surprise": metadata["storyResultSurprise"] ?? ""
         ].compactMapValues(\.nonEmpty)
         continuationContext = metadata["storyContinuationContext"]?.nonEmpty
+    }
+
+    /// A stable per-page slice of the genre palette, so quiet days get
+    /// concrete props without every page of a genre reusing the same ones.
+    func rotatedGenrePalette(count: Int) -> [String] {
+        guard !genrePalette.isEmpty else { return [] }
+        let seed = surface.id.unicodeScalars.reduce(UInt32(2_166_136_261)) { hash, scalar in
+            (hash ^ scalar.value) &* 16_777_619
+        }
+        let start = Int(seed % UInt32(genrePalette.count))
+        let rotated = Array(genrePalette[start...] + genrePalette[..<start])
+        return Array(rotated.prefix(max(count, 1)))
     }
 
     var scene: String {

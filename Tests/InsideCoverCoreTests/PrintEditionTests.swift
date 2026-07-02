@@ -59,4 +59,15 @@ final class PrintEditionTests: XCTestCase {
                              "the binding side needs the extra gutter")
         XCTAssertFalse(spec.luluPackageID.isEmpty)
     }
+
+    func testBookOfYouVariantsExposeVerifiedLuluSKUsAndPrices() {
+        let variants = PrintSpec.bookOfYouVariants
+        XCTAssertEqual(variants.map(\.luluPackageID), [
+            "0600X0900.FC.STD.LW.060UW444.MNG",
+            "0600X0900.FC.STD.CW.060UW444.MXX"
+        ])
+        XCTAssertEqual(variants.map(\.minimumPages), [24, 24])
+        XCTAssertEqual(variants.map(\.perPagePriceUSD), [0.0425, 0.0425])
+        XCTAssertGreaterThan(variants[0].basePriceUSD, variants[1].basePriceUSD)
+    }
 }

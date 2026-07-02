@@ -39,6 +39,7 @@
 		020000000000000000000208 /* SourceAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000108 /* SourceAdapters.swift */; };
 		020000000000000000000209 /* LiteraryContinuity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000109 /* LiteraryContinuity.swift */; };
 		02000000000000000000020A /* MonthlyEdition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010A /* MonthlyEdition.swift */; };
+		02000000000000000000020F /* PhysicalBookOrders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010F /* PhysicalBookOrders.swift */; };
 		02000000000000000000020E /* EditionCurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010E /* EditionCurator.swift */; };
 		02000000000000000000020B /* Constellations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010B /* Constellations.swift */; };
 		02000000000000000000020C /* TheBleed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010C /* TheBleed.swift */; };
@@ -61,6 +62,7 @@
 		2047CBE72FDEF60C00A6B7E4 /* MLXLMHFAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001007 /* MLXLMHFAPI */; };
 		2047CBE82FDEF60C00A6B7E4 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = 01000000000000000000100A /* MLX */; };
 		2047CBE92FDEF60C00A6B7E4 /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = 01000000000000000000100B /* MLXVLM */; };
+		2047CBEA2FDEF60C00A6B7E4 /* StripePaymentSheet in Frameworks */ = {isa = PBXBuildFile; productRef = 01000000000000000000100D /* StripePaymentSheet */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -122,6 +124,7 @@
 		020000000000000000000108 /* SourceAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceAdapters.swift; sourceTree = "<group>"; };
 		020000000000000000000109 /* LiteraryContinuity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteraryContinuity.swift; sourceTree = "<group>"; };
 		02000000000000000000010A /* MonthlyEdition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEdition.swift; sourceTree = "<group>"; };
+		02000000000000000000010F /* PhysicalBookOrders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalBookOrders.swift; sourceTree = "<group>"; };
 		02000000000000000000010E /* EditionCurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionCurator.swift; sourceTree = "<group>"; };
 		02000000000000000000010B /* Constellations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constellations.swift; sourceTree = "<group>"; };
 		02000000000000000000010C /* TheBleed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheBleed.swift; sourceTree = "<group>"; };
@@ -151,6 +154,7 @@
 				2047CBE62FDEF60C00A6B7E4 /* MLXLMTokenizers in Frameworks */,
 				2047CBE52FDEF60C00A6B7E4 /* MLXLMCommon in Frameworks */,
 				2047CBE42FDEF60C00A6B7E4 /* MLXLLM in Frameworks */,
+				2047CBEA2FDEF60C00A6B7E4 /* StripePaymentSheet in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -224,6 +228,7 @@
 				02000000000000000000010B /* Constellations.swift */,
 				02000000000000000000010C /* TheBleed.swift */,
 				02000000000000000000010A /* MonthlyEdition.swift */,
+				02000000000000000000010F /* PhysicalBookOrders.swift */,
 				02000000000000000000010E /* EditionCurator.swift */,
 				040000000000000000000106 /* ReEnchantedWidgetIntents.swift */,
 				010000000000000000000104 /* InsideCoverStore.swift */,
@@ -285,6 +290,7 @@
 				010000000000000000001007 /* MLXLMHFAPI */,
 				01000000000000000000100A /* MLX */,
 				01000000000000000000100B /* MLXVLM */,
+				01000000000000000000100D /* StripePaymentSheet */,
 			);
 			productName = InsideCoverApp;
 			productReference = 010000000000000000000201 /* InsideCoverApp.app */;
@@ -342,6 +348,7 @@
 				010000000000000000001005 /* XCRemoteSwiftPackageReference "swift-hf-api-mlx" */,
 				010000000000000000001008 /* XCRemoteSwiftPackageReference "swift-tokenizers" */,
 				010000000000000000001009 /* XCRemoteSwiftPackageReference "mlx-swift" */,
+				01000000000000000000100C /* XCRemoteSwiftPackageReference "stripe-ios-spm" */,
 			);
 			productRefGroup = 010000000000000000000806 /* Products */;
 			projectDirPath = "";
@@ -416,6 +423,7 @@
 				02000000000000000000020B /* Constellations.swift in Sources */,
 				02000000000000000000020C /* TheBleed.swift in Sources */,
 				02000000000000000000020A /* MonthlyEdition.swift in Sources */,
+				02000000000000000000020F /* PhysicalBookOrders.swift in Sources */,
 				02000000000000000000020E /* EditionCurator.swift in Sources */,
 				010000000000000000000004 /* InsideCoverStore.swift in Sources */,
 				010000000000000000000015 /* BookArchiveDatabase.swift in Sources */,
@@ -791,6 +799,14 @@
 				minimumVersion = 0.31.3;
 			};
 		};
+		01000000000000000000100C /* XCRemoteSwiftPackageReference "stripe-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/stripe/stripe-ios-spm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 24.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -823,6 +839,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 010000000000000000001001 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
 			productName = MLXVLM;
+		};
+		01000000000000000000100D /* StripePaymentSheet */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 01000000000000000000100C /* XCRemoteSwiftPackageReference "stripe-ios-spm" */;
+			productName = StripePaymentSheet;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

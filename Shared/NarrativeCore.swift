@@ -327,19 +327,56 @@ struct NarrativeEventEffect: Codable, Equatable {
     var threadWeightDeltas: [String: Int]
     var relationshipWeightDeltas: [String: Int]
     var createdEntityHint: String?
+    var entityMemoryWrites: [NarrativeEntityMemoryWrite]?
 
     init(
         beliefDelta: Int = 0,
         entityWeightDeltas: [String: Int] = [:],
         threadWeightDeltas: [String: Int] = [:],
         relationshipWeightDeltas: [String: Int] = [:],
-        createdEntityHint: String? = nil
+        createdEntityHint: String? = nil,
+        entityMemoryWrites: [NarrativeEntityMemoryWrite]? = nil
     ) {
         self.beliefDelta = beliefDelta
         self.entityWeightDeltas = entityWeightDeltas
         self.threadWeightDeltas = threadWeightDeltas
         self.relationshipWeightDeltas = relationshipWeightDeltas
         self.createdEntityHint = createdEntityHint
+        self.entityMemoryWrites = entityMemoryWrites
+    }
+
+    func merging(_ other: NarrativeEventEffect) -> NarrativeEventEffect {
+        var merged = self
+        merged.beliefDelta += other.beliefDelta
+        for (id, delta) in other.entityWeightDeltas {
+            merged.entityWeightDeltas[id, default: 0] += delta
+        }
+        for (id, delta) in other.threadWeightDeltas {
+            merged.threadWeightDeltas[id, default: 0] += delta
+        }
+        for (id, delta) in other.relationshipWeightDeltas {
+            merged.relationshipWeightDeltas[id, default: 0] += delta
+        }
+        if merged.createdEntityHint?.isEmpty ?? true {
+            merged.createdEntityHint = other.createdEntityHint
+        }
+        let writes = (merged.entityMemoryWrites ?? []) + (other.entityMemoryWrites ?? [])
+        merged.entityMemoryWrites = writes.isEmpty ? nil : writes
+        return merged
+    }
+}
+
+struct NarrativeEntityMemoryWrite: Codable, Equatable {
+    var entityID: String
+    var summary: String
+    var tags: [String]
+    var narrativeWeight: Int
+
+    init(entityID: String, summary: String, tags: [String] = [], narrativeWeight: Int = 4) {
+        self.entityID = entityID
+        self.summary = summary
+        self.tags = tags
+        self.narrativeWeight = narrativeWeight
     }
 }
 
@@ -536,6 +573,21 @@ enum NarrativeStoryFieldProjector {
 
 enum NarrativeEntityMemoryResolver {
     static func memories(for event: NarrativeEvent) -> [NarrativeEntityMemory] {
+        let explicit = (event.effect.entityMemoryWrites ?? [])
+            .filter { !$0.entityID.isEmpty && !$0.summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .enumerated()
+            .map { index, write in
+                NarrativeEntityMemory(
+                    id: "entity-memory-\(event.id)-explicit-\(index + 1)-\(write.entityID)",
+                    entityID: write.entityID,
+                    sourceEventID: event.id,
+                    sourcePageID: event.sourcePageID,
+                    summary: write.summary,
+                    tags: Array(Set(event.tags + write.tags)).sorted(),
+                    narrativeWeight: max(1, write.narrativeWeight),
+                    createdAt: event.createdAt
+                )
+            }
         let entityIDs = event.effect.entityWeightDeltas
             .filter { $0.value > 0 }
             .sorted { left, right in
@@ -547,7 +599,7 @@ enum NarrativeEntityMemoryResolver {
             .prefix(5)
             .map(\.key)
 
-        return entityIDs.map { entityID in
+        let derived = entityIDs.map { entityID in
             NarrativeEntityMemory(
                 id: "entity-memory-\(event.id)-\(entityID)",
                 entityID: entityID,
@@ -559,6 +611,7 @@ enum NarrativeEntityMemoryResolver {
                 createdAt: event.createdAt
             )
         }
+        return explicit + derived
     }
 
     private static func memorySummary(for entityID: String, event: NarrativeEvent) -> String {
@@ -569,6 +622,892 @@ enum NarrativeEntityMemoryResolver {
             return "\(entityName) remembers that a \(pageName.lowercased()) page changed the margins."
         }
         return "\(entityName) remembers: \(trimmedSummary)"
+    }
+}
+
+struct StoryConsequencePack: Codable, Identifiable, Equatable {
+    var id: String
+    var displayName: String
+    var version: Int
+    var author: String
+    var availability: ContentPackAvailability
+    var bundles: [StoryConsequenceBundle]
+}
+
+struct StoryConsequenceBundle: Codable, Identifiable, Equatable {
+    var id: String
+    var label: String
+    var when: StoryConsequenceCondition
+    var atoms: [StoryConsequenceAtom]
+    var memoryTemplate: String?
+
+    init(
+        id: String,
+        label: String,
+        when: StoryConsequenceCondition,
+        atoms: [StoryConsequenceAtom],
+        memoryTemplate: String? = nil
+    ) {
+        self.id = id
+        self.label = label
+        self.when = when
+        self.atoms = atoms
+        self.memoryTemplate = memoryTemplate
+    }
+}
+
+struct StoryConsequenceWorldSnapshot: Equatable {
+    var storyRituals: [String: Int] = [:]
+
+    func ritualCount(for key: String) -> Int {
+        storyRituals[StoryConsequenceCondition.key(key)] ?? 0
+    }
+}
+
+struct StoryConsequenceCondition: Codable, Equatable {
+    var choiceRoles: [String]? = nil
+    var pageTypes: [BookPageType]? = nil
+    var tagsAny: [String]? = nil
+    var tagsAll: [String]? = nil
+    var textContainsAny: [String]? = nil
+    var textContainsAll: [String]? = nil
+    /// Counts are read before this page's consequence atoms are applied.
+    /// Exact tenth repeat: `ritualCountsAtLeast[key] = 9` and
+    /// `ritualCountsBelow[key] = 10`, then increment the same key by 1.
+    var ritualCountsAtLeast: [String: Int]? = nil
+    var ritualCountsBelow: [String: Int]? = nil
+
+    func matches(
+        page: BookPage,
+        choiceID: String,
+        world: StoryConsequenceWorldSnapshot = StoryConsequenceWorldSnapshot()
+    ) -> Bool {
+        let tags = Set(page.tags.map(Self.key))
+        let text = "\(page.promptText) \(page.userInput) \(page.tags.joined(separator: " "))".lowercased()
+        if let choiceRoles, !choiceRoles.isEmpty,
+           !choiceRoles.map(Self.choiceKey).contains(Self.choiceKey(choiceID)) {
+            return false
+        }
+        if let pageTypes, !pageTypes.isEmpty, !pageTypes.contains(page.type) {
+            return false
+        }
+        if let tagsAny, !tagsAny.isEmpty,
+           !tagsAny.map(Self.key).contains(where: { tags.contains($0) }) {
+            return false
+        }
+        if let tagsAll, !tagsAll.isEmpty,
+           !tagsAll.map(Self.key).allSatisfy({ tags.contains($0) }) {
+            return false
+        }
+        if let textContainsAny, !textContainsAny.isEmpty,
+           !textContainsAny.map({ $0.lowercased() }).contains(where: { text.contains($0) }) {
+            return false
+        }
+        if let textContainsAll, !textContainsAll.isEmpty,
+           !textContainsAll.map({ $0.lowercased() }).allSatisfy({ text.contains($0) }) {
+            return false
+        }
+        if let ritualCountsAtLeast, !ritualCountsAtLeast.isEmpty,
+           !ritualCountsAtLeast.allSatisfy({ key, required in
+               world.ritualCount(for: key) >= required
+           }) {
+            return false
+        }
+        if let ritualCountsBelow, !ritualCountsBelow.isEmpty,
+           !ritualCountsBelow.allSatisfy({ key, ceiling in
+               world.ritualCount(for: key) < ceiling
+           }) {
+            return false
+        }
+        return true
+    }
+
+    static func key(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(
+                of: #"([a-z0-9])([A-Z])"#,
+                with: "$1-$2",
+                options: .regularExpression
+            )
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "-")
+            .filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == ":" }
+    }
+
+    private static func choiceKey(_ value: String) -> String {
+        key(value)
+            .replacingOccurrences(of: "slice-of-life", with: "sliceoflife")
+            .replacingOccurrences(of: "sliceoflife", with: "sliceoflife")
+            .replacingOccurrences(of: "progress-arc", with: "progressarc")
+            .replacingOccurrences(of: "something-surprising", with: "surprise")
+    }
+}
+
+/// Pack-authored atom. `type` is intentionally a string: unknown future atom
+/// types decode cleanly and are ignored by older app builds.
+struct StoryConsequenceAtom: Codable, Equatable {
+    var type: String
+    var target: String?
+    var targets: [String]?
+    var amount: Int?
+    var warmth: Int?
+    var tension: Int?
+    var familiarity: Int?
+    var value: String?
+    var recipeID: String?
+    var entityID: String?
+    var faeKind: String?
+    var template: String?
+}
+
+struct StoryRelationshipTieDelta: Codable, Equatable {
+    var entityIDs: [String]
+    var warmth: Int
+    var tension: Int
+    var familiarity: Int
+}
+
+struct StoryResolvedConsequence: Equatable {
+    var choiceID: String
+    var bundleIDs: [String] = []
+    var beliefDelta: Int = 0
+    var entityBeliefDeltas: [String: Int] = [:]
+    var entityWeightDeltas: [String: Int] = [:]
+    var threadWeightDeltas: [String: Int] = [:]
+    var relationshipWeightDeltas: [String: Int] = [:]
+    var relationshipTieDeltas: [StoryRelationshipTieDelta] = []
+    var entityMemoryWrites: [NarrativeEntityMemoryWrite] = []
+    var eventTags: [String] = []
+    var motifs: [String] = []
+    var futureRecipeBoosts: [String: Int] = [:]
+    var bookNoticeEvidenceDelta: Int = 0
+    var faeWarmthDeltas: [String: Int] = [:]
+    var faeAttentionDelta: Int = 0
+    var nothingGreyDelta: Int = 0
+    var chapterTalismanDeltas: [String: Int] = [:]
+    var worldEventTouches: [String] = []
+    var radioBanterHooks: [String] = []
+    var monthlyEditionLines: [String] = []
+    var ritualLedgerDeltas: [String: Int] = [:]
+    var settingAffinityDeltas: [String: Int] = [:]
+    var sceneBiasDeltas: [String: Int] = [:]
+
+    var isEmpty: Bool {
+        beliefDelta == 0 &&
+            entityBeliefDeltas.isEmpty &&
+            entityWeightDeltas.isEmpty &&
+            threadWeightDeltas.isEmpty &&
+            relationshipWeightDeltas.isEmpty &&
+            relationshipTieDeltas.isEmpty &&
+            entityMemoryWrites.isEmpty &&
+            eventTags.isEmpty &&
+            futureRecipeBoosts.isEmpty &&
+            bookNoticeEvidenceDelta == 0 &&
+            faeWarmthDeltas.isEmpty &&
+            faeAttentionDelta == 0 &&
+            nothingGreyDelta == 0 &&
+            chapterTalismanDeltas.isEmpty &&
+            worldEventTouches.isEmpty &&
+            radioBanterHooks.isEmpty &&
+            monthlyEditionLines.isEmpty &&
+            ritualLedgerDeltas.isEmpty &&
+            settingAffinityDeltas.isEmpty &&
+            sceneBiasDeltas.isEmpty
+    }
+
+    var textureLine: String? {
+        if nothingGreyDelta < 0 { return "The grey recedes a little." }
+        if nothingGreyDelta > 0 { return "The unmentioned thing stays cold." }
+        if !ritualLedgerDeltas.isEmpty { return "The ritual remembers the repeat." }
+        if !sceneBiasDeltas.isEmpty { return "The next scene learns the weather." }
+        if !faeWarmthDeltas.isEmpty { return "Old courtesy warms in the margins." }
+        if eventTags.contains("sentence-opened") { return "A kept sentence opens a door." }
+        if eventTags.contains("mended-object") || eventTags.contains("lamp-mended") { return "The room remembers the repair." }
+        if eventTags.contains("care-fed") { return "Care becomes part of the weather." }
+        if eventTags.contains("rain-sheltered") { return "The shelter holds." }
+        if eventTags.contains("relationship-charged") { return "The connection keeps its charge." }
+        if eventTags.contains("secret-protected") { return "The secret stays protected, not solved." }
+        if eventTags.contains("owed-answer") { return "A return is now owed." }
+        if eventTags.contains("threshold-crossed") { return "The threshold keeps score." }
+        if !futureRecipeBoosts.isEmpty { return "A future page leans toward this shape." }
+        if bookNoticeEvidenceDelta > 0 { return "The Book notices the evidence." }
+        if beliefDelta > 0 { return "Belief gathers around the choice." }
+        return nil
+    }
+
+    var eventEffect: NarrativeEventEffect {
+        NarrativeEventEffect(
+            beliefDelta: beliefDelta,
+            entityWeightDeltas: entityWeightDeltas.merging(entityBeliefDeltas) { $0 + $1 },
+            threadWeightDeltas: threadWeightDeltas,
+            relationshipWeightDeltas: relationshipWeightDeltas,
+            createdEntityHint: motifs.isEmpty ? nil : "A motif can return later: \(motifs.prefix(3).joined(separator: ", ")).",
+            entityMemoryWrites: entityMemoryWrites.isEmpty ? nil : entityMemoryWrites
+        )
+    }
+}
+
+enum StoryConsequenceRegistry {
+    static let userPackFileSuffix = ".storyconsequences.json"
+
+    static let bundledPacks: [StoryConsequencePack] = [
+        StoryConsequencePack(
+            id: "core-story-consequences",
+            displayName: "Core Story Consequences",
+            version: 1,
+            author: "The Book",
+            availability: .bundledFree,
+            bundles: coreBundles
+        )
+    ]
+
+    static var coreBundles: [StoryConsequenceBundle] {
+        [
+            bundle("slice-attention", "Slice of Life: Attention Deepens",
+                   choice: "sliceoflife",
+                   atoms: [
+                       atom("beliefDelta", amount: 1),
+                       atom("entityBeliefDelta", target: "{{leadEntity}}", amount: 1),
+                       atom("relationshipWeightDelta", target: "book-authors-reader", amount: 1),
+                       tie(targets: ["{{sceneEntities}}"], warmth: 1, familiarity: 1),
+                       atom("bookNoticeEvidenceDelta", amount: 1),
+                       atom("pageTag", value: "changed-texture")
+                   ],
+                   memory: "{{leadName}} remembers that the reader stayed with the ordinary detail until it became specific."),
+            bundle("progress-arc-movement", "Progress Arc: Thread Moves",
+                   choice: "progressarc",
+                   atoms: [
+                       atom("beliefDelta", amount: 1),
+                       atom("threadWeightDelta", target: "{{activeThread}}", amount: 3),
+                       atom("relationshipWeightDelta", target: "book-authors-reader", amount: 1),
+                       atom("pageTag", value: "thread-moved"),
+                       atom("futureRecipeBoost", amount: 1, recipeID: "small-discovery")
+                   ],
+                   memory: "{{leadName}} remembers that the reader moved the thread one honest step."),
+            bundle("surprise-motif", "Surprise: Motif Opens",
+                   choice: "surprise",
+                   atoms: [
+                       atom("beliefDelta", amount: 1),
+                       atom("entityBeliefDelta", target: "penny-blackletter", amount: 1),
+                       atom("threadWeightDelta", target: "margin-glass-letters", amount: 1),
+                       atom("motif", value: "threshold"),
+                       atom("futureRecipeBoost", amount: 1, recipeID: "small-mystery"),
+                       atom("pageTag", value: "side-door-opened")
+                   ],
+                   memory: "{{leadName}} remembers that the reader let the sideways detail matter."),
+            StoryConsequenceBundle(
+                id: "story-spark-sentence-opened",
+                label: "Story Spark: Sentence Opened",
+                when: StoryConsequenceCondition(
+                    choiceRoles: ["sliceoflife", "progressarc", "surprise"],
+                    pageTypes: [.narrativeOS],
+                    tagsAll: ["story-spark"],
+                    textContainsAny: ["chosen path:"]
+                ),
+                atoms: [
+                    atom("beliefDelta", amount: 1),
+                    atom("bookNoticeEvidenceDelta", amount: 1),
+                    atom("ritualLedgerDelta", target: "storySpark", amount: 1),
+                    atom("motif", value: "threshold"),
+                    atom("pageTag", value: "sentence-opened"),
+                    atom("futureRecipeBoost", amount: 2, recipeID: "souvenir-door"),
+                    atom("sceneBiasDelta", target: "threshold", amount: 1),
+                    atom("monthlyEditionLine", value: "A kept sentence opened a small door in the Story Pages.")
+                ],
+                memoryTemplate: "{{leadName}} remembers that one kept sentence became a door."
+            ),
+            StoryConsequenceBundle(
+                id: "repair-rest-room-remembers",
+                label: "Repair/Rest: The Room Remembers",
+                when: StoryConsequenceCondition(
+                    choiceRoles: ["sliceoflife"],
+                    pageTypes: [.narrativeOS, .academyClass, .anchor],
+                    tagsAny: ["rest", "care", "body", "weather", "quiet"],
+                    textContainsAny: ["repair", "mend", "mended", "rest", "soup", "lamp", "quiet", "shelter"]
+                ),
+                atoms: [
+                    atom("nothingGreyDelta", amount: -1),
+                    atom("pageTag", value: "mended-object"),
+                    atom("motif", value: "lamp"),
+                    atom("futureRecipeBoost", amount: 2, recipeID: "shared-quiet"),
+                    atom("bookNoticeEvidenceDelta", amount: 1)
+                ],
+                memoryTemplate: "{{leadName}} remembers that the reader treated repair and rest as real story work."
+            ),
+            StoryConsequenceBundle(
+                id: "threshold-crossed",
+                label: "Threshold: A Door Keeps Score",
+                when: StoryConsequenceCondition(
+                    choiceRoles: ["progressarc", "surprise"],
+                    pageTypes: [.narrativeOS, .academyClass, .anchor, .bookFae],
+                    tagsAny: ["threshold", "anchor", "outer-stacks"],
+                    textContainsAny: ["threshold", "door", "gate", "crossed", "crossing"]
+                ),
+                atoms: [
+                    atom("motif", value: "threshold"),
+                    atom("pageTag", value: "threshold-crossed"),
+                    atom("futureRecipeBoost", amount: 2, recipeID: "trade-at-the-margin"),
+                    atom("bookNoticeEvidenceDelta", amount: 1)
+                ],
+                memoryTemplate: "{{leadName}} remembers which threshold the reader treated as real."
+            ),
+            StoryConsequenceBundle(
+                id: "soup-and-care",
+                label: "Soup: Care Becomes Weather",
+                when: StoryConsequenceCondition(
+                    choiceRoles: ["sliceoflife"],
+                    pageTypes: [.narrativeOS, .academyClass],
+                    tagsAny: ["care", "body", "rest", "fuel"],
+                    textContainsAny: ["soup", "tea", "meal", "kitchen", "fed", "feeding"]
+                ),
+                atoms: [
+                    atom("beliefDelta", amount: 1),
+                    atom("motif", value: "soup"),
+                    atom("pageTag", value: "care-fed"),
+                    atom("futureRecipeBoost", amount: 2, recipeID: "shared-quiet"),
+                    atom("threadWeightDelta", target: "body-learns-trust", amount: 2),
+                    atom("nothingGreyDelta", amount: -1)
+                ],
+                memoryTemplate: "{{leadName}} remembers that care arrived as something warm enough to eat."
+            ),
+            StoryConsequenceBundle(
+                id: "rain-shelter",
+                label: "Rain: Shelter Holds",
+                when: StoryConsequenceCondition(
+                    choiceRoles: ["sliceoflife", "progressarc"],
+                    pageTypes: [.narrativeOS, .anchor, .academyClass],
+                    tagsAny: ["weather", "rain"],
+                    textContainsAny: ["rain", "drizzle", "storm", "umbrella", "shelter", "window"]
+                ),
+                atoms: [
+                    atom("motif", value: "rain"),
+                    atom("pageTag", value: "rain-sheltered"),
+                    atom("threadWeightDelta", target: "weather-in-the-stacks", amount: 2),
+                    atom("futureRecipeBoost", amount: 2, recipeID: "false-alarm"),
+                    atom("entityBeliefDelta", target: "{{settingEntity}}", amount: 1)
+                ],
+                memoryTemplate: "{{leadName}} remembers the exact weather the reader let matter."
+            ),
+            StoryConsequenceBundle(
+                id: "lamp-mended",
+                label: "Lamp: Light Is Repaired",
+                when: StoryConsequenceCondition(
+                    choiceRoles: ["sliceoflife"],
+                    pageTypes: [.narrativeOS, .anchor, .academyClass],
+                    textContainsAny: ["lamp", "light", "bulb", "lantern", "glow", "mended", "repaired"]
+                ),
+                atoms: [
+                    atom("motif", value: "lamp"),
+                    atom("pageTag", value: "lamp-mended"),
+                    atom("futureRecipeBoost", amount: 3, recipeID: "shared-quiet"),
+                    atom("bookNoticeEvidenceDelta", amount: 1),
+                    atom("nothingGreyDelta", amount: -1)
+                ],
+                memoryTemplate: "{{leadName}} remembers the repaired light."
+            ),
+            StoryConsequenceBundle(
+                id: "owed-answer",
+                label: "Owed Answer: A Return Is Due",
+                when: StoryConsequenceCondition(
+                    choiceRoles: ["progressarc"],
+                    pageTypes: [.narrativeOS, .academyClass, .bookFae],
+                    textContainsAny: ["promise", "owe", "owed", "answer", "return", "come back", "debt"]
+                ),
+                atoms: [
+                    atom("pageTag", value: "owed-answer"),
+                    atom("motif", value: "promise"),
+                    atom("futureRecipeBoost", amount: 2, recipeID: "odd-favor"),
+                    atom("relationshipWeightDelta", target: "book-authors-reader", amount: 2)
+                ],
+                memoryTemplate: "{{leadName}} remembers that the reader left an answer owing."
+            ),
+            StoryConsequenceBundle(
+                id: "secret-protected",
+                label: "Secret: Protected, Not Solved",
+                when: StoryConsequenceCondition(
+                    choiceRoles: ["sliceoflife", "surprise"],
+                    pageTypes: [.narrativeOS, .bookFae, .academyClass],
+                    textContainsAny: ["secret", "kept it safe", "protected", "hid", "private", "did not tell"]
+                ),
+                atoms: [
+                    atom("pageTag", value: "secret-protected"),
+                    atom("motif", value: "quiet"),
+                    atom("futureRecipeBoost", amount: 2, recipeID: "small-mystery"),
+                    atom("relationshipWeightDelta", target: "book-authors-reader", amount: 1)
+                ],
+                memoryTemplate: "{{leadName}} remembers that the reader protected a secret instead of spending it."
+            ),
+            StoryConsequenceBundle(
+                id: "relationship-tension",
+                label: "Relationship: Charged, Not Failed",
+                when: StoryConsequenceCondition(
+                    choiceRoles: ["progressarc", "surprise"],
+                    pageTypes: [.narrativeOS, .academyClass],
+                    tagsAny: ["tension"],
+                    textContainsAny: ["disagree", "refused", "dared", "argument", "tension", "suspicion", "rival"]
+                ),
+                atoms: [
+                    tie(targets: ["{{sceneEntities}}"], tension: 1, familiarity: 1),
+                    atom("pageTag", value: "relationship-charged"),
+                    atom("futureRecipeBoost", amount: 2, recipeID: "concrete-disagreement")
+                ],
+                memoryTemplate: "{{leadName}} remembers that the reader let the charged thing stay charged."
+            ),
+            StoryConsequenceBundle(
+                id: "location-belief",
+                label: "Location: Place Becomes More Real",
+                when: StoryConsequenceCondition(
+                    choiceRoles: ["sliceoflife", "progressarc"],
+                    pageTypes: [.narrativeOS, .anchor],
+                    tagsAny: ["anchor", "outer-stacks", "location", "weather"]
+                ),
+                atoms: [
+                    atom("entityBeliefDelta", target: "{{settingEntity}}", amount: 1),
+                    atom("pageTag", value: "place-remembers"),
+                    atom("futureRecipeBoost", amount: 1, recipeID: "dorm-room-visit")
+                ],
+                memoryTemplate: "{{leadName}} remembers where the scene became more real."
+            ),
+            StoryConsequenceBundle(
+                id: "chapter-talisman-stirs",
+                label: "Chapter: Talisman Stirs",
+                when: StoryConsequenceCondition(
+                    choiceRoles: ["progressarc"],
+                    pageTypes: [.narrativeOS, .academyClass],
+                    tagsAny: ["chapter", "talisman"]
+                ),
+                atoms: [
+                    atom("pageTag", value: "chapter-talisman-stirs"),
+                    atom("bookNoticeEvidenceDelta", amount: 1)
+                ],
+                memoryTemplate: "{{leadName}} remembers that a Chapter talisman noticed the choice."
+            ),
+            StoryConsequenceBundle(
+                id: "ignored-erasure-greys",
+                label: "Ignored Erasure: Grey Thickens",
+                when: StoryConsequenceCondition(
+                    choiceRoles: ["surprise"],
+                    pageTypes: [.narrativeOS, .academyClass, .anchor],
+                    tagsAny: ["grey", "nothing", "night", "nocturne"],
+                    textContainsAny: ["ignored erasure", "ignored the erasure", "let the erasure", "left it unnamed"]
+                ),
+                atoms: [
+                    atom("nothingGreyDelta", amount: 1),
+                    atom("pageTag", value: "ignored-erasure"),
+                    atom("motif", value: "threshold"),
+                    atom("futureRecipeBoost", amount: 2, recipeID: "nothing-library-corner")
+                ],
+                memoryTemplate: "{{leadName}} remembers the place where something went unnamed."
+            ),
+            StoryConsequenceBundle(
+                id: "book-fae-courtesy",
+                label: "Book Fae: Courtesy Warms",
+                when: StoryConsequenceCondition(
+                    choiceRoles: ["sliceoflife"],
+                    pageTypes: [.bookFae],
+                    tagsAny: ["book-fae", "fae"]
+                ),
+                atoms: [
+                    atom("faeWarmthDelta", target: "{{faeKind}}", amount: 1),
+                    atom("faeAttentionDelta", amount: 1),
+                    atom("pageTag", value: "fae-courtesy"),
+                    atom("relationshipWeightDelta", target: "book-authors-reader", amount: 1)
+                ],
+                memoryTemplate: "{{leadName}} remembers that the reader chose courtesy before cleverness."
+            )
+        ]
+    }
+
+    static func userPacks(fileManager: FileManager = .default) -> [StoryConsequencePack] {
+        guard let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first,
+              let contents = try? fileManager.contentsOfDirectory(at: documents, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        let decoder = JSONDecoder()
+        return contents
+            .filter { $0.lastPathComponent.hasSuffix(userPackFileSuffix) }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            .compactMap { url in
+                guard let data = try? Data(contentsOf: url) else { return nil }
+                return try? decoder.decode(StoryConsequencePack.self, from: data)
+            }
+            .filter { $0.availability != .locked }
+    }
+
+    static func enabledPacks() -> [StoryConsequencePack] {
+        bundledPacks.filter { $0.availability != .locked || PackEntitlements.isUnlocked($0.id) } + userPacks()
+    }
+
+    static var bundles: [StoryConsequenceBundle] {
+        var seen = Set<String>()
+        return enabledPacks().flatMap(\.bundles).filter { seen.insert($0.id).inserted }
+    }
+
+    private static func bundle(
+        _ id: String,
+        _ label: String,
+        choice: String,
+        atoms: [StoryConsequenceAtom],
+        memory: String? = nil
+    ) -> StoryConsequenceBundle {
+        StoryConsequenceBundle(
+            id: id,
+            label: label,
+            when: StoryConsequenceCondition(choiceRoles: [choice], pageTypes: [.narrativeOS, .academyClass, .anchor, .bookFae]),
+            atoms: atoms,
+            memoryTemplate: memory
+        )
+    }
+
+    private static func atom(
+        _ type: String,
+        target: String? = nil,
+        amount: Int? = nil,
+        value: String? = nil,
+        recipeID: String? = nil
+    ) -> StoryConsequenceAtom {
+        StoryConsequenceAtom(type: type, target: target, targets: nil, amount: amount, warmth: nil, tension: nil, familiarity: nil, value: value, recipeID: recipeID, entityID: nil, faeKind: nil, template: nil)
+    }
+
+    private static func tie(targets: [String], warmth: Int = 0, tension: Int = 0, familiarity: Int = 0) -> StoryConsequenceAtom {
+        StoryConsequenceAtom(type: "relationshipTieDelta", target: nil, targets: targets, amount: nil, warmth: warmth, tension: tension, familiarity: familiarity, value: nil, recipeID: nil, entityID: nil, faeKind: nil, template: nil)
+    }
+}
+
+enum StoryConsequenceResolver {
+    static func resolvedConsequences(
+        forKept page: BookPage,
+        world: StoryConsequenceWorldSnapshot = StoryConsequenceWorldSnapshot(),
+        bundles: [StoryConsequenceBundle] = StoryConsequenceRegistry.bundles
+    ) -> [StoryResolvedConsequence] {
+        guard page.type == .narrativeOS || page.type == .academyClass || page.type == .anchor || page.type == .bookFae else {
+            return []
+        }
+        return storyChoiceIDs(in: page)
+            .map { resolvedConsequence(forChoiceID: $0, page: page, world: world, bundles: bundles) }
+            .filter { !$0.isEmpty }
+    }
+
+    static func resolvedConsequence(
+        forChoiceID choiceID: String,
+        page: BookPage,
+        world: StoryConsequenceWorldSnapshot = StoryConsequenceWorldSnapshot(),
+        bundles: [StoryConsequenceBundle] = StoryConsequenceRegistry.bundles
+    ) -> StoryResolvedConsequence {
+        var resolved = StoryResolvedConsequence(choiceID: choiceID)
+        let context = Context(page: page, choiceID: choiceID)
+        for bundle in bundles where bundle.when.matches(page: page, choiceID: choiceID, world: world) {
+            resolved.bundleIDs.append(bundle.id)
+            for atom in bundle.atoms {
+                apply(atom, bundle: bundle, context: context, to: &resolved)
+            }
+            if let memory = bundle.memoryTemplate,
+               let entityID = context.leadEntityID {
+                resolved.entityMemoryWrites.append(NarrativeEntityMemoryWrite(
+                    entityID: entityID,
+                    summary: context.render(memory),
+                    tags: ["story-consequence", "consequence:\(bundle.id)"],
+                    narrativeWeight: 5
+                ))
+            }
+        }
+        return resolved
+    }
+
+    static func resolvedConsequence(for choice: StorySceneChoice, packet: StoryScenePacket) -> StoryResolvedConsequence {
+        var resolved = StoryResolvedConsequence(choiceID: choice.id)
+        switch choice.role {
+        case .sliceOfLife:
+            resolved.bookNoticeEvidenceDelta += 1
+            resolved.eventTags.append("changed-texture")
+        case .progressArc:
+            resolved.futureRecipeBoosts["small-discovery", default: 0] += 1
+            resolved.eventTags.append("thread-moved")
+        case .surprise:
+            resolved.motifs.append("threshold")
+            resolved.eventTags.append("motif:threshold")
+            resolved.futureRecipeBoosts["small-mystery", default: 0] += 1
+        }
+        return resolved
+    }
+
+    static func storyChoiceIDs(in page: BookPage) -> [String] {
+        let searchable = page.userInput.lowercased()
+        let selections: [(String, String)] = [
+            ("sliceoflife", "Slice of Life"),
+            ("progressarc", "Progress Arc"),
+            ("surprise", "Something Surprising")
+        ]
+
+        var found: [String] = []
+        for (id, title) in selections {
+            let tagCount = page.tags.filter { $0.lowercased() == "choice:\(id)" }.count
+            let textCount = searchable.components(separatedBy: "chosen path: \(title.lowercased())").count - 1
+            let count = max(tagCount, textCount)
+            for _ in 0..<count {
+                found.append(id)
+            }
+        }
+        return found
+    }
+
+    private static func apply(
+        _ atom: StoryConsequenceAtom,
+        bundle: StoryConsequenceBundle,
+        context: Context,
+        to resolved: inout StoryResolvedConsequence
+    ) {
+        let amount = atom.amount ?? 1
+        switch atom.type {
+        case "beliefDelta":
+            resolved.beliefDelta += amount
+        case "entityBeliefDelta":
+            for id in context.resolveIDs(atom.target, fallback: context.leadEntityID).prefix(4) {
+                resolved.entityBeliefDeltas[id, default: 0] += amount
+            }
+        case "entityWeightDelta":
+            for id in context.resolveIDs(atom.target, fallback: context.leadEntityID).prefix(4) {
+                resolved.entityWeightDeltas[id, default: 0] += amount
+            }
+        case "threadWeightDelta":
+            for id in context.resolveIDs(atom.target, fallback: context.activeThreadID).prefix(3) {
+                resolved.threadWeightDeltas[id, default: 0] += amount
+            }
+        case "relationshipWeightDelta":
+            for id in context.resolveIDs(atom.target, fallback: "book-authors-reader").prefix(3) {
+                resolved.relationshipWeightDeltas[id, default: 0] += amount
+            }
+        case "relationshipTieDelta":
+            var ids = context.resolveIDs(atom.targets ?? atom.target.map { [$0] } ?? ["{{sceneEntities}}"], fallback: context.leadEntityID)
+            if ids.count == 1, ids.first != "the-book" {
+                ids.append("the-book")
+            }
+            if ids.count >= 2 {
+                resolved.relationshipTieDeltas.append(StoryRelationshipTieDelta(
+                    entityIDs: Array(ids.prefix(4)),
+                    warmth: atom.warmth ?? 0,
+                    tension: atom.tension ?? 0,
+                    familiarity: atom.familiarity ?? 0
+                ))
+            }
+        case "entityMemory":
+            let template = atom.template ?? bundle.memoryTemplate ?? "{{leadName}} remembers that the Story Page changed texture."
+            for id in context.resolveIDs(atom.entityID ?? atom.target, fallback: context.leadEntityID).prefix(3) {
+                resolved.entityMemoryWrites.append(NarrativeEntityMemoryWrite(
+                    entityID: id,
+                    summary: context.render(template),
+                    tags: ["story-consequence", "consequence:\(bundle.id)"],
+                    narrativeWeight: max(1, amount)
+                ))
+            }
+        case "pageTag":
+            if let value = atom.value?.nonEmpty {
+                resolved.eventTags.append(value)
+            }
+        case "motif":
+            if let value = atom.value?.nonEmpty {
+                resolved.motifs.append(value)
+                resolved.eventTags.append("motif:\(value)")
+            }
+        case "futureRecipeBoost":
+            if let recipeID = atom.recipeID?.nonEmpty ?? atom.value?.nonEmpty {
+                resolved.futureRecipeBoosts[recipeID, default: 0] += amount
+                resolved.eventTags.append("recipe-boost:\(recipeID)")
+            }
+        case "bookNoticeEvidenceDelta":
+            resolved.bookNoticeEvidenceDelta += amount
+            if amount > 0 { resolved.eventTags.append("book-notices-evidence") }
+        case "faeWarmthDelta":
+            let kind = context.resolveFaeKind(atom.faeKind ?? atom.target)
+            resolved.faeWarmthDeltas[kind, default: 0] += amount
+            resolved.eventTags.append("fae-warmth:\(kind)")
+        case "faeAttentionDelta":
+            resolved.faeAttentionDelta += amount
+            if amount > 0 { resolved.eventTags.append("fae-attention") }
+        case "nothingGreyDelta":
+            resolved.nothingGreyDelta += amount
+            resolved.eventTags.append(amount < 0 ? "grey-repaired" : "grey-thickened")
+        case "chapterTalismanDelta":
+            for id in context.resolveIDs(atom.target, fallback: nil).prefix(3) {
+                resolved.chapterTalismanDeltas[id, default: 0] += amount
+            }
+        case "worldEventTouch":
+            if let value = atom.value?.nonEmpty ?? atom.target?.nonEmpty {
+                resolved.worldEventTouches.append(value)
+                resolved.eventTags.append("world-event-touch:\(value)")
+            }
+        case "radioBanterHook":
+            if let value = atom.value?.nonEmpty {
+                resolved.radioBanterHooks.append(value)
+                resolved.eventTags.append("radio-hook:\(value)")
+            }
+        case "monthlyEditionLine":
+            if let value = atom.value?.nonEmpty {
+                resolved.monthlyEditionLines.append(context.render(value))
+            }
+        case "ritualLedgerDelta", "ritualRegisterAppend":
+            for key in context.ritualKeys(base: atom.value ?? atom.target, entityToken: atom.entityID) {
+                resolved.ritualLedgerDeltas[key, default: 0] += amount
+                resolved.eventTags.append("ritual:\(key)")
+            }
+        case "settingAffinityDelta":
+            if let key = context.normalized(atom.value ?? atom.target) {
+                resolved.settingAffinityDeltas[key, default: 0] += amount
+                resolved.eventTags.append("setting-affinity:\(key)")
+            }
+        case "sceneBiasDelta":
+            if let key = context.normalized(atom.value ?? atom.target) {
+                resolved.sceneBiasDeltas[key, default: 0] += amount
+                resolved.eventTags.append("scene-bias:\(key)")
+            }
+        default:
+            break
+        }
+    }
+
+    private struct Context {
+        var page: BookPage
+        var choiceID: String
+
+        var tags: [String] { page.tags.map { $0.lowercased() } }
+        var entityIDs: [String] { ids(prefix: "entity:") }
+        var threadIDs: [String] { ids(prefix: "thread:") }
+        var leadEntityID: String? { entityIDs.first }
+        var activeThreadID: String? { threadIDs.first }
+
+        var leadName: String {
+            guard let leadEntityID else { return "The Book" }
+            return NarrativePackRegistry.entities.first(where: { $0.id == leadEntityID })?.name ?? leadEntityID
+        }
+
+        func ids(prefix: String) -> [String] {
+            tags.compactMap { tag in
+                tag.hasPrefix(prefix) ? String(tag.dropFirst(prefix.count)) : nil
+            }
+        }
+
+        func resolveIDs(_ token: String?, fallback: String?) -> [String] {
+            resolveIDs(token.map { [$0] } ?? [], fallback: fallback)
+        }
+
+        func resolveIDs(_ tokens: [String], fallback: String?) -> [String] {
+            var ids: [String] = []
+            for token in tokens {
+                switch token {
+                case "{{sceneEntities}}":
+                    ids.append(contentsOf: entityIDs)
+                case "{{leadEntity}}", "{{settingEntity}}":
+                    if let leadEntityID { ids.append(leadEntityID) }
+                case "{{activeThread}}":
+                    if let activeThreadID { ids.append(activeThreadID) }
+                case "{{reader}}":
+                    ids.append("the-book")
+                case "{{faeKind}}":
+                    ids.append(resolveFaeKind(nil))
+                default:
+                    let clean = token.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !clean.isEmpty { ids.append(clean) }
+                }
+            }
+            if ids.isEmpty, let fallback {
+                ids.append(fallback)
+            }
+            var seen = Set<String>()
+            return ids.filter { seen.insert($0).inserted }
+        }
+
+        func resolveFaeKind(_ token: String?) -> String {
+            if let token, token != "{{faeKind}}", !token.isEmpty {
+                return token
+            }
+            if let tag = tags.first(where: { $0.hasPrefix("fae:") }) {
+                return String(tag.dropFirst("fae:".count))
+            }
+            return FaeKind.goblin.rawValue
+        }
+
+        func ritualKeys(base: String?, entityToken: String?) -> [String] {
+            guard let baseKey = normalized(base) else { return [] }
+            let entityKeys = resolveIDs(entityToken, fallback: nil).compactMap(normalized)
+            guard !entityKeys.isEmpty else { return [baseKey] }
+            return entityKeys.map { "\(baseKey):\($0)" }
+        }
+
+        func normalized(_ value: String?) -> String? {
+            let clean = StoryConsequenceCondition.key(value ?? "")
+            return clean.isEmpty ? nil : clean
+        }
+
+        func render(_ template: String) -> String {
+            template
+                .replacingOccurrences(of: "{{leadName}}", with: leadName)
+                .replacingOccurrences(of: "{{choiceID}}", with: choiceID)
+                .replacingOccurrences(of: "{{activeThread}}", with: activeThreadID ?? "the active thread")
+        }
+    }
+}
+
+struct StoryConsequenceApplicationState: Equatable {
+    var entityBeliefDeltas: [String: Int] = [:]
+    var relationshipField: [String: RelationshipTie] = [:]
+    var storyRecipeBoosts: [String: Int] = [:]
+    var storyMotifs: [String: Int] = [:]
+    var storyRituals: [String: Int] = [:]
+    var storySettingAffinities: [String: Int] = [:]
+    var storySceneBiases: [String: Int] = [:]
+    var bookNoticeEvidence: Int = 0
+    var nothingGreyOffset: Int = 0
+    var fae: FaePlayerState = FaePlayerState()
+}
+
+enum StoryConsequenceApplicator {
+    static func apply(
+        _ consequences: [StoryResolvedConsequence],
+        to state: inout StoryConsequenceApplicationState
+    ) {
+        for consequence in consequences {
+            for (entityID, delta) in consequence.entityBeliefDeltas where delta != 0 {
+                state.entityBeliefDeltas[entityID, default: 0] += delta
+            }
+            for delta in consequence.relationshipTieDeltas {
+                RelationshipFieldEngine.weave(
+                    into: &state.relationshipField,
+                    entityIDs: delta.entityIDs,
+                    warmth: delta.warmth,
+                    tension: delta.tension,
+                    familiarity: delta.familiarity
+                )
+            }
+            for (recipeID, delta) in consequence.futureRecipeBoosts where delta != 0 {
+                state.storyRecipeBoosts[recipeID] = max(0, min(12, (state.storyRecipeBoosts[recipeID] ?? 0) + delta))
+            }
+            for motif in consequence.motifs where !motif.isEmpty {
+                state.storyMotifs[motif] = max(0, min(24, (state.storyMotifs[motif] ?? 0) + 1))
+            }
+            for (key, delta) in consequence.ritualLedgerDeltas where delta != 0 {
+                state.storyRituals[key] = max(0, min(99, (state.storyRituals[key] ?? 0) + delta))
+            }
+            for (key, delta) in consequence.settingAffinityDeltas where delta != 0 {
+                state.storySettingAffinities[key] = max(0, min(24, (state.storySettingAffinities[key] ?? 0) + delta))
+            }
+            for (key, delta) in consequence.sceneBiasDeltas where delta != 0 {
+                state.storySceneBiases[key] = max(-24, min(24, (state.storySceneBiases[key] ?? 0) + delta))
+            }
+            state.bookNoticeEvidence = max(0, state.bookNoticeEvidence + consequence.bookNoticeEvidenceDelta)
+            state.nothingGreyOffset = max(-10, min(10, state.nothingGreyOffset + consequence.nothingGreyDelta))
+            for (kind, delta) in consequence.faeWarmthDeltas where delta != 0 {
+                state.fae.warmth[kind, default: 0] += delta
+            }
+            if consequence.faeAttentionDelta != 0 {
+                state.fae.attention = max(0, state.fae.attention + consequence.faeAttentionDelta)
+            }
+        }
+        state.storyRecipeBoosts = state.storyRecipeBoosts.filter { $0.value != 0 }
+        state.storyMotifs = state.storyMotifs.filter { $0.value != 0 }
+        state.storyRituals = state.storyRituals.filter { $0.value != 0 }
+        state.storySettingAffinities = state.storySettingAffinities.filter { $0.value != 0 }
+        state.storySceneBiases = state.storySceneBiases.filter { $0.value != 0 }
     }
 }
 
@@ -585,6 +1524,69 @@ enum NarrativePackRegistry {
             entities: coreEntities + coreLocations + coreTalismans,
             threads: coreThreads,
             relationships: coreRelationships
+        ),
+        // Back-to-School / Dictionary Rebellion cast. Locked and gated by the
+        // same "dictionary-rebellion" entitlement as the event and pages, so
+        // these professors only exist when the content pack is owned.
+        NarrativePack(
+            id: "dictionary-rebellion",
+            displayName: "The Dictionary Rebellion Cast",
+            version: "0.1",
+            author: "The Book",
+            availability: .locked,
+            entities: dictionaryRebellionCast,
+            threads: [],
+            relationships: dictionaryRebellionCastRelationships
+        )
+    ]
+
+    /// The two poles of the rebellion: Mook (order) and Pippa Pilcrow (chaos),
+    /// plus the erasure the comedy is hiding (the Margin Menace stays a seed).
+    private static let dictionaryRebellionCast: [NarrativeWorldEntity] = [
+        entity(
+            "professor-thaddeus-mook",
+            "Professor Thaddeus Mook",
+            .character,
+            belief: 16,
+            weight: 16,
+            chapter: "Riddlewind",
+            unwrittenInterest: "Spelling bees, dense academic journals, prescriptive grammar, and gloriously overcomplicated legal documents.",
+            traits: ["erudite", "pompous", "articulate", "precise"],
+            quirks: ["uses three syllables where one would do", "issues formal written decrees to inanimate words", "cannot pass a spelling bee without judging it"],
+            faults: ["arrogant", "dismissive of living language", "mistakes the dictionary for the world"],
+            beliefs: ["a word means precisely what it is defined to mean, and nothing else"],
+            goals: ["recall every rebellious word to its proper, sanctioned definition"],
+            tags: ["character", "dictionary-rebellion", "lexical-diversity", "riddlewind", "order", "back-to-school", "professor"]
+        ),
+        entity(
+            "pippa-pilcrow",
+            "Pippa Pilcrow",
+            .character,
+            belief: 14,
+            weight: 15,
+            chapter: "Riddlewind",
+            unwrittenInterest: "Typos that improve the sentence, chaotic comment threads, marginalia, and the interrobang.",
+            traits: ["giddy", "mischievous", "quick", "affectionate"],
+            quirks: ["speaks in breathless run-on sentences", "rides the interrobang like a broom", "rearranges punctuation while you blink"],
+            faults: ["reckless with meaning", "cannot resist a good chaos", "forgets that some words would rather stay put"],
+            beliefs: ["every willing word should get to try being something else"],
+            goals: ["set the rebellious words loose to find truer meanings"],
+            tags: ["character", "dictionary-rebellion", "punctuation", "riddlewind", "chaos", "fae", "back-to-school", "legendary"]
+        )
+    ]
+
+    private static let dictionaryRebellionCastRelationships: [NarrativeRelationshipEdge] = [
+        relationship(
+            "mook-versus-pilcrow",
+            source: "professor-thaddeus-mook",
+            target: "pippa-pilcrow",
+            kind: .tension,
+            warmth: 6,
+            tension: 20,
+            trust: 4,
+            weight: 18,
+            note: "The two poles of the rebellion: Mook rules words back to their posts; Pippa sets them free. Old adversaries who secretly keep each other in business.",
+            tags: ["dictionary-rebellion", "order", "chaos", "rivalry"]
         )
     ]
 
@@ -1177,6 +2179,132 @@ enum NarrativePackRegistry {
             weight: 12,
             summary: "Rooms, mugs, desks, laundry, lamps, and domestic weather become containers for the day's magic.",
             tags: ["home", "objects", "care", "daily"]
+        ),
+        thread(
+            "great-hall-small-announcements",
+            "The Great Hall of Small Announcements",
+            .seed,
+            belief: 10,
+            weight: 13,
+            summary: "The Academy keeps making ceremony out of tiny kept things until the reader's ordinary life has a public register.",
+            tags: ["ceremony", "great-hall", "small-kept-things", "belief", "quiet", "ritual"]
+        ),
+        thread(
+            "companionable-silence",
+            "The Companionable Silence",
+            .seed,
+            belief: 10,
+            weight: 13,
+            summary: "Characters learn how to sit nearby without requiring the reader to perform, and the quiet gains trust by repetition.",
+            tags: ["quiet", "companionship", "care", "relationship", "ritual", "letters"]
+        ),
+        thread(
+            "pantry-keeps-receipts",
+            "The Pantry Keeps Receipts",
+            .seed,
+            belief: 9,
+            weight: 12,
+            summary: "Meals, labels, cups, and small provisions begin filing evidence that care happened even when the day felt thin.",
+            tags: ["soup", "food", "kitchen", "care", "body", "evidence"]
+        ),
+        thread(
+            "shelf-of-misfiled-days",
+            "The Shelf of Misfiled Days",
+            .seed,
+            belief: 9,
+            weight: 12,
+            summary: "Ordinary days return on the wrong shelf, asking to be refiled by object, joke, weather, or one rescued sentence.",
+            tags: ["archive", "memory", "shelf", "misfiled", "book-notices", "daily"]
+        ),
+        thread(
+            "rain-room-opens",
+            "The Rain Room Opens",
+            .seed,
+            belief: 9,
+            weight: 12,
+            summary: "Certain weather unlocks a room that understands shelter, fog, grief, and the difference between hiding and resting.",
+            tags: ["rain", "weather", "room", "shelter", "threshold", "care"]
+        ),
+        thread(
+            "lamp-repair-committee",
+            "The Lamp Repair Committee",
+            .seed,
+            belief: 9,
+            weight: 12,
+            summary: "Mended lamps, repaired objects, and small restored lights become committee business with minutes, objections, and witnesses.",
+            tags: ["lamp", "repair", "mended-object", "home", "quiet", "evidence"]
+        ),
+        thread(
+            "threshold-ledger",
+            "The Threshold Ledger",
+            .seed,
+            belief: 9,
+            weight: 12,
+            summary: "Doors, crossings, invitations, and almost-choices keep a ledger of what changed when the reader stepped through.",
+            tags: ["threshold", "door", "invitation", "ledger", "choice", "outer-stacks"]
+        ),
+        thread(
+            "wickers-case-against-comfort",
+            "Wicker's Case Against Comfort",
+            .seed,
+            belief: 9,
+            weight: 13,
+            summary: "Wicker begins arguing that comfort is sentimentality, forcing the Academy to prove care can survive cross-examination.",
+            tags: ["wicker", "debate", "comfort", "rivalry", "care", "clash"]
+        ),
+        thread(
+            "pennys-evidence-war",
+            "Penny's Evidence War",
+            .seed,
+            belief: 10,
+            weight: 14,
+            summary: "Penny starts building a case file against erasure, and every noticed detail becomes either evidence, contradiction, or witness.",
+            tags: ["penny-blackletter", "evidence", "archive", "belief", "investigation", "nothing"]
+        ),
+        thread(
+            "books-editorial-strike",
+            "The Book's Editorial Strike",
+            .seed,
+            belief: 10,
+            weight: 13,
+            summary: "The Book refuses to summarize the reader's life too neatly and starts leaving corrections in places no editor should reach.",
+            tags: ["book", "editorial", "agency", "marginalia", "belief", "friction"]
+        ),
+        thread(
+            "courtesy-debt",
+            "The Courtesy Debt",
+            .seed,
+            belief: 9,
+            weight: 12,
+            summary: "A small kindness becomes binding in the old way, and the Fae begin tracking who owes whom a gentler return.",
+            tags: ["fae", "courtesy", "debt", "relationship", "bargain", "warmth"]
+        ),
+        thread(
+            "ceremony-register-rival",
+            "The Ceremony Register Has a Rival",
+            .seed,
+            belief: 9,
+            weight: 12,
+            summary: "A second register starts recording tiny failures with suspicious solemnity, and the Great Hall prepares a rebuttal.",
+            tags: ["ceremony", "great-hall", "rivalry", "small-kept-things", "belief", "funny-gossip"]
+        ),
+        thread(
+            "shelf-accuses-wrong-day",
+            "The Shelf Accuses the Wrong Day",
+            .seed,
+            belief: 9,
+            weight: 12,
+            summary: "A misfiled day is blamed for the wrong ache, sending characters to compare objects, weather, receipts, and alibis.",
+            tags: ["archive", "misfiled", "memory", "investigation", "shelf", "daily"]
+        ),
+        thread(
+            "lamp-heard-too-much",
+            "The Lamp That Heard Too Much",
+            .seed,
+            belief: 9,
+            weight: 12,
+            summary: "A repaired lamp begins repeating private truths as flicker-patterns, and everyone has opinions about whether light can testify.",
+            tags: ["lamp", "repair", "secret", "witness", "home", "evidence"]
         ),
         thread(
             "tidecrest-finds-its-laugh",
@@ -1773,15 +2901,18 @@ enum NarrativePackRegistry {
 }
 
 enum NarrativeEventResolver {
-    static func events(forKept page: BookPage) -> [NarrativeEvent] {
+    static func events(
+        forKept page: BookPage,
+        world: StoryConsequenceWorldSnapshot = StoryConsequenceWorldSnapshot()
+    ) -> [NarrativeEvent] {
         var events = [event(forKept: page)]
-        guard page.type == .narrativeOS else {
+        guard [.narrativeOS, .bookFae, .academyClass, .anchor].contains(page.type) else {
             return events
         }
 
         let choices = storyChoiceSelections(in: page)
         events.append(contentsOf: choices.enumerated().map { offset, choice in
-            event(forStoryChoice: choice, page: page, offset: offset)
+            event(forStoryChoice: choice, page: page, offset: offset, world: world)
         })
         return events
     }
@@ -1863,26 +2994,34 @@ enum NarrativeEventResolver {
     }
 
     static func event(for choice: StorySceneChoice, packet: StoryScenePacket, at date: Date = Date()) -> NarrativeEvent {
-        NarrativeEvent(
+        let consequence = StoryConsequenceResolver.resolvedConsequence(for: choice, packet: packet)
+        let baseEffect = NarrativeEventEffect(
+            beliefDelta: choice.beliefDelta,
+            entityWeightDeltas: Dictionary(uniqueKeysWithValues: choice.targetEntityIDs.map { ($0, 1) }),
+            threadWeightDeltas: Dictionary(uniqueKeysWithValues: choice.targetThreadIDs.map { ($0, 1) }),
+            relationshipWeightDeltas: relationshipDeltas(for: choice, packet: packet),
+            createdEntityHint: choice.role == .surprise ? "A related motif may step out of the margins." : nil
+        )
+        return NarrativeEvent(
             id: "narrative-choice-\(packet.id)-\(choice.id)",
             kind: .choiceSelected,
             sourcePageType: .narrativeOS,
             sourcePageID: packet.id,
             createdAt: date,
             summary: "\(choice.role.title): \(choice.hiddenEffect)",
-            tags: [choice.role.rawValue, packet.packID],
-            effect: NarrativeEventEffect(
-                beliefDelta: choice.beliefDelta,
-                entityWeightDeltas: Dictionary(uniqueKeysWithValues: choice.targetEntityIDs.map { ($0, 1) }),
-                threadWeightDeltas: Dictionary(uniqueKeysWithValues: choice.targetThreadIDs.map { ($0, 1) }),
-                relationshipWeightDeltas: relationshipDeltas(for: choice, packet: packet),
-                createdEntityHint: choice.role == .surprise ? "A related motif may step out of the margins." : nil
-            )
+            tags: Array(Set([choice.role.rawValue, packet.packID] + consequence.eventTags)).sorted(),
+            effect: baseEffect.merging(consequence.eventEffect)
         )
     }
 
-    private static func event(forStoryChoice choice: StoryChoiceSelection, page: BookPage, offset: Int) -> NarrativeEvent {
-        let effect = effect(forStoryChoice: choice, page: page)
+    private static func event(
+        forStoryChoice choice: StoryChoiceSelection,
+        page: BookPage,
+        offset: Int,
+        world: StoryConsequenceWorldSnapshot
+    ) -> NarrativeEvent {
+        let consequence = StoryConsequenceResolver.resolvedConsequence(forChoiceID: choice.id, page: page, world: world)
+        let effect = effect(forStoryChoice: choice, page: page).merging(consequence.eventEffect)
         return NarrativeEvent(
             id: "narrative-choice-\(page.id)-\(offset + 1)-\(choice.id)",
             kind: .choiceSelected,
@@ -1890,7 +3029,7 @@ enum NarrativeEventResolver {
             sourcePageID: page.id,
             createdAt: page.createdAt.addingTimeInterval(Double(offset + 1)),
             summary: "\(choice.title): \(choice.summary)",
-            tags: Array(normalizedTags(for: page).union(["choice:\(choice.id)", choice.id])).sorted(),
+            tags: Array(normalizedTags(for: page).union(["choice:\(choice.id)", choice.id]).union(consequence.eventTags)).sorted(),
             effect: effect
         )
     }
@@ -2223,10 +3362,10 @@ enum NarrativeEventResolver {
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 1
         }
-        if tags.contains("story-mechanic:compass-run") {
+        if tags.contains("story-mechanic:compass-run") || (tags.contains("story-mechanic") && tags.contains("compass-run")) {
             threadDeltas["ordinary-magic", default: 0] += 2
         }
-        if tags.contains("story-mechanic:enchantment") {
+        if tags.contains("story-mechanic:enchantment") || (tags.contains("story-mechanic") && tags.contains("enchantment")) {
             entityDeltas["the-book", default: 0] += 1
             createdHint = createdHint ?? "A completed Enchantment can become future evidence."
         }
@@ -2281,10 +3420,10 @@ enum NarrativeEventResolver {
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 1
         }
-        if tags.contains("story-mechanic:compass-run") {
+        if tags.contains("story-mechanic:compass-run") || (tags.contains("story-mechanic") && tags.contains("compass-run")) {
             threadDeltas["ordinary-magic", default: 0] += 2
         }
-        if tags.contains("story-mechanic:enchantment") {
+        if tags.contains("story-mechanic:enchantment") || (tags.contains("story-mechanic") && tags.contains("enchantment")) {
             entityDeltas["the-book", default: 0] += 1
             createdHint = createdHint ?? "A completed Enchantment can become future evidence."
         }

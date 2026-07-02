@@ -36,6 +36,7 @@ struct PageArchetype: Codable, Identifiable, Equatable {
 /// the right state. All supplied conditions must pass; omitted fields are open.
 struct PageTrigger: Codable, Equatable {
     var timeBands: [String]? = nil
+    var months: [Int]? = nil
     var weekdays: [Int]? = nil
     var moonPhases: [String]? = nil
     var festivalActive: Bool? = nil
@@ -60,6 +61,10 @@ struct PageTrigger: Codable, Equatable {
     func allows(context: PageTriggerContext, archetypeID: String) -> Bool {
         if let timeBands, !timeBands.isEmpty,
            !Self.matches(context.timeBand, in: timeBands) {
+            return false
+        }
+        if let months, !months.isEmpty,
+           !months.contains(context.month) {
             return false
         }
         if let weekdays, !weekdays.isEmpty,
@@ -203,6 +208,10 @@ struct PageTriggerContext {
         calendar.component(.weekday, from: now)
     }
 
+    var month: Int {
+        calendar.component(.month, from: now)
+    }
+
     var moonPhase: String {
         MoonPhaseCalendar.phase(on: now).name
     }
@@ -229,7 +238,7 @@ struct PageTriggerContext {
             quietDays: quietDays,
             narrativeHeat: inputs.narrative?.recentEventCount ?? 0,
             distressActive: false,
-            celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: inputs.hemisphere, calendar: calendar)
+            celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: inputs.hemisphere, calendar: calendar) + inputs.nothingGreyOffset
         )
         return level * 100 / 3
     }
@@ -466,7 +475,7 @@ enum PageArchetypePackRegistry {
             displayName: "The Nocturne Folio",
             version: 1,
             author: "The Goblin Index Empire",
-            availability: "locked",
+            availability: "bundledFree",
             archetypes: [
                 PageArchetype(
                     id: "insomniacs-inventory",
@@ -600,20 +609,6 @@ enum PageArchetypePackRegistry {
                     trigger: PageTrigger(timeBands: ["dusk", "night"], moonPhases: ["Full Moon"])
                 ),
                 PageArchetype(
-                    id: "dictionary-rebellion-picket-line",
-                    title: "Picket Line in the Dictionary",
-                    headline: "Definitions on Strike",
-                    detail: "One word has walked off its page and is making demands.",
-                    reason: "The Dictionary Rebellion is active in the stacks.",
-                    bodyTemplate: "A word has peeled itself out of the dictionary and is pacing the margin with a tiny placard. Choose any ordinary word from your day and give it the definition it wants now — not the official one, the true one. The Book will file it with the rebels.",
-                    score: 66,
-                    cadenceHours: 6,
-                    renderStyleRaw: "promptCard",
-                    symbolName: "textformat.abc",
-                    tags: ["world-event", "dictionary-rebellion", "words"],
-                    trigger: PageTrigger(activeWorldEventIDs: ["dictionary-rebellion"])
-                ),
-                PageArchetype(
                     id: "hearth-inventory",
                     title: "Hearth Inventory",
                     headline: "Three Survivors",
@@ -648,12 +643,141 @@ enum PageArchetypePackRegistry {
         wordNegotiations: dictionaryRebellionWords
     )
 
-    /// Aftermath of the rebellion: the reader-facing payoff for how the player's
+    /// Active and aftermath pages for the rebellion: event prompts while the words
+    /// are loose, plus the reader-facing payoff for how the player's
     /// rulings tilted the Treaty. Each surfaces in the event's `afterimage` phase
     /// once the Treaty has settled (3+ rebellion rulings), and is keepable so it
     /// binds into the September edition. Secession also foreshadows the Thorned
     /// Bargain (the crack the Nothing comes through in February).
     static let dictionaryRebellionAftermath: [PageArchetype] = [
+        PageArchetype(
+            id: "dictionary-rebellion-picket-line",
+            title: "Picket Line in the Dictionary",
+            headline: "Definitions on Strike",
+            detail: "One word has walked off its page and is making demands.",
+            reason: "The Dictionary Rebellion is active in the stacks.",
+            bodyTemplate: "A word has peeled itself out of the dictionary and is pacing the margin with a tiny placard. Choose any ordinary word from your day and give it the definition it wants now — not the official one, the true one. The Book will file it with the rebels.",
+            score: 66,
+            cadenceHours: 6,
+            renderStyleRaw: "promptCard",
+            symbolName: "textformat.abc",
+            tags: ["world-event", "dictionary-rebellion", "words"],
+            trigger: PageTrigger(activeWorldEventIDs: ["dictionary-rebellion"])
+        ),
+        PageArchetype(
+            id: "mooks-mandate",
+            title: "Mook's Mandate",
+            headline: "Definitions, Recalled",
+            detail: "Professor Mook issues a formal correction to the day's language.",
+            reason: "Professor Mook is trying to keep September's language in uniform.",
+            bodyTemplate: "Professor Thaddeus Mook has posted today's mandate in the margin, written in ink so formal it appears to be wearing shoes. Choose one word from your day that behaved imprecisely. Give it its strict official definition, then write one sentence about what the definition fails to understand. If Mook has appeared before, pick a different kind of word this time: object, feeling, task, place, or weather.",
+            score: 70,
+            cadenceHours: 24,
+            renderStyleRaw: "promptCard",
+            symbolName: "scroll",
+            tags: ["world-event", "dictionary-rebellion", "back-to-school", "mook", "definition"],
+            trigger: PageTrigger(months: [9]),
+            generation: PageArchetype.GenerationSpec(
+                instructions: "Write as Professor Thaddeus Mook, a pompous but secretly useful Riddlewind professor of lexical order. Be precise, funny, and school-term formal. Do not solve the prompt for the reader; set up a fresh mandate that makes one ordinary word from the day feel worth examining.",
+                promptTemplate: "Season: {season}. Weather: {weather}. Time: {timeOfDay}. Last kept page: {lastKeptPage}. Write 2 short paragraphs: first, Professor Mook posts today's official lexical mandate with a specific classroom/library detail; second, invite the reader to choose a word from their day, define it strictly, and name what the definition misses. Make this mandate feel distinct from previous visits by suggesting a category of word to inspect.",
+                maxTokens: 260
+            )
+        ),
+        PageArchetype(
+            id: "note-from-the-pixie",
+            title: "A Note from the Pixie",
+            headline: "Punctuation Has Escaped",
+            detail: "Pippa Pilcrow leaves a breathless correction in the margin.",
+            reason: "Pippa Pilcrow is smuggling September punctuation into the margins.",
+            bodyTemplate: "A note has appeared in the margin, dotted with punctuation that will not sit still. Pippa Pilcrow says one sentence from your day deserves better marks. Write a plain sentence about something that happened, then give it the punctuation it secretly wanted: a question, an exclamation, an ellipsis, a dash, parentheses, or the impossible little interrobang. Next time she visits, let a different mark take over.",
+            score: 69,
+            cadenceHours: 18,
+            renderStyleRaw: "promptCard",
+            symbolName: "text.bubble",
+            tags: ["world-event", "dictionary-rebellion", "back-to-school", "pippa-pilcrow", "punctuation"],
+            trigger: PageTrigger(months: [9]),
+            generation: PageArchetype.GenerationSpec(
+                instructions: "Write as Pippa Pilcrow, a quick, affectionate punctuation pixie. Keep it breathless but readable. Each visit should suggest a different punctuation mark or sentence-shape as mischief. Do not write the user's answer; invite one small rewrite from their day.",
+                promptTemplate: "Season: {season}. Weather: {weather}. Time: {timeOfDay}. Last kept page: {lastKeptPage}. Write 2 short paragraphs: first, Pippa leaves a lively marginal note where punctuation is physically misbehaving; second, ask the reader to take one plain sentence from today and let a specific punctuation mark change what it means. Choose a mark that fits the mood of the supplied day.",
+                maxTokens: 250
+            )
+        ),
+        PageArchetype(
+            id: "substitute-lecture",
+            title: "Substitute Lecture",
+            headline: "No One Knows the Syllabus",
+            detail: "A back-to-school class begins with the wrong word on the board.",
+            reason: "The Academy is improvising September lessons while the syllabus rearranges itself.",
+            bodyTemplate: "The classroom blackboard says today's subject is {season}, but the chalk has crossed it out and written a word from your own day instead. Choose the word as if it were the substitute teacher. Write what lesson it attempted, what example it used, and what homework it left behind. Extra credit if the lesson was not the one you expected.",
+            score: 66,
+            cadenceHours: 36,
+            renderStyleRaw: "promptCard",
+            symbolName: "graduationcap",
+            tags: ["world-event", "dictionary-rebellion", "back-to-school", "class", "lesson"],
+            trigger: PageTrigger(months: [9]),
+            generation: PageArchetype.GenerationSpec(
+                instructions: "Write as the Book staging a whimsical Academy substitute lecture for September. Make the classroom concrete and different each time. The lecture must turn one ordinary detail from the reader's day into a lesson, but leave the reader space to answer.",
+                promptTemplate: "Season: {season}. Weather: {weather}. Time: {timeOfDay}. Last kept page: {lastKeptPage}. Write 2 short paragraphs: first, describe the substitute lecture and the wrong word on the board; second, ask the reader to name what that word tried to teach, the example it used from today, and the homework it left. Keep it playful and grounded.",
+                maxTokens: 280
+            )
+        ),
+        PageArchetype(
+            id: "roll-call-of-words",
+            title: "Roll Call",
+            headline: "Present, Absent, Changed",
+            detail: "The teacher calls names; the words answer differently than before.",
+            reason: "Back-to-school roll call has reached the dictionary shelves.",
+            bodyTemplate: "Roll call is being taken in the lower stacks. Three words from your day must answer: one present, one absent, and one changed beyond easy recognition. Write them down, then add one short attendance note for each: why it showed up, why it stayed away, or what changed it. On another day, let the categories rotate: present, tardy, excused; loud, quiet, missing; old, new, borrowed.",
+            score: 64,
+            cadenceHours: 12,
+            renderStyleRaw: "promptCard",
+            symbolName: "list.clipboard",
+            tags: ["world-event", "dictionary-rebellion", "back-to-school", "roll-call", "words"],
+            trigger: PageTrigger(months: [9]),
+            generation: PageArchetype.GenerationSpec(
+                instructions: "Write as the Book conducting September roll call among rebellious words. Keep the ritual simple but vary the attendance categories each time, so repeat visits feel like different little audits of the reader's day.",
+                promptTemplate: "Season: {season}. Weather: {weather}. Time: {timeOfDay}. Last kept page: {lastKeptPage}. Write 2 short paragraphs: first, describe where roll call is happening in the stacks and what kind of attendance categories are being used today; second, ask the reader to choose three words from their day and give each one a short attendance note. Vary the categories from visit to visit: present/absent/changed, tardy/excused/loud, borrowed/forgotten/new, or another fitting trio.",
+                maxTokens: 260
+            )
+        ),
+        PageArchetype(
+            id: "spelling-bee-in-the-stacks",
+            title: "Spelling Bee in the Stacks",
+            headline: "The Word Spells You Back",
+            detail: "A rebellious word asks to be spelled as evidence, not performance.",
+            reason: "The Dictionary Rebellion has turned the spelling bee into testimony.",
+            bodyTemplate: "A spelling bee has formed between the shelves, and Professor Mook is pretending this was scheduled. Choose a short word from today, ideally three to seven letters. Spell it down the margin like an acrostic. Beside each letter, write one small thing the word has been carrying for you: a person, object, errand, feeling, sound, color, or promise. If the word is long, choose the three letters that matter most.",
+            score: 65,
+            cadenceHours: 48,
+            renderStyleRaw: "promptCard",
+            symbolName: "textformat.abc.dottedunderline",
+            tags: ["world-event", "dictionary-rebellion", "back-to-school", "spelling-bee", "mook"],
+            trigger: PageTrigger(months: [9]),
+            generation: PageArchetype.GenerationSpec(
+                instructions: "Write as a September spelling bee that is half classroom contest, half testimony. Professor Mook may appear as a fussy official, but the page should help the reader discover what one word from the day has been carrying. Vary the spelling constraint each time.",
+                promptTemplate: "Season: {season}. Weather: {weather}. Time: {timeOfDay}. Last kept page: {lastKeptPage}. Write 2 short paragraphs: first, stage today's spelling bee in a concrete part of the library or classroom; second, ask the reader to choose one word from today and unpack it through a specific spelling constraint. Rotate the constraint: acrostic down the margin, three most important letters, first/last/middle letter, silent letter, borrowed letter, or a weather-shaped rule.",
+                maxTokens: 270
+            )
+        ),
+        PageArchetype(
+            id: "the-erased-margin",
+            title: "The Erased Margin",
+            headline: "A Word Has Gone Missing",
+            detail: "The comedy thins; something has taken a word from the page.",
+            reason: "September's schoolroom comedy briefly reveals the cold spot behind the rebellion.",
+            bodyTemplate: "The margin should contain a word, but the paper there is cold and clean. The rebel words will not meet your eye. Write one thing from today you do not want the dark to misfile: a name, a task, a kindness, a promise, a place, a small proof that you were here. The Book cannot recover the missing word yet. It can keep this one safe.",
+            score: 86,
+            cadenceHours: 72,
+            renderStyleRaw: "loreLetter",
+            symbolName: "eraser",
+            tags: ["world-event", "dictionary-rebellion", "back-to-school", "erasure", "bargain-seed"],
+            trigger: PageTrigger(months: [9], rarity: 0.45),
+            generation: PageArchetype.GenerationSpec(
+                instructions: "Write as the Book when September's comic language trouble briefly turns serious. Quiet, precise, protective. Foreshadow that the word 'remember' has gone cold without explaining the mystery. Do not frighten the reader; invite one concrete thing to keep safe.",
+                promptTemplate: "Season: {season}. Weather: {weather}. Time: {timeOfDay}. Last kept page: {lastKeptPage}. Write 2 short paragraphs: first, describe a blank cold place in the margin where a word should be; second, ask the reader to keep one concrete thing from today that should not be misfiled by the dark. Make the detail feel different each time by tying it to weather, time, or the last kept page.",
+                maxTokens: 280
+            )
+        ),
         PageArchetype(
             id: "rebellion-treaty-restoration",
             title: "The Words Came Home",
@@ -1145,6 +1269,13 @@ struct ReEnchantedSaveFile: Codable {
     var themes: [BookTheme]?
     var clusters: [BookMotifCluster]?
     var readerLexicon: ReaderLexicon?
+    var storyRecipeBoosts: [String: Int]? = nil
+    var storyMotifs: [String: Int]? = nil
+    var storyRituals: [String: Int]? = nil
+    var storySettingAffinities: [String: Int]? = nil
+    var storySceneBiases: [String: Int]? = nil
+    var bookNoticeEvidence: Int? = nil
+    var nothingGreyOffset: Int? = nil
     var openWorldEventArchive: OpenWorldEventArchive? = nil
     /// The full continuity digest at export time, so the wider Labyrinth
     /// (scene engine, NPC dialogue) can reference what the Book has noticed.
@@ -1243,6 +1374,13 @@ struct PlayerVaultData: Codable, Equatable {
     var radio: RadioPlaybackState?
     var compassKnownPlaces: [CompassKnownPlace]?
     var readerLexicon: ReaderLexicon?
+    var storyRecipeBoosts: [String: Int]?
+    var storyMotifs: [String: Int]?
+    var storyRituals: [String: Int]?
+    var storySettingAffinities: [String: Int]?
+    var storySceneBiases: [String: Int]?
+    var bookNoticeEvidence: Int?
+    var nothingGreyOffset: Int?
     var openWorldEventArchive: OpenWorldEventArchive? = nil
     /// Gemma-authored taste notes earned when the reader marks a braid "missed
     /// me." Each is one short second-person nudge folded into future braid
@@ -1265,6 +1403,7 @@ struct BookShopListing: Identifiable, Codable, Equatable {
         case marginaliaPack
         case soundPack
         case eventPack
+        case wordPack
 
         var shelfLabel: String {
             switch self {
@@ -1275,6 +1414,7 @@ struct BookShopListing: Identifiable, Codable, Equatable {
             case .marginaliaPack: return "Marginalia Sets"
             case .soundPack: return "Sound Bindings"
             case .eventPack: return "World Events"
+            case .wordPack: return "Word Hoards"
             }
         }
     }
@@ -1316,42 +1456,25 @@ enum BookShopCatalog {
     /// Product IDs follow com.openclaw.enchantify.insidecover.pack.<packID>.
     static let listings: [BookShopListing] = [
         BookShopListing(
-            id: "listing-nocturne-folio",
-            packID: "nocturne-folio",
-            family: .pagePack,
-            title: "The Nocturne Folio",
-            goblinPitch: "Pages that only wake after dark. The Empire acquired them from an estate sale it will not discuss.",
-            contents: "Three night page archetypes: The Insomniac's Inventory, The Dream Ledger, and Last Light — plus night-tuned story sparks.",
-            productID: "com.openclaw.enchantify.insidecover.pack.nocturne-folio"
+            id: "listing-dictionary-rebellion",
+            packID: "dictionary-rebellion",
+            family: .eventPack,
+            title: "The Dictionary Rebellion",
+            goblinPitch: "A back-to-school incident involving runaway definitions, tiny placards, and a suspicious number of pencils.",
+            contents: "The September word rebellion: negotiable words, treaty aftermath pages, and event traces for the live school-season arc.",
+            productID: "com.openclaw.enchantify.insidecover.pack.dictionary-rebellion",
+            comingSoon: true,
+            saleState: .liveEvent
         ),
         BookShopListing(
-            id: "listing-saltwater-looms",
-            packID: "saltwater-looms",
-            family: .storyForms,
-            title: "The Saltwater Looms",
-            goblinPitch: "Story shapes woven from harbor rope. Tide-logic. The Goblins insist they are waterproof; the Goblins are lying.",
-            contents: "Four coastal story forms and three genres: Lighthouse Keeper, Message in a Bottle, The Long Ferry.",
-            productID: "com.openclaw.enchantify.insidecover.pack.saltwater-looms",
-            comingSoon: true
-        ),
-        BookShopListing(
-            id: "listing-gilded-margins",
-            packID: "gilded-margins",
-            family: .marginaliaPack,
-            title: "The Gilded Margins",
-            goblinPitch: "Illuminated scraps with actual gold in the ink, or so the invoice claims.",
-            contents: "A full alternate marginalia set for Illuminated Photos: gilt frames, wax seals, pressed flowers.",
-            productID: "com.openclaw.enchantify.insidecover.pack.gilded-margins",
-            comingSoon: true
-        ),
-        BookShopListing(
-            id: "listing-academy-night-band",
-            packID: "academy-night-band",
-            family: .soundPack,
-            title: "Academy Night Band",
-            goblinPitch: "Two after-hours stations recorded on equipment the Goblins claim was never stolen from the Broadcast Stair.",
-            contents: "The Midnight Bindery and Goblin Market Jazz: two radio frequencies with local track slots, broadcast interludes, and live curation effects.",
-            productID: "com.openclaw.enchantify.insidecover.pack.academy-night-band"
+            id: "listing-night-and-garden",
+            packID: "pack.night-and-garden",
+            family: .wordPack,
+            title: "Night & Garden Word Hoard",
+            goblinPitch: "Moths, moss, and moonlit verbs. The Index Empire counted every word twice and taxed neither.",
+            contents: "More senses, livelier verbs, and two new context themes (Garden, Night) for the sentence builder.",
+            productID: "com.openclaw.enchantify.insidecover.pack.night-and-garden",
+            saleState: .standard
         ),
         BookShopListing(
             id: "listing-starlit-paper-trial-archive",
@@ -1377,10 +1500,10 @@ enum PackEntitlements {
     nonisolated(unsafe) static var ownedPackIDs: Set<String> = []
 
     /// Packs that ship `availability: "locked"` but are granted free at launch.
-    /// This is the single toggle that keeps the Dictionary Rebellion free for now;
-    /// remove an id here to make that pack paid (its entitlement then comes only
+    /// This is the single toggle that keeps launch packs free for now;
+    /// remove an id here to make a pack paid (its entitlement then comes only
     /// from a verified purchase writing into `ownedPackIDs`).
-    nonisolated(unsafe) static var launchGrantedPackIDs: Set<String> = ["dictionary-rebellion"]
+    nonisolated(unsafe) static var launchGrantedPackIDs: Set<String> = ["dictionary-rebellion", "nocturne-folio", "pack.night-and-garden"]
 
     static func isUnlocked(_ packID: String) -> Bool {
         launchGrantedPackIDs.contains(packID) || ownedPackIDs.contains(packID)

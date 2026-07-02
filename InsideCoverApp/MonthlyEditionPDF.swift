@@ -295,13 +295,70 @@ enum MonthlyEditionPDFWriter {
             let spineRect = CGRect(x: panels.spineX * ppi, y: topY, width: panels.spineWidth * ppi, height: th)
             let frontRect = CGRect(x: panels.frontX * ppi, y: topY, width: tw, height: th)
 
-            // Front panel wears the same cover art the screen edition wears.
+            drawPhysicalCoverPanels(edition, spec: spec, style: style, backRect: backRect, spineRect: spineRect, frontRect: frontRect)
+        }
+    }
+
+    /// Small raster preview of the physical cover treatment: back, spine, front.
+    /// This deliberately uses the same panel drawing as the PDF cover wrap.
+    static func physicalCoverPreviewImage(
+        _ edition: MonthlyEdition,
+        spec: PrintSpec,
+        pageCount: Int,
+        size: CGSize = CGSize(width: 760, height: 420)
+    ) -> UIImage {
+        let style = EditionStyle.style(for: edition)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = UIScreen.main.scale
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            let cg = context.cgContext
+            let bounds = CGRect(origin: .zero, size: size)
+            drawVerticalWash(in: bounds, top: style.palette.paperTop, bottom: style.palette.paperBottom, cg: cg)
+
+            let pageAspect = spec.trimWidthInches / spec.trimHeightInches
+            let panelHeight = size.height * 0.78
+            let panelWidth = panelHeight * pageAspect
+            let spineWidth = max(10, panelWidth * PrintGeometry.spineWidthInches(pageCount: pageCount, spec: spec) / spec.trimWidthInches)
+            let totalWidth = panelWidth * 2 + spineWidth
+            let startX = (size.width - totalWidth) / 2
+            let topY = (size.height - panelHeight) / 2
+            let backRect = CGRect(x: startX, y: topY, width: panelWidth, height: panelHeight)
+            let spineRect = CGRect(x: backRect.maxX, y: topY, width: spineWidth, height: panelHeight)
+            let frontRect = CGRect(x: spineRect.maxX, y: topY, width: panelWidth, height: panelHeight)
+
+            cg.setShadow(offset: CGSize(width: 0, height: 10), blur: 18, color: UIColor.black.withAlphaComponent(0.22).cgColor)
+            drawPhysicalCoverPanels(edition, spec: spec, style: style, backRect: backRect, spineRect: spineRect, frontRect: frontRect)
+            cg.setShadow(offset: .zero, blur: 0, color: nil)
+            UIColor.black.withAlphaComponent(0.22).setStroke()
+            UIBezierPath(rect: CGRect(x: backRect.minX, y: backRect.minY, width: totalWidth, height: panelHeight)).stroke()
+        }
+    }
+
+    private static func drawPhysicalCoverPanels(
+        _ edition: MonthlyEdition,
+        spec: PrintSpec,
+        style: EditionStyle,
+        backRect: CGRect,
+        spineRect: CGRect,
+        frontRect: CGRect
+    ) {
+        switch spec.coverTreatment {
+        case .caseWrap:
             withDesignSpaceMapped(designSize: CGSize(width: 612, height: 792), into: frontRect) {
                 drawCover(edition, style: style, bounds: CGRect(x: 0, y: 0, width: 612, height: 792))
             }
             drawCoverBackPanel(edition, style: style, rect: backRect)
-            if spineRect.width >= 18 {  // ~0.25in: enough to read a foil title
+            if spineRect.width >= 10 {
                 drawSpineTitle(edition, style: style, rect: spineRect)
+            }
+        case .linenWrap:
+            drawLinenPanel(in: backRect)
+            drawLinenPanel(in: spineRect)
+            drawLinenPanel(in: frontRect)
+            drawFoilFrontStamp(edition, rect: frontRect)
+            drawFoilBackStamp(edition, rect: backRect)
+            if spineRect.width >= 10 {
+                drawSpineTitle(edition, style: linenFoilStyle(), rect: spineRect)
             }
         }
     }
@@ -343,6 +400,61 @@ enum MonthlyEditionPDFWriter {
             }
         }
         return PDFDocument(data: data)?.page(at: 0)
+    }
+
+    private static func linenFoilStyle() -> EditionStyle {
+        let palette = EditionStyle.Palette(
+            name: "navy linen",
+            paperTop: UIColor(red: 0.04, green: 0.08, blue: 0.16, alpha: 1),
+            paperBottom: UIColor(red: 0.02, green: 0.04, blue: 0.10, alpha: 1),
+            coverText: UIColor(red: 0.86, green: 0.70, blue: 0.34, alpha: 1),
+            ink: UIColor(red: 0.13, green: 0.15, blue: 0.19, alpha: 1),
+            accent: UIColor(red: 0.07, green: 0.13, blue: 0.25, alpha: 1),
+            accentSoft: UIColor(red: 0.07, green: 0.13, blue: 0.25, alpha: 0.18),
+            gold: UIColor(red: 0.86, green: 0.70, blue: 0.34, alpha: 1)
+        )
+        return EditionStyle(palette: palette, coverMotif: .constellation, ornament: .stars)
+    }
+
+    private static func drawLinenPanel(in rect: CGRect) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        let top = UIColor(red: 0.04, green: 0.08, blue: 0.16, alpha: 1)
+        let bottom = UIColor(red: 0.02, green: 0.04, blue: 0.10, alpha: 1)
+        drawVerticalWash(in: rect, top: top, bottom: bottom, cg: cg)
+
+        cg.saveGState()
+        cg.clip(to: rect)
+        UIColor.white.withAlphaComponent(0.045).setStroke()
+        for offset in stride(from: rect.minX - rect.height, through: rect.maxX, by: 8) {
+            let path = UIBezierPath()
+            path.move(to: CGPoint(x: offset, y: rect.minY))
+            path.addLine(to: CGPoint(x: offset + rect.height, y: rect.maxY))
+            path.lineWidth = 0.7
+            path.stroke()
+        }
+        UIColor.black.withAlphaComponent(0.10).setStroke()
+        for x in stride(from: rect.minX, through: rect.maxX, by: 5) {
+            let path = UIBezierPath()
+            path.move(to: CGPoint(x: x, y: rect.minY))
+            path.addLine(to: CGPoint(x: x, y: rect.maxY))
+            path.lineWidth = 0.5
+            path.stroke()
+        }
+        cg.restoreGState()
+    }
+
+    private static func drawFoilFrontStamp(_ edition: MonthlyEdition, rect: CGRect) {
+        let gold = UIColor(red: 0.86, green: 0.70, blue: 0.34, alpha: 1)
+        drawCentered("T H E   B O O K   O F   Y O U", font: .systemFont(ofSize: rect.height * 0.032, weight: .semibold), color: gold.withAlphaComponent(0.86), y: rect.minY + rect.height * 0.34, in: rect)
+        drawCentered(edition.readerName, font: .serifFont(ofSize: rect.height * 0.060, weight: .regular), color: gold, y: rect.minY + rect.height * 0.43, in: rect)
+        drawCentered("Chapter \(edition.chapterNumber)", font: .serifFont(ofSize: rect.height * 0.088, weight: .bold), color: gold, y: rect.minY + rect.height * 0.54, in: rect)
+        drawCentered(edition.monthName, font: .serifItalicFont(ofSize: rect.height * 0.044), color: gold.withAlphaComponent(0.88), y: rect.minY + rect.height * 0.64, in: rect)
+    }
+
+    private static func drawFoilBackStamp(_ edition: MonthlyEdition, rect: CGRect) {
+        let gold = UIColor(red: 0.86, green: 0.70, blue: 0.34, alpha: 1)
+        drawCentered("\(edition.dayCount) days bound", font: .serifItalicFont(ofSize: rect.height * 0.034), color: gold.withAlphaComponent(0.74), y: rect.minY + rect.height * 0.46, in: rect)
+        drawCentered("\(edition.pageCount) kept pages", font: .systemFont(ofSize: rect.height * 0.030, weight: .medium), color: gold.withAlphaComponent(0.64), y: rect.minY + rect.height * 0.53, in: rect)
     }
 
     /// The back of the jacket: a quiet echo of the cover, lower on the panel.

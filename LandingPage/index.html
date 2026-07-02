@@ -38,6 +38,10 @@
         <span class="glow-meter" aria-hidden="true"><span id="glow-fill"></span></span>
       </button>
     </header>
+    <div class="radio-hint" id="radio-hint" role="dialog" aria-label="Radio tip" hidden>
+      <p class="radio-hint-text"><span aria-hidden="true">🎶</span> The radio lives up here - press play, then switch stations to score your visit.</p>
+      <button type="button" class="radio-hint-dismiss" id="radio-hint-dismiss">Got it</button>
+    </div>
     <aside class="glow-menu" id="glow-menu" aria-label="Glow menu" hidden>
       <div class="glow-sheet" role="dialog" aria-modal="true" aria-labelledby="glow-sheet-title">
         <div class="glow-sheet-pill" aria-hidden="true">
@@ -95,18 +99,18 @@
       <!-- ───────────────────────── HERO ───────────────────────── -->
       <section class="hero">
         <div class="hero-copy">
-          <p class="hero-problem hero-reveal-group">
-            <span class="hero-problem-line hero-reveal hero-reveal-1">
+          <p class="hero-problem">
+            <span class="hero-problem-line">
               Same commute. Same gray hours. Another day slipping past
               unnoticed - nothing that felt worth remembering.
             </span>
-            <span class="hero-problem-belief hero-reveal hero-reveal-2">Your life isn't actually that forgettable…</span>
+            <span class="hero-problem-belief">Your life isn't actually that forgettable…</span>
           </p>
-          <p class="eyebrow hero-reveal hero-reveal-3">A living book for ordinary days</p>
+          <p class="eyebrow">A living book for ordinary days</p>
           <p class="return-note" id="return-note" role="status" hidden></p>
-          <h1 class="hero-reveal hero-reveal-4">Real Life,<br><span class="accent">ReEnchanted</span></h1>
-          <p class="hero-tagline hero-reveal hero-reveal-5">Play with Pages. <span>Keep Some.</span> Read Your Story.</p>
-          <p class="hero-lede hero-reveal hero-reveal-6">
+          <h1>Real Life,<br><span class="accent">ReEnchanted</span></h1>
+          <p class="hero-tagline">Play with Pages. <span>Keep Some.</span> Read Your Story.</p>
+          <p class="hero-lede">
             A free, magical iPhone book that turns the day you actually lived - weather, walks,
             moods, music, the people who pass through - into pages you can keep.
             Keep what's true. Let the rest wait. Watch it braid into a story only you could write.
@@ -119,9 +123,11 @@
             </button>
           </div>
           <ul class="trust-row" aria-label="Principles">
+            <li>Free</li>
             <li>Open source</li>
-            <li>Private by design</li>
-            <li>Local-first memory</li>
+            <li>Private</li>
+            <li>Local - No Cloud</li>
+            <li>No Accounts</li>
             <li>iPhone &amp; iPad</li>
           </ul>
         </div>
@@ -148,6 +154,10 @@
           <span class="hero-chip chip-2">The Book is listening</span>
         </div>
       </section>
+
+      <p class="hero-bridge-quote">
+        "A free iPhone app that turns your ordinary life into a fantasy book."
+      </p>
 
       <!-- ──────────────────── HOW IT WORKS ──────────────────── -->
       <section id="how" class="how-section">
@@ -181,6 +191,58 @@
               weather - braided together with the choices you made in the game. That's
               your <em>Book of You</em>: one story a day, gathering into monthly and
               annual volumes you can hold.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ──────────────────── EDITIONS ──────────────────── -->
+      <section id="editions" class="systems-section" data-drawer>
+        <div class="section-head">
+          <p class="eyebrow">Bound for keeps</p>
+          <h2>Publish your own editions.</h2>
+          <p class="section-sub">
+            Your kept pages don't just scroll away. When enough of them gather, the
+            Book can bind them into real, shareable PDF volumes you publish for
+            yourself - composed and rendered entirely on device. Or, send your
+            Book of You off to the printers from the app to have it professionally
+            bound.
+          </p>
+        </div>
+        <div class="systems-grid">
+          <article class="system-card">
+            <span class="system-glyph" aria-hidden="true">❦</span>
+            <h3>The Monthly Edition</h3>
+            <p>
+              At each month's turn, the Book gathers that month's kept pages - braids,
+              one-sentence souvenirs, letters, the things it noticed - and binds them
+              into a chaptered PDF with its own theme, cover, and a foreword the Book
+              writes about the month you just lived.
+            </p>
+          </article>
+          <article class="system-card">
+            <span class="system-glyph" aria-hidden="true">✸</span>
+            <h3>The Annual Volume</h3>
+            <p>
+              A whole year becomes one bound book: twelve monthly chapters, each in its
+              own palette, wrapped in a year-long foreword, your constellations, and a
+              closing. A year of ordinary life, made into a fairy tale you can hold.
+            </p>
+          </article>
+          <article class="system-card edition-preview">
+            <div class="edition-cover-mini" role="img"
+                 aria-label="A mockup of a Book of You monthly edition cover - Chapter 3, June, themed Of Rain and Lamps">
+              <span class="ec-stars" aria-hidden="true"></span>
+              <span class="ec-kicker">An Edition Of</span>
+              <span class="ec-title">The Book<br>of You</span>
+              <span class="ec-rule" aria-hidden="true"></span>
+              <span class="ec-chapter">Chapter Three · June</span>
+              <span class="ec-theme">Of Rain &amp; Lamps</span>
+              <span class="ec-mark" aria-hidden="true">✦</span>
+            </div>
+            <p class="edition-preview-cap">
+              No two months bind alike - each picks its own palette, cover, and
+              ornament. <em>A mockup; yours fills in as you keep pages.</em>
             </p>
           </article>
         </div>
@@ -433,56 +495,6 @@
             A real Book of You entry, braided from kept pages and on-device context.
           </figcaption>
         </figure>
-      </section>
-
-      <!-- ──────────────────── EDITIONS ──────────────────── -->
-      <section id="editions" class="systems-section" data-drawer>
-        <div class="section-head">
-          <p class="eyebrow">Bound for keeps</p>
-          <h2>Publish your own editions.</h2>
-          <p class="section-sub">
-            Your kept pages don't just scroll away. When enough of them gather, the
-            Book can bind them into real, shareable PDF volumes you publish for
-            yourself - composed and rendered entirely on device.
-          </p>
-        </div>
-        <div class="systems-grid">
-          <article class="system-card">
-            <span class="system-glyph" aria-hidden="true">❦</span>
-            <h3>The Monthly Edition</h3>
-            <p>
-              At each month's turn, the Book gathers that month's kept pages - braids,
-              one-sentence souvenirs, letters, the things it noticed - and binds them
-              into a chaptered PDF with its own theme, cover, and a foreword the Book
-              writes about the month you just lived.
-            </p>
-          </article>
-          <article class="system-card">
-            <span class="system-glyph" aria-hidden="true">✸</span>
-            <h3>The Annual Volume</h3>
-            <p>
-              A whole year becomes one bound book: twelve monthly chapters, each in its
-              own palette, wrapped in a year-long foreword, your constellations, and a
-              closing. A year of ordinary life, made into a fairy tale you can hold.
-            </p>
-          </article>
-          <article class="system-card edition-preview">
-            <div class="edition-cover-mini" role="img"
-                 aria-label="A mockup of a Book of You monthly edition cover - Chapter 3, June, themed Of Rain and Lamps">
-              <span class="ec-stars" aria-hidden="true"></span>
-              <span class="ec-kicker">An Edition Of</span>
-              <span class="ec-title">The Book<br>of You</span>
-              <span class="ec-rule" aria-hidden="true"></span>
-              <span class="ec-chapter">Chapter Three · June</span>
-              <span class="ec-theme">Of Rain &amp; Lamps</span>
-              <span class="ec-mark" aria-hidden="true">✦</span>
-            </div>
-            <p class="edition-preview-cap">
-              No two months bind alike - each picks its own palette, cover, and
-              ornament. <em>A mockup; yours fills in as you keep pages.</em>
-            </p>
-          </article>
-        </div>
       </section>
 
       <!-- ──────────────────── MECHANICS ──────────────────── -->
@@ -1369,6 +1381,6 @@
         });
       })();
     </script>
-    <script src="./app.js?v=43"></script>
+    <script src="./app.js?v=48"></script>
   </body>
 </html>

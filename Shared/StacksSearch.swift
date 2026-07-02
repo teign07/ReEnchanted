@@ -434,3 +434,100 @@ enum StacksSearchEngine {
         return prefix + normalized[start..<end].trimmingCharacters(in: .whitespaces) + suffix
     }
 }
+
+/// The recognition note: a just-kept page that rhymes with an older page
+/// earns a line naming the shared word and when it first appeared. Fixed,
+/// legible rule — a rare-enough word, old enough to feel like memory.
+enum KeepEcho {
+    struct Echo: Equatable {
+        var sourcePageID: String
+        var sharedWord: String
+        var monthLine: String
+        var line: String
+    }
+
+    /// A word must be at least this old to echo — recognition, not repetition.
+    static let minimumAgeDays = 14
+    /// A word appearing in more archive pages than this is too common to feel
+    /// specific ("coffee" echoes nobody).
+    static let maximumWordSpread = 4
+
+    static func find(
+        for input: String,
+        pageID: String,
+        in days: [BookDay],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Echo? {
+        let inputWords = Set(
+            input.lowercased()
+                .split { !$0.isLetter }
+                .map(String.init)
+                .filter { $0.count >= 5 && !KeepMarginalia.stopWords.contains($0) }
+        )
+        guard !inputWords.isEmpty else { return nil }
+
+        let cutoff = now.addingTimeInterval(TimeInterval(-minimumAgeDays) * 86_400)
+        let candidates = days.flatMap(\.capturedPages).filter { page in
+            page.createdAt <= cutoff
+                && !EditionCurator.defaultPrivateTypes.contains(page.type)
+                && !page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        guard !candidates.isEmpty else { return nil }
+
+        // How widely each input word is spread across the archive.
+        var spread: [String: Int] = [:]
+        var matches: [(page: BookPage, word: String)] = []
+        for page in candidates {
+            let pageWords = Set(
+                page.userInput.lowercased()
+                    .split { !$0.isLetter }
+                    .map(String.init)
+                    .filter { $0.count >= 5 && !KeepMarginalia.stopWords.contains($0) }
+            )
+            for word in inputWords.intersection(pageWords) {
+                spread[word, default: 0] += 1
+                matches.append((page, word))
+            }
+        }
+
+        let rare = matches.filter { spread[$0.word] ?? 0 <= maximumWordSpread }
+        guard !rare.isEmpty else { return nil }
+
+        // Longest shared word first (most specific), then oldest page.
+        let ranked = rare.sorted {
+            if $0.word.count != $1.word.count { return $0.word.count > $1.word.count }
+            return $0.page.createdAt < $1.page.createdAt
+        }
+        let top = Array(ranked.prefix(3))
+        let seed = KeepMarginalia.seed(for: pageID)
+        let chosen = top[Int(seed % UInt64(top.count))]
+
+        let month = chosen.page.createdAt.formatted(.dateTime.month(.wide))
+        let sameYear = calendar.component(.year, from: chosen.page.createdAt)
+            == calendar.component(.year, from: now)
+        let year = calendar.component(.year, from: chosen.page.createdAt)
+        let monthLine = sameYear ? "back in \(month)" : "in \(month) \(year)"
+
+        let lines = [
+            "You\u{2019}ve written about \u{201C}\(chosen.word)\u{201D} before — \(monthLine). The Book remembers.",
+            "This rhymes with a page from \(monthLine) — the one about \u{201C}\(chosen.word)\u{201D}.",
+            "The Stacks stirred: \u{201C}\(chosen.word)\u{201D} again, first pressed \(monthLine)."
+        ]
+        return Echo(
+            sourcePageID: chosen.page.id,
+            sharedWord: chosen.word,
+            monthLine: monthLine,
+            line: lines[Int((seed >> 16) % UInt64(lines.count))]
+        )
+    }
+
+    static func note(from echo: Echo) -> KeepMarginalia.Note {
+        KeepMarginalia.Note(
+            castSlug: "the-book",
+            castName: "The Book",
+            assetName: "LabyrinthFaeBookSprite",
+            line: echo.line
+        )
+    }
+}

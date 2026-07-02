@@ -104,12 +104,13 @@ final class BraidPromptContextTests: XCTestCase {
 
         let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
 
-        XCTAssertTrue(prompt.contains("PROVENANCE GRAVITY"))
-        XCTAssertTrue(prompt.contains("One-Sentence Souvenirs are especially strong spine candidates"))
-        XCTAssertTrue(prompt.contains("generated or simulated story pages as color threads"))
-        XCTAssertTrue(prompt.contains("Let the fiction bleed into the real without drowning it."))
+        XCTAssertTrue(prompt.contains("TWO SHELVES"))
+        XCTAssertTrue(prompt.contains("One-Sentence Souvenirs remain the strongest single spine candidates"))
+        XCTAssertTrue(prompt.contains("the lived shelf wins"))
         XCTAssertTrue(prompt.contains("reader-authored anchor; one-sentence souvenir; highest gravity"))
-        XCTAssertTrue(prompt.contains("generated fiction color; lower gravity"))
+        XCTAssertTrue(prompt.contains("Shelf: lived"))
+        XCTAssertTrue(prompt.contains("Shelf: fiction"))
+        XCTAssertTrue(prompt.contains("generated fiction color; medium gravity"))
     }
 
     func testBraidPromptUpgradesGeneratedFictionWhenReaderReplies() {
@@ -130,9 +131,9 @@ final class BraidPromptContextTests: XCTestCase {
 
         let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
 
-        XCTAssertTrue(prompt.contains("reader-endorsed fiction; medium gravity"))
+        XCTAssertTrue(prompt.contains("reader-endorsed fiction; high gravity - the reader made a real decision here"))
         XCTAssertTrue(prompt.contains("Reader reply: I chose the blue door because it felt honest."))
-        XCTAssertTrue(prompt.contains("still lighter than a real souvenir or direct user-authored page"))
+        XCTAssertTrue(prompt.contains("it may carry the spine when the day's truest turn happened there"))
     }
 
     func testAnnotatedBraidKeepsTitleAndContextTags() {
@@ -639,6 +640,39 @@ final class BraidPromptContextTests: XCTestCase {
         let day = BookDay(id: "2026-06-16", date: date("2026-06-16T20:30:00Z"), pages: [])
         let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
         XCTAssertFalse(prompt.contains("WHAT'S PLAYING"))
+    }
+
+    func testBraidPromptCarriesTwoShelves() {
+        let day = BookDay(id: "shelves-day", date: date("2026-07-01T20:30:00Z"), pages: [
+            BookPage(type: .souvenir, createdAt: date("2026-07-01T08:00:00Z"), promptText: "One line", userInput: "The kettle sang early.", origin: .userAuthored),
+            BookPage(type: .narrativeOS, createdAt: date("2026-07-01T18:00:00Z"), promptText: "Story Page", userInput: "Wicker leaned on the ladder.", playerReply: "Named the forgery", origin: .generated)
+        ])
+        let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
+        XCTAssertTrue(prompt.contains("TWO SHELVES:"))
+        XCTAssertFalse(prompt.contains("PROVENANCE GRAVITY"))
+        XCTAssertTrue(prompt.contains("Shelf: lived"))
+        XCTAssertTrue(prompt.contains("Shelf: fiction"))
+        XCTAssertTrue(prompt.contains("reader-endorsed fiction; high gravity"))
+    }
+
+    func testBraidShelfClassification() {
+        XCTAssertEqual(BraidPromptBuilder.braidShelf(for: BookPage(type: .souvenir, promptText: "p", origin: .userAuthored)), "lived")
+        XCTAssertEqual(BraidPromptBuilder.braidShelf(for: BookPage(type: .diary, promptText: "p", origin: .imported)), "lived")
+        XCTAssertEqual(BraidPromptBuilder.braidShelf(for: BookPage(type: .narrativeOS, promptText: "p", origin: .generated)), "fiction")
+    }
+
+    func testBraidPromptHingesOnClashPages() {
+        let clashPage = BookPage(type: .narrativeOS, createdAt: date("2026-07-01T18:00:00Z"), promptText: "Clash", userInput: "The grey edited the list.",
+                                 tags: ["clash", "clash:grey-edit", "choice:progressarc", "clash-outcome:costly-success"], origin: .generated)
+        let day = BookDay(id: "clash-day", date: date("2026-07-01T20:30:00Z"), pages: [clashPage])
+        let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
+        XCTAssertTrue(prompt.contains("WHERE BELIEF WAS TESTED:"))
+        XCTAssertTrue(prompt.contains("Clash digest: Belief was tested (grey-edit)"))
+
+        let quietDay = BookDay(id: "quiet-day", date: date("2026-07-01T20:30:00Z"), pages: [
+            BookPage(type: .souvenir, promptText: "One line", userInput: "The kettle sang.", origin: .userAuthored)
+        ])
+        XCTAssertFalse(BraidPromptBuilder.prompt(for: quietDay, context: .empty).contains("WHERE BELIEF WAS TESTED"))
     }
 
     private func date(_ value: String) -> Date {

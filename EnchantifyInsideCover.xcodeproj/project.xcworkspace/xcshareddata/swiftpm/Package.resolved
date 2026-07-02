@@ -1,5 +1,5 @@
 {
-  "originHash" : "7303936ccdfd6c003f11b9398ace4f0d7c26b0e0c34096447136a2bd6e680b66",
+  "originHash" : "c09a8c3299d0785133ec5a49f25dbfc00b40f588e443aea53d7de6c4809b54d8",
   "pins" : [
     {
       "identity" : "mlx-swift",
@@ -17,6 +17,15 @@
       "state" : {
         "revision" : "1c05248bb0899e2a7a4962b84d319cf12f4e12aa",
         "version" : "3.31.3"
+      }
+    },
+    {
+      "identity" : "stripe-ios-spm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/stripe/stripe-ios-spm",
+      "state" : {
+        "revision" : "f4f28a0b358011089e4538059d443eccff183382",
+        "version" : "24.25.0"
       }
     },
     {

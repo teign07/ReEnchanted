@@ -8,7 +8,7 @@ import XCTest
 ///
 /// Gated behind REAL_ARCHIVE_DIR so CI and normal `swift test` skip it:
 ///
-///   REAL_ARCHIVE_DIR=/Users/bj/.openclaw/workspace/enchantify swift test \
+///   REAL_ARCHIVE_DIR=/path/to/local/archive swift test \
 ///     --filter RealArchiveReplayTests 2>&1
 ///
 /// Everything stays on this machine; the report goes to stdout only.

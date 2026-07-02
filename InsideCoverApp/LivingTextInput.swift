@@ -8,20 +8,16 @@ struct LivingTextEditor: View {
     var builderPack: SentenceBuilderPack = .core
 
     @State private var isBuilderOpen = false
-    @State private var completedKinds: Set<SentenceBuilderStepKind> = []
     @State private var selectedTokenID: Int?
     @State private var didTransmute = false
     @State private var shimmer = false
+    @State private var sentenceInkBurstTrigger = 0
     @State private var starterDraft: SentenceStarterDraft?
     @State private var selectedStarterSlotID: String?
     @State private var starterSeed = 0
 
     private var engine: SentenceBuilderEngine {
         SentenceBuilderEngine(pack: builderPack)
-    }
-
-    private var nudge: SentenceBuilderNudge {
-        engine.nudge(for: text, completedKinds: completedKinds)
     }
 
     private var analysis: SentenceBuilderAnalysis {
@@ -39,10 +35,6 @@ struct LivingTextEditor: View {
 
     private var hasText: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var alchemyLevels: [SentenceBuilderAlchemyLevel] {
-        engine.alchemyLevels(for: text)
     }
 
     private var shareText: String {
@@ -69,25 +61,6 @@ struct LivingTextEditor: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(BookPalette.ink.opacity(0.62))
                 Spacer()
-                Button {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                        isBuilderOpen.toggle()
-                    }
-                    BookFeedback.play(.tap)
-                } label: {
-                    Label(isBuilderOpen ? "Let me write" : "Wake the sentence", systemImage: isBuilderOpen ? "checkmark.seal" : "pencil.and.scribble")
-                        .labelStyle(.iconOnly)
-                        .font(.caption.weight(.bold))
-                        .frame(width: 30, height: 30)
-                        .foregroundStyle(isBuilderOpen ? BookPalette.teal : BookPalette.lampGold)
-                        .background(BookPalette.page.opacity(0.76), in: Circle())
-                        .overlay {
-                            Circle()
-                                .stroke((isBuilderOpen ? BookPalette.teal : BookPalette.lampGold).opacity(0.38), lineWidth: 1)
-                        }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isBuilderOpen ? "Close sentence builder" : "Wake the sentence")
             }
 
             ZStack(alignment: .topLeading) {
@@ -95,7 +68,9 @@ struct LivingTextEditor: View {
                     .font(.body)
                     .foregroundStyle(BookPalette.ink)
                     .scrollContentBackground(.hidden)
-                    .padding(10)
+                    .padding(.top, 34)
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 10)
                     .frame(minHeight: minHeight)
                     .dictationInput(text: $text)
                     .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -109,9 +84,15 @@ struct LivingTextEditor: View {
                         .font(.body)
                         .foregroundStyle(BookPalette.ink.opacity(0.3))
                         .padding(.horizontal, 15)
-                        .padding(.vertical, 18)
+                        .padding(.top, 52)
+                        .padding(.bottom, 18)
                         .allowsHitTesting(false)
                 }
+
+                builderToggleButton
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.top, 8)
+                    .padding(.trailing, 10)
             }
 
             if isBuilderOpen {
@@ -120,9 +101,6 @@ struct LivingTextEditor: View {
             }
         }
         .onChange(of: text) { _, _ in
-            if completedKinds.count >= 3, !analysis.canStandAsComplete {
-                completedKinds = []
-            }
             // Drop a stale selection if its word changed out from under us.
             if let id = selectedTokenID, !scaffold.tokens.contains(where: { $0.id == id }) {
                 selectedTokenID = nil
@@ -131,10 +109,33 @@ struct LivingTextEditor: View {
         }
     }
 
+    private var builderToggleButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                isBuilderOpen.toggle()
+            }
+            BookFeedback.play(.tap)
+        } label: {
+            Image(systemName: isBuilderOpen ? "checkmark.seal.fill" : "wand.and.stars")
+                .font(.system(size: 16, weight: .black))
+                .frame(width: 38, height: 38)
+                .foregroundStyle(isBuilderOpen ? BookPalette.nightText : BookPalette.nightPanel)
+                .background(isBuilderOpen ? BookPalette.teal : BookPalette.lampGold, in: Circle())
+                .overlay {
+                    Circle()
+                        .stroke(BookPalette.page.opacity(0.82), lineWidth: 1.5)
+                }
+                .shadow(color: (isBuilderOpen ? BookPalette.teal : BookPalette.lampGold).opacity(0.34), radius: 10, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isBuilderOpen ? "Close sentence builder" : "Wake the sentence")
+    }
+
     /// Fire the one-time "Tiny spell" shimmer the moment the sentence becomes vivid.
     private func handleTransmutation() {
         if analysis.isVivid, !didTransmute {
             didTransmute = true
+            sentenceInkBurstTrigger += 1
             BookFeedback.play(.keepPage)
             withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { shimmer = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
@@ -215,6 +216,16 @@ struct LivingTextEditor: View {
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke((shimmer ? BookPalette.lampGold : BookPalette.teal).opacity(shimmer ? 0.5 : 0.18), lineWidth: shimmer ? 1.5 : 1)
+        }
+        .overlay {
+            LivingInkBurst(
+                trigger: sentenceInkBurstTrigger,
+                text: text,
+                mood: .sentence,
+                intensity: 0.58
+            )
+            .padding(.horizontal, 18)
+            .padding(.vertical, 8)
         }
         .shadow(color: BookPalette.lampGold.opacity(shimmer ? 0.45 : 0), radius: shimmer ? 14 : 0)
         .scaleEffect(shimmer ? 1.015 : 1)
@@ -613,98 +624,6 @@ struct LivingTextEditor: View {
                     .stroke((mark.isPresent ? BookPalette.teal : BookPalette.ink).opacity(mark.isPresent ? 0.24 : 0.08), lineWidth: 1)
             }
             .accessibilityLabel(mark.isPresent ? "\(mark.title) present" : mark.hint)
-    }
-
-    private var replayCard: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(builderPack.replayPrompt)
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(BookPalette.ink.opacity(0.84))
-                .fixedSize(horizontal: false, vertical: true)
-            Text(builderPack.replayHelper)
-                .font(.caption)
-                .foregroundStyle(BookPalette.ink.opacity(0.58))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BookPalette.lampGold.opacity(0.11), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.22), lineWidth: 1)
-        }
-    }
-
-    private var craftMarks: some View {
-        let columns = [GridItem(.adaptive(minimum: 58), spacing: 6)]
-        return LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
-            ForEach(analysis.craftMarks) { mark in
-                Label(mark.title, systemImage: mark.isPresent ? "seal.fill" : symbol(for: mark.id))
-                    .font(.caption2.weight(.bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .frame(maxWidth: .infinity)
-                    .foregroundStyle(mark.isPresent ? BookPalette.teal : BookPalette.ink.opacity(0.46))
-                    .background((mark.isPresent ? BookPalette.teal : BookPalette.page).opacity(mark.isPresent ? 0.13 : 0.54), in: Capsule())
-                    .overlay {
-                        Capsule()
-                            .stroke((mark.isPresent ? BookPalette.teal : BookPalette.ink).opacity(mark.isPresent ? 0.24 : 0.08), lineWidth: 1)
-                    }
-                    .accessibilityLabel(mark.isPresent ? "\(mark.title) present" : mark.hint)
-            }
-        }
-    }
-
-    private var alchemyLadder: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(alchemyLevels) { level in
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: level.isCurrent ? "seal.fill" : "circle")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(level.isCurrent ? BookPalette.lampGold : BookPalette.ink.opacity(0.3))
-                        .frame(width: 14, height: 14)
-                        .padding(.top, 1)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(level.title)
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(level.isCurrent ? BookPalette.lampGold : BookPalette.ink.opacity(0.5))
-                        Text(level.example)
-                            .font(.caption2)
-                            .foregroundStyle(BookPalette.ink.opacity(level.isCurrent ? 0.72 : 0.46))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-        }
-        .padding(10)
-        .background(BookPalette.page.opacity(0.54), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(BookPalette.ink.opacity(0.08), lineWidth: 1)
-        }
-    }
-
-    private func diagnosticRow(_ diagnostic: SentenceBuilderDiagnostic) -> some View {
-        Label {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(diagnostic.title)
-                    .font(.caption.weight(.bold))
-                Text(diagnostic.message)
-                    .font(.caption2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        } icon: {
-            Image(systemName: diagnostic.severity == .warning ? "exclamationmark.triangle" : "wand.and.stars")
-        }
-        .foregroundStyle(diagnostic.severity == .warning ? BookPalette.lampGold : BookPalette.teal)
-        .padding(9)
-        .background(BookPalette.page.opacity(0.64), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke((diagnostic.severity == .warning ? BookPalette.lampGold : BookPalette.teal).opacity(0.2), lineWidth: 1)
-        }
     }
 
     private func symbol(for kind: SentenceBuilderStepKind) -> String {

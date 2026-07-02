@@ -59,6 +59,18 @@ final class StoryPageLocationTests: XCTestCase {
         XCTAssertEqual(surface.payload.metadata["storySettingName"], "The Kitchens")
     }
 
+    func testStoryPageSettingRespondsToStorySettingAffinity() throws {
+        let now = makeDate()
+        let day = BookDay(id: BookDay.id(for: now), date: Calendar.current.startOfDay(for: now), pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.storySettingAffinities = ["location-great-hall": 24]
+
+        let surface = NarrativeOSPageSourceAdapter.draftCandidate(for: day, inputs: inputs, now: now)
+
+        XCTAssertEqual(surface.payload.metadata["storySettingID"], "location-great-hall")
+        XCTAssertEqual(surface.payload.metadata["storySettingName"], "The Great Hall")
+    }
+
     private func makeDate() -> Date {
         DateComponents(
             calendar: Calendar(identifier: .gregorian),

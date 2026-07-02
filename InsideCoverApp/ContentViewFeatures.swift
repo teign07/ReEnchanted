@@ -640,6 +640,13 @@ extension ContentView {
             themes: vault.data.themes,
             clusters: clusters,
             readerLexicon: vault.data.readerLexicon,
+            storyRecipeBoosts: vault.data.storyRecipeBoosts,
+            storyMotifs: vault.data.storyMotifs,
+            storyRituals: vault.data.storyRituals,
+            storySettingAffinities: vault.data.storySettingAffinities,
+            storySceneBiases: vault.data.storySceneBiases,
+            bookNoticeEvidence: vault.data.bookNoticeEvidence,
+            nothingGreyOffset: vault.data.nothingGreyOffset,
             openWorldEventArchive: vault.data.openWorldEventArchive,
             continuity: continuity
         )
@@ -908,6 +915,12 @@ extension ContentView {
         return formatter.string(from: chosen)
     }
 
+    /// The exact edition the BookShop should preview for physical printing.
+    @MainActor
+    var printPreviewEdition: MonthlyEdition? {
+        resolveEditionForBinding()
+    }
+
     /// Binds the month to a PDF. By default the conclusion is the instant,
     /// deterministic `BookForewordWriter.closing(...)`; pass `useGemmaClosing`
     /// to have the on-device brain compose a fresh last word instead (slower,
@@ -1000,8 +1013,8 @@ extension ContentView {
 
     /// Builds the two files a print-on-demand house needs — a full-bleed interior
     /// and a spine-aware cover wrap — and surfaces both under the share mark. No
-    /// account, backend, or fee: the reader hand-uploads them to a printer (Lulu)
-    /// for a real cloth, foil-spine book.
+    /// account, backend, or fee yet: the reader hand-uploads them to a printer
+    /// like Lulu for a physical hardcover proof.
     @MainActor
     func exportPrintReadyEdition(spec: PrintSpec = .hardcover6x9) {
         guard let edition = resolveEditionForBinding() else {
@@ -1025,7 +1038,7 @@ extension ContentView {
             preparedPrintCoverURL = coverURL
             let spine = PrintGeometry.spineWidthInches(pageCount: pages, spec: spec)
             let trim = "\(String(format: "%g", spec.trimWidthInches))×\(String(format: "%g", spec.trimHeightInches))in"
-            colophonBindingNote = "\(edition.monthName) is ready for the press — a \(trim) interior of \(pages) pages and a cover wrap with a \(String(format: "%.2f", spine))in spine. Share both files, then upload them to a printer like Lulu."
+            colophonBindingNote = "\(edition.monthName) is ready for the press as \(spec.name) — a \(trim) interior of \(pages) pages and a cover wrap with a \(String(format: "%.2f", spine))in spine. Share both files, then upload them to a printer like Lulu."
             BookFeedback.play(.braidComplete)
         } catch {
             colophonBindingNote = "The press would not take it — \(error.localizedDescription)"
@@ -1214,6 +1227,47 @@ extension ContentView {
                 }
                 merged.bargainSeedSurfaced = merged.bargainSeedSurfaced || importedLexicon.bargainSeedSurfaced
                 vault.data.readerLexicon = merged
+            }
+            if let importedRecipeBoosts = save.storyRecipeBoosts, !importedRecipeBoosts.isEmpty {
+                var merged = vault.data.storyRecipeBoosts ?? [:]
+                for (id, value) in importedRecipeBoosts {
+                    merged[id] = max(merged[id] ?? 0, value)
+                }
+                vault.data.storyRecipeBoosts = merged
+            }
+            if let importedMotifs = save.storyMotifs, !importedMotifs.isEmpty {
+                var merged = vault.data.storyMotifs ?? [:]
+                for (id, value) in importedMotifs {
+                    merged[id] = max(merged[id] ?? 0, value)
+                }
+                vault.data.storyMotifs = merged
+            }
+            if let importedRituals = save.storyRituals, !importedRituals.isEmpty {
+                var merged = vault.data.storyRituals ?? [:]
+                for (id, value) in importedRituals {
+                    merged[id] = max(merged[id] ?? 0, value)
+                }
+                vault.data.storyRituals = merged
+            }
+            if let importedAffinities = save.storySettingAffinities, !importedAffinities.isEmpty {
+                var merged = vault.data.storySettingAffinities ?? [:]
+                for (id, value) in importedAffinities {
+                    merged[id] = max(merged[id] ?? 0, value)
+                }
+                vault.data.storySettingAffinities = merged
+            }
+            if let importedBiases = save.storySceneBiases, !importedBiases.isEmpty {
+                var merged = vault.data.storySceneBiases ?? [:]
+                for (id, value) in importedBiases {
+                    merged[id] = max(-24, min(24, max(merged[id] ?? -24, value)))
+                }
+                vault.data.storySceneBiases = merged
+            }
+            if let importedEvidence = save.bookNoticeEvidence {
+                vault.data.bookNoticeEvidence = max(vault.data.bookNoticeEvidence ?? 0, importedEvidence)
+            }
+            if let importedGreyOffset = save.nothingGreyOffset {
+                vault.data.nothingGreyOffset = max(-10, min(10, importedGreyOffset))
             }
             if let importedArchive = save.openWorldEventArchive,
                vault.data.openWorldEventArchive == nil {
@@ -1782,6 +1836,7 @@ extension ContentView {
         guard !PackEntitlements.isUnlocked(packID) else { return }
         PackEntitlements.ownedPackIDs.insert(packID)
         vault.data.ownedPacks = Array(PackEntitlements.ownedPackIDs).sorted()
+        SentenceBuilderPackRegistry.reload()
         let openedArchive = openWorldEventArchiveIfUseful(forPackID: packID, now: Date())
         vault.save()
         surfaceRefreshDate = Date()
@@ -1873,7 +1928,8 @@ extension ContentView {
                     greyLevel: NothingTide.greyLevel(
                         quietDays: NothingTide.quietDays(in: days, today: today.id),
                         narrativeHeat: narrativeEvents.prefix(24).count,
-                        distressActive: false
+                        distressActive: false,
+                        celebrationGreyShift: vault.data.nothingGreyOffset ?? 0
                     ),
                     ascendantChapterName: ascendantTalisman.flatMap { AcademyChapterRegistry.chapter(forTalismanID: $0.id)?.name },
                     hour: Calendar.current.component(.hour, from: now),

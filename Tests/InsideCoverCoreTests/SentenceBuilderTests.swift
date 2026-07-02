@@ -2,31 +2,12 @@ import XCTest
 @testable import InsideCoverCore
 
 final class SentenceBuilderTests: XCTestCase {
-    func testVagueWordsBecomeCutMistNudges() {
-        let engine = SentenceBuilderEngine()
-
-        let nudge = engine.nudge(for: "Dinner was nice.")
-
-        XCTAssertEqual(nudge.step.kind, .cutMist)
-        XCTAssertEqual(nudge.highlightedWord, "nice")
-        XCTAssertTrue(nudge.step.question.contains("texture"))
-    }
-
-    func testBuilderAdvancesThroughCraftMoves() {
-        let engine = SentenceBuilderEngine()
-
-        XCTAssertEqual(engine.nudge(for: "I walked home.").step.kind, .anchor)
-        XCTAssertEqual(engine.nudge(for: "I walked home.", completedKinds: [.anchor]).step.kind, .sense)
-        XCTAssertEqual(engine.nudge(for: "I walked home.", completedKinds: [.anchor, .sense]).step.kind, .motion)
-        XCTAssertEqual(engine.nudge(for: "I walked home.", completedKinds: [.anchor, .sense, .motion]).step.kind, .crossing)
-    }
-
     func testConcreteTextCanStandAsComplete() {
         let engine = SentenceBuilderEngine()
 
-        let nudge = engine.nudge(for: "The mug left a warm ring on the table.")
+        let analysis = engine.analyze("The mug left a warm ring on the table.")
 
-        XCTAssertTrue(nudge.canStandAsComplete)
+        XCTAssertTrue(analysis.canStandAsComplete)
     }
 
     func testAnalysisFindsCoreCraftMarks() {
@@ -42,22 +23,11 @@ final class SentenceBuilderTests: XCTestCase {
         XCTAssertTrue(analysis.isVivid)
     }
 
-    func testNudgeSkipsAlreadyPresentCraftMoves() {
-        let engine = SentenceBuilderEngine()
-
-        let nudge = engine.nudge(for: "The mug waited on the table.")
-
-        XCTAssertEqual(nudge.step.kind, .sense)
-    }
-
     func testAvoidWordsPromptGroundedMagicBeforeOrdinarySteps() {
         let engine = SentenceBuilderEngine()
 
-        let nudge = engine.nudge(for: "The room felt cosmic.")
-
-        XCTAssertEqual(nudge.step.kind, .groundGlow)
-        XCTAssertEqual(nudge.highlightedWord, "cosmic")
         XCTAssertTrue(engine.analyze("The room felt cosmic.").diagnostics.contains { $0.word == "cosmic" })
+        XCTAssertEqual(engine.scaffold(for: "The room felt cosmic.").tokens.first { $0.word == "cosmic" }?.role, .smoke)
     }
 
     func testContentPacksMergeOverlayStepsAndVocabulary() {
@@ -68,27 +38,8 @@ final class SentenceBuilderTests: XCTestCase {
         XCTAssertEqual(pack.ritualTitle, "Steal the diamond")
         XCTAssertTrue(pack.replayPrompt.contains("single best feeling"))
         XCTAssertTrue(pack.concreteWords.contains("ticket"))
-        XCTAssertEqual(pack.steps.first { $0.kind == .anchor }?.id, "souvenir-anchor")
         XCTAssertTrue(engine.analyze("The ticket stayed damp in my pocket.").hasConcreteAnchor)
         XCTAssertTrue(engine.analyze("The ticket stayed damp in my pocket.").hasLivingMotion)
-    }
-
-    func testChipsPreferUnusedWords() {
-        let engine = SentenceBuilderEngine()
-        let step = SentenceBuilderPack.core.steps[0]
-
-        let chips = engine.chips(for: step, text: "The glass was already there.")
-
-        XCTAssertFalse(chips.contains("glass"))
-        XCTAssertTrue(chips.contains("door"))
-    }
-
-    func testAlchemyLevelsTrackSentenceStrength() {
-        let engine = SentenceBuilderEngine()
-
-        XCTAssertTrue(engine.alchemyLevels(for: "It was good.").first { $0.id == "label" }?.isCurrent == true)
-        XCTAssertTrue(engine.alchemyLevels(for: "The mug was warm.").first { $0.id == "hook" }?.isCurrent == true)
-        XCTAssertTrue(engine.alchemyLevels(for: "The mug waited in a warm blue sound.").first { $0.id == "spell" }?.isCurrent == true)
     }
 
     func testSouvenirShareTextUsesNativeSharePayload() {
@@ -96,14 +47,6 @@ final class SentenceBuilderTests: XCTestCase {
 
         XCTAssertEqual(engine.souvenirShareText(for: "  The rain smelled green.  "), "The rain smelled green.\n\n— One-Sentence Souvenir")
         XCTAssertEqual(engine.souvenirShareText(for: "   "), "")
-    }
-
-    func testAppendKeepsUserTextEditableAndSimple() {
-        let engine = SentenceBuilderEngine()
-
-        XCTAssertEqual(engine.append("rain", to: ""), "rain")
-        XCTAssertEqual(engine.append("rain", to: "I walked home"), "I walked home rain")
-        XCTAssertEqual(engine.append("rain", to: "I walked home,"), "I walked home, rain")
     }
 
     func testAvoidWordsAreDetectedForPackGuardrails() {
@@ -323,21 +266,56 @@ final class SentenceBuilderTests: XCTestCase {
         XCTAssertEqual(engine.render(draft), "The window made the evening blue.")
     }
 
-    func testComposedCoreMergesEntitledExpansionPack() {
-        // The locked bundled expansion is invisible until owned…
-        PackEntitlements.ownedPackIDs.remove("pack.night-and-garden")
+    func testComposedCoreMergesLaunchGrantedExpansionPack() {
         SentenceBuilderPackRegistry.reload()
-        XCTAssertFalse(SentenceBuilderPackRegistry.composedCore().concreteWords.contains("moth"))
-
-        // …and its chips appear once unlocked.
-        PackEntitlements.ownedPackIDs.insert("pack.night-and-garden")
-        SentenceBuilderPackRegistry.reload()
+        XCTAssertNotNil(BookShopCatalog.listing(forPackID: "pack.night-and-garden"))
+        XCTAssertTrue(SentenceBuilderPackRegistry.enabledExpansionPacks().contains { $0.id == "pack.night-and-garden" })
         XCTAssertTrue(SentenceBuilderPackRegistry.composedCore().concreteWords.contains("moth"))
         XCTAssertTrue(SentenceBuilderPackRegistry.composedCore().themes.contains { $0.id == "garden" })
+    }
 
-        // Clean up shared state for other tests.
-        PackEntitlements.ownedPackIDs.remove("pack.night-and-garden")
+    func testShadowWonderPackComposesOnlyWhenActive() {
+        let inactive = SentenceBuilderPackRegistry.composedCore(readerLexicon: ReaderLexicon(), shadowWonderActive: false)
+        let active = SentenceBuilderPackRegistry.composedCore(readerLexicon: ReaderLexicon(), shadowWonderActive: true)
+
+        XCTAssertEqual(inactive.ritualTitle, "Wake the sentence")
+        XCTAssertFalse(inactive.themes.contains { $0.id == "thornlight" })
+        XCTAssertEqual(active.ritualTitle, "Wake the worn edge")
+        XCTAssertTrue(active.themes.contains { $0.id == "thornlight" })
+        XCTAssertTrue(active.themes.contains { $0.id == "decay" })
+    }
+
+    func testSentencePackImportValidationRejectsEmptyAndMalformedFiles() throws {
+        let valid = """
+        { "id": "pack.imported", "concreteWords": ["thimble"], "availability": "userImported" }
+        """.data(using: .utf8)!
+
+        let pack = try XCTUnwrap(SentenceBuilderPackRegistry.validateImport(data: valid))
+
+        XCTAssertEqual(pack.id, "pack.imported")
+        XCTAssertEqual(pack.availability, "userImported")
+        XCTAssertNil(SentenceBuilderPackRegistry.validateImport(data: "{}".data(using: .utf8)!))
+        XCTAssertNil(SentenceBuilderPackRegistry.validateImport(data: "nope".data(using: .utf8)!))
+    }
+
+    func testComposedCoreWithReaderLexiconUsesCachedBase() {
+        var lexicon = ReaderLexicon()
+        lexicon.upsert(LexiconEntry(
+            word: "thimble",
+            originalSense: "a small metal sewing guard",
+            newSense: "a tiny room for courage",
+            ruling: .pardoned,
+            category: .concrete,
+            origin: .seeded,
+            ledAt: Date(timeIntervalSinceReferenceDate: 16)
+        ))
+
         SentenceBuilderPackRegistry.reload()
+        let expected = SentenceBuilderPackRegistry.composedCore().merged(with: lexicon.asSentenceBuilderPack())
+        let actual = SentenceBuilderPackRegistry.composedCore(readerLexicon: lexicon)
+
+        XCTAssertEqual(actual.concreteWords, expected.concreteWords)
+        XCTAssertEqual(actual.themes, expected.themes)
     }
 
     func testReaderLexiconBuildsPersonalSentencePackFromRulings() {

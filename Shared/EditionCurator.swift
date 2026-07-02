@@ -48,7 +48,7 @@ enum EditionCurator {
                 }
                 .prefix(5)
                 .map { type, count in
-                    countPhrase(type: type, count: count)
+                    EditionCurator.countPhrase(type: type, count: count)
                 }
             let joined: String
             switch parts.count {
@@ -59,17 +59,17 @@ enum EditionCurator {
             }
             return "The month also held \(joined) - kept in the archive, but not bound here."
         }
+    }
 
-        private func countPhrase(type: BookPageType, count: Int) -> String {
-            var title = type.title.lowercased()
-            if title.hasPrefix("a ") {
-                title.removeFirst(2)
-            } else if title.hasPrefix("an ") {
-                title.removeFirst(3)
-            }
-            let number = count == 1 ? "one" : "\(count)"
-            return "\(number) \(title)\(count == 1 ? "" : "s")"
+    static func countPhrase(type: BookPageType, count: Int) -> String {
+        var title = type.title.lowercased()
+        if title.hasPrefix("a ") {
+            title.removeFirst(2)
+        } else if title.hasPrefix("an ") {
+            title.removeFirst(3)
         }
+        let number = count == 1 ? "one" : "\(count)"
+        return "\(number) \(title)\(count == 1 ? "" : "s")"
     }
 
     // MARK: Tunables
@@ -115,6 +115,33 @@ enum EditionCurator {
             score += 15                                               // a world event touched it
         }
         return score
+    }
+
+    /// A weekend accounting of what the Bindery sewed into this month's edition
+    /// over the past seven days. Nil until at least two pages made the cut —
+    /// a signature is a gathering of sheets, not a single leaf.
+    static func weeklySignatureLine(monthPages: [BookPage], now: Date = Date()) -> String? {
+        guard !monthPages.isEmpty else { return nil }
+        let curated = curate(monthPages, now: now)
+        let weekStart = now.addingTimeInterval(-7 * 86_400)
+        let sewn = curated.pages.filter { $0.createdAt >= weekStart && $0.createdAt <= now }
+        guard sewn.count >= 2 else { return nil }
+        let parts = Dictionary(grouping: sewn, by: \.type)
+            .mapValues(\.count)
+            .sorted { left, right in
+                if left.value == right.value { return left.key.title < right.key.title }
+                return left.value > right.value
+            }
+            .prefix(3)
+            .map { countPhrase(type: $0.key, count: $0.value) }
+        let joined: String
+        switch parts.count {
+        case 1: joined = parts[0]
+        case 2: joined = "\(parts[0]) and \(parts[1])"
+        default: joined = "\(parts[0]), \(parts[1]), and \(parts[2])"
+        }
+        let month = now.formatted(.dateTime.month(.wide))
+        return "This week the Bindery sewed \(sewn.count) pages into \(month)\u{2019}s edition: \(joined)."
     }
 
     // MARK: Curation

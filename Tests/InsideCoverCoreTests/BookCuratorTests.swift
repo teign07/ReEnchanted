@@ -1059,6 +1059,49 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(packet.selectedEntities.first?.kind, .character)
     }
 
+    func testAtmosphericThreadsStayUnderPlayableStoryPageFrame() throws {
+        var inputs = BookSourceInputs.empty
+        inputs.body = BodySourceSignal(status: "LOW", score: 22, phrase: "A quiet day. Small food and rest count.")
+        let bodyEvent = NarrativeEvent(
+            id: "body-thread-hot",
+            kind: .pageAnswered,
+            sourcePageType: .body,
+            sourcePageID: "body-page",
+            createdAt: localDate(hour: 14),
+            summary: "The reader let care count.",
+            tags: ["body", "care", "rest"],
+            effect: NarrativeEventEffect(threadWeightDeltas: ["body-learns-trust": 8])
+        )
+        inputs.narrative = NarrativeSourceSnapshotBuilder.snapshot(from: [bodyEvent], beliefWeight: 42)
+
+        let day = BookDay(
+            id: "2026-06-01",
+            date: localDate(year: 2026, month: 6, day: 1, hour: 0),
+            pages: [
+                BookPage(
+                    id: "quiet-souvenir",
+                    type: .souvenir,
+                    createdAt: localDate(hour: 13),
+                    promptText: "Catch one bright particular.",
+                    userInput: "I ate something real and left the cup by the lamp.",
+                    tags: ["souvenir", "body", "care", "quiet"]
+                )
+            ]
+        )
+
+        let packet = StoryScenePacketBuilder.packet(for: day, inputs: inputs, now: localDate(hour: 16))
+
+        XCTAssertTrue(packet.selectedThreads.contains { $0.id == "body-learns-trust" })
+        XCTAssertFalse(packet.title.contains("The Body Learns Trust"))
+        XCTAssertFalse(packet.playableThreadTitle.contains("The Body Learns Trust"))
+
+        let surface = NarrativeOSPageSourceAdapter.draftCandidate(for: day, inputs: inputs, now: localDate(hour: 16))
+        XCTAssertTrue(surface.payload.metadata["selectedThreadIDs"]?.contains("body-learns-trust") == true)
+        XCTAssertTrue(surface.payload.metadata["storyThreadUnderlyingTitles"]?.contains("The Body Learns Trust") == true)
+        XCTAssertNotEqual(surface.payload.metadata["storyThreadDisplayTitle"], "The Body Learns Trust")
+        XCTAssertFalse(surface.payload.headline.contains("The Body Learns Trust"))
+    }
+
     func testStorySceneChoicesAreCharacterActionsNotSensoryAtmosphere() {
         let packet = StoryScenePacketBuilder.packet(
             for: dayWithMusicSouvenir(),
@@ -1193,6 +1236,82 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertFalse(corePack.relationships.isEmpty)
         XCTAssertTrue(corePack.relationships.contains { $0.id == "weather-bleeds-book" })
         XCTAssertTrue(corePack.relationships.contains { $0.id == "penny-files-book" })
+    }
+
+    func testCoreNarrativePackIncludesPlayableCozyThreads() throws {
+        let threadIDs = Set(NarrativePackRegistry.threads.map(\.id))
+
+        XCTAssertTrue(threadIDs.contains("great-hall-small-announcements"))
+        XCTAssertTrue(threadIDs.contains("companionable-silence"))
+        XCTAssertTrue(threadIDs.contains("pantry-keeps-receipts"))
+        XCTAssertTrue(threadIDs.contains("shelf-of-misfiled-days"))
+        XCTAssertTrue(threadIDs.contains("rain-room-opens"))
+        XCTAssertTrue(threadIDs.contains("lamp-repair-committee"))
+        XCTAssertTrue(threadIDs.contains("threshold-ledger"))
+    }
+
+    func testCoreNarrativePackIncludesDramaticStoryThreads() throws {
+        let threadIDs = Set(NarrativePackRegistry.threads.map(\.id))
+
+        XCTAssertTrue(threadIDs.contains("wickers-case-against-comfort"))
+        XCTAssertTrue(threadIDs.contains("pennys-evidence-war"))
+        XCTAssertTrue(threadIDs.contains("books-editorial-strike"))
+        XCTAssertTrue(threadIDs.contains("courtesy-debt"))
+        XCTAssertTrue(threadIDs.contains("ceremony-register-rival"))
+        XCTAssertTrue(threadIDs.contains("shelf-accuses-wrong-day"))
+        XCTAssertTrue(threadIDs.contains("lamp-heard-too-much"))
+    }
+
+    func testOrganicRitualsBoostMatchingAuthoredThreads() throws {
+        var inputs = BookSourceInputs.empty
+        inputs.storyRituals = ["small-ceremony-register": 4]
+        inputs.storySettingAffinities = ["location-great-hall": 8]
+
+        let packet = StoryScenePacketBuilder.packet(
+            for: emptyDay(),
+            inputs: inputs,
+            now: localDate(hour: 16)
+        )
+
+        XCTAssertTrue(packet.selectedThreads.contains { $0.id == "great-hall-small-announcements" })
+        XCTAssertEqual(packet.playableThreadTitle, "The Great Hall of Small Announcements")
+    }
+
+    func testRepeatedUnknownMotifBirthsOrganicThreadCandidate() throws {
+        var inputs = BookSourceInputs.empty
+        inputs.storyMotifs = ["blue-jay": 5]
+
+        let packet = StoryScenePacketBuilder.packet(
+            for: emptyDay(),
+            inputs: inputs,
+            now: localDate(hour: 16)
+        )
+
+        XCTAssertTrue(packet.selectedThreads.contains { $0.id == "organic-motif-blue-jay" })
+        XCTAssertTrue(packet.selectedThreads.contains { $0.packID == OrganicStoryThreadSynthesizer.packID })
+        XCTAssertEqual(packet.selectedThreads.first { $0.id == "organic-motif-blue-jay" }?.title, "Blue Jay Keeps Returning")
+    }
+
+    func testOrganicThreadsCanAscendIntoStoryArcs() throws {
+        let now = localDate(hour: 16)
+        let events = (0..<3).map { index in
+            NarrativeEvent(
+                id: "organic-blue-jay-\(index)",
+                kind: .choiceSelected,
+                sourcePageType: .narrativeOS,
+                sourcePageID: "story-\(index)",
+                createdAt: now.addingTimeInterval(Double(-index) * 3600),
+                summary: "The blue jay returned.",
+                tags: ["organic-thread", "motif", "blue-jay"],
+                effect: NarrativeEventEffect(threadWeightDeltas: ["organic-motif-blue-jay": 2])
+            )
+        }
+
+        let result = ArcKeeper.evaluate(current: nil, events: events, lastCompletedThreadID: nil, now: now)
+
+        XCTAssertEqual(result.arc?.threadID, "organic-motif-blue-jay")
+        XCTAssertEqual(result.arc?.title, "Blue Jay Keeps Returning")
+        XCTAssertEqual(result.arc?.phase, .rising)
     }
 
     func testCoreNarrativePackIncludesAcademyRosterAndThreads() throws {
@@ -1416,6 +1535,63 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertNotNil(mandate.choiceID)
     }
 
+    func testStoryPageMechanicPlannerOffersBeliefDiceJustUnderHalfTheTime() {
+        let day = dayWithMusicSouvenir()
+        let inputs = richInputs()
+
+        let mechanics = (0..<120).map { slot in
+            let now = localDate(year: 2026, month: 6, day: 2 + (slot / 6), hour: (slot % 6) * 4)
+            let packet = StoryScenePacketBuilder.packet(for: day, inputs: inputs, now: now)
+            return StoryPageMechanicPlanner.mandate(for: day, inputs: inputs, packet: packet, now: now).kind
+        }
+        let dice = mechanics.filter { $0 == .beliefDice }.count
+        let compass = mechanics.filter { $0 == .compassRun }.count
+        let enchantments = mechanics.filter { $0 == .enchantment }.count
+
+        XCTAssertGreaterThanOrEqual(dice, 48)
+        XCTAssertLessThan(dice, 60)
+        XCTAssertGreaterThan(dice, compass)
+        XCTAssertGreaterThan(dice, enchantments)
+    }
+
+    func testRecentExternalStoryMechanicSuppressesAnotherExternalButStillAllowsBeliefDice() throws {
+        let now = localDate(year: 2026, month: 6, day: 7, hour: 12)
+        let recentExternal = BookPage(
+            id: "recent-compass-return",
+            type: .narrativeOS,
+            createdAt: now.addingTimeInterval(-12 * 3600),
+            promptText: "Story Page Return",
+            userInput: "A Compass Run returned to the thread.",
+            tags: ["story-mechanic-return", "story-mechanic", "story-mechanic:compass-run", "compass-run"]
+        )
+        let newerPlain = BookPage(
+            id: "newer-plain-story",
+            type: .narrativeOS,
+            createdAt: now.addingTimeInterval(-3600),
+            promptText: "The Story Page is stirring.",
+            userInput: "Chosen path: Slice of Life",
+            tags: ["narrative-os", "choice:sliceoflife"]
+        )
+        var inputs = richInputs()
+        inputs.days = [
+            BookDay(
+                id: "2026-06-07",
+                date: localDate(year: 2026, month: 6, day: 7, hour: 0),
+                pages: [recentExternal, newerPlain]
+            )
+        ]
+
+        let mandates = (0..<160).map { index -> StoryPageMechanicMandateKind in
+            let day = BookDay(id: "mechanic-day-\(index)", date: now, pages: [])
+            let packet = StoryScenePacketBuilder.packet(for: day, inputs: inputs, now: now)
+            return StoryPageMechanicPlanner.mandate(for: day, inputs: inputs, packet: packet, now: now).kind
+        }
+
+        XCTAssertTrue(mandates.contains(.beliefDice))
+        XCTAssertFalse(mandates.contains(.compassRun))
+        XCTAssertFalse(mandates.contains(.enchantment))
+    }
+
     func testStoryPageMechanicPlannerHonorsRecentMechanicCooldown() throws {
         let recent = BookPage(
             id: "recent-story-mechanic",
@@ -1433,6 +1609,22 @@ final class BookCuratorTests: XCTestCase {
         let mandate = StoryPageMechanicPlanner.mandate(for: day, inputs: inputs, packet: packet, now: now)
 
         XCTAssertEqual(mandate.kind, .none)
+    }
+
+    func testClashBlueprintMandatesBeliefDice() throws {
+        let inputs = richInputs()
+        let day = BookDay(id: "clash-mandate-day", date: localDate(hour: 16), pages: [])
+        let now = localDate(hour: 16)
+        var packet = StoryScenePacketBuilder.packet(for: day, inputs: inputs, now: now)
+        var blueprint = try XCTUnwrap(packet.blueprint)
+        blueprint.recipeID = "grey-edit"
+        packet.blueprint = blueprint
+        packet.turn = blueprint.turn
+
+        let mandate = StoryPageMechanicPlanner.mandate(for: day, inputs: inputs, packet: packet, now: now)
+
+        XCTAssertEqual(mandate.kind, .beliefDice)
+        XCTAssertNotNil(mandate.choiceID)
     }
 
     func testStoryPageDraftCarriesMechanicMandateMetadata() {
@@ -1968,7 +2160,9 @@ final class BookCuratorTests: XCTestCase {
         // The bespoke catalog is exactly the canonical Cast that can surface as a
         // plate. This count is independent of how the reference library loads, so
         // it locks the set even though the bundled JSON is unavailable under SwiftPM.
-        XCTAssertEqual(CastDossier.bios.count, 22, "Expected 22 bespoke Cast dossiers")
+        // 22 base Cast + the Dictionary Rebellion pack's two illustrated cast
+        // members: Professor Mook and Pippa Pilcrow.
+        XCTAssertEqual(CastDossier.bios.count, 24, "Expected 24 bespoke Cast dossiers")
 
         // Every bespoke dossier reads like real, longer narrative prose in the
         // Book's voice and never leaks the dossier production metadata.
@@ -2140,6 +2334,27 @@ final class BookCuratorTests: XCTestCase {
                            "\(page.id) should surface in the rebellion's afterimage phase")
             XCTAssertEqual(page.trigger?.activeWorldEventIDs ?? [], ["dictionary-rebellion"])
         }
+
+        let backToSchoolPages = (rebellion?.archetypes ?? []).filter { $0.tags.contains("back-to-school") }
+        XCTAssertEqual(
+            Set(backToSchoolPages.map(\.id)),
+            [
+                "mooks-mandate",
+                "note-from-the-pixie",
+                "substitute-lecture",
+                "roll-call-of-words",
+                "spelling-bee-in-the-stacks",
+                "the-erased-margin"
+            ]
+        )
+        XCTAssertTrue(backToSchoolPages.allSatisfy { $0.trigger?.months == [9] })
+        XCTAssertTrue(backToSchoolPages.allSatisfy { $0.trigger?.activeWorldEventIDs == nil })
+        XCTAssertEqual(
+            Set(backToSchoolPages.filter { $0.generation != nil }.map(\.id)),
+            Set(backToSchoolPages.map(\.id))
+        )
+        XCTAssertTrue(backToSchoolPages.allSatisfy { $0.cadenceHours >= 12 })
+        XCTAssertEqual(backToSchoolPages.first { $0.id == "the-erased-margin" }?.trigger?.rarity, 0.45)
     }
 
     func testDictionaryRebellionContentIsFullyGatedByOnePack() {
@@ -2160,12 +2375,17 @@ final class BookCuratorTests: XCTestCase {
                       "no negotiable words without the pack")
         XCTAssertTrue(PageArchetypePackRegistry.archetypes().allSatisfy { !$0.tags.contains("aftermath") },
                       "no treaty aftermath pages without the pack")
+        XCTAssertFalse(NarrativePackRegistry.entities.contains { $0.id == "professor-thaddeus-mook" },
+                       "gated cast must not exist without the pack")
+        XCTAssertFalse(NarrativePackRegistry.entities.contains { $0.id == "pippa-pilcrow" })
 
         // Granting the single pack id restores every channel at once.
         PackEntitlements.launchGrantedPackIDs = ["dictionary-rebellion"]
         XCTAssertTrue(WorldEventRegistry.enabledEvents().contains { $0.event.id == "dictionary-rebellion" })
         XCTAssertFalse(PageArchetypePackRegistry.wordNegotiations().filter { $0.eventID == "dictionary-rebellion" }.isEmpty)
         XCTAssertEqual(PageArchetypePackRegistry.archetypes().filter { $0.tags.contains("aftermath") }.count, 3)
+        XCTAssertTrue(NarrativePackRegistry.entities.contains { $0.id == "professor-thaddeus-mook" })
+        XCTAssertTrue(NarrativePackRegistry.entities.contains { $0.id == "pippa-pilcrow" })
     }
 
     func testWordNegotiationAdapterBuildsPackDrivenSurfaceAndSkipsRuledWords() throws {

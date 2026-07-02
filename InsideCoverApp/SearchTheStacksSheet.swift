@@ -25,50 +25,63 @@ struct SearchTheStacksSheet: View {
         "missions",
         "rainy pages"
     ]
+    private static let localBrainStatusScrollID = "stacks-local-brain-status"
 
     var body: some View {
         NavigationStack {
             ZStack {
                 BookBackground()
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        searchField
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            searchField
 
-                        if isInterpreting {
-                            LocalBrainWorkingStatusCard(
-                                label: "stacks-search",
-                                startedAt: localBrainWorkStartedAt,
-                                presentation: .page
-                            )
-                        } else if isLocalBrainWorking {
-                            LocalBrainWorkingStatusCard(
-                                label: localBrainWorkLabel,
-                                startedAt: localBrainWorkStartedAt,
-                                presentation: .compact
-                            )
-                        }
+                            if isInterpreting {
+                                LocalBrainWorkingStatusCard(
+                                    label: "stacks-search",
+                                    startedAt: localBrainWorkStartedAt,
+                                    presentation: .page
+                                )
+                                .id(Self.localBrainStatusScrollID)
+                            } else if isLocalBrainWorking {
+                                LocalBrainWorkingStatusCard(
+                                    label: localBrainWorkLabel,
+                                    startedAt: localBrainWorkStartedAt,
+                                    presentation: .compact
+                                )
+                                .id(Self.localBrainStatusScrollID)
+                            }
 
-                        if !interpretationNote.isEmpty {
-                            Text(interpretationNote)
-                                .font(.system(.caption, design: .serif).italic())
-                                .foregroundStyle(BookPalette.nightText.opacity(0.74))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+                            if !interpretationNote.isEmpty {
+                                Text(interpretationNote)
+                                    .font(.system(.caption, design: .serif).italic())
+                                    .foregroundStyle(BookPalette.nightText.opacity(0.74))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
 
-                        if query.trimmingCharacters(in: .whitespaces).isEmpty {
-                            emptyDesk
-                        } else if results.isEmpty {
-                            Text("The Stacks rustle, but nothing steps forward for that yet. Try another phrasing — or let the Book read it.")
-                                .font(.system(.callout, design: .serif))
-                                .foregroundStyle(BookPalette.nightText.opacity(0.7))
-                                .padding(.top, 8)
-                        } else {
-                            resultsList
+                            if query.trimmingCharacters(in: .whitespaces).isEmpty {
+                                emptyDesk
+                            } else if results.isEmpty {
+                                Text("The Stacks rustle, but nothing steps forward for that yet. Try another phrasing — or let the Book read it.")
+                                    .font(.system(.callout, design: .serif))
+                                    .foregroundStyle(BookPalette.nightText.opacity(0.7))
+                                    .padding(.top, 8)
+                            } else {
+                                resultsList
+                            }
                         }
+                        .padding(18)
+                        .textSelection(.enabled)
                     }
-                    .padding(18)
-                    .textSelection(.enabled)
+                    .onChange(of: isInterpreting) { _, interpreting in
+                        guard interpreting else { return }
+                        scrollToLocalBrainStatus(scrollProxy)
+                    }
+                    .onChange(of: isLocalBrainWorking) { _, isWorking in
+                        guard isWorking else { return }
+                        scrollToLocalBrainStatus(scrollProxy)
+                    }
                 }
             }
             .navigationTitle("Search the Stacks")
@@ -92,6 +105,15 @@ struct SearchTheStacksSheet: View {
             }
             .onAppear {
                 searchFocused = true
+            }
+            .keepsFocusedTextInputVisible()
+        }
+    }
+
+    private func scrollToLocalBrainStatus(_ scrollProxy: ScrollViewProxy) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            withAnimation(.easeInOut(duration: 0.28)) {
+                scrollProxy.scrollTo(Self.localBrainStatusScrollID, anchor: .top)
             }
         }
     }

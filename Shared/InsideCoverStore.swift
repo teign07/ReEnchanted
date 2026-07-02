@@ -1283,9 +1283,9 @@ enum LocalModelManager {
             return "imported real-world anchor; high gravity"
         case .generated, .simulated:
             if hasReaderReply {
-                return "reader-endorsed fiction; medium gravity"
+                return "reader-endorsed fiction; high gravity - the reader made a real decision here"
             }
-            return "generated fiction color; lower gravity"
+            return "generated fiction color; medium gravity"
         }
     }
 

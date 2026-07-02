@@ -570,10 +570,12 @@ struct StatusBanner: View {
 
 struct BeliefScoreBadge: View {
     let score: Int
+    var isPaused = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isBreathing = false
     @State private var pop = false
+    @State private var inkBurstTrigger = 0
 
     private var clampedScore: Int {
         min(100, max(0, score))
@@ -599,7 +601,7 @@ struct BeliefScoreBadge: View {
         HStack(spacing: 6) {
             Image(systemName: "sparkle")
                 .font(.caption.weight(.bold))
-                .symbolEffect(.pulse, options: .speed(0.55), value: isBreathing)
+                .symbolEffect(.pulse, options: .speed(0.55), value: isBreathing && !isPaused)
 
             Text(tierName)
                 .font(.caption.weight(.black))
@@ -624,19 +626,40 @@ struct BeliefScoreBadge: View {
             x: 0,
             y: 0
         )
-        .scaleEffect(isBreathing && !reduceMotion ? 1.025 : 1.0)
+        .overlay {
+            LivingInkBurst(
+                trigger: inkBurstTrigger,
+                text: tierName,
+                mood: .belief,
+                intensity: 0.42,
+                isPaused: isPaused
+            )
+            .frame(width: 154, height: 78)
+        }
+        .scaleEffect(isBreathing && !reduceMotion && !isPaused ? 1.025 : 1.0)
         .animation(
-            reduceMotion ? nil : .easeInOut(duration: 2.4 - normalized * 0.7).repeatForever(autoreverses: true),
+            reduceMotion || isPaused ? nil : .easeInOut(duration: 2.4 - normalized * 0.7).repeatForever(autoreverses: true),
             value: isBreathing
         )
-        .scaleEffect(pop && !reduceMotion ? 1.18 : 1.0)
+        .scaleEffect(pop && !reduceMotion && !isPaused ? 1.18 : 1.0)
         .onAppear {
-            guard !reduceMotion else { return }
+            guard !reduceMotion && !isPaused else { return }
             isBreathing = true
+        }
+        .onChange(of: isPaused) { _, paused in
+            if paused {
+                isBreathing = false
+                pop = false
+            } else if !reduceMotion {
+                isBreathing = true
+            }
         }
         .onChange(of: score) { _, _ in
             BookFeedback.play(.keepPage)
-            guard !reduceMotion else { return }
+            if !isPaused {
+                inkBurstTrigger += 1
+            }
+            guard !reduceMotion && !isPaused else { return }
             withAnimation(.spring(response: 0.26, dampingFraction: 0.45)) {
                 pop = true
             }
@@ -1486,6 +1509,112 @@ struct BraidingStatusCard: View {
     }
 }
 
+/// The instant margin reply shown right after a page is kept — a cast member's
+/// one-line note, echoing the keep before the surface retires.
+struct KeepMarginNoteToast: View {
+    let note: KeepMarginalia.Note
+    var showsPressHint: Bool = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(note.assetName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 36, height: 36)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(BookPalette.gold.opacity(0.35), lineWidth: 1))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(note.castName)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(note.line)
+                    .font(.system(.subheadline, design: .serif))
+                    .italic()
+                    .fixedSize(horizontal: false, vertical: true)
+                if let ripple = note.rippleLine {
+                    Text(ripple)
+                        .font(.caption2)
+                        .foregroundStyle(BookPalette.lampGold)
+                }
+                if showsPressHint {
+                    Text("Tap to press a souvenir card.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(BookPalette.nightPanel.opacity(0.92), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(BookPalette.gold.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
+    }
+}
+
+/// From 5pm, teases which threads tonight's Book of You braid has already caught.
+struct BraidEmberStatusCard: View {
+    let teaser: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "flame.fill")
+                .font(.system(size: 16))
+                .foregroundStyle(BookPalette.lampGold)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(teaser)
+                    .font(.system(.subheadline, design: .serif))
+                    .italic()
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("The Book of You braids tonight.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(BookPalette.nightPanel.opacity(0.46), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.22), lineWidth: 1)
+        )
+    }
+}
+
+/// On weekends, reports which pages the Bindery has sewn into this month's
+/// edition over the past week.
+struct WeeklySignatureCard: View {
+    let line: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "book.closed.fill")
+                .font(.system(size: 16))
+                .foregroundStyle(BookPalette.teal)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(line)
+                    .font(.system(.subheadline, design: .serif))
+                    .italic()
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("The Monthly Binding gathers its signatures.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(BookPalette.nightPanel.opacity(0.46), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(BookPalette.teal.opacity(0.22), lineWidth: 1)
+        )
+    }
+}
+
 enum ScribeWorkPresentation {
     case shelf
     case page
@@ -2089,18 +2218,26 @@ private struct ScribeInkMeter: View {
     let reduceMotion: Bool
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: reduceMotion ? 2 : 0.8)) { timeline in
-            let tick = Int(timeline.date.timeIntervalSinceReferenceDate / (reduceMotion ? 2 : 0.8))
-            HStack(spacing: 4) {
-                ForEach(0..<4, id: \.self) { index in
-                    Capsule(style: .continuous)
-                        .fill(accent.opacity(index == tick % 4 && !reduceMotion ? 0.78 : 0.24))
-                        .frame(width: CGFloat(18 + ((index * 11 + tick * 7) % 24)), height: 3)
-                }
+        if reduceMotion {
+            bars(tick: 0, isActive: false)
+        } else {
+            TimelineView(.periodic(from: .now, by: 0.8)) { timeline in
+                let tick = Int(timeline.date.timeIntervalSinceReferenceDate / 0.8)
+                bars(tick: tick, isActive: true)
+                    .animation(.easeInOut(duration: 0.35), value: tick)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .animation(.easeInOut(duration: 0.35), value: tick)
         }
+    }
+
+    private func bars(tick: Int, isActive: Bool) -> some View {
+        HStack(spacing: 4) {
+            ForEach(0..<4, id: \.self) { index in
+                Capsule(style: .continuous)
+                    .fill(accent.opacity(index == tick % 4 && isActive ? 0.78 : 0.24))
+                    .frame(width: CGFloat(18 + ((index * 11 + tick * 7) % 24)), height: 3)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityHidden(true)
     }
 }

@@ -267,6 +267,33 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertFalse(julyPages.contains { $0.id.contains("dictionary-rebellion-picket-line") })
     }
 
+    func testBackToSchoolPackPagesSurfaceForAllOfSeptember() {
+        let calendar = utcCalendar
+        let adapter = PackPageSourceAdapter()
+        let septemberNow = date(2026, 9, 1, hour: 10, calendar: calendar)
+        let september = BookDay.day(containing: septemberNow, calendar: calendar)
+        let septemberPages = adapter.candidates(
+            for: september,
+            context: CuratorContext.make(for: september),
+            inputs: .empty,
+            now: septemberNow
+        )
+        XCTAssertTrue(septemberPages.contains { $0.id.contains("mooks-mandate") })
+        XCTAssertTrue(septemberPages.contains { $0.id.contains("note-from-the-pixie") })
+        XCTAssertFalse(septemberPages.contains { $0.id.contains("dictionary-rebellion-picket-line") })
+
+        let julyNow = date(2026, 7, 10, hour: 10, calendar: calendar)
+        let july = BookDay.day(containing: julyNow, calendar: calendar)
+        let julyPages = adapter.candidates(
+            for: july,
+            context: CuratorContext.make(for: july),
+            inputs: .empty,
+            now: julyNow
+        )
+        XCTAssertFalse(julyPages.contains { $0.id.contains("mooks-mandate") })
+        XCTAssertFalse(julyPages.contains { $0.id.contains("note-from-the-pixie") })
+    }
+
     // MARK: Margin tutor
 
     func testMarginTutorLedgerRoundTrips() {
@@ -390,11 +417,18 @@ final class WorldSystemsTests: XCTestCase {
     // MARK: Nocturne Folio
 
     func testNocturneFolioUnlocksContentAndSparks() {
-        defer { PackEntitlements.ownedPackIDs = [] }
+        let savedOwned = PackEntitlements.ownedPackIDs
+        let savedGranted = PackEntitlements.launchGrantedPackIDs
+        defer {
+            PackEntitlements.ownedPackIDs = savedOwned
+            PackEntitlements.launchGrantedPackIDs = savedGranted
+        }
         PackEntitlements.ownedPackIDs = []
-        XCTAssertFalse(PageArchetypePackRegistry.archetypes().contains { $0.id == "last-light" })
+        PackEntitlements.launchGrantedPackIDs = ["dictionary-rebellion"]
+        XCTAssertTrue(PageArchetypePackRegistry.archetypes().contains { $0.id == "last-light" })
         let baseCount = WonderSparkRegistry.sparks.count
-        PackEntitlements.ownedPackIDs = ["nocturne-folio"]
+
+        PackEntitlements.launchGrantedPackIDs.insert("nocturne-folio")
         XCTAssertTrue(PageArchetypePackRegistry.archetypes().contains { $0.id == "last-light" })
         XCTAssertEqual(WonderSparkRegistry.sparks.count, baseCount + WonderSparkRegistry.nocturneSparks.count)
     }
@@ -484,7 +518,7 @@ final class WorldSystemsTests: XCTestCase {
             XCTAssertFalse(listing.goblinPitch.isEmpty)
             XCTAssertFalse(listing.contents.isEmpty)
         }
-        let eventListing = BookShopCatalog.listings.first { $0.family == .eventPack }
+        let eventListing = BookShopCatalog.listing(forPackID: "starlit-paper-trial-archive")
         XCTAssertEqual(eventListing?.resolvedSaleState, .archivedEvent)
     }
 
@@ -799,7 +833,8 @@ final class WorldSystemsTests: XCTestCase {
         for genre in StoryFormRegistry.genres {
             XCTAssertFalse(genre.lens.isEmpty)
         }
-        XCTAssertEqual(StoryFormRegistry.coreRecipes.count, 11)
+        XCTAssertEqual(StoryFormRegistry.coreRecipes.count, 12)
+        XCTAssertTrue(StoryFormRegistry.coreRecipes.contains { $0.id == "souvenir-door" })
         XCTAssertTrue(StoryFormRegistry.coreRecipes.allSatisfy(StoryFormRegistry.recipeIsValid))
         XCTAssertTrue(StoryFormRegistry.coreRecipes.allSatisfy { $0.beats.count == StoryVignetteBeats.maximumInteractiveTurns })
         XCTAssertFalse(StoryFormRegistry.coreRecipes.contains { recipe in
@@ -812,6 +847,71 @@ final class WorldSystemsTests: XCTestCase {
         let pack = try JSONDecoder().decode(StoryFormPack.self, from: data)
         XCTAssertEqual(pack.id, "old")
         XCTAssertTrue(pack.recipes.isEmpty)
+    }
+
+    func testLegacyGenreDecodesWithoutExemplarOrPalette() throws {
+        let data = Data(#"{"id":"noir","name":"Noir","lens":"Rain and regret.","moodTags":["night"]}"#.utf8)
+        let genre = try JSONDecoder().decode(StoryGenre.self, from: data)
+        XCTAssertEqual(genre.id, "noir")
+        XCTAssertTrue(genre.exemplar.isEmpty)
+        XCTAssertTrue(genre.palette.isEmpty)
+    }
+
+    func testGenreExemplarAndPaletteRoundTripThroughPackJSON() throws {
+        let genre = StoryGenre(
+            id: "campus-gothic", name: "Campus Gothic", lens: "Ivy with opinions.",
+            moodTags: ["night"], exemplar: "\"The library keeps hours we don't,\" she said.",
+            palette: ["ivy", "reading lamp", "card catalog"]
+        )
+        let data = try JSONEncoder().encode(genre)
+        let decoded = try JSONDecoder().decode(StoryGenre.self, from: data)
+        XCTAssertEqual(decoded, genre)
+    }
+
+    func testBundledGenresShipExemplarAndPalette() {
+        for genre in StoryFormRegistry.genres {
+            XCTAssertFalse(genre.exemplar.isEmpty, "\(genre.id) needs an exemplar passage for the local brain to imitate")
+            XCTAssertGreaterThanOrEqual(genre.palette.count, 4, "\(genre.id) needs concrete palette nouns for quiet days")
+            let words = genre.exemplar.split { $0.isWhitespace }.count
+            XCTAssertLessThanOrEqual(words, 75, "\(genre.id) exemplar should stay small enough for the E2B prompt budget")
+        }
+    }
+
+    func testUnquietFolioPackIsWellFormed() {
+        let pack = StoryFormRegistry.bundledPacks.first { $0.id == "unquiet-folio" }
+        XCTAssertNotNil(pack)
+        XCTAssertEqual(pack?.genres.count, 3)
+        XCTAssertEqual(pack?.recipes.count, 4)
+        XCTAssertTrue(pack?.genres.allSatisfy { $0.moodTags.contains("clash") } ?? false)
+        XCTAssertTrue(pack?.recipes.allSatisfy { $0.preferredTags.contains("clash") } ?? false)
+        XCTAssertTrue(pack?.recipes.allSatisfy(StoryFormRegistry.recipeIsValid) ?? false)
+        XCTAssertTrue(pack?.recipes.allSatisfy { $0.beats.count == StoryVignetteBeats.maximumInteractiveTurns } ?? false)
+    }
+
+    func testClashGenresNeverSurfaceWithoutClashRecipe() {
+        for day in 1...14 {
+            let picked = StoryFormRegistry.select(
+                tags: ["rain", "evening", "mischief", "grey"], surfaceHistory: [:], ascendantChapterID: nil,
+                dayID: "2026-07-\(day)", slot: "slot-\(day)", now: Date()
+            )
+            XCTAssertFalse(picked.genre.moodTags.contains("clash"), "clash genre \(picked.genre.id) surfaced with no clash recipe")
+        }
+    }
+
+    func testClashRecipePrefersClashGenre() {
+        let greyEdit = StoryFormRegistry.recipes.first { $0.id == "grey-edit" }
+        XCTAssertNotNil(greyEdit)
+        let picked = StoryFormRegistry.select(
+            tags: [], surfaceHistory: [:], ascendantChapterID: nil,
+            dayID: "2026-07-01", slot: "slot-a", recipe: greyEdit, now: Date()
+        )
+        XCTAssertTrue(greyEdit?.preferredGenreIDs.contains(picked.genre.id) ?? false)
+    }
+
+    func testRivalryEdgeDetection() {
+        let all = NarrativePackRegistry.entities
+        XCTAssertTrue(StoryFormRegistry.hasRivalryEdge(among: all), "the bundled cast should contain at least one tense edge (e.g. Finn Bridges)")
+        XCTAssertFalse(StoryFormRegistry.hasRivalryEdge(among: []))
     }
 
     func testMalformedRecipeTokenDoesNotInvalidateOtherRecipes() {

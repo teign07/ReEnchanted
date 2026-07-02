@@ -32,6 +32,7 @@ let package = Package(
                 "Constellations.swift",
                 "TheBleed.swift",
                 "MonthlyEdition.swift",
+                "PhysicalBookOrders.swift",
                 "EditionCurator.swift",
                 "ReferenceLibrary.swift",
                 "Illumination.swift",

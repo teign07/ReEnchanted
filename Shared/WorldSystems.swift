@@ -7086,3 +7086,265 @@ enum BeliefEconomyEngine {
         BeliefEconomyMovement(targetKind: kind, targetID: id, targetName: name, delta: delta, reason: reason, note: note, createdAt: now)
     }
 }
+
+/// The instant margin reply a cast member leaves when the reader keeps a page.
+/// Deterministic: the page ID seeds voice and line, so the same keep always
+/// earns the same note (and tests can pin it).
+enum KeepMarginalia {
+    struct Note: Equatable {
+        var castSlug: String
+        var castName: String
+        var assetName: String
+        var line: String
+        var rippleLine: String? = nil
+    }
+
+    struct Voice {
+        let slug: String
+        let name: String
+        let asset: String
+        /// Lines usable as-is.
+        let plainLines: [String]
+        /// Lines containing "{word}", filled with a word lifted from the input.
+        let wordLines: [String]
+    }
+
+    static let voices: [Voice] = [
+        Voice(
+            slug: "pippa-pilcrow",
+            name: "Pippa Pilcrow",
+            asset: "LabyrinthCharacterPilcrow",
+            plainLines: [
+                "I let a comma loose in that one. It needed the air.",
+                "That sentence stretched its legs the moment you looked away.",
+                "Kept! And the full stop is already plotting its escape.",
+                "The margins clapped. Quietly. But they clapped."
+            ],
+            wordLines: [
+                "Oh, \u{201C}{word}\u{201D} wants to be two things at once. I say let it.",
+                "\u{201C}{word}\u{201D} — now THAT is a word with somewhere to be."
+            ]
+        ),
+        Voice(
+            slug: "professor-thaddeus-mook",
+            name: "Professor Mook",
+            asset: "LabyrinthCharacterMook",
+            plainLines: [
+                "Adequate. I have filed it before it could misbehave.",
+                "One true sentence, properly shelved. The Registry thanks you.",
+                "I corrected nothing. Do not let it go to your head.",
+                "Filed under: better than expected. A provisional category."
+            ],
+            wordLines: [
+                "\u{201C}{word}\u{201D} is used correctly. I am noting my surprise in red.",
+                "\u{201C}{word}\u{201D} — 1743 would have approved. As, grudgingly, do I."
+            ]
+        ),
+        Voice(
+            slug: "penny-blackletter",
+            name: "Penny Blackletter",
+            asset: "LabyrinthCharacterPennyBlackletter",
+            plainLines: [
+                "Catalogued. The small detail is the load-bearing one, as usual.",
+                "I nearly lost this one to the margins. Went back for it.",
+                "Evidence accepted. One honest detail can save a whole day.",
+                "The archive is one true thing heavier tonight."
+            ],
+            wordLines: [
+                "\u{201C}{word}\u{201D} goes on its own card. It earned it.",
+                "Filed edge to edge. \u{201C}{word}\u{201D} gets a cross-reference."
+            ]
+        ),
+        Voice(
+            slug: "dr-inkrest",
+            name: "Dr. Selene Inkrest",
+            asset: "LabyrinthCharacterDrSeleneInkrest",
+            plainLines: [
+                "The lamp was on for this one. It sat down easily.",
+                "A page that reads you back, kept anyway. Well done.",
+                "I have set two chairs by this page. It may want company later.",
+                "Noted without diagnosis. The chapter stays yours to revise."
+            ],
+            wordLines: [
+                "\u{201C}{word}\u{201D} arrived before the feeling did. That is the good order.",
+                "We can leave \u{201C}{word}\u{201D} in the room with the lamp on."
+            ]
+        ),
+        Voice(
+            slug: "zara-finch",
+            name: "Zara Finch",
+            asset: "LabyrinthCharacterZaraFinch",
+            plainLines: [
+                "Kept. I checked — this page holds your weight.",
+                "Good. Small returns, kept word after kept word.",
+                "I marked the way back to this one, in case you need it.",
+                "Pocket-sized and useful. My favorite kind of true."
+            ],
+            wordLines: [
+                "\u{201C}{word}\u{201D} is a safe place to stand. I scouted it.",
+                "If the day goes sideways, \u{201C}{word}\u{201D} is your exit. Remember it."
+            ]
+        ),
+        Voice(
+            slug: "lydia-boggle",
+            name: "Professor Boggle",
+            asset: "LabyrinthCharacterLydiaBoggle",
+            plainLines: [
+                "A home is a spell with the washing-up still in it. Filed accordingly.",
+                "That is kitchen-grade magic. The good kind. Kettle\u{2019}s on.",
+                "Your ordinary just confessed something marvelous. I heard it.",
+                "Label the chaos by room and it almost behaves. See? Kept."
+            ],
+            wordLines: [
+                "Held \u{201C}{word}\u{201D} up to the glint-lens. Marvelous, as suspected.",
+                "\u{201C}{word}\u{201D} could hold an extraordinary day without dropping it."
+            ]
+        ),
+        Voice(
+            slug: "gwendolyn-mythwright",
+            name: "Gwendolyn Mythwright",
+            asset: "LabyrinthCharacterGwendolynMythwright",
+            plainLines: [
+                "Stamped, cross-referenced, and taken completely seriously.",
+                "A wonder with evidence behind it. You need not be lonely about it now.",
+                "I have a folder for this. I have a folder for everything.",
+                "The improbable appreciates proper paperwork. So do I."
+            ],
+            wordLines: [
+                "\u{201C}{word}\u{201D} has been entered in the register of verified wonders.",
+                "I am writing a letter to \u{201C}{word}\u{201D}. I expect a reply."
+            ]
+        ),
+        Voice(
+            slug: "wicker-eddies",
+            name: "Wicker Eddies",
+            asset: "LabyrinthCharacterWickerEddies",
+            plainLines: [
+                "I tried to puncture this one. It held. Annoying.",
+                "Kept, and it survived contact with doubt. That\u{2019}s the real kind.",
+                "No theatrics in it. I checked twice. Carry on.",
+                "I laughed, I stepped toward it, and it didn\u{2019}t flinch. Fine."
+            ],
+            wordLines: [
+                "\u{201C}{word}\u{201D} — I tested it. It rang true. Don\u{2019}t gloat.",
+                "Even I can\u{2019}t collapse \u{201C}{word}\u{201D}. It\u{2019}s load-bearing."
+            ]
+        ),
+        Voice(
+            slug: "serenity-brown",
+            name: "Serenity Brown",
+            asset: "LabyrinthCharacterSerenityBrown",
+            plainLines: [
+                "See? The detour was the whole adventure.",
+                "Kept lightly. That\u{2019}s not the same as kept carelessly.",
+                "This one gets to be fun forever now.",
+                "You stopped white-knuckling it for a second. It shows."
+            ],
+            wordLines: [
+                "\u{201C}{word}\u{201D} is coming with us. It knows the way out.",
+                "A whole kingdom could fit inside \u{201C}{word}\u{201D}, doodled small."
+            ]
+        )
+    ]
+
+    /// The special note when a kept souvenir clears the Story Spark bar —
+    /// the Book itself answers, promising the door that the caller is already
+    /// preparing.
+    static let sparkNote = Note(
+        castSlug: "book-sprite",
+        castName: "The Book",
+        assetName: "LabyrinthFaeBookSprite",
+        line: "That sentence is glowing at the edges. Somewhere in the Stacks, a door is being drawn."
+    )
+
+    /// The Almanac's own line on a celebration day — a calendar gift, keyed to
+    /// the real world's clock and never to the reader's performance.
+    static func festivalNote(celebrationID: String, commonName: String) -> Note {
+        let line: String
+        switch celebrationID {
+        case "imbolc": line = "Something under the snow has decided to live. Your page is part of the evidence."
+        case "ostara": line = "The scales tipped toward light today. This page leans with them."
+        case "beltane": line = "Greenfire weather. The Book presses your page while the sap is loud."
+        case "litha": line = "The longest light, and you spent a little of it here. Rich."
+        case "lughnasadh": line = "First harvest. The Book binds early sheaves — this one is in."
+        case "mabon": line = "The second rebalancing. This page is weighed and found honest."
+        case "samhain": line = "The veil is thin; your page slipped through easily tonight."
+        case "yule": line = "The darkest class of the year, and still you brought ink. Noted, warmly."
+        default: line = "The Almanac is watching tonight. It saw this page and approved."
+        }
+        return Note(
+            castSlug: "almanac",
+            castName: "The Almanac \u{2014} \(commonName)",
+            assetName: "LabyrinthFaeBookSprite",
+            line: line
+        )
+    }
+
+    static let stopWords: Set<String> = [
+        "about", "after", "again", "because", "before", "being", "could",
+        "every", "first", "other", "really", "their", "there", "these",
+        "thing", "think", "today", "under", "where", "which", "while", "would"
+    ]
+
+    /// Longest interesting word in the input (>= 5 letters, not a stop word).
+    static func featuredWord(in input: String) -> String? {
+        input.lowercased()
+            .split { !$0.isLetter }
+            .map(String.init)
+            .filter { $0.count >= 5 && !stopWords.contains($0) }
+            .max { $0.count < $1.count }
+    }
+
+    /// FNV-1a — stable across launches, unlike `hashValue`.
+    static func seed(for pageID: String) -> UInt64 {
+        pageID.unicodeScalars.reduce(into: UInt64(1_469_598_103_934_665_603)) {
+            $0 = ($0 ^ UInt64($1.value)) &* 1_099_511_628_211
+        }
+    }
+
+    /// Nil when the keep is too thin to deserve ink (fewer than 3 words) or the
+    /// page is one of the intimate log types that the cast never comments on.
+    static func note(
+        for input: String,
+        pageType: BookPageType,
+        pageID: String,
+        beliefBySlug: [String: Int] = [:]
+    ) -> Note? {
+        guard !EditionCurator.defaultPrivateTypes.contains(pageType) else { return nil }
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wordCount = trimmed.split { !$0.isLetter && !$0.isNumber }.count
+        guard wordCount >= 3 else { return nil }
+
+        let seed = seed(for: pageID)
+        // Weighted pick: a cast member's effective Belief is their share of the
+        // margins. Unknown slugs fall back to the base glow of 20.
+        let weights = voices.map { max(1, beliefBySlug[$0.slug] ?? 20) }
+        let total = weights.reduce(0, +)
+        var pick = Int(seed % UInt64(total))
+        var voice = voices[0]
+        for (index, weight) in weights.enumerated() {
+            if pick < weight { voice = voices[index]; break }
+            pick -= weight
+        }
+        let word = featuredWord(in: trimmed)
+        let pool = word == nil ? voice.plainLines : voice.plainLines + voice.wordLines
+        var line = pool[Int((seed >> 8) % UInt64(pool.count))]
+        if let word {
+            line = line.replacingOccurrences(of: "{word}", with: word)
+        }
+        return Note(castSlug: voice.slug, castName: voice.name, assetName: voice.asset, line: line)
+    }
+}
+
+/// The visible tick when a kept page warms a cast member's Belief — cause and
+/// effect on the relationship layer, at the moment of the cause.
+enum BeliefRipple {
+    static func line(entityName: String, effectiveBelief: Int) -> String {
+        if effectiveBelief >= 60 {
+            return "\(entityName) burns a little steadier for it."
+        } else if effectiveBelief >= 30 {
+            return "\(entityName)\u{2019}s glow brightened."
+        }
+        return "\(entityName)\u{2019}s glow stirred."
+    }
+}

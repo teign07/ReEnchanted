@@ -1391,6 +1391,7 @@ struct StoryScenePacket: Identifiable, Codable, Equatable {
     var id: String
     var packID: String
     var title: String
+    var playableThreadTitle: String
     var directorIntent: String
     var playerBelief: Int
     var bookGlow: String
@@ -1409,9 +1410,207 @@ struct StoryScenePacket: Identifiable, Codable, Equatable {
     var storyGenreID: String?
     var storyGenreName: String?
     var storyGenreLens: String?
+    var storyGenreExemplar: String?
+    var storyGenrePalette: [String]?
     var promise: StoryPromise?
     var turn: StoryTurn?
     var activeWorldEvents: [ResolvedWorldEvent]
+}
+
+enum StoryThreadPresentation {
+    private static let underlayerThreadIDs: Set<String> = [
+        "body-learns-trust",
+        "weather-in-the-stacks",
+        "ordinary-magic",
+        "music-as-shelter",
+        "home-vessel"
+    ]
+
+    static func isUnderlayer(_ thread: NarrativeStoryThread?) -> Bool {
+        guard let thread else { return false }
+        return underlayerThreadIDs.contains(thread.id) || thread.tags.contains("atmosphere")
+    }
+
+    static func displayTitle(
+        primaryThread: NarrativeStoryThread?,
+        blueprint: StorySceneBlueprint?,
+        turn: StoryTurn?,
+        primaryEntity: NarrativeWorldEntity?
+    ) -> String {
+        if let primaryThread, !isUnderlayer(primaryThread) {
+            return primaryThread.title
+        }
+        if let recipeName = blueprint?.recipeName.nonEmpty {
+            return recipeName
+        }
+        if let turn, !turn.character.isEmpty {
+            return "\(turn.character)'s Small Turn"
+        }
+        if let primaryEntity, primaryEntity.kind == .character {
+            return "\(primaryEntity.name)'s Visit"
+        }
+        return primaryThread?.title ?? "Ordinary Magic"
+    }
+}
+
+enum OrganicStoryThreadSynthesizer {
+    static let packID = "organic-story-field"
+
+    static func availableThreads(inputs: BookSourceInputs, tags: Set<String>) -> [NarrativeStoryThread] {
+        var byID: [String: NarrativeStoryThread] = [:]
+        for thread in NarrativePackRegistry.threads + threads(inputs: inputs, tags: tags) {
+            byID[thread.id] = thread
+        }
+        return byID.values.sorted { $0.id < $1.id }
+    }
+
+    static func threads(inputs: BookSourceInputs, tags: Set<String> = []) -> [NarrativeStoryThread] {
+        var candidates: [NarrativeStoryThread] = []
+        let authoredMotifs: Set<String> = ["lamp", "rain", "soup", "threshold"]
+        let genericMotifs = inputs.storyMotifs
+            .filter { key, count in
+                count >= 3 && !authoredMotifs.contains(StoryConsequenceCondition.key(key))
+            }
+            .sorted { left, right in
+                if left.value == right.value { return left.key < right.key }
+                return left.value > right.value
+            }
+            .prefix(3)
+
+        for (rawKey, count) in genericMotifs {
+            let key = StoryConsequenceCondition.key(rawKey)
+            guard !key.isEmpty else { continue }
+            let title = "\(displayName(forKey: key)) Keeps Returning"
+            candidates.append(
+                NarrativeStoryThread(
+                    id: "organic-motif-\(key)",
+                    packID: packID,
+                    title: title,
+                    phase: count >= 6 ? .returning : .seed,
+                    belief: 10 + min(count, 8),
+                    narrativeWeight: 18 + min(count * 4, 24),
+                    summary: "This thread was born because \(displayName(forKey: key).lowercased()) kept showing up in recent choices, motifs, or kept pages.",
+                    tags: Array(Set(["organic-thread", "motif", key] + key.split(separator: "-").map(String.init) + tags.filter { $0 == key }))
+                )
+            )
+        }
+        return candidates
+    }
+
+    static func boosts(inputs: BookSourceInputs) -> [String: Int] {
+        var boosts: [String: Int] = [:]
+        func add(_ threadID: String, _ amount: Int) {
+            guard amount > 0 else { return }
+            boosts[threadID, default: 0] += amount
+        }
+
+        let ceremonyCount = inputs.storyRituals["small-ceremony-register"] ?? 0
+        add("great-hall-small-announcements", min(36, ceremonyCount * 6))
+
+        let quietCompanyCount = inputs.storyRituals
+            .filter { StoryConsequenceCondition.key($0.key).hasPrefix("quiet-company") }
+            .map(\.value)
+            .reduce(0, +)
+        add("companionable-silence", min(30, quietCompanyCount * 5))
+
+        add("lamp-repair-committee", min(24, (inputs.storyMotifs["lamp"] ?? 0) * 5))
+        add("rain-room-opens", min(24, (inputs.storyMotifs["rain"] ?? 0) * 5))
+        add("pantry-keeps-receipts", min(24, (inputs.storyMotifs["soup"] ?? 0) * 5))
+        add("threshold-ledger", min(24, (inputs.storyMotifs["threshold"] ?? 0) * 5))
+
+        if inputs.bookNoticeEvidence >= 3 {
+            add("shelf-of-misfiled-days", min(12, inputs.bookNoticeEvidence * 2))
+        }
+        if (inputs.storySettingAffinities["location-great-hall"] ?? 0) >= 4 {
+            add("great-hall-small-announcements", 12)
+        }
+        if (inputs.storySceneBiases["quiet"] ?? 0) >= 6 {
+            add("companionable-silence", 6)
+        }
+        return boosts
+    }
+
+    static func title(forOrganicThreadID threadID: String) -> String? {
+        guard threadID.hasPrefix("organic-motif-") else { return nil }
+        let key = String(threadID.dropFirst("organic-motif-".count))
+        return "\(displayName(forKey: key)) Keeps Returning"
+    }
+
+    private static func displayName(forKey key: String) -> String {
+        key
+            .split(separator: "-")
+            .map { String($0).capitalized }
+            .joined(separator: " ")
+    }
+}
+
+enum StorySpark {
+    static let sourceTagPrefix = "story-spark-source:"
+    static let usedTag = "story-sparked"
+
+    static func candidate(for day: BookDay, inputs: BookSourceInputs, now: Date = Date()) -> BookPage? {
+        let pages = day.capturedPages + inputs.days.flatMap(\.capturedPages)
+        let usedSourceIDs = Set(pages.flatMap { page in
+            page.tags.compactMap { tag -> String? in
+                let lowered = tag.lowercased()
+                guard lowered.hasPrefix(sourceTagPrefix) else { return nil }
+                return String(lowered.dropFirst(sourceTagPrefix.count))
+            }
+        })
+        return pages
+            .filter { page in
+                page.type == .souvenir &&
+                    now.timeIntervalSince(page.createdAt) <= 21 * 86_400 &&
+                    !usedSourceIDs.contains(page.id.lowercased()) &&
+                    !page.tags.contains { $0.lowercased() == usedTag } &&
+                    score(page.userInput.nonEmpty ?? page.promptText) >= 7
+            }
+            .sorted { left, right in
+                let leftScore = score(left.userInput.nonEmpty ?? left.promptText)
+                let rightScore = score(right.userInput.nonEmpty ?? right.promptText)
+                if leftScore == rightScore { return left.createdAt > right.createdAt }
+                return leftScore > rightScore
+            }
+            .first
+    }
+
+    static func sentence(from page: BookPage) -> String {
+        let raw = page.userInput.nonEmpty ?? page.promptText
+        return raw.replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .bookPreviewSentenceLimit(1)
+    }
+
+    static func score(_ text: String) -> Int {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return 0 }
+        let lowered = trimmed.lowercased()
+        let words = lowered.split { !$0.isLetter && !$0.isNumber }.map(String.init)
+        guard (5...36).contains(words.count), trimmed.count <= 240 else { return 0 }
+
+        let weather = ["rain", "snow", "fog", "mist", "wind", "sun", "moon", "cloud", "storm", "thunder", "lightning", "sky", "dusk", "dawn", "evening", "night"]
+        let sensory = ["blue", "green", "gold", "red", "silver", "warm", "cold", "damp", "bright", "dark", "soft", "sharp", "quiet", "loud", "smelled", "smell", "sound", "taste", "light", "shadow"]
+        let places = ["room", "kitchen", "parking", "window", "door", "street", "table", "shelf", "hall", "garden", "porch", "bus", "car", "sidewalk", "store", "office", "bed"]
+        let objects = ["cup", "mug", "spoon", "receipt", "book", "page", "lamp", "key", "scarf", "shoe", "bowl", "candle", "photo", "bookmark", "pencil", "letter"]
+        let motion = ["made", "opened", "closed", "kept", "held", "turned", "fell", "rose", "glowed", "waited", "crossed", "carried", "pressed", "folded"]
+
+        func containsAny(_ lexicon: [String]) -> Bool {
+            lexicon.contains { lowered.contains($0) }
+        }
+
+        var score = 0
+        if containsAny(weather) { score += 2 }
+        if containsAny(sensory) { score += 2 }
+        if containsAny(places) { score += 2 }
+        if containsAny(objects) { score += 2 }
+        if containsAny(motion) { score += 1 }
+        if lowered.contains(" like ") || lowered.contains(" as if ") || lowered.contains(" under ") { score += 2 }
+        if trimmed.contains(".") || trimmed.contains("!") { score += 1 }
+        if words.count >= 8 { score += 1 }
+        if lowered.contains("?") { score -= 2 }
+        if ["good", "bad", "nice", "fine", "okay"].contains(where: { lowered == $0 || lowered == "it was \($0)" }) { score -= 4 }
+        return score
+    }
 }
 
 enum StoryScenePacketBuilder {
@@ -1421,7 +1620,7 @@ enum StoryScenePacketBuilder {
         var selectedEntities = rankedEntities(tags: tags, inputs: inputs, limit: 3, slotKey: "\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 4))")
         var selectedThreads = rankedThreads(tags: tags, inputs: inputs, limit: 2)
         if let arc = inputs.currentArc,
-           let arcThread = NarrativePackRegistry.threads.first(where: { $0.id == arc.threadID }) {
+           let arcThread = OrganicStoryThreadSynthesizer.availableThreads(inputs: inputs, tags: tags).first(where: { $0.id == arc.threadID }) {
             selectedThreads.removeAll { $0.id == arc.threadID }
             selectedThreads.insert(arcThread, at: 0)
             selectedThreads = Array(selectedThreads.prefix(2))
@@ -1458,7 +1657,8 @@ enum StoryScenePacketBuilder {
         let greyLevel = NothingTide.greyLevel(
             quietDays: inputs.quietDays,
             narrativeHeat: inputs.narrative?.recentEventCount ?? 0,
-            distressActive: false
+            distressActive: false,
+            celebrationGreyShift: inputs.nothingGreyOffset
         )
         if let greySignal = NothingTide.storySignal(forGreyLevel: greyLevel) {
             realSignals.append(greySignal)
@@ -1500,8 +1700,6 @@ enum StoryScenePacketBuilder {
             selectedEntityMemories = rankedEntityMemories(entities: selectedEntities, inputs: inputs, limit: 5)
         }
         let primaryEntity = selectedEntities.first { $0.kind == .character } ?? selectedEntities.first
-        let title = primaryThread.map { "Story Page: \($0.title)" } ?? "Story Page"
-        let intent = directorIntent(primaryThread: primaryThread, primaryEntity: primaryEntity, tags: tags)
 
         let ascendantChapterID = TalismanAscendancy.ascendant(
             entities: NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity),
@@ -1514,6 +1712,8 @@ enum StoryScenePacketBuilder {
             dayID: day.id,
             slot: slot,
             recipe: recipePick?.recipe,
+            recipeBoosts: inputs.storyRecipeBoosts,
+            sceneBiases: inputs.storySceneBiases,
             now: now
         )
         let blueprint = recipePick.flatMap { picked in
@@ -1531,11 +1731,27 @@ enum StoryScenePacketBuilder {
         let promise = blueprint.map {
             StoryPromise(seed: $0.grounding.text, question: "By the end, how has \($0.premise.lowercased()) changed what happens next?")
         } ?? promise(primaryThread: primaryThread, primaryEntity: primaryEntity, entities: selectedEntities)
+        let playableThreadTitle = StoryThreadPresentation.displayTitle(
+            primaryThread: primaryThread,
+            blueprint: blueprint,
+            turn: turn,
+            primaryEntity: primaryEntity
+        )
+        let title = recipePick?.recipe.id == "souvenir-door"
+            ? "Story Spark: A Sentence Opens"
+            : "Story Page: \(playableThreadTitle)"
+        let intent = directorIntent(
+            primaryThread: primaryThread,
+            primaryEntity: primaryEntity,
+            playableThreadTitle: playableThreadTitle,
+            tags: tags
+        )
 
         return StoryScenePacket(
             id: "story-packet-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 4))",
             packID: NarrativePackRegistry.corePackID,
             title: title,
+            playableThreadTitle: playableThreadTitle,
             directorIntent: intent,
             playerBelief: belief,
             bookGlow: BeliefLexicon.glowName(for: belief),
@@ -1548,6 +1764,7 @@ enum StoryScenePacketBuilder {
             chapterTalismanMoves: talismanMoves,
             choices: choices(
                 primaryThread: primaryThread,
+                playableThreadTitle: playableThreadTitle,
                 selectedEntities: selectedEntities,
                 selectedRelationships: selectedRelationships,
                 turn: turn
@@ -1559,6 +1776,8 @@ enum StoryScenePacketBuilder {
             storyGenreID: storyGenre.id,
             storyGenreName: storyGenre.name,
             storyGenreLens: storyGenre.lens,
+            storyGenreExemplar: storyGenre.exemplar.nonEmpty,
+            storyGenrePalette: storyGenre.palette.isEmpty ? nil : storyGenre.palette,
             promise: promise,
             turn: turn,
             activeWorldEvents: inputs.activeWorldEvents
@@ -1572,6 +1791,14 @@ enum StoryScenePacketBuilder {
         memories: [NarrativeEntityMemory],
         now: Date
     ) -> StoryGrounding {
+        if let spark = StorySpark.candidate(for: day, inputs: inputs, now: now) {
+            let sentence = StorySpark.sentence(from: spark)
+            return StoryGrounding(
+                kind: .souvenirDoor,
+                sourceID: spark.id,
+                text: "Story Spark from One-Sentence Souvenir: \"\(sentence)\""
+            )
+        }
         let kept = (day.capturedPages + inputs.days.flatMap(\.capturedPages))
             .sorted { $0.createdAt > $1.createdAt }
             .first {
@@ -1616,8 +1843,10 @@ enum StoryScenePacketBuilder {
             if requirements.contains(.secondCharacter) && characters.count < 2 { return false }
             if requirements.contains(.activeThread) && thread == nil { return false }
             if requirements.contains(.keptPage) && grounding.kind != .keptPage { return false }
+            if requirements.contains(.souvenirDoor) && grounding.kind != .souvenirDoor { return false }
             if requirements.contains(.nothingPressure) && !hasNothingPressure { return false }
             if requirements.contains(.activeWorldEvent) && inputs.activeWorldEvents.isEmpty { return false }
+            if requirements.contains(.rivalryEdge) && !StoryFormRegistry.hasRivalryEdge(among: entities) { return false }
             if !recipe.requiredEntityIDs.allSatisfy({ id in entities.contains { $0.id == id } }) { return false }
             if !recipe.requiredEntityTags.allSatisfy({ tag in entities.contains { $0.tags.contains(tag) } }) { return false }
             for type in recipe.suppressedByPageTypes {
@@ -1636,10 +1865,20 @@ enum StoryScenePacketBuilder {
         return pool.max { left, right in
             func score(_ item: (packID: String, recipe: StoryRecipe)) -> Int {
                 let affinity = tags.intersection(Set(item.recipe.preferredTags)).count * 4
+                let consequenceBoost = min(max(inputs.storyRecipeBoosts[item.recipe.id] ?? 0, 0), 12)
+                let souvenirDoorBoost = item.recipe.requirements.contains(.souvenirDoor) && grounding.kind == .souvenirDoor ? 24 : 0
+                let sceneBias = storyBiasScore(
+                    inputs.storySceneBiases,
+                    keys: [item.recipe.id, item.recipe.sceneMode.rawValue]
+                        + item.recipe.preferredTags
+                        + item.recipe.preferredFormIDs
+                        + item.recipe.preferredGenreIDs,
+                    cap: 12
+                )
                 let recency = inputs.surfaceHistory["recipe:\(item.recipe.id)"].map { record in
                     now.timeIntervalSince(record.lastShownAt) < 72 * 3600 ? 8 : 0
                 } ?? 0
-                return item.recipe.baseWeight + affinity - recency
+                return item.recipe.baseWeight + affinity + consequenceBoost + souvenirDoorBoost + sceneBias - recency
                     + abs("\(day.id)-\(slot)-\(item.recipe.id)-recipe".stableHash % 5)
             }
             return score(left) < score(right)
@@ -1656,11 +1895,14 @@ enum StoryScenePacketBuilder {
         guard let lead else { return nil }
         let companion = cast.dropFirst().first
         if recipe.requirements.contains(.secondCharacter), companion == nil { return nil }
+        let threadLabel = StoryThreadPresentation.isUnderlayer(thread)
+            ? recipe.name
+            : (thread?.title ?? "Ordinary Magic")
         let values = [
             "lead": lead.name,
             "companion": companion?.name ?? "the reader",
             "grounding": grounding.text,
-            "thread": thread?.title ?? "Ordinary Magic",
+            "thread": threadLabel,
             "form": form.name
         ]
         func fill(_ template: String) -> String {
@@ -1749,7 +1991,9 @@ enum StoryScenePacketBuilder {
         )
         let a = intent.wanter
         let b = intent.target
-        let threadTitle = thread?.title ?? "Ordinary Magic"
+        let threadTitle = StoryThreadPresentation.isUnderlayer(thread)
+            ? "this small turn"
+            : (thread?.title ?? "Ordinary Magic")
         let hasOther = b != "the reader"
 
         let act = intent.actPhrase
@@ -1871,8 +2115,13 @@ enum StoryScenePacketBuilder {
                 let anchorBoost = (!inputs.nearbyPlaces.isEmpty || inputs.nearbyAnchor != nil) && entity.tags.contains("anchor") ? 10 : 0
                 let careBoost = tags.contains("care") && entity.tags.contains("care") ? 8 : 0
                 let archiveBoost = (tags.contains("memory") || tags.contains("letters")) && entity.tags.contains("archive") ? 8 : 0
+                let settingAffinity = storyBiasScore(
+                    inputs.storySettingAffinities,
+                    keys: [entity.id, entity.name] + entity.tags,
+                    cap: 18
+                )
                 let jitter = abs("\(slotKey)-\(entity.id)".stableHash % 5)
-                return entity.narrativeWeight + belief / 2 + overlap + eventBoost + anchorBoost + careBoost + archiveBoost + jitter - recentSpotlightPenalty
+                return entity.narrativeWeight + belief / 2 + overlap + eventBoost + anchorBoost + careBoost + archiveBoost + settingAffinity + jitter - recentSpotlightPenalty
             }
             let leftScore = score(left)
             let rightScore = score(right)
@@ -1911,6 +2160,22 @@ enum StoryScenePacketBuilder {
 
     private static func effectiveBelief(for entity: NarrativeWorldEntity, inputs: BookSourceInputs) -> Int {
         max(0, min(100, entity.belief + (inputs.entityBeliefOffsets[entity.id] ?? 0)))
+    }
+
+    private static func storyBiasScore(_ biases: [String: Int], keys: [String], cap: Int) -> Int {
+        guard !biases.isEmpty, !keys.isEmpty else { return 0 }
+        let normalizedKeys = Set(keys.compactMap(normalizedStoryBiasKey))
+        guard !normalizedKeys.isEmpty else { return 0 }
+        let score = biases.reduce(0) { total, entry in
+            guard let key = normalizedStoryBiasKey(entry.key), normalizedKeys.contains(key) else { return total }
+            return total + entry.value
+        }
+        return max(-cap, min(cap, score))
+    }
+
+    private static func normalizedStoryBiasKey(_ value: String) -> String? {
+        let clean = StoryConsequenceCondition.key(value)
+        return clean.isEmpty ? nil : clean
     }
 
     private static func rankedEntities(tags: Set<String>, inputs: BookSourceInputs, limit: Int, slotKey: String) -> [NarrativeWorldEntity] {
@@ -2004,14 +2269,16 @@ enum StoryScenePacketBuilder {
     }
 
     private static func rankedThreads(tags: Set<String>, inputs: BookSourceInputs, limit: Int) -> [NarrativeStoryThread] {
-        NarrativePackRegistry.threads
+        let organicBoosts = OrganicStoryThreadSynthesizer.boosts(inputs: inputs)
+        return OrganicStoryThreadSynthesizer.availableThreads(inputs: inputs, tags: tags)
             .map { thread in
                 let overlap = tags.intersection(Set(thread.tags)).count
                 let eventBoost = inputs.narrative?.weightedThreadIDs.contains(thread.id) == true ? 18 : 0
                 let worldEventBoost = inputs.activeWorldEvents.scoreBoost(forThreadID: thread.id)
+                let organicBoost = organicBoosts[thread.id] ?? 0
                 let recentSpotlightPenalty = inputs.narrative?.recentlySpotlitThreadIDs.contains(thread.id) == true ? 26 : 0
                 let ambientPenalty = isAmbientThread(thread) ? ambientThreadPenalty(tags: tags, eventBoost: eventBoost) : 0
-                return (thread, thread.narrativeWeight + thread.belief / 3 + overlap * 10 + eventBoost + worldEventBoost - recentSpotlightPenalty - ambientPenalty)
+                return (thread, thread.narrativeWeight + thread.belief / 3 + overlap * 10 + eventBoost + worldEventBoost + organicBoost - recentSpotlightPenalty - ambientPenalty)
             }
             .sorted { left, right in
                 if left.1 == right.1 {
@@ -2165,6 +2432,9 @@ enum StoryScenePacketBuilder {
         if let thread = NarrativePackRegistry.threads.first(where: { $0.id == nodeID }) {
             return thread.title
         }
+        if let organicTitle = OrganicStoryThreadSynthesizer.title(forOrganicThreadID: nodeID) {
+            return organicTitle
+        }
         return nodeID
     }
 
@@ -2181,10 +2451,12 @@ enum StoryScenePacketBuilder {
     private static func directorIntent(
         primaryThread: NarrativeStoryThread?,
         primaryEntity: NarrativeWorldEntity?,
+        playableThreadTitle: String,
         tags: Set<String>
     ) -> String {
         if let primaryThread, let primaryEntity, primaryEntity.kind == .character {
-            return "A character-first Story Page: \(primaryEntity.name) wants something specific, meets resistance, and changes one small thing inside \(primaryThread.title)."
+            let frame = StoryThreadPresentation.isUnderlayer(primaryThread) ? playableThreadTitle : primaryThread.title
+            return "A character-first Story Page: \(primaryEntity.name) wants something specific, meets resistance, and changes one small thing inside \(frame)."
         }
         if tags.contains("rest") || tags.contains("care") {
             return "A low-pressure Story Page where a character protects care from becoming homework."
@@ -2194,6 +2466,7 @@ enum StoryScenePacketBuilder {
 
     private static func choices(
         primaryThread: NarrativeStoryThread?,
+        playableThreadTitle: String,
         selectedEntities: [NarrativeWorldEntity],
         selectedRelationships: [NarrativeRelationshipEdge],
         turn: StoryTurn
@@ -2205,7 +2478,7 @@ enum StoryScenePacketBuilder {
         let characterID = primaryCharacter?.id ?? "the-book"
         let characterName = primaryCharacter?.name ?? "The Book"
         let threadID = primaryThread?.id ?? "ordinary-magic"
-        let threadTitle = primaryThread?.title ?? "Ordinary Magic"
+        let threadTitle = playableThreadTitle.nonEmpty ?? primaryThread?.title ?? "Ordinary Magic"
 
         // Prefer a relationship that links two characters in the scene so the
         // surprise lands between people rather than on a thing.
@@ -2484,13 +2757,15 @@ enum GossipSimulationBuilder {
     }
 
     private static func rankedThreads(tags: Set<String>, inputs: BookSourceInputs, seed: Int) -> [NarrativeStoryThread] {
-        NarrativePackRegistry.threads
+        let organicBoosts = OrganicStoryThreadSynthesizer.boosts(inputs: inputs)
+        return OrganicStoryThreadSynthesizer.availableThreads(inputs: inputs, tags: tags)
             .map { thread in
                 let overlap = tags.intersection(Set(thread.tags)).count
                 let eventBoost = inputs.narrative?.weightedThreadIDs.contains(thread.id) == true ? 16 : 0
                 let phaseBoost = thread.phase == .rising || thread.phase == .returning ? 6 : 0
+                let organicBoost = organicBoosts[thread.id] ?? 0
                 let jitter = stableIndex(for: "\(thread.id)-\(seed)", count: 7)
-                return (thread, thread.narrativeWeight + thread.belief / 3 + overlap * 10 + eventBoost + phaseBoost + jitter)
+                return (thread, thread.narrativeWeight + thread.belief / 3 + overlap * 10 + eventBoost + phaseBoost + organicBoost + jitter)
             }
             .sorted { left, right in
                 if left.1 == right.1 {
@@ -4552,8 +4827,10 @@ enum StoryRecipeRequirement: String, Codable, Equatable {
     case secondCharacter
     case activeThread
     case keptPage
+    case souvenirDoor
     case nothingPressure
     case activeWorldEvent
+    case rivalryEdge
 }
 
 enum StoryRecipeSceneMode: String, Codable, Equatable {
@@ -4565,6 +4842,7 @@ enum StoryRecipeSceneMode: String, Codable, Equatable {
 
 enum StoryGroundingKind: String, Codable, Equatable {
     case keptPage
+    case souvenirDoor
     case realSignal
     case entityMemory
     case timeAndSeason
@@ -4635,6 +4913,34 @@ struct StoryGenre: Identifiable, Codable, Equatable {
     var name: String
     var lens: String
     var moodTags: [String]
+    /// A short model passage in this genre's register, from no particular
+    /// story. The local brain imitates a sample far more reliably than it
+    /// follows rule lists, so the prompt shows this as voice, never content.
+    var exemplar: String
+    /// Concrete nouns in this genre's key. Used to seed scenes when the
+    /// day supplies no real signal, so quiet days still get specific props.
+    var palette: [String]
+
+    init(id: String, name: String, lens: String, moodTags: [String], exemplar: String = "", palette: [String] = []) {
+        self.id = id
+        self.name = name
+        self.lens = lens
+        self.moodTags = moodTags
+        self.exemplar = exemplar
+        self.palette = palette
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, name, lens, moodTags, exemplar, palette }
+
+    init(from decoder: Decoder) throws {
+        let box = try decoder.container(keyedBy: CodingKeys.self)
+        id = try box.decode(String.self, forKey: .id)
+        name = try box.decode(String.self, forKey: .name)
+        lens = try box.decode(String.self, forKey: .lens)
+        moodTags = try box.decodeIfPresent([String].self, forKey: .moodTags) ?? []
+        exemplar = try box.decodeIfPresent(String.self, forKey: .exemplar) ?? ""
+        palette = try box.decodeIfPresent([String].self, forKey: .palette) ?? []
+    }
 }
 
 struct StoryFormPack: Codable, Identifiable, Equatable {
@@ -4742,17 +5048,92 @@ enum StoryFormRegistry {
                 )
             ],
             genres: [
-                StoryGenre(id: "cozy-mystery", name: "Cozy Mystery", lens: "Warm rooms, sharp questions. Tea is involved. Suspicion lands on objects, never cruelty on people.", moodTags: ["rain", "evening", "quiet", "tea"]),
-                StoryGenre(id: "gentle-horror", name: "Gentle Horror", lens: "The hair-raising kept kind: wrongness in familiar things, dread that resolves into tenderness. The Nothing's territory.", moodTags: ["night", "fog", "tired", "grey"]),
-                StoryGenre(id: "screwball", name: "Screwball Comedy", lens: "Fast, fond, and slightly unhinged. Characters talk over each other. Objects misbehave with comic timing.", moodTags: ["bright", "morning", "energy"]),
-                StoryGenre(id: "field-naturalist", name: "Field Naturalist", lens: "Mary Oliver attention: exact observation, unforced wonder, the world examined like it matters because it does.", moodTags: ["walk", "outside", "weather", "calm"]),
-                StoryGenre(id: "tiny-heist", name: "Tiny Heist", lens: "A caper at household scale — reclaiming a teacup, liberating a parking spot. Planning montage energy, zero crime.", moodTags: ["energy", "afternoon", "mission"]),
-                StoryGenre(id: "pastoral", name: "Pastoral", lens: "Slow gold light, work done with the hands, conversation that breathes. Time moves like weather.", moodTags: ["calm", "garden", "season", "rest"]),
-                StoryGenre(id: "kindly-ghost", name: "Kindly Ghost Story", lens: "Someone or something lingers because it loved this place. Memory made gently visible. Never menacing.", moodTags: ["memory", "old", "evening", "anchor"]),
-                StoryGenre(id: "serial-adventure", name: "Adventure Serial", lens: "Chapter-of-a-larger-tale energy: momentum, a cliff's edge of curiosity at the end, callbacks to earlier episodes.", moodTags: ["thread", "arc", "momentum"])
+                StoryGenre(id: "cozy-mystery", name: "Cozy Mystery", lens: "Warm rooms, sharp questions. Tea is involved. Suspicion lands on objects, never cruelty on people.", moodTags: ["rain", "evening", "quiet", "tea"],
+                    exemplar: "\"Someone has moved the marmalade,\" Mrs. Quill said, setting down her cup. \"Third shelf. It lives on the second.\" Outside, rain worked at the gutter. \"Maybe it wanted a view,\" you offered. She looked at you the way detectives look at footprints — delighted, and not fooled at all.",
+                    palette: ["teapot", "marmalade jar", "third shelf", "rain at the gutter", "index card", "spectacles", "toast crumbs", "doorbell"]),
+                StoryGenre(id: "gentle-horror", name: "Gentle Horror", lens: "The hair-raising kept kind: wrongness in familiar things, dread that resolves into tenderness. The Nothing's territory.", moodTags: ["night", "fog", "tired", "grey"],
+                    exemplar: "The coat hook held its coat wrong. Not fallen — arranged, one sleeve folded across itself like an arm keeping something warm. \"Who folded you?\" you asked. Nothing answered, but the radiator ticked twice, the way a house does when it wants you to stay in the lit rooms.",
+                    palette: ["coat hook", "radiator tick", "unlit hallway", "torch with a loose battery", "wallpaper seam", "your own breath", "stairwell", "spilled salt"]),
+                StoryGenre(id: "screwball", name: "Screwball Comedy", lens: "Fast, fond, and slightly unhinged. Characters talk over each other. Objects misbehave with comic timing.", moodTags: ["bright", "morning", "energy"],
+                    exemplar: "\"Don't open the—\" said Pim, as you opened the tin. \"—tin.\" The moths were out now, all forty, wearing tiny paper price tags. \"They're not for sale!\" \"You priced them!\" \"They priced THEMSELVES.\" Below, the doorbell rang twice, in a tone that meant the tuba had also escaped.",
+                    palette: ["biscuit tin", "paper price tags", "doorbell", "escaped tuba", "umbrella stand", "custard", "borrowed ladder", "a list titled DO NOT"]),
+                StoryGenre(id: "field-naturalist", name: "Field Naturalist", lens: "Mary Oliver attention: exact observation, unforced wonder, the world examined like it matters because it does.", moodTags: ["walk", "outside", "weather", "calm"],
+                    exemplar: "The snail had climbed exactly one brick since morning — a whole brick, mortar to mortar. You crouched. Its shell wore last night's rain in a spiral, oldest weather at the center. Nothing about it hurried, and still it was crossing a wall. You wrote the time down like a coordinate.",
+                    palette: ["one brick", "snail shell spiral", "mortar line", "pencil stub", "field notebook", "dew", "hedge gap", "the exact time"]),
+                StoryGenre(id: "tiny-heist", name: "Tiny Heist", lens: "A caper at household scale — reclaiming a teacup, liberating a parking spot. Planning montage energy, zero crime.", moodTags: ["energy", "afternoon", "mission"],
+                    exemplar: "\"Vents are out,\" Odo whispered. \"Too dusty. We go past the biscuit tins at fourteen hundred, when the kettle screams and covers our noise.\" The teacup sat behind glass, guarded by an aunt with excellent hearing. You synchronized watches. Neither of you owned a watch. You synchronized anyway.",
+                    palette: ["kettle scream", "glass cabinet", "cabinet key", "chalk mark", "floor plan on a napkin", "string", "the loud stair", "fourteen hundred hours"]),
+                StoryGenre(id: "pastoral", name: "Pastoral", lens: "Slow gold light, work done with the hands, conversation that breathes. Time moves like weather.", moodTags: ["calm", "garden", "season", "rest"],
+                    exemplar: "They shelled the beans without counting them, which is the correct way. \"My mother did this on a blue step,\" Tam said, thumb splitting a pod. \"Every August.\" The light came in low and buttered the table. There was more to say, and the beans left room for all of it.",
+                    palette: ["bean pods", "blue step", "wooden bucket", "orchard ladder", "twine", "late light on the table", "August", "a held-back story"]),
+                StoryGenre(id: "kindly-ghost", name: "Kindly Ghost Story", lens: "Someone or something lingers because it loved this place. Memory made gently visible. Never menacing.", moodTags: ["memory", "old", "evening", "anchor"],
+                    exemplar: "The chair by the window was warm, though no one had sat there all day. On the sill, the pencil had rolled uphill again, back to where a left-handed person would want it. \"You can stay,\" you said. The curtain settled, the way a person settles when they've been told they're welcome.",
+                    palette: ["warm chair", "windowsill pencil", "curtain", "photograph with a thumbprint", "teaspoon", "carved initials", "lamplight", "left-handed habits"]),
+                StoryGenre(id: "serial-adventure", name: "Adventure Serial", lens: "Chapter-of-a-larger-tale energy: momentum, a cliff's edge of curiosity at the end, callbacks to earlier episodes.", moodTags: ["thread", "arc", "momentum"],
+                    exemplar: "The map ended at the laundry room, which was exactly why Juno trusted it. \"Last chapter got us the key,\" she said, tapping the margin. \"This chapter is the lock.\" Behind the dryer, the wall wore a draft it had no business wearing. Somewhere a door was owed to you both.",
+                    palette: ["hand-drawn map", "the key from before", "margin note", "draft behind the dryer", "knotted rope", "chapter number", "threshold", "a debt of doors"])
             ],
             recipes: coreRecipes
+        ),
+        StoryFormPack(
+            id: "unquiet-folio",
+            displayName: "The Unquiet Folio",
+            version: 1,
+            author: "The Book",
+            availability: "bundledFree",
+            forms: [],
+            genres: [
+                StoryGenre(id: "trickster-duel", name: "Trickster's Duel", lens: "Social pressure with a grin. The threat is being made to feel foolish for caring. Wit is the weapon and the wound.", moodTags: ["clash", "mischief", "audience"],
+                    exemplar: "\"Nice page,\" Wicker said, not reading it. \"Very brave, keeping the sad ones.\" He let the silence do his work, then flicked a paper pellet at the inkwell. \"Relax. If I wanted it, it'd be gone. I'm here because someone's lying to you, and it's embarrassingly not me.\"",
+                    palette: ["forged marginal note", "paper pellet", "inkwell", "borrowed grin", "the Stacks ladder", "a stolen title", "a dare", "an audience of two"]),
+                StoryGenre(id: "grey-static", name: "Grey Static", lens: "The Nothing edits, it does not attack: exact words go pale, lists become \"items\", days become \"fine\". Specificity is the counterspell.", moodTags: ["clash", "grey", "flattening"],
+                    exemplar: "The list was still on the door, but someone had corrected it. Where it once said \"the good cup, the loud clock, Tuesday's moth,\" it now said \"items.\" Mara read it twice. \"Who signs their work 'fine'?\" she asked. The hallway light seemed suddenly very reasonable, very beige.",
+                    palette: ["the word \"fine\"", "a corrected list", "beige light", "a missing adjective", "blank margin", "a title gone \"Untitled\"", "the good cup", "static hum"]),
+                StoryGenre(id: "threshold-gothic", name: "Threshold Gothic", lens: "Borrowed rules and courteous danger: things that must ask permission, and the terrible weight of granting it. Invitation logic, old handwriting, the wrong side of the glass.", moodTags: ["clash", "threshold", "invitation"],
+                    exemplar: "The letter arrived under the window, not the door — folded once and cold to the touch. \"It requests permission,\" Odile said, not touching it. \"Twice, politely.\" Below the signature, in older handwriting: MAY I COME IN. The latch, which had never mattered before, mattered enormously now.",
+                    palette: ["window latch", "an invitation with no stamp", "cold envelope", "older handwriting", "permission asked twice", "the wrong side of the glass", "salt on the sill", "a rule that followed you home"])
+            ],
+            recipes: unquietFolioRecipes
         )
+    ]
+
+    static let unquietFolioRecipes: [StoryRecipe] = [
+        recipe("grey-edit", "The Grey Edit", weight: 14, requirements: [.keptPage], mode: .balanced,
+            premise: "The Nothing has edited the kept page inside {{thread}}: the exact words of {{grounding}} have gone pale, corrected to \"fine.\"",
+            beats: ["Show the kept page with its specific words flattened to filler while {{lead}} names what is missing.", "After the chosen response, the true words return, partly return, or their first-stolen word is learned — and the grey's editing rule gets written down."],
+            turn: turn(.factLearned, want: "to learn which exact word the grey took first from {{grounding}}", obstacle: "the flattened sentence reads as almost true, which is how it hides", statement: "By the end, at least one exact word has been restored or the grey's editing rule has been named.", slice: "One small true detail is read aloud and refuses to stay grey.", progress: "The restored word points at where the grey nests inside {{thread}}.", surprise: "The edit was practice: the grey is drafting toward a page that has not been written yet."),
+            tags: ["clash", "grey", "nothing", "evidence", "words"], forms: ["small-mystery", "nocturne"], genres: ["grey-static", "gentle-horror"],
+            grounding: "Quote or nearly quote the kept material's own concrete words as the thing being erased and restored; the whole fight is over exact wording.",
+            tone: "Dread at kitchen scale, then defiance. Specificity is the weapon; the scene itself must never go vague.",
+            choices: "Offer restoring one exact detail, spending Belief to reject the whole edit, or asking the Book which word vanished first.",
+            continuation: "The restored words stay restored. Escalate to the grey's source or its next target; never re-flatten the same page."),
+        recipe("wicker-marks-the-page", "Wicker Marks the Page", weight: 14, requirements: [.keptPage], mode: .conversation,
+            premise: "Wicker Eddies has forged a marginal note on the kept page in {{thread}} — {{grounding}} — and stayed to watch it land.",
+            beats: ["{{lead}} defends the page while Wicker performs innocence, the forged note doing its small cruel work.", "After the chosen response, the forgery burns off, buys Wicker leverage, or exposes what he actually came for."],
+            turn: turn(.revealWant, want: "to make the reader doubt that {{grounding}} deserved keeping", obstacle: "the page's specific words are truer than his joke, and he knows it", statement: "By the end, the forged note is exposed, overwritten, or traded — and Wicker's real errand shows one honest edge.", slice: "The reader's own words outlast the joke, read aloud once, plainly.", progress: "The forgery peels up, and what Wicker was covering moves {{thread}} one step.", surprise: "The note is in Wicker's hand, but the idea belonged to someone else."),
+            tags: ["clash", "wicker", "forgery", "margins"], forms: ["correspondence", "visitation"], genres: ["trickster-duel", "cozy-mystery"],
+            grounding: "The forged note mocks the kept material's exact content; quote the page's real words against Wicker's fake ones.",
+            tone: "Social pressure, not menace: the threat is being made to feel foolish for caring. Wicker is funny, quick, and wrong.",
+            choices: "Offer naming the forgery with evidence, writing over him with better mischief, or sealing the true page at a visible cost.",
+            continuation: "Wicker keeps whatever he won and remembers whatever he lost. Move to consequence or counter-move; do not replay the forgery."),
+        recipe("rivals-tether", "The Rival's Tether", weight: 12, requirements: [.character, .secondCharacter, .rivalryEdge], mode: .conversation,
+            premise: "{{lead}} and {{companion}} have let a tension knot pull tight inside {{thread}}, and {{grounding}} just became the rope.",
+            beats: ["The two collide over the concrete material mid-scene — each certain, neither cruel, the reader between them.", "After the chosen response, the knot loosens, tightens honestly, or reveals what the rivalry has been protecting."],
+            turn: turn(.relationshipShift, want: "to be taken seriously about what {{grounding}} means", obstacle: "{{companion}} read the same evidence and reached the opposite conviction", statement: "By the end, the rivalry has been named to its face, and one of them has conceded one exact inch.", slice: "One ordinary detail both rivals agree on, grudgingly, out loud.", progress: "The concession — small, specific — moves {{thread}} one honest step.", surprise: "The rivalry is a guard dog: what it protects finally shows itself."),
+            tags: ["clash", "rivalry", "tension", "cast"], forms: ["visitation", "quiet-epic"], genres: ["trickster-duel", "serial-adventure"],
+            grounding: "Both rivals argue from the same concrete material; the disagreement is conviction, never facts.",
+            tone: "Friction that sharpens instead of wounds. Fast exchanges, real stakes, no cruelty.",
+            choices: "Offer siding with one rival on evidence, forcing both to defend the same detail, or naming what the quarrel protects.",
+            continuation: "The concession holds. Warmth or tension moves visibly; never reset both rivals to their opening positions."),
+        recipe("counterfeit-invitation", "The Counterfeit Invitation", weight: 12, requirements: [.groundedSource, .character], mode: .conversation,
+            premise: "An invitation reaches the reader inside {{thread}}, signed by a friend — but {{grounding}} says the hand is wrong.",
+            beats: ["The invitation performs warmth while one concrete detail from the real material refuses to corroborate it.", "After the chosen response, the forgery is unmasked, accepted on the reader's own terms, or audited into a stranger truth."],
+            turn: turn(.factLearned, want: "to find out who is wearing a friend's handwriting", obstacle: "refusing outright would insult the real friend if the letter is genuine", statement: "By the end, the invitation's true sender has been tested, and trust lands somewhere exact.", slice: "One verifying question only the real sender could answer, asked casually.", progress: "The unmasked scheme points one step deeper into {{thread}}.", surprise: "The invitation is genuine — and that is somehow worse."),
+            tags: ["clash", "letters", "trust", "forgery"], forms: ["correspondence", "small-mystery"], genres: ["threshold-gothic", "trickster-duel"],
+            grounding: "One concrete detail from the material is the tell that exposes or verifies the invitation.",
+            tone: "Social suspense: trust as a wager. Courteous surface, sharp undertow.",
+            choices: "Offer following it openly, asking one verifying question, or having the ink audited by someone exact.",
+            continuation: "The verdict on the sender stands. Follow the consequence of trusting or refusing; never re-litigate the same letter.")
     ]
 
     private static func recipe(
@@ -4783,6 +5164,15 @@ enum StoryFormRegistry {
     }
 
     static let coreRecipes: [StoryRecipe] = [
+        recipe("souvenir-door", "A Sentence Opens", weight: 22, requirements: [.souvenirDoor], mode: .environmental,
+            premise: "A kept One-Sentence Souvenir opens a tiny door inside {{thread}}: {{grounding}}",
+            beats: ["Let the sentence behave as world physics, not as a quoted journal line; one image from it should become touchable.", "After the chosen response, the sentence is read, entered, folded, or saved with one small lasting mark."],
+            turn: turn(.smallDecision, want: "to decide how the sentence-door made by {{grounding}} should be treated", obstacle: "the door will flatten if anyone explains it instead of meeting it", statement: "By the end, the kept sentence has opened, changed, or been protected as a tiny scene.", slice: "The reader lets the sentence stay small and luminous.", progress: "The sentence becomes evidence that moves {{thread}} one quiet step.", surprise: "The sentence was already a door for someone else."),
+            tags: ["story-spark", "souvenir", "door", "threshold", "memory"], forms: ["threshold-crossing", "small-mystery", "correspondence"], genres: ["cozy-mystery", "field-naturalist", "kindly-ghost"],
+            grounding: "Transform the exact Souvenir image into fictional physics. Do not say 'you wrote about...' or explain the meaning. Include one short phrase or concrete image from the sentence, and make it act.",
+            tone: "Tiny, magical, reverent, and specific. The effect should feel earned by noticing, not generated as spectacle.",
+            choices: "Offer three concrete options in this emotional grammar: read or tend what the sentence underlined; step through or investigate the door it opened; fold, share, or save the shimmer without forcing it.",
+            continuation: "Mark the source sentence as having opened something. Future callbacks may treat it as a remembered doorway, not a reusable prompt."),
         recipe("dorm-room-visit", "Dorm-Room Visit", weight: 5, requirements: [.groundedSource, .character], mode: .conversation,
             premise: "{{lead}} visits your dorm because {{grounding}} has given them a concrete reason to knock.",
             beats: ["The knock interrupts an ordinary moment and {{lead}} names the exact reason for the visit.", "After the reader's answer, the visit leaves a small residue behind and {{grounding}} means something new."],
@@ -4895,6 +5285,15 @@ enum StoryFormRegistry {
 
     static var recipes: [StoryRecipe] { recipesWithPackIDs.map(\.recipe) }
 
+    /// True when any relationship edge between the available entities carries
+    /// real tension — the fuel for rivalry-driven clash recipes.
+    static func hasRivalryEdge(among entities: [NarrativeWorldEntity]) -> Bool {
+        let ids = Set(entities.map(\.id))
+        return NarrativePackRegistry.relationships.contains { edge in
+            edge.tension >= 2 && ids.contains(edge.sourceEntityID) && ids.contains(edge.targetEntityID)
+        }
+    }
+
     static func recipeIsValid(_ recipe: StoryRecipe) -> Bool {
         guard !recipe.id.isEmpty, !recipe.name.isEmpty, recipe.baseWeight > 0,
               !recipe.premiseTemplate.isEmpty, !recipe.beats.isEmpty, !recipe.turns.isEmpty else { return false }
@@ -4925,6 +5324,8 @@ enum StoryFormRegistry {
         dayID: String,
         slot: String,
         recipe: StoryRecipe? = nil,
+        recipeBoosts: [String: Int] = [:],
+        sceneBiases: [String: Int] = [:],
         now: Date = Date()
     ) -> (form: StoryForm, genre: StoryGenre) {
         let allForms = forms
@@ -4938,6 +5339,22 @@ enum StoryFormRegistry {
             return 0
         }
 
+        func normalized(_ value: String) -> String? {
+            let clean = StoryConsequenceCondition.key(value)
+            return clean.isEmpty ? nil : clean
+        }
+
+        func biasScore(keys: [String], cap: Int) -> Int {
+            guard !sceneBiases.isEmpty, !keys.isEmpty else { return 0 }
+            let normalizedKeys = Set(keys.compactMap(normalized))
+            guard !normalizedKeys.isEmpty else { return 0 }
+            let score = sceneBiases.reduce(0) { total, entry in
+                guard let key = normalized(entry.key), normalizedKeys.contains(key) else { return total }
+                return total + entry.value
+            }
+            return max(-cap, min(cap, score))
+        }
+
         let chapterGenreBias: [String: String] = [
             "duskthorn": "gentle-horror",
             "tidecrest": "serial-adventure",
@@ -4948,12 +5365,23 @@ enum StoryFormRegistry {
 
         let scoredGenres = allGenres.map { genre -> (StoryGenre, Int) in
             var score = tags.intersection(Set(genre.moodTags)).count * 4
+            // Clash genres carry drama's darker register; they only surface when
+            // the chosen recipe explicitly asks for one, keeping them off cozy pages.
+            if genre.moodTags.contains("clash") && recipe?.preferredGenreIDs.contains(genre.id) != true {
+                score -= 100
+            }
             if let chapterID = ascendantChapterID, chapterGenreBias[chapterID] == genre.id {
                 score += 3
             }
             score -= recencyPenalty("genre:\(genre.id)")
             if recipe?.preferredGenreIDs.contains(genre.id) == true { score += 7 }
             if recipe?.excludedGenreIDs.contains(genre.id) == true { score -= 100 }
+            score += biasScore(keys: [genre.id] + genre.moodTags, cap: 8)
+            for (recipeID, boost) in recipeBoosts where boost > 0 {
+                if StoryFormRegistry.recipes.first(where: { $0.id == recipeID })?.preferredGenreIDs.contains(genre.id) == true {
+                    score += min(boost, 8)
+                }
+            }
             score += abs("\(dayID)-\(slot)-\(genre.id)-genre".stableHash % 5)
             return (genre, score)
         }
@@ -4964,6 +5392,12 @@ enum StoryFormRegistry {
             score -= recencyPenalty("form:\(form.id)")
             if recipe?.preferredFormIDs.contains(form.id) == true { score += 7 }
             if recipe?.excludedFormIDs.contains(form.id) == true { score -= 100 }
+            score += biasScore(keys: [form.id, form.name], cap: 8)
+            for (recipeID, boost) in recipeBoosts where boost > 0 {
+                if StoryFormRegistry.recipes.first(where: { $0.id == recipeID })?.preferredFormIDs.contains(form.id) == true {
+                    score += min(boost, 8)
+                }
+            }
             // The Nocturne belongs to the night.
             let hour = Calendar.current.component(.hour, from: now)
             if form.id == "nocturne" {
@@ -5295,18 +5729,25 @@ enum ArcKeeper {
             }
         }
         guard let (threadID, count) = counts.max(by: { $0.value == $1.value ? $0.key > $1.key : $0.value < $1.value }),
-              count >= promotionEventThreshold,
-              let thread = NarrativePackRegistry.threads.first(where: { $0.id == threadID }) else {
+              count >= promotionEventThreshold else {
+            return (nil, nil)
+        }
+        let title: String
+        if let thread = NarrativePackRegistry.threads.first(where: { $0.id == threadID }) {
+            title = thread.title
+        } else if let organicTitle = OrganicStoryThreadSynthesizer.title(forOrganicThreadID: threadID) {
+            title = organicTitle
+        } else {
             return (nil, nil)
         }
         let arc = StoryArc(
             threadID: threadID,
-            title: thread.title,
+            title: title,
             phase: .rising,
             startedAt: now,
             phaseAdvancedAt: now
         )
-        return (arc, "A story is rising in the Stacks: \u{201C}\(thread.title)\u{201D} has become the current arc.")
+        return (arc, "A story is rising in the Stacks: \u{201C}\(title)\u{201D} has become the current arc.")
     }
 
     static func directive(for phase: StoryThreadPhase) -> String {

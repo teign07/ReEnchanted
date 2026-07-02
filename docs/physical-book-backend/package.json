@@ -1,0 +1,15 @@
+{
+  "name": "reenchanted-physical-book-backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check lulu-quote-worker.mjs",
+    "test:preview": "node test-order-preview.mjs",
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

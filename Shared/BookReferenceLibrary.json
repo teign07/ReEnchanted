@@ -4532,6 +4532,77 @@
         "home",
         "illustration"
       ]
+    },
+    {
+      "id": "professor-thaddeus-mook",
+      "characterName": "Professor Thaddeus Mook",
+      "slug": "professor-thaddeus-mook",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "Professor of Lexical Diversity; elderly and imperious, caught mid-decree with one finger raised; wild grey hair, half-moon spectacles, a red editor's pen behind one ear; heavy oxblood-and-ink academic robes with brass buttons and a LEX ORDO VERITAS medallion",
+      "signature": "the chained, padlocked 21-volume Unabridged Dictionary open on a lectern, beside a wax-sealed canister marked Official Definitions",
+      "palette": "oxblood red, tarnished brass, ink black",
+      "silhouette": "tall, stiff, upright; one finger raised in decree, the other hand pressed flat on the open Dictionary",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "cartoonish styling, modern dress, saturated color, cuteness, glossy digital fantasy rendering",
+      "assetName": "LabyrinthCharacterMook",
+      "intendedAssetName": "LabyrinthCharacterMook",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Professor Thaddeus Mook. Canon visual profile: Professor of Lexical Diversity; elderly and imperious, caught mid-decree with one finger raised; wild grey hair, half-moon spectacles, a red editor's pen behind one ear; heavy oxblood-and-ink academic robes with brass buttons and a LEX ORDO VERITAS medallion. Signature object: the chained, padlocked 21-volume Unabridged Dictionary open on a lectern, beside a wax-sealed canister marked Official Definitions. Palette: oxblood red, tarnished brass, ink black. Silhouette and pose: tall, stiff, upright; one finger raised in decree, the other hand pressed flat on the open Dictionary. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Professor Thaddeus Mook, File No. LD-7; signature evidence: the chained 21-volume Unabridged Dictionary and a sealed canister of Official Definitions; order motto: LEX ORDO VERITAS - all words shall know their station; a Spelling Bee, Order Division, first-place ribbon awarded for Superior Correction of Others; palette swatches: oxblood red, tarnished brass, ink black; chapter mark: Riddlewind; his line: A word is not yours to do with as you please. It is yours to use as you must.. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern office portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: cartoonish styling, modern dress, saturated color, cuteness, glossy digital fantasy rendering",
+      "marginalia": [
+        "file tab labeled Professor Thaddeus Mook, File No. LD-7",
+        "signature evidence: the chained 21-volume Unabridged Dictionary and a sealed canister of Official Definitions",
+        "order motto: LEX ORDO VERITAS - all words shall know their station",
+        "a Spelling Bee, Order Division, first-place ribbon awarded for Superior Correction of Others",
+        "palette swatches: oxblood red, tarnished brass, ink black",
+        "chapter mark: Riddlewind",
+        "his line: A word is not yours to do with as you please. It is yours to use as you must."
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "riddlewind",
+        "professor-thaddeus-mook",
+        "illustration",
+        "dictionary-rebellion",
+        "back-to-school"
+      ]
+    },
+    {
+      "id": "pippa-pilcrow",
+      "characterName": "Pippa Pilcrow",
+      "slug": "pippa-pilcrow",
+      "status": "canonical",
+      "chapter": "Riddlewind",
+      "core": "The Punctuation Pixie; a laughing fae sprite mid-flight with wild dark hair, pointed ears and freckles, tattered red-brown fae clothes and striped stockings; wings cut from torn marginalia, ink-stained fingertips, a glowing interrobang pendant at her throat",
+      "signature": "a giant interrobang she rides like a broom, trailing a comet-swarm of runaway commas and question marks",
+      "palette": "correction-mark red, ink black, a flick of gold",
+      "silhouette": "small and weightless, mid-giggle in flight, one hand gripping the interrobang broom",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "Disney-cute styling, saccharine symmetry, static poses, glossy digital rendering, modern dress",
+      "assetName": "LabyrinthCharacterPilcrow",
+      "intendedAssetName": "LabyrinthCharacterPilcrow",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the uploaded reference style: antique parchment collage, central sparse graphite-and-ink portrait, delicate crosshatching, warm sepia paper, transparent watercolor washes, restrained shadows, and small pops of jewel-like color from the character palette. Build the margins from character-specific scraps: taped field notes, an academy stamp, small compass marks, symbolic marginalia, handwritten annotations, weathered edges, subtle ink stains, and a miniature inset portrait or evidence scrap. Character: Pippa Pilcrow. Canon visual profile: The Punctuation Pixie; a laughing fae sprite mid-flight with wild dark hair, pointed ears and freckles, tattered red-brown fae clothes and striped stockings; wings cut from torn marginalia, ink-stained fingertips, a glowing interrobang pendant at her throat. Signature object: a giant interrobang she rides like a broom, trailing a comet-swarm of runaway commas and question marks. Palette: correction-mark red, ink black, a flick of gold. Silhouette and pose: small and weightless, mid-giggle in flight, one hand gripping the interrobang broom. Continuity rule: Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.. Marginalia should reference: file tab labeled Pippa Pilcrow, alias the Punctuation Pixie, File No. LD-44; signature evidence: an interrobang ridden like a broom and wings made of torn marginalia; chaos pole opposite Professor Mook: delight, curiosity, possibility, run-ons; a Spelling Bee, Disruption Division, first-place ribbon for creativity, disruption, joy, and run-on bravery; palette swatches: correction-mark red, ink black, a flick of gold; chapter mark: Riddlewind; Mook's line: When Pippa visits, silence becomes optional, and words get to stretch their legs.. Keep the character as the first read, with the academy-file scraps supporting the portrait.",
+      "negativePrompt": "Do not make a generic fantasy pinup, shiny digital concept art, glossy anime, plastic skin, photo-real celebrity likeness, modern portrait, cluttered room-first scene, illegible face, heavy oil paint, neon glow, thick airbrush rendering, overfull collage, or inconsistent signature object. Avoid: Disney-cute styling, saccharine symmetry, static poses, glossy digital rendering, modern dress",
+      "marginalia": [
+        "file tab labeled Pippa Pilcrow, alias the Punctuation Pixie, File No. LD-44",
+        "signature evidence: an interrobang ridden like a broom and wings made of torn marginalia",
+        "chaos pole opposite Professor Mook: delight, curiosity, possibility, run-ons",
+        "a Spelling Bee, Disruption Division, first-place ribbon for creativity, disruption, joy, and run-on bravery",
+        "palette swatches: correction-mark red, ink black, a flick of gold",
+        "chapter mark: Riddlewind",
+        "Mook's line: When Pippa visits, silence becomes optional, and words get to stretch their legs."
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "riddlewind",
+        "pippa-pilcrow",
+        "illustration",
+        "dictionary-rebellion",
+        "back-to-school",
+        "fae"
+      ]
     }
   ]
 }

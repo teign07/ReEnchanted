@@ -1077,13 +1077,17 @@ enum BookForewordWriter {
 // graphics framework. The app layer (`MonthlyEditionPDFWriter`) turns these
 // numbers into an interior PDF and a cover wrap.
 //
-// NOTE: `caliperPerPageInches`, `minimumPages`, and `luluPackageID` are sane
-// defaults that MUST be verified against the print partner's current spec
-// sheet before a production order. The interior file is the real deliverable;
-// the cover wrap we generate is a faithful draft — the authoritative cover
-// dimensions come from the partner's per-page-count template at order time.
+// NOTE: `caliperPerPageInches` and cover wrap math remain draft geometry until
+// confirmed against Lulu's per-page-count template API at order time. The SKU,
+// page limits, and raw manufacturing prices below come from Lulu's current spec
+// sheet (new SKU format dated March 31, 2026).
 
 struct PrintSpec: Equatable {
+    enum CoverTreatment: Codable, Equatable {
+        case linenWrap
+        case caseWrap
+    }
+
     /// Human label, e.g. "6 × 9 Hardcover, cloth & foil".
     var name: String
     /// Finished (trimmed) page size, in inches.
@@ -1101,8 +1105,14 @@ struct PrintSpec: Equatable {
     var minimumPages: Int
     /// Hardcase wrap / fold-around allowance on every cover edge.
     var coverWrapMarginInches: Double
+    /// How the cover artwork should be interpreted by the print partner.
+    var coverTreatment: CoverTreatment
     /// The partner's product code (Lulu `pod_package_id`); verify before order.
     var luluPackageID: String
+    /// Raw Lulu manufacturing base price, before shipping/tax/fees/margin.
+    var basePriceUSD: Decimal
+    /// Raw Lulu manufacturing per-page price, before shipping/tax/fees/margin.
+    var perPagePriceUSD: Decimal
 
     static let pointsPerInch: Double = 72
 
@@ -1118,10 +1128,9 @@ struct PrintSpec: Equatable {
         return (top: edge, left: inner, bottom: edge, right: edge)
     }
 
-    /// The default keepsake: a classic 6×9 trade hardcover, cloth with a
-    /// foil-stamped spine — the format the edition's "Chapter N" spine copy
-    /// was always written for.
-    static let hardcover6x9 = PrintSpec(
+    /// The cloth keepsake: a classic 6×9 trade hardcover, navy linen with gold
+    /// foil — the format the edition's "Chapter N" spine copy was written for.
+    static let clothFoilHardcover6x9 = PrintSpec(
         name: "6 × 9 Hardcover, cloth & foil",
         trimWidthInches: 6.0,
         trimHeightInches: 9.0,
@@ -1131,8 +1140,32 @@ struct PrintSpec: Equatable {
         caliperPerPageInches: 0.0032,
         minimumPages: 24,
         coverWrapMarginInches: 0.75,
-        luluPackageID: "0600X0900FCSTDLW060UW444GXX"
+        coverTreatment: .linenWrap,
+        luluPackageID: "0600X0900.FC.STD.LW.060UW444.MNG",
+        basePriceUSD: 14.41,
+        perPagePriceUSD: 0.0425
     )
+
+    /// The illustrated keepsake: the same 6×9 full-color block with a printed
+    /// matte case-wrap cover, so generated front/spine/back artwork survives.
+    static let illustratedHardcover6x9 = PrintSpec(
+        name: "6 × 9 Hardcover, illustrated cover",
+        trimWidthInches: 6.0,
+        trimHeightInches: 9.0,
+        bleedInches: 0.125,
+        safeMarginInches: 0.5,
+        gutterInches: 0.25,
+        caliperPerPageInches: 0.0032,
+        minimumPages: 24,
+        coverWrapMarginInches: 0.75,
+        coverTreatment: .caseWrap,
+        luluPackageID: "0600X0900.FC.STD.CW.060UW444.MXX",
+        basePriceUSD: 10.26,
+        perPagePriceUSD: 0.0425
+    )
+
+    static let hardcover6x9 = clothFoilHardcover6x9
+    static let bookOfYouVariants = [clothFoilHardcover6x9, illustratedHardcover6x9]
 }
 
 /// The arithmetic that turns a page count into a bound object: how many leaves

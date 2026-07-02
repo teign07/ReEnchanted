@@ -99,6 +99,7 @@ struct CustomCastMemberSheet: View {
                 Task { await loadPhoto(from: newValue) }
             }
             #endif
+            .keepsFocusedTextInputVisible()
         }
     }
 

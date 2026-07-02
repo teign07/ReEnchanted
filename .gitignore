@@ -13,6 +13,7 @@ tmp/
 # Node / Remotion
 node_modules/
 RemotionPromo/out/
+.dev.vars
 
 .claude/settings.local.json
 *.xcuserstate

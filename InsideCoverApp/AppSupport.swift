@@ -330,6 +330,191 @@ enum BookFeedback {
     }
 }
 
+struct LivingInkBurst: View {
+    enum Mood {
+        case kept
+        case sentence
+        case belief
+
+        var palette: [Color] {
+            switch self {
+            case .kept:
+                return [BookPalette.lampGold, BookPalette.teal, BookPalette.violet, BookPalette.paper]
+            case .sentence:
+                return [BookPalette.teal, BookPalette.lampGold, BookPalette.gold]
+            case .belief:
+                return [BookPalette.lampGold, BookPalette.gold, BookPalette.teal]
+            }
+        }
+
+        var drift: CGSize {
+            switch self {
+            case .kept: return CGSize(width: 22, height: -56)
+            case .sentence: return CGSize(width: 0, height: -42)
+            case .belief: return CGSize(width: 0, height: -24)
+            }
+        }
+    }
+
+    let trigger: Int
+    var text: String
+    var mood: Mood = .kept
+    var intensity: Double = 1
+    var isPaused = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var particles: [LivingInkParticle] = []
+    @State private var startedAt = Date.distantPast
+    @State private var isActive = false
+
+    private var duration: TimeInterval {
+        reduceMotion ? 0.42 : 1.35
+    }
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isActive || isPaused)) { timeline in
+            Canvas { context, size in
+                draw(context: &context, size: size, now: timeline.date)
+            }
+        }
+        .allowsHitTesting(false)
+        .opacity(isActive && !isPaused ? 1 : 0)
+        .onAppear {
+            if trigger > 0 { restart() }
+        }
+        .onChange(of: trigger) { _, newValue in
+            guard newValue > 0 else { return }
+            restart()
+        }
+    }
+
+    private func restart() {
+        guard !isPaused else { return }
+        particles = LivingInkParticle.make(
+            seed: UInt64(max(trigger, 1)),
+            text: text,
+            mood: mood,
+            intensity: intensity
+        )
+        startedAt = Date()
+        isActive = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.08) {
+            guard Date().timeIntervalSince(startedAt) >= duration else { return }
+            isActive = false
+        }
+    }
+
+    private func draw(context: inout GraphicsContext, size: CGSize, now: Date) {
+        guard isActive, size.width > 0, size.height > 0 else { return }
+        let elapsed = max(0, now.timeIntervalSince(startedAt))
+        let progress = min(1, elapsed / duration)
+        let eased = 1 - pow(1 - progress, 3)
+        let fade = reduceMotion ? sin(progress * .pi) : max(0, 1 - progress)
+        let center = CGPoint(x: size.width * 0.5, y: size.height * 0.54)
+
+        for particle in particles {
+            let delay = reduceMotion ? 0 : particle.delay
+            let local = min(1, max(0, (elapsed - delay) / max(0.1, duration - delay)))
+            guard local > 0 else { continue }
+            let localEase = 1 - pow(1 - local, 3)
+            let alpha = particle.alpha * max(0, 1 - local) * fade
+            guard alpha > 0.01 else { continue }
+
+            let spread = reduceMotion ? 0.18 : 1
+            let x = center.x + particle.start.width + (particle.velocity.width + mood.drift.width) * localEase * spread
+            let y = center.y + particle.start.height + (particle.velocity.height + mood.drift.height) * localEase * spread
+            let scale = CGFloat(reduceMotion ? 0.82 : 0.78 + 0.28 * sin(local * .pi))
+            let color = particle.color.opacity(alpha)
+
+            context.drawLayer { layer in
+                layer.addFilter(.shadow(color: particle.color.opacity(alpha * 0.55), radius: 5 * (1 - local)))
+                layer.translateBy(x: x, y: y)
+                layer.rotate(by: .radians(particle.rotation + particle.spin * eased))
+                let resolved = Text(String(particle.glyph))
+                    .font(.system(size: particle.size * scale, weight: .bold, design: .serif))
+                    .foregroundStyle(color)
+                layer.draw(resolved, at: .zero, anchor: .center)
+            }
+
+            if particle.isSpark {
+                let sparkRect = CGRect(x: x - 1.2, y: y - 1.2, width: 2.4, height: 2.4)
+                context.fill(Path(ellipseIn: sparkRect), with: .color(color))
+            }
+        }
+    }
+}
+
+private struct LivingInkParticle: Identifiable {
+    var id: Int
+    var glyph: Character
+    var color: Color
+    var start: CGSize
+    var velocity: CGSize
+    var size: CGFloat
+    var alpha: Double
+    var rotation: Double
+    var spin: Double
+    var delay: TimeInterval
+    var isSpark: Bool
+
+    static func make(seed: UInt64, text: String, mood: LivingInkBurst.Mood, intensity: Double) -> [LivingInkParticle] {
+        var rng = LivingInkRandom(seed: seed &+ UInt64(text.count * 97))
+        let cleaned = text.uppercased().filter { $0.isLetter || $0.isNumber }
+        let source = cleaned.isEmpty ? "KEPT" : String(cleaned.prefix(18))
+        let glyphs = Array(source)
+        let count = max(7, min(22, Int(Double(glyphs.count + 7) * max(0.72, min(1.2, intensity)))))
+        let colors = mood.palette
+
+        return (0..<count).map { index in
+            let fallbackGlyphs = Array("*+.")
+            let glyph = index < glyphs.count ? glyphs[index] : fallbackGlyphs[rng.int(in: 0..<fallbackGlyphs.count)]
+            let angle = rng.double(in: 0..<(Double.pi * 2))
+            let radius = rng.double(in: 4...30)
+            let speed = rng.double(in: 26...84) * max(0.74, min(1.18, intensity))
+            return LivingInkParticle(
+                id: index,
+                glyph: glyph,
+                color: colors[index % colors.count],
+                start: CGSize(width: cos(angle) * radius, height: sin(angle) * radius * 0.72),
+                velocity: CGSize(width: cos(angle) * speed, height: sin(angle) * speed),
+                size: CGFloat(rng.double(in: 8...16)),
+                alpha: rng.double(in: 0.34...0.72),
+                rotation: rng.double(in: -0.35...0.35),
+                spin: rng.double(in: -0.9...0.9),
+                delay: rng.double(in: 0...0.16),
+                isSpark: index >= glyphs.count || rng.double(in: 0...1) > 0.68
+            )
+        }
+    }
+}
+
+private struct LivingInkRandom {
+    private var state: UInt64
+
+    init(seed: UInt64) {
+        self.state = seed == 0 ? 0x9E3779B97F4A7C15 : seed
+    }
+
+    mutating func next() -> UInt64 {
+        state = state &* 6364136223846793005 &+ 1442695040888963407
+        return state
+    }
+
+    mutating func double(in range: ClosedRange<Double>) -> Double {
+        let unit = Double(next() >> 11) / Double(1 << 53)
+        return range.lowerBound + (range.upperBound - range.lowerBound) * unit
+    }
+
+    mutating func double(in range: Range<Double>) -> Double {
+        let unit = Double(next() >> 11) / Double(1 << 53)
+        return range.lowerBound + (range.upperBound - range.lowerBound) * unit
+    }
+
+    mutating func int(in range: Range<Int>) -> Int {
+        range.lowerBound + Int(next() % UInt64(range.upperBound - range.lowerBound))
+    }
+}
+
 private final class BookHapticEngine {
     static let shared = BookHapticEngine()
 
@@ -1507,6 +1692,142 @@ struct LocalBrainGenerationProgressSnapshot {
     var tokensPerSecond: Double?
     var isFinal: Bool
 }
+
+extension View {
+    func keepsFocusedTextInputVisible() -> some View {
+        modifier(FocusedTextInputVisibilityModifier())
+    }
+}
+
+#if canImport(UIKit)
+private weak var focusedTextInputCurrentResponder: UIResponder?
+
+private struct FocusedTextInputVisibilityModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
+                adjustFocusedInput(for: notification)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
+                adjustFocusedInput(for: notification)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UITextField.textDidBeginEditingNotification)) { _ in
+                adjustFocusedInputSoon()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UITextView.textDidBeginEditingNotification)) { _ in
+                adjustFocusedInputSoon()
+            }
+    }
+
+    private func adjustFocusedInput(for notification: Notification) {
+        guard let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
+            adjustFocusedInputSoon()
+            return
+        }
+
+        let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
+        let curve = notification.userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? UInt ?? 0
+        let options = UIView.AnimationOptions(rawValue: curve << 16)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
+            UIView.reenchantedScrollFirstResponderIntoView(
+                keyboardFrame: keyboardFrame,
+                duration: duration,
+                options: options
+            )
+        }
+    }
+
+    private func adjustFocusedInputSoon() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            UIView.reenchantedScrollFirstResponderIntoView(
+                keyboardFrame: nil,
+                duration: 0.22,
+                options: [.curveEaseOut]
+            )
+        }
+    }
+}
+
+private extension UIResponder {
+    @objc func reenchantedCaptureFirstResponder() {
+        focusedTextInputCurrentResponder = self
+    }
+
+    static func reenchantedCurrentFirstResponder() -> UIResponder? {
+        focusedTextInputCurrentResponder = nil
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.reenchantedCaptureFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+        return focusedTextInputCurrentResponder
+    }
+}
+
+private extension UIView {
+    static func reenchantedScrollFirstResponderIntoView(
+        keyboardFrame: CGRect?,
+        duration: TimeInterval,
+        options: UIView.AnimationOptions
+    ) {
+        guard let responder = UIResponder.reenchantedCurrentFirstResponder() as? UIView,
+              let window = responder.window,
+              let scrollView = responder.reenchantedOuterScrollView else { return }
+
+        let targetRect = scrollView
+            .convert(responder.bounds, from: responder)
+            .insetBy(dx: -8, dy: -14)
+        var visibleRect = scrollView.bounds
+
+        if let keyboardFrame {
+            let keyboardInWindow = window.convert(keyboardFrame, from: nil)
+            let keyboardInScrollView = scrollView.convert(keyboardInWindow, from: window)
+            if keyboardInScrollView.minY < visibleRect.maxY {
+                visibleRect.size.height = max(44, keyboardInScrollView.minY - visibleRect.minY - 18)
+            }
+        }
+
+        guard !visibleRect.contains(targetRect) else { return }
+
+        var offset = scrollView.contentOffset
+        if targetRect.maxY > visibleRect.maxY {
+            offset.y += targetRect.maxY - visibleRect.maxY
+        }
+        if targetRect.minY < visibleRect.minY {
+            offset.y -= visibleRect.minY - targetRect.minY
+        }
+
+        let insets = scrollView.adjustedContentInset
+        let minY = -insets.top
+        let maxY = max(
+            minY,
+            scrollView.contentSize.height - visibleRect.height + insets.bottom
+        )
+        offset.y = min(max(offset.y, minY), maxY)
+
+        UIView.animate(withDuration: duration, delay: 0, options: options) {
+            scrollView.setContentOffset(offset, animated: false)
+        }
+    }
+
+    var reenchantedOuterScrollView: UIScrollView? {
+        var candidate = superview
+        while let view = candidate {
+            if let scrollView = view as? UIScrollView {
+                return scrollView
+            }
+            candidate = view.superview
+        }
+        return self as? UIScrollView
+    }
+}
+#else
+private struct FocusedTextInputVisibilityModifier: ViewModifier {
+    func body(content: Content) -> some View { content }
+}
+#endif
 
 enum AppMemoryLedger {
     static func record(_ checkpoint: String) {

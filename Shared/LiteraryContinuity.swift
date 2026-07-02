@@ -158,6 +158,21 @@ enum BraidPromptBuilder {
             learnedSection = ""
         }
 
+        let clashSection: String
+        if day.capturedPages.contains(where: { $0.tags.contains("clash") }) {
+            clashSection = """
+
+
+            WHERE BELIEF WAS TESTED:
+            - Today holds a clash page: the reader defended something against being made generic. Unless a lived page holds something even more personally true, let the clash be the braid's "Until" - the turn of the day.
+            - Name what was protected in concrete words. Never recap it as a battle report; never quote rolls, numbers, or mechanics.
+            - Frame the outcome by its digest: a bright success is restored agency; a costly success is saved-but-not-easy; a complication is unfinished business the Book keeps warm; standing down is wisdom - a lamp saved for tomorrow. Never shame a retreat.
+            - Leave one clause of residue open (a title still missing, a seal still warm, a word the grey now knows you defend) so tomorrow's pages have something to pick up.
+            """
+        } else {
+            clashSection = ""
+        }
+
         return """
         You are the Book inside ReEnchanted.
         Braid the player's kept pages into one grounded Book of You entry: a small story about this day. The Book of You is one continuing book, not a stack of unrelated entries.
@@ -178,12 +193,12 @@ enum BraidPromptBuilder {
         - Let that final line loop back to the spine: carry one concrete thing from how the day began into how it is kept, so the page closes the circle it opened.
         - On a phone, the braid should feel like a full page of the Book without becoming a scroll chore.
 
-        PROVENANCE GRAVITY:
-        - Treat reader-authored and imported real-world pages as anchor threads. One-Sentence Souvenirs are especially strong spine candidates because they are the reader choosing one true line.
-        - Treat generated or simulated story pages as color threads: let them tint metaphors, motifs, cast pressure, and fairy-tale logic, but do not let them overrule what the reader actually wrote or what an imported real-world source says.
-        - If a generated page carries a reader reply, upgraded choice, or user-edited line, treat that response as reader-endorsed fiction: stronger than ordinary generated color, still lighter than a real souvenir or direct user-authored page.
-        - When anchor and color threads conflict, the anchor wins. Let the fiction bleed into the real without drowning it.
-        - Build the spine from anchor threads first, then weave color threads around it so the day feels half true record, half spell.
+        TWO SHELVES:
+        - Each kept page names its shelf. Lived pages are the reader's own record: souvenirs, fuel and body logs, inner weather, playful missions, photos, imported real-world signals. Fiction pages are the Book's side of the day: letters, Story Page scenes and decisions, fae bargains and parleys, classes, gossip.
+        - Build the braid from both shelves in roughly equal measure: about half the page from what the reader lived, about half from what the story did with it. Never let either shelf drown the other.
+        - One-Sentence Souvenirs remain the strongest single spine candidates, because they are the reader choosing one true line.
+        - A fiction page where the reader made a real decision - a chosen Story Page path, a paid bargain, an answered parley - is reader-endorsed: it may carry the spine when the day's truest turn happened there.
+        - When the shelves disagree about facts, the lived shelf wins. The fiction may color the real; it may never overwrite it.
 
         VOICE:
         - Write with varied literary cadence: some sentences should be short, plain, and surprising; others may be longer and more flowing, turning through image and thought before they land.
@@ -216,7 +231,7 @@ enum BraidPromptBuilder {
         - Prefer one fresh concrete detail over a second sentence explaining the same mood, object, weather, relationship, or threshold.
 
         KEPT PAGES FROM TODAY:
-        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(themeSection)\(chapterSection)\(learnedSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(continuity)
+        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(clashSection)\(themeSection)\(chapterSection)\(learnedSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(continuity)
         """
     }
 
@@ -278,16 +293,37 @@ enum BraidPromptBuilder {
                 let tags = page.tags.isEmpty ? "none" : page.tags.joined(separator: ", ")
                 let media = mediaEvidence(for: page)
                 let reply = clippedText(page.playerReply, limit: 260)
+                let clashDigest: String
+                if page.tags.contains("clash") {
+                    let kind = page.tags.first { $0.hasPrefix("clash:") }?.replacingOccurrences(of: "clash:", with: "") ?? "clash"
+                    let outcome = page.tags.first { $0.hasPrefix("clash-outcome:") }?.replacingOccurrences(of: "clash-outcome:", with: "") ?? "unrolled"
+                    let choice = page.tags.first { $0.hasPrefix("choice:") }?.replacingOccurrences(of: "choice:", with: "") ?? "none"
+                    clashDigest = "\nClash digest: Belief was tested (\(kind)); the reader chose the \(choice) path; outcome \(outcome)."
+                } else {
+                    clashDigest = ""
+                }
                 return """
                 \(index + 1). \(page.type.title) - kept at \(timeFormatter.string(from: page.createdAt))
+                Shelf: \(braidShelf(for: page))
                 Thread gravity: \(threadGravity(for: page))
                 Prompt: \(prompt.isEmpty ? "none" : prompt)
                 Kept text: \(text.isEmpty ? "(blank)" : text)
                 Reader reply: \(reply.isEmpty ? "none" : reply)
                 Visual evidence: \(media.isEmpty ? "none" : media)
-                Tags: \(tags)
+                Tags: \(tags)\(clashDigest)
                 """
             }
+    }
+
+    /// Which shelf a kept page sits on: the reader's own record, or the Book's
+    /// fiction. Deterministic so the braid never has to guess provenance.
+    static func braidShelf(for page: BookPage) -> String {
+        switch page.origin {
+        case .userAuthored, .imported:
+            return "lived"
+        case .generated, .simulated:
+            return "fiction"
+        }
     }
 
     private static func threadGravity(for page: BookPage) -> String {
@@ -302,9 +338,9 @@ enum BraidPromptBuilder {
             return "imported real-world anchor; high gravity"
         case .generated, .simulated:
             if hasReaderReply {
-                return "reader-endorsed fiction; medium gravity"
+                return "reader-endorsed fiction; high gravity - the reader made a real decision here"
             }
-            return "generated fiction color; lower gravity"
+            return "generated fiction color; medium gravity"
         }
     }
 

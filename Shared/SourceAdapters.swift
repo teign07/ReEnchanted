@@ -34,6 +34,13 @@ struct BookSourceInputs: Equatable {
     var nearbyPlaces: [LocalPlaceSignal] = []
     var resurfacingCandidates: [BookPage] = []
     var quietDays: Int = 0
+    var nothingGreyOffset: Int = 0
+    var storyRecipeBoosts: [String: Int] = [:]
+    var storyMotifs: [String: Int] = [:]
+    var storyRituals: [String: Int] = [:]
+    var storySettingAffinities: [String: Int] = [:]
+    var storySceneBiases: [String: Int] = [:]
+    var bookNoticeEvidence: Int = 0
     var currentArc: StoryArc?
     var recentNarrativeEvents: [NarrativeEvent] = []
     var continuity: LiteraryContinuityDigest = .empty
@@ -237,23 +244,38 @@ enum StoryPageMechanicPlanner {
         }
 
         let seed = "\(day.id)|\(SurfaceCadence.slotID(for: now, hours: 4))|\(packet.id)|story-mechanic".stableHash
+        let isClashRecipe = packet.blueprint.flatMap { blueprint in
+            StoryFormRegistry.recipes.first { $0.id == blueprint.recipeID }
+        }?.preferredTags.contains("clash") ?? false
+        if isClashRecipe {
+            return StoryPageMechanicMandate(
+                kind: .beliefDice,
+                choiceID: choiceID(for: .beliefDice, packet: packet, seed: seed),
+                enchantmentID: nil,
+                reason: "A clash is underway; the confrontation choice carries the Belief dice."
+            )
+        }
         let roll = abs(seed) % 100
-        let eligibleKinds = eligibleKinds(for: packet, inputs: inputs)
+        var eligibleKinds = eligibleKinds(for: packet, inputs: inputs)
+        if recentlyCompletedExternalMechanic(day: day, inputs: inputs, now: now) {
+            eligibleKinds.removeAll { $0 == .compassRun || $0 == .enchantment }
+        }
         guard !eligibleKinds.isEmpty else { return .none }
 
         let desiredKind: StoryPageMechanicMandateKind
-        switch roll {
-        case 0..<76:
+        let pacing = mechanicPacing()
+        if roll < pacing.noneBelow {
             return .none
-        case 76..<86:
+        } else if roll < pacing.beliefBelow {
             desiredKind = .beliefDice
-        case 86..<93:
+        } else if roll < pacing.compassBelow {
             desiredKind = .compassRun
-        default:
+        } else {
             desiredKind = .enchantment
         }
 
-        let kind = eligibleKinds.contains(desiredKind) ? desiredKind : eligibleKinds[abs(seed / 100) % eligibleKinds.count]
+        guard eligibleKinds.contains(desiredKind) else { return .none }
+        let kind = desiredKind
         let choiceID = choiceID(for: kind, packet: packet, seed: seed)
         let enchantmentID = kind == .enchantment ? enchantmentID(for: packet, seed: seed) : nil
         return StoryPageMechanicMandate(
@@ -270,14 +292,7 @@ enum StoryPageMechanicPlanner {
         if recentPages.first?.tags.contains(where: { $0.hasPrefix("story-mechanic") }) == true {
             return false
         }
-        let externalCount = recentPages
-            .prefix(5)
-            .filter { page in
-                page.tags.contains("story-mechanic:compass-run") ||
-                page.tags.contains("story-mechanic:enchantment")
-            }
-            .count
-        return externalCount == 0
+        return true
     }
 
     private static func recentStoryPages(day: BookDay, inputs: BookSourceInputs, now: Date, within seconds: TimeInterval) -> [BookPage] {
@@ -305,6 +320,37 @@ enum StoryPageMechanicPlanner {
             kinds.append(.enchantment)
         }
         return kinds
+    }
+
+    private static func recentlyCompletedExternalMechanic(day: BookDay, inputs: BookSourceInputs, now: Date) -> Bool {
+        recentStoryPages(day: day, inputs: inputs, now: now, within: 5 * 86_400)
+            .prefix(5)
+            .contains { page in
+                storyMechanicTags(for: page).contains("compass-run") ||
+                    storyMechanicTags(for: page).contains("enchantment")
+            }
+    }
+
+    private static func storyMechanicTags(for page: BookPage) -> Set<String> {
+        let tags = Set(page.tags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
+        var mechanics = Set<String>()
+        if tags.contains("story-mechanic:compass-run") || (tags.contains("story-mechanic") && tags.contains("compass-run")) {
+            mechanics.insert("compass-run")
+        }
+        if tags.contains("story-mechanic:enchantment") || (tags.contains("story-mechanic") && tags.contains("enchantment")) {
+            mechanics.insert("enchantment")
+        }
+        if tags.contains("story-mechanic:belief-dice") || (tags.contains("story-mechanic") && tags.contains("belief-dice")) {
+            mechanics.insert("belief-dice")
+        }
+        return mechanics
+    }
+
+    private static func mechanicPacing() -> (noneBelow: Int, beliefBelow: Int, compassBelow: Int) {
+        // Belief Dice are the fun, low-friction default Story Page mechanic:
+        // just under half of eligible pages. Compass Runs and Enchantments are
+        // rarer bridges into real-world proof.
+        return (45, 89, 95)
     }
 
     private static func choiceID(for kind: StoryPageMechanicMandateKind, packet: StoryScenePacket, seed: Int) -> StoryPageMechanicChoiceID {
@@ -1044,7 +1090,8 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         let strongestSignal = max(selected.map(\.strength).max() ?? 0, selectedClusters.map(\.strength).max() ?? 0)
         let signalBonus = strongestSignal / 4
         let countBonus = selected.count * 4 + selectedClusters.count * 6
-        let score = min(72, 44 + signalBonus + countBonus)
+        let evidenceBonus = min(12, inputs.bookNoticeEvidence * 2)
+        let score = min(78, 44 + signalBonus + countBonus + evidenceBonus)
         let detail = (selectedClusters.map(\.line) + selected.map(\.line)).prefix(2).joined(separator: " ")
         return [
             SurfacePage(
@@ -1066,6 +1113,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
                         "motifClusters": selectedClusters.map(\.promptLine).joined(separator: "\n"),
                         "evidencePageIDs": evidence,
                         "strongestSignalID": lead?.id ?? selectedClusters.first?.id ?? "",
+                        "bookNoticeEvidence": "\(inputs.bookNoticeEvidence)",
                         "tags": tags.joined(separator: ",")
                     ]
                 )
@@ -3628,6 +3676,7 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
         let mechanicMandate = StoryPageMechanicPlanner.mandate(for: day, inputs: inputs, packet: packet, now: now)
         let choiceRoles = packet.choices.map { $0.role.title }.joined(separator: " | ")
         let selectedThreads = packet.selectedThreads.map(\.title).joined(separator: ", ")
+        let selectedThreadIDs = packet.selectedThreads.map(\.id).joined(separator: ",")
         let selectedEntities = packet.selectedEntities.map(\.name).joined(separator: ", ")
         let storySetting = packet.selectedEntities.first { $0.kind == .location }
         let storySettingDetail = storySetting.map { setting in
@@ -3656,6 +3705,9 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
             "bookGlow": packet.bookGlow,
             "playerBelief": "\(packet.playerBelief)",
             "choiceRoles": choiceRoles,
+            "storyThreadDisplayTitle": packet.playableThreadTitle,
+            "storyThreadUnderlyingTitles": selectedThreads,
+            "storyThreadUnderlyingIDs": selectedThreadIDs,
             "selectedThreads": selectedThreads,
             "selectedEntities": selectedEntities,
             "selectedEntityIDs": packet.selectedEntities.map(\.id).joined(separator: ","),
@@ -3668,6 +3720,8 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
             "storyGenreID": packet.storyGenreID ?? "",
             "storyGenreName": packet.storyGenreName ?? "",
             "storyGenreLens": packet.storyGenreLens ?? "",
+            "storyGenreExemplar": packet.storyGenreExemplar ?? "",
+            "storyGenrePalette": (packet.storyGenrePalette ?? []).joined(separator: " | "),
             "storyPromiseSeed": packet.promise?.seed ?? "",
             "storyPromiseQuestion": packet.promise?.question ?? "",
             "storyRecipeID": packet.blueprint?.recipeID ?? "",
@@ -3687,7 +3741,7 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
             "storyRecipeToneDirective": packet.blueprint?.toneDirective ?? "",
             "storyRecipeChoiceDirective": packet.blueprint?.choiceDirective ?? "",
             "storyRecipeContinuationDirective": packet.blueprint?.continuationDirective ?? "",
-            "selectedThreadIDs": packet.selectedThreads.map(\.id).joined(separator: ","),
+            "selectedThreadIDs": selectedThreadIDs,
             "selectedRelationships": selectedRelationships,
             "entityMemories": selectedEntityMemories,
             "realSignals": packet.realSignals.joined(separator: "\n"),
@@ -3697,10 +3751,28 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
             "uses": "characters, locations, belief, relationship graph, story threads",
             "cadence": "four-hour simulation"
         ]
+        if packet.blueprint?.recipeID == "souvenir-door",
+           let grounding = packet.blueprint?.grounding {
+            let sparkSentence = grounding.text
+                .replacingOccurrences(of: "Story Spark from One-Sentence Souvenir: ", with: "")
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            metadata["storySparkSourcePageID"] = grounding.sourceID
+            metadata["storySparkSentence"] = sparkSentence
+            metadata["tags"] = [
+                metadata["tags"],
+                "story-spark",
+                "story-spark-source:\(grounding.sourceID)",
+                "story-spark-recipe",
+                "souvenir-door"
+            ]
+            .compactMap { $0?.nonEmpty }
+            .joined(separator: ",")
+        }
         metadata.merge(mechanicMandate.metadata) { _, new in new }
         if let turn = packet.turn {
             metadata.merge(turn.metadata) { _, new in new }
         }
+        let isStorySpark = packet.blueprint?.recipeID == "souvenir-door"
         return SurfacePage(
             id: "\(source.id)-\(packet.id)",
             type: .narrativeOS,
@@ -3708,12 +3780,16 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
             intent: .simulate,
             renderStyle: .graphEvent,
             score: day.capturedPages.count >= 2 ? 86 : 68,
-            reason: "The story field has enough weight for characters, beliefs, and threads to move.",
-            prompt: "The Story Page is stirring.",
+            reason: isStorySpark
+                ? "A kept Souvenir sentence has enough image to open a small door."
+                : "The story field has enough weight for characters, beliefs, and threads to move.",
+            prompt: isStorySpark ? "Let this sentence open a door?" : "The Story Page is stirring.",
             detail: packet.turn.map { "\($0.character) wants \($0.want); \($0.obstacle)." } ?? packet.directorIntent,
             payload: BookPagePayload(
                 headline: packet.title,
-                body: "A page is gathering around the day’s strongest thread. The first lines are still drying in the margin.",
+                body: isStorySpark
+                    ? "The Book pauses over one kept sentence. The first lines are damp at the corners."
+                    : "A page is gathering around a playable turn in the day. The deeper threads keep their ink under the floorboards.",
                 metadata: metadata
             )
         )
@@ -4867,6 +4943,8 @@ struct BookFaePageSourceAdapter: BookPageSourceAdapter {
                         "entityMemories": "The \(kind.name) remembers Warmth \(warmth), Claim \(claim), and whether the reader chooses courtesy, old law, or a sideways door.",
                         "storyGenreName": "Old Faerie Parley",
                         "storyGenreLens": "Traditional faerie manners: courtesy, exact wording, beautiful danger, loopholes, gifts with edges, and no cruelty for sport.",
+                        "storyGenreExemplar": "\"You kept a morning I wanted,\" the visitor said, turning a page it could not touch. \"Name your price for it.\" Its courtesy was exact, the way frost is exact. \"And do be precise. The last reader traded loosely, and we are collecting still.\"",
+                        "storyGenrePalette": "exact wording | a page it cannot touch | frost | the price of a kept morning | thorn | gift with an edge | old law | a debt of attention",
                         "storyChoiceSliceOfLifeTitle": "Offer Courtesy",
                         "storyChoiceSliceOfLifePrompt": "Answer with one exact ordinary detail and no performance.",
                         "storyChoiceSliceOfLifeEffect": "Warmth rises and Claim softens; courtesy makes the Fae less hungry.",

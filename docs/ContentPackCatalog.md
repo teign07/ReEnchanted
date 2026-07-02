@@ -85,8 +85,17 @@ bells — plus starters that read like diary openings on a school morning.
 [StoryEngine.swift](Shared/StoryEngine.swift:4613)**
 
 - **Story forms** — `StoryForm`, the shapes a scene can take.
-- **Genres** — `StoryGenre`.
+- **Genres** — `StoryGenre`. Beyond `lens` and `moodTags`, a genre should ship
+  an `exemplar` (a ~40–60 word model passage in the genre's register, from no
+  particular story — the local brain imitates a sample far better than it
+  follows rules) and a `palette` (concrete nouns in the genre's key, used to
+  seed scenes on days with no real signal). Both are optional for older packs.
 - **Recipes** — `StoryRecipe`, ways forms and genres combine.
+- **Clash genres** — a genre with `"clash"` in `moodTags` is recipe-gated: it
+  only surfaces when the selected recipe lists it in `preferredGenreIDs`.
+  Bundled example: The Unquiet Folio (Trickster's Duel, Grey Static,
+  Threshold Gothic) — the drama line where something precious is being made
+  generic and the reader spends Belief to keep it strange.
 
 *Pack ideas:* "The Exam," "The Field Trip," "Detention," "The New Kid."
 

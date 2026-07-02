@@ -9,15 +9,6 @@ enum SentenceBuilderStepKind: String, Codable, Equatable, CaseIterable {
     case groundGlow
 }
 
-struct SentenceBuilderStep: Identifiable, Codable, Equatable {
-    var id: String
-    var kind: SentenceBuilderStepKind
-    var title: String
-    var question: String
-    var helper: String
-    var chips: [String]
-}
-
 enum SentenceStarterSlotKind: String, Codable, Equatable, CaseIterable {
     case anchor
     case sense
@@ -349,7 +340,6 @@ struct SentenceBuilderPack: Identifiable, Equatable {
     var crossingWords: [String]
     /// Context lexicons. Additive: expansion packs ship more of these.
     var themes: [LexicalTheme] = []
-    var steps: [SentenceBuilderStep] = []
     var starterTemplates: [SentenceStarterTemplate] = []
     /// Pack metadata, mirroring the project's other JSON pack registries.
     var version: Int = 1
@@ -419,40 +409,6 @@ struct SentenceBuilderPack: Identifiable, Equatable {
             "white noise", "wool tired", "yellow hush"
         ],
         themes: SentenceBuilderPack.coreThemes,
-        steps: [
-            SentenceBuilderStep(
-                id: "anchor",
-                kind: .anchor,
-                title: "Find the object",
-                question: "What real thing remembers this best?",
-                helper: "Name one object, place, body detail, or bit of weather. One noun is enough.",
-                chips: ["glass", "door", "chair", "rain", "hands", "window", "floor", "coat"]
-            ),
-            SentenceBuilderStep(
-                id: "sense",
-                kind: .sense,
-                title: "Give it a sense",
-                question: "What did your body notice?",
-                helper: "Add a smell, sound, texture, temperature, taste, or quality of light.",
-                chips: ["cold", "warm", "tinny", "wet", "dusty", "sharp", "dim", "green"]
-            ),
-            SentenceBuilderStep(
-                id: "motion",
-                kind: .motion,
-                title: "Let it move",
-                question: "What verb makes the real thing feel alive?",
-                helper: "Let one nonhuman thing act without turning it fake.",
-                chips: ["waited", "leaned", "clicked", "held", "refused", "counted", "listened", "worried"]
-            ),
-            SentenceBuilderStep(
-                id: "crossing",
-                kind: .crossing,
-                title: "Cross the wires",
-                question: "If one sense borrowed from another, what would it become?",
-                helper: "A sound can have a color. A mood can have a texture. Keep it small.",
-                chips: ["blue sound", "paper quiet", "tin taste", "wool tired", "yellow light", "cold green"]
-            )
-        ],
         starterTemplates: SentenceBuilderPack.coreStarterTemplates
     )
 
@@ -468,32 +424,6 @@ struct SentenceBuilderPack: Identifiable, Equatable {
         sensoryWords: ["creased", "damp", "faded", "silver", "smoky", "stale"],
         animateVerbs: ["followed", "kept", "pulled", "stayed", "tugged"],
         crossingWords: ["gray taste", "coin-bright quiet", "cotton silence"],
-        steps: [
-            SentenceBuilderStep(
-                id: "souvenir-anchor",
-                kind: .anchor,
-                title: "Choose the witness",
-                question: "What small thing came back with the moment?",
-                helper: "Pick the object, mark, smell, or scrap that could prove the memory happened.",
-                chips: ["receipt", "key", "cloud", "handle", "mirror", "napkin", "curb", "pocket"]
-            ),
-            SentenceBuilderStep(
-                id: "souvenir-sense",
-                kind: .sense,
-                title: "Press the sense",
-                question: "What did it feel like before your mind named it?",
-                helper: "Let the body answer before the explanation arrives.",
-                chips: ["creased", "damp", "faded", "silver", "stale", "smoky"]
-            ),
-            SentenceBuilderStep(
-                id: "souvenir-motion",
-                kind: .motion,
-                title: "Let it keep",
-                question: "What did the thing seem to do with the memory?",
-                helper: "A souvenir does not need to speak. It can tug, stay, follow, or hold.",
-                chips: ["kept", "stayed", "followed", "pulled", "tugged"]
-            )
-        ],
         starterTemplates: SentenceBuilderPack.souvenirStarterTemplates
     )
 
@@ -511,24 +441,11 @@ struct SentenceBuilderPack: Identifiable, Equatable {
             animateVerbs: unique(animateVerbs + overlay.animateVerbs),
             crossingWords: unique(crossingWords + overlay.crossingWords),
             themes: mergedThemes(with: overlay.themes),
-            steps: mergedSteps(with: overlay.steps),
             starterTemplates: mergedStarterTemplates(with: overlay.starterTemplates),
             version: max(version, overlay.version),
             author: overlay.author.isEmpty ? author : overlay.author,
             availability: availability
         )
-    }
-
-    private func mergedSteps(with overlaySteps: [SentenceBuilderStep]) -> [SentenceBuilderStep] {
-        var merged = steps
-        for step in overlaySteps {
-            if let index = merged.firstIndex(where: { $0.kind == step.kind }) {
-                merged[index] = step
-            } else {
-                merged.append(step)
-            }
-        }
-        return merged
     }
 
     private func mergedStarterTemplates(with overlayTemplates: [SentenceStarterTemplate]) -> [SentenceStarterTemplate] {
@@ -681,7 +598,7 @@ extension SentenceBuilderPack: Codable {
     enum CodingKeys: String, CodingKey {
         case id, displayName, ritualTitle, replayPrompt, replayHelper
         case vagueWords, avoidWords, concreteWords, sensoryWords, animateVerbs
-        case crossingWords, themes, steps, starterTemplates, version, author, availability
+        case crossingWords, themes, starterTemplates, version, author, availability
     }
 
     /// Lenient decoding: every field defaults, so an upgrade pack can ship only the
@@ -700,7 +617,6 @@ extension SentenceBuilderPack: Codable {
         animateVerbs = try c.decodeIfPresent([String].self, forKey: .animateVerbs) ?? []
         crossingWords = try c.decodeIfPresent([String].self, forKey: .crossingWords) ?? []
         themes = try c.decodeIfPresent([LexicalTheme].self, forKey: .themes) ?? []
-        steps = try c.decodeIfPresent([SentenceBuilderStep].self, forKey: .steps) ?? []
         starterTemplates = try c.decodeIfPresent([SentenceStarterTemplate].self, forKey: .starterTemplates) ?? []
         version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
         author = try c.decodeIfPresent(String.self, forKey: .author) ?? "The Book"
@@ -757,11 +673,10 @@ extension SentenceBuilderPack {
     )
 
     /// The Shadow Wonder lexicon — mono no aware made playable: rust, thorn, dusk,
-    /// decay, and the worn edge. Not an entitlement-gated expansion; it is composed
-    /// in-world only while `ShadowWonder` is active (after dark, when Duskthorn is
-    /// ascendant, on hard/grey days, or in somber weather), so a normal run never
-    /// turns goblin-core by accident. It also seeds the Shadow Sentence Runner's
-    /// catchable words via `ShadowWonder.gameWords`.
+    /// decay, and the worn edge. Not an entitlement-gated expansion; the capture
+    /// sheet composes it only when `ShadowWonder.state(...).isActive`, which already
+    /// includes the Dusk Thorn belief gate. It also seeds the Shadow Sentence
+    /// Runner's catchable words via `ShadowWonder.gameWords`.
     static let shadowWonder = SentenceBuilderPack(
         id: "pack.shadow-wonder",
         displayName: "The Thornlight Index",
@@ -840,6 +755,15 @@ enum SentenceBuilderPackRegistry {
             }
     }
 
+    static func validateImport(data: Data) -> SentenceBuilderPack? {
+        guard var pack = try? JSONDecoder().decode(SentenceBuilderPack.self, from: data),
+              !pack.isEmptyImport else {
+            return nil
+        }
+        if pack.availability != "locked" { pack.availability = "userImported" }
+        return pack
+    }
+
     /// Every expansion the player is entitled to right now.
     static func enabledExpansionPacks(fileManager: FileManager = .default) -> [SentenceBuilderPack] {
         (bundledExpansionPacks + userPacks(fileManager: fileManager))
@@ -876,8 +800,11 @@ enum SentenceBuilderPackRegistry {
         return pack
     }
 
-    static func composedCore(readerLexicon: ReaderLexicon) -> SentenceBuilderPack {
-        composed(onto: .core, readerLexicon: readerLexicon)
+    static func composedCore(readerLexicon: ReaderLexicon, shadowWonderActive: Bool = false) -> SentenceBuilderPack {
+        var pack = composedCore()
+            .merged(with: readerLexicon.asSentenceBuilderPack())
+        if shadowWonderActive { pack = pack.merged(with: .shadowWonder) }
+        return pack
     }
 
     static func composedSouvenir() -> SentenceBuilderPack {
@@ -887,11 +814,25 @@ enum SentenceBuilderPackRegistry {
         return pack
     }
 
-    static func composedSouvenir(readerLexicon: ReaderLexicon) -> SentenceBuilderPack {
-        composed(onto: .core.merged(with: .souvenir), readerLexicon: readerLexicon)
+    static func composedSouvenir(readerLexicon: ReaderLexicon, shadowWonderActive: Bool = false) -> SentenceBuilderPack {
+        var pack = composedSouvenir()
+            .merged(with: readerLexicon.asSentenceBuilderPack())
+        if shadowWonderActive { pack = pack.merged(with: .shadowWonder) }
+        return pack
     }
 
     static func reload() { cache.removeAll() }
+}
+
+private extension SentenceBuilderPack {
+    var isEmptyImport: Bool {
+        concreteWords.isEmpty
+            && sensoryWords.isEmpty
+            && animateVerbs.isEmpty
+            && crossingWords.isEmpty
+            && themes.isEmpty
+            && starterTemplates.isEmpty
+    }
 }
 
 /// The grammatical job a word is doing inside a sentence.
@@ -1050,12 +991,6 @@ struct SentenceMove: Identifiable, Equatable {
     var group: String   // "ground" | "thing" | "sense" | "motion" | "cross"
 }
 
-struct SentenceBuilderNudge: Equatable {
-    var step: SentenceBuilderStep
-    var highlightedWord: String?
-    var canStandAsComplete: Bool
-}
-
 struct SentenceBuilderCraftMark: Identifiable, Equatable {
     var id: SentenceBuilderStepKind
     var title: String
@@ -1095,63 +1030,11 @@ struct SentenceBuilderAnalysis: Equatable {
     }
 }
 
-struct SentenceBuilderAlchemyLevel: Identifiable, Equatable {
-    var id: String
-    var title: String
-    var example: String
-    var isCurrent: Bool
-}
-
 struct SentenceBuilderEngine {
     var pack: SentenceBuilderPack
 
     init(pack: SentenceBuilderPack = .core) {
         self.pack = pack
-    }
-
-    func nudge(for text: String, completedKinds: Set<SentenceBuilderStepKind> = []) -> SentenceBuilderNudge {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let analysis = analyze(trimmed)
-        if let avoidWord = hasAvoidWord(trimmed),
-           !completedKinds.contains(.groundGlow) {
-            return SentenceBuilderNudge(
-                step: glowStep(for: avoidWord),
-                highlightedWord: avoidWord,
-                canStandAsComplete: analysis.canStandAsComplete
-            )
-        }
-
-        if let vagueWord = firstMatchedWord(in: trimmed, words: pack.vagueWords),
-           !completedKinds.contains(.cutMist) {
-            return SentenceBuilderNudge(
-                step: mistStep(for: vagueWord),
-                highlightedWord: vagueWord,
-                canStandAsComplete: analysis.canStandAsComplete
-            )
-        }
-
-        let orderedKinds: [SentenceBuilderStepKind] = [.anchor, .sense, .motion, .crossing]
-        let nextKind = orderedKinds.first { kind in
-            guard !completedKinds.contains(kind) else { return false }
-            switch kind {
-            case .anchor:
-                return !analysis.hasConcreteAnchor
-            case .sense:
-                return !analysis.hasSensoryDetail
-            case .motion:
-                return !analysis.hasLivingMotion
-            case .crossing:
-                return analysis.memoryStrength >= 2 && !analysis.hasCrossedSense
-            case .cutMist, .groundGlow:
-                return false
-            }
-        } ?? orderedKinds.first { !completedKinds.contains($0) } ?? .anchor
-        let step = pack.steps.first { $0.kind == nextKind } ?? pack.steps[0]
-        return SentenceBuilderNudge(
-            step: step,
-            highlightedWord: nil,
-            canStandAsComplete: analysis.canStandAsComplete
-        )
     }
 
     func analyze(_ text: String) -> SentenceBuilderAnalysis {
@@ -1309,12 +1192,6 @@ struct SentenceBuilderEngine {
         }
     }
 
-    func chips(for step: SentenceBuilderStep, text: String) -> [String] {
-        let lower = text.lowercased()
-        let unused = step.chips.filter { !lower.contains($0.lowercased()) }
-        return unused.isEmpty ? step.chips : unused
-    }
-
     func starterDraft(seed: String = "default") -> SentenceStarterDraft? {
         guard !pack.starterTemplates.isEmpty else { return nil }
         let template = pack.starterTemplates[stableIndex(for: seed, count: pack.starterTemplates.count)]
@@ -1360,93 +1237,14 @@ struct SentenceBuilderEngine {
         }
     }
 
-    func alchemyLevels(for text: String) -> [SentenceBuilderAlchemyLevel] {
-        let analysis = analyze(text)
-        return [
-            SentenceBuilderAlchemyLevel(
-                id: "label",
-                title: "Label",
-                example: "Dinner was good.",
-                isCurrent: !analysis.hasConcreteAnchor && !analysis.hasSensoryDetail && !analysis.hasLivingMotion
-            ),
-            SentenceBuilderAlchemyLevel(
-                id: "hook",
-                title: "Hook",
-                example: "The garlic hit the oil and made the kitchen warm.",
-                isCurrent: analysis.canStandAsComplete && !analysis.isVivid
-            ),
-            SentenceBuilderAlchemyLevel(
-                id: "spell",
-                title: "Tiny spell",
-                example: "The garlic woke up in the pan and the kitchen turned gold.",
-                isCurrent: analysis.isVivid
-            )
-        ]
-    }
-
     func souvenirShareText(for text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
         return "\(trimmed)\n\n— One-Sentence Souvenir"
     }
 
-    func phrase(for chip: String, step: SentenceBuilderStep) -> String {
-        switch step.kind {
-        case .anchor:
-            return chip
-        case .sense:
-            return chip
-        case .motion:
-            return chip
-        case .crossing:
-            return chip
-        case .cutMist:
-            return chip
-        case .groundGlow:
-            return chip
-        }
-    }
-
-    func append(_ phrase: String, to text: String) -> String {
-        let cleanPhrase = phrase.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanPhrase.isEmpty else { return text }
-
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return cleanPhrase }
-
-        if trimmed.hasSuffix(" ") || trimmed.hasSuffix("\n") {
-            return text + cleanPhrase
-        }
-        if trimmed.hasSuffix(",") || trimmed.hasSuffix(";") || trimmed.hasSuffix(":") {
-            return text + " " + cleanPhrase
-        }
-        return text + " " + cleanPhrase
-    }
-
     func hasAvoidWord(_ text: String) -> String? {
         firstMatchedWord(in: text, words: pack.avoidWords)
-    }
-
-    private func mistStep(for word: String) -> SentenceBuilderStep {
-        SentenceBuilderStep(
-            id: "cut-mist-\(word)",
-            kind: .cutMist,
-            title: "Cut the mist",
-            question: "Can '\(word)' become a texture, temperature, object, or gesture?",
-            helper: "Keep the feeling, but give it a body.",
-            chips: alternatives(for: word)
-        )
-    }
-
-    private func glowStep(for word: String) -> SentenceBuilderStep {
-        SentenceBuilderStep(
-            id: "ground-glow-\(word)",
-            kind: .groundGlow,
-            title: "Ground the glow",
-            question: "What ordinary thing could carry '\(word)' without saying it?",
-            helper: "Let the magic arrive through matter: light on a wall, a cup, a hinge, a smell, a pressure in the hand.",
-            chips: ["lamp", "hinge", "smell", "shadow", "pulse", "dust", "weight", "ring"]
-        )
     }
 
     /// Grounded, body-giving swaps for a vague feeling word. Every word returned
