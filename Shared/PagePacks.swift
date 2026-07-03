@@ -475,7 +475,7 @@ enum PageArchetypePackRegistry {
             displayName: "The Nocturne Folio",
             version: 1,
             author: "The Goblin Index Empire",
-            availability: "bundledFree",
+            availability: "locked",
             archetypes: [
                 PageArchetype(
                     id: "insomniacs-inventory",
@@ -1184,7 +1184,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "flyleaf",
             title: "The Flyleaf",
-            text: "Favors live here, five at most. Do the thing out in the real world, come back with one sentence of proof, and the asker will remember it — and trust you with stranger requests."
+            text: "Quests live here, five at most. Do the thing out in the real world, come back with sentence, photo, or GPS proof, and the asker will remember it - and trust you with stranger requests."
         ),
         MarginTutorNote(
             id: "compass-run",
@@ -1244,7 +1244,7 @@ enum MarginTutorLedger {
 /// One portable save: everything a player has made, kept, tuned, or been
 /// asked, independent of the app binary. Export it, move phones, import it.
 struct ReEnchantedSaveFile: Codable {
-    static let currentVersion = 1
+    static let currentVersion = 2
     static let fileExtension = "reenchanted-save.json"
 
     var version: Int = ReEnchantedSaveFile.currentVersion
@@ -1280,6 +1280,67 @@ struct ReEnchantedSaveFile: Codable {
     /// The full continuity digest at export time, so the wider Labyrinth
     /// (scene engine, NPC dialogue) can reference what the Book has noticed.
     var continuity: LiteraryContinuityDigest?
+    /// The bytes of every file-backed media asset (photographs, and later
+    /// kept voice), keyed by filename only — so a sealed copy carries the
+    /// photographs themselves, not just dead absolute paths that break on a
+    /// new phone. Absent in version 1 files. See `sealedMedia`/`rehomedDays`.
+    var mediaFiles: [String: Data]? = nil
+}
+
+extension BookPageMediaAsset.Kind {
+    /// True when the asset's `reference` is an absolute path to a file in the
+    /// app-group container (rather than a bundled asset name or a photo-library
+    /// identifier). These are the assets a sealed copy must carry and rehome.
+    var isFileBacked: Bool {
+        switch self {
+        case .renderedImageFile:
+            return true
+        case .bundledImage, .photoLibraryAsset:
+            return false
+        }
+    }
+}
+
+extension ReEnchantedSaveFile {
+    /// Absolute file paths of every file-backed media asset across all days,
+    /// de-duplicated. Pure — no file I/O — so it's testable.
+    static func fileBackedReferences(in days: [BookDay]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for day in days {
+            for page in day.pages {
+                for asset in page.mediaAssets where asset.kind.isFileBacked {
+                    let path = asset.reference
+                    guard !path.isEmpty, seen.insert(path).inserted else { continue }
+                    result.append(path)
+                }
+            }
+        }
+        return result
+    }
+
+    /// Rewrite every file-backed asset's `reference` so it points at
+    /// `containerURL` by filename. The app-group container's path changes
+    /// between installs, so an imported save file's stored absolute paths are
+    /// stale; this re-homes them onto the current container. Pure.
+    static func rehomedDays(_ days: [BookDay], toContainer containerURL: URL) -> [BookDay] {
+        days.map { day in
+            var day = day
+            day.pages = day.pages.map { page in
+                var page = page
+                page.mediaAssets = page.mediaAssets.map { asset in
+                    guard asset.kind.isFileBacked else { return asset }
+                    let filename = (asset.reference as NSString).lastPathComponent
+                    guard !filename.isEmpty else { return asset }
+                    var asset = asset
+                    asset.reference = containerURL.appendingPathComponent(filename).path
+                    return asset
+                }
+                return page
+            }
+            return day
+        }
+    }
 }
 
 /// Tolerant JSON recovery for small-model output: extracts the object,
@@ -1482,7 +1543,7 @@ enum BookShopCatalog {
             family: .eventPack,
             title: "The Starlit Paper Trial Archive",
             goblinPitch: "A past event, boxed carefully enough that the night can unfold again when you open it.",
-            contents: "One archived world event with phases, fieldwork, lexical pressure, outcomes, and monthly-edition traces.",
+            contents: "A replayable seven-day archived world event: three phases, fieldwork prompts, lexical pressure, outcome tracking, and traces for letters, radio, widgets, Book of You, and monthly bindings.",
             productID: "com.openclaw.enchantify.insidecover.pack.starlit-paper-trial-archive",
             saleState: .archivedEvent
         )
@@ -1499,11 +1560,10 @@ enum BookShopCatalog {
 enum PackEntitlements {
     nonisolated(unsafe) static var ownedPackIDs: Set<String> = []
 
-    /// Packs that ship `availability: "locked"` but are granted free at launch.
-    /// This is the single toggle that keeps launch packs free for now;
-    /// remove an id here to make a pack paid (its entitlement then comes only
-    /// from a verified purchase writing into `ownedPackIDs`).
-    nonisolated(unsafe) static var launchGrantedPackIDs: Set<String> = ["dictionary-rebellion", "nocturne-folio", "pack.night-and-garden"]
+    /// Packs that ship `availability: "locked"` but are granted before a
+    /// purchase. Other locked packs can still be bound manually as Bookshop
+    /// gifts when their id is written into `ownedPackIDs`.
+    nonisolated(unsafe) static var launchGrantedPackIDs: Set<String> = ["dictionary-rebellion", "pack.night-and-garden"]
 
     static func isUnlocked(_ packID: String) -> Bool {
         launchGrantedPackIDs.contains(packID) || ownedPackIDs.contains(packID)

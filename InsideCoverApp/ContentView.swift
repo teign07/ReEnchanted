@@ -284,6 +284,7 @@ struct ContentView: View {
     @State var isBookShopPresented = false
     @State var currentStall: GoblinStall?
     @State var isPactMapPresented = false
+    @State var isLocationSealChoicesPresented = false
     @State var busySealID: String?
     @State var bannerSeed = Int.random(in: 0..<10_000)
     @State var lastKnockAt: Date?
@@ -499,12 +500,12 @@ struct ContentView: View {
             now: now
         ) {
             let allowed = firstRunSurfaces.filter { preferences.allows($0) }
+            let isWaitingForLocalBrain = firstRunSurfaces.contains { $0.sourceID == FirstRunPageSequence.localBrainSetupSourceID }
             // Only let the first-run sequence own the desk while it still has a
-            // card to show. If every onboarding card has been dismissed, fall
-            // through to the normal curator instead of stranding an empty desk
-            // (an empty result also never records "served", so the sequence would
-            // never advance — a permanent empty Pages Rising).
-            if !allowed.isEmpty {
+            // card to show. The local brain setup is the exception: while that is
+            // unresolved, an empty first-run result should stay quiet instead of
+            // falling through to the normal card flow.
+            if !allowed.isEmpty || isWaitingForLocalBrain {
                 return allowed
             }
         }
@@ -922,6 +923,21 @@ struct ContentView: View {
             }
             .sheet(item: $selectedSurface) { surface in
                 captureSheet(for: surface)
+            }
+            .confirmationDialog(
+                "Location",
+                isPresented: $isLocationSealChoicesPresented,
+                titleVisibility: .visible
+            ) {
+                Button("Weather Page") {
+                    Task { await pressWeatherSeal() }
+                }
+                Button("Nearby Anchor") {
+                    Task { await pressAnchorSeal() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Choose what the Location seal should read.")
             }
             .sheet(isPresented: $isSourceSettingsPresented) {
                 SourceSettingsSheet(
@@ -1467,11 +1483,12 @@ struct ContentView: View {
                 now: request.now
             )
             let allowedFirstRun = firstRun?.filter { request.preferences.allows($0) } ?? []
-            if !allowedFirstRun.isEmpty {
+            let isWaitingForLocalBrain = firstRun?.contains { $0.sourceID == FirstRunPageSequence.localBrainSetupSourceID } ?? false
+            if !allowedFirstRun.isEmpty || isWaitingForLocalBrain {
                 surfaces = allowedFirstRun
             } else {
-                // First-run sequence exhausted or all-dismissed — show the real
-                // feed rather than a permanently empty desk.
+                // First-run sequence exhausted or all-dismissed after the required
+                // setup steps are done, so show the real feed.
                 surfaces = BookCurator.surfacedPages(
                     for: request.today,
                     inputs: inputs,
@@ -2097,6 +2114,28 @@ struct ContentView: View {
             context: CuratorContext.make(for: today),
             inputs: sourceInputs,
             now: Date()
+        )
+    }
+
+    func freshCameraFirstSurface() -> SurfacePage {
+        let base = freshManualSurface(for: .illuminatedPhoto)
+        var metadata = base.payload.metadata
+        metadata["cameraFirst"] = "true"
+        return SurfacePage(
+            id: base.id,
+            type: base.type,
+            sourceID: base.sourceID,
+            intent: base.intent,
+            renderStyle: base.renderStyle,
+            score: base.score,
+            reason: base.reason,
+            prompt: base.prompt,
+            detail: base.detail,
+            payload: BookPagePayload(
+                headline: base.payload.headline,
+                body: base.payload.body,
+                metadata: metadata
+            )
         )
     }
 
@@ -3454,38 +3493,51 @@ struct ContentView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    HStack(spacing: 10) {
-                        Text("Your save is yours.")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(BookPalette.nightText.opacity(0.62))
-                        Spacer()
-                        if let preparedSaveFileURL {
-                            ShareLink(item: preparedSaveFileURL) {
-                                Label("Share save", systemImage: "square.and.arrow.up")
-                                    .font(.caption.weight(.bold))
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 10) {
+                            Text("Seal a copy.")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                            Spacer()
+                            if let preparedSaveFileURL {
+                                ShareLink(item: preparedSaveFileURL) {
+                                    Label("Share the sealed copy", systemImage: "square.and.arrow.up")
+                                        .font(.caption.weight(.bold))
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(BookPalette.teal)
+                            } else {
+                                Button {
+                                    BookFeedback.play(.sourceRefresh)
+                                    exportSaveFile()
+                                } label: {
+                                    Label("Seal a copy", systemImage: "book.closed")
+                                        .font(.caption.weight(.bold))
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(BookPalette.teal)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .tint(BookPalette.teal)
-                        } else {
                             Button {
-                                BookFeedback.play(.sourceRefresh)
-                                exportSaveFile()
+                                BookFeedback.play(.openPage)
+                                isSaveImporterPresented = true
                             } label: {
-                                Label("Export save", systemImage: "book.closed")
+                                Label("Open a sealed copy", systemImage: "square.and.arrow.down")
                                     .font(.caption.weight(.bold))
                             }
                             .buttonStyle(.bordered)
-                            .tint(BookPalette.teal)
+                            .tint(BookPalette.lampGold)
                         }
-                        Button {
-                            BookFeedback.play(.openPage)
-                            isSaveImporterPresented = true
-                        } label: {
-                            Label("Import", systemImage: "square.and.arrow.down")
-                                .font(.caption.weight(.bold))
+
+                        Text("A complete copy of the Book — pages, photographs, and all. Keep it somewhere safe; iCloud Drive counts.")
+                            .font(.caption2)
+                            .foregroundStyle(BookPalette.nightText.opacity(0.55))
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        if let sealed = lastSealedCopyDescription {
+                            Text(sealed)
+                                .font(.caption2)
+                                .foregroundStyle(BookPalette.nightText.opacity(0.45))
                         }
-                        .buttonStyle(.bordered)
-                        .tint(BookPalette.lampGold)
                     }
 
                     HStack(spacing: 10) {
@@ -3799,7 +3851,9 @@ struct ContentView: View {
             try? await Task.sleep(nanoseconds: 900_000_000)
             guard ticket == keepMarginNoteTicket else { return }
             withAnimation(.spring(duration: 0.5)) { keepMarginNote = note }
-            try? await Task.sleep(nanoseconds: 5_200_000_000)
+            // A duet carries two voices; give the reader time to hear both.
+            let holdNanoseconds: UInt64 = note.rejoinderLine == nil ? 5_200_000_000 : 8_200_000_000
+            try? await Task.sleep(nanoseconds: holdNanoseconds)
             guard ticket == keepMarginNoteTicket else { return }
             withAnimation(.easeOut(duration: 0.4)) { keepMarginNote = nil }
         }
@@ -3901,22 +3955,39 @@ struct ContentView: View {
         let celebration = Almanac.active(on: Date(), hemisphere: Hemisphere.from(latitude: lastAnchorReadingLatitude))
         let isFirstKeepToday = !day.pages.contains { $0.id != page.id && $0.origin == .userAuthored }
 
-        var keepNote: KeepMarginalia.Note?
+        let priorKeeps = KeepMarginalia.eligibleKeepCount(in: days)
         if sparked {
-            keepNote = KeepMarginalia.sparkNote
             surfaceRefreshDate = Date()
             Task { await prepareStoryPageIfPossible(force: true) }
-        } else if let celebration, isFirstKeepToday, !keptInput.isEmpty {
-            keepNote = KeepMarginalia.festivalNote(celebrationID: celebration.id, commonName: celebration.commonName)
-        } else if let echo = KeepEcho.find(for: keptInput, pageID: page.id, in: days) {
-            keepNote = KeepEcho.note(from: echo)
-        } else {
+        }
+
+        var keepNote: KeepMarginalia.Note?
+        if priorKeeps < 2 {
+            // The first-friend claim and the duet outrank every other margin voice.
             keepNote = KeepMarginalia.note(
                 for: keptInput,
                 pageType: page.type,
                 pageID: page.id,
-                beliefBySlug: keepMarginaliaBeliefMap
+                beliefBySlug: keepMarginaliaBeliefMap,
+                priorKeepCount: priorKeeps
             )
+        }
+        if keepNote == nil {
+            if sparked {
+                keepNote = KeepMarginalia.sparkNote
+            } else if let celebration, isFirstKeepToday, !keptInput.isEmpty {
+                keepNote = KeepMarginalia.festivalNote(celebrationID: celebration.id, commonName: celebration.commonName)
+            } else if let echo = KeepEcho.find(for: keptInput, pageID: page.id, in: days) {
+                keepNote = KeepEcho.note(from: echo)
+            } else {
+                keepNote = KeepMarginalia.note(
+                    for: keptInput,
+                    pageType: page.type,
+                    pageID: page.id,
+                    beliefBySlug: keepMarginaliaBeliefMap,
+                    priorKeepCount: priorKeeps
+                )
+            }
         }
         if var note = keepNote {
             note.rippleLine = rippleLine
@@ -4010,8 +4081,8 @@ struct ContentView: View {
                 bindChapter(id: chapterID)
             },
             activeElectives: electives.filter(\.isActive),
-            onCompleteElective: { electiveID, proof in
-                completeElective(id: electiveID, proof: proof)
+            onCompleteElective: { electiveID, proof, photoURL, locationSummary in
+                completeElective(id: electiveID, proof: proof, photoURL: photoURL, locationSummary: locationSummary)
             },
             onPayFaeBargain: { bargainID, report, faeResponse in
                 payFaeBargain(bargainID: bargainID, report: report, faeResponse: faeResponse)
@@ -5700,7 +5771,7 @@ struct ContentView: View {
             )
             statusMessage = ""
         case .elective where surface.payload.metadata["electiveOffer"] == "true":
-            statusMessage = "\(surface.payload.metadata["senderName"] ?? "Someone") is writing out the favor..."
+            statusMessage = "\(surface.payload.metadata["senderName"] ?? "Someone") is writing out the quest..."
             selectedSurface = await electiveOfferSurfaceWithAsk(from: surface)
             statusMessage = ""
         case .packPage where surface.payload.metadata["packPrompt"]?.isEmpty == false:

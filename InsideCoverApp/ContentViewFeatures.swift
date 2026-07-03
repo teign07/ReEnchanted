@@ -9,7 +9,15 @@ import SwiftUI
 
 extension ContentView {
     var marginaliaSealsRow: some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .top, spacing: 9) {
+            MarginaliaSealButton(
+                title: "Camera",
+                systemImage: "camera.aperture",
+                wax: Color(red: 0.20, green: 0.34, blue: 0.48),
+                seed: 29,
+                isBusy: busySealID == "camera",
+                action: { Task { await pressGlassSeal() } }
+            )
             MarginaliaSealButton(
                 title: "Body",
                 systemImage: "figure.walk",
@@ -19,20 +27,12 @@ extension ContentView {
                 action: { Task { await pressBodySeal() } }
             )
             MarginaliaSealButton(
-                title: "Weather",
-                systemImage: "cloud.sun.fill",
-                wax: BookPalette.teal,
-                seed: 11,
-                isBusy: busySealID == "weather",
-                action: { Task { await pressWeatherSeal() } }
-            )
-            MarginaliaSealButton(
                 title: "Location",
                 systemImage: "mappin.and.ellipse",
                 wax: Color(red: 0.36, green: 0.28, blue: 0.55),
                 seed: 23,
-                isBusy: busySealID == "location" || isAnchoringPlace,
-                action: { Task { await pressLocationSeal() } }
+                isBusy: busySealID == "location" || busySealID == "weather" || isAnchoringPlace,
+                action: { presentLocationSealChoices() }
             )
             MarginaliaSealButton(
                 title: radioManager.isPlaying ? "On Air" : "Radio",
@@ -43,8 +43,21 @@ extension ContentView {
                 action: { Task { await pressRadioSeal() } }
             )
         }
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 3)
         .padding(.vertical, 4)
+    }
+
+    /// The Margin-Glass seal: opens the illuminated-photo page, which is the
+    /// Book's camera. Mirrors the other seals — press to summon a page from a
+    /// real-world source, here the reader's own eyes/lens.
+    @MainActor
+    func pressGlassSeal() async {
+        guard busySealID == nil else { return }
+        busySealID = "camera"
+        defer { busySealID = nil }
+        BookFeedback.play(.sourceRefresh)
+        tutorTouch("seal-camera")
+        selectedSurface = freshCameraFirstSurface()
     }
 
     @MainActor
@@ -79,7 +92,20 @@ extension ContentView {
     }
 
     @MainActor
+    func presentLocationSealChoices() {
+        guard busySealID == nil, !isAnchoringPlace else { return }
+        BookFeedback.play(.tap)
+        tutorTouch("seal-location")
+        isLocationSealChoicesPresented = true
+    }
+
+    @MainActor
     func pressLocationSeal() async {
+        await pressAnchorSeal()
+    }
+
+    @MainActor
+    func pressAnchorSeal() async {
         guard busySealID == nil, !isAnchoringPlace else { return }
         busySealID = "location"
         defer { busySealID = nil }
@@ -457,32 +483,55 @@ extension ContentView {
         }
         var list = electives
         guard list.filter(\.isActive).count < UnwrittenElective.maxActive else {
-            statusMessage = "The flyleaf is full. Complete a favor before accepting another."
+            statusMessage = "The flyleaf is full. Complete a quest before accepting another."
             return
         }
         let senderID = surface.payload.metadata["senderID"] ?? "the-book"
         guard !list.contains(where: { $0.characterID == senderID && $0.isActive }) else { return }
+        let targetPlace = matchedQuestPlace(for: surface)
         let elective = UnwrittenElective(
             id: "elective-\(senderID)-\(UUID().uuidString.prefix(8))",
             characterID: senderID,
             characterName: surface.payload.metadata["senderName"] ?? "A character",
-            title: surface.payload.metadata["electiveTitle"] ?? "An Unwritten Elective",
+            title: surface.payload.metadata["electiveTitle"] ?? "Quest",
             ask: ask,
             whyItMatters: surface.payload.metadata["electiveWhy"] ?? "",
-            practiceShape: surface.payload.metadata["electivePractice"] ?? "One sentence of proof.",
-            createdAt: Date()
+            practiceShape: surface.payload.metadata["electivePractice"] ?? "One sentence, a photo, or GPS proof.",
+            createdAt: Date(),
+            targetPlaceName: targetPlace?.name,
+            targetLatitude: targetPlace?.latitude,
+            targetLongitude: targetPlace?.longitude,
+            targetRadiusMeters: QuestLocationProof.defaultRadiusMeters
         )
         list.append(elective)
         saveElectives(list)
-        statusMessage = "\(elective.characterName)'s favor is tucked into the flyleaf."
+        statusMessage = "\(elective.characterName)'s quest is tucked into the flyleaf."
+    }
+
+    private func matchedQuestPlace(for surface: SurfacePage) -> LocalPlaceSignal? {
+        let haystack = [
+            surface.payload.metadata["electiveTitle"],
+            surface.payload.metadata["electiveAsk"],
+            surface.payload.metadata["electivePractice"]
+        ]
+            .compactMap { $0 }
+            .joined(separator: "\n")
+            .lowercased()
+        return LocalPlacesScout.cachedPlaces().first { place in
+            place.latitude != nil &&
+            place.longitude != nil &&
+            haystack.contains(place.name.lowercased())
+        }
     }
 
     @MainActor
-    func completeElective(id: String, proof: String) {
+    func completeElective(id: String, proof: String, photoURL: String? = nil, locationSummary: String? = nil) {
         var list = electives
         guard let index = list.firstIndex(where: { $0.id == id && $0.isActive }) else { return }
         list[index].completedAt = Date()
         list[index].proof = proof.trimmingCharacters(in: .whitespacesAndNewlines)
+        list[index].proofPhotoURL = photoURL
+        list[index].proofLocationSummary = locationSummary
         saveElectives(list)
         let elective = list[index]
 
@@ -495,7 +544,7 @@ extension ContentView {
             sourcePageType: .elective,
             sourcePageID: nil,
             createdAt: Date(),
-            summary: "The reader completed \(elective.characterName)'s favor \"\(elective.title)\": \(elective.proof ?? "")",
+            summary: "The reader completed \(elective.characterName)'s quest \"\(elective.title)\": \(elective.proof ?? "") \(elective.proofLocationSummary ?? "")",
             tags: ["elective", "completed", "entity:\(elective.characterID)"],
             effect: NarrativeEventEffect(
                 beliefDelta: UnwrittenElective.completionBeliefReward,
@@ -510,7 +559,7 @@ extension ContentView {
             narrativeEvents = try BookDatabase.narrativeEvents(limit: 160)
             entityMemories = NarrativeEntityMemoryConsolidator.consolidate(try BookDatabase.entityMemories(limit: 240))
         } catch {
-            statusMessage = "The favor is complete, but a hidden margin note slipped: \(error.localizedDescription)"
+            statusMessage = "The quest is complete, but a hidden margin note slipped: \(error.localizedDescription)"
             return
         }
         statusMessage = "\(elective.characterName) will remember this. +\(UnwrittenElective.completionBeliefReward) Belief."
@@ -652,20 +701,66 @@ extension ContentView {
         )
     }
 
+    /// A sealed copy will not carry more than this many bytes of photographs
+    /// and kept voice; heavier archives get their text sealed and the media
+    /// skipped, with a note to the reader.
+    static let sealedCopyMediaByteCap = 400 * 1024 * 1024
+
+    /// Key under which the store remembers when the Book was last sealed.
+    static let lastSealedCopyKey = "lastSealedCopyAt"
+
+    /// Human "Last sealed …" line for the seal-a-copy UI, or nil if never.
+    var lastSealedCopyDescription: String? {
+        guard let date = InsideCoverStore.defaults.object(forKey: Self.lastSealedCopyKey) as? Date else {
+            return nil
+        }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return "Last sealed \(formatter.localizedString(for: date, relativeTo: Date()))."
+    }
+
+    /// Read the bytes of every file-backed media asset, keyed by filename, up
+    /// to `sealedCopyMediaByteCap`. Returns the map plus whether any file was
+    /// skipped because the cap was reached.
+    @MainActor
+    func collectSealedMedia(for days: [BookDay]) -> (files: [String: Data], skippedForSize: Bool) {
+        var files: [String: Data] = [:]
+        var total = 0
+        var skipped = false
+        for path in ReEnchantedSaveFile.fileBackedReferences(in: days) {
+            let filename = (path as NSString).lastPathComponent
+            guard !filename.isEmpty, files[filename] == nil,
+                  let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { continue }
+            if total + data.count > Self.sealedCopyMediaByteCap {
+                skipped = true
+                continue
+            }
+            files[filename] = data
+            total += data.count
+        }
+        return (files, skipped)
+    }
+
     @MainActor
     func exportSaveFile() {
         do {
+            var saveFile = buildSaveFile()
+            let media = collectSealedMedia(for: saveFile.days)
+            saveFile.mediaFiles = media.files.isEmpty ? nil : media.files
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             encoder.dateEncodingStrategy = .iso8601
-            let data = try encoder.encode(buildSaveFile())
+            let data = try encoder.encode(saveFile)
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd"
             let url = FileManager.default.temporaryDirectory
                 .appendingPathComponent("ReEnchanted-\(formatter.string(from: Date())).\(ReEnchantedSaveFile.fileExtension)")
             try data.write(to: url, options: [.atomic])
             preparedSaveFileURL = url
-            statusMessage = "The save file is bound and ready to share."
+            InsideCoverStore.defaults.set(Date(), forKey: Self.lastSealedCopyKey)
+            statusMessage = media.skippedForSize
+                ? "The Book is sealed — though some photographs were too heavy to carry along."
+                : "The Book is sealed: a complete copy, pages and photographs alike."
             BookFeedback.play(.braidComplete)
         } catch {
             statusMessage = "The save file would not bind: \(error.localizedDescription)"
@@ -1138,7 +1233,20 @@ extension ContentView {
         do {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
-            let save = try decoder.decode(ReEnchantedSaveFile.self, from: Data(contentsOf: url))
+            var save = try decoder.decode(ReEnchantedSaveFile.self, from: Data(contentsOf: url))
+
+            // Restore carried photographs (and kept voice) into this install's
+            // container, then re-home every file-backed reference onto it so the
+            // stale absolute paths from the source phone resolve here.
+            if let mediaFiles = save.mediaFiles, let container = InsideCoverStore.containerURL {
+                for (filename, data) in mediaFiles {
+                    let dest = container.appendingPathComponent((filename as NSString).lastPathComponent)
+                    if !FileManager.default.fileExists(atPath: dest.path) {
+                        try? data.write(to: dest, options: [.atomic])
+                    }
+                }
+                save.days = ReEnchantedSaveFile.rehomedDays(save.days, toContainer: container)
+            }
 
             for day in save.days {
                 days = (try? BookDatabase.upsert(day, fallbackDays: days)) ?? days
@@ -1730,7 +1838,7 @@ extension ContentView {
             reason: base.reason,
             prompt: "\(offer.title) — \(base.payload.metadata["senderName"] ?? "a character")",
             detail: base.detail,
-            payload: BookPagePayload(headline: "An Unwritten Elective", body: body, metadata: metadata)
+            payload: BookPagePayload(headline: "A Quest", body: body, metadata: metadata)
         )
     }
 
