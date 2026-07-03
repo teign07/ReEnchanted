@@ -281,6 +281,7 @@ struct ContentView: View {
     @State var didRevealGlowPillInCurrentOnboarding = false
     @State var isGlowPillRevealing = false
     @State var isStacksSearchPresented = false
+    @State var isAlmanacPresented = false
     @State var isBookShopPresented = false
     @State var currentStall: GoblinStall?
     @State var isPactMapPresented = false
@@ -1002,6 +1003,14 @@ struct ContentView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $isAlmanacPresented) {
+                AlmanacSheet(days: days) { page in
+                    isAlmanacPresented = false
+                    openKeptPage(page)
+                }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
             .sheet(isPresented: $isCustomCastSheetPresented) {
                 CustomCastMemberSheet { draft in
                     saveCustomCastMember(draft)
@@ -1084,16 +1093,28 @@ struct ContentView: View {
     private var mainToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
             if !isStoryOnboardingActive {
-                Button {
-                    BookFeedback.play(.openPage)
-                    tutorTouch("search-stacks")
-                    isStacksSearchPresented = true
-                } label: {
-                    Image(systemName: "sparkle.magnifyingglass")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(BookPalette.lampGold)
+                HStack(spacing: 14) {
+                    Button {
+                        BookFeedback.play(.openPage)
+                        tutorTouch("search-stacks")
+                        isStacksSearchPresented = true
+                    } label: {
+                        Image(systemName: "sparkle.magnifyingglass")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(BookPalette.lampGold)
+                    }
+                    .accessibilityLabel("Search the Stacks")
+
+                    Button {
+                        BookFeedback.play(.openPage)
+                        isAlmanacPresented = true
+                    } label: {
+                        Image(systemName: "calendar.badge.clock")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(BookPalette.lampGold)
+                    }
+                    .accessibilityLabel("The Almanac")
                 }
-                .accessibilityLabel("Search the Stacks")
             }
         }
         ToolbarItem(placement: .topBarTrailing) {

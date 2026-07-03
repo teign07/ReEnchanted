@@ -46,6 +46,8 @@
 		02000000000000000000020D /* WorldEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010D /* WorldEvents.swift */; };
 		030000000000000000000200 /* StacksSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000100 /* StacksSearch.swift */; };
 		030000000000000000000201 /* SearchTheStacksSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000101 /* SearchTheStacksSheet.swift */; };
+		030000000000000000000205 /* AlmanacModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000105 /* AlmanacModel.swift */; };
+		030000000000000000000206 /* AlmanacSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000106 /* AlmanacSheet.swift */; };
 		030000000000000000000202 /* BookShopSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000102 /* BookShopSheet.swift */; };
 		030000000000000000000203 /* MonthlyEditionPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000103 /* MonthlyEditionPDF.swift */; };
 		030000000000000000000204 /* DictationInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000104 /* DictationInput.swift */; };
@@ -131,6 +133,8 @@
 		02000000000000000000010D /* WorldEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldEvents.swift; sourceTree = "<group>"; };
 		030000000000000000000100 /* StacksSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StacksSearch.swift; sourceTree = "<group>"; };
 		030000000000000000000101 /* SearchTheStacksSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchTheStacksSheet.swift; sourceTree = "<group>"; };
+		030000000000000000000105 /* AlmanacModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlmanacModel.swift; sourceTree = "<group>"; };
+		030000000000000000000106 /* AlmanacSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlmanacSheet.swift; sourceTree = "<group>"; };
 		030000000000000000000102 /* BookShopSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookShopSheet.swift; sourceTree = "<group>"; };
 		030000000000000000000103 /* MonthlyEditionPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEditionPDF.swift; sourceTree = "<group>"; };
 		030000000000000000000104 /* DictationInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationInput.swift; sourceTree = "<group>"; };
@@ -196,6 +200,7 @@
 				0100000000000000000002A2 /* RadioAudio */,
 				010000000000000000000117 /* CapturePageSections.swift */,
 				030000000000000000000101 /* SearchTheStacksSheet.swift */,
+				030000000000000000000106 /* AlmanacSheet.swift */,
 				030000000000000000000102 /* BookShopSheet.swift */,
 				030000000000000000000103 /* MonthlyEditionPDF.swift */,
 				030000000000000000000104 /* DictationInput.swift */,
@@ -214,6 +219,7 @@
 				040000000000000000000101 /* ReEnchantedWidgetSnapshot.swift */,
 				010000000000000000000118 /* SentenceBuilder.swift */,
 				030000000000000000000100 /* StacksSearch.swift */,
+				030000000000000000000105 /* AlmanacModel.swift */,
 				020000000000000000000100 /* PageModel.swift */,
 				020000000000000000000101 /* SurfaceAndCurator.swift */,
 				020000000000000000000102 /* NarrativeCore.swift */,
@@ -401,6 +407,8 @@
 				01000000000000000000001F /* CapturePageSections.swift in Sources */,
 				010000000000000000000021 /* LivingTextInput.swift in Sources */,
 				030000000000000000000201 /* SearchTheStacksSheet.swift in Sources */,
+				030000000000000000000205 /* AlmanacModel.swift in Sources */,
+				030000000000000000000206 /* AlmanacSheet.swift in Sources */,
 				030000000000000000000202 /* BookShopSheet.swift in Sources */,
 				030000000000000000000203 /* MonthlyEditionPDF.swift in Sources */,
 				030000000000000000000204 /* DictationInput.swift in Sources */,

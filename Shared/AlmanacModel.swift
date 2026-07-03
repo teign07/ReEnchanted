@@ -1,0 +1,107 @@
+import Foundation
+
+/// The Almanac: a browsable month-grid over the kept archive, so a reader can
+/// flip to "what did I write on the third" the way every journal lets you.
+/// Pure data + arithmetic — no SwiftUI, no app types — so it's testable.
+enum AlmanacModel {
+
+    /// One cell in the month grid. `date` is the day's start; leading/trailing
+    /// blanks that pad the grid to whole weeks carry `date == nil`.
+    struct DayCell: Equatable, Identifiable {
+        var id: String { date.map { AlmanacModel.dayID(for: $0, calendar: .current) } ?? "blank-\(blankIndex)" }
+        var date: Date?
+        var keptCount: Int
+        /// Only meaningful for blank padding cells, to keep ids unique.
+        var blankIndex: Int
+    }
+
+    /// A single month laid out as weeks of seven cells each.
+    struct MonthGrid: Equatable {
+        /// First day of the month (midnight).
+        var monthStart: Date
+        /// Rows of seven cells; leading/trailing padding cells have `date == nil`.
+        var weeks: [[DayCell]]
+    }
+
+    /// Stable per-day key ("yyyy-MM-dd") in the given calendar's terms.
+    static func dayID(for date: Date, calendar: Calendar) -> String {
+        let c = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
+
+    /// Number of kept (captured, non-generated) pages per day, keyed by dayID.
+    /// Uses `BookDay.capturedPages` so generated Book-of-You pages don't count.
+    static func keptCounts(days: [BookDay], calendar: Calendar) -> [String: Int] {
+        var counts: [String: Int] = [:]
+        for day in days {
+            let n = day.capturedPages.count
+            guard n > 0 else { continue }
+            let start = BookDay.startDate(for: day.id, fallback: day.date, calendar: calendar)
+            counts[dayID(for: start, calendar: calendar), default: 0] += n
+        }
+        return counts
+    }
+
+    /// Build the grid for the month containing `monthAnchor`. Weeks start on the
+    /// calendar's `firstWeekday`. Cell counts come from `keptCounts`.
+    static func grid(forMonthContaining monthAnchor: Date, days: [BookDay], calendar: Calendar) -> MonthGrid {
+        let counts = keptCounts(days: days, calendar: calendar)
+        let comps = calendar.dateComponents([.year, .month], from: monthAnchor)
+        let monthStart = calendar.date(from: comps) ?? monthAnchor
+        let range = calendar.range(of: .day, in: .month, for: monthStart) ?? (1..<31)
+        let dayCount = range.count
+
+        // Leading blanks: distance from the week's first weekday to the 1st.
+        let firstWeekday = calendar.component(.weekday, from: monthStart)
+        let leading = (firstWeekday - calendar.firstWeekday + 7) % 7
+
+        var cells: [DayCell] = []
+        var blankIndex = 0
+        for _ in 0..<leading {
+            cells.append(DayCell(date: nil, keptCount: 0, blankIndex: blankIndex))
+            blankIndex += 1
+        }
+        for offset in 0..<dayCount {
+            guard let date = calendar.date(byAdding: .day, value: offset, to: monthStart) else { continue }
+            let count = counts[dayID(for: date, calendar: calendar)] ?? 0
+            cells.append(DayCell(date: date, keptCount: count, blankIndex: 0))
+        }
+        // Trailing blanks to complete the final week.
+        while cells.count % 7 != 0 {
+            cells.append(DayCell(date: nil, keptCount: 0, blankIndex: blankIndex))
+            blankIndex += 1
+        }
+
+        let weeks = stride(from: 0, to: cells.count, by: 7).map { start in
+            Array(cells[start..<min(start + 7, cells.count)])
+        }
+        return MonthGrid(monthStart: monthStart, weeks: weeks)
+    }
+
+    /// First-of-month for the earliest / latest kept day, so month paging can
+    /// clamp to the archive's real bounds. Nil when there are no kept pages.
+    static func bounds(days: [BookDay], calendar: Calendar) -> (earliest: Date, latest: Date)? {
+        let kept = days.filter { !$0.capturedPages.isEmpty }
+        guard !kept.isEmpty else { return nil }
+        let starts = kept.map { BookDay.startDate(for: $0.id, fallback: $0.date, calendar: calendar) }
+        guard let min = starts.min(), let max = starts.max() else { return nil }
+        return (firstOfMonth(for: min, calendar: calendar), firstOfMonth(for: max, calendar: calendar))
+    }
+
+    /// The kept pages of a specific day, newest first, for the expanded list.
+    static func keptPages(on date: Date, days: [BookDay], calendar: Calendar) -> [BookPage] {
+        let target = dayID(for: date, calendar: calendar)
+        for day in days {
+            let start = BookDay.startDate(for: day.id, fallback: day.date, calendar: calendar)
+            if dayID(for: start, calendar: calendar) == target {
+                return day.capturedPages.sorted { $0.createdAt > $1.createdAt }
+            }
+        }
+        return []
+    }
+
+    static func firstOfMonth(for date: Date, calendar: Calendar) -> Date {
+        let comps = calendar.dateComponents([.year, .month], from: date)
+        return calendar.date(from: comps) ?? date
+    }
+}

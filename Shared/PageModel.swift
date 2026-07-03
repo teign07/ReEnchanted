@@ -155,7 +155,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .academyClass:
             return "Classes & Clubs"
         case .elective:
-            return "Unwritten Electives"
+            return "Quests"
         case .packPage:
             return "Pack Page"
         case .wordNegotiation:
@@ -986,14 +986,14 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "unwritten-elective",
             type: .elective,
-            title: "Unwritten Electives",
-            shortTitle: "Electives",
+            title: "Quests",
+            shortTitle: "Quests",
             symbolName: "envelope.badge",
             origin: .generated,
             privacy: .privateLocal,
             isActive: true,
             cadence: "occasional",
-            note: "Characters ask small real-world favors tied to their unwritten interests. Five at most fit the flyleaf."
+            note: "Characters ask small real-world quests tied to their unwritten interests. Five at most fit the flyleaf."
         ),
         BookPageSource(
             id: "game-page",
@@ -1422,7 +1422,7 @@ struct BookDay: Codable, Identifiable, Equatable {
         return String(format: "%04d-%02d-%02d", comps.year ?? 0, comps.month ?? 0, comps.day ?? 0)
     }
 
-    private static func startDate(for id: String, fallback date: Date, calendar: Calendar = .current) -> Date {
+    static func startDate(for id: String, fallback date: Date, calendar: Calendar = .current) -> Date {
         let parts = id.split(separator: "-").compactMap { Int($0) }
         if parts.count == 3,
            let start = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])) {

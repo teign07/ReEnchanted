@@ -40,7 +40,8 @@ let package = Package(
                 "WorldEvents.swift",
                 "PagePacks.swift",
                 "SourceAdapters.swift",
-                "StacksSearch.swift"
+                "StacksSearch.swift",
+                "AlmanacModel.swift"
             ]
         ),
         .testTarget(
