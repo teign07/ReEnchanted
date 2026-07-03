@@ -2680,9 +2680,9 @@ enum AnchorMath {
     }
 }
 
-/// A favor a character has asked of the player, tucked into the Book's
+/// A quest a character has asked of the player, tucked into the Book's
 /// flyleaf. Enchantify's Inside Cover rules: at most five active at a time;
-/// completed by a real-world sense act or enchantment plus a sentence of proof.
+/// completed by a real-world sense act or enchantment plus proof.
 struct UnwrittenElective: Codable, Identifiable, Equatable {
     var id: String
     var characterID: String
@@ -2694,6 +2694,12 @@ struct UnwrittenElective: Codable, Identifiable, Equatable {
     var createdAt: Date
     var completedAt: Date?
     var proof: String?
+    var proofPhotoURL: String? = nil
+    var proofLocationSummary: String? = nil
+    var targetPlaceName: String? = nil
+    var targetLatitude: Double? = nil
+    var targetLongitude: Double? = nil
+    var targetRadiusMeters: Double? = nil
 
     var isActive: Bool { completedAt == nil }
 
@@ -3863,6 +3869,8 @@ struct LocalPlaceSignal: Codable, Equatable, Identifiable {
     var category: String
     var distanceLabel: String
     var locality: String
+    var latitude: Double? = nil
+    var longitude: Double? = nil
 
     var promptLine: String {
         let town = locality.isEmpty ? "" : ", \(locality)"
@@ -7087,6 +7095,73 @@ enum BeliefEconomyEngine {
     }
 }
 
+// MARK: - Cast Agency
+
+/// The offscreen Cast clock. It lets the cast act once per four-hour turn even
+/// when a Gossip Page never makes it to the reader's desk, while still making
+/// the move visible and dedupable.
+struct CastAgencyState: Codable, Equatable {
+    var resolvedSlotIDs: Set<String> = []
+    var recentMovements: [CastAgencyMovement] = []
+
+    mutating func remember(_ movement: CastAgencyMovement, keepingRecentSlots recentSlots: Set<String>) {
+        resolvedSlotIDs.insert(movement.slotID)
+        resolvedSlotIDs = resolvedSlotIDs.intersection(recentSlots.union([movement.slotID]))
+        recentMovements = Array(([movement] + recentMovements).prefix(12))
+    }
+
+    mutating func markEmptySlot(_ slotID: String, keepingRecentSlots recentSlots: Set<String>) {
+        resolvedSlotIDs.insert(slotID)
+        resolvedSlotIDs = resolvedSlotIDs.intersection(recentSlots.union([slotID]))
+    }
+
+    func hasResolved(slotID: String?) -> Bool {
+        guard let slotID, !slotID.isEmpty else { return false }
+        return resolvedSlotIDs.contains(slotID)
+    }
+}
+
+struct CastAgencyMovement: Codable, Equatable, Identifiable {
+    enum Kind: String, Codable, Equatable {
+        case relationship
+        case pageSource
+    }
+
+    var id: String
+    var slotID: String
+    var kind: Kind
+    var actorID: String
+    var actorName: String
+    var targetID: String
+    var targetName: String
+    var amount: Int
+    var line: String
+    var createdAt: Date
+
+    init(
+        slotID: String,
+        kind: Kind,
+        actorID: String,
+        actorName: String,
+        targetID: String,
+        targetName: String,
+        amount: Int,
+        line: String,
+        createdAt: Date
+    ) {
+        self.id = "\(slotID)-\(kind.rawValue)-\(actorID)-\(targetID)"
+        self.slotID = slotID
+        self.kind = kind
+        self.actorID = actorID
+        self.actorName = actorName
+        self.targetID = targetID
+        self.targetName = targetName
+        self.amount = amount
+        self.line = line
+        self.createdAt = createdAt
+    }
+}
+
 /// The instant margin reply a cast member leaves when the reader keeps a page.
 /// Deterministic: the page ID seeds voice and line, so the same keep always
 /// earns the same note (and tests can pin it).
@@ -7097,12 +7172,19 @@ enum KeepMarginalia {
         var assetName: String
         var line: String
         var rippleLine: String? = nil
+        var rejoinderName: String? = nil
+        var rejoinderAsset: String? = nil
+        var rejoinderLine: String? = nil
     }
 
     struct Voice {
         let slug: String
         let name: String
         let asset: String
+        /// Toast accent, "RRGGBB" hex. Derived from the dossier colour triads.
+        let accentHex: String
+        /// Signature stamp shown beside the name in the margin toast.
+        let glyph: String
         /// Lines usable as-is.
         let plainLines: [String]
         /// Lines containing "{word}", filled with a word lifted from the input.
@@ -7114,138 +7196,281 @@ enum KeepMarginalia {
             slug: "pippa-pilcrow",
             name: "Pippa Pilcrow",
             asset: "LabyrinthCharacterPilcrow",
+            accentHex: "B5382E",
+            glyph: "\u{203D}",
             plainLines: [
                 "I let a comma loose in that one. It needed the air.",
                 "That sentence stretched its legs the moment you looked away.",
                 "Kept! And the full stop is already plotting its escape.",
-                "The margins clapped. Quietly. But they clapped."
+                "The margins clapped. Quietly. But they clapped.",
+                "I set a word loose from this one and it just\u{2026} wanted to go home. Putting it back. Sorry.",
+                "This page had a very responsible semicolon in it. I gave it roller skates.",
+                "Kept, and only slightly annotated by chaos. You are welcome."
             ],
             wordLines: [
                 "Oh, \u{201C}{word}\u{201D} wants to be two things at once. I say let it.",
-                "\u{201C}{word}\u{201D} — now THAT is a word with somewhere to be."
+                "\u{201C}{word}\u{201D} — now THAT is a word with somewhere to be.",
+                "\u{201C}{word}\u{201D} just changed hats mid-sentence. I applauded.",
+                "I tucked a little fizz under \u{201C}{word}\u{201D}. It deserved propulsion."
             ]
         ),
         Voice(
             slug: "professor-thaddeus-mook",
             name: "Professor Mook",
             asset: "LabyrinthCharacterMook",
+            accentHex: "7A3025",
+            glyph: "\u{00A7}",
             plainLines: [
                 "Adequate. I have filed it before it could misbehave.",
                 "One true sentence, properly shelved. The Registry thanks you.",
                 "I corrected nothing. Do not let it go to your head.",
-                "Filed under: better than expected. A provisional category."
+                "Filed under: better than expected. A provisional category.",
+                "I corrected this twice before admitting it was right the first time. The red ink stays. As a warning. To me.",
+                "This page meets the minimum standard for being undeniable. Irritating, but useful.",
+                "I have placed this in the ledger under Evidence, subcategory: stop smirking."
             ],
             wordLines: [
                 "\u{201C}{word}\u{201D} is used correctly. I am noting my surprise in red.",
-                "\u{201C}{word}\u{201D} — 1743 would have approved. As, grudgingly, do I."
+                "\u{201C}{word}\u{201D} — 1743 would have approved. As, grudgingly, do I.",
+                "The term \u{201C}{word}\u{201D} has been admitted on probation.",
+                "\u{201C}{word}\u{201D} is doing legal work here. Unexpectedly competent."
             ]
         ),
         Voice(
             slug: "penny-blackletter",
             name: "Penny Blackletter",
             asset: "LabyrinthCharacterPennyBlackletter",
+            accentHex: "35507E",
+            glyph: "\u{2767}",
             plainLines: [
                 "Catalogued. The small detail is the load-bearing one, as usual.",
                 "I nearly lost this one to the margins. Went back for it.",
                 "Evidence accepted. One honest detail can save a whole day.",
-                "The archive is one true thing heavier tonight."
+                "The archive is one true thing heavier tonight.",
+                "I gave this one four labels, then took three off. Some things want to stay a little unsolved.",
+                "Filed by scent, weather, and motive. The third category was necessary.",
+                "I saved the small hinge. That is usually where the whole day swings."
             ],
             wordLines: [
                 "\u{201C}{word}\u{201D} goes on its own card. It earned it.",
-                "Filed edge to edge. \u{201C}{word}\u{201D} gets a cross-reference."
+                "Filed edge to edge. \u{201C}{word}\u{201D} gets a cross-reference.",
+                "\u{201C}{word}\u{201D} has been indexed twice: once for accuracy, once for nerve.",
+                "I put \u{201C}{word}\u{201D} in the quiet drawer. It is louder there."
             ]
         ),
         Voice(
             slug: "dr-inkrest",
             name: "Dr. Selene Inkrest",
             asset: "LabyrinthCharacterDrSeleneInkrest",
+            accentHex: "6B5B8A",
+            glyph: "\u{29D6}",
             plainLines: [
                 "The lamp was on for this one. It sat down easily.",
                 "A page that reads you back, kept anyway. Well done.",
                 "I have set two chairs by this page. It may want company later.",
-                "Noted without diagnosis. The chapter stays yours to revise."
+                "Noted without diagnosis. The chapter stays yours to revise.",
+                "I set out chairs for a harder page than this one. Glad to be wrong. The lamp stays on.",
+                "This page did not need fixing. It needed a witness. I can do that.",
+                "Kept with room around it. Some truths breathe better that way."
             ],
             wordLines: [
                 "\u{201C}{word}\u{201D} arrived before the feeling did. That is the good order.",
-                "We can leave \u{201C}{word}\u{201D} in the room with the lamp on."
+                "We can leave \u{201C}{word}\u{201D} in the room with the lamp on.",
+                "\u{201C}{word}\u{201D} may be the handle. No need to force the door today.",
+                "I heard \u{201C}{word}\u{201D} lower its voice. That is often when it starts telling the truth."
             ]
         ),
         Voice(
             slug: "zara-finch",
             name: "Zara Finch",
             asset: "LabyrinthCharacterZaraFinch",
+            accentHex: "4E7D6B",
+            glyph: "\u{25C7}",
             plainLines: [
                 "Kept. I checked — this page holds your weight.",
                 "Good. Small returns, kept word after kept word.",
                 "I marked the way back to this one, in case you need it.",
-                "Pocket-sized and useful. My favorite kind of true."
+                "Pocket-sized and useful. My favorite kind of true.",
+                "I checked the way back to this page twice. The second check was for me.",
+                "This one has a handhold. Good. I marked it before the light changed.",
+                "Kept. If the day doubles back, this page knows the side path."
             ],
             wordLines: [
                 "\u{201C}{word}\u{201D} is a safe place to stand. I scouted it.",
-                "If the day goes sideways, \u{201C}{word}\u{201D} is your exit. Remember it."
+                "If the day goes sideways, \u{201C}{word}\u{201D} is your exit. Remember it.",
+                "\u{201C}{word}\u{201D} holds. I put my weight on it first.",
+                "I left a thread from here to \u{201C}{word}\u{201D}. Pull gently."
             ]
         ),
         Voice(
             slug: "lydia-boggle",
             name: "Professor Boggle",
             asset: "LabyrinthCharacterLydiaBoggle",
+            accentHex: "D99A2B",
+            glyph: "\u{25CE}",
             plainLines: [
                 "A home is a spell with the washing-up still in it. Filed accordingly.",
                 "That is kitchen-grade magic. The good kind. Kettle\u{2019}s on.",
                 "Your ordinary just confessed something marvelous. I heard it.",
-                "Label the chaos by room and it almost behaves. See? Kept."
+                "Label the chaos by room and it almost behaves. See? Kept.",
+                "I nearly labeled the marvelous bit by room. Caught myself. Some kitchens should stay haunted.",
+                "That ordinary thing winked when you named it. I saw. Into the Book it goes.",
+                "Proper domestic enchantment: plain, useful, and refusing to stay plain."
             ],
             wordLines: [
                 "Held \u{201C}{word}\u{201D} up to the glint-lens. Marvelous, as suspected.",
-                "\u{201C}{word}\u{201D} could hold an extraordinary day without dropping it."
+                "\u{201C}{word}\u{201D} could hold an extraordinary day without dropping it.",
+                "\u{201C}{word}\u{201D} is doing household magic in public. Brave of it.",
+                "I checked under \u{201C}{word}\u{201D}. Found wonder dust and one practical answer."
             ]
         ),
         Voice(
             slug: "gwendolyn-mythwright",
             name: "Gwendolyn Mythwright",
             asset: "LabyrinthCharacterGwendolynMythwright",
+            accentHex: "5C7046",
+            glyph: "\u{274B}",
             plainLines: [
                 "Stamped, cross-referenced, and taken completely seriously.",
                 "A wonder with evidence behind it. You need not be lonely about it now.",
                 "I have a folder for this. I have a folder for everything.",
-                "The improbable appreciates proper paperwork. So do I."
+                "The improbable appreciates proper paperwork. So do I.",
+                "This went in the wrong folder briefly. There is now a folder for my wrong folders.",
+                "Verified: one unlikely thing, behaving exactly like itself.",
+                "I have taken this seriously in triplicate. The third copy is for morale."
             ],
             wordLines: [
                 "\u{201C}{word}\u{201D} has been entered in the register of verified wonders.",
-                "I am writing a letter to \u{201C}{word}\u{201D}. I expect a reply."
+                "I am writing a letter to \u{201C}{word}\u{201D}. I expect a reply.",
+                "\u{201C}{word}\u{201D} requires a new appendix. Excellent news.",
+                "The evidence around \u{201C}{word}\u{201D} is peculiar and therefore promising."
             ]
         ),
         Voice(
             slug: "wicker-eddies",
             name: "Wicker Eddies",
             asset: "LabyrinthCharacterWickerEddies",
+            accentHex: "4A3454",
+            glyph: "\u{2715}",
             plainLines: [
                 "I tried to puncture this one. It held. Annoying.",
                 "Kept, and it survived contact with doubt. That\u{2019}s the real kind.",
                 "No theatrics in it. I checked twice. Carry on.",
-                "I laughed, I stepped toward it, and it didn\u{2019}t flinch. Fine."
+                "I laughed, I stepped toward it, and it didn\u{2019}t flinch. Fine.",
+                "I pressed on this one to see if it would break. It didn\u{2019}t. Noting, for once, that I\u{2019}m glad.",
+                "I looked for the trick. Found the nerve instead. Annoyingly respectable.",
+                "Kept. I object to how sturdy it is, officially and without effect."
             ],
             wordLines: [
                 "\u{201C}{word}\u{201D} — I tested it. It rang true. Don\u{2019}t gloat.",
-                "Even I can\u{2019}t collapse \u{201C}{word}\u{201D}. It\u{2019}s load-bearing."
+                "Even I can\u{2019}t collapse \u{201C}{word}\u{201D}. It\u{2019}s load-bearing.",
+                "\u{201C}{word}\u{201D} has teeth. Good. A true thing should.",
+                "I kicked \u{201C}{word}\u{201D} and hurt my doubt. Educational."
             ]
         ),
         Voice(
             slug: "serenity-brown",
             name: "Serenity Brown",
             asset: "LabyrinthCharacterSerenityBrown",
+            accentHex: "3E6E8E",
+            glyph: "\u{2727}",
             plainLines: [
                 "See? The detour was the whole adventure.",
                 "Kept lightly. That\u{2019}s not the same as kept carelessly.",
                 "This one gets to be fun forever now.",
-                "You stopped white-knuckling it for a second. It shows."
+                "You stopped white-knuckling it for a second. It shows.",
+                "I almost skipped the heavy part of this one. Stayed, this time. It was worth the staying.",
+                "This page gets a little flag and a shortcut through the boring parts.",
+                "Kept with the windows open. The page immediately improved."
             ],
             wordLines: [
                 "\u{201C}{word}\u{201D} is coming with us. It knows the way out.",
-                "A whole kingdom could fit inside \u{201C}{word}\u{201D}, doodled small."
+                "A whole kingdom could fit inside \u{201C}{word}\u{201D}, doodled small.",
+                "\u{201C}{word}\u{201D} packed snacks for the detour. Sensible.",
+                "I made \u{201C}{word}\u{201D} a tiny map. It immediately found a better route."
             ]
         )
     ]
+
+    static func voice(forSlug slug: String) -> Voice? {
+        voices.first { $0.slug == slug }
+    }
+
+    /// F3: until the library matures, the margins belong to the four greeters —
+    /// love needs repetition, and nine faces at once is a crowd.
+    static let greeterSlugs: Set<String> = [
+        "pippa-pilcrow", "professor-thaddeus-mook", "penny-blackletter", "zara-finch"
+    ]
+    static let greeterKeepThreshold = 12
+
+    /// F1: the guaranteed first-friend note on the reader's first eligible keep.
+    static let firstKeepNote = Note(
+        castSlug: "pippa-pilcrow",
+        castName: "Pippa Pilcrow",
+        assetName: "LabyrinthCharacterPilcrow",
+        line: "You went out and caught a real one. First page in, and it has a pulse — I told the margins you\u{2019}d be good at this."
+    )
+
+    /// F2: the second keep is witnessed twice — Mook files it, Pippa scrawls underneath.
+    static let secondKeepDuetNote = Note(
+        castSlug: "professor-thaddeus-mook",
+        castName: "Professor Mook",
+        assetName: "LabyrinthCharacterMook",
+        line: "A second page, filed correctly and on time. I am noting the beginning of a pattern.",
+        rejoinderName: "Pippa Pilcrow",
+        rejoinderAsset: "LabyrinthCharacterPilcrow",
+        rejoinderLine: "Ignore the stamp — he underlined your good word twice when he thought no one was looking."
+    )
+
+    /// True when a keep is substantial enough (and public enough) to earn ink.
+    /// Mirrors the guards that already open `note(...)`.
+    static func isEligible(input: String, pageType: BookPageType) -> Bool {
+        guard !EditionCurator.defaultPrivateTypes.contains(pageType) else { return false }
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.split { !$0.isLetter && !$0.isNumber }.count >= 3
+    }
+
+    /// Keeps that have earned (or could have earned) a margin note — derived
+    /// from the archive, never stored. This mirrors `note(...)`: generated
+    /// pages can show a toast too, so they must count toward the first/second
+    /// keep gates.
+    static func eligiblePages(in days: [BookDay]) -> [BookPage] {
+        days.flatMap(\.pages)
+            .filter { isEligible(input: $0.userInput, pageType: $0.type) }
+            .sorted {
+                if $0.createdAt == $1.createdAt { return $0.id < $1.id }
+                return $0.createdAt < $1.createdAt
+            }
+    }
+
+    /// How many prior keeps have earned (or could have earned) a margin note —
+    /// derived from the archive, never stored.
+    static func eligibleKeepCount(in days: [BookDay]) -> Int {
+        eligiblePages(in: days).count
+    }
+
+    static func recentCastSlugs(
+        in days: [BookDay],
+        limit: Int,
+        beliefBySlug: [String: Int] = [:]
+    ) -> [String] {
+        guard limit > 0 else { return [] }
+        var slugs: [String] = []
+        for (priorCount, page) in eligiblePages(in: days).enumerated() {
+            let avoid = priorCount < 2 ? Set<String>() : Set(slugs.suffix(1))
+            if let note = note(
+                for: page.userInput,
+                pageType: page.type,
+                pageID: page.id,
+                beliefBySlug: beliefBySlug,
+                priorKeepCount: priorCount,
+                avoidingCastSlugs: avoid
+            ) {
+                slugs.append(note.castSlug)
+            }
+        }
+        return Array(slugs.suffix(limit))
+    }
 
     /// The special note when a kept souvenir clears the Story Spark bar —
     /// the Book itself answers, promising the door that the caller is already
@@ -7308,31 +7533,67 @@ enum KeepMarginalia {
         for input: String,
         pageType: BookPageType,
         pageID: String,
-        beliefBySlug: [String: Int] = [:]
+        beliefBySlug: [String: Int] = [:],
+        priorKeepCount: Int = Int.max,
+        avoidingCastSlugs: Set<String> = []
     ) -> Note? {
-        guard !EditionCurator.defaultPrivateTypes.contains(pageType) else { return nil }
+        guard isEligible(input: input, pageType: pageType) else { return nil }
+        // The first-friend claim and the duet outrank the belief roll entirely.
+        if priorKeepCount == 0 { return firstKeepNote }
+        if priorKeepCount == 1 { return secondKeepDuetNote }
+
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        let wordCount = trimmed.split { !$0.isLetter && !$0.isNumber }.count
-        guard wordCount >= 3 else { return nil }
+        // Until the library matures, the margins belong to the four greeters.
+        let pool = priorKeepCount < greeterKeepThreshold
+            ? voices.filter { greeterSlugs.contains($0.slug) }
+            : voices
 
         let seed = seed(for: pageID)
         // Weighted pick: a cast member's effective Belief is their share of the
         // margins. Unknown slugs fall back to the base glow of 20.
-        let weights = voices.map { max(1, beliefBySlug[$0.slug] ?? 20) }
+        let weights = pool.map { max(1, beliefBySlug[$0.slug] ?? 20) }
         let total = weights.reduce(0, +)
         var pick = Int(seed % UInt64(total))
-        var voice = voices[0]
+        var voice = pool[0]
+        var voiceIndex = 0
         for (index, weight) in weights.enumerated() {
-            if pick < weight { voice = voices[index]; break }
+            if pick < weight {
+                voice = pool[index]
+                voiceIndex = index
+                break
+            }
             pick -= weight
         }
+        if avoidingCastSlugs.contains(voice.slug),
+           let replacement = replacementVoice(in: pool, weights: weights, after: voiceIndex, avoiding: avoidingCastSlugs) {
+            voice = replacement
+        }
         let word = featuredWord(in: trimmed)
-        let pool = word == nil ? voice.plainLines : voice.plainLines + voice.wordLines
-        var line = pool[Int((seed >> 8) % UInt64(pool.count))]
+        let linePool = word == nil ? voice.plainLines : voice.plainLines + voice.wordLines
+        var line = linePool[Int((seed >> 8) % UInt64(linePool.count))]
         if let word {
             line = line.replacingOccurrences(of: "{word}", with: word)
         }
         return Note(castSlug: voice.slug, castName: voice.name, assetName: voice.asset, line: line)
+    }
+
+    private static func replacementVoice(
+        in pool: [Voice],
+        weights: [Int],
+        after selectedIndex: Int,
+        avoiding avoided: Set<String>
+    ) -> Voice? {
+        guard pool.count > 1 else { return nil }
+        let candidates = pool.indices.filter { !avoided.contains(pool[$0].slug) }
+        guard !candidates.isEmpty else { return nil }
+        return candidates.max {
+            if weights[$0] == weights[$1] {
+                let lhsDistance = ($0 - selectedIndex + pool.count) % pool.count
+                let rhsDistance = ($1 - selectedIndex + pool.count) % pool.count
+                return lhsDistance > rhsDistance
+            }
+            return weights[$0] < weights[$1]
+        }.map { pool[$0] }
     }
 }
 

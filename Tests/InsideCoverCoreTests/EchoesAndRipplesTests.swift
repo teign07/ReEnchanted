@@ -114,6 +114,26 @@ final class EchoesAndRipplesTests: XCTestCase {
         }
     }
 
+    func testBeliefWeightingStillAppliesInsideGreeterPool() {
+        let heavy = "penny-blackletter"
+        var beliefs = Dictionary(uniqueKeysWithValues: KeepMarginalia.voices.map { ($0.slug, 1) })
+        beliefs[heavy] = 500
+
+        var heavyHits = 0
+        for index in 0..<40 {
+            let note = KeepMarginalia.note(
+                for: "A small true thing happened by the window today.",
+                pageType: .diary,
+                pageID: "greeter-weighted-\(index)",
+                beliefBySlug: beliefs,
+                priorKeepCount: 5
+            )
+            XCTAssertTrue(KeepMarginalia.greeterSlugs.contains(note?.castSlug ?? ""))
+            if note?.castSlug == heavy { heavyHits += 1 }
+        }
+        XCTAssertGreaterThanOrEqual(heavyHits, 30, "Belief weighting still dominates within the greeter pool.")
+    }
+
     // MARK: Festival notes
 
     func testFestivalNoteHasPerSabbatLines() {

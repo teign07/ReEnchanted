@@ -86,11 +86,20 @@ LULU_CLIENT_KEY="..."
 LULU_CLIENT_SECRET="..."
 STRIPE_SECRET_KEY="sk_live_..."
 PHYSICAL_BOOK_API_TOKEN="..."
-LULU_API_BASE_URL="https://api.lulu.com"
-LULU_AUTH_URL="https://api.lulu.com/auth/realms/glasstree/protocol/openid-connect/token"
+LULU_API_BASE_URL="https://api.sandbox.lulu.com"
+LULU_AUTH_URL="https://api.sandbox.lulu.com/auth/realms/glasstree/protocol/openid-connect/token"
+ZIP_CITY_LOOKUP_BASE_URL="https://api.zippopotam.us"
 ```
 
-For sandbox, use Lulu's sandbox base/auth URLs and sandbox credentials.
+This repo's Worker config defaults to Lulu sandbox/dev credentials while the
+integration is being proven. For production Lulu credentials, switch the base URL
+to `https://api.lulu.com` and the auth URL to
+`https://api.lulu.com/auth/realms/glasstree/protocol/openid-connect/token`.
+
+`ZIP_CITY_LOOKUP_BASE_URL` is optional. When the app asks for a quote with only
+state/ZIP, the Worker resolves the city before calling Lulu's cost endpoint.
+If the lookup is unavailable or does not return a city, the quote request fails
+with a clear setup/validation error instead of guessing.
 
 ## Setup Health
 
@@ -153,6 +162,24 @@ The response is `PhysicalBookHostedPrintFile`:
   "byteCount": 123456
 }
 ```
+
+### Privacy and Manuscript Handling
+
+Physical book ordering is not local-only. To print a book, the app uploads the
+generated interior and cover PDFs to the print backend, and those PDFs are made
+available to Lulu so Lulu can manufacture and ship the book.
+
+The transport path uses HTTPS, and R2 storage is encrypted at rest by the cloud
+provider, but this is not end-to-end manuscript encryption: the print provider
+must be able to read the files to produce the physical book. The current R2
+serving model uses long, content-addressed public URLs. Treat those URLs as
+private links, not as access-controlled documents.
+
+Before upload or final submission, the iOS app should explicitly disclose that
+the print files leave the device and are shared with Lulu, the third-party
+print-on-demand provider. If stronger manuscript privacy is required, the next
+backend step is to replace public R2 serving with short-lived signed URLs or an
+authenticated fetch proxy that Lulu can access only during order submission.
 
 ## Order Storage
 

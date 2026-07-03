@@ -2,7 +2,6 @@ import SwiftUI
 import CryptoKit
 import StripePaymentSheet
 import UIKit
-import UniformTypeIdentifiers
 #if canImport(QuickLook)
 import QuickLook
 #endif
@@ -85,13 +84,13 @@ struct BookShopSheet: View {
     @State private var isPreparingPhysicalBookCheckout = false
     @State private var physicalBookProofPreviewURL: URL?
     @State private var showPhysicalBookAdvancedFileLinks = false
-    @State private var isImportingWordPack = false
+    @State private var physicalBookThirdPartyPrintConsent = false
 
     private var ownedListings: [BookShopListing] {
         BookShopCatalog.listings.filter { !$0.comingSoon && PackEntitlements.isUnlocked($0.packID) }
     }
     private var freePacks: [PageArchetypePack] {
-        PageArchetypePackRegistry.bundledPacks.filter { $0.availability == "bundledFree" }
+        PageArchetypePackRegistry.bundledPacks.filter { ["nocturne-folio", "margins-and-mysteries"].contains($0.id) }
     }
     private var comingSoon: [BookShopListing] {
         BookShopCatalog.listings.filter { $0.comingSoon }
@@ -124,16 +123,13 @@ struct BookShopSheet: View {
                             }
                         }
 
-                        if !freePacks.isEmpty {
-                            shelfBlock(title: "Free First Folio", subtitle: "One shelf is a gift. The clerk calls it a customer acquisition hex.", symbol: "gift.fill", accent: BookPalette.lampGold) {
-                                ForEach(freePacks) { pack in freePackCard(pack) }
-                            }
-                        }
-
                         binderySection
-                        wordPackImportSection
 
                         shelfBlock(title: "The Paid Shelf", subtitle: merchantName.isEmpty ? "The till is waking." : merchantName, symbol: "creditcard.fill", accent: BookPalette.teal) {
+                            if !freePacks.isEmpty {
+                                subsectionLabel("Free Gifts")
+                                ForEach(freePacks) { pack in freePackCard(pack) }
+                            }
                             if isLoading {
                                 ProgressView("The Goblins are unlocking the till...")
                                     .tint(BookPalette.lampGold)
@@ -177,9 +173,6 @@ struct BookShopSheet: View {
             }
             .fullScreenCover(item: $physicalBookStudioContext) { context in
                 physicalBookStudioScreen(edition: context.edition)
-            }
-            .fileImporter(isPresented: $isImportingWordPack, allowedContentTypes: [.json]) { result in
-                importWordPack(result)
             }
             .task {
                 let merchant = await BookShopTill.resolveMerchant()
@@ -326,38 +319,6 @@ struct BookShopSheet: View {
             .tint(BookPalette.teal)
         }
         .padding(.top, 2)
-    }
-
-    private var wordPackImportSection: some View {
-        shelfBlock(
-            title: "Bring Your Own Hoard",
-            subtitle: "Install a .sentencepack.json word hoard for the sentence builder.",
-            symbol: "text.book.closed.fill",
-            accent: BookPalette.violet
-        ) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("The clerk accepts properly labelled word hoards: concrete things, body words, lively verbs, crossings, themes, or starter lines.")
-                    .font(.caption)
-                    .foregroundStyle(BookPalette.ink.opacity(0.72))
-                    .fixedSize(horizontal: false, vertical: true)
-                Button {
-                    BookFeedback.play(.select)
-                    isImportingWordPack = true
-                } label: {
-                    Label("Import word pack", systemImage: "square.and.arrow.down")
-                        .font(.caption.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(BookPalette.violet)
-            }
-            .padding(13)
-            .background(BookPalette.page.opacity(0.78), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(BookPalette.violet.opacity(0.22), lineWidth: 1)
-            }
-        }
     }
 
     private func marketTag(_ title: String, systemImage: String) -> some View {
@@ -620,41 +581,56 @@ struct BookShopSheet: View {
 
                 Divider().overlay(BookPalette.ink.opacity(0.12))
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("A real Book of You", systemImage: "shippingbox")
-                        .font(.callout.weight(.bold))
-                        .foregroundStyle(BookPalette.violet)
-                    Text("A made-to-order 6×9 hardcover, dressed like a favorite fantasy novel.")
-                        .font(.callout)
-                        .foregroundStyle(BookPalette.ink.opacity(0.68))
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if !PhysicalBookQuoteClient.isQuoteServiceConfigured {
-                        Text("Cloth-bound copies are coming soon.")
-                            .font(.system(.caption, design: .serif).italic())
-                            .foregroundStyle(BookPalette.ink.opacity(0.6))
-                    } else if let printPreviewEdition {
-                        Button {
-                            BookFeedback.play(.openPage)
-                            physicalBookStudioContext = PhysicalBookStudioContext(edition: printPreviewEdition)
-                        } label: {
-                            Label("Order a physical copy", systemImage: "book.closed")
-                                .font(.callout.weight(.bold))
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(BookPalette.violet)
-                    } else {
-                        Text("Bind a month first, then this shelf opens into cover choices, pricing, and checkout.")
-                            .font(.callout)
-                            .foregroundStyle(BookPalette.ink.opacity(0.68))
-                            .fixedSize(horizontal: false, vertical: true)
+                if let printPreviewEdition {
+                    Button {
+                        BookFeedback.play(.openPage)
+                        physicalBookStudioContext = PhysicalBookStudioContext(edition: printPreviewEdition)
+                    } label: {
+                        physicalBookEntryLabel(
+                            hint: "Tap to choose a cover, see pricing, and check out.",
+                            showChevron: true
+                        )
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens the full-screen ordering process")
+                } else {
+                    physicalBookEntryLabel(
+                        hint: "Bind a month first, then this shelf opens into cover choices, pricing, and checkout.",
+                        showChevron: false
+                    )
                 }
             }
             .padding(10)
             .background(BookPalette.page.opacity(0.85), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
+    }
+
+    /// The tappable "A real Book of You" card in the Bindery. The whole card is the
+    /// tap target; when a month is ready it opens the full-screen ordering studio.
+    private func physicalBookEntryLabel(hint: String, showChevron: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("A real Book of You", systemImage: "shippingbox")
+                    .font(.callout.weight(.bold))
+                    .foregroundStyle(BookPalette.violet)
+                Spacer(minLength: 8)
+                if showChevron {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.violet.opacity(0.7))
+                }
+            }
+            Text("A made-to-order 6×9 hardcover, dressed like a favorite fantasy novel.")
+                .font(.callout)
+                .foregroundStyle(BookPalette.ink.opacity(0.68))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(hint)
+                .font(.system(.caption, design: .serif).italic())
+                .foregroundStyle(BookPalette.ink.opacity(0.6))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
     private func physicalBookStudioScreen(edition: MonthlyEdition) -> some View {
@@ -696,6 +672,7 @@ struct BookShopSheet: View {
                 loadPendingPhysicalBookOrder(edition: edition, spec: selectedPrintSpec)
             }
             .task(id: physicalBookPrintFilesTaskID) {
+                physicalBookThirdPartyPrintConsent = false
                 loadPhysicalBookPrintFileChecksums()
             }
             .toolbar {
@@ -1128,6 +1105,7 @@ struct BookShopSheet: View {
                 .disabled(isRefreshingPhysicalBookOrder || submittedPhysicalBookOrder.luluPrintJobID == nil)
             } else {
                 physicalBookCheckoutNotice(physicalBookSubmissionReadinessText, systemImage: physicalBookSubmissionReady ? "checkmark.seal" : "hourglass")
+                physicalBookThirdPartyDisclosure
 
                 Button {
                     Task { await uploadPhysicalBookPrintFiles(edition: edition) }
@@ -1187,6 +1165,36 @@ struct BookShopSheet: View {
         }
         .padding(12)
         .background(BookPalette.page.opacity(0.84), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var physicalBookThirdPartyDisclosure: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "lock.shield")
+                    .font(.callout.weight(.bold))
+                    .foregroundStyle(BookPalette.violet)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Printing leaves your device")
+                        .font(.callout.weight(.bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text("To make a physical Book of You, the interior and cover PDFs are uploaded to ReEnchanted's print backend and shared with Lulu, our third-party print-on-demand provider. Payment is handled by Stripe.")
+                        .font(.callout)
+                        .foregroundStyle(BookPalette.ink.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Toggle(isOn: $physicalBookThirdPartyPrintConsent) {
+                Text("I understand Lulu will receive the print files needed to make this book.")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .toggleStyle(.switch)
+            .tint(BookPalette.teal)
+        }
+        .padding(10)
+        .background(BookPalette.violet.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     @ViewBuilder
@@ -1355,30 +1363,29 @@ struct BookShopSheet: View {
                 physicalBookCheckoutNotice("Live pricing is not connected yet. Add the quote endpoint before preparing checkout.", systemImage: "network.badge.shield.half.filled")
             }
 
-            HStack(spacing: 8) {
-                TextField("State", text: $physicalBookQuoteStateCode)
-                    .textInputAutocapitalization(.characters)
-                    .autocorrectionDisabled()
-                    .keyboardType(.asciiCapable)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 74)
-                TextField("Delivery ZIP", text: $physicalBookQuotePostalCode)
-                    .keyboardType(.numbersAndPunctuation)
-                    .textFieldStyle(.roundedBorder)
-                Button {
-                    Task { await loadPhysicalBookQuote(edition: edition, spec: spec) }
-                } label: {
-                    if isLoadingPhysicalBookQuote {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Label("Get price", systemImage: "truck.box")
-                            .font(.caption2.weight(.bold))
-                    }
+            physicalBookShippingForm
+
+            Button {
+                Task { await loadPhysicalBookQuote(edition: edition, spec: spec) }
+            } label: {
+                if isLoadingPhysicalBookQuote {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Label("Get price", systemImage: "truck.box")
+                        .font(.callout.weight(.bold))
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(BookPalette.violet)
-                .disabled(isLoadingPhysicalBookQuote || physicalBookQuotePostalCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(BookPalette.violet)
+            .disabled(isLoadingPhysicalBookQuote || physicalBookShippingAddress == nil)
+
+            if physicalBookShippingAddress == nil {
+                Text("Add the delivery address first so Lulu can calculate the real print and shipping price.")
+                    .font(.callout)
+                    .foregroundStyle(BookPalette.ink.opacity(0.68))
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let physicalBookQuoteMessage {
@@ -1426,9 +1433,6 @@ struct BookShopSheet: View {
                             in: RoundedRectangle(cornerRadius: 6, style: .continuous)
                         )
                     }
-
-                    physicalBookShippingForm
-
                     Button {
                         Task { await preparePhysicalBookCheckout() }
                     } label: {
@@ -1471,6 +1475,9 @@ struct BookShopSheet: View {
             resetPreparedPhysicalBookCheckout()
         }
         .onChange(of: physicalBookShippingFingerprint) { _, _ in
+            physicalBookQuote = nil
+            physicalBookQuoteMessage = nil
+            selectedPhysicalBookShippingOptionID = nil
             resetPreparedPhysicalBookCheckout()
         }
     }
@@ -1528,7 +1535,7 @@ struct BookShopSheet: View {
                     .textContentType(.countryName)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 96)
-                TextField("Phone (optional)", text: $physicalBookPhoneNumber)
+                TextField("Phone", text: $physicalBookPhoneNumber)
                     .keyboardType(.phonePad)
                     .textContentType(.telephoneNumber)
                     .textFieldStyle(.roundedBorder)
@@ -1556,6 +1563,7 @@ struct BookShopSheet: View {
             physicalBookPrintFileChecksums != nil &&
             physicalBookHostedPrintFiles != nil &&
             currentPhysicalBookOrderQuoteRequest != nil &&
+            physicalBookThirdPartyPrintConsent &&
             PhysicalBookQuoteClient.isQuoteServiceConfigured
     }
 
@@ -1563,12 +1571,16 @@ struct BookShopSheet: View {
         preparedPrintInteriorURL != nil &&
             preparedPrintCoverURL != nil &&
             physicalBookPrintFileChecksums != nil &&
+            physicalBookThirdPartyPrintConsent &&
             PhysicalBookQuoteClient.isQuoteServiceConfigured
     }
 
     private var physicalBookSubmissionReadinessText: String {
         if pendingPhysicalBookOrder == nil {
             return "Checkout creates a saved order before final print submission unlocks."
+        }
+        if !physicalBookThirdPartyPrintConsent {
+            return "Confirm that Lulu will receive the print files before upload or final submission."
         }
         if currentPhysicalBookOrderQuoteRequest == nil {
             return "This paid order needs its original live quote. Get a fresh quote if this was saved before the latest order handoff."
@@ -1619,7 +1631,8 @@ struct BookShopSheet: View {
               !street1.isEmpty,
               !city.isEmpty,
               !countryCode.isEmpty,
-              !postalCode.isEmpty else {
+              !postalCode.isEmpty,
+              !phoneNumber.isEmpty else {
             return nil
         }
 
@@ -1631,7 +1644,7 @@ struct BookShopSheet: View {
             stateCode: stateCode.isEmpty ? nil : stateCode,
             countryCode: countryCode,
             postalCode: postalCode,
-            phoneNumber: phoneNumber.isEmpty ? nil : phoneNumber
+            phoneNumber: phoneNumber
         )
     }
 
@@ -1659,18 +1672,23 @@ struct BookShopSheet: View {
 
     @MainActor
     private func loadPhysicalBookQuote(edition: MonthlyEdition, spec: PrintSpec) async {
-        let postalCode = physicalBookQuotePostalCode.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !postalCode.isEmpty else { return }
-        let stateCode = physicalBookQuoteStateCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard let address = physicalBookShippingAddress else {
+            physicalBookQuoteMessage = "Add the delivery address first."
+            return
+        }
         let pageCount = PrintGeometry.boundPageCount(rawPages: max(edition.pageCount, 24), spec: spec)
         let request = PhysicalBookQuoteRequest(
             editionID: BookThemeEngine.monthKey(for: edition.startDate),
             variant: .from(spec),
             pageCount: pageCount,
             shipTo: PhysicalBookShippingDestination(
-                countryCode: "US",
-                stateCode: stateCode.isEmpty ? nil : stateCode,
-                postalCode: postalCode
+                countryCode: address.countryCode,
+                stateCode: address.stateCode,
+                postalCode: address.postalCode,
+                city: address.city,
+                street1: address.street1,
+                street2: address.street2,
+                phoneNumber: address.phoneNumber
             )
         )
 
@@ -1682,12 +1700,6 @@ struct BookShopSheet: View {
             let quote = try await PhysicalBookQuoteClient().quote(request)
             physicalBookQuote = quote
             selectedPhysicalBookShippingOptionID = quote.shippingOptions.first?.id
-            if physicalBookShippingStateCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                physicalBookShippingStateCode = stateCode
-            }
-            if physicalBookShippingPostalCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                physicalBookShippingPostalCode = postalCode
-            }
             resetPreparedPhysicalBookCheckout()
             physicalBookQuoteMessage = "Live quote expires \(quote.expiresAt.formatted(date: .abbreviated, time: .shortened))."
         } catch PhysicalBookQuoteClient.ConfigurationError.missingEndpoint {
@@ -1798,6 +1810,10 @@ struct BookShopSheet: View {
 
     @MainActor
     private func uploadPhysicalBookPrintFiles(edition: MonthlyEdition) async {
+        guard physicalBookThirdPartyPrintConsent else {
+            physicalBookSubmissionMessage = "Confirm that Lulu will receive the print files before uploading proofs."
+            return
+        }
         guard let preparedPrintInteriorURL,
               let preparedPrintCoverURL,
               let checksums = physicalBookPrintFileChecksums else {
@@ -1836,6 +1852,10 @@ struct BookShopSheet: View {
 
     @MainActor
     private func submitPhysicalBookOrder(previewOnly: Bool, edition: MonthlyEdition, spec: PrintSpec) async {
+        guard physicalBookThirdPartyPrintConsent else {
+            physicalBookSubmissionMessage = "Confirm that Lulu will receive the print files before submitting the order."
+            return
+        }
         guard let orderRequest = makePhysicalBookOrderRequest() else {
             physicalBookSubmissionMessage = physicalBookSubmissionReadinessText
             return
@@ -2232,7 +2252,7 @@ struct BookShopSheet: View {
                     Text(pack.displayName)
                         .font(.system(.headline, design: .serif, weight: .bold))
                         .foregroundStyle(BookPalette.ink)
-                    Text(isBound ? "Bound to your save" : "Bundled free folio")
+                    Text(isBound ? "Bound to your save" : "Free gift")
                         .font(.caption2.weight(.black))
                         .kerning(0.8)
                         .foregroundStyle(BookPalette.lampGold.opacity(0.84))
@@ -2240,7 +2260,7 @@ struct BookShopSheet: View {
                 Spacer()
                 priceTag("$0", label: "gift", tint: BookPalette.lampGold)
             }
-            Text("A starter folio of \(pack.archetypes.count) extra page shapes. Bind it once and the Bookshop has taught you how shelves can be added.")
+            Text("A gift folio of \(pack.archetypes.count) extra page shapes. Bind it here when you want the Book to start using it.")
                 .font(.caption)
                 .foregroundStyle(BookPalette.ink.opacity(0.76))
                 .fixedSize(horizontal: false, vertical: true)
@@ -2248,9 +2268,9 @@ struct BookShopSheet: View {
                 guard !isBound else { return }
                 boundFreePackIDs.insert(pack.id)
                 onUnlock(pack.id)
-                clerkLine = "The clerk stamps the free folio with theatrical reluctance. \"A gift. Obviously suspicious. Enjoy it.\""
+                clerkLine = "The clerk stamps the gift folio with theatrical reluctance. \"Free. Obviously suspicious. Enjoy it.\""
             } label: {
-                Label(isBound ? "Already bound" : "Bind the free folio", systemImage: isBound ? "checkmark.seal.fill" : "seal")
+                Label(isBound ? "Already bound" : "Bind the free gift", systemImage: isBound ? "checkmark.seal.fill" : "seal")
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
@@ -2383,52 +2403,6 @@ struct BookShopSheet: View {
             : "The ledger remembers you. \(owned.count) binding\(owned.count == 1 ? "" : "s") restored."
     }
 
-    private func importWordPack(_ result: Result<URL, Error>) {
-        do {
-            let url = try result.get()
-            let didAccess = url.startAccessingSecurityScopedResource()
-            defer {
-                if didAccess { url.stopAccessingSecurityScopedResource() }
-            }
-
-            let data = try Data(contentsOf: url)
-            guard let pack = SentenceBuilderPackRegistry.validateImport(data: data) else {
-                clerkLine = "The clerk sniffs the file. \"That isn't a word hoard.\""
-                BookFeedback.play(.error)
-                return
-            }
-
-            guard let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-                clerkLine = "The clerk cannot find the Documents drawer. This is embarrassing for everyone."
-                BookFeedback.play(.error)
-                return
-            }
-
-            let filename = "\(sanitizedWordPackID(pack.id)).sentencepack.json"
-            try data.write(to: documents.appendingPathComponent(filename), options: [.atomic])
-            SentenceBuilderPackRegistry.reload()
-            clerkLine = "The clerk shelves \(pack.displayName.isEmpty ? pack.id : pack.displayName): \(wordCount(in: pack)) words now rattle in the builder."
-            BookFeedback.play(.braidComplete)
-        } catch {
-            clerkLine = "The import drawer sticks. \"\(error.localizedDescription)\""
-            BookFeedback.play(.error)
-        }
-    }
-
-    private func sanitizedWordPackID(_ id: String) -> String {
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
-        let scalars = id.unicodeScalars.map { allowed.contains($0) ? Character($0) : "-" }
-        let cleaned = String(scalars).trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
-        return cleaned.isEmpty ? "word-pack" : cleaned
-    }
-
-    private func wordCount(in pack: SentenceBuilderPack) -> Int {
-        pack.concreteWords.count
-            + pack.sensoryWords.count
-            + pack.animateVerbs.count
-            + pack.crossingWords.count
-            + pack.themes.reduce(0) { $0 + $1.anchors.count + $1.senses.count + $1.verbs.count + $1.crossings.count }
-    }
 }
 
 private struct PhysicalBookStudioContext: Identifiable {

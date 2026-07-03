@@ -425,10 +425,10 @@ final class WorldSystemsTests: XCTestCase {
         }
         PackEntitlements.ownedPackIDs = []
         PackEntitlements.launchGrantedPackIDs = ["dictionary-rebellion"]
-        XCTAssertTrue(PageArchetypePackRegistry.archetypes().contains { $0.id == "last-light" })
+        XCTAssertFalse(PageArchetypePackRegistry.archetypes().contains { $0.id == "last-light" })
         let baseCount = WonderSparkRegistry.sparks.count
 
-        PackEntitlements.launchGrantedPackIDs.insert("nocturne-folio")
+        PackEntitlements.ownedPackIDs.insert("nocturne-folio")
         XCTAssertTrue(PageArchetypePackRegistry.archetypes().contains { $0.id == "last-light" })
         XCTAssertEqual(WonderSparkRegistry.sparks.count, baseCount + WonderSparkRegistry.nocturneSparks.count)
     }
@@ -1717,6 +1717,22 @@ final class WorldSystemsTests: XCTestCase {
         data.entityBelief = ["tide-glass": 12]
         data.tutorSeen = ["glow-menu"]
         data.beliefEconomy = BeliefEconomyState(lastDailyTickDayID: "2026-02-03")
+        data.castAgency = CastAgencyState(
+            resolvedSlotIDs: ["2026-06-12-s02"],
+            recentMovements: [
+                CastAgencyMovement(
+                    slotID: "2026-06-12-s02",
+                    kind: .relationship,
+                    actorID: "penny-blackletter",
+                    actorName: "Penny Blackletter",
+                    targetID: "dr-inkrest",
+                    targetName: "Dr. Selene Inkrest",
+                    amount: 1,
+                    line: "Penny Blackletter invested 1 Belief in Dr. Selene Inkrest.",
+                    createdAt: date(2026, 6, 12, hour: 8, calendar: utcCalendar)
+                )
+            ]
+        )
         data.compassKnownPlaces = [
             CompassKnownPlace(
                 id: "compass-place-cafe-1",
@@ -1744,6 +1760,30 @@ final class WorldSystemsTests: XCTestCase {
         let decoded = try JSONDecoder().decode(PlayerVaultData.self, from: JSONEncoder().encode(data))
         XCTAssertEqual(decoded, data)
         XCTAssertEqual(decoded.version, PlayerVaultData.currentVersion)
+        XCTAssertEqual(decoded.castAgency?.recentMovements.first?.actorID, "penny-blackletter")
+    }
+
+    func testCastAgencyStateRemembersRecentSlotsOnly() {
+        let now = date(2026, 6, 12, hour: 12, calendar: utcCalendar)
+        let recentSlots: Set<String> = ["2026-06-12-s02", "2026-06-12-s03"]
+        var state = CastAgencyState(resolvedSlotIDs: ["2026-06-11-s01"])
+        let movement = CastAgencyMovement(
+            slotID: "2026-06-12-s03",
+            kind: .pageSource,
+            actorID: "wicker-eddies",
+            actorName: "Wicker Eddies",
+            targetID: "gossip-page",
+            targetName: "Gossip Page",
+            amount: 1,
+            line: "Wicker Eddies took 1 Belief from Gossip Page Pages.",
+            createdAt: now
+        )
+
+        state.remember(movement, keepingRecentSlots: recentSlots)
+
+        XCTAssertTrue(state.hasResolved(slotID: "2026-06-12-s03"))
+        XCTAssertFalse(state.hasResolved(slotID: "2026-06-11-s01"))
+        XCTAssertEqual(state.recentMovements.first, movement)
     }
 
     // MARK: Support Guild prose
@@ -2177,10 +2217,11 @@ final class WorldSystemsTests: XCTestCase {
             now: startedAt
         )
 
-        XCTAssertEqual(followUp?.map(\.sourceID), ["labyrinth-welcome"])
+        XCTAssertEqual(followUp?.map(\.sourceID), ["labyrinth-welcome", FirstRunPageSequence.localBrainSetupSourceID])
+        XCTAssertEqual(followUp?.last?.payload.metadata["firstRunStep"], "local-brain-setup")
     }
 
-    func testFirstRunSequenceOffersFirstMissionInsteadOfDuplicateSouvenirAsk() {
+    func testFirstRunSequenceOffersEnchantmentAfterBrainInsteadOfDuplicateSouvenirAsk() {
         var day = BookDay.today()
         day.pages.append(BookPage(
             type: .souvenir,
@@ -2217,10 +2258,21 @@ final class WorldSystemsTests: XCTestCase {
             now: Date()
         )
 
-        XCTAssertEqual(afterWelcomeAndBrain?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", FirstRunPageSequence.firstMissionSourceID])
-        let mission = afterWelcomeAndBrain?.last
-        XCTAssertEqual(mission?.type, .helpTips)
-        XCTAssertFalse(mission?.payload.body.lowercased().contains("one true sentence") ?? true)
+        XCTAssertEqual(afterWelcomeAndBrain?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", FirstRunPageSequence.enchantmentIntroSourceID])
+        let enchantment = afterWelcomeAndBrain?.last
+        XCTAssertEqual(enchantment?.type, .enchantment)
+        XCTAssertEqual(enchantment?.payload.metadata["firstRunStep"], "enchantment-intro")
+        XCTAssertTrue(enchantment?.payload.body.contains("Enchantment") == true)
+
+        inputs.surfaceHistory["source:\(FirstRunPageSequence.enchantmentIntroSourceID)"] = SurfaceHistoryRecord(lastShownAt: Date(), recentShowCount: 1)
+        let afterEnchantmentBeforeCompassWindow = FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        )
+        XCTAssertEqual(afterEnchantmentBeforeCompassWindow?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", FirstRunPageSequence.firstMissionSourceID])
+        XCTAssertFalse(afterEnchantmentBeforeCompassWindow?.last?.payload.body.lowercased().contains("one true sentence") ?? true)
 
         // Once the mission has been served, the first run is complete.
         inputs.surfaceHistory["source:\(FirstRunPageSequence.firstMissionSourceID)"] = SurfaceHistoryRecord(lastShownAt: Date(), recentShowCount: 1)
@@ -2259,8 +2311,17 @@ final class WorldSystemsTests: XCTestCase {
             now: Date()
         )
 
-        XCTAssertEqual(pages?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", "calendar-page"])
-        XCTAssertEqual(pages?.last?.payload.metadata["calendarDoorPreview"], "true")
+        XCTAssertEqual(pages?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", FirstRunPageSequence.enchantmentIntroSourceID])
+
+        inputs.surfaceHistory["source:\(FirstRunPageSequence.enchantmentIntroSourceID)"] = SurfaceHistoryRecord(lastShownAt: Date(), recentShowCount: 1)
+        let afterEnchantment = FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        )
+        XCTAssertEqual(afterEnchantment?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", "calendar-page"])
+        XCTAssertEqual(afterEnchantment?.last?.payload.metadata["calendarDoorPreview"], "true")
 
         inputs.surfaceHistory["source:calendar-page"] = SurfaceHistoryRecord(lastShownAt: Date(), recentShowCount: 1)
         let afterCalendarDoor = FirstRunPageSequence.surfaces(
@@ -2273,17 +2334,20 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(afterCalendarDoor?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", FirstRunPageSequence.firstMissionSourceID])
     }
 
-    func testFirstRunSequenceStillAsksForSouvenirWhenOnboardingSkippedIt() {
+    func testFirstRunSequenceOffersMissionWhenOnboardingSkippedSouvenirAfterFeatureIntros() {
         let day = BookDay.today()
+        let now = Date()
         var inputs = BookSourceInputs.empty
         inputs.surfaceHistory = [
-            "source:labyrinth-welcome": SurfaceHistoryRecord(lastShownAt: Date(), recentShowCount: 1),
-            "source:local-brain-awake": SurfaceHistoryRecord(lastShownAt: Date(), recentShowCount: 1)
+            "source:labyrinth-welcome": SurfaceHistoryRecord(lastShownAt: now, recentShowCount: 1),
+            "source:local-brain-awake": SurfaceHistoryRecord(lastShownAt: now, recentShowCount: 1),
+            "source:\(FirstRunPageSequence.enchantmentIntroSourceID)": SurfaceHistoryRecord(lastShownAt: now, recentShowCount: 1)
         ]
         inputs.localBrainIsReady = true
 
-        // No kept first souvenir: the Book still needs one real sentence to braid
-        // from, so the souvenir ask remains the fallback.
+        // No kept first souvenir: the First Door still closes with the same
+        // playful mission, because onboarding no longer requires a duplicate
+        // one-sentence toll before the ordinary feed can begin.
         let pages = FirstRunPageSequence.surfaces(
             for: day,
             context: CuratorContext.make(for: day),
@@ -2291,8 +2355,58 @@ final class WorldSystemsTests: XCTestCase {
             now: Date()
         )
 
-        XCTAssertEqual(pages?.last?.sourceID, "one-sentence-souvenir")
-        XCTAssertEqual(pages?.last?.type, .souvenir)
+        XCTAssertEqual(pages?.last?.sourceID, FirstRunPageSequence.firstMissionSourceID)
+        XCTAssertEqual(pages?.last?.type, .helpTips)
+        XCTAssertEqual(pages?.last?.payload.metadata["firstRunStep"], "first-mission")
+    }
+
+    func testFirstRunSequenceSurfacesCompassRunOnlyInsidePostBrainWindow() {
+        let calendar = utcCalendar
+        let brainShownAt = date(2026, 6, 1, hour: 9, calendar: calendar)
+        let day = BookDay(id: "2026-06-01", date: brainShownAt, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.localBrainIsReady = true
+        inputs.calendarIntegrationEnabled = true
+        inputs.surfaceHistory = [
+            "source:labyrinth-welcome": SurfaceHistoryRecord(lastShownAt: brainShownAt, recentShowCount: 1),
+            "source:local-brain-awake": SurfaceHistoryRecord(lastShownAt: brainShownAt, recentShowCount: 1),
+            "source:\(FirstRunPageSequence.enchantmentIntroSourceID)": SurfaceHistoryRecord(lastShownAt: brainShownAt, recentShowCount: 1)
+        ]
+
+        let tooSoon = FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: brainShownAt.addingTimeInterval(20 * 60)
+        )
+        XCTAssertEqual(tooSoon?.last?.sourceID, FirstRunPageSequence.firstMissionSourceID)
+
+        let inWindow = FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: brainShownAt.addingTimeInterval(45 * 60)
+        )
+        XCTAssertEqual(inWindow?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", FirstRunPageSequence.compassRunIntroSourceID])
+        XCTAssertEqual(inWindow?.last?.type, .wonderCompass)
+        XCTAssertEqual(inWindow?.last?.payload.metadata["firstRunStep"], "compass-run")
+
+        let tooLate = FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: brainShownAt.addingTimeInterval(9 * 3600)
+        )
+        XCTAssertEqual(tooLate?.last?.sourceID, FirstRunPageSequence.firstMissionSourceID)
+
+        inputs.surfaceHistory["source:\(FirstRunPageSequence.compassRunIntroSourceID)"] = SurfaceHistoryRecord(lastShownAt: brainShownAt.addingTimeInterval(45 * 60), recentShowCount: 1)
+        let afterCompass = FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: brainShownAt.addingTimeInterval(60 * 60)
+        )
+        XCTAssertEqual(afterCompass?.last?.sourceID, FirstRunPageSequence.firstMissionSourceID)
     }
 
     func testFirstDoorApprenticeshipSurfacesOneDailyPageDuringFirstWeek() {

@@ -110,9 +110,16 @@ async function createQuote(quoteRequest, env) {
   validateQuoteRequest(quoteRequest);
 
   const token = await fetchLuluAccessToken(env);
+  const quoteRequestWithCity = {
+    ...quoteRequest,
+    shipTo: {
+      ...quoteRequest.shipTo,
+      city: quoteRequest.shipTo.city || await lookupCityFromPostalCode(env, quoteRequest.shipTo),
+    },
+  };
   const shippingLevels = configuredShippingLevels(env);
   const luluQuotes = await Promise.all(
-    shippingLevels.map((level) => fetchLuluCost(env, token, quoteRequest, level.id)),
+    shippingLevels.map((level) => fetchLuluCost(env, token, quoteRequestWithCity, level.id)),
   );
 
   const shippingOptions = luluQuotes.map((quote, index) => {
@@ -135,7 +142,7 @@ async function createQuote(quoteRequest, env) {
 
   return {
     id: crypto.randomUUID(),
-    request: quoteRequest,
+    request: quoteRequestWithCity,
     manufacturingSubtotal: {
       currencyCode: quoteRequest.currencyCode || "USD",
       cents: manufacturingCents,
@@ -306,6 +313,12 @@ async function fetchLuluAccessToken(env) {
 
 async function fetchLuluCost(env, token, quoteRequest, shippingLevel) {
   requireEnv(env, "LULU_API_BASE_URL");
+  if (!quoteRequest.shipTo.street1) {
+    throw new Error("shipTo.street1 is required for Lulu cost quotes");
+  }
+  if (!quoteRequest.shipTo.phoneNumber) {
+    throw new Error("shipTo.phoneNumber is required for Lulu cost quotes");
+  }
   const response = await fetch(`${env.LULU_API_BASE_URL}/print-job-cost-calculations/`, {
     method: "POST",
     headers: {
@@ -322,9 +335,13 @@ async function fetchLuluCost(env, token, quoteRequest, shippingLevel) {
         },
       ],
       shipping_address: {
+        city: quoteRequest.shipTo.city,
+        street1: quoteRequest.shipTo.street1,
+        street2: quoteRequest.shipTo.street2 || undefined,
         country_code: quoteRequest.shipTo.countryCode,
         state_code: quoteRequest.shipTo.stateCode || undefined,
         postcode: quoteRequest.shipTo.postalCode,
+        phone_number: quoteRequest.shipTo.phoneNumber,
       },
       shipping_level: shippingLevel,
     }),
@@ -335,6 +352,33 @@ async function fetchLuluCost(env, token, quoteRequest, shippingLevel) {
     throw new Error(`Lulu cost quote failed with HTTP ${response.status}: ${body.slice(0, 300)}`);
   }
   return response.json();
+}
+
+async function lookupCityFromPostalCode(env, shipTo) {
+  const countryCode = String(shipTo.countryCode || "").trim().toLowerCase();
+  const postalCode = String(shipTo.postalCode || "").trim();
+  if (!countryCode || !postalCode) {
+    throw new Error("shipTo.countryCode and shipTo.postalCode are required for city lookup");
+  }
+
+  try {
+    const baseURL = env.ZIP_CITY_LOOKUP_BASE_URL || "https://api.zippopotam.us";
+    const response = await fetch(`${baseURL}/${encodeURIComponent(countryCode)}/${encodeURIComponent(postalCode)}`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(`city lookup returned HTTP ${response.status}`);
+    }
+    const body = await response.json();
+    const place = Array.isArray(body.places) ? body.places[0] : null;
+    const city = place?.["place name"] || place?.placeName;
+    if (!city) {
+      throw new Error("city lookup did not return a city");
+    }
+    return city;
+  } catch (error) {
+    throw new Error(`Could not resolve city from ZIP/postal code: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 async function fetchStripePaymentIntentCreate(env, fields) {
@@ -430,23 +474,78 @@ function configuredShippingLevels(env) {
 
 function readLuluMoney(body, keys) {
   for (const key of keys) {
-    const value = body?.[key];
+    const value = findNestedValue(body, key);
     if (value != null) {
       return value;
     }
   }
-  const totalCost = body?.total_cost_excl_tax ?? body?.totalCostExclTax ?? body?.total_cost_incl_tax;
-  if (totalCost != null && body?.shipping_cost != null) {
-    return Number(totalCost) - Number(body.shipping_cost);
+  const lineItemCosts = body?.line_item_costs ?? body?.lineItemCosts ?? body?.line_items ?? body?.lineItems;
+  if (Array.isArray(lineItemCosts) && keys.some((key) => key.includes("print") || key.includes("manufacturing"))) {
+    const lineItemTotal = lineItemCosts
+      .map((item) => normalizeMoney(item?.total_cost_excl_tax ?? item?.totalCostExclTax ?? item?.total_cost_incl_tax ?? item?.totalCostInclTax ?? item))
+      .reduce((sum, amount) => sum + amount, 0);
+    if (Number.isFinite(lineItemTotal) && lineItemTotal > 0) {
+      return lineItemTotal;
+    }
+  }
+  const totalCost = body?.total_cost_excl_tax ?? body?.totalCostExclTax ?? body?.total_cost_incl_tax ?? body?.totalCostInclTax;
+  const shippingCost = findNestedValue(body, "shipping_cost") ?? findNestedValue(body, "shippingCost") ?? findNestedValue(body, "shipping");
+  if (totalCost != null && shippingCost != null && keys.some((key) => key.includes("print") || key.includes("manufacturing"))) {
+    return normalizeMoney(totalCost) - normalizeMoney(shippingCost);
   }
   throw new Error(`Could not find expected money field in Lulu response: ${JSON.stringify(body).slice(0, 300)}`);
 }
 
 function moneyToCents(value) {
-  if (typeof value === "object" && value !== null && "amount" in value) {
-    return Math.round(Number(value.amount) * 100);
+  const amount = normalizeMoney(value);
+  if (!Number.isFinite(amount)) {
+    throw new Error(`Could not parse Lulu money value: ${JSON.stringify(value).slice(0, 120)}`);
   }
-  return Math.round(Number(value) * 100);
+  return Math.round(amount * 100);
+}
+
+function normalizeMoney(value) {
+  if (typeof value === "object" && value !== null && "amount" in value) {
+    return Number(value.amount);
+  }
+  if (typeof value === "object" && value !== null) {
+    const nestedAmount = value.total_cost_excl_tax ??
+      value.totalCostExclTax ??
+      value.total_cost_incl_tax ??
+      value.totalCostInclTax ??
+      value.cost_excl_tax ??
+      value.costExclTax ??
+      value.value;
+    if (nestedAmount != null) {
+      return normalizeMoney(nestedAmount);
+    }
+  }
+  return Number(value);
+}
+
+function findNestedValue(value, key) {
+  if (value == null || typeof value !== "object") {
+    return undefined;
+  }
+  if (Object.prototype.hasOwnProperty.call(value, key)) {
+    return value[key];
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findNestedValue(item, key);
+      if (found !== undefined) {
+        return found;
+      }
+    }
+    return undefined;
+  }
+  for (const item of Object.values(value)) {
+    const found = findNestedValue(item, key);
+    if (found !== undefined) {
+      return found;
+    }
+  }
+  return undefined;
 }
 
 function validateQuoteRequest(request) {

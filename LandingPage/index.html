@@ -8,11 +8,26 @@
       content="ReEnchanted turns the day you actually lived into pages you can keep. Open the book, page through real screens, keep what's true, and watch your choices braid into a Book of You."
     >
     <meta name="theme-color" content="#070611">
-    <title>ReEnchanted - Real Life, ReEnchanted</title>
+    <link rel="canonical" href="https://reenchanted.app/">
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="ReEnchanted">
+    <meta property="og:title" content="ReEnchanted — a living book for ordinary days">
+    <meta property="og:description" content="A free, magical iPhone book that turns the day you actually lived into pages you can keep. Play with pages. Keep some. Read your story.">
+    <meta property="og:url" content="https://reenchanted.app/">
+    <meta property="og:image" content="https://reenchanted.app/assets/og-card.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@Enchantifyink">
+    <meta name="twitter:title" content="ReEnchanted — a living book for ordinary days">
+    <meta name="twitter:description" content="A free, magical iPhone book that turns the day you actually lived into pages you can keep.">
+    <meta name="twitter:image" content="https://reenchanted.app/assets/og-card.jpg">
+    <title>ReEnchanted — a living book for ordinary days</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./styles.css?v=22">
+    <link rel="stylesheet" href="./styles.css?v=23">
   </head>
   <body>
     <canvas id="spell-field" aria-hidden="true"></canvas>
@@ -95,6 +110,20 @@
       </div>
     </aside>
 
+
+    <nav class="ribbon" id="ribbon" aria-label="Your place in the page">
+      <div class="ribbon-rail" aria-hidden="true"><span class="ribbon-fill" id="ribbon-fill"></span></div>
+      <ul class="ribbon-stops">
+        <li><a href="#top" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Cover</span></a></li>
+        <li><a href="#book" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Open the Book</span></a></li>
+        <li><a href="#braid-proof" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">The Braid</span></a></li>
+        <li><a href="#editions" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Editions</span></a></li>
+        <li><a href="#contents" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Contents</span></a></li>
+        <li><a href="#search" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Search the Stacks</span></a></li>
+        <li><a href="#privacy" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Your Save</span></a></li>
+        <li><a href="#download" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">The Door</span></a></li>
+      </ul>
+    </nav>
     <main id="top">
       <!-- ───────────────────────── HERO ───────────────────────── -->
       <section class="hero">
@@ -138,7 +167,7 @@
             <div class="hero-screen-track">
               <img class="hero-screen" src="./assets/screens/home.jpg" alt="">
               <img class="hero-screen" src="./assets/screens/book-of-you.jpg" alt="">
-              <img class="hero-screen" src="./assets/screens/story-page-weather-prose.png" alt="">
+              <img class="hero-screen" src="./assets/screens/story-page-weather-prose.jpg" alt="">
               <img class="hero-screen" src="./assets/screens/real-life-kept.jpg" alt="">
               <img class="hero-screen" src="./assets/screens/radio.jpg" alt="">
               <img class="hero-screen" src="./assets/screens/home.jpg" alt="">
@@ -158,95 +187,6 @@
       <p class="hero-bridge-quote">
         "A free iPhone app that turns your ordinary life into a fantasy book."
       </p>
-
-      <!-- ──────────────────── HOW IT WORKS ──────────────────── -->
-      <section id="how" class="how-section">
-        <div class="section-head">
-          <p class="eyebrow">How it works</p>
-          <h2>Three honest steps.</h2>
-        </div>
-        <div class="how-grid">
-          <article class="how-card">
-            <span class="how-num">01</span>
-            <h3>Pages arrive. Play with them.</h3>
-            <p>
-              The day shows up as little doors: weather, body signals, places, music,
-              questions, one-sentence souvenirs, photos. No blank page, no streak to defend.
-            </p>
-          </article>
-          <article class="how-card">
-            <span class="how-num">02</span>
-            <h3>You keep some</h3>
-            <p>
-              Keep a page when it catches a real edge. Let the rest wait. The Book is
-              built on consent and taste - you choose what becomes part of the story.
-            </p>
-          </article>
-          <article class="how-card">
-            <span class="how-num">03</span>
-            <h3>It braids</h3>
-            <p>
-              Each night the Book weaves your real day into a fairy tale - your kept
-              pages, what you noticed, what you ate, your one-sentence check-ins, the
-              weather - braided together with the choices you made in the game. That's
-              your <em>Book of You</em>: one story a day, gathering into monthly and
-              annual volumes you can hold.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <!-- ──────────────────── EDITIONS ──────────────────── -->
-      <section id="editions" class="systems-section" data-drawer>
-        <div class="section-head">
-          <p class="eyebrow">Bound for keeps</p>
-          <h2>Publish your own editions.</h2>
-          <p class="section-sub">
-            Your kept pages don't just scroll away. When enough of them gather, the
-            Book can bind them into real, shareable PDF volumes you publish for
-            yourself - composed and rendered entirely on device. Or, send your
-            Book of You off to the printers from the app to have it professionally
-            bound.
-          </p>
-        </div>
-        <div class="systems-grid">
-          <article class="system-card">
-            <span class="system-glyph" aria-hidden="true">❦</span>
-            <h3>The Monthly Edition</h3>
-            <p>
-              At each month's turn, the Book gathers that month's kept pages - braids,
-              one-sentence souvenirs, letters, the things it noticed - and binds them
-              into a chaptered PDF with its own theme, cover, and a foreword the Book
-              writes about the month you just lived.
-            </p>
-          </article>
-          <article class="system-card">
-            <span class="system-glyph" aria-hidden="true">✸</span>
-            <h3>The Annual Volume</h3>
-            <p>
-              A whole year becomes one bound book: twelve monthly chapters, each in its
-              own palette, wrapped in a year-long foreword, your constellations, and a
-              closing. A year of ordinary life, made into a fairy tale you can hold.
-            </p>
-          </article>
-          <article class="system-card edition-preview">
-            <div class="edition-cover-mini" role="img"
-                 aria-label="A mockup of a Book of You monthly edition cover - Chapter 3, June, themed Of Rain and Lamps">
-              <span class="ec-stars" aria-hidden="true"></span>
-              <span class="ec-kicker">An Edition Of</span>
-              <span class="ec-title">The Book<br>of You</span>
-              <span class="ec-rule" aria-hidden="true"></span>
-              <span class="ec-chapter">Chapter Three · June</span>
-              <span class="ec-theme">Of Rain &amp; Lamps</span>
-              <span class="ec-mark" aria-hidden="true">✦</span>
-            </div>
-            <p class="edition-preview-cap">
-              No two months bind alike - each picks its own palette, cover, and
-              ornament. <em>A mockup; yours fills in as you keep pages.</em>
-            </p>
-          </article>
-        </div>
-      </section>
 
       <!-- ──────────────────── INTERACTIVE BOOK ──────────────────── -->
       <section id="book" class="book-section">
@@ -398,7 +338,7 @@
               <!-- right: the screen (peel the corner or tap Next to turn) -->
               <div class="leaf leaf-right" id="leaf-right">
                 <div class="leaf-screen">
-                  <img id="page-shot" src="./assets/screens/home.jpg" alt="ReEnchanted screen">
+                  <img id="page-shot" src="./assets/screens/home.jpg" alt="ReEnchanted screen" loading="lazy" decoding="async">
                   <span class="kept-stamp" id="kept-stamp">Kept</span>
                 </div>
                 <span class="page-corner" id="page-corner" aria-hidden="true" title="Drag to turn the page"></span>
@@ -472,8 +412,45 @@
         </div>
       </section>
 
+      <!-- ──────────────────── HOW IT WORKS ──────────────────── -->
+      <section id="how" class="how-section">
+        <div class="section-head">
+          <p class="eyebrow">How it works</p>
+          <h2>Three honest steps.</h2>
+        </div>
+        <div class="how-grid">
+          <article class="how-card">
+            <span class="how-num">01</span>
+            <h3>Pages arrive. Play with them.</h3>
+            <p>
+              The day shows up as little doors: weather, body signals, places, music,
+              questions, one-sentence souvenirs, photos. No blank page, no streak to defend.
+            </p>
+          </article>
+          <article class="how-card">
+            <span class="how-num">02</span>
+            <h3>You keep some</h3>
+            <p>
+              Keep a page when it catches a real edge. Let the rest wait. The Book is
+              built on consent and taste - you choose what becomes part of the story.
+            </p>
+          </article>
+          <article class="how-card">
+            <span class="how-num">03</span>
+            <h3>It braids</h3>
+            <p>
+              Each night the Book weaves your real day into a fairy tale - your kept
+              pages, what you noticed, what you ate, your one-sentence check-ins, the
+              weather - braided together with the choices you made in the game. That's
+              your <em>Book of You</em>: one story a day, gathering into monthly and
+              annual volumes you can hold.
+            </p>
+          </article>
+        </div>
+      </section>
+
       <!-- ──────────────────── BOOK OF YOU PROOF ──────────────────── -->
-      <section class="braid-proof-section" aria-labelledby="braid-proof-title">
+      <section id="braid-proof" class="braid-proof-section" aria-labelledby="braid-proof-title">
         <div class="braid-proof-copy">
           <p class="eyebrow">The braid is real</p>
           <h2 id="braid-proof-title">Your kept pages become a Book of You.</h2>
@@ -489,13 +466,90 @@
         </div>
 
         <figure class="braid-proof-shot">
-          <img src="./assets/screens/book-of-you-braid-proof.png"
-               alt="A Book of You page showing a braided daily entry">
+          <img src="./assets/screens/book-of-you-braid-proof.jpg"
+               alt="A Book of You page showing a braided daily entry" loading="lazy" decoding="async">
           <figcaption>
             A real Book of You entry, braided from kept pages and on-device context.
           </figcaption>
         </figure>
       </section>
+
+      <!-- ──────────────────── EDITIONS ──────────────────── -->
+      <section id="editions" class="systems-section" data-drawer>
+        <div class="section-head">
+          <p class="eyebrow">Bound for keeps</p>
+          <h2>Publish your own editions.</h2>
+          <p class="section-sub">
+            Your kept pages don't just scroll away. When enough of them gather, the
+            Book can bind them into real, shareable PDF volumes you publish for
+            yourself - composed and rendered entirely on device. Or, send your
+            Book of You off to the printers from the app to have it professionally
+            bound.
+          </p>
+        </div>
+        <div class="systems-grid">
+          <article class="system-card">
+            <span class="system-glyph" aria-hidden="true">❦</span>
+            <h3>The Monthly Edition</h3>
+            <p>
+              At each month's turn, the Book gathers that month's kept pages - braids,
+              one-sentence souvenirs, letters, the things it noticed - and binds them
+              into a chaptered PDF with its own theme, cover, and a foreword the Book
+              writes about the month you just lived.
+            </p>
+          </article>
+          <article class="system-card">
+            <span class="system-glyph" aria-hidden="true">✸</span>
+            <h3>The Annual Volume</h3>
+            <p>
+              A whole year becomes one bound book: twelve monthly chapters, each in its
+              own palette, wrapped in a year-long foreword, your constellations, and a
+              closing. A year of ordinary life, made into a fairy tale you can hold.
+            </p>
+          </article>
+          <article class="system-card edition-preview">
+            <div class="edition-cover-mini" role="img"
+                 aria-label="A mockup of a Book of You monthly edition cover - Chapter 3, June, themed Of Rain and Lamps">
+              <span class="ec-stars" aria-hidden="true"></span>
+              <span class="ec-kicker">An Edition Of</span>
+              <span class="ec-title">The Book<br>of You</span>
+              <span class="ec-rule" aria-hidden="true"></span>
+              <span class="ec-chapter">Chapter Three · June</span>
+              <span class="ec-theme">Of Rain &amp; Lamps</span>
+              <span class="ec-mark" aria-hidden="true">✦</span>
+            </div>
+            <p class="edition-preview-cap">
+              No two months bind alike - each picks its own palette, cover, and
+              ornament. <em>A mockup; yours fills in as you keep pages.</em>
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ──────────────────── THESIS BAND ──────────────────── -->
+      <section class="thesis-band" aria-label="The thesis">
+        <p class="thesis-kicker">The whole point</p>
+        <blockquote class="thesis-quote">
+          The best-written chapter in the entire book - the most sensory, the most
+          alive - is <span>your own ordinary life.</span>
+        </blockquote>
+        <p class="thesis-sub">
+          Everything else is rails and atmosphere. You're the text.
+        </p>
+      </section>
+
+      <!-- ──────────────────── TABLE OF CONTENTS (deep chapters) ──────────────────── -->
+      <section id="contents" class="toc-shelf" aria-labelledby="toc-title">
+        <div class="toc-leaf">
+          <header class="toc-head">
+            <p class="toc-eyebrow">Table of contents</p>
+            <h2 id="toc-title">The Book goes deeper.</h2>
+            <p class="toc-sub">
+              One scroll can't hold all of it. Open the chapters that call to
+              you - each one unfolds right here.
+            </p>
+          </header>
+          <div class="toc-rows">
 
       <!-- ──────────────────── MECHANICS ──────────────────── -->
       <section id="mechanics" class="mechanics-section" data-drawer>
@@ -505,17 +559,17 @@
         </div>
         <div class="mechanics-grid">
           <article class="mechanic">
-            <div class="mechanic-shot"><img src="./assets/screens/spells.jpg" alt="Spells and Enchantments screen"></div>
+            <div class="mechanic-shot"><img src="./assets/screens/spells.jpg" alt="Spells and Enchantments screen" loading="lazy" decoding="async"></div>
             <h3>Spells &amp; Glow</h3>
             <p>A steady belief state, gently luminous. Open <button class="lore-link" data-lore="compass-runs" type="button">Compass Runs</button>, a noticing game, or an <button class="lore-link" data-lore="enchantments" type="button">Enchantment</button> and let an ordinary subject speak.</p>
           </article>
           <article class="mechanic">
-            <div class="mechanic-shot"><img src="./assets/screens/wonder-compass.jpg" alt="Wonder Compass screen"></div>
+            <div class="mechanic-shot"><img src="./assets/screens/wonder-compass.jpg" alt="Wonder Compass screen" loading="lazy" decoding="async"></div>
             <h3><button class="lore-link" data-lore="wonder-compass" type="button">Wonder Compass</button></h3>
             <p>Reframe familiar streets and routines until they're legible again. Walk. Notice. Record. Return.</p>
           </article>
           <article class="mechanic">
-            <div class="mechanic-shot"><img src="./assets/screens/radio.jpg" alt="ReEnchanted Radio screen"></div>
+            <div class="mechanic-shot"><img src="./assets/screens/radio.jpg" alt="ReEnchanted Radio screen" loading="lazy" decoding="async"></div>
             <h3>Radio</h3>
             <p>Music, broadcasts, and world effects become weather in the stacks - atmosphere you can keep.</p>
           </article>
@@ -570,7 +624,7 @@
             <figure class="pagetype-shot">
               <img src="./assets/screens/real-life-kept.jpg"
                    alt="An illuminated photo of a sleeping cat's paw, framed with parchment field notes"
-                   loading="lazy" onerror="this.closest('.pagetype-shot').remove()">
+                   loading="lazy" onerror="this.closest('.pagetype-shot').remove()" decoding="async">
               <figcaption>An ordinary photo of Ron the cat, illuminated.</figcaption>
             </figure>
           </li>
@@ -653,12 +707,12 @@
           <div class="anchor-phone" id="anchor-phone" aria-label="The anchoring loop, in motion">
             <img class="anchor-slide is-active" src="./assets/screens/anchor-1.jpg"
                  alt="Anchoring a real place in ReEnchanted"
-                 onerror="document.getElementById('anchor-showcase').classList.add('no-shot')">
-            <img class="anchor-slide" src="./assets/screens/anchor-2.jpg" alt="" aria-hidden="true">
-            <img class="anchor-slide" src="./assets/screens/anchor-3.jpg" alt="" aria-hidden="true">
-            <img class="anchor-slide" src="./assets/screens/anchor-4.jpg" alt="" aria-hidden="true">
-            <img class="anchor-slide" src="./assets/screens/anchor-5.jpg" alt="" aria-hidden="true">
-            <img class="anchor-slide" src="./assets/screens/anchor-6.jpg" alt="" aria-hidden="true">
+                 onerror="document.getElementById('anchor-showcase').classList.add('no-shot')" loading="lazy" decoding="async">
+            <img class="anchor-slide" src="./assets/screens/anchor-2.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
+            <img class="anchor-slide" src="./assets/screens/anchor-3.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
+            <img class="anchor-slide" src="./assets/screens/anchor-4.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
+            <img class="anchor-slide" src="./assets/screens/anchor-5.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
+            <img class="anchor-slide" src="./assets/screens/anchor-6.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
           </div>
           <div class="anchor-showcase-copy">
             <p class="eyebrow">Watch the loop</p>
@@ -743,12 +797,12 @@
             <figure class="academy-phone back">
               <img src="./assets/screens/belief-cast.jpg"
                    alt="The Belief menu - give or take Belief among the cast"
-                   onerror="this.closest('.academy-phone').classList.add('no-shot')">
+                   onerror="this.closest('.academy-phone').classList.add('no-shot')" loading="lazy" decoding="async">
             </figure>
             <figure class="academy-phone front">
               <img src="./assets/screens/cast-roster.jpg"
                    alt="Giving Belief to a cast member in ReEnchanted"
-                   onerror="this.closest('.academy-phone').classList.add('no-shot')">
+                   onerror="this.closest('.academy-phone').classList.add('no-shot')" loading="lazy" decoding="async">
             </figure>
           </div>
 
@@ -793,7 +847,7 @@
           <div class="chapter-grid" aria-label="The five Academy Chapters">
             <article class="chapter-card emberheart" data-chapter-card="emberheart">
               <button class="chapter-talisman" type="button" data-chapter="emberheart" aria-label="Give Belief to Emberheart">
-                <img src="./assets/art/LabyrinthTalismanEmberSeal.png" alt="The Ember Seal talisman of Emberheart">
+                <img src="./assets/art/LabyrinthTalismanEmberSeal.jpg" alt="The Ember Seal talisman of Emberheart" loading="lazy" decoding="async">
                 <span class="chapter-belief-count" aria-hidden="true">Give Belief</span>
               </button>
               <div class="chapter-copy">
@@ -806,7 +860,7 @@
 
             <article class="chapter-card mossbloom" data-chapter-card="mossbloom">
               <button class="chapter-talisman" type="button" data-chapter="mossbloom" aria-label="Give Belief to Mossbloom">
-                <img src="./assets/art/LabyrinthTalismanMossClasp.png" alt="The Moss Clasp talisman of Mossbloom">
+                <img src="./assets/art/LabyrinthTalismanMossClasp.jpg" alt="The Moss Clasp talisman of Mossbloom" loading="lazy" decoding="async">
                 <span class="chapter-belief-count" aria-hidden="true">Give Belief</span>
               </button>
               <div class="chapter-copy">
@@ -819,7 +873,7 @@
 
             <article class="chapter-card tidecrest" data-chapter-card="tidecrest">
               <button class="chapter-talisman" type="button" data-chapter="tidecrest" aria-label="Give Belief to Tidecrest">
-                <img src="./assets/art/LabyrinthTalismanTideGlass.png" alt="The Tide Glass talisman of Tidecrest">
+                <img src="./assets/art/LabyrinthTalismanTideGlass.jpg" alt="The Tide Glass talisman of Tidecrest" loading="lazy" decoding="async">
                 <span class="chapter-belief-count" aria-hidden="true">Give Belief</span>
               </button>
               <div class="chapter-copy">
@@ -832,7 +886,7 @@
 
             <article class="chapter-card riddlewind" data-chapter-card="riddlewind">
               <button class="chapter-talisman" type="button" data-chapter="riddlewind" aria-label="Give Belief to Riddlewind">
-                <img src="./assets/art/LabyrinthTalismanWindCipher.png" alt="The Wind Cipher talisman of Riddlewind">
+                <img src="./assets/art/LabyrinthTalismanWindCipher.jpg" alt="The Wind Cipher talisman of Riddlewind" loading="lazy" decoding="async">
                 <span class="chapter-belief-count" aria-hidden="true">Give Belief</span>
               </button>
               <div class="chapter-copy">
@@ -845,7 +899,7 @@
 
             <article class="chapter-card duskthorn" data-chapter-card="duskthorn">
               <button class="chapter-talisman" type="button" data-chapter="duskthorn" aria-label="Give Belief to Duskthorn">
-                <img src="./assets/art/LabyrinthTalismanDuskThorn.png" alt="The Dusk Thorn talisman of Duskthorn">
+                <img src="./assets/art/LabyrinthTalismanDuskThorn.jpg" alt="The Dusk Thorn talisman of Duskthorn" loading="lazy" decoding="async">
                 <span class="chapter-belief-count" aria-hidden="true">Give Belief</span>
               </button>
               <div class="chapter-copy">
@@ -889,7 +943,7 @@
         <figure class="academy-illus">
           <img src="./assets/screens/boggle.jpg"
                alt="An illustrated dossier of Professor Lydia Boggle from inside ReEnchanted's Academy"
-               onerror="this.closest('.academy-illus').remove()">
+               onerror="this.closest('.academy-illus').remove()" loading="lazy" decoding="async">
           <figcaption>
             Every figure, place, and object is <button class="lore-link" data-lore="illustrations" type="button">illustrated and annotated</button> - the
             Academy keeps its own almanac of your world.
@@ -916,12 +970,12 @@
 
           <div class="story-page-screens" aria-label="Example Story Page screens">
             <figure class="story-page-shot prose">
-              <img src="./assets/screens/story-page-weather-prose.png"
-                   alt="A Story Page prose scene titled Weather in the Stacks">
+              <img src="./assets/screens/story-page-weather-prose.jpg"
+                   alt="A Story Page prose scene titled Weather in the Stacks" loading="lazy" decoding="async">
             </figure>
             <figure class="story-page-shot choices">
-              <img src="./assets/screens/story-page-weather-choices.png"
-                   alt="A Story Page showing choices for how the page turns">
+              <img src="./assets/screens/story-page-weather-choices.jpg"
+                   alt="A Story Page showing choices for how the page turns" loading="lazy" decoding="async">
             </figure>
           </div>
         </div>
@@ -968,18 +1022,6 @@
           Story Pages weave your ordinary life with your fictional choices until the
           whole thing reads like a <button class="lore-link" data-lore="faerie-tale" type="button"><span>faerie tale</span></button> - not the Disney kind, but
           the older, more dangerous one, where the woods keep what you promise them.
-        </p>
-      </section>
-
-      <!-- ──────────────────── THESIS BAND ──────────────────── -->
-      <section class="thesis-band" aria-label="The thesis">
-        <p class="thesis-kicker">The whole point</p>
-        <blockquote class="thesis-quote">
-          The best-written chapter in the entire book - the most sensory, the most
-          alive - is <span>your own ordinary life.</span>
-        </blockquote>
-        <p class="thesis-sub">
-          Everything else is rails and atmosphere. You're the text.
         </p>
       </section>
 
@@ -1088,7 +1130,7 @@
               src="./assets/screens/wonder-compass-cover.jpg"
               alt="The Wonder Compass - A Practical Field Guide to Finding Magic in the Mess"
               onerror="this.remove()"
-            >
+             loading="lazy" decoding="async">
           </div>
         </figure>
       </section>
@@ -1135,10 +1177,14 @@
           </ul>
         </div>
       </section>
+          </div>
+          <p class="toc-colophon" aria-hidden="true">✦</p>
+        </div>
+      </section>
 
       <!-- ──────────────────── PRIVACY ──────────────────── -->
       <!-- ──────────────────── SEMANTIC SEARCH ──────────────────── -->
-      <section class="stacks-search-section" aria-labelledby="stacks-search-title">
+      <section id="search" class="stacks-search-section" aria-labelledby="stacks-search-title">
         <div class="stacks-search-copy">
           <p class="eyebrow">Search the Stacks</p>
           <h2 id="stacks-search-title">Ask for the feeling, not the filename.</h2>
@@ -1170,13 +1216,13 @@
 
         <div class="stacks-search-art" aria-label="Search the Stacks screenshots">
           <figure class="stacks-phone phone-empty">
-            <img src="./assets/screens/search-stacks-empty.jpg" alt="Search the Stacks input with suggested searches">
+            <img src="./assets/screens/search-stacks-empty.jpg" alt="Search the Stacks input with suggested searches" loading="lazy" decoding="async">
           </figure>
           <figure class="stacks-phone phone-results">
-            <img src="./assets/screens/search-stacks-results.jpg" alt="Semantic search results for everything with love">
+            <img src="./assets/screens/search-stacks-results.jpg" alt="Semantic search results for everything with love" loading="lazy" decoding="async">
           </figure>
           <figure class="stacks-phone phone-reading">
-            <img src="./assets/screens/search-stacks-reading.jpg" alt="Private on-device reading card while the search index reads a question">
+            <img src="./assets/screens/search-stacks-reading.jpg" alt="Private on-device reading card while the search index reads a question" loading="lazy" decoding="async">
           </figure>
         </div>
       </section>
@@ -1199,7 +1245,7 @@
           </ul>
         </div>
         <figure class="privacy-art">
-          <img src="./assets/screens/local-brain.jpg" alt="Local brain and privacy settings in ReEnchanted">
+          <img src="./assets/screens/local-brain.jpg" alt="Local brain and privacy settings in ReEnchanted" loading="lazy" decoding="async">
         </figure>
       </section>
 
@@ -1231,7 +1277,7 @@
               src="./assets/screens/patreon.jpg?v=2"
               alt="The Doobaleedoos Patreon page"
               onerror="this.closest('.patreon-card').classList.add('no-shot')"
-            >
+             loading="lazy" decoding="async">
           </figure>
           <span class="patreon-cap">
             <strong>The latest lands here first - free.</strong>
@@ -1281,6 +1327,9 @@
         <span class="cat-eyes" aria-hidden="true"><i></i><i></i></span>
         <span class="sr-only">Meet Ron and Hermione, the two cats in the colophon</span>
       </button>
+      <a href="https://x.com/Enchantifyink" target="_blank" rel="noopener">X</a>
+      <a href="https://bsky.app/profile/enchantifyacademy.bsky.social" target="_blank" rel="noopener">Bluesky</a>
+      <a href="https://www.patreon.com/thedoobaleedoos" target="_blank" rel="noopener">Patreon</a>
       <a href="https://github.com/teign07/ReEnchanted" target="_blank" rel="noopener">GitHub</a>
       <aside class="cat-note" id="cat-note" aria-live="polite" aria-label="Ron and Hermione, Assistant Archivists" hidden>
         <figure class="cat-portrait">
@@ -1381,6 +1430,6 @@
         });
       })();
     </script>
-    <script src="./app.js?v=48"></script>
+    <script src="./app.js?v=49"></script>
   </body>
 </html>

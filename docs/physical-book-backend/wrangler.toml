@@ -4,8 +4,8 @@ compatibility_date = "2026-06-30"
 workers_dev = true
 
 [vars]
-LULU_API_BASE_URL = "https://api.lulu.com"
-LULU_AUTH_URL = "https://api.lulu.com/auth/realms/glasstree/protocol/openid-connect/token"
+LULU_API_BASE_URL = "https://api.sandbox.lulu.com"
+LULU_AUTH_URL = "https://api.sandbox.lulu.com/auth/realms/glasstree/protocol/openid-connect/token"
 # PUBLIC_PRINT_FILE_BASE_URL should point at the public/custom domain that
 # serves the PHYSICAL_BOOK_FILES R2 bucket contents.
 PUBLIC_PRINT_FILE_BASE_URL = "https://pub-5b7523b9556d44fb9ca7e927528c6738.r2.dev"

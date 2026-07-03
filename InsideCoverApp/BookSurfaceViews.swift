@@ -6440,15 +6440,15 @@ struct OnboardingFlowView: View {
     private func chapterSimpleMeaning(for chapter: AcademyChapter) -> String {
         switch chapter.id {
         case "emberheart":
-            return "Zara says Emberheart believes wonder starts when you choose to move. It likes beginnings, dares, and doors you open yourself."
+            return "Zara says Emberheart believes in self-authorship: you write the story of your own life. It likes beginnings, dares, and doors you open yourself."
         case "mossbloom":
-            return "Zara says Mossbloom believes the world is already talking. It teaches you to slow down until the ordinary thing becomes specific."
+            return "Zara says Mossbloom believes a higher power writes the book of life. Your work is to listen closely and play your part with grace."
         case "tidecrest":
-            return "Zara says Tidecrest believes a moment does not need to become a lesson. It wants you awake enough to be surprised."
+            return "Zara says Tidecrest does not believe life is a story at all. It believes life is a poem: one full moment at a time."
         case "riddlewind":
-            return "Zara says Riddlewind believes meaning gets stronger when it is shared. It looks for jokes, questions, and other people."
+            return "Zara says Riddlewind believes we all write the story of life together. It looks for jokes, questions, and other people."
         case "duskthorn":
-            return "Zara says Duskthorn believes a story needs an edge. It does not worship darkness; it refuses to lie about what is there."
+            return "Zara says Duskthorn believes there is no story without conflict. It does not worship darkness; it refuses to lie about what is there."
         default:
             return chapter.philosophy
         }

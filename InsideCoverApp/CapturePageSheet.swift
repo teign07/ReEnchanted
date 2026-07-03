@@ -992,6 +992,10 @@ struct CapturePageSheet: View {
     private var hasPendingCameraPhoto: Bool {
         pendingCameraPhotoData != nil && pendingCameraPhotoImage != nil
     }
+
+    private var shouldShowCameraCapturePage: Bool {
+        isCameraFirstIlluminatedPage && (hasPendingCameraPhoto || manualPhotoDraft != nil || enchantmentResult != nil)
+    }
     #endif
 
     private var activeEnchantmentSpell: EnchantmentSpell? {
@@ -2192,6 +2196,15 @@ struct CapturePageSheet: View {
                 AnyView(enchantmentPageView)
             }
 
+            #if canImport(UIKit)
+            if surface.type == .illuminatedPhoto, !shouldShowCameraCapturePage, let result = enchantmentResult {
+                enchantmentResultCard(result)
+
+                if activeEnchantmentSpell?.id == "everything-speaks" {
+                    AnyView(everythingSpeaksConversationView)
+                }
+            }
+            #else
             if surface.type == .illuminatedPhoto, let result = enchantmentResult {
                 enchantmentResultCard(result)
 
@@ -2199,6 +2212,7 @@ struct CapturePageSheet: View {
                     AnyView(everythingSpeaksConversationView)
                 }
             }
+            #endif
 
             if surface.type == .marginsAtlas {
                 marginsAtlasView
@@ -4333,9 +4347,17 @@ struct CapturePageSheet: View {
                     .imagePreviewOnTap { ImagePreview.url(forAsset: illustrationAssetName) }
             }
 
+            #if canImport(UIKit)
+            if shouldShowCameraCapturePage {
+                cameraCapturePage
+            } else if let illuminatedDraft {
+                illuminatedPreview(draft: illuminatedDraft, height: 360)
+            }
+            #else
             if let illuminatedDraft {
                 illuminatedPreview(draft: illuminatedDraft, height: 360)
             }
+            #endif
 
             if let castMemberImage {
                 Image(uiImage: castMemberImage)
@@ -4352,9 +4374,15 @@ struct CapturePageSheet: View {
                     .imagePreviewOnTap { surface.payload.metadata["imageAssetReference"].flatMap { ImagePreview.url(forFilePath: $0) } }
             }
 
+            #if canImport(UIKit)
+            if surface.type == .illuminatedPhoto && !shouldShowCameraCapturePage {
+                AnyView(illuminatedPhotoActions)
+            }
+            #else
             if surface.type == .illuminatedPhoto {
                 AnyView(illuminatedPhotoActions)
             }
+            #endif
 
             if isPendingLetterPage {
                 pendingLetterPageView
@@ -6771,24 +6799,38 @@ struct CapturePageSheet: View {
 
     #if canImport(UIKit)
     @ViewBuilder
-    private var cameraPostCaptureChoiceCard: some View {
+    private var cameraCapturePage: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Photo captured", systemImage: "camera.fill")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(BookPalette.teal)
+            let isWorking = isLoadingManualPhoto || isCastingEnchantment || isLocalBrainWorking
 
-            if let pendingCameraPhotoImage {
-                Image(uiImage: pendingCameraPhotoImage)
+            Label(
+                enchantmentResult == nil && manualPhotoDraft == nil ? "Photo captured" : "Photo page ready",
+                systemImage: enchantmentResult == nil && manualPhotoDraft == nil ? "camera.fill" : "checkmark.seal.fill"
+            )
+            .font(.caption.weight(.bold))
+            .foregroundStyle(BookPalette.teal)
+
+            if let image = cameraCaptureDisplayImage {
+                Image(uiImage: image)
                     .resizable()
-                    .scaledToFill()
+                    .scaledToFit()
                     .frame(maxWidth: .infinity)
-                    .frame(height: 220)
+                    .frame(maxHeight: 430)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
                     }
                     .accessibilityLabel("Captured photo")
+            }
+
+            if isWorking {
+                scribeWorkCard(
+                    isCastingEnchantment ? "camera-enchantment" : "camera-illumination",
+                    quip: isCastingEnchantment
+                        ? "The Enchantment is reading the photo and writing its text."
+                        : "Penny is compositing the photograph into one illuminated artifact."
+                )
             }
 
             if isChoosingCameraEnchantment {
@@ -6835,29 +6877,43 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .disabled(isWorking)
             } else {
-                HStack(spacing: 10) {
-                    Button {
-                        BookFeedback.play(.sourceRefresh)
-                        Task { await illuminatePendingCameraPhoto() }
-                    } label: {
-                        Label(isLoadingManualPhoto ? "Illuminating..." : "Illuminated Photo", systemImage: "sparkles")
-                            .font(.caption.weight(.bold))
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isLoadingManualPhoto || isLocalBrainWorking)
+                if enchantmentResult == nil && manualPhotoDraft == nil {
+                    HStack(spacing: 10) {
+                        Button {
+                            BookFeedback.play(.sourceRefresh)
+                            Task { await illuminatePendingCameraPhoto() }
+                        } label: {
+                            Label(isLoadingManualPhoto ? "Illuminating..." : "Illuminate", systemImage: "sparkles")
+                                .font(.caption.weight(.bold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isWorking)
 
-                    Button {
-                        BookFeedback.play(.select)
-                        isChoosingCameraEnchantment = true
-                    } label: {
-                        Label("Enchantment", systemImage: "wand.and.stars")
-                            .font(.caption.weight(.bold))
-                            .frame(maxWidth: .infinity)
+                        Button {
+                            BookFeedback.play(.select)
+                            isChoosingCameraEnchantment = true
+                        } label: {
+                            Label("Enchant", systemImage: "wand.and.stars")
+                                .font(.caption.weight(.bold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isWorking)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(isCastingEnchantment || isLocalBrainWorking)
+                }
+
+                if let result = enchantmentResult {
+                    enchantmentResultCard(result)
+                    if activeEnchantmentSpell?.id == "everything-speaks" {
+                        AnyView(everythingSpeaksConversationView)
+                    }
+                }
+
+                if manualPhotoDraft != nil {
+                    illuminatedArtifactActions
                 }
             }
 
@@ -6871,6 +6927,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .disabled(isWorking)
 
                 #if canImport(PhotosUI)
                 PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
@@ -6879,7 +6936,15 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .disabled(isWorking)
                 #endif
+            }
+
+            if !cameraCaptureStatusMessage.isEmpty {
+                Text(cameraCaptureStatusMessage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.58))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(12)
@@ -6888,6 +6953,31 @@ struct CapturePageSheet: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(BookPalette.teal.opacity(0.24), lineWidth: 1)
         }
+    }
+
+    private var cameraPostCaptureChoiceCard: some View {
+        cameraCapturePage
+    }
+
+    private var cameraCaptureDisplayImage: UIImage? {
+        if let renderedIlluminatedPageURL,
+           let image = UIImage(contentsOfFile: renderedIlluminatedPageURL.path) {
+            return image
+        }
+        return manualPhotoImage ?? pendingCameraPhotoImage
+    }
+
+    private var cameraCaptureStatusMessage: String {
+        if isCastingEnchantment {
+            return enchantmentMessage
+        }
+        if isLoadingManualPhoto {
+            return illuminationMessage
+        }
+        if !enchantmentMessage.isEmpty && enchantmentResult != nil {
+            return enchantmentMessage
+        }
+        return illuminationMessage
     }
     #endif
 
@@ -7314,6 +7404,11 @@ struct CapturePageSheet: View {
 
     @MainActor
     private func publishCurrentIlluminatedSurfaceIfReady() {
+        #if canImport(UIKit)
+        guard !isCameraFirstIlluminatedPage else {
+            return
+        }
+        #endif
         guard let currentIlluminatedSurface,
               currentIlluminatedSurface.payload.metadata["renderedPreviewPath"]?.isEmpty == false else {
             return

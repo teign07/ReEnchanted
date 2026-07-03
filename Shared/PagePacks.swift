@@ -1431,6 +1431,7 @@ struct PlayerVaultData: Codable, Equatable {
     var pactWar: PactWarState?
     var relationshipField: [String: RelationshipTie]?
     var beliefEconomy: BeliefEconomyState?
+    var castAgency: CastAgencyState?
     var bookJump: BookJumpState?
     var radio: RadioPlaybackState?
     var compassKnownPlaces: [CompassKnownPlace]?

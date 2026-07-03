@@ -2097,11 +2097,11 @@ struct ElectivePageSourceAdapter: BookPageSourceAdapter {
             intent: .capture,
             renderStyle: .loreLetter,
             score: 70,
-            reason: "\(sender.name) has been working up the nerve to ask a favor.",
-            prompt: "\(sender.name) has a favor to ask",
+            reason: "\(sender.name) has been working up the nerve to ask a quest.",
+            prompt: "\(sender.name) has a quest to ask",
             detail: "A folded note, tucked into the flyleaf, waiting to be opened.",
             payload: BookPagePayload(
-                headline: "An Unwritten Elective",
+                headline: "A Quest",
                 body: "A note from \(sender.name) is tucked into the Book's flyleaf. Open the page to read what they are asking, then keep it to accept.",
                 metadata: [
                     "source": source.id,
@@ -2147,8 +2147,8 @@ struct ElectivePageSourceAdapter: BookPageSourceAdapter {
         // The interactive flyleaf list in the page sheet carries the full
         // asks and proof fields; the body stays a short framing line.
         let lines = active.isEmpty
-            ? "The flyleaf is bare. When a character asks a favor and you accept, the note gets tucked in here. Five fit at most."
-            : "\(active.count) note\(active.count == 1 ? "" : "s") tucked into the binding, each waiting for its sentence of proof."
+            ? "The flyleaf is bare. When a character asks a quest and you accept, the note gets tucked in here. Five fit at most."
+            : "\(active.count) quest\(active.count == 1 ? "" : "s") tucked into the binding, each waiting for proof."
         return SurfacePage(
             id: "\(source.id)-flyleaf-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 8))",
             type: .elective,
@@ -2157,8 +2157,8 @@ struct ElectivePageSourceAdapter: BookPageSourceAdapter {
             renderStyle: .loreLetter,
             score: 55,
             reason: active.isEmpty
-                ? "The flyleaf is waiting for its first favor."
-                : "\(active.count) favor\(active.count == 1 ? "" : "s") are tucked into the flyleaf.",
+                ? "The flyleaf is waiting for its first quest."
+                : "\(active.count) quest\(active.count == 1 ? "" : "s") are tucked into the flyleaf.",
             prompt: "The Flyleaf",
             detail: "\(active.count)/\(UnwrittenElective.maxActive) notes tucked into the binding.",
             payload: BookPagePayload(
@@ -2277,11 +2277,11 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
 
                 One rule, and it is the only one I will lean on you about: do not keep everything. Please. A Book that keeps everything is just a closet with hinges. Keep the Pages with a pulse — and you will know them, they tug a little — and let the rest go quietly back to sleep. Forgetting on purpose is part of how I stay alive.
 
-                I can do all of this with my hands tied. I would rather not. There is a mind I can wear that lives entirely on this device: it thinks here, it carries nothing out the door, and with it my Pages stop reading like a form someone made you fill in and start reading like a margin written in a real hand. When you are curious, go to the Colophon at the foot of the home screen and let me fetch it.
+                I can do all of this with my hands tied. I would rather not. There is a mind I can wear that lives entirely on this device: it thinks here, it carries nothing out the door, and with it my Pages stop reading like a form someone made you fill in and start reading like a margin written in a real hand. Before the ordinary Pages begin, go to the Colophon at the foot of the home screen and let me fetch it.
 
                 Then we begin in earnest.
 
-                First Door work is simple. A greeting — done, and I meant every letter of it. Then a mind. Then one true sentence, brought back from the world on the other side of this page.
+                First Door work is simple. A greeting — done, and I meant every letter of it. Then a mind. Then your first small mission in the world on the other side of this page.
 
                 I will be right here. I am a book. Waiting is the thing I am best at.
                 """,
@@ -4423,8 +4423,9 @@ enum FirstRunPageSequence {
             return [welcome, origin]
         }
 
+        let localBrainSetup = localBrainSetupSurface(playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs))
         guard inputs.localBrainIsReady else {
-            return [welcome]
+            return [welcome, localBrainSetup]
         }
 
         let brainAdapter = LocalBrainAwakePageSourceAdapter()
@@ -4435,6 +4436,11 @@ enum FirstRunPageSequence {
             return [welcome, brain]
         }
 
+        if inputs.surfaceHistory["source:\(enchantmentIntroSourceID)"] == nil,
+           !day.pages.contains(where: { $0.tags.contains("first-run-enchantment-intro") }) {
+            return [welcome, brain, enchantmentIntroSurface(for: day, context: context, inputs: inputs, now: now)]
+        }
+
         let calendarAdapter = CalendarPageSourceAdapter()
         let calendarDoor = calendarAdapter.previewSurface(for: day)
         let calendarDoorShown = inputs.surfaceHistory[calendarDoor.varietyKey] != nil
@@ -4442,14 +4448,8 @@ enum FirstRunPageSequence {
             return [welcome, brain, calendarDoor]
         }
 
-        // Onboarding already asks for one true sentence and keeps it as the
-        // reader's first souvenir, so a second "one true sentence" ask here just
-        // duplicates it. If that sentence is already on the shelf, close the
-        // first run with a playful first mission instead. Only fall back to the
-        // souvenir ask when onboarding skipped it, so the Book still gets a
-        // first kept page to braid from.
-        guard hasKeptFirstSouvenir(day: day, inputs: inputs) else {
-            return [welcome, brain, firstSouvenirSurface(for: day)]
+        if shouldSurfaceCompassRunAfterBrain(inputs: inputs, day: day, now: now) {
+            return [welcome, brain, compassRunIntroSurface(for: day, context: context, inputs: inputs, now: now)]
         }
 
         guard inputs.surfaceHistory["source:\(firstMissionSourceID)"] == nil,
@@ -4460,6 +4460,46 @@ enum FirstRunPageSequence {
     }
 
     static let firstMissionSourceID = "first-run-mission"
+    static let localBrainSetupSourceID = "first-run-local-brain-setup"
+    static let enchantmentIntroSourceID = "first-run-enchantment-intro"
+    static let compassRunIntroSourceID = "first-run-compass-run"
+    static let compassRunDelayAfterBrain: TimeInterval = 30 * 60
+    static let compassRunWindowAfterBrain: TimeInterval = 8 * 3600
+
+    private static func localBrainSetupSurface(playerName: String?) -> SurfacePage {
+        let name = playerName?.nonEmpty ?? "Reader"
+        return SurfacePage(
+            id: "\(localBrainSetupSourceID)-gemma",
+            type: .helpTips,
+            sourceID: localBrainSetupSourceID,
+            intent: .importReference,
+            renderStyle: .loreLetter,
+            score: 100,
+            reason: "The First Door pauses the normal feed until the private local brain is installed.",
+            prompt: "The First Door: Wake the Local Brain",
+            detail: "Install the private on-device mind before ordinary Pages begin.",
+            payload: BookPagePayload(
+                headline: "Wake the Mind in the Margins",
+                body: """
+                All right, \(name). This is the practical spell.
+
+                The Labyrinth can offer little Pages without its local mind, but they will feel thinner than they should. The Academy does better when the Book can think privately on this device: no sending your life away, no asking a distant tower to understand the shape of your room.
+
+                Go to the Colophon at the foot of the home screen and install the local Gemma brain. When it is ready, the Book can read your kept Pages with more care, write in a warmer hand, and help turn loose scraps into story.
+
+                Until then, I am keeping the ordinary card flow quiet. Not because you are in trouble. Because the First Door is still opening.
+                """,
+                metadata: [
+                    "source": localBrainSetupSourceID,
+                    "firstRunStep": "local-brain-setup",
+                    "playerName": name,
+                    "privacy": "private local",
+                    "symbol": "brain.head.profile",
+                    "tags": "help-tips,first-run,local-brain,gemma,colophon,setup,onboarding"
+                ]
+            )
+        )
+    }
 
     private static func firstMissionSurface(playerName: String?) -> SurfacePage {
         let name = playerName?.nonEmpty ?? "Reader"
@@ -4476,11 +4516,9 @@ enum FirstRunPageSequence {
             payload: BookPagePayload(
                 headline: "A Small Mission, Should You Accept It",
                 body: """
-                There — you, a name, and a working mind. We are properly furnished now, \(name).
+                The Book says you're properly furnished now, \(name) — a name, a working mind, the lot. So it asked who should hand you your first mission, and I volunteered before it finished the sentence. Pippa Pilcrow. I set punctuation loose for a living. You'll hear the others complain about me soon enough.
 
-                I won't ask you for another sentence. You already gave me one true thing, and it's tucked safely into the shelves; I don't make readers pay the same toll twice.
-
-                Instead, a mission. Small. Deniable. Entirely yours:
+                The mission. Small. Deniable. Entirely yours:
 
                 Sometime today, catch the Book one thing from the real world it could not have guessed — a sound through a wall, the exact wrong colour of the sky, a stranger's good sentence, a smell that opened a door in your head. You don't have to write it down this second. Just go looking, on purpose, with the Book in your pocket.
 
@@ -4490,7 +4528,11 @@ enum FirstRunPageSequence {
                 • The four marks at the foot of the desk — Body, Weather, Location, Radio — are doors, not decorations. Tap one when you want a Page to surface from where you actually are.
                 • Glow is belief made visible. Spend it on the people and ideas you want the Book to take seriously, and it will.
 
-                That's the whole briefing. Go live a little of the day. I'll be here, being a book, doing the one thing I'm unbeatable at: waiting.
+                When you bring your catch back, I'll be in the margin waiting for it. First one there gets to write the note.
+
+                — Pippa, of the margins
+
+                (P.S. The full stop on this letter has tried to escape twice already. I admire that in a punctuation mark.)
                 """,
                 metadata: [
                     "source": firstMissionSourceID,
@@ -4498,48 +4540,77 @@ enum FirstRunPageSequence {
                     "playerName": name,
                     "privacy": "public reference",
                     "symbol": "scope",
+                    "portraitAsset": "LabyrinthCharacterPilcrow",
                     "tags": "help-tips,first-run,first-run-mission,mission,labyrinth"
                 ]
             )
         )
     }
 
-    private static func hasKeptFirstSouvenir(day: BookDay, inputs: BookSourceInputs) -> Bool {
-        ([day] + inputs.days).flatMap(\.pages).contains { page in
-            page.type == .souvenir && (
-                page.tags.contains("first-run-souvenir") ||
-                page.tags.contains("onboarding") ||
-                page.sourceID == "one-sentence-souvenir"
-            )
-        }
-    }
-
-    private static func firstSouvenirSurface(for day: BookDay) -> SurfacePage {
-        let source = BookPageSourceRegistry.source(for: .souvenir)
+    private static func enchantmentIntroSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        let base = EnchantmentPageSourceAdapter().manualSurface(for: day, context: context, inputs: inputs, now: now)
+        var metadata = base.payload.metadata
+        metadata["source"] = enchantmentIntroSourceID
+        metadata["firstRunStep"] = "enchantment-intro"
+        metadata["firstRunEnchantmentIntro"] = "true"
+        metadata["tags"] = "\(metadata["tags"] ?? "enchantment"),first-run,first-run-enchantment-intro,onboarding,local-brain-ready"
         return SurfacePage(
-            id: "first-run-souvenir-\(day.id)",
-            type: .souvenir,
-            sourceID: source.id,
-            intent: .capture,
-            renderStyle: .quoteCard,
-            score: 99,
-            reason: "The Book has introduced itself and woken its local brain; now The First Door needs one true sentence.",
-            prompt: "The First Door: One True Sentence",
-            detail: "A small real detail opens the first shelf.",
+            id: "\(enchantmentIntroSourceID)-\(BookDay.id(for: now))",
+            type: base.type,
+            sourceID: enchantmentIntroSourceID,
+            intent: base.intent,
+            renderStyle: base.renderStyle,
+            score: 98,
+            reason: "The local brain is awake; Enchantments can now turn a real photo into private local magic.",
+            prompt: "The First Door: Cast an Enchantment",
+            detail: "Choose or take one ordinary photo and let the Book illuminate what is already there.",
             payload: BookPagePayload(
-                headline: "One-Sentence Souvenir",
-                body: "The Book's ready. Give it one sentence from the real world: a sound, color, smell, joke, texture, mercy, or tiny oddity from today.",
-                metadata: [
-                    "source": source.id,
-                    "firstRunStep": "first-souvenir",
-                    "placeholder": "One real sentence from today...",
-                    "privacy": "private local",
-                    "symbol": source.symbolName,
-                    "tags": "souvenir,first-run,first-run-souvenir,one-sentence-souvenir"
-                ]
+                headline: "Cast an Enchantment",
+                body: """
+                The Book has its private mind back. That means a photo can be more than a picture now.
+
+                Choose or take one ordinary image — a mug, a shelf, a pet, a doorway, a plate, the light on the floor. An Enchantment reads the real subject locally, then writes what it notices into the margins.
+
+                Start small. The spell works best when the thing is true.
+                """,
+                metadata: metadata
             )
         )
     }
+
+    private static func shouldSurfaceCompassRunAfterBrain(inputs: BookSourceInputs, day: BookDay, now: Date) -> Bool {
+        guard inputs.surfaceHistory["source:\(compassRunIntroSourceID)"] == nil else { return false }
+        guard !day.pages.contains(where: { $0.tags.contains("first-run-compass-run") || $0.tags.contains("wonder-compass-run") }) else { return false }
+        guard let brainShownAt = inputs.surfaceHistory["source:local-brain-awake"]?.lastShownAt else { return false }
+        let elapsed = now.timeIntervalSince(brainShownAt)
+        return elapsed >= compassRunDelayAfterBrain && elapsed <= compassRunWindowAfterBrain
+    }
+
+    private static func compassRunIntroSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        let base = WonderCompassPageSourceAdapter().manualSurface(for: day, context: context, inputs: inputs, now: now)
+        var metadata = base.payload.metadata
+        metadata["source"] = compassRunIntroSourceID
+        metadata["firstRunStep"] = "compass-run"
+        metadata["firstRunCompassRun"] = "true"
+        metadata["tags"] = "\(metadata["tags"] ?? "wonder-compass"),first-run,first-run-compass-run,onboarding,local-brain-ready"
+        return SurfacePage(
+            id: "\(compassRunIntroSourceID)-\(BookDay.id(for: now))",
+            type: base.type,
+            sourceID: compassRunIntroSourceID,
+            intent: base.intent,
+            renderStyle: base.renderStyle,
+            score: 97,
+            reason: "A short window after the local brain wakes is the right moment to try a full Compass Run.",
+            prompt: "The First Door: Compass Run",
+            detail: "Run Notice, Embark, Sense, Write, and Rest as one small real-world loop.",
+            payload: BookPagePayload(
+                headline: "Take the Compass Out",
+                body: base.payload.body,
+                metadata: metadata
+            )
+        )
+    }
+
 }
 
 struct AskTheBookPageSourceAdapter: BookPageSourceAdapter {
@@ -5756,20 +5827,20 @@ enum HelpTipsCatalog {
         HelpTipEntry(
             id: "first-five-minutes",
             title: "First Five Minutes",
-            prompt: "Start small, keep one thing, then let the Book learn.",
+            prompt: "Start small, keep what tugs, then let the Book learn.",
             body: """
             Use the app like a living notebook, not a dashboard.
 
-            1. Keep one tiny true thing. A Diary Page, Inner Weather note, Fuel Log, photo, or Souvenir all count.
+            1. Keep one small thing that feels alive. A Diary Page, Inner Weather note, Fuel Log, photo, or Souvenir all count.
             2. Don't wait for a grand moment. The Book's strongest when you feed it ordinary evidence.
             3. Open one rising page and answer only what feels finishable.
             4. If a page feels wrong today, dismiss it. Dismissed pages rest and may return later.
             5. Use the Glow menu when you want to steer what appears more often.
 
-            Good first keeps:
-            - "Coffee tasted burnt but useful."
-            - "The window was blue before the room was."
-            - "I'm tired, but not erased."
+            Good first moves:
+            - Keep the Page that tugs.
+            - Add a photo, body note, weather note, or small detail when it helps.
+            - Let dull Pages go quietly. The Book learns from that too.
 
             The trick: one kept page changes the day more than ten unopened perfect plans.
             """,

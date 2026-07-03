@@ -1273,6 +1273,7 @@ struct ContentView: View {
         AppMemoryLedger.record("app-launch-idle")
         // Deferred out of hydration so they never run under the opening movie.
         runBeliefEconomyDailyTick()
+        runCastAgencyTurnIfNeeded()
         tendBookJump()
         restoreRadioIfNeeded()
         if generation.preparedStoryPageSurface == nil,
@@ -4009,7 +4010,13 @@ struct ContentView: View {
         let celebration = Almanac.active(on: Date(), hemisphere: Hemisphere.from(latitude: lastAnchorReadingLatitude))
         let isFirstKeepToday = !day.pages.contains { $0.id != page.id && $0.origin == .userAuthored }
 
-        let priorKeeps = KeepMarginalia.eligibleKeepCount(in: days)
+        let priorMarginDays = BookStore.upsert(today, in: days)
+        let priorKeeps = KeepMarginalia.eligibleKeepCount(in: priorMarginDays)
+        let recentKeepMarginSlugs = Set(KeepMarginalia.recentCastSlugs(
+            in: priorMarginDays,
+            limit: 1,
+            beliefBySlug: keepMarginaliaBeliefMap
+        ))
         if sparked {
             surfaceRefreshDate = Date()
             Task { await prepareStoryPageIfPossible(force: true) }
@@ -4039,7 +4046,8 @@ struct ContentView: View {
                     pageType: page.type,
                     pageID: page.id,
                     beliefBySlug: keepMarginaliaBeliefMap,
-                    priorKeepCount: priorKeeps
+                    priorKeepCount: priorKeeps,
+                    avoidingCastSlugs: recentKeepMarginSlugs
                 )
             }
         }
@@ -4335,6 +4343,7 @@ struct ContentView: View {
     func applyGeneratedChapterTalismanDeltas(from surface: SurfacePage) {
         guard [.gossip, .narrativeOS, .letter].contains(surface.type),
               let raw = surface.payload.metadata["chapterTalismanDeltas"]?.nonEmpty else { return }
+        guard surface.type != .gossip || !gossipBeliefMovesAlreadyResolved(for: surface) else { return }
         let deltas = raw
             .split(separator: ",")
             .compactMap { token -> (String, Int)? in
@@ -4835,14 +4844,100 @@ struct ContentView: View {
         vault.save()
     }
 
+    func runCastAgencyTurnIfNeeded(now: Date = Date()) {
+        guard didCompleteStoryOnboarding else { return }
+        let slotID = SurfaceCadence.slotID(for: now, hours: 4)
+        var state = vault.data.castAgency ?? CastAgencyState()
+        guard !state.hasResolved(slotID: slotID) else { return }
+
+        let inputs = sourceInputs
+        let hasStoryMaterial = !today.capturedPages.isEmpty
+            || inputs.weather != nil
+            || inputs.body != nil
+            || inputs.narrative?.recentTags.isEmpty == false
+        guard hasStoryMaterial else { return }
+
+        let context = CuratorContext.make(for: today)
+        guard !context.distress.isActive else { return }
+
+        var draftInputs = inputs
+        draftInputs.preparedGossipPageSurface = nil
+        let surface = GossipSimulationBuilder.surface(for: today, inputs: draftInputs, now: now)
+        let movement = applySingleCastAgencyMove(from: surface, slotID: slotID, now: now)
+        let recentSlots = recentCastAgencySlots(around: now)
+        if let movement {
+            state.remember(movement, keepingRecentSlots: recentSlots)
+            statusMessage = "Cast turn: \(movement.line)"
+            surfaceRefreshDate = now
+        } else {
+            state.markEmptySlot(slotID, keepingRecentSlots: recentSlots)
+        }
+        vault.data.castAgency = state
+        vault.save()
+    }
+
+    func recentCastAgencySlots(around now: Date) -> Set<String> {
+        let calendar = Calendar.current
+        return Set((0..<12).map { offset in
+            let date = calendar.date(byAdding: .hour, value: -4 * offset, to: now) ?? now
+            return SurfaceCadence.slotID(for: date, hours: 4)
+        })
+    }
+
+    func gossipBeliefMovesAlreadyResolved(for surface: SurfacePage) -> Bool {
+        guard surface.type == .gossip else { return false }
+        return (vault.data.castAgency ?? CastAgencyState()).hasResolved(slotID: surface.payload.metadata["slotID"])
+    }
+
+    func applySingleCastAgencyMove(from surface: SurfacePage, slotID: String, now: Date) -> CastAgencyMovement? {
+        let relationshipTokens = surface.payload.metadata["relationshipMoves"]?
+            .split(separator: "|")
+            .map(String.init)
+            .filter { !$0.isEmpty } ?? []
+        let pageTokens = surface.payload.metadata["pageBeliefMoves"]?
+            .split(separator: "|")
+            .map(String.init)
+            .filter { !$0.isEmpty } ?? []
+        let preferRelationship = abs("\(slotID)-cast-agency".stableHash) % 2 == 0
+
+        if preferRelationship, let token = relationshipTokens.first,
+           let movement = applyGossipRelationshipMoveTokens(token, sourcePageType: .gossip, limit: 1, slotID: slotID, now: now).first {
+            return movement
+        }
+        if let token = pageTokens.first,
+           let movement = applyGossipPageBeliefMoveTokens(token, sourcePageType: .gossip, limit: 1, slotID: slotID, now: now).first {
+            return movement
+        }
+        if let token = relationshipTokens.first,
+           let movement = applyGossipRelationshipMoveTokens(token, sourcePageType: .gossip, limit: 1, slotID: slotID, now: now).first {
+            return movement
+        }
+        return nil
+    }
+
     /// Apply the character-to-character Belief moves a gossip page recorded:
     /// invest warms the pair and lifts the target's Belief; attack tenses them
     /// and chips it. Pure local; the structured tokens drive it, not the prose.
     func applyGossipRelationshipMoves(from surface: SurfacePage) {
         guard surface.type == .gossip,
               let raw = surface.payload.metadata["relationshipMoves"]?.nonEmpty else { return }
+        guard !gossipBeliefMovesAlreadyResolved(for: surface) else { return }
+        _ = applyGossipRelationshipMoveTokens(raw, sourcePageType: surface.type)
+    }
+
+    @discardableResult
+    func applyGossipRelationshipMoveTokens(
+        _ raw: String,
+        sourcePageType: BookPageType?,
+        limit: Int? = nil,
+        slotID: String? = nil,
+        now: Date = Date()
+    ) -> [CastAgencyMovement] {
         var field = vault.data.relationshipField ?? [:]
+        var movements: [CastAgencyMovement] = []
+        var applied = 0
         for token in raw.split(separator: "|") {
+            if let limit, applied >= limit { break }
             // format: actorID>targetID:kind:amount
             let halves = token.split(separator: ":")
             guard halves.count == 3,
@@ -4863,38 +4958,51 @@ struct ContentView: View {
                     entityID: actorID,
                     name: actorName,
                     delta: actorSpend,
-                    sourcePageType: surface.type,
+                    sourcePageType: sourcePageType,
                     note: "\(actorName) spent \(spent) Belief moving the cast web."
                 )
             }
+            var line: String
             if kind == GossipRelationshipMoveKind.invest.rawValue {
                 // Invest is a transfer: the target gains exactly what the actor
                 // paid. A depleted actor can't gift Belief they don't have.
                 guard spent > 0 else {
                     RelationshipFieldEngine.weave(into: &field, entityIDs: [actorID, targetID], familiarity: 1)
+                    line = "\(actorName) tried to talk up \(target.name), but only a little familiarity moved."
+                    if let slotID {
+                        movements.append(CastAgencyMovement(slotID: slotID, kind: .relationship, actorID: actorID, actorName: actorName, targetID: target.id, targetName: target.name, amount: 0, line: line, createdAt: now))
+                    }
+                    applied += 1
                     continue
                 }
                 applyEntityEconomyDelta(
                     entityID: target.id,
                     name: target.name,
                     delta: spent,
-                    sourcePageType: surface.type,
+                    sourcePageType: sourcePageType,
                     note: "\(actorName) invested \(spent) Belief in \(target.name)."
                 )
                 RelationshipFieldEngine.weave(into: &field, entityIDs: [actorID, targetID], warmth: spent, familiarity: 1)
+                line = "\(actorName) invested \(spent) Belief in \(target.name)."
             } else {
                 applyEntityEconomyDelta(
                     entityID: target.id,
                     name: target.name,
                     delta: -amount,
-                    sourcePageType: surface.type,
+                    sourcePageType: sourcePageType,
                     note: "\(actorName) chipped \(amount) Belief from \(target.name)."
                 )
                 RelationshipFieldEngine.weave(into: &field, entityIDs: [actorID, targetID], tension: amount, familiarity: 1)
+                line = "\(actorName) chipped \(amount) Belief from \(target.name)."
             }
+            if let slotID {
+                movements.append(CastAgencyMovement(slotID: slotID, kind: .relationship, actorID: actorID, actorName: actorName, targetID: target.id, targetName: target.name, amount: amount, line: line, createdAt: now))
+            }
+            applied += 1
         }
         vault.data.relationshipField = field
         vault.save()
+        return movements
     }
 
     /// Apply the Cast-to-Page Belief moves a gossip page recorded. Cast members
@@ -4903,7 +5011,22 @@ struct ContentView: View {
     func applyGossipPageBeliefMoves(from surface: SurfacePage) {
         guard surface.type == .gossip,
               let raw = surface.payload.metadata["pageBeliefMoves"]?.nonEmpty else { return }
+        guard !gossipBeliefMovesAlreadyResolved(for: surface) else { return }
+        _ = applyGossipPageBeliefMoveTokens(raw, sourcePageType: surface.type)
+    }
+
+    @discardableResult
+    func applyGossipPageBeliefMoveTokens(
+        _ raw: String,
+        sourcePageType: BookPageType?,
+        limit: Int? = nil,
+        slotID: String? = nil,
+        now: Date = Date()
+    ) -> [CastAgencyMovement] {
+        var movements: [CastAgencyMovement] = []
+        var appliedCount = 0
         for token in raw.split(separator: "|") {
+            if let limit, appliedCount >= limit { break }
             // format: actorID>sourceID:kind:amount
             let halves = token.split(separator: ":")
             guard halves.count == 3,
@@ -4924,7 +5047,7 @@ struct ContentView: View {
                     sourceID: source.id,
                     name: source.title,
                     delta: offered,
-                    sourcePageType: surface.type,
+                    sourcePageType: sourcePageType,
                     note: "\(actorName) gave \(offered) Belief to \(source.title) Pages.",
                     actorID: actorID
                 )
@@ -4933,16 +5056,20 @@ struct ContentView: View {
                         entityID: actorID,
                         name: actorName,
                         delta: -applied,
-                        sourcePageType: surface.type,
+                        sourcePageType: sourcePageType,
                         note: "\(actorName) spent \(applied) Belief making \(source.title) Pages more real."
                     )
+                    if let slotID {
+                        movements.append(CastAgencyMovement(slotID: slotID, kind: .pageSource, actorID: actorID, actorName: actorName, targetID: source.id, targetName: source.title, amount: applied, line: "\(actorName) gave \(applied) Belief to \(source.title) Pages.", createdAt: now))
+                    }
+                    appliedCount += 1
                 }
             } else {
                 let applied = applyPageEconomyDelta(
                     sourceID: source.id,
                     name: source.title,
                     delta: -amount,
-                    sourcePageType: surface.type,
+                    sourcePageType: sourcePageType,
                     note: "\(actorName) tried to take \(amount) Belief from \(source.title) Pages.",
                     actorID: actorID
                 )
@@ -4952,13 +5079,18 @@ struct ContentView: View {
                         entityID: actorID,
                         name: actorName,
                         delta: taken,
-                        sourcePageType: surface.type,
+                        sourcePageType: sourcePageType,
                         note: "\(actorName) took \(taken) Belief from \(source.title) Pages."
                     )
+                    if let slotID {
+                        movements.append(CastAgencyMovement(slotID: slotID, kind: .pageSource, actorID: actorID, actorName: actorName, targetID: source.id, targetName: source.title, amount: taken, line: "\(actorName) took \(taken) Belief from \(source.title) Pages.", createdAt: now))
+                    }
+                    appliedCount += 1
                 }
             }
         }
         vault.save()
+        return movements
     }
 
     /// Display name for a cast entity id (bundled or custom).
@@ -6873,6 +7005,10 @@ struct ContentView: View {
             if await refreshWeatherSignal(isUserInitiated: false, shouldEnchant: allowsGeneratedWork) {
                 lastAutomaticWeatherSourceRefreshSlot = refreshSlot
             }
+        }
+
+        if allowsGeneratedWork {
+            runCastAgencyTurnIfNeeded(now: now)
         }
     }
 

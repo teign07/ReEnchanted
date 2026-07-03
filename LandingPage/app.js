@@ -211,7 +211,7 @@ const PAGES = [
     title: "Your ordinary world is the chapter.",
     body: "Zara Finch reaches you first. She checks your sleeve for punctuation, then looks behind you for the door that vanished. \"You're from the Great Unwritten,\" she says. \"That means your ordinary world is a chapter of this Book - supposedly the best one. No fixed plot. No narrator cleaning up afterward. What you do next actually matters.\" She says it like a warning and a compliment, which is very Zara.",
     source: "Zara Finch · arrival notes",
-    shot: "./assets/screens/character-zara-finch.png",
+    shot: "./assets/screens/character-zara-finch.jpg",
     braid: "Zara named the Great Unwritten, and the ordinary world stopped pretending it was outside the story.",
     decision: false,
     onboardingStep: "unwritten",
@@ -251,7 +251,7 @@ const PAGES = [
     title: "Show him what kind of story arrived.",
     body: "You and Zara are almost through the next arch when Wicker Eddies steps out from behind a shelf as if he has been waiting for the exact worst moment. \"So this is the impossible reader,\" he says. \"Tiny bit shorter than the rumors.\" Zara sighs. \"Wicker.\" He smiles like that was the point. \"Show me what kind of story the Unwritten sent us.\" The Book warms under your hand. Zara looks at you, not him. \"Answer in your own shape.\"",
     source: "Onboarding · Belief roll",
-    shot: "./assets/screens/character-wicker-eddies.png",
+    shot: "./assets/screens/character-wicker-eddies.jpg",
     braid: "Wicker tested the new belief with a crooked smile, and the page rolled its little thunder.",
     decision: false,
     onboardingStep: "wicker",
@@ -270,7 +270,7 @@ const PAGES = [
     title: "The Weather Page has opened.",
     bodyHTML: weatherPageHTML(FALLBACK_WEATHER),
     source: "Weather doorway · public forecast",
-    shot: "./assets/screens/story-page-weather-prose.png",
+    shot: "./assets/screens/story-page-weather-prose.jpg",
     braid: "Fog pressed its thumb to the Weather Page, softening the streetlights until the whole sky felt made of wool.",
   },
   {
@@ -278,7 +278,7 @@ const PAGES = [
     title: "Choose how the page turns.",
     body: "Professor Villanelle has found a brittle weather chart whose reading refuses to match its shadow. How you choose to look - close at the paper, square against the chart, or into the silence - is the hand that decides which future this page tells.",
     source: "Weather in the Stacks · playable fiction",
-    shot: "./assets/screens/story-page-weather-choices.png",
+    shot: "./assets/screens/story-page-weather-choices.jpg",
     braid: "The brittle chart smelled faintly of dust and rain; three futures lifted their corners like paper wanting wind.",
     storyPrompt: true,
   },
@@ -333,7 +333,7 @@ const PAGES = [
     title: "Zara Finch, pressed and filed.",
     body: "Zara notices exits before introductions and calls it being prepared. She is loyal enough to find the path that holds, and wary enough to check whether it will hold twice.",
     source: "Riddlewind guide · hidden alcoves",
-    shot: "./assets/screens/character-zara-finch.png",
+    shot: "./assets/screens/character-zara-finch.jpg",
     braid: "Zara Finch stepped out of the file with storm-gray eyes and a satchel full of exits, and the hallway straightened for her.",
     characterPrompt: true,
   },
@@ -2399,7 +2399,7 @@ const BOOK_CHARACTERS = [
     title: "Zara Finch, pressed and filed.",
     body: "Zara notices exits before introductions and calls it being prepared. She is loyal enough to find the path that holds, and wary enough to check whether it will hold twice.",
     source: "Riddlewind guide · hidden alcoves",
-    shot: "./assets/screens/character-zara-finch.png",
+    shot: "./assets/screens/character-zara-finch.jpg",
     card: "First friend, house guide, and practical magic in a satchel. Her flaw is mistaking vigilance for care; her gift is coming back anyway.",
     braid: "Zara Finch joined the cast with sea-glass at her throat; the hidden alcove held its breath while she found the stair everyone else missed.",
   },
@@ -2410,7 +2410,7 @@ const BOOK_CHARACTERS = [
     title: "What the ink knows of Lysander Mosswood.",
     body: "Lysander answers with a route before an explanation. He keeps pressed leaves as field punctuation and believes a path becomes magical when walked attentively.",
     source: "Mossbloom field notes · Compass Runs",
-    shot: "./assets/screens/character-lysander-mosswood.png",
+    shot: "./assets/screens/character-lysander-mosswood.jpg",
     card: "Thoughtful, trail-minded, and quietly stubborn about slow wonder. His weakness is making stillness sound easier than it is.",
     braid: "Lysander Mosswood joined the cast by pressing an alder leaf into the margin; the path smelled of moss and old rain, and it waited for slower feet.",
   },
@@ -2421,7 +2421,7 @@ const BOOK_CHARACTERS = [
     title: "What the ink knows of Wicker Eddies.",
     body: "Wicker DJs Thornwave on the Academy dial, where doubt gets a bassline. He punctures false magic for sport, and sometimes wounds the thing he meant to test.",
     source: "Duskthorn index · 103.7 Thornwave",
-    shot: "./assets/screens/character-wicker-eddies.png",
+    shot: "./assets/screens/character-wicker-eddies.jpg",
     card: "Sharp, funny, dangerously persuasive. He thinks belief should survive contact with doubt, preferably while he is smiling.",
     braid: "Wicker Eddies joined the cast through a wrong-door key and a Thornwave bassline; he smiled while the page flinched, then made every bright claim prove it could survive him.",
   },
@@ -2432,7 +2432,7 @@ const BOOK_CHARACTERS = [
     title: "Small and entirely necessary: Marginalia Goblin.",
     body: "Marginalia Goblin lives where the page almost stops looking. It files ridiculous evidence, prices attention like currency, and points at the corner your eyes kept sliding past.",
     source: "Book Fae dossier · overlooked evidence",
-    shot: "./assets/screens/character-marginalia-goblin.png",
+    shot: "./assets/screens/character-marginalia-goblin.jpg",
     card: "A mercantile little witness to the unchosen detail: the gap between what a thing is called and what it is.",
     braid: "A Marginalia Goblin joined the cast from the page-corner and offered the Unspoken Pen; the bargain price was three seconds of attention paid to the thing I kept almost noticing.",
   },
@@ -2704,7 +2704,7 @@ const WONDER_CHAPTERS = [
     pageTitle: "Run the Compass once.",
     body: "This is the core loop, and I keep it small on purpose: notice one spark, embark across one tiny threshold, let your body sense the moment, write a single sentence, then rest at the center. A run this small, you can't wave away as nothing.",
     source: "Wonder Compass · Chapter 5",
-    shot: "./assets/screens/wonder-chapters-core.png",
+    shot: "./assets/screens/wonder-chapters-core.jpg",
     card: "A low-stakes adventure small enough to do today, but specific enough that the day can't stay wallpaper.",
     braid: "I ran the Compass once: one spark, one threshold, one body-note, one sentence; Rest sat in the center like a warm stone.",
   },
@@ -2716,7 +2716,7 @@ const WONDER_CHAPTERS = [
     pageTitle: "Let the room join the cast.",
     body: "Here I ask you to let objects and rooms join the cast - the kettle with opinions, the hallway in a mood, the desk that knows exactly what you're avoiding. Greet them, and the ordinary world starts answering back.",
     source: "Wonder Compass · Chapter 8B",
-    shot: "./assets/screens/wonder-chapters-rest.png",
+    shot: "./assets/screens/wonder-chapters-rest.jpg",
     card: "A practice for loneliness, decision fatigue, and boring tasks: make the inanimate world collaborative again.",
     braid: "I gave the ordinary world a cast list, and the kettle, hallway, and desk began clearing their throats.",
   },
@@ -2728,7 +2728,7 @@ const WONDER_CHAPTERS = [
     pageTitle: "Let rest be the center.",
     body: "I put rest at the center, where it belongs - not the opposite of the practice but its still point. Stop before collapse stops you for you, and let the day settle what it has been carrying.",
     source: "Wonder Compass · Chapter 10",
-    shot: "./assets/screens/wonder-chapters-rest.png",
+    shot: "./assets/screens/wonder-chapters-rest.jpg",
     card: "A sixty-second reset to re-magnetize the inner needle and prevent wonder from becoming another chore.",
     braid: "I let Rest stand at the center of the Compass; the day loosened its belt and stopped pretending exhaustion was a door.",
   },
@@ -4612,7 +4612,7 @@ const LORE = {
     kicker: "Emberheart's talisman",
     title: "The Ember Seal",
     kind: "talisman",
-    art: { src: "./assets/art/LabyrinthTalismanEmberSeal.png", alt: "The Ember Seal talisman" },
+    art: { src: "./assets/art/LabyrinthTalismanEmberSeal.jpg", alt: "The Ember Seal talisman" },
     body: [
       "Hold this one and feel a heat that doesn't burn the palm. The Ember Seal carries Emberheart's oath - to warm, to illuminate, to begin.",
       "I keep it as a reminder that courage is meant to be carried into kitchens and sickrooms and cold walks and first attempts, not hoarded for some theatrical emergency that may never come.",
@@ -4622,7 +4622,7 @@ const LORE = {
     kicker: "Mossbloom's talisman",
     title: "The Moss Clasp",
     kind: "talisman",
-    art: { src: "./assets/art/LabyrinthTalismanMossClasp.png", alt: "The Moss Clasp talisman" },
+    art: { src: "./assets/art/LabyrinthTalismanMossClasp.jpg", alt: "The Moss Clasp talisman" },
     body: [
       "Fasten yourself to whatever keeps growing. The Moss Clasp belongs to Mossbloom's slow magic - repair, shelter, rootwork, the quiet bravery of coming back.",
       "Picture it correctly and you won't picture a trophy. You'll picture something that simply holds: a mended strap, a garden gate, a hand around a warm mug, a promise kept without fuss.",
@@ -4632,7 +4632,7 @@ const LORE = {
     kicker: "Tidecrest's talisman",
     title: "The Tide Glass",
     kind: "talisman",
-    art: { src: "./assets/art/LabyrinthTalismanTideGlass.png", alt: "The Tide Glass talisman" },
+    art: { src: "./assets/art/LabyrinthTalismanTideGlass.jpg", alt: "The Tide Glass talisman" },
     body: [
       "Look through this and you don't predict a feeling or master it - you see its shape. The Tide Glass is Tidecrest's lens for emotion made visible: the curve of a wave before it breaks, the salt left after tears.",
       "I keep it for the readers who feel everything and fear it means they're broken. It only means they're awake.",
@@ -4642,7 +4642,7 @@ const LORE = {
     kicker: "Riddlewind's talisman",
     title: "The Wind Cipher",
     kind: "talisman",
-    art: { src: "./assets/art/LabyrinthTalismanWindCipher.png", alt: "The Wind Cipher talisman" },
+    art: { src: "./assets/art/LabyrinthTalismanWindCipher.jpg", alt: "The Wind Cipher talisman" },
     body: [
       "Turn this until the answer catches the air. The Wind Cipher is Riddlewind's talisman of moving thought - for clues, questions, jokes, maps, and the bright instant when a stuck idea suddenly shows you another side.",
       "My students say carrying it feels less like owning an answer and more like keeping a small weather system for the mind.",
@@ -4652,7 +4652,7 @@ const LORE = {
     kicker: "Duskthorn's talisman",
     title: "The Dusk Thorn",
     kind: "talisman",
-    art: { src: "./assets/art/LabyrinthTalismanDuskThorn.png", alt: "The Dusk Thorn talisman" },
+    art: { src: "./assets/art/LabyrinthTalismanDuskThorn.jpg", alt: "The Dusk Thorn talisman" },
     body: [
       "Respect the sign that protects by pricking. The Dusk Thorn is the rumoured mark of Duskthorn - a talisman of boundaries, secrecy, and hard protection. It's not cruel, though it's rarely comfortable.",
       "It says that beauty is allowed to defend itself, that twilight still belongs to the day, and that some of my doors stay shut for genuinely merciful reasons.",
@@ -5029,4 +5029,44 @@ const LORE = {
   };
   openFromHash();
   window.addEventListener("hashchange", openFromHash);
+})();
+
+/* ───────────────────────── bookmark ribbon ─────────────────────────
+   A fixed ribbon on wide screens marks your place in the page: the rail
+   fills as you read, the nearest chapter's dot glows, clicks jump. */
+(function setupRibbon() {
+  const ribbon = document.getElementById("ribbon");
+  const fill = document.getElementById("ribbon-fill");
+  if (!ribbon || !fill) return;
+  const stops = Array.from(ribbon.querySelectorAll("[data-ribbon-stop]"));
+  const targets = stops.map((a) => document.querySelector(a.getAttribute("href")));
+
+  let ticking = false;
+  const update = () => {
+    ticking = false;
+    const doc = document.documentElement;
+    const max = doc.scrollHeight - window.innerHeight;
+    const progress = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+    fill.style.height = (progress * 100).toFixed(2) + "%";
+
+    const readingLine = window.scrollY + window.innerHeight * 0.35;
+    let active = 0;
+    targets.forEach((el, i) => {
+      if (el && el.getBoundingClientRect().top + window.scrollY <= readingLine) active = i;
+    });
+    stops.forEach((a, i) => {
+      a.classList.toggle("is-here", i === active);
+      if (i === active) a.setAttribute("aria-current", "true");
+      else a.removeAttribute("aria-current");
+    });
+  };
+  const request = () => {
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(update);
+    }
+  };
+  window.addEventListener("scroll", request, { passive: true });
+  window.addEventListener("resize", request, { passive: true });
+  update();
 })();

@@ -61,6 +61,161 @@ final class InstantGratificationTests: XCTestCase {
         }
     }
 
+    func testFirstEligibleKeepIsPippasPinnedNote() {
+        let note = KeepMarginalia.note(
+            for: "A stranger held the door and said something kind.",
+            pageType: .diary,
+            pageID: "first-keep",
+            priorKeepCount: 0
+        )
+        XCTAssertEqual(note?.castSlug, "pippa-pilcrow")
+        XCTAssertEqual(note?.line, KeepMarginalia.firstKeepNote.line)
+        // Thin and private keeps are still skipped even on the very first keep.
+        XCTAssertNil(KeepMarginalia.note(for: "ok", pageType: .diary, pageID: "first-keep", priorKeepCount: 0))
+        XCTAssertNil(
+            KeepMarginalia.note(
+                for: "Slept badly, achy all over, long strange dreams about rain.",
+                pageType: .body,
+                pageID: "first-keep",
+                priorKeepCount: 0
+            )
+        )
+    }
+
+    func testSecondEligibleKeepIsTheDuet() {
+        let note = KeepMarginalia.note(
+            for: "The bus was late and the light was the wrong colour.",
+            pageType: .diary,
+            pageID: "second-keep",
+            priorKeepCount: 1
+        )
+        XCTAssertEqual(note?.castSlug, "professor-thaddeus-mook")
+        XCTAssertEqual(note?.rejoinderName, "Pippa Pilcrow")
+        XCTAssertNotNil(note?.rejoinderAsset)
+        XCTAssertNotNil(note?.rejoinderLine)
+    }
+
+    func testGreeterClampBeforeThreshold() {
+        for index in 0..<40 {
+            let slug = KeepMarginalia.note(
+                for: "A small true thing happened by the window today.",
+                pageType: .diary,
+                pageID: "greeter-\(index)",
+                priorKeepCount: 5
+            )?.castSlug
+            XCTAssertNotNil(slug)
+            XCTAssertTrue(KeepMarginalia.greeterSlugs.contains(slug ?? ""), "\(slug ?? "nil") is not a greeter")
+        }
+    }
+
+    func testFullCastAfterThreshold() {
+        let slugs = Set((0..<200).compactMap { index in
+            KeepMarginalia.note(
+                for: "A small true thing happened by the window today.",
+                pageType: .diary,
+                pageID: "mature-\(index)",
+                priorKeepCount: 40
+            )?.castSlug
+        })
+        XCTAssertTrue(slugs.contains { !KeepMarginalia.greeterSlugs.contains($0) })
+    }
+
+    func testEligibleKeepCountMatchesPagesThatCanShowMarginNotes() {
+        let souvenir = BookPage(
+            id: "counts", type: .souvenir, promptText: "Catch one bright particular.",
+            userInput: "The kettle sang twice before I noticed.", origin: .userAuthored
+        )
+        let bodyLog = BookPage(
+            id: "body", type: .body, promptText: "How is the body?",
+            userInput: "Slept badly, achy all over, strange dreams.", origin: .userAuthored
+        )
+        let thin = BookPage(
+            id: "thin", type: .diary, promptText: "A line?",
+            userInput: "It rained.", origin: .userAuthored
+        )
+        let generated = BookPage(
+            id: "gen", type: .diary, promptText: "A line?",
+            userInput: "The Book wrote this one on its own, at length.", origin: .generated
+        )
+        let day = BookDay(id: "2026-07-02", date: Date(), pages: [souvenir, bodyLog, thin, generated])
+        XCTAssertEqual(KeepMarginalia.eligibleKeepCount(in: [day]), 2)
+    }
+
+    func testGeneratedPageKeepAdvancesFirstFriendGate() {
+        let generated = BookPage(
+            id: "generated-first",
+            type: .diary,
+            promptText: "The Book offered a page.",
+            userInput: "The page had enough honest detail to answer.",
+            origin: .generated
+        )
+        let day = BookDay(id: "2026-07-02", date: Date(), pages: [generated])
+        let priorCount = KeepMarginalia.eligibleKeepCount(in: [day])
+
+        let note = KeepMarginalia.note(
+            for: "The next kept page should not pretend it is first.",
+            pageType: .diary,
+            pageID: "after-generated",
+            priorKeepCount: priorCount
+        )
+
+        XCTAssertEqual(priorCount, 1)
+        XCTAssertEqual(note?.castSlug, "professor-thaddeus-mook")
+    }
+
+    func testAvoidingRecentCastSlugChoosesDifferentVoiceWhenPossible() throws {
+        let base = try XCTUnwrap(KeepMarginalia.note(
+            for: "A small true thing happened by the window today.",
+            pageType: .diary,
+            pageID: "avoid-repeat",
+            priorKeepCount: 20
+        ))
+
+        let avoided = try XCTUnwrap(KeepMarginalia.note(
+            for: "A small true thing happened by the window today.",
+            pageType: .diary,
+            pageID: "avoid-repeat",
+            priorKeepCount: 20,
+            avoidingCastSlugs: [base.castSlug]
+        ))
+
+        XCTAssertNotEqual(avoided.castSlug, base.castSlug)
+    }
+
+    func testRecentCastSlugsReconstructsPriorMarginSpeakers() {
+        let first = BookPage(
+            id: "first",
+            type: .diary,
+            createdAt: Date(timeIntervalSince1970: 1),
+            promptText: "First",
+            userInput: "The first eligible generated page has enough words.",
+            origin: .generated
+        )
+        let second = BookPage(
+            id: "second",
+            type: .diary,
+            createdAt: Date(timeIntervalSince1970: 2),
+            promptText: "Second",
+            userInput: "The second eligible page has enough words too.",
+            origin: .generated
+        )
+        let day = BookDay(id: "2026-07-02", date: Date(timeIntervalSince1970: 0), pages: [second, first])
+
+        XCTAssertEqual(
+            KeepMarginalia.recentCastSlugs(in: [day], limit: 2),
+            ["pippa-pilcrow", "professor-thaddeus-mook"]
+        )
+    }
+
+    func testEveryVoiceHasAccentAndGlyph() {
+        for voice in KeepMarginalia.voices {
+            XCTAssertEqual(voice.accentHex.count, 6, "\(voice.slug) accent must be RRGGBB")
+            var scanned: UInt64 = 0
+            XCTAssertTrue(Scanner(string: voice.accentHex).scanHexInt64(&scanned), "\(voice.slug) accent is not hex")
+            XCTAssertFalse(voice.glyph.isEmpty, "\(voice.slug) is missing a glyph")
+        }
+    }
+
     // MARK: BraidEmber
 
     func testEmberIsSilentBeforeEvening() {

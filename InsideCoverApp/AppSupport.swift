@@ -1705,16 +1705,22 @@ private weak var focusedTextInputCurrentResponder: UIResponder?
 private struct FocusedTextInputVisibilityModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
+            .scrollDismissesKeyboard(.interactively)
+            .background(KeyboardDismissInteractionInstaller())
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
+                UIApplication.shared.reenchantedEnableInteractiveKeyboardDismissal()
                 adjustFocusedInput(for: notification)
             }
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
+                UIApplication.shared.reenchantedEnableInteractiveKeyboardDismissal()
                 adjustFocusedInput(for: notification)
             }
             .onReceive(NotificationCenter.default.publisher(for: UITextField.textDidBeginEditingNotification)) { _ in
+                UIApplication.shared.reenchantedEnableInteractiveKeyboardDismissal()
                 adjustFocusedInputSoon()
             }
             .onReceive(NotificationCenter.default.publisher(for: UITextView.textDidBeginEditingNotification)) { _ in
+                UIApplication.shared.reenchantedEnableInteractiveKeyboardDismissal()
                 adjustFocusedInputSoon()
             }
     }
@@ -1749,6 +1755,72 @@ private struct FocusedTextInputVisibilityModifier: ViewModifier {
     }
 }
 
+private struct KeyboardDismissInteractionInstaller: UIViewRepresentable {
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.isUserInteractionEnabled = false
+        DispatchQueue.main.async {
+            context.coordinator.install(from: view)
+        }
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        DispatchQueue.main.async {
+            context.coordinator.install(from: uiView)
+        }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        private weak var window: UIWindow?
+        private weak var recognizer: UITapGestureRecognizer?
+
+        func install(from view: UIView) {
+            guard let window = view.window else { return }
+            guard self.window !== window || recognizer == nil else {
+                window.reenchantedEnableInteractiveKeyboardDismissal()
+                return
+            }
+
+            if let recognizer {
+                recognizer.view?.removeGestureRecognizer(recognizer)
+            }
+
+            let recognizer = UITapGestureRecognizer(target: self, action: #selector(didTapWindow(_:)))
+            recognizer.cancelsTouchesInView = false
+            recognizer.delaysTouchesBegan = false
+            recognizer.delaysTouchesEnded = false
+            recognizer.delegate = self
+            window.addGestureRecognizer(recognizer)
+
+            self.window = window
+            self.recognizer = recognizer
+            window.reenchantedEnableInteractiveKeyboardDismissal()
+        }
+
+        @objc private func didTapWindow(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended else { return }
+            UIApplication.shared.reenchantedDismissKeyboard()
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            guard UIResponder.reenchantedCurrentFirstResponder() is UIView else { return false }
+            return touch.view?.reenchantedIsTextInputOrDescendant != true
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+    }
+}
+
 private extension UIResponder {
     @objc func reenchantedCaptureFirstResponder() {
         focusedTextInputCurrentResponder = self
@@ -1763,6 +1835,19 @@ private extension UIResponder {
             for: nil
         )
         return focusedTextInputCurrentResponder
+    }
+}
+
+private extension UIApplication {
+    func reenchantedDismissKeyboard() {
+        sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
+    func reenchantedEnableInteractiveKeyboardDismissal() {
+        connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .forEach { $0.reenchantedEnableInteractiveKeyboardDismissal() }
     }
 }
 
@@ -1821,6 +1906,24 @@ private extension UIView {
             candidate = view.superview
         }
         return self as? UIScrollView
+    }
+
+    var reenchantedIsTextInputOrDescendant: Bool {
+        var candidate: UIView? = self
+        while let view = candidate {
+            if view is UITextField || view is UITextView || view is UISearchBar {
+                return true
+            }
+            candidate = view.superview
+        }
+        return false
+    }
+
+    func reenchantedEnableInteractiveKeyboardDismissal() {
+        if let scrollView = self as? UIScrollView {
+            scrollView.keyboardDismissMode = .interactive
+        }
+        subviews.forEach { $0.reenchantedEnableInteractiveKeyboardDismissal() }
     }
 }
 #else
@@ -2540,7 +2643,7 @@ import UserNotifications
 #endif
 
 /// The Book's voice outside the app: a few quiet, in-world local
-/// notifications. Class bells, the evening braid whisper, and aging favors.
+/// notifications. Class bells, the evening braid whisper, and aging quests.
 /// Everything is prefixed so a refresh can sweep ours without touching
 /// anything else, and the whole channel has one switch in the Colophon.
 enum BookWhispers {
@@ -2663,8 +2766,8 @@ enum BookWhispers {
             let remindAt = elective.createdAt.addingTimeInterval(3 * 24 * 3600)
             guard remindAt > now else { continue }
             let content = UNMutableNotificationContent()
-            content.title = "A favor is waiting in the flyleaf"
-            content.body = "\(elective.characterName) is still hoping for \"\(elective.title)\". One sentence of proof completes it."
+            content.title = "A quest is waiting in the flyleaf"
+            content.body = "\(elective.characterName) is still hoping for \"\(elective.title)\". Sentence, photo, or GPS proof completes it."
             content.sound = .default
             let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: remindAt)
             requests.append(UNNotificationRequest(
@@ -3070,7 +3173,7 @@ import MapKit
 
 /// Scouts real named places near the player via Apple Maps POI search, so
 /// characters can send them to places that actually exist. Results are
-/// cached for days and the category pool rotates weekly so favors vary.
+/// cached for days and the category pool rotates weekly so quests vary.
 enum LocalPlacesScout {
     struct Cache: Codable {
         var fetchedAt: Date
@@ -3147,7 +3250,9 @@ enum LocalPlacesScout {
                     name: name,
                     category: category,
                     distanceLabel: distance,
-                    locality: item.placemark.locality ?? ""
+                    locality: item.placemark.locality ?? "",
+                    latitude: location.latitude,
+                    longitude: location.longitude
                 ))
             }
         }
@@ -3163,6 +3268,37 @@ enum LocalPlacesScout {
         #else
         return []
         #endif
+    }
+}
+
+enum QuestLocationProof {
+    static let defaultRadiusMeters = 180.0
+
+    static func verify(elective: UnwrittenElective) async -> (success: Bool, summary: String) {
+        guard let targetLatitude = elective.targetLatitude,
+              let targetLongitude = elective.targetLongitude,
+              let placeName = elective.targetPlaceName?.nonEmpty else {
+            return (false, "This quest does not have a GPS destination attached.")
+        }
+        do {
+            let current = try await AnchorLocationReader.requestLocation()
+            let meters = AnchorMath.distanceMeters(
+                fromLatitude: current.latitude,
+                longitude: current.longitude,
+                toLatitude: targetLatitude,
+                longitude: targetLongitude
+            )
+            let radius = elective.targetRadiusMeters ?? defaultRadiusMeters
+            let distance = meters < 1_000
+                ? "\(Int(meters.rounded())) m"
+                : String(format: "%.1f km", meters / 1000)
+            if meters <= radius {
+                return (true, "GPS proof: within \(distance) of \(placeName).")
+            }
+            return (false, "GPS says you are \(distance) from \(placeName). Get within \(Int(radius)) m and try again.")
+        } catch {
+            return (false, error.localizedDescription)
+        }
     }
 }
 

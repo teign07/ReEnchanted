@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 // MARK: - CapturePageSheet sections as standalone views.
 //
@@ -332,9 +333,13 @@ struct AnchorOfferFormView: View {
 
 struct ElectiveFlyleafListView: View {
     let activeElectives: [UnwrittenElective]
-    let onCompleteElective: (String, String) -> Void
+    let onCompleteElective: (String, String, String?, String?) -> Void
 
     @State private var electiveProofDrafts: [String: String] = [:]
+    @State private var proofPhotoURLs: [String: String] = [:]
+    @State private var proofMessages: [String: String] = [:]
+    @State private var locationProofSummaries: [String: String] = [:]
+    @State private var verifyingLocationIDs: Set<String> = []
     @State private var completedElectiveIDs: Set<String> = []
 
     var body: some View {
@@ -358,9 +363,15 @@ struct ElectiveFlyleafListView: View {
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(BookPalette.ink.opacity(0.58))
                         .fixedSize(horizontal: false, vertical: true)
+                    if let place = elective.targetPlaceName {
+                        Label("GPS target: \(place)", systemImage: "location")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(BookPalette.teal.opacity(0.82))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
                     TextField(
-                        "One sentence of proof...",
+                        "Sentence proof...",
                         text: Binding(
                             get: { electiveProofDrafts[elective.id] ?? "" },
                             set: { electiveProofDrafts[elective.id] = $0 }
@@ -377,12 +388,56 @@ struct ElectiveFlyleafListView: View {
                     .padding(8)
                     .background(BookPalette.paper.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
+                    HStack(spacing: 8) {
+                        PhotosPicker(
+                            selection: Binding(
+                                get: { nil },
+                                set: { item in
+                                    guard let item else { return }
+                                    Task { await loadQuestProofPhoto(from: item, electiveID: elective.id) }
+                                }
+                            ),
+                            matching: .images,
+                            photoLibrary: .shared()
+                        ) {
+                            Label(
+                                proofPhotoURLs[elective.id] == nil ? "Photo proof" : "Photo ready",
+                                systemImage: proofPhotoURLs[elective.id] == nil ? "camera" : "checkmark.circle.fill"
+                            )
+                            .font(.caption.weight(.bold))
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(BookPalette.gold)
+
+                        Button {
+                            Task { await verifyLocationProof(for: elective) }
+                        } label: {
+                            Label(
+                                verifyingLocationIDs.contains(elective.id) ? "Checking..." : locationProofSummaries[elective.id] == nil ? "GPS proof" : "GPS ready",
+                                systemImage: locationProofSummaries[elective.id] == nil ? "location.magnifyingglass" : "location.fill"
+                            )
+                            .font(.caption.weight(.bold))
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(BookPalette.teal)
+                        .disabled(elective.targetLatitude == nil || verifyingLocationIDs.contains(elective.id))
+                    }
+
+                    if let message = proofMessages[elective.id] {
+                        Text(message)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(message.contains("GPS says") ? BookPalette.gold : BookPalette.ink.opacity(0.62))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
                     Button {
                         let proof = (electiveProofDrafts[elective.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !proof.isEmpty else { return }
+                        let photoURL = proofPhotoURLs[elective.id]
+                        let locationSummary = locationProofSummaries[elective.id]
+                        guard !proof.isEmpty || photoURL != nil || locationSummary != nil else { return }
                         BookFeedback.play(.keepPage)
                         completedElectiveIDs.insert(elective.id)
-                        onCompleteElective(elective.id, proof)
+                        onCompleteElective(elective.id, proof, photoURL, locationSummary)
                     } label: {
                         Label(
                             completedElectiveIDs.contains(elective.id) ? "Completed" : "Complete with proof",
@@ -396,7 +451,7 @@ struct ElectiveFlyleafListView: View {
                     .tint(BookPalette.teal)
                     .disabled(
                         completedElectiveIDs.contains(elective.id) ||
-                        (electiveProofDrafts[elective.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        !hasAnyProof(for: elective.id)
                     )
                 }
                 .padding(12)
@@ -407,6 +462,55 @@ struct ElectiveFlyleafListView: View {
                 }
             }
         }
+    }
+
+    private func hasAnyProof(for electiveID: String) -> Bool {
+        !(electiveProofDrafts[electiveID] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        proofPhotoURLs[electiveID] != nil ||
+        locationProofSummaries[electiveID] != nil
+    }
+
+    @MainActor
+    private func setProofMessage(_ message: String, electiveID: String) {
+        proofMessages[electiveID] = message
+    }
+
+    private func loadQuestProofPhoto(from item: PhotosPickerItem, electiveID: String) async {
+        guard let data = try? await item.loadTransferable(type: Data.self) else {
+            await setProofMessage("The photo could not be read.", electiveID: electiveID)
+            return
+        }
+        do {
+            let url = try saveQuestProofPhotoData(data)
+            await MainActor.run {
+                proofPhotoURLs[electiveID] = url.absoluteString
+                proofMessages[electiveID] = "Photo proof ready."
+            }
+        } catch {
+            await setProofMessage("The photo could not be saved.", electiveID: electiveID)
+        }
+    }
+
+    private func verifyLocationProof(for elective: UnwrittenElective) async {
+        await MainActor.run { verifyingLocationIDs.insert(elective.id) }
+        let result = await QuestLocationProof.verify(elective: elective)
+        await MainActor.run {
+            verifyingLocationIDs.remove(elective.id)
+            proofMessages[elective.id] = result.summary
+            if result.success {
+                locationProofSummaries[elective.id] = result.summary
+            }
+        }
+    }
+
+    private func saveQuestProofPhotoData(_ data: Data) throws -> URL {
+        let base = InsideCoverStore.containerURL
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let directory = base.appendingPathComponent("QuestProofs", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("quest-proof-\(UUID().uuidString).jpg")
+        try data.write(to: url, options: [.atomic])
+        return url
     }
 }
 

@@ -55,6 +55,28 @@ struct PhysicalBookShippingDestination: Codable, Equatable {
     var countryCode: String
     var stateCode: String?
     var postalCode: String
+    var city: String?
+    var street1: String?
+    var street2: String?
+    var phoneNumber: String?
+
+    init(
+        countryCode: String,
+        stateCode: String? = nil,
+        postalCode: String,
+        city: String? = nil,
+        street1: String? = nil,
+        street2: String? = nil,
+        phoneNumber: String? = nil
+    ) {
+        self.countryCode = countryCode
+        self.stateCode = stateCode
+        self.postalCode = postalCode
+        self.city = city
+        self.street1 = street1
+        self.street2 = street2
+        self.phoneNumber = phoneNumber
+    }
 }
 
 struct PhysicalBookShippingAddress: Codable, Equatable {

@@ -4797,3 +4797,296 @@ em .lore-link, .lore-link em { font-style: italic; }
   .is-drawer .drawer-body { transition: none; }
   .drawer-chevron { transition: none; }
 }
+
+/* ═══════════════════════ narrative restructure (acts + TOC leaf + ribbon) ═══
+   The scroll now reads as acts: ache → play the book → understand → payoff →
+   thesis → a Table-of-Contents leaf that binds the deep chapters. Everything
+   below is additive and scoped; section content styles are untouched. */
+
+/* ── the three steps, de-boxed into a ledger strip (desktop) ── */
+@media (min-width: 721px) {
+  .how-section { padding: clamp(44px, 6vw, 76px) 0 clamp(36px, 5vw, 60px); }
+  .how-section .how-grid { gap: 0; border-top: 1px solid var(--line); }
+  .how-section .how-card {
+    background: none;
+    border: none;
+    border-radius: 0;
+    padding: 26px 30px 0 0;
+  }
+  .how-section .how-card + .how-card {
+    border-left: 1px solid var(--line);
+    padding-left: 30px;
+  }
+  .how-section .how-card:hover { transform: none; }
+  .how-section .how-num {
+    font-size: 1rem;
+    font-weight: 600;
+    font-style: italic;
+    opacity: 0.9;
+  }
+  .how-section .how-card h3 { margin-top: 6px; font-size: 1.35rem; }
+}
+
+/* ── Table of Contents shelf ── */
+.toc-shelf {
+  width: min(var(--maxw), calc(100% - 40px));
+  margin: 0 auto;
+  padding: clamp(50px, 7vw, 90px) 0;
+}
+.toc-eyebrow {
+  margin: 0 0 14px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.toc-head h2 {
+  margin: 0 0 14px;
+  font-family: var(--serif);
+  font-size: clamp(1.9rem, 3.4vw, 2.8rem);
+  font-weight: 600;
+}
+.toc-sub { margin: 0; max-width: 56ch; color: var(--text-dim); line-height: 1.6; }
+.toc-colophon { display: none; }
+
+@media (min-width: 721px) {
+  .toc-leaf {
+    position: relative;
+    padding: clamp(30px, 4.4vw, 58px) clamp(26px, 4vw, 60px) clamp(18px, 2.6vw, 34px);
+    border-radius: 24px;
+    background:
+      radial-gradient(circle at 88% 92%, rgba(120, 90, 50, 0.14), transparent 42%),
+      radial-gradient(circle at 8% 4%, rgba(255, 255, 255, 0.5), transparent 46%),
+      linear-gradient(168deg, var(--paper), var(--paper-2));
+    box-shadow:
+      0 30px 70px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    color: var(--paper-ink);
+  }
+  .toc-head { margin-bottom: clamp(18px, 2.4vw, 30px); }
+  .toc-eyebrow { color: var(--gold-deep); }
+  .toc-head h2 { color: var(--paper-ink); }
+  .toc-sub { color: rgba(42, 32, 20, 0.72); }
+  .toc-colophon {
+    display: block;
+    margin: 14px 0 0;
+    text-align: center;
+    color: var(--gold-deep);
+    opacity: 0.75;
+  }
+
+  /* chapters render as numbered contents rows */
+  .toc-rows { counter-reset: toc-chapter; }
+  .toc-rows > section[data-drawer] {
+    counter-increment: toc-chapter;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid rgba(42, 32, 20, 0.16);
+  }
+
+  .toc-rows .drawer-toggle {
+    display: flex;
+    align-items: baseline;
+    gap: 20px;
+    width: 100%;
+    padding: 20px 6px;
+    margin: 0;
+    text-align: left;
+    cursor: pointer;
+    color: var(--paper-ink);
+    font: inherit;
+    background: none;
+    border: none;
+    transition: background 180ms ease;
+  }
+  .toc-rows .drawer-toggle::before {
+    content: counter(toc-chapter, upper-roman) ".";
+    flex: 0 0 2.4em;
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 600;
+    font-size: 1.15rem;
+    color: var(--gold-deep);
+  }
+  .toc-rows .drawer-toggle:hover,
+  .toc-rows .drawer-toggle:focus-visible { background: rgba(255, 255, 255, 0.32); }
+  .toc-rows .drawer-toggle:focus-visible {
+    outline: 2px solid var(--gold-deep);
+    outline-offset: -2px;
+  }
+
+  .toc-rows .drawer-toggle-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1 1 auto;
+  }
+  .toc-rows .drawer-toggle-eyebrow {
+    font-size: 0.68rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: rgba(42, 32, 20, 0.55);
+  }
+  .toc-rows .drawer-toggle-label {
+    font-family: var(--serif);
+    font-size: clamp(1.25rem, 2vw, 1.6rem);
+    font-weight: 600;
+    line-height: 1.2;
+  }
+  .toc-rows .drawer-chevron {
+    flex: 0 0 auto;
+    align-self: center;
+    width: 11px;
+    height: 11px;
+    border-right: 2px solid var(--gold-deep);
+    border-bottom: 2px solid var(--gold-deep);
+    transform: rotate(45deg);
+    margin-top: -4px;
+    transition: transform 250ms ease;
+  }
+  .toc-rows .is-open .drawer-chevron { transform: rotate(225deg); margin-top: 4px; }
+
+  /* collapse mechanism (desktop mirror of the mobile drawers) */
+  .toc-rows .is-drawer .drawer-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 340ms ease;
+  }
+  .toc-rows .is-drawer.is-open .drawer-body { grid-template-rows: 1fr; }
+  .toc-rows .is-drawer .drawer-inner {
+    display: block;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* an open chapter unfolds as a dark plate set into the leaf */
+  .toc-rows .is-open .drawer-inner {
+    margin: 2px 0 22px;
+    padding: clamp(20px, 2.6vw, 34px);
+    border-radius: 18px;
+    border: 1px solid var(--line);
+    background: var(--ink);
+    box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.35);
+  }
+
+  /* the row already carries the chapter's eyebrow + title */
+  .toc-rows .is-drawer .section-head .eyebrow,
+  .toc-rows .is-drawer .section-head h2,
+  .toc-rows .is-drawer .ebook-copy > .eyebrow,
+  .toc-rows .is-drawer .ebook-copy > h2 { display: none; }
+  .toc-rows .is-drawer .section-head { margin-bottom: 8px; }
+}
+
+/* ── bookmark ribbon: your place in the page ── */
+.ribbon { display: none; }
+@media (min-width: 1240px) {
+  .ribbon {
+    display: block;
+    position: fixed;
+    top: 50%;
+    right: 20px;
+    transform: translateY(-50%);
+    z-index: 60;
+  }
+  .ribbon-rail {
+    position: absolute;
+    top: 0;
+    right: 8px;
+    width: 2px;
+    height: 100%;
+    background: rgba(255, 200, 116, 0.16);
+    border-radius: 999px;
+  }
+  .ribbon-fill {
+    display: block;
+    width: 100%;
+    height: 0%;
+    background: linear-gradient(var(--gold-soft), var(--gold));
+    border-radius: 999px;
+    box-shadow: 0 0 10px rgba(255, 200, 116, 0.5);
+  }
+  .ribbon-stops {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: min(46vh, 460px);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ribbon-stops a {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 2px 0;
+    text-decoration: none;
+  }
+  .ribbon-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255, 200, 116, 0.45);
+    background: var(--ink);
+    transition: background 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+  }
+  .ribbon-label {
+    opacity: 0;
+    transform: translateX(6px);
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(13, 10, 24, 0.92);
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    font-family: var(--sans);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    pointer-events: none;
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+  .ribbon-stops a:hover .ribbon-label,
+  .ribbon-stops a:focus-visible .ribbon-label,
+  .ribbon-stops a.is-here .ribbon-label {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  .ribbon-stops a:hover .ribbon-dot,
+  .ribbon-stops a:focus-visible .ribbon-dot { border-color: var(--gold); }
+  .ribbon-stops a.is-here .ribbon-dot {
+    background: var(--gold);
+    border-color: var(--gold);
+    box-shadow: 0 0 12px rgba(255, 200, 116, 0.65);
+  }
+  .ribbon-stops a.is-here .ribbon-label { color: var(--gold); }
+  .ribbon-stops a:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 3px;
+    border-radius: 999px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toc-rows .is-drawer .drawer-body,
+  .toc-rows .drawer-chevron,
+  .ribbon-label,
+  .ribbon-dot { transition: none; }
+}
+
+/* the ebook section is a grid at section level; inside the TOC the injected
+   toggle/body must stack, and the two-column layout moves onto the plate */
+@media (min-width: 721px) {
+  .toc-rows .ebook-section.is-drawer { display: block; }
+  .toc-rows .ebook-section .drawer-inner {
+    display: grid;
+    grid-template-columns: 1fr 0.62fr;
+    gap: clamp(30px, 5vw, 70px);
+    align-items: center;
+  }
+}

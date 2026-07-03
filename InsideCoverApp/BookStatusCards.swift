@@ -1509,40 +1509,96 @@ struct BraidingStatusCard: View {
     }
 }
 
+extension Color {
+    /// "RRGGBB" → Color; the cast accent hexes live in Shared as plain strings
+    /// because InsideCoverCore never imports SwiftUI.
+    init(bookHex hex: String) {
+        var value: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&value)
+        self.init(
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255
+        )
+    }
+}
+
 /// The instant margin reply shown right after a page is kept — a cast member's
 /// one-line note, echoing the keep before the surface retires.
 struct KeepMarginNoteToast: View {
     let note: KeepMarginalia.Note
     var showsPressHint: Bool = false
 
+    private var voice: KeepMarginalia.Voice? { KeepMarginalia.voice(forSlug: note.castSlug) }
+    private var accent: Color { voice.map { Color(bookHex: $0.accentHex) } ?? BookPalette.gold }
+    private var rejoinderAccent: Color {
+        note.rejoinderName
+            .flatMap { name in KeepMarginalia.voices.first { $0.name == name } }
+            .map { Color(bookHex: $0.accentHex) } ?? BookPalette.gold
+    }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(note.assetName)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 36, height: 36)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(BookPalette.gold.opacity(0.35), lineWidth: 1))
-            VStack(alignment: .leading, spacing: 3) {
-                Text(note.castName)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(note.line)
-                    .font(.system(.subheadline, design: .serif))
-                    .italic()
-                    .fixedSize(horizontal: false, vertical: true)
-                if let ripple = note.rippleLine {
-                    Text(ripple)
-                        .font(.caption2)
-                        .foregroundStyle(BookPalette.lampGold)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(note.assetName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 36, height: 36)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(accent.opacity(voice == nil ? 0.35 : 0.6), lineWidth: 1))
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 4) {
+                        Text(note.castName)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(voice == nil ? BookPalette.nightText.opacity(0.72) : accent)
+                        if let glyph = voice?.glyph {
+                            Text(glyph)
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(accent.opacity(0.85))
+                        }
+                    }
+                    Text(note.line)
+                        .font(.system(.subheadline, design: .serif))
+                        .italic()
+                        .foregroundStyle(BookPalette.nightText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let ripple = note.rippleLine {
+                        Text(ripple)
+                            .font(.caption2)
+                            .foregroundStyle(BookPalette.lampGold.opacity(0.92))
+                    }
                 }
-                if showsPressHint {
-                    Text("Tap to press a souvenir card.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            if let rejoinderLine = note.rejoinderLine,
+               let rejoinderName = note.rejoinderName,
+               let rejoinderAsset = note.rejoinderAsset {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(rejoinderAsset)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 28, height: 28)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(rejoinderAccent.opacity(0.6), lineWidth: 1))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(rejoinderName)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(rejoinderAccent)
+                        Text(rejoinderLine)
+                            .font(.system(.subheadline, design: .serif))
+                            .italic()
+                            .foregroundStyle(BookPalette.nightText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, 12)
+            }
+            if showsPressHint {
+                Text("Tap to press a souvenir card.")
+                    .font(.caption2)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.62))
+            }
         }
         .padding(12)
         .background(BookPalette.nightPanel.opacity(0.92), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
