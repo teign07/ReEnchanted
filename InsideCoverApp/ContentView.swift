@@ -233,6 +233,7 @@ struct ContentView: View {
     @State var calendarEvents: [CalendarEventSignal] = []
     @State var nearbyPlaces: [LocalPlaceSignal] = []
     @State var preparedSaveFileURL: URL?
+    @State var preparedPlainInkURL: URL?
     @State var preparedContinuityURL: URL?
     @State var preparedMonthlyEditionURL: URL?
     @State var preparedAnnualEditionURL: URL?
@@ -2629,6 +2630,8 @@ struct ContentView: View {
                 metadata["proofCaption"] = asset.caption
             case .photoLibraryAsset:
                 metadata["assetLocalIdentifier"] = asset.reference
+            case .audioFile:
+                metadata["keptVoicePath"] = asset.reference
             }
             if !asset.caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 metadata["imageCaption"] = asset.caption
@@ -3559,6 +3562,36 @@ struct ContentView: View {
                                 .font(.caption2)
                                 .foregroundStyle(BookPalette.nightText.opacity(0.45))
                         }
+
+                        HStack(spacing: 10) {
+                            Text("Or as plain text.")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                            Spacer()
+                            if let preparedPlainInkURL {
+                                ShareLink(item: preparedPlainInkURL) {
+                                    Label("Share plain ink", systemImage: "square.and.arrow.up")
+                                        .font(.caption.weight(.bold))
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(BookPalette.teal)
+                            } else {
+                                Button {
+                                    BookFeedback.play(.sourceRefresh)
+                                    exportPlainInk()
+                                } label: {
+                                    Label("Copy out in plain ink", systemImage: "doc.plaintext")
+                                        .font(.caption.weight(.bold))
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(BookPalette.teal)
+                            }
+                        }
+
+                        Text("Every kept page as ordinary text, readable anywhere, forever.")
+                            .font(.caption2)
+                            .foregroundStyle(BookPalette.nightText.opacity(0.55))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     HStack(spacing: 10) {
@@ -3910,7 +3943,7 @@ struct ContentView: View {
         BookFeedback.play(.braidComplete)
     }
 
-    func savePage(surface: SurfacePage, input: String, tags: [String]) {
+    func savePage(surface: SurfacePage, input: String, tags: [String], extraMedia: [BookPageMediaAsset] = []) {
         BookFeedback.play(.keepPage)
         keepInkBurstText = input.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
             ?? surface.type.shortTitle
@@ -3948,7 +3981,7 @@ struct ContentView: View {
             sourceID: surface.sourceID,
             origin: surface.origin,
             privacy: surface.privacy,
-            mediaAssets: surface.mediaAssets
+            mediaAssets: surface.mediaAssets + extraMedia
         )
         day.pages.append(page)
         applyWordNegotiationIfNeeded(surface: surface, page: page)
@@ -4154,8 +4187,8 @@ struct ContentView: View {
             weatherSignal: weatherPageSignal,
             readerLexicon: activeReaderLexicon,
             isShadowWonderActive: ShadowWonder.state(inputs: sourceInputs, now: Date()).isActive
-        ) { savedSurface, input, tags in
-            savePage(surface: savedSurface, input: input, tags: tags)
+        ) { savedSurface, input, tags, extraMedia in
+            savePage(surface: savedSurface, input: input, tags: tags, extraMedia: extraMedia)
         }
         .id(surface.id)
         .presentationDetents([.medium, .large])

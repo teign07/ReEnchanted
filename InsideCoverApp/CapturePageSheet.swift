@@ -700,7 +700,7 @@ struct CapturePageSheet: View {
     var onAnchorPlace: (AnchorPlaceDraft) -> Void = { _ in }
     var onBindChapter: (String) -> Void = { _ in }
     var activeElectives: [UnwrittenElective] = []
-    var onCompleteElective: (String, String) -> Void = { _, _ in }
+    var onCompleteElective: (String, String, String?, String?) -> Void = { _, _, _, _ in }
     var onPayFaeBargain: (String, String, String) -> Void = { _, _, _ in }
     /// (chosenID, chosenName, otherID, otherName) when the reader sides in The Two Readings.
     var onTwoReadingsSided: (String, String, String, String) -> Void = { _, _, _, _ in }
@@ -723,7 +723,9 @@ struct CapturePageSheet: View {
     /// don't have a vault.
     var readerLexicon: ReaderLexicon = ReaderLexicon()
     var isShadowWonderActive: Bool = false
-    let onSave: (SurfacePage, String, [String]) -> Void
+    /// (surface, input, tags, extraMedia). `extraMedia` carries a pressed
+    /// photograph when the reader attached one; empty otherwise.
+    let onSave: (SurfacePage, String, [String], [BookPageMediaAsset]) -> Void
 
     private static let localBrainStatusScrollID = "page-local-brain-status"
 
@@ -841,9 +843,28 @@ struct CapturePageSheet: View {
     @AppStorage("illuminatedPhotoHistory") private var illuminatedPhotoHistoryData = "{}"
     #if canImport(PhotosUI)
     @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var pressedPhotoItem: PhotosPickerItem?
     #endif
+    /// A photograph pressed between the pages of an ordinary kept page, ready to
+    /// travel with it into the archive. Nil until the reader chooses one.
+    @State private var pressedPhotoAsset: BookPageMediaAsset?
+    @State private var pressedPhotoMessage: String?
+    @State private var isLoadingPressedPhoto = false
+    @StateObject private var keptVoiceRecorder = KeptVoiceRecorder()
+    @State private var keptVoiceAsset: BookPageMediaAsset?
+    @State private var keptVoiceMessage: String?
+
+    /// Extra media the reader attached to this page — a pressed photograph, a
+    /// kept voice recording — to travel into the archive with it.
+    private var keptExtraMedia: [BookPageMediaAsset] {
+        [pressedPhotoAsset, keptVoiceAsset].compactMap { $0 }
+    }
     #if canImport(UIKit)
     @State private var isCameraPresented = false
+    @State private var didAutoOpenCamera = false
+    @State private var pendingCameraPhotoData: Data?
+    @State private var pendingCameraPhotoImage: UIImage?
+    @State private var isChoosingCameraEnchantment = false
     #endif
     private var marginTutorSeenData: String {
         get { MarginTutorLedger.encode(Set(PlayerVault.shared.data.tutorSeen)) }
@@ -963,6 +984,16 @@ struct CapturePageSheet: View {
         surface.type == .enchantment || surface.payload.metadata["source"] == "enchantment"
     }
 
+    private var isCameraFirstIlluminatedPage: Bool {
+        surface.type == .illuminatedPhoto && surface.payload.metadata["cameraFirst"] == "true"
+    }
+
+    #if canImport(UIKit)
+    private var hasPendingCameraPhoto: Bool {
+        pendingCameraPhotoData != nil && pendingCameraPhotoImage != nil
+    }
+    #endif
+
     private var activeEnchantmentSpell: EnchantmentSpell? {
         StoryEnchantmentCatalog.spell(id: selectedEnchantmentID ?? surface.payload.metadata["enchantmentID"])
     }
@@ -1063,7 +1094,7 @@ struct CapturePageSheet: View {
                 metadata: metadata
             )
         )
-        onSave(variant, preparedInput, preparedTags(for: variant))
+        onSave(variant, preparedInput, preparedTags(for: variant), [])
         dismiss()
     }
 
@@ -1122,6 +1153,12 @@ struct CapturePageSheet: View {
             surface.payload.metadata["playfulMissionID"] != nil
     }
 
+    private var standalonePlayfulMissionText: String? {
+        surface.payload.metadata["mission"]?.nonEmpty ??
+            surface.detail.nonEmpty ??
+            surface.payload.body.nonEmpty
+    }
+
     private var preparedPageLabel: String {
         if surface.renderStyle == .gentleTranslation {
             return "Private translation"
@@ -1165,6 +1202,12 @@ struct CapturePageSheet: View {
         guard surface.type == .illustration else { return nil }
         let value = surface.payload.metadata["assetName"] ?? ""
         return value.isEmpty ? nil : value
+    }
+
+    /// A small signed-letter portrait (e.g. Pippa on the First Mission), driven
+    /// purely by metadata so any lore letter can claim a face.
+    private var letterPortraitAssetName: String? {
+        surface.payload.metadata["portraitAsset"]?.nonEmpty
     }
 
     private var illuminatedDraft: IlluminatedPhotoDraft? {
@@ -1763,7 +1806,7 @@ struct CapturePageSheet: View {
                             } else {
                                 let input = preparedInput
                                 markIlluminatedDraftKept()
-                                onSave(effectiveProofSurface, input, preparedTags)
+                                onSave(effectiveProofSurface, input, preparedTags, keptExtraMedia)
                                 completeStoryMechanicIfNeeded(surface: effectiveProofSurface, outcome: input)
                                 completeFaeBargainIfNeeded()
                                 completeTwoReadingsIfNeeded()
@@ -1787,8 +1830,28 @@ struct CapturePageSheet: View {
                     }
                 }
             }
+            .onChange(of: pressedPhotoItem) { _, newValue in
+                guard let newValue else { return }
+                Task { await loadPressedPhoto(from: newValue) }
+            }
             #endif
+            .onDisappear {
+                // Finalize (don't delete) any in-progress take so the mic and
+                // audio session don't stay live after the sheet closes.
+                if keptVoiceRecorder.isRecording {
+                    _ = keptVoiceRecorder.stop()
+                }
+            }
             #if canImport(UIKit) && canImport(PhotosUI)
+            .task {
+                guard isCameraFirstIlluminatedPage, !didAutoOpenCamera else { return }
+                didAutoOpenCamera = true
+                if BookCameraCaptureView.isCameraAvailable {
+                    isCameraPresented = true
+                } else {
+                    illuminationMessage = "This device cannot open the camera here. Choose a photo from the library instead."
+                }
+            }
             .fullScreenCover(isPresented: $isCameraPresented) {
                 BookCameraCaptureView { data in
                     Task {
@@ -1796,6 +1859,8 @@ struct CapturePageSheet: View {
                             await loadCompassProofPhoto(imageData: data)
                         } else if isEnchantmentPage {
                             await castEnchantment(imageData: data)
+                        } else if isCameraFirstIlluminatedPage {
+                            await holdCameraPhotoForChoice(imageData: data)
                         } else {
                             await loadManualPhoto(imageData: data)
                         }
@@ -2039,6 +2104,12 @@ struct CapturePageSheet: View {
                 faeMarginaliaCard(note)
             }
 
+            if isKeptReadbackPage,
+               let voicePath = surface.payload.metadata["keptVoicePath"]?.nonEmpty,
+               FileManager.default.fileExists(atPath: voicePath) {
+                KeptVoicePlaybackChip(filePath: voicePath)
+            }
+
             if canGiveBraidFeedback {
                 braidFeedbackCard
             }
@@ -2119,6 +2190,14 @@ struct CapturePageSheet: View {
 
             if isEnchantmentPage {
                 AnyView(enchantmentPageView)
+            }
+
+            if surface.type == .illuminatedPhoto, let result = enchantmentResult {
+                enchantmentResultCard(result)
+
+                if activeEnchantmentSpell?.id == "everything-speaks" {
+                    AnyView(everythingSpeaksConversationView)
+                }
             }
 
             if surface.type == .marginsAtlas {
@@ -4225,6 +4304,20 @@ struct CapturePageSheet: View {
     @ViewBuilder
     private var preparedPageContent: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if let letterPortraitAssetName {
+                HStack {
+                    Spacer(minLength: 0)
+                    Image(letterPortraitAssetName)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 72, height: 72)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(BookPalette.gold.opacity(0.4), lineWidth: 1))
+                        .accessibilityHidden(true)
+                    Spacer(minLength: 0)
+                }
+            }
+
             if let illustrationAssetName {
                 Image(illustrationAssetName)
                     .resizable()
@@ -5402,7 +5495,7 @@ struct CapturePageSheet: View {
             )
         )
         let input = preparedInput
-        onSave(sealed, input, preparedTags(for: sealed) + ["reply", "pen-pal"])
+        onSave(sealed, input, preparedTags(for: sealed) + ["reply", "pen-pal"], [])
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
             dismiss()
         }
@@ -5539,9 +5632,13 @@ struct CapturePageSheet: View {
                 compassRail("Delight", surface.payload.metadata["delight"])
                 compassRail("Definition", surface.payload.metadata["definition"])
             } else if step == "sense" {
-                compassRail("Goal", surface.payload.metadata["spark"])
-                compassRail("Destination", surface.payload.metadata["destination"])
-                compassRail("Body Mission", surface.payload.metadata["mission"])
+                if isStandalonePlayfulMissionPage {
+                    compassRail("Mission", standalonePlayfulMissionText)
+                } else {
+                    compassRail("Goal", surface.payload.metadata["spark"])
+                    compassRail("Destination", surface.payload.metadata["destination"])
+                    compassRail("Body Mission", surface.payload.metadata["mission"])
+                }
             } else if step == "write" {
                 compassRail("Goal", surface.payload.metadata["spark"])
                 compassRail("Best Sensory Moment", surface.payload.metadata["souvenirPrompt"])
@@ -6007,15 +6104,201 @@ struct CapturePageSheet: View {
     }
 
     private func marginNoteEditor(minHeight: CGFloat) -> some View {
-        LivingTextEditor(
-            title: "Margin note",
-            placeholder: surface.type == .rest
-                ? "One true line, if one arrived in the quiet. Or leave it blank — that's rest too."
-                : "Add one true thing the Book should keep.",
-            text: $text,
-            minHeight: minHeight,
-            builderPack: SentenceBuilderPackRegistry.composedCore(readerLexicon: readerLexicon, shadowWonderActive: isShadowWonderActive)
-        )
+        VStack(alignment: .leading, spacing: 10) {
+            LivingTextEditor(
+                title: "Margin note",
+                placeholder: surface.type == .rest
+                    ? "One true line, if one arrived in the quiet. Or leave it blank — that's rest too."
+                    : "Add one true thing the Book should keep.",
+                text: $text,
+                minHeight: minHeight,
+                builderPack: SentenceBuilderPackRegistry.composedCore(readerLexicon: readerLexicon, shadowWonderActive: isShadowWonderActive)
+            )
+            if allowsPressedPhoto {
+                if BookNoticesPicker<EmptyView>.isAvailable {
+                    bookNoticesBar
+                }
+                pressedPhotoBar
+                keptVoiceBar
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var bookNoticesBar: some View {
+        BookNoticesPicker { seed in
+            guard !seed.isEmpty else { return }
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            text = trimmed.isEmpty ? seed : "\(trimmed) \(seed)"
+            BookFeedback.play(.openPage)
+        } label: {
+            Label("What the Book noticed today…", systemImage: "sparkles")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(BookPalette.lampGold)
+        }
+    }
+
+    /// Whether this page may carry a pressed photograph. Ordinary writing pages
+    /// only — pages with their own photo/proof flows opt out.
+    private var allowsPressedPhoto: Bool {
+        !isKeptReadbackPage && !isEnchantmentPage && !allowsCompassPhotoProof
+    }
+
+    @ViewBuilder
+    private var pressedPhotoBar: some View {
+        #if canImport(PhotosUI)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                PhotosPicker(
+                    selection: $pressedPhotoItem,
+                    matching: .images,
+                    photoLibrary: .shared()
+                ) {
+                    Label(
+                        pressedPhotoAsset == nil ? "Press a photograph" : "Photograph pressed",
+                        systemImage: pressedPhotoAsset == nil ? "photo.badge.plus" : "checkmark.circle.fill"
+                    )
+                    .font(.caption.weight(.bold))
+                }
+                .buttonStyle(.bordered)
+                .tint(BookPalette.teal)
+                .disabled(isLoadingPressedPhoto)
+
+                if pressedPhotoAsset != nil {
+                    Button {
+                        pressedPhotoAsset = nil
+                        pressedPhotoItem = nil
+                        pressedPhotoMessage = nil
+                    } label: {
+                        Image(systemName: "xmark.circle")
+                            .font(.caption.weight(.bold))
+                    }
+                    .buttonStyle(.borderless)
+                    .tint(BookPalette.ink.opacity(0.5))
+                    .accessibilityLabel("Remove the pressed photograph")
+                }
+                Spacer(minLength: 0)
+            }
+            if let message = pressedPhotoMessage {
+                Text(message)
+                    .font(.caption2)
+                    .foregroundStyle(BookPalette.ink.opacity(0.6))
+            }
+        }
+        #else
+        EmptyView()
+        #endif
+    }
+
+    #if canImport(PhotosUI)
+    private func loadPressedPhoto(from item: PhotosPickerItem) async {
+        await MainActor.run {
+            isLoadingPressedPhoto = true
+            pressedPhotoMessage = nil
+        }
+        defer { Task { @MainActor in isLoadingPressedPhoto = false } }
+
+        guard let raw = try? await item.loadTransferable(type: Data.self),
+              let jpeg = PressedPhotograph.downscaledJPEG(from: raw) else {
+            await MainActor.run { pressedPhotoMessage = "That photograph could not be read." }
+            return
+        }
+        let base = InsideCoverStore.containerURL
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let url = base.appendingPathComponent("pressed-\(UUID().uuidString).jpg")
+        do {
+            try jpeg.write(to: url, options: [.atomic])
+            let asset = BookPageMediaAsset(
+                kind: .renderedImageFile,
+                reference: url.path,
+                caption: "",
+                sourceID: surface.sourceID,
+                metadata: ["pressedPhotograph": "true"]
+            )
+            await MainActor.run {
+                pressedPhotoAsset = asset
+                pressedPhotoMessage = "Pressed between the pages."
+                BookFeedback.play(.openPage)
+            }
+        } catch {
+            await MainActor.run { pressedPhotoMessage = "That photograph could not be kept." }
+        }
+    }
+    #endif
+
+    @ViewBuilder
+    private var keptVoiceBar: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Button {
+                    toggleKeptVoice()
+                } label: {
+                    Label(
+                        keptVoiceRecorder.isRecording
+                            ? "Stop (\(Self.voiceDuration(keptVoiceRecorder.elapsed)))"
+                            : (keptVoiceAsset == nil ? "Keep your voice" : "Voice kept"),
+                        systemImage: keptVoiceRecorder.isRecording
+                            ? "stop.circle.fill"
+                            : (keptVoiceAsset == nil ? "waveform" : "checkmark.circle.fill")
+                    )
+                    .font(.caption.weight(.bold))
+                    .symbolEffect(.pulse, isActive: keptVoiceRecorder.isRecording)
+                }
+                .buttonStyle(.bordered)
+                .tint(keptVoiceRecorder.isRecording ? BookPalette.lampGold : BookPalette.teal)
+
+                if keptVoiceAsset != nil && !keptVoiceRecorder.isRecording {
+                    Button {
+                        keptVoiceAsset = nil
+                        keptVoiceMessage = nil
+                        keptVoiceRecorder.discard()
+                    } label: {
+                        Image(systemName: "xmark.circle")
+                            .font(.caption.weight(.bold))
+                    }
+                    .buttonStyle(.borderless)
+                    .tint(BookPalette.ink.opacity(0.5))
+                    .accessibilityLabel("Remove the kept voice")
+                }
+                Spacer(minLength: 0)
+            }
+            if let message = keptVoiceMessage {
+                Text(message)
+                    .font(.caption2)
+                    .foregroundStyle(BookPalette.ink.opacity(0.6))
+            }
+        }
+    }
+
+    private func toggleKeptVoice() {
+        if keptVoiceRecorder.isRecording {
+            keptVoiceMessage = nil
+            if let url = keptVoiceRecorder.stop() {
+                keptVoiceAsset = BookPageMediaAsset(
+                    kind: .audioFile,
+                    reference: url.path,
+                    caption: "",
+                    sourceID: surface.sourceID,
+                    metadata: ["keptVoice": "true"]
+                )
+                keptVoiceMessage = "Your voice is kept."
+                BookFeedback.play(.keepPage)
+            } else {
+                keptVoiceMessage = "Nothing was recorded."
+            }
+        } else {
+            // Replace any earlier take.
+            keptVoiceAsset = nil
+            BookFeedback.play(.tap)
+            if !keptVoiceRecorder.start() {
+                keptVoiceMessage = "The microphone could not start."
+            }
+        }
+    }
+
+    private static func voiceDuration(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds.rounded())
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     private var storyMarginNoteField: some View {
@@ -6368,6 +6651,32 @@ struct CapturePageSheet: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(BookPalette.ink.opacity(0.58))
 
+            #if canImport(UIKit)
+            if hasPendingCameraPhoto {
+                cameraPostCaptureChoiceCard
+            } else {
+                illuminatedPhotoPickerActions
+            }
+            #else
+            illuminatedPhotoPickerActions
+            #endif
+
+            illuminatedArtifactActions
+
+            if isLoadingManualPhoto || isChoosingBookPhoto {
+                scribeWorkCard(
+                    "photo-illumination",
+                    quip: isChoosingBookPhoto
+                        ? "Penny is looking for one recent photograph worth giving margins."
+                        : "Penny is reading the photograph without letting it leave the room."
+                )
+            }
+        }
+        .tint(BookPalette.teal)
+    }
+
+    private var illuminatedPhotoPickerActions: some View {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Button {
                     BookFeedback.play(.sourceRefresh)
@@ -6424,49 +6733,163 @@ struct CapturePageSheet: View {
                 .buttonStyle(.bordered)
             }
             .font(.caption.weight(.bold))
+        }
+    }
 
-            HStack(spacing: 10) {
+    private var illuminatedArtifactActions: some View {
+        HStack(spacing: 10) {
+            Button {
+                BookFeedback.play(.sourceRefresh)
+                Task { await saveIlluminatedArtifactToPhotos() }
+            } label: {
+                Label(isSavingIlluminatedArtifact ? "Saving..." : "Save artifact", systemImage: "square.and.arrow.down")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isSavingIlluminatedArtifact || illuminatedDraft == nil)
+
+            if let artifactURL = illuminatedArtifactURL {
+                ShareLink(item: artifactURL) {
+                    Label("Share artifact", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
                 Button {
                     BookFeedback.play(.sourceRefresh)
-                    Task { await saveIlluminatedArtifactToPhotos() }
+                    Task { await prepareIlluminatedArtifactIfNeeded(force: true) }
                 } label: {
-                    Label(isSavingIlluminatedArtifact ? "Saving..." : "Save artifact", systemImage: "square.and.arrow.down")
+                    Label("Prepare share", systemImage: "wand.and.sparkles")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(illuminatedDraft == nil || isLocalBrainWorking)
+            }
+        }
+        .font(.caption.weight(.bold))
+    }
+
+    #if canImport(UIKit)
+    @ViewBuilder
+    private var cameraPostCaptureChoiceCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Photo captured", systemImage: "camera.fill")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(BookPalette.teal)
+
+            if let pendingCameraPhotoImage {
+                Image(uiImage: pendingCameraPhotoImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
+                    }
+                    .accessibilityLabel("Captured photo")
+            }
+
+            if isChoosingCameraEnchantment {
+                Text("Choose an Enchantment")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 146), spacing: 10)], spacing: 10) {
+                    ForEach(StoryEnchantmentCatalog.spells) { spell in
+                        Button {
+                            selectedEnchantmentID = spell.id
+                            BookFeedback.play(.openPage)
+                            Task { await castPendingCameraPhoto(with: spell) }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Label(spell.title, systemImage: spell.symbolName)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(BookPalette.ink)
+                                Text(spell.detail)
+                                    .font(.caption2)
+                                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+                                    .lineLimit(3)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+                            .background(BookPalette.paper.opacity(0.82), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(selectedEnchantmentID == spell.id ? BookPalette.teal.opacity(0.5) : BookPalette.ink.opacity(0.12), lineWidth: 1)
+                            }
+                        }
+                        .buttonStyle(.bookPress())
+                        .disabled(isCastingEnchantment || isLocalBrainWorking)
+                    }
+                }
+
+                Button {
+                    BookFeedback.play(.select)
+                    isChoosingCameraEnchantment = false
+                } label: {
+                    Label("Back to photo choices", systemImage: "chevron.left")
+                        .font(.caption.weight(.bold))
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .disabled(isSavingIlluminatedArtifact || illuminatedDraft == nil)
-
-                if let artifactURL = illuminatedArtifactURL {
-                    ShareLink(item: artifactURL) {
-                        Label("Share artifact", systemImage: "square.and.arrow.up")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                } else {
+            } else {
+                HStack(spacing: 10) {
                     Button {
                         BookFeedback.play(.sourceRefresh)
-                        Task { await prepareIlluminatedArtifactIfNeeded(force: true) }
+                        Task { await illuminatePendingCameraPhoto() }
                     } label: {
-                        Label("Prepare share", systemImage: "wand.and.sparkles")
+                        Label(isLoadingManualPhoto ? "Illuminating..." : "Illuminated Photo", systemImage: "sparkles")
+                            .font(.caption.weight(.bold))
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(illuminatedDraft == nil || isLocalBrainWorking)
+                    .disabled(isLoadingManualPhoto || isLocalBrainWorking)
+
+                    Button {
+                        BookFeedback.play(.select)
+                        isChoosingCameraEnchantment = true
+                    } label: {
+                        Label("Enchantment", systemImage: "wand.and.stars")
+                            .font(.caption.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(isCastingEnchantment || isLocalBrainWorking)
                 }
             }
-            .font(.caption.weight(.bold))
 
-            if isLoadingManualPhoto || isChoosingBookPhoto {
-                scribeWorkCard(
-                    "photo-illumination",
-                    quip: isChoosingBookPhoto
-                        ? "Penny is looking for one recent photograph worth giving margins."
-                        : "Penny is reading the photograph without letting it leave the room."
-                )
+            HStack(spacing: 10) {
+                Button {
+                    BookFeedback.play(.openPage)
+                    isCameraPresented = true
+                } label: {
+                    Label("Retake", systemImage: "camera")
+                        .font(.caption.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                #if canImport(PhotosUI)
+                PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                    Label("Use library", systemImage: "photo")
+                        .font(.caption.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                #endif
             }
         }
-        .tint(BookPalette.teal)
+        .padding(12)
+        .background(BookPalette.paper.opacity(0.82), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.teal.opacity(0.24), lineWidth: 1)
+        }
     }
+    #endif
 
     private func loadSampleIllumination() {
         let plate = BookReferenceCatalog.labyrinthIllustrations.randomElement()
@@ -6581,6 +7004,53 @@ struct CapturePageSheet: View {
             BookFeedback.play(.braidComplete)
         }
     }
+
+    #if canImport(UIKit)
+    @MainActor
+    private func holdCameraPhotoForChoice(imageData data: Data) async {
+        guard let image = UIImage(data: data) else {
+            BookFeedback.play(.error)
+            illuminationMessage = "The camera returned a photo the Book could not read. Try again."
+            return
+        }
+        pendingCameraPhotoData = data
+        pendingCameraPhotoImage = image
+        isChoosingCameraEnchantment = false
+        illuminationMessage = "Choose what the captured photo becomes."
+        BookFeedback.play(.select)
+    }
+
+    @MainActor
+    private func clearPendingCameraPhoto() {
+        pendingCameraPhotoData = nil
+        pendingCameraPhotoImage = nil
+        isChoosingCameraEnchantment = false
+    }
+
+    private func illuminatePendingCameraPhoto() async {
+        guard let data = pendingCameraPhotoData else { return }
+        await loadManualPhoto(imageData: data)
+        await MainActor.run {
+            if manualPhotoDraft != nil {
+                clearPendingCameraPhoto()
+            }
+        }
+    }
+
+    private func castPendingCameraPhoto(with spell: EnchantmentSpell) async {
+        guard let data = pendingCameraPhotoData else { return }
+        await MainActor.run {
+            selectedEnchantmentID = spell.id
+            enchantmentMessage = "Casting \(spell.title) on the captured photo."
+        }
+        await castEnchantment(imageData: data)
+        await MainActor.run {
+            if enchantmentResult != nil {
+                clearPendingCameraPhoto()
+            }
+        }
+    }
+    #endif
 
     private func castEnchantment(from item: PhotosPickerItem) async {
         guard let data = try? await item.loadTransferable(type: Data.self) else {
@@ -7229,7 +7699,7 @@ struct CapturePageSheet: View {
     private func keepCompassStepAndAdvance() {
         if shouldSaveCurrentCompassStep {
             let input = preparedInput
-            onSave(effectiveProofSurface, input, preparedTags)
+            onSave(effectiveProofSurface, input, preparedTags, [])
         }
         if let nextSurface = nextCompassSurfaceAfterKeepingCurrentStep() {
             onNavigateToSurface(nextSurface)
@@ -7507,7 +7977,7 @@ struct CapturePageSheet: View {
                 "Listening note: \(note)"
             ].compactMap { $0 }.joined(separator: "\n\n")
         }
-        if isEnchantmentPage {
+        if isEnchantmentPage || currentEnchantmentSurface != nil {
             let resultText = enchantmentResult.map { result in
                 [
                     "Enchantment: \(result.spellName)",
@@ -7626,7 +8096,7 @@ struct CapturePageSheet: View {
     }
 
     private var preparedTags: [String] {
-        preparedTags(for: surface)
+        preparedTags(for: effectiveProofSurface)
     }
 
     private func preparedTags(for preparedSurface: SurfacePage) -> [String] {
@@ -7874,7 +8344,7 @@ struct CapturePageSheet: View {
         }
 
         let savedSurface = surface.withCompassRunPlan(plan, constraints: constraints)
-        onSave(savedSurface, compassPreparedInput(for: savedSurface), preparedTags(for: savedSurface))
+        onSave(savedSurface, compassPreparedInput(for: savedSurface), preparedTags(for: savedSurface), [])
         onNavigateToSurface(compassStepSurface(from: savedSurface, step: .notice))
     }
 
@@ -7886,7 +8356,7 @@ struct CapturePageSheet: View {
                 "selector": "manual-custom-run"
             ]) { _, new in new }
         let savedSurface = surface.withCompassRunPlan(manualCompassRunPlan(), constraints: constraints)
-        onSave(savedSurface, compassPreparedInput(for: savedSurface), preparedTags(for: savedSurface))
+        onSave(savedSurface, compassPreparedInput(for: savedSurface), preparedTags(for: savedSurface), [])
         onNavigateToSurface(compassStepSurface(from: savedSurface, step: .notice))
     }
 

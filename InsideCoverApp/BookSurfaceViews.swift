@@ -932,12 +932,16 @@ struct IlluminatedQuoteCard: View {
             Image("ParchmentTexture")
                 .resizable()
                 .scaledToFill()
+                .frame(width: Self.renderSize.width, height: Self.renderSize.height)
+                .clipped()
                 .opacity(0.26)
                 .blendMode(.multiply)
 
             Image("ParchmentFiber")
                 .resizable()
                 .scaledToFill()
+                .frame(width: Self.renderSize.width, height: Self.renderSize.height)
+                .clipped()
                 .opacity(c.fiberOpacity)
                 .blendMode(.overlay)
 
@@ -969,7 +973,12 @@ struct IlluminatedQuoteCard: View {
             .tracking(1.8)
             .lineLimit(1)
             .minimumScaleFactor(0.6)
+            .frame(width: Self.contentWidth)
 
+            // A hard width frame (not maxWidth) forces the quote to wrap at the
+            // content width regardless of the size ImageRenderer proposes;
+            // maxWidth + minimumScaleFactor let the text lay out against an
+            // unbounded width and clip past the gilded border.
             Text("“\(quote)”")
                 .font(.system(size: c.quoteFontSize, weight: c.quoteWeight, design: .serif))
                 .foregroundStyle(BookPalette.ink)
@@ -977,8 +986,7 @@ struct IlluminatedQuoteCard: View {
                 .lineSpacing(8)
                 .tracking(c.quoteTracking)
                 .lineLimit(nil)
-                .minimumScaleFactor(0.5)
-                .frame(maxWidth: Self.contentWidth)
+                .frame(width: Self.contentWidth)
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(spacing: 12) {
@@ -1002,7 +1010,8 @@ struct IlluminatedQuoteCard: View {
                 .font(.system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(BookPalette.ink.opacity(0.72))
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.5)
+                .frame(width: Self.contentWidth)
 
                 Text(dateLine)
                     .font(.system(size: 18, weight: .bold, design: .serif))
@@ -2502,7 +2511,7 @@ private struct BookOfYouMediaThumbnail: View {
         switch asset.kind {
         case .bundledImage: return ImagePreview.url(forAsset: asset.reference)
         case .renderedImageFile: return ImagePreview.url(forFilePath: asset.reference)
-        case .photoLibraryAsset: return nil
+        case .photoLibraryAsset, .audioFile: return nil
         }
     }
 
@@ -2517,7 +2526,7 @@ private struct BookOfYouMediaThumbnail: View {
             }
             #endif
             return nil
-        case .photoLibraryAsset:
+        case .photoLibraryAsset, .audioFile:
             return nil
         }
     }
@@ -4392,12 +4401,12 @@ private enum AmbientLetterFieldRenderer {
             x: size.width * CGFloat(0.06 + random(seed, 1) * 0.88),
             y: size.height * CGFloat(0.06 + random(seed, 2) * 0.88)
         )
-        let driftScale = 10 + 18 * depth
+        let driftScale = 13 + 24 * depth
         let drift = CGPoint(
-            x: CGFloat(sin(time * (0.045 + random(seed, 3) * 0.035) + seed * 1.7)) * driftScale
-                + CGFloat(cos(time * 0.023 + seed)) * driftScale * 0.42,
-            y: CGFloat(cos(time * (0.038 + random(seed, 4) * 0.028) + seed * 1.3)) * driftScale
-                + CGFloat(sin(time * 0.025 + seed * 0.6)) * driftScale * 0.36
+            x: CGFloat(sin(time * (0.058 + random(seed, 3) * 0.044) + seed * 1.7)) * driftScale
+                + CGFloat(cos(time * 0.032 + seed)) * driftScale * 0.50,
+            y: CGFloat(cos(time * (0.050 + random(seed, 4) * 0.036) + seed * 1.3)) * driftScale
+                + CGFloat(sin(time * 0.034 + seed * 0.6)) * driftScale * 0.44
         )
 
         let wandering = wrapped(
@@ -4416,24 +4425,24 @@ private enum AmbientLetterFieldRenderer {
         // enough to keep clashing and sparking, loose enough to read as a swarm
         // instead of collapsing to a single point.
         let orbit = CGPoint(
-            x: CGFloat(sin(time * 1.4 + seed)) * CGFloat(localPull) * 26,
-            y: CGFloat(cos(time * 1.1 + seed * 0.8)) * CGFloat(localPull) * 22
+            x: CGFloat(sin(time * 1.65 + seed)) * CGFloat(localPull) * 34,
+            y: CGFloat(cos(time * 1.32 + seed * 0.8)) * CGFloat(localPull) * 29
         )
         let pulled = CGPoint(
             x: wandering.x + dx * CGFloat(localPull * 0.88) + orbit.x,
             y: wandering.y + dy * CGFloat(localPull * 0.88) + orbit.y
         )
         let baseSize = CGFloat(7.0 + random(seed, 5) * 9.0)
-        let flash = min(1, localPull * 0.65)
+        let flash = min(1, localPull * 0.82)
 
         return Letter(
             glyph: glyphs[index % glyphs.count],
             position: wrapped(pulled, in: size, margin: 40),
             size: baseSize * (0.72 + depth * 0.62),
             depth: depth,
-            angle: sin(time * (0.08 + random(seed, 6) * 0.08) + seed) * 0.24 + flash * 0.16,
+            angle: sin(time * (0.10 + random(seed, 6) * 0.10) + seed) * 0.30 + flash * 0.20,
             color: colors[index % colors.count],
-            alpha: 0.12 + random(seed, 7) * 0.18 + flash * 0.30,
+            alpha: 0.13 + random(seed, 7) * 0.20 + flash * 0.34,
             flash: flash
         )
     }
@@ -4466,40 +4475,40 @@ private enum AmbientLetterFieldRenderer {
                 let dx = b.position.x - a.position.x
                 let dy = b.position.y - a.position.y
                 let distance = hypot(dx, dy)
-                let threshold = (a.size + b.size) * 0.36 + 5
+                let threshold = (a.size + b.size) * 0.42 + 6
                 guard distance < threshold else { continue }
 
                 let pairSeed = Double(first * 31 + second * 17)
-                let pulse = max(0, sin(time * 13 + pairSeed))
-                let strength = Double(1 - distance / threshold) * (0.35 + pulse * 0.65)
-                guard strength > 0.18 else { continue }
+                let pulse = max(0, sin(time * 14.5 + pairSeed))
+                let strength = min(1, Double(1 - distance / threshold) * (0.48 + pulse * 0.72))
+                guard strength > 0.14 else { continue }
 
                 let center = CGPoint(x: (a.position.x + b.position.x) * 0.5, y: (a.position.y + b.position.y) * 0.5)
 
                 // A bright kiss of light right where the two glyphs meet.
-                let flareRadius = CGFloat(1.4 + 2.6 * strength)
+                let flareRadius = CGFloat(1.8 + 3.4 * strength)
                 var flareContext = context
-                flareContext.addFilter(.shadow(color: Color.white.opacity(0.5 * strength), radius: 9))
+                flareContext.addFilter(.shadow(color: Color.white.opacity(0.68 * strength), radius: 12))
                 flareContext.fill(
                     Path(ellipseIn: CGRect(x: center.x - flareRadius, y: center.y - flareRadius, width: flareRadius * 2, height: flareRadius * 2)),
-                    with: .color(Color.white.opacity(0.55 * strength))
+                    with: .color(Color.white.opacity(0.66 * strength))
                 )
 
-                for spark in 0..<4 {
+                for spark in 0..<6 {
                     let seed = pairSeed + Double(spark) * 2.7
-                    let angle = seed + time * 1.4
-                    let distance = CGFloat(2 + random(seed, 1) * 10) * CGFloat(strength)
+                    let angle = seed + time * 1.75
+                    let distance = CGFloat(3 + random(seed, 1) * 14) * CGFloat(strength)
                     let point = CGPoint(
                         x: center.x + cos(angle) * distance,
                         y: center.y + sin(angle) * distance
                     )
-                    let radius = CGFloat(0.6 + random(seed, 2) * 1.3) * CGFloat(strength)
+                    let radius = CGFloat(0.8 + random(seed, 2) * 1.7) * CGFloat(strength)
                     let color = spark.isMultiple(of: 2) ? a.color : b.color
                     var sparkContext = context
-                    sparkContext.addFilter(.shadow(color: color.opacity(0.6 * strength), radius: 8))
+                    sparkContext.addFilter(.shadow(color: color.opacity(0.76 * strength), radius: 10))
                     sparkContext.fill(
                         Path(ellipseIn: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)),
-                        with: .color(color.opacity(0.78 * strength))
+                        with: .color(color.opacity(0.88 * strength))
                     )
                 }
             }
@@ -5138,18 +5147,20 @@ struct OnboardingFlowView: View {
     @ViewBuilder
     private var stepContent: some View {
         switch step {
-        case 0:
-            onboardingSystemStrip([
-                ("book.closed", "A living Book"),
-                ("building.columns", "An infinite Academy"),
-                ("door.left.hand.open", "An impossible arrival")
-            ])
-            onboardingTitle("The Cover Opens")
-            onboardingProse("""
-            You open the app.
+	        case 0:
+	            onboardingSystemStrip([
+	                ("book.closed", "The Labyrinth of Stories"),
+	                ("building.columns", "An infinite Academy"),
+	                ("door.left.hand.open", "An impossible arrival")
+	            ])
+	            onboardingTitle("The Cover Opens")
+	            onboardingProse("""
+	            You open the app.
 
-            The first word lifts from the screen and turns to look at you.
-            """)
+	            The cover brightens with its true name: The Labyrinth of Stories.
+
+	            The first word lifts from the screen and turns to look at you.
+	            """)
 
             onboardingInkWakeAction()
 
@@ -5226,7 +5237,7 @@ struct OnboardingFlowView: View {
             onboardingUnwrittenMarginDrag()
 
             onboardingProse("""
-            She glances up at the watching students. "We can jump into nearly any written book. Walk its roads. Meet its people. Get chased out of its third act. But no one here can jump into yours. An unwritten next page can't hold a doorway."
+            She glances up at the watching students. "We can jump into almost any written book - Dracula, The Wizard of Oz, Pride and Prejudice. Walk its roads. Meet its people. Get chased out of its third act. But no one here can jump into yours. An unwritten next page can't hold a doorway."
 
             "You, however, came the other way. Almost nobody does that. So they're going to be fascinated by your groceries, your weather, your terrible signs, and anything else you thought was ordinary. Sorry in advance."
             """)
@@ -5360,30 +5371,24 @@ struct OnboardingFlowView: View {
         case 6:
             onboardingTitle("The School's Argument")
             onboardingProse("""
-            Zara leads you into a circular hall where five banners hang above an empty marble floor. They aren't stirring in a draft. They're listening.
+            Zara leads you into a circular hall where five long banners hang above an empty marble floor. Each one leans forward on its pole, just a little, as if the cloth has weight and curiosity.
 
             "The Academy has five Chapters," she says. "Not teams. Not Houses in prettier robes. Arguments."
 
             The belief you gave the Book is still warm in the air between your hands.
 
-            Zara lifts her compass. Its needle does not point north. It points to you.
+            Nothing opens. No floor drops away. No music swells. The banners simply lean toward the newest person in the room.
 
-            At once the hall answers in five kinds of weather. A coal-bright wind snaps one banner awake. Moss and old rain breathe from another. A third spills tide-light across the floor. Laughter clicks somewhere behind the fourth, quick as a hidden latch. The fifth draws a thin thorn-shadow over the marble, sharp but strangely honest.
-
-            Nothing opens. Nothing asks you to leave where you are.
-
-            The Chapters are not doors. They are ways the world can tug on your attention, and each one thinks it knows what your belief is for.
+            "They're trying to decide what kind of attention you have," Zara says. "Every Chapter thinks it knows how to fight the Nothing. Every Chapter is partly right, which is why the argument has lasted this long."
 
             Zara steadies your elbow. "You won't Bind today. The Chapters will watch what you keep, and later the Binding will recognize where your Belief has actually been living."
 
-            One weather leans toward you. Another pretends it didn't.
-
-            She says the next part in passing, as if it doesn't matter yet. It clearly does. "Still. Which one tugged first?"
+            She nods toward the leaning cloth. "Still. Which argument tugged first?"
             """)
             onboardingBenefitCard(
                 symbol: "signpost.right",
                 title: "What this does for you",
-                body: "This is not a personality quiz. It tells the Book what kind of wonder to lead with first: action, rooted attention, present delight, collaboration, or the useful edge."
+                body: "This is not a personality quiz. It tells the Book what kind of wonder to lead with first: action, listening, surprise, connection, or honest friction."
             )
             onboardingChapterAffinityPicker
             continueButton("Warm the talisman", disabled: drawnChapterID.isEmpty)
@@ -5605,7 +5610,7 @@ struct OnboardingFlowView: View {
 
     private var onboardingHeaderLine: String {
         switch step {
-        case 0: return "The Book's waking up."
+	        case 0: return "The Labyrinth of Stories is waking up."
         case 1: return "Zara names what the Academy fights."
         case 2: return "The Academy has never seen your door."
         case 3: return "Zara meets you at the stacks."
@@ -6327,7 +6332,7 @@ struct OnboardingFlowView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(spacing: 8) {
-                ForEach(AcademyChapterRegistry.publicChapters) { chapter in
+                ForEach(Array(AcademyChapterRegistry.publicChapters.enumerated()), id: \.element.id) { index, chapter in
                     let selected = drawnChapterID == chapter.id
                     Button {
                         isOnboardingFieldFocused = false
@@ -6336,13 +6341,9 @@ struct OnboardingFlowView: View {
                         }
                         BookFeedback.play(.select)
                     } label: {
-                        HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: selected ? "checkmark.seal.fill" : chapter.symbolName)
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundStyle(selected ? BookPalette.teal : BookPalette.lampGold)
-                                .frame(width: 38, height: 38)
-                                .background((selected ? BookPalette.teal : BookPalette.lampGold).opacity(0.12), in: Circle())
-                                .padding(.top, 2)
+                        HStack(alignment: .top, spacing: 13) {
+                            chapterBannerIllustration(for: chapter, selected: selected)
+                                .padding(.top, 1)
 
                             VStack(alignment: .leading, spacing: 7) {
                                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -6360,14 +6361,19 @@ struct OnboardingFlowView: View {
                                         .lineLimit(1)
                                 }
 
-	                                Text(chapter.philosophy)
-	                                    .font(.system(.callout, design: .serif))
-	                                    .foregroundStyle(BookPalette.ink.opacity(0.72))
+                                Text(chapterSimpleMeaning(for: chapter))
+                                    .font(.system(.callout, design: .serif))
+                                    .foregroundStyle(BookPalette.ink.opacity(0.76))
                                     .fixedSize(horizontal: false, vertical: true)
 
-	                                Text("\(chapter.talismanName) warms and this atmosphere appears more often.")
-	                                    .font(.footnote.weight(.bold))
-	                                    .foregroundStyle(selected ? BookPalette.teal : BookPalette.ink.opacity(0.62))
+                                Text(chapterSurprise(for: chapter))
+                                    .font(.footnote.weight(.bold))
+                                    .foregroundStyle(BookPalette.ink.opacity(0.66))
+                                    .fixedSize(horizontal: false, vertical: true)
+
+                                Text("\(chapter.talismanName) warms. The Book tries this argument first.")
+                                    .font(.footnote.weight(.black))
+                                    .foregroundStyle(selected ? BookPalette.teal : BookPalette.ink.opacity(0.62))
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                             Spacer(minLength: 0)
@@ -6379,6 +6385,11 @@ struct OnboardingFlowView: View {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .stroke((selected ? BookPalette.teal : BookPalette.lampGold).opacity(selected ? 0.48 : 0.18), lineWidth: 1)
                         }
+                        .rotation3DEffect(
+                            .degrees(selected ? -2 : Double(index - 2) * 1.8),
+                            axis: (x: 0, y: 1, z: 0),
+                            perspective: 0.65
+                        )
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(selected ? .isSelected : [])
@@ -6392,6 +6403,72 @@ struct OnboardingFlowView: View {
                 .stroke(BookPalette.lampGold.opacity(0.2), lineWidth: 1)
         }
         .padding(.top, 10)
+    }
+
+    @ViewBuilder
+    private func chapterBannerIllustration(for chapter: AcademyChapter, selected: Bool) -> some View {
+        VStack(spacing: 5) {
+            Image(systemName: selected ? "checkmark.seal.fill" : chapter.symbolName)
+                .font(.system(size: 18, weight: .black))
+                .foregroundStyle(selected ? BookPalette.teal : BookPalette.lampGold)
+                .frame(width: 42, height: 42)
+                .background((selected ? BookPalette.teal : BookPalette.lampGold).opacity(0.12), in: Circle())
+
+            Text(chapterIllustrationLabel(for: chapter))
+                .font(.system(size: 10, weight: .black))
+                .foregroundStyle(BookPalette.ink.opacity(0.58))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.78)
+                .frame(width: 64)
+                .frame(minHeight: 24)
+        }
+        .frame(width: 70)
+    }
+
+    private func chapterIllustrationLabel(for chapter: AcademyChapter) -> String {
+        switch chapter.id {
+        case "emberheart": return "a match\nin a hand"
+        case "mossbloom": return "roots under\na stone"
+        case "tidecrest": return "a wave in\na teacup"
+        case "riddlewind": return "two hands\non a map"
+        case "duskthorn": return "a thorn by\na candle"
+        default: return chapter.talismanName
+        }
+    }
+
+    private func chapterSimpleMeaning(for chapter: AcademyChapter) -> String {
+        switch chapter.id {
+        case "emberheart":
+            return "Zara says Emberheart believes wonder starts when you choose to move. It likes beginnings, dares, and doors you open yourself."
+        case "mossbloom":
+            return "Zara says Mossbloom believes the world is already talking. It teaches you to slow down until the ordinary thing becomes specific."
+        case "tidecrest":
+            return "Zara says Tidecrest believes a moment does not need to become a lesson. It wants you awake enough to be surprised."
+        case "riddlewind":
+            return "Zara says Riddlewind believes meaning gets stronger when it is shared. It looks for jokes, questions, and other people."
+        case "duskthorn":
+            return "Zara says Duskthorn believes a story needs an edge. It does not worship darkness; it refuses to lie about what is there."
+        default:
+            return chapter.philosophy
+        }
+    }
+
+    private func chapterSurprise(for chapter: AcademyChapter) -> String {
+        switch chapter.id {
+        case "emberheart":
+            return "\"Surprising thing,\" Zara says. \"The brave Chapter is mostly afraid of wasting its life.\""
+        case "mossbloom":
+            return "\"Surprising thing,\" Zara says. \"The quiet Chapter notices trouble first.\""
+        case "tidecrest":
+            return "\"Surprising thing,\" Zara says. \"The playful Chapter is serious about not making everything useful.\""
+        case "riddlewind":
+            return "\"Surprising thing,\" Zara says. \"The friendly Chapter wins more arguments than the clever one.\""
+        case "duskthorn":
+            return "\"Surprising thing,\" Zara says. \"The thorny Chapter is often the kindest, because it names the real wound.\""
+        default:
+            return "\(chapter.talismanName) changes what the Book reaches for first."
+        }
     }
 
     private func onboardingCastCard(_ member: OnboardingCastMember) -> some View {
@@ -7534,7 +7611,7 @@ struct CharacterPortraitView: View {
             if let uiImage = UIImage(contentsOfFile: customAsset.reference) { return Image(uiImage: uiImage) }
             #endif
             return nil
-        case .photoLibraryAsset:
+        case .photoLibraryAsset, .audioFile:
             return nil
         }
     }
@@ -7546,7 +7623,7 @@ struct CharacterPortraitView: View {
             switch customAsset.kind {
             case .renderedImageFile: return ImagePreview.url(forFilePath: customAsset.reference)
             case .bundledImage: return ImagePreview.url(forAsset: customAsset.reference)
-            case .photoLibraryAsset: return nil
+            case .photoLibraryAsset, .audioFile: return nil
             }
         }
         if let asset = CharacterPortrait.intendedAssetName(forName: name), UIImage(named: asset) != nil {

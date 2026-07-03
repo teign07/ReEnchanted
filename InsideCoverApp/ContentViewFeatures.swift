@@ -768,6 +768,26 @@ extension ContentView {
         }
     }
 
+    /// Write every kept page as plain Markdown — readable anywhere, no app
+    /// required — and hand it to the share sheet.
+    @MainActor
+    func exportPlainInk() {
+        do {
+            let markdown = PlainInkExport.markdown(days: days, calendar: .current)
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("ReEnchanted-plain-\(formatter.string(from: Date())).md")
+            try markdown.write(to: url, atomically: true, encoding: .utf8)
+            preparedPlainInkURL = url
+            statusMessage = "Your pages are copied out in plain ink, ready to share."
+            BookFeedback.play(.braidComplete)
+        } catch {
+            statusMessage = "The plain-ink copy would not write: \(error.localizedDescription)"
+            BookFeedback.play(.error)
+        }
+    }
+
     @MainActor
     func exportContinuityFile() {
         do {

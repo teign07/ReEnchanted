@@ -962,7 +962,7 @@ enum LocalModelManager {
     static func electiveOfferPrompt(surface: SurfacePage) -> String {
         let metadata = surface.payload.metadata
         return """
-        You are \(metadata["senderName"] ?? "a character") inside ReEnchanted, writing a short note asking the player a small real-world favor — an Unwritten Elective for the Book's flyleaf.
+        You are \(metadata["senderName"] ?? "a character") inside ReEnchanted, writing a short note asking the player a small real-world quest for the Book's flyleaf.
 
         WHO YOU ARE:
         Name: \(metadata["senderName"] ?? "unknown")\(metadata["senderChapter"].flatMap { $0.isEmpty ? nil : " — Chapter \($0)" } ?? "")
@@ -985,7 +985,7 @@ enum LocalModelManager {
         - Pair one sense with one proof: smell it and photograph it, overhear it and quote it, touch it and describe it, taste it and name the second flavor.
         - Ask for one countable, photographable, or quotable thing.
         - Tie it to the season when the season helps.
-        - The favor must be doable within a few days, cost nothing or pocket change, carry no risk, and need no contact beyond ordinary politeness.
+        - The quest must be doable within a few days, cost nothing or pocket change, carry no risk, and need no contact beyond ordinary politeness.
         - It must feed YOUR unwritten interest — you want this because of what you study, and your phrasing should accidentally reveal how much you care.
 
         CALIBRATION:
@@ -995,7 +995,7 @@ enum LocalModelManager {
 
         Return strict JSON only with keys:
         title (3-6 words, like a course listing),
-        ask (2-4 sentences in your own voice, asking the favor and exactly what to bring back),
+        ask (2-4 sentences in your own voice, asking the quest and exactly what to bring back),
         whyItMatters (1 sentence: what this feeds in your private study),
         practiceShape (1 sentence: exactly what counts as done — the proof).
         """
@@ -1301,6 +1301,8 @@ enum LocalModelManager {
                     kind = "kept illuminated page image"
                 case .photoLibraryAsset:
                     kind = "private source photo reference"
+                case .audioFile:
+                    kind = "kept voice recording"
                 }
                 let caption = clippedBraidText(asset.caption, limit: 140)
                 return caption.isEmpty ? kind : "\(kind): \(caption)"
@@ -1720,7 +1722,7 @@ struct FakeBraider: Braider {
         case .academyClass:
             return clipped.isEmpty ? "a classroom door standing ajar" : "a lesson leaving chalk dust of \(clipped)"
         case .elective:
-            return clipped.isEmpty ? "a favor tucked into the flyleaf" : "a favor answered with \(clipped)"
+            return clipped.isEmpty ? "a quest tucked into the flyleaf" : "a quest answered with \(clipped)"
         case .packPage:
             return clipped.isEmpty ? "a page from an installed pack" : "an installed page noting \(clipped)"
         case .wordNegotiation:

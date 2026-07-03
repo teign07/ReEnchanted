@@ -1811,6 +1811,8 @@ enum MonthlyEditionPDFWriter {
                 if let image = UIImage(named: asset.reference) { return image }
             case .photoLibraryAsset:
                 if let image = photoLibraryImage(localIdentifier: asset.reference) { return image }
+            case .audioFile:
+                continue
             }
         }
         return nil

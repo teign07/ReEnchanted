@@ -1293,7 +1293,7 @@ extension BookPageMediaAsset.Kind {
     /// identifier). These are the assets a sealed copy must carry and rehome.
     var isFileBacked: Bool {
         switch self {
-        case .renderedImageFile:
+        case .renderedImageFile, .audioFile:
             return true
         case .bundledImage, .photoLibraryAsset:
             return false

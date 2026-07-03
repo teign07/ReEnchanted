@@ -28,14 +28,14 @@ ready for App Review with the BookShop enabled.
 
 ## BookShop products
 
-Create these as non-consumable In-App Purchases in App Store Connect. The product
-IDs must match the values in `BookShopCatalog`.
+Create rows marked `Non-consumable` as In-App Purchases in App Store Connect.
+The product IDs must match the values in `BookShopCatalog`.
 
-| Product ID | Reference name | In-app title | Type | Status |
-| --- | --- | --- | --- | --- |
-| `com.openclaw.enchantify.insidecover.pack.nocturne-folio` | Nocturne Folio Pack | The Nocturne Folio | Non-consumable | Needed |
-| `com.openclaw.enchantify.insidecover.pack.academy-night-band` | Academy Night Band Pack | Academy Night Band | Non-consumable | Needed |
-| `com.openclaw.enchantify.insidecover.pack.starlit-paper-trial-archive` | Starlit Paper Trial Archive Pack | The Starlit Paper Trial Archive | Non-consumable | Needed |
+| Product ID | Reference name | In-app title | Type | Price | Status |
+| --- | --- | --- | --- | --- | --- |
+| `com.openclaw.enchantify.insidecover.pack.nocturne-folio` | Nocturne Folio Pack | The Nocturne Folio | Not IAP | Free gift | Bound manually in Bookshop |
+| `com.openclaw.enchantify.insidecover.pack.academy-night-band` | Academy Night Band Pack | Academy Night Band | Non-consumable | TBD | Needed |
+| `com.openclaw.enchantify.insidecover.pack.starlit-paper-trial-archive` | Starlit Paper Trial Archive Pack | The Starlit Paper Trial Archive | Non-consumable | USD 1.99 | Ready, not dev |
 
 Do not create IAP products yet for listings marked `comingSoon`:
 
@@ -65,7 +65,8 @@ Use these justifications in App Review notes and privacy/support copy.
 | Location When In Use | Fetches local weather and checks whether the reader is near a user-created Anchor. | User taps Weather or Location seals. | Coordinates are used for weather/nearby checks; pages avoid raw coordinates. |
 | Photos | Lets the reader choose photos for illuminated pages, custom cast portraits, and artifact export. | User chooses photos or taps save to Photos. | Photo content stays on device unless the user exports/shares it through iOS. |
 | Camera | Lets the reader take a photo for a page, enchantment, or cast member. | User taps camera/photo flows. | Captured media stays in app storage unless user saves/shares. |
-| Microphone and Speech Recognition | Optional dictation for page text and answers. | User taps the voice input control. | Speech is used only to fill text fields. |
+| Microphone and Speech Recognition | Optional dictation for page text and answers, and optional "kept voice" recordings saved alongside a page's transcript. | User taps the voice input control or the "Keep your voice" control on a page. | Speech fills text fields; kept-voice `.m4a` files stay in app storage and travel only inside a user-initiated Sealed Copy. |
+| Journaling Suggestions (`com.apple.developer.journal.allow`) | Optional "What the Book noticed today…" surfaces Apple's on-device Journaling Suggestions (photos, workouts, places, music) as writing prompts. iPhone-only, iOS 17.2+. | User taps the Book-notices control and picks a suggestion in Apple's out-of-process picker. | The picker runs outside the app; the app receives only the single suggestion the user picks, and uses its title/date as prompt seed text on device. |
 | Calendar | Optional Calendar Doorway reads upcoming events and explicit buttons add app events such as market windows or festivals. | Disabled by default; user toggles Calendar Doorway or taps add-to-calendar buttons. | Event context stays on device and is summarized as page timing, not uploaded as a calendar dump. |
 | Reminders | Adds reminders for user-accepted in-world commitments. | User taps a reminder action. | Writes only the requested reminder. |
 | Notifications | Sends local "Book whisper" reminders and test notifications. | Disabled by default; user enables whispers. | Local notifications only. |

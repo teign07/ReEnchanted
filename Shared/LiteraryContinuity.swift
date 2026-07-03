@@ -356,6 +356,8 @@ enum BraidPromptBuilder {
                     kind = "kept illuminated page image"
                 case .photoLibraryAsset:
                     kind = "private source photo reference"
+                case .audioFile:
+                    kind = "kept voice recording"
                 }
                 let caption = clippedText(asset.caption, limit: 140)
                 return caption.isEmpty ? kind : "\(kind): \(caption)"

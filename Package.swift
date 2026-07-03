@@ -41,7 +41,9 @@ let package = Package(
                 "PagePacks.swift",
                 "SourceAdapters.swift",
                 "StacksSearch.swift",
-                "AlmanacModel.swift"
+                "AlmanacModel.swift",
+                "PressedPhotograph.swift",
+                "PlainInkExport.swift"
             ]
         ),
         .testTarget(

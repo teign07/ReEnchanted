@@ -1271,6 +1271,9 @@ struct BookPageMediaAsset: Codable, Identifiable, Equatable {
         case bundledImage
         case renderedImageFile
         case photoLibraryAsset
+        /// A kept voice recording (.m4a) stored in the app-group container by
+        /// absolute path, alongside a dictated transcript.
+        case audioFile
     }
 
     var id: String
