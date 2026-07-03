@@ -219,28 +219,97 @@ final class InstantGratificationTests: XCTestCase {
     // MARK: BraidEmber
 
     func testEmberIsSilentBeforeEvening() {
-        let day = dayWithTwoProsePages()
         let morning = Self.date(year: 2026, month: 6, day: 12, hour: 10)
-        XCTAssertNil(BraidEmber.teaser(for: day, now: morning, calendar: Self.nyCalendar))
-    }
-
-    func testEmberNeedsAtLeastTwoThreads() {
-        let single = BookDay(
-            id: "2026-06-12",
-            date: Self.date(year: 2026, month: 6, day: 12, hour: 0),
-            pages: [prosePage(id: "one", createdAtHour: 9, input: "The fog sat low over the harbor all afternoon.")]
-        )
-        let evening = Self.date(year: 2026, month: 6, day: 12, hour: 18)
-        XCTAssertNil(BraidEmber.teaser(for: single, now: evening, calendar: Self.nyCalendar))
+        XCTAssertNil(BraidEmber.evening(for: dayWithTwoProsePages(), now: morning, calendar: Self.nyCalendar))
+        // Even an unwritten day resolves only from 8pm — the afternoon stays open.
+        XCTAssertNil(BraidEmber.evening(for: emptyDay(), now: morning, calendar: Self.nyCalendar))
+        let earlyEvening = Self.date(year: 2026, month: 6, day: 12, hour: 18)
+        XCTAssertNil(BraidEmber.evening(for: dayWithTwoProsePages(), now: earlyEvening, calendar: Self.nyCalendar))
     }
 
     func testEmberNamesThreadsInTheEvening() throws {
-        let day = dayWithTwoProsePages()
-        let evening = Self.date(year: 2026, month: 6, day: 12, hour: 18)
-        let teaser = try XCTUnwrap(BraidEmber.teaser(for: day, now: evening, calendar: Self.nyCalendar))
-        XCTAssertTrue(teaser.contains("two threads"))
-        XCTAssertTrue(teaser.contains("harbor"))
-        XCTAssertTrue(teaser.contains("cathedral"))
+        let evening = Self.date(year: 2026, month: 6, day: 12, hour: 21)
+        let ember = try XCTUnwrap(
+            BraidEmber.evening(for: dayWithTwoProsePages(), now: evening, calendar: Self.nyCalendar)
+        )
+        XCTAssertEqual(ember.kind, .braid)
+        XCTAssertTrue(ember.line.contains("two threads"))
+        XCTAssertTrue(ember.line.contains("harbor"))
+        XCTAssertTrue(ember.line.contains("cathedral"))
+        XCTAssertEqual(ember.undertone, BraidEmber.braidUndertone)
+    }
+
+    func testEmberHoldsASingleThread() throws {
+        let single = BookDay(
+            id: "2026-06-12",
+            date: Self.date(year: 2026, month: 6, day: 12, hour: 0),
+            pages: [prosePage(id: "one", createdAtHour: 9, input: "Rain over the harbor.")]
+        )
+        let evening = Self.date(year: 2026, month: 6, day: 12, hour: 21)
+        let ember = try XCTUnwrap(BraidEmber.evening(for: single, now: evening, calendar: Self.nyCalendar))
+        XCTAssertEqual(ember.kind, .singleThread)
+        XCTAssertTrue(ember.line.contains("the harbor"))
+        XCTAssertFalse(ember.line.contains("{thread}"))
+        XCTAssertEqual(ember.undertone, BraidEmber.braidUndertone)
+    }
+
+    func testEmberRereadsAnEarlierDayWhenNothingWasKept() throws {
+        let yesterday = priorDay(id: "2026-06-11", month: 6, day: 11, input: "Rain over the harbor.")
+        let evening = Self.date(year: 2026, month: 6, day: 12, hour: 21)
+        let ember = try XCTUnwrap(
+            BraidEmber.evening(for: emptyDay(), previousDays: [yesterday], now: evening, calendar: Self.nyCalendar)
+        )
+        XCTAssertEqual(ember.kind, .lamplight)
+        XCTAssertTrue(ember.line.contains("harbor"))
+        XCTAssertTrue(ember.line.contains("yesterday"))
+        XCTAssertFalse(ember.line.contains("{echo}"))
+        XCTAssertEqual(ember.undertone, BraidEmber.lamplightUndertone)
+    }
+
+    func testEmberLaysTwoEarlierDaysSideBySide() throws {
+        let previous = [
+            priorDay(id: "2026-06-11", month: 6, day: 11, input: "Rain over the harbor."),
+            priorDay(id: "2026-06-10", month: 6, day: 10, input: "The parking lot looked like a cathedral.")
+        ]
+        let evening = Self.date(year: 2026, month: 6, day: 12, hour: 21)
+        let ember = try XCTUnwrap(
+            BraidEmber.evening(for: emptyDay(), previousDays: previous, now: evening, calendar: Self.nyCalendar)
+        )
+        XCTAssertEqual(ember.kind, .lamplight)
+        XCTAssertTrue(ember.line.contains("harbor"))
+        XCTAssertTrue(ember.line.contains("cathedral"))
+        XCTAssertFalse(ember.line.contains("{echoA}"))
+        XCTAssertFalse(ember.line.contains("{echoB}"))
+    }
+
+    func testEmberEchoDatesDistantDays() {
+        let phrase = BraidEmber.echoPhrase(
+            bare: "harbor",
+            dayDate: Self.date(year: 2026, month: 5, day: 20, hour: 9),
+            now: Self.date(year: 2026, month: 6, day: 12, hour: 21),
+            calendar: Self.nyCalendar
+        )
+        XCTAssertTrue(phrase.contains("harbor"))
+        XCTAssertTrue(phrase.contains("May"))
+    }
+
+    func testEmberKeepsTheLampLitWithNoArchive() throws {
+        let evening = Self.date(year: 2026, month: 6, day: 12, hour: 21)
+        let ember = try XCTUnwrap(
+            BraidEmber.evening(for: emptyDay(), previousDays: [], now: evening, calendar: Self.nyCalendar)
+        )
+        XCTAssertEqual(ember.kind, .lamplight)
+        XCTAssertFalse(ember.line.isEmpty)
+        XCTAssertEqual(ember.undertone, BraidEmber.lamplightUndertone)
+    }
+
+    func testEmberIsDeterministicForTheSameEvening() {
+        let previous = [priorDay(id: "2026-06-11", month: 6, day: 11, input: "Rain over the harbor.")]
+        let evening = Self.date(year: 2026, month: 6, day: 12, hour: 21)
+        let first = BraidEmber.evening(for: emptyDay(), previousDays: previous, now: evening, calendar: Self.nyCalendar)
+        let second = BraidEmber.evening(for: emptyDay(), previousDays: previous, now: evening, calendar: Self.nyCalendar)
+        XCTAssertNotNil(first)
+        XCTAssertEqual(first, second)
     }
 
     func testThreadLabelsPreferVividWordsAndDedupe() {
@@ -294,6 +363,31 @@ final class InstantGratificationTests: XCTestCase {
             pages: [
                 prosePage(id: "harbor", createdAtHour: 9, input: "Rain over the harbor."),
                 prosePage(id: "cathedral", createdAtHour: 11, input: "The parking lot looked like a cathedral under rain.")
+            ]
+        )
+    }
+
+    private func emptyDay() -> BookDay {
+        BookDay(
+            id: "2026-06-12",
+            date: Self.date(year: 2026, month: 6, day: 12, hour: 0),
+            pages: []
+        )
+    }
+
+    private func priorDay(id: String, month: Int, day: Int, input: String) -> BookDay {
+        BookDay(
+            id: id,
+            date: Self.date(year: 2026, month: month, day: day, hour: 0),
+            pages: [
+                BookPage(
+                    id: "\(id)-page",
+                    type: .souvenir,
+                    createdAt: Self.date(year: 2026, month: month, day: day, hour: 9),
+                    promptText: "Catch one bright particular.",
+                    userInput: input,
+                    tags: ["souvenir"]
+                )
             ]
         )
     }

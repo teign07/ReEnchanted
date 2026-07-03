@@ -84,16 +84,14 @@ weather. **Use `.isActive` as the flag; it already encodes the belief gate.**
 
 ---
 
-## Phase 2 — Make `nightAndGarden` purchasable (shop listing + launch grant)
+## Phase 2 — Make `nightAndGarden` purchasable (shop listing + entitlement)
 
-**Why:** `pack.night-and-garden` ships `availability: "locked"`, is not in
-`PackEntitlements.launchGrantedPackIDs`, and has no `BookShopCatalog` listing — the only
-bundled expansion is unreachable by any code path.
+**Why:** `pack.night-and-garden` ships `availability: "locked"` and should only compose
+after its pack id is present in `PackEntitlements.ownedPackIDs`.
 
-**Decision taken:** list it in the shop **and** grant it free at launch (same pattern as
-`dictionary-rebellion` — see the comment on `launchGrantedPackIDs`,
-[Shared/PagePacks.swift:1487](../Shared/PagePacks.swift)). Removing the id from
-`launchGrantedPackIDs` later is the one-line switch that makes it paid.
+**Decision taken:** list it in the shop as a paid word pack. StoreKit or the dev counter
+writes the id into `ownedPackIDs`; the sentence builder composes it only after that
+entitlement exists.
 
 **Changes (all in `Shared/PagePacks.swift`):**
 
@@ -122,17 +120,15 @@ bundled expansion is unreachable by any code path.
    )
    ```
 
-3. Add `"pack.night-and-garden"` to `PackEntitlements.launchGrantedPackIDs`.
-
-4. `InsideCoverApp/ContentViewFeatures.swift`, `unlockPack(_:)` (line ~1835): add
+3. `InsideCoverApp/ContentViewFeatures.swift`, `unlockPack(_:)` (line ~1835): add
    `SentenceBuilderPackRegistry.reload()` after the entitlement is written, so a
    purchase invalidates the composed-pack cache (matters once Phase 4 makes the cache
    live).
 
 **Tests:**
 - `BookShopCatalog.listing(forPackID: "pack.night-and-garden")` is non-nil.
-- `SentenceBuilderPackRegistry.enabledExpansionPacks()` contains
-  `pack.night-and-garden` (it will, via launch grant).
+- With no entitlement, `SentenceBuilderPackRegistry.enabledExpansionPacks()` omits
+  `pack.night-and-garden`; after ownership it contains the pack.
 - `composedCore(readerLexicon: .init())` contains the `garden` theme and the word
   `"moth"` in `concreteWords`.
 

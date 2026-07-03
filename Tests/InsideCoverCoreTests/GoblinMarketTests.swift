@@ -36,6 +36,14 @@ final class GoblinMarketTests: XCTestCase {
         XCTAssertFalse(stall.packs.contains { $0.packID == pack.packID })
     }
 
+    func testStandingOrderEmptiesThePaidShelf() {
+        let stall = GoblinMarketEngine.stall(on: date(2026, 7, 7), fae: FaePlayerState(),
+                                             belief: 40, greyLevel: 0,
+                                             ownedPackIDs: [PackEntitlements.standingOrderPackID],
+                                             calendar: cal)
+        XCTAssertTrue(stall.packs.isEmpty, "a standing order owns the whole shelf; the goblins stop pitching")
+    }
+
     func testCallingCardOpensAThinStall() {
         let stall = GoblinMarketEngine.stall(on: date(2026, 7, 7), fae: callingCardState(),
                                              belief: 40, greyLevel: 0, calendar: cal)

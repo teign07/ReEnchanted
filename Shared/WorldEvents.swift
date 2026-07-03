@@ -323,9 +323,8 @@ enum WorldEventRegistry {
     static let bundledPacks: [WorldEventPack] = [
         // The Dictionary Rebellion ships locked so the whole season is
         // self-contained in one content pack (no entitlement => no event, no
-        // negotiation pages, no aftermath). Granted free at launch via
-        // PackEntitlements.launchGrantedPackIDs; the same "dictionary-rebellion"
-        // id gates the PageArchetypePack of words/aftermath too.
+        // negotiation pages, no aftermath). The same "dictionary-rebellion" id
+        // gates the PageArchetypePack of words/aftermath too.
         WorldEventPack(
             id: "dictionary-rebellion",
             displayName: "The Dictionary Rebellion",

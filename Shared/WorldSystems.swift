@@ -1873,7 +1873,7 @@ enum RadioStationRegistry {
         (bundledPacks + userPacks())
             .flatMap(\.stations)
             .filter { station in
-                station.packID.map { unlockedPackIDs.contains($0) } ?? true
+                station.packID.map { PackEntitlements.owns($0, in: unlockedPackIDs) } ?? true
             }
     }
 
@@ -3127,6 +3127,25 @@ enum AcademyScheduleRegistry {
             return (session, "club")
         }
         return nil
+    }
+
+    static func timeRange(for block: String, on date: Date, calendar: Calendar = .current) -> (start: Date, end: Date)? {
+        let hours: (start: Int, end: Int)
+        switch block {
+        case "morning":
+            hours = (9, 11)
+        case "afternoon":
+            hours = (13, 15)
+        case "club":
+            hours = (19, 22)
+        default:
+            return nil
+        }
+        guard let start = calendar.date(bySettingHour: hours.start, minute: 0, second: 0, of: date),
+              let end = calendar.date(bySettingHour: hours.end, minute: 0, second: 0, of: date) else {
+            return nil
+        }
+        return (start, end)
     }
 
     static func nextSessionDescription(after date: Date, calendar: Calendar = .current) -> String {
@@ -5396,7 +5415,7 @@ enum GoblinMarketEngine {
             ? dayShuffled(inWorldWares.filter { $0.rarity >= 3 }, dayID: dayID)
             : []
 
-        let packs = BookShopCatalog.listings.filter { !$0.comingSoon && !ownedPackIDs.contains($0.packID) }
+        let packs = BookShopCatalog.listings.filter { !$0.comingSoon && !PackEntitlements.owns($0.packID, in: ownedPackIDs) }
 
         let windowLine: String
         if newMoonOpen {
@@ -6794,6 +6813,135 @@ struct BookGreeting: Equatable {
     var line: String       // the dynamic summary / call to magic
 }
 
+struct WorldChargeContext: Equatable {
+    var keptToday: Int
+    var weatherPhrase: String?
+    var enchantedWeatherLine: String?
+    var moonName: String
+    var celebrationTitle: String?
+    var greyLevel: Int
+    var hour: Int
+    var seed: Int
+
+    init(
+        keptToday: Int = 0,
+        weatherPhrase: String? = nil,
+        enchantedWeatherLine: String? = nil,
+        moonName: String,
+        celebrationTitle: String? = nil,
+        greyLevel: Int = 0,
+        hour: Int = 12,
+        seed: Int = 0
+    ) {
+        self.keptToday = keptToday
+        self.weatherPhrase = weatherPhrase
+        self.enchantedWeatherLine = enchantedWeatherLine
+        self.moonName = moonName
+        self.celebrationTitle = celebrationTitle
+        self.greyLevel = greyLevel
+        self.hour = hour
+        self.seed = seed
+    }
+}
+
+enum WorldChargeComposer {
+    static func compose(_ context: WorldChargeContext) -> String {
+        if let celebration = context.celebrationTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !celebration.isEmpty {
+            return "The Wheel is keeping \(celebration). Let one ordinary thing answer it."
+        }
+
+        if let enchanted = context.enchantedWeatherLine?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !enchanted.isEmpty {
+            return "The sky left a margin note: \(enchanted.bookPreviewSentenceLimit(1))"
+        }
+
+        if let weather = context.weatherPhrase?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !weather.isEmpty {
+            return weatherLine(for: weather, seed: context.seed)
+        }
+
+        if context.greyLevel >= 2 {
+            return "A grey edge is near the desk. One true detail can turn the light up."
+        }
+
+        if context.keptToday > 0 {
+            let count = context.keptToday
+            return "The margins hold \(count) fragment\(count == 1 ? "" : "s"). The next Page is already listening."
+        }
+
+        if context.moonName != "New Moon" {
+            return "The \(context.moonName) is stamped in the corner. Let it choose one small thing."
+        }
+
+        return timeLine(hour: context.hour, seed: context.seed)
+    }
+
+    private static func weatherLine(for phrase: String, seed: Int) -> String {
+        let lowered = phrase.lowercased()
+        let lines: [String]
+        if lowered.contains("rain") || lowered.contains("drizzle") || lowered.contains("shower") {
+            lines = [
+                "The rain is writing on the glass. Keep what it changes.",
+                "Rain has the day's edges softened. Let one detail shine through."
+            ]
+        } else if lowered.contains("snow") || lowered.contains("sleet") || lowered.contains("ice") {
+            lines = [
+                "The cold has made the world legible. Keep one mark before it melts.",
+                "Snow-light is editing the ordinary. Notice what it leaves bright."
+            ]
+        } else if lowered.contains("fog") || lowered.contains("mist") || lowered.contains("haze") {
+            lines = [
+                "The fog is leaving half the page unwritten. Keep the half that shows.",
+                "Mist has lowered the ceiling of the day. Listen for the nearest thing."
+            ]
+        } else if lowered.contains("wind") || lowered.contains("gust") || lowered.contains("breez") {
+            lines = [
+                "The wind keeps turning pages outside. Catch one before it goes.",
+                "Something in the air is restless. Give it a detail to carry."
+            ]
+        } else if lowered.contains("sun") || lowered.contains("clear") || lowered.contains("bright") {
+            lines = [
+                "The light is choosing surfaces. Keep one thing it touches.",
+                "The day is bright enough to show its fingerprints. Look close."
+            ]
+        } else {
+            lines = [
+                "The weather is already inside the story. Let one real thing answer it.",
+                "The sky has entered the margins. Keep the first detail that notices."
+            ]
+        }
+        return lines[abs(seed) % lines.count]
+    }
+
+    private static func timeLine(hour: Int, seed: Int) -> String {
+        let lines: [String]
+        switch hour {
+        case 5..<11:
+            lines = [
+                "Morning has not settled on its meaning yet. Keep the first true thing.",
+                "The day is still damp with beginning. Let one small sign through."
+            ]
+        case 17..<21:
+            lines = [
+                "Evening is leaning on the windows. Keep one thing it touches.",
+                "The day is turning down its lamp. Catch the last glint."
+            ]
+        case 21..., ..<5:
+            lines = [
+                "Night has opened the quieter shelf. Keep what glows without asking.",
+                "The room is reading itself softly. Listen for the next Page."
+            ]
+        default:
+            lines = [
+                "The ordinary is already misbehaving. Keep the evidence.",
+                "A Page is near the surface. Give it one real thing to hold."
+            ]
+        }
+        return lines[abs(seed) % lines.count]
+    }
+}
+
 enum BookGreetingComposer {
     static let openers: [String] = [
         "Hello, {name} — I'm so glad you're back.",
@@ -6811,19 +6959,42 @@ enum BookGreetingComposer {
 
         let line: String
         if let title = context.celebrationTitle {
-            line = "Tonight the Wheel keeps \(title). Ready to make some magic?"
+            line = "Tonight the Wheel keeps \(title). The next Page is awake."
         } else if let fae = context.openBargainFae {
-            line = "A \(fae) is still waiting on a bargain. Ready to make some magic?"
+            line = "A \(fae) is still waiting on a bargain. The Book is ready to play."
         } else if let pact = context.pactLine, !pact.isEmpty {
-            line = "\(pact) Ready to make some magic?"
+            line = "\(pact) Another Page is near."
         } else if context.keptYesterday > 0 {
             line = "You kept \(context.keptYesterday) page\(context.keptYesterday == 1 ? "" : "s") yesterday. Shall we add to them?"
         } else if context.greyLevel >= 2 {
             line = "It's been a little grey. One kept page can turn the light back up."
         } else {
-            line = "Ready to make some magic?"
+            line = "The Book is ready to play."
         }
         return BookGreeting(greeting: opener, line: line)
+    }
+}
+
+enum BookAfterglow {
+    static func line(for input: String, pageType: BookPageType, pageID: String) -> String {
+        let seed = KeepMarginalia.seed(for: pageID)
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let word = KeepMarginalia.featuredWord(in: trimmed) {
+            let lines = [
+                "Carry \(word) into the next room and see where it echoes.",
+                "Look for \(word) once more before the next Page rises.",
+                "Let \(word) keep a small light on outside the covers."
+            ]
+            return lines[Int(seed % UInt64(lines.count))]
+        }
+
+        let lines = [
+            "When you close the Book, let the room show you one more detail.",
+            "The Book stays ready; take this noticing back into the day.",
+            "Look up once before the next Page. Something ordinary may answer."
+        ]
+        let offset = pageType.rawValue.count
+        return lines[Int((seed >> 8) + UInt64(offset)) % lines.count]
     }
 }
 
@@ -7172,6 +7343,7 @@ enum KeepMarginalia {
         var assetName: String
         var line: String
         var rippleLine: String? = nil
+        var carryOutLine: String? = nil
         var rejoinderName: String? = nil
         var rejoinderAsset: String? = nil
         var rejoinderLine: String? = nil

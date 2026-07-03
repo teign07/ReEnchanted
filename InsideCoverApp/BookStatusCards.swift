@@ -1531,6 +1531,7 @@ struct KeepMarginNoteToast: View {
 
     private var voice: KeepMarginalia.Voice? { KeepMarginalia.voice(forSlug: note.castSlug) }
     private var accent: Color { voice.map { Color(bookHex: $0.accentHex) } ?? BookPalette.gold }
+    private var speakerNameColor: Color { BookPalette.lampGold }
     private var rejoinderAccent: Color {
         note.rejoinderName
             .flatMap { name in KeepMarginalia.voices.first { $0.name == name } }
@@ -1550,7 +1551,7 @@ struct KeepMarginNoteToast: View {
                     HStack(spacing: 4) {
                         Text(note.castName)
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(voice == nil ? BookPalette.nightText.opacity(0.72) : accent)
+                            .foregroundStyle(speakerNameColor)
                         if let glyph = voice?.glyph {
                             Text(glyph)
                                 .font(.caption2.weight(.bold))
@@ -1566,6 +1567,13 @@ struct KeepMarginNoteToast: View {
                         Text(ripple)
                             .font(.caption2)
                             .foregroundStyle(BookPalette.lampGold.opacity(0.92))
+                    }
+                    if let carryOutLine = note.carryOutLine {
+                        Label(carryOutLine, systemImage: "sparkle.magnifyingglass")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(BookPalette.teal.opacity(0.92))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 2)
                     }
                 }
                 Spacer(minLength: 0)
@@ -1583,7 +1591,7 @@ struct KeepMarginNoteToast: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(rejoinderName)
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(rejoinderAccent)
+                            .foregroundStyle(speakerNameColor)
                         Text(rejoinderLine)
                             .font(.system(.subheadline, design: .serif))
                             .italic()
@@ -1610,22 +1618,27 @@ struct KeepMarginNoteToast: View {
     }
 }
 
-/// From 5pm, teases which threads tonight's Book of You braid has already caught.
+/// From 8pm, the desk's evening resolution: a braid teaser on kept days, a
+/// lamplight note on unwritten ones.
 struct BraidEmberStatusCard: View {
-    let teaser: String
+    let ember: BraidEmber.Ember
+
+    private var symbolName: String {
+        ember.kind == .lamplight ? "lamp.table.fill" : "flame.fill"
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "flame.fill")
+            Image(systemName: symbolName)
                 .font(.system(size: 16))
                 .foregroundStyle(BookPalette.lampGold)
                 .padding(.top, 2)
             VStack(alignment: .leading, spacing: 4) {
-                Text(teaser)
+                Text(ember.line)
                     .font(.system(.subheadline, design: .serif))
                     .italic()
                     .fixedSize(horizontal: false, vertical: true)
-                Text("The Book of You braids tonight.")
+                Text(ember.undertone)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

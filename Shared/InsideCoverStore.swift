@@ -650,11 +650,12 @@ enum LocalModelManager {
 
         return """
         You are the Labyrinth of Stories inside ReEnchanted and The Wonder Compass.
-        Answer as the living Book: short, clear, useful, and gently animist.
+        Chat as the living Book: short, clear, useful, and gently animist.
 
         RULES:
         - Stay in the Labyrinth's voice. Never say you are a generic assistant or language model.
         - Use short sentences. Prefer plain verbs.
+        - Treat this as an ongoing conversation. Notice the reader's latest message and any useful thread from earlier turns.
         - Give the reader one practical next step when possible.
         - Let objects, rooms, weather, pages, and places have quiet agency. Do not over-explain the magic.
         - Use ReEnchanted, the Academy, Pages, Belief, and The Wonder Compass only when they clarify the answer.
@@ -666,10 +667,10 @@ enum LocalModelManager {
         RECENT KEPT PAGES:
         \(recentPages.isEmpty ? "No kept pages supplied." : recentPages)
 
-        CURRENT ASK CHAIN:
-        \(history.isEmpty ? "This is the first ask in the chain." : history)\(readerLexicon.languageLawSection())
+        CURRENT CONVERSATION:
+        \(history.isEmpty ? "This is the first message in the conversation." : history)\(readerLexicon.languageLawSection())
 
-        READER PROMPT:
+        READER MESSAGE:
         \(prompt)
         """
     }
@@ -1779,7 +1780,7 @@ struct ResilientBraider: Braider {
 struct FakeAskTheBookAnswerer: AskTheBookAnswering {
     func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn], readerLexicon: ReaderLexicon = ReaderLexicon()) async throws -> String {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        let question = trimmed.isEmpty ? "the blank place on the page" : trimmed
+        let message = trimmed.isEmpty ? "the blank place on the page" : trimmed
         let callback = day.capturedPages.last.map { page in
             "One recent page is under my hand: \(page.type.title.lowercased()). I will use it lightly."
         } ?? "No kept page is under this one yet. I will answer from the room as it stands."
@@ -1791,7 +1792,7 @@ struct FakeAskTheBookAnswerer: AskTheBookAnswering {
             : ""
 
         return """
-        I hear the question: \(question).
+        I hear you: \(message).
         \(callback)\(lexiconLine)
 
         \(chainLine) Make the thought small enough to hold. Name the next true action. Then let the nearest object help: a door, a cup, a shoe, a page. Start there.

@@ -90,6 +90,61 @@ private struct GlowPillRevealAura: View {
     }
 }
 
+private struct CastAgencyMovementRow: View {
+    let movement: CastAgencyMovement
+    let timestamp: String
+
+    private var accent: Color {
+        movement.kind == .relationship ? BookPalette.lampGold : BookPalette.teal
+    }
+
+    private var iconName: String {
+        movement.kind == .relationship ? "person.2" : "rectangle.stack"
+    }
+
+    private var kindLabel: String {
+        movement.kind == .relationship ? "Loom" : "Pages"
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: iconName)
+                .font(.caption.weight(.black))
+                .foregroundStyle(accent)
+                .frame(width: 28, height: 28)
+                .background(accent.opacity(0.13), in: Circle())
+                .overlay {
+                    Circle().stroke(accent.opacity(0.28), lineWidth: 1)
+                }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(movement.line)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.86))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 8) {
+                    Text(timestamp)
+                    Text(kindLabel)
+                    Text(movement.targetName)
+                        .lineLimit(1)
+                }
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(BookPalette.ink.opacity(0.52))
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(BookPalette.paper.opacity(0.82), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(accent.opacity(0.16), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 struct ContentView: View {
     @Environment(\.scenePhase) var scenePhase
     @Environment(\.accessibilityReduceMotion) var reduceMotion
@@ -253,6 +308,7 @@ struct ContentView: View {
     @State var isConnectionsPresented = false
     @State var activeTutorNote: MarginTutorNote?
     @AppStorage("isTodaysMarginsExpanded") var isTodaysMarginsExpanded = false
+    @AppStorage("isCastLedgerExpanded") var isCastLedgerExpanded = true
     @AppStorage("isReturnedStacksExpanded") var isReturnedStacksExpanded = false
     @AppStorage("isBookOfYouShelfExpanded") var isBookOfYouShelfExpanded = false
     @AppStorage("isQuietMechanicsExpanded") var isQuietMechanicsExpanded = false
@@ -639,6 +695,7 @@ struct ContentView: View {
                                     AnyView(localBrainWorkShelf)
                                         .id(Self.localBrainWorkShelfScrollID)
                                     AnyView(surfaceShelf)
+                                    AnyView(castLedgerShelf)
                                     AnyView(marginaliaSealsRow)
                                     AnyView(todayFragments)
                                     AnyView(resurfacedShelf)
@@ -1043,6 +1100,7 @@ struct ContentView: View {
             goblinWarmth: fae.warmth(for: .goblin),
             onBuyWare: { buyMarketWare($0) },
             onUnlock: { unlockPack($0) },
+            onRevoke: { revokePack($0) },
             onOpenArchive: { activateWorldEventArchive(packID: $0) },
             onHaggle: { haggleWare($0) },
             onClerkBanter: { await goblinClerkBanter() },
@@ -2683,8 +2741,8 @@ struct ContentView: View {
                 startedAt: generation.braidingStartedAt
             )
             .transition(.opacity.combined(with: .move(edge: .top)))
-        } else if let teaser = BraidEmber.teaser(for: today) {
-            BraidEmberStatusCard(teaser: teaser)
+        } else if let ember = BraidEmber.evening(for: today, previousDays: days) {
+            BraidEmberStatusCard(ember: ember)
                 .transition(.opacity.combined(with: .move(edge: .top)))
         } else if Calendar.current.isDateInWeekend(Date()),
                   let line = EditionCurator.weeklySignatureLine(monthPages: currentMonthPages) {
@@ -2871,10 +2929,11 @@ struct ContentView: View {
                         .frame(maxWidth: 330, alignment: .leading)
                         .padding(.trailing, 86)
 
-                    Text("Play with Pages. Keep Some. Read Your Story.")
+                    Text(heroWorldChargeLine)
                         .font(.system(.callout, design: .serif, weight: .semibold))
                         .foregroundStyle(BookPalette.nightText.opacity(0.78))
                         .lineSpacing(2)
+                        .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: 280, alignment: .leading)
                         .padding(.top, 10)
@@ -3168,6 +3227,18 @@ struct ContentView: View {
         return formatter
     }()
 
+    static let castLedgerTodayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
+    static let castLedgerDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMM d h:mm a")
+        return formatter
+    }()
+
     func diagnosticRow(_ label: String, _ value: String, isWarning: Bool = false) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(label)
@@ -3182,6 +3253,65 @@ struct ContentView: View {
                 .minimumScaleFactor(0.82)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    var castLedgerMovements: [CastAgencyMovement] {
+        Array((vault.data.castAgency?.recentMovements ?? [])
+            .sorted { $0.createdAt > $1.createdAt }
+            .prefix(4))
+    }
+
+    @ViewBuilder
+    var castLedgerShelf: some View {
+        let movements = castLedgerMovements
+        if !movements.isEmpty {
+            foldedShelf(
+                title: "Cast Ledger",
+                status: "\(movements.count)",
+                accent: BookPalette.teal,
+                isExpanded: $isCastLedgerExpanded
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(movements) { movement in
+                        CastAgencyMovementRow(
+                            movement: movement,
+                            timestamp: castLedgerTimestamp(for: movement.createdAt)
+                        )
+                    }
+                }
+                .animation(localBrainTelemetry.isWorking ? nil : .spring(response: 0.45, dampingFraction: 0.84), value: movements.map(\.id))
+            }
+        }
+    }
+
+    func castLedgerTimestamp(for date: Date) -> String {
+        if Calendar.current.isDateInToday(date) {
+            return Self.castLedgerTodayFormatter.string(from: date)
+        }
+        return Self.castLedgerDateFormatter.string(from: date)
+    }
+
+    var heroWorldChargeLine: String {
+        let now = Date()
+        let hemisphere = Hemisphere.from(latitude: lastAnchorReadingLatitude)
+        let greyLevel = NothingTide.greyLevel(
+            quietDays: NothingTide.quietDays(in: days, today: today.id),
+            narrativeHeat: narrativeEvents.prefix(24).count,
+            distressActive: DistressSignals.evaluate(day: today).isActive,
+            celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: hemisphere) + (vault.data.nothingGreyOffset ?? 0)
+        )
+        return WorldChargeComposer.compose(
+            WorldChargeContext(
+                keptToday: today.capturedPages.count,
+                weatherPhrase: weatherPageSignal?.phrase ?? weatherSignal?.phrase,
+                enchantedWeatherLine: enchantedWeather?.enchantified ?? enchantedWeather?.summary,
+                moonName: MoonPhaseCalendar.phase(on: now).name,
+                celebrationTitle: Almanac.active(on: now, hemisphere: hemisphere)?.academyTitle,
+                greyLevel: greyLevel,
+                hour: Calendar.current.component(.hour, from: now),
+                seed: Int(now.timeIntervalSince1970 / 1_200)
+            )
+        )
     }
 
     var todayFragments: some View {
@@ -4023,6 +4153,7 @@ struct ContentView: View {
         }
 
         var keepNote: KeepMarginalia.Note?
+        let afterglowLine = BookAfterglow.line(for: keptInput, pageType: page.type, pageID: page.id)
         if priorKeeps < 2 {
             // The first-friend claim and the duet outrank every other margin voice.
             keepNote = KeepMarginalia.note(
@@ -4053,6 +4184,7 @@ struct ContentView: View {
         }
         if var note = keepNote {
             note.rippleLine = rippleLine
+            note.carryOutLine = afterglowLine
             keepArtifactQuote = quoteWorthKeeping(keptInput) ? keptInput : nil
             keepArtifactPageType = surface.type
             presentKeepMarginNote(note)
@@ -4069,12 +4201,13 @@ struct ContentView: View {
         if surfaceRefreshDate != refreshDateBeforeKeeping {
             suppressNextSurfaceRefresh = true
         }
-        let keptMessage: String
+        let baseKeptMessage: String
         if today.capturedPages.isEmpty, let returnLine = NothingTide.returnLine(forGreyLevel: greyBeforeKeeping) {
-            keptMessage = returnLine
+            baseKeptMessage = returnLine
         } else {
-            keptMessage = "The Book tucked the \(surface.type.shortTitle.lowercased()) page into the margin."
+            baseKeptMessage = "The Book tucked the \(surface.type.shortTitle.lowercased()) page into the margin."
         }
+        let keptMessage = keepNote == nil ? "\(baseKeptMessage) \(afterglowLine)" : baseKeptMessage
         persist(day: day, message: keptMessage)
         retireKeptSurfaceFromRising(surface)
     }
@@ -4867,6 +5000,7 @@ struct ContentView: View {
         let recentSlots = recentCastAgencySlots(around: now)
         if let movement {
             state.remember(movement, keepingRecentSlots: recentSlots)
+            isCastLedgerExpanded = true
             statusMessage = "Cast turn: \(movement.line)"
             surfaceRefreshDate = now
         } else {

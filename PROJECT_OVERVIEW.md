@@ -2331,8 +2331,38 @@ sample photos, app icons, character portraits, and sound effects.
 
 ## Landing Page
 
-`LandingPage/` is mirrored to the separate `teign07/landingpage` repo. It is a
-static marketing site with its own ReEnchanted-facing interaction layer. Beyond
+`LandingPage/` is the **single source of truth** for the marketing site and is
+published to the separate **public** `teign07/landingpage` repo, which GitHub
+Pages builds (via `.github/workflows/pages.yml`) and serves at
+**https://reenchanted.app**. The two repos have independent git histories; the
+deploy repo is a content mirror plus its own infra (`CNAME`, `.nojekyll`, the
+Pages workflow) that the sync never overwrites.
+
+**To publish manually:** run `scripts/deploy-landing.sh` from the repo root
+(`--check` first to preview drift). It rsyncs `LandingPage/` into the deploy
+repo, protecting infra files, then commits and pushes — which triggers the Pages
+deploy. **Never edit `teign07/landingpage` directly** (that includes pointing
+other tools like Codex at it); all edits happen here in `LandingPage/`, then get
+published, or they silently fail to reach production.
+
+**Auto-publish:** `.github/workflows/deploy-landing.yml` runs that same script
+automatically on every push to `main` that touches `LandingPage/**`. It needs a
+one-time secret, because this private repo can't push to another repo with the
+built-in token:
+
+1. Create a **fine-grained PAT** (GitHub → Settings → Developer settings →
+   Fine-grained tokens): resource owner `teign07`, repository access **only**
+   `teign07/landingpage`, permission **Contents: Read and write** (nothing
+   else — the sync excludes `.github/`, so no Workflows permission is needed).
+2. Add it to this repo as an Actions secret named **`LANDING_DEPLOY_TOKEN`**:
+   `gh secret set LANDING_DEPLOY_TOKEN --repo teign07/ReEnchanted` (paste when
+   prompted), or via repo Settings → Secrets and variables → Actions.
+
+Note fine-grained PATs expire (max 1 year) — set a reminder to rotate, or swap
+to an SSH deploy key (no expiry) if preferred.
+
+It is a static marketing site with its own ReEnchanted-facing interaction
+layer. Beyond
 screenshots, radio previews, and Academy copy, it now has **hidden lore
 marginalia** and richer live demos:
 

@@ -266,9 +266,23 @@ final class SentenceBuilderTests: XCTestCase {
         XCTAssertEqual(engine.render(draft), "The window made the evening blue.")
     }
 
-    func testComposedCoreMergesLaunchGrantedExpansionPack() {
+    func testComposedCoreMergesOwnedExpansionPack() {
+        let savedOwned = PackEntitlements.ownedPackIDs
+        defer {
+            PackEntitlements.ownedPackIDs = savedOwned
+            SentenceBuilderPackRegistry.reload()
+        }
+        PackEntitlements.ownedPackIDs = []
         SentenceBuilderPackRegistry.reload()
-        XCTAssertNotNil(BookShopCatalog.listing(forPackID: "pack.night-and-garden"))
+
+        // The word hoard moved off the paid shelf and onto the free-gift shelf;
+        // it still binds as an entitlement so the reader chooses when it wakes.
+        XCTAssertNil(BookShopCatalog.listing(forPackID: "pack.night-and-garden"))
+        XCTAssertTrue(BookShopCatalog.freeGifts.contains { $0.packID == "pack.night-and-garden" })
+        XCTAssertFalse(SentenceBuilderPackRegistry.enabledExpansionPacks().contains { $0.id == "pack.night-and-garden" })
+
+        PackEntitlements.ownedPackIDs = ["pack.night-and-garden"]
+        SentenceBuilderPackRegistry.reload()
         XCTAssertTrue(SentenceBuilderPackRegistry.enabledExpansionPacks().contains { $0.id == "pack.night-and-garden" })
         XCTAssertTrue(SentenceBuilderPackRegistry.composedCore().concreteWords.contains("moth"))
         XCTAssertTrue(SentenceBuilderPackRegistry.composedCore().themes.contains { $0.id == "garden" })

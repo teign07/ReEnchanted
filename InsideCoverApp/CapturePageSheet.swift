@@ -770,6 +770,7 @@ struct CapturePageSheet: View {
     @State private var faeMessage = ""
     @State private var festivalMessage = ""
     @State private var todaysSkyMessage = ""
+    @State private var academyCalendarMessage = ""
     @State private var radioDialFrequency = 94.1
     @State private var selectedRadioStationID: String?
     @State private var hasTouchedRadioDial = false
@@ -2100,6 +2101,10 @@ struct CapturePageSheet: View {
                 AnyView(preparedPageContent)
             }
 
+            if surface.type == .academyClass {
+                AnyView(academyCalendarControl)
+            }
+
             if isKeptReadbackPage,
                let note = GoblinMarginalia.note(
                 forID: surface.payload.metadata["keptPageID"] ?? surface.id,
@@ -2924,7 +2929,7 @@ struct CapturePageSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(askTurns.isEmpty ? "What do you ask?" : "Ask the next page")
+                Text(askTurns.isEmpty ? "What do you want to say?" : "Continue the chat")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(openPageSecondaryText)
                 TextEditor(text: $askPrompt)
@@ -2944,7 +2949,7 @@ struct CapturePageSheet: View {
             Button {
                 Task { await askTheBook() }
             } label: {
-                Label(isAskingTheBook ? "The Book is answering" : "Ask the Book", systemImage: isAskingTheBook ? "pencil.and.scribble" : "text.bubble")
+                Label(isAskingTheBook ? "The Book is replying" : "Chat with the Book", systemImage: isAskingTheBook ? "pencil.and.scribble" : "text.bubble")
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -3123,6 +3128,114 @@ struct CapturePageSheet: View {
         )
         todaysSkyMessage = ok
             ? "The sky-watch is marked on your calendar."
+            : "It could not be added (check Calendar permission in Settings)."
+        BookFeedback.play(ok ? .select : .error)
+    }
+
+    private var academyCalendarControl: some View {
+        let m = surface.payload.metadata
+        let isClub = m["sessionKind"] == "club"
+        let sessionName = m["sessionName"]?.nonEmpty ?? surface.prompt
+        let room = m["sessionRoom"]?.nonEmpty ?? ""
+        let leader = m["sessionLeader"]?.nonEmpty ?? ""
+        let blockLine = academySessionTimeLine(metadata: m)
+        let sessionDetailLine = [Optional(sessionName), blockLine, Optional(room)]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "calendar.badge.plus")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(BookPalette.teal)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(isClub ? "Add this club to Calendar" : "Add this class to Calendar")
+                        .font(.caption.weight(.black))
+                        .textCase(.uppercase)
+                        .foregroundStyle(BookPalette.teal)
+                    Text(sessionDetailLine)
+                        .font(.callout)
+                        .foregroundStyle(openPageSecondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Button {
+                Task { await addAcademySessionToCalendar() }
+            } label: {
+                Label(isClub ? "Add club" : "Add class", systemImage: "calendar.badge.plus")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.bookPress())
+            .foregroundStyle(BookPalette.teal)
+
+            if !leader.isEmpty && !isClub {
+                Text("\(leader) will be listed in the notes.")
+                    .font(.caption)
+                    .foregroundStyle(openPageSecondaryText.opacity(0.82))
+            }
+
+            if !academyCalendarMessage.isEmpty {
+                Text(academyCalendarMessage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(openPageSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .background(BookPalette.page.opacity(0.76), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.teal.opacity(0.24), lineWidth: 1)
+        }
+    }
+
+    private func academySessionTimeLine(metadata: [String: String]) -> String? {
+        guard let start = metadata["sessionStartTimestamp"].flatMap(Double.init),
+              let end = metadata["sessionEndTimestamp"].flatMap(Double.init) else {
+            return nil
+        }
+        let formatter = DateIntervalFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(
+            from: Date(timeIntervalSince1970: start),
+            to: Date(timeIntervalSince1970: end)
+        )
+    }
+
+    private func addAcademySessionToCalendar() async {
+        let m = surface.payload.metadata
+        let isClub = m["sessionKind"] == "club"
+        let sessionName = m["sessionName"]?.nonEmpty ?? surface.prompt
+        guard let startTimestamp = m["sessionStartTimestamp"].flatMap(Double.init),
+              let endTimestamp = m["sessionEndTimestamp"].flatMap(Double.init) else {
+            academyCalendarMessage = "This session does not have a calendar time yet."
+            BookFeedback.play(.error)
+            return
+        }
+        let leader = m["sessionLeader"]?.nonEmpty ?? ""
+        let room = m["sessionRoom"]?.nonEmpty ?? ""
+        let practice = m["lessonRealWorldPractice"]?.nonEmpty
+        let title = isClub ? sessionName : "Class: \(sessionName)"
+        let notes = [
+            isClub ? "A ReEnchanted Academy club is gathering." : "A ReEnchanted Academy class is in session.",
+            leader.isEmpty ? nil : "Leader: \(leader)",
+            practice.map { "Practice: \($0)" }
+        ].compactMap { $0 }.joined(separator: "\n")
+
+        let ok = await EventKitWriter.addAcademySessionEvent(
+            sessionID: m["sessionID"] ?? surface.id,
+            title: title,
+            notes: notes,
+            room: room,
+            start: Date(timeIntervalSince1970: startTimestamp),
+            end: Date(timeIntervalSince1970: endTimestamp)
+        )
+        academyCalendarMessage = ok
+            ? "\(isClub ? "The club" : "The class") is marked on your calendar."
             : "It could not be added (check Calendar permission in Settings)."
         BookFeedback.play(ok ? .select : .error)
     }
@@ -6213,7 +6326,7 @@ struct CapturePageSheet: View {
                     .foregroundStyle(BookPalette.ink.opacity(0.6))
             }
         }
-        #else
+            #else
         EmptyView()
         #endif
     }
@@ -7977,8 +8090,8 @@ struct CapturePageSheet: View {
         if surface.type == .askTheBook {
             return askTurns.enumerated().map { index, turn in
                 [
-                    "Ask the Book Page \(index + 1)",
-                    "Prompt: \(turn.prompt)",
+                    "Chat with the Book Page \(index + 1)",
+                    "Reader: \(turn.prompt)",
                     "Answer: \(turn.answer)"
                 ].joined(separator: "\n\n")
             }.joined(separator: "\n\n---\n\n")
@@ -8780,11 +8893,11 @@ struct CapturePageSheet: View {
         do {
             let answer: String
             #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
-            appLog.info("Ask the Book sending prompt to Gemma; prompt characters: \(prompt.count, privacy: .public); previous turns: \(askTurns.count, privacy: .public)")
+            appLog.info("Chat with the Book sending message to Gemma; message characters: \(prompt.count, privacy: .public); previous turns: \(askTurns.count, privacy: .public)")
             answer = try await MLXAskTheBookAnswerer().answer(prompt: prompt, day: day, previousTurns: askTurns, readerLexicon: readerLexicon)
-            appLog.info("Ask the Book Gemma answer returned; answer characters: \(answer.count, privacy: .public)")
-            #else
-            appLog.info("Ask the Book using preview fallback; native local brain is not available in this build.")
+            appLog.info("Chat with the Book Gemma reply returned; reply characters: \(answer.count, privacy: .public)")
+        #else
+            appLog.info("Chat with the Book using preview fallback; native local brain is not available in this build.")
             answer = try await FakeAskTheBookAnswerer().answer(prompt: prompt, day: day, previousTurns: askTurns, readerLexicon: readerLexicon)
             #endif
             askTurns.append(AskTheBookTurn(prompt: prompt, answer: answer))

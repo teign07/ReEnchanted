@@ -1,0 +1,48 @@
+name: Publish landing site
+
+# Auto-publishes LandingPage/ to the public teign07/landingpage repo whenever
+# landing changes reach main. That push triggers landingpage's own Pages
+# workflow, which serves https://reenchanted.app.
+#
+# Requires one repo secret: LANDING_DEPLOY_TOKEN — a fine-grained PAT with
+# Contents: Read and write on teign07/landingpage (setup steps in
+# PROJECT_OVERVIEW.md → Landing Page). ReEnchanted is private and the built-in
+# GITHUB_TOKEN can't push to another repo, so a scoped token is required.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "LandingPage/**"
+      - "scripts/deploy-landing.sh"
+      - ".github/workflows/deploy-landing.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: publish-landing
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure git identity and cross-repo auth
+        env:
+          GH_TOKEN: ${{ secrets.LANDING_DEPLOY_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::LANDING_DEPLOY_TOKEN secret is not set. See PROJECT_OVERVIEW.md → Landing Page." >&2
+            exit 1
+          fi
+          git config --global user.name "reenchanted-deploy-bot"
+          git config --global user.email "deploy@reenchanted.app"
+          gh auth setup-git
+
+      - name: Publish LandingPage/ to teign07/landingpage
+        env:
+          GH_TOKEN: ${{ secrets.LANDING_DEPLOY_TOKEN }}
+          LANDING_DEPLOY_DIR: ${{ runner.temp }}/landingpage-deploy
+        run: scripts/deploy-landing.sh

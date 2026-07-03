@@ -104,4 +104,82 @@ final class CrossLetterMemoryTests: XCTestCase {
         inputs.entityBeliefOffsets = ["penny-blackletter": 8]
         XCTAssertTrue(CharacterLetterPageGenerator.crossLetterMemory(for: sender, day: BookDay.today(), inputs: inputs)?.contains("Belief") ?? false)
     }
+
+    func testThirdPartyRelationshipContextStaysQuietForIntroductoryLetters() {
+        var inputs = BookSourceInputs.empty
+        inputs.relationshipField = [
+            NarrativeGraphData.relationshipPairKey("penny-blackletter", "dr-inkrest"): RelationshipTie(warmth: 8, tension: 0, familiarity: 3)
+        ]
+
+        let lines = CharacterLetterPageGenerator.thirdPartyRelationshipContext(for: sender, inputs: inputs)
+
+        XCTAssertTrue(lines.isEmpty)
+    }
+
+    func testThirdPartyRelationshipContextSurfacesAlliance() {
+        var inputs = BookSourceInputs.empty
+        inputs.relationshipField = [
+            NarrativeGraphData.relationshipPairKey("penny-blackletter", "dr-inkrest"): RelationshipTie(warmth: 8, tension: 0, familiarity: 3)
+        ]
+
+        let lines = CharacterLetterPageGenerator.thirdPartyRelationshipContext(
+            for: sender,
+            inputs: inputs,
+            allowInCurrentLetter: true
+        )
+
+        XCTAssertEqual(lines.count, 1)
+        XCTAssertTrue(lines.first?.contains("[Alliance:") ?? false)
+        XCTAssertTrue(lines.first?.contains("Dr. Selene Inkrest") ?? false)
+    }
+
+    func testThirdPartyRelationshipContextSurfacesContrast() {
+        var inputs = BookSourceInputs.empty
+        inputs.relationshipField = [
+            NarrativeGraphData.relationshipPairKey("penny-blackletter", "dr-vellum"): RelationshipTie(warmth: 0, tension: 9, familiarity: 2)
+        ]
+
+        let lines = CharacterLetterPageGenerator.thirdPartyRelationshipContext(
+            for: sender,
+            inputs: inputs,
+            allowInCurrentLetter: true
+        )
+
+        XCTAssertEqual(lines.count, 1)
+        XCTAssertTrue(lines.first?.contains("[Contrast:") ?? false)
+        XCTAssertTrue(lines.first?.contains("Dr. Elowen Vellum") ?? false)
+    }
+
+    func testDraftCandidateIncludesOffscreenRelationshipWeatherForContinuingLetter() {
+        var inputs = BookSourceInputs.empty
+        inputs.days = [
+            BookDay(
+                id: "2026-06-10",
+                date: Date().addingTimeInterval(-3 * 86_400),
+                pages: [
+                    BookPage(
+                        type: .letter,
+                        createdAt: Date().addingTimeInterval(-3 * 86_400),
+                        promptText: "Letter from Penny",
+                        userInput: "Dear friend, I filed the rain by brightness.",
+                        tags: ["letter", "sender:penny-blackletter"]
+                    )
+                ]
+            )
+        ]
+        inputs.relationshipField = [
+            NarrativeGraphData.relationshipPairKey("penny-blackletter", "dr-inkrest"): RelationshipTie(warmth: 8, tension: 0, familiarity: 3)
+        ]
+        let page = CharacterLetterPageGenerator.draftCandidate(
+            for: sender,
+            source: BookPageSourceRegistry.source(for: .letter),
+            day: BookDay.today(),
+            inputs: inputs,
+            now: Date()
+        )
+
+        XCTAssertTrue(page.payload.body.contains("Offscreen relationship weather:"))
+        XCTAssertTrue(page.payload.body.contains("[Alliance:"))
+        XCTAssertTrue(page.payload.metadata["thirdPartyRelationshipContext"]?.contains("Dr. Selene Inkrest") ?? false)
+    }
 }

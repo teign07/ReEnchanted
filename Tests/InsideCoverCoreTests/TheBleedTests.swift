@@ -121,6 +121,9 @@ final class TheBleedTests: XCTestCase {
     }
 
     func testAnnouncementCarriesActiveWorldEventPacket() {
+        let savedOwned = PackEntitlements.ownedPackIDs
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
+        PackEntitlements.ownedPackIDs = ["dictionary-rebellion"]
         var inputs = BookSourceInputs.empty
         inputs.bleedIssueNumber = 13
         let september = BookDay(id: "2026-09-10", date: septemberDate(10, hour: 0), pages: [])
@@ -249,6 +252,9 @@ final class TheBleedTests: XCTestCase {
     }
 
     func testFrontPagePacketIncludesWorldEventDesk() {
+        let savedOwned = PackEntitlements.ownedPackIDs
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
+        PackEntitlements.ownedPackIDs = ["dictionary-rebellion"]
         let september = BookDay(id: "2026-09-10", date: septemberDate(10, hour: 0), pages: [])
         var inputs = BookSourceInputs.empty
         inputs = inputs.resolvingWorldEvents(for: september, now: septemberDate(10, hour: 8))

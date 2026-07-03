@@ -1187,6 +1187,7 @@ function openBook() {
   render();
   earnGlow("opened-book", 2, "The cover opened. Glow gathers at the hinge.");
   loadRealWeather(); // best-effort; the page already reads fine on the fallback
+  loadLocationDaypart(); // best-effort and user-triggered, so the page does not call location services on load
 }
 
 function closeBook() {
@@ -1878,27 +1879,9 @@ if (readerLineInput) {
 }
 
 /* ── launch list: capture an email so the Book can write when the doors open ──
-   Static site, no backend. Paste a Buttondown / Formspree / Apps Script URL into
-   EMAIL_ENDPOINT and it posts there; until then it keeps signups in localStorage
-   so nothing is ever lost in dev. The real, exportable list lives at the provider. */
-const EMAIL_ENDPOINT = ""; // ← paste the provider endpoint here to go live
+   Buttondown's embed endpoint keeps this static-site friendly: no exposed API key,
+   no backend, and a normal form submit still works if JavaScript is unavailable. */
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-
-async function postEmail(payload) {
-  if (!EMAIL_ENDPOINT) {
-    const key = "reenchanted-waitlist";
-    const list = JSON.parse(localStorage.getItem(key) || "[]");
-    list.push(payload);
-    localStorage.setItem(key, JSON.stringify(list));
-    return { ok: true, demo: true };
-  }
-  const res = await fetch(EMAIL_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  return { ok: res.ok };
-}
 
 function setEmailStatus(el, msg, ok) {
   if (!el) return;
@@ -1906,6 +1889,17 @@ function setEmailStatus(el, msg, ok) {
   el.textContent = msg;
   el.classList.toggle("ok", ok);
   el.classList.toggle("err", !ok);
+}
+
+function setHiddenInput(form, name, value) {
+  let input = form.querySelector(`input[name="${name}"]`);
+  if (!input) {
+    input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    form.appendChild(input);
+  }
+  input.value = value;
 }
 
 function wireEmailForms() {
@@ -1925,24 +1919,21 @@ function wireEmailForms() {
       btn.disabled = true;
       btn.textContent = "Sending…";
       try {
-        const r = await postEmail({
-          email,
-          source: form.dataset.source || "landing",
-          daypart: root.dataset.daypart || "",
-          city: (weatherCtx && weatherCtx.city) || "",
-          ts: new Date().toISOString(),
-        });
-        if (r.ok) {
-          form.classList.add("sent");
-          input.disabled = true;
-          setEmailStatus(status, "Kept. The Book will write to you when the doors open. ✦", true);
-        } else {
-          setEmailStatus(status, "The shelf hiccuped - try again in a moment.", false);
-        }
+        setHiddenInput(form, "metadata__source", form.dataset.source || "landing");
+        setHiddenInput(form, "metadata__daypart", root.dataset.daypart || "");
+        setHiddenInput(form, "metadata__city", (weatherCtx && weatherCtx.city) || "");
+        setHiddenInput(form, "metadata__timestamp", new Date().toISOString());
+        form.target = "buttondown-subscribe-frame";
+        HTMLFormElement.prototype.submit.call(form);
+        form.classList.add("sent");
+        input.disabled = true;
+        setEmailStatus(status, "Almost there - check your inbox to confirm the TestFlight list.", true);
       } catch (_) {
         setEmailStatus(status, "The shelf hiccuped - try again in a moment.", false);
-      } finally {
         btn.disabled = false;
+        btn.textContent = label;
+        return;
+      } finally {
         btn.textContent = label;
       }
     });
@@ -1951,7 +1942,6 @@ function wireEmailForms() {
 wireEmailForms();
 
 applyDaypart();
-loadLocationDaypart();
 
 cover.addEventListener("click", openBook);
 btnKeep.addEventListener("click", () => choose("keep"));

@@ -596,6 +596,9 @@ final class BraidPromptContextTests: XCTestCase {
     }
 
     func testRadioAtmosphereLineCarriesWorldEventPressure() {
+        let savedOwned = PackEntitlements.ownedPackIDs
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
+        PackEntitlements.ownedPackIDs = ["dictionary-rebellion"]
         let events = WorldEventResolver.activeEvents(now: date("2026-09-10T12:00:00Z"))
 
         let line = RadioStationRegistry.atmosphereLine(state: .off, worldEvents: events)
@@ -615,6 +618,9 @@ final class BraidPromptContextTests: XCTestCase {
     }
 
     func testBraidPromptCarriesWorldEventPressure() {
+        let savedOwned = PackEntitlements.ownedPackIDs
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
+        PackEntitlements.ownedPackIDs = ["dictionary-rebellion"]
         let day = BookDay(
             id: "2026-09-10",
             date: date("2026-09-10T20:30:00Z"),

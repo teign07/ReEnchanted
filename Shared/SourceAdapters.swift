@@ -469,7 +469,7 @@ struct BookShopPreviewPageSourceAdapter: BookPageSourceAdapter {
     private func surface(inputs: BookSourceInputs, now: Date) -> SurfacePage {
         let marketOpen = FaeEconomy.canEnterMarket(state: inputs.faeState, now: now)
         let availablePacks = BookShopCatalog.listings.filter {
-            !$0.comingSoon && !inputs.ownedPackIDs.contains($0.packID)
+            !$0.comingSoon && !PackEntitlements.owns($0.packID, in: inputs.ownedPackIDs)
         }.count
         let hasAttention = inputs.faeState.attention > 0
 
@@ -1985,6 +1985,10 @@ struct AcademyClassPageSourceAdapter: BookPageSourceAdapter {
             "sessionBlock": block,
             "tags": tags.joined(separator: ",")
         ]
+        if let range = AcademyScheduleRegistry.timeRange(for: block, on: now) {
+            metadata["sessionStartTimestamp"] = "\(range.start.timeIntervalSince1970)"
+            metadata["sessionEndTimestamp"] = "\(range.end.timeIntervalSince1970)"
+        }
         if !eventPacket.isEmpty {
             metadata["worldEventPacket"] = eventPacket
             metadata["worldEventClassInstruction"] = eventInstruction
@@ -2559,7 +2563,7 @@ private enum FirstDoorApprenticeshipCatalog {
                 body: """
                 Today is for the Colophon.
 
-                The local brain lives on this device. When it is ready, letters, story pages, Ask the Book, and braids can read your archive with sharper hands without sending private pages away.
+                The local brain lives on this device. When it is ready, letters, story pages, Chat with the Book, and braids can read your archive with sharper hands without sending private pages away.
 
                 Open the Colophon, check the local brain, and let the Book know whether it may think properly here.
                 """,
@@ -2586,10 +2590,10 @@ private enum FirstDoorApprenticeshipCatalog {
                 id: "day-5",
                 dayIndex: 5,
                 title: "Ask for a Useful Door",
-                prompt: "Ask the Book one plain question.",
-                detail: "A question turns the Book from ambiance into help.",
+                prompt: "Chat with the Book about one plain question.",
+                detail: "A conversation turns the Book from ambiance into help.",
                 body: """
-                Ask the Book one useful question.
+                Chat with the Book about one useful question.
 
                 Not a cosmic one. Try something with a handle: What should I notice on the walk? Which kept sentence wants a follow-up? What would make \(firstSentence) less lonely?
 
@@ -3099,6 +3103,11 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         let tags = (seed.tags + ["compass-step:sense", "playful-mission"] + mission.tags.map { "mission:\($0)" }).joined(separator: ",")
         metadata["tags"] = isShadowVariant ? ShadowWonder.mergedTags(tags, inputs: inputs, now: now) : tags
         metadata["symbol"] = mission.allowsPhoto ? "camera.macro" : "hand.raised"
+        metadata["startingPageBelief"] = "62"
+        let isNaturalPhenomenonMission = mission.tags.contains("natural-phenomenon")
+        if isNaturalPhenomenonMission {
+            metadata["naturalPhenomenonMission"] = "true"
+        }
         if let shadowVariantOf {
             metadata["shadowVariantOf"] = shadowVariantOf
             metadata["variant"] = "shadow-wonder"
@@ -3111,7 +3120,11 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
             intent: .capture,
             renderStyle: .promptCard,
             score: (context.distress.isActive ? 54 : 64) + (isShadowVariant ? shadowState.scoreBoost : 0),
-            reason: isShadowVariant ? "This Shadow Wonder variant lets the senses investigate the dark edge safely." : "A playful mission can turn South into something your senses can actually do.",
+            reason: isShadowVariant
+                ? "This Shadow Wonder variant lets the senses investigate the dark edge safely."
+                : isNaturalPhenomenonMission
+                ? "South is responding to the live sky, weather, or place around you."
+                : "A playful mission can turn South into something your senses can actually do.",
             prompt: isShadowVariant ? "Shadow Playful Mission: \(mission.title)" : "Playful Mission: \(mission.title)",
             detail: mission.prompt,
             payload: BookPagePayload(
@@ -3202,6 +3215,9 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         metadata["standalone"] = standalone ? "true" : "false"
         if standalone {
             metadata.removeValue(forKey: "runID")
+        }
+        if standalone, step == .notice {
+            metadata["startingPageBelief"] = "62"
         }
         metadata["placeholder"] = step.capturePlaceholder
 
@@ -4214,7 +4230,7 @@ struct OuterStacksAnchorPageSourceAdapter: BookPageSourceAdapter {
             detail: "The Book can ask for one location reading and listen for an Outer Stacks door.",
             payload: BookPagePayload(
                 headline: "Outer Stacks",
-                body: "No Anchor is glowing yet. Ask the Book to check nearby places; if a known Anchor is within two hundred meters, its room can rise as a page.",
+                body: "No Anchor is glowing yet. Chat with the Book about nearby places; if a known Anchor is within two hundred meters, its room can rise as a page.",
                 metadata: [
                     "source": source.id,
                     "privacy": "location stays on device",
@@ -4625,12 +4641,12 @@ struct AskTheBookPageSourceAdapter: BookPageSourceAdapter {
                 intent: .reflect,
                 renderStyle: .promptCard,
                 score: 61,
-                reason: "Ask plainly. The page will answer plainly.",
-                prompt: "Ask the Book",
-                detail: "Write one question. The Book will answer with a useful next step.",
+                reason: "Start plainly. The Book will answer plainly.",
+                prompt: "Chat with the Book",
+                detail: "Write one message. The Book will answer with a useful next step.",
                 payload: BookPagePayload(
-                    headline: "Ask the Book",
-                    body: "Ask one real question. The answer should help you move.",
+                    headline: "Chat with the Book",
+                    body: "Start with one real question. The answer should help you move.",
                     metadata: [
                         "source": source.id,
                         "privacy": "private local",
@@ -6041,7 +6057,7 @@ enum HelpTipsCatalog {
             - Keep an Inner Weather word.
             - Write one ordinary sentence.
             - Dismiss three pages without guilt.
-            - Open Ask the Book and ask, "What is the smallest useful next step?"
+            - Open Chat with the Book and ask, "What is the smallest useful next step?"
             - Take a Center Page.
             - Keep a photo without explaining it.
             - Run one Playful Mission badly on purpose.

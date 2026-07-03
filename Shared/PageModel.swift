@@ -123,7 +123,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookOfYou:
             return "Book of You"
         case .askTheBook:
-            return "Ask the Book"
+            return "Chat with the Book"
         case .inkrestOfficeHours:
             return "Dr. Inkrest's Office Hours"
         case .faeBargain:
@@ -554,14 +554,14 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "ask-the-book",
             type: .askTheBook,
-            title: "Ask the Book",
-            shortTitle: "Ask",
+            title: "Chat with the Book",
+            shortTitle: "Chat",
             symbolName: "text.bubble",
             origin: .generated,
             privacy: .privateLocal,
             isActive: true,
             cadence: "manual",
-            note: "Ask one clear question. Get one useful answer."
+            note: "Start a private conversation with the Book."
         ),
         BookPageSource(
             id: "cast-enchantment",

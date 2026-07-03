@@ -12,6 +12,19 @@ final class WorldSystemsTests: XCTestCase {
         calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour))!
     }
 
+    private func firstDate(
+        after start: Date,
+        where predicate: (Date) -> Bool,
+        calendar: Calendar
+    ) -> Date {
+        var probe = start
+        for _ in 0..<40 {
+            if predicate(probe) { return probe }
+            probe = calendar.date(byAdding: .day, value: 1, to: probe) ?? probe.addingTimeInterval(86_400)
+        }
+        return start
+    }
+
     // MARK: Moon
 
     func testMoonPhaseAtReferenceNewMoonIsNew() {
@@ -244,6 +257,9 @@ final class WorldSystemsTests: XCTestCase {
     }
 
     func testWorldEventPackPageSurfacesOnlyDuringActiveEvent() {
+        let savedOwned = PackEntitlements.ownedPackIDs
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
+        PackEntitlements.ownedPackIDs = ["dictionary-rebellion"]
         let calendar = utcCalendar
         let adapter = PackPageSourceAdapter()
         let septemberNow = date(2026, 9, 10, hour: 10, calendar: calendar)
@@ -268,6 +284,9 @@ final class WorldSystemsTests: XCTestCase {
     }
 
     func testBackToSchoolPackPagesSurfaceForAllOfSeptember() {
+        let savedOwned = PackEntitlements.ownedPackIDs
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
+        PackEntitlements.ownedPackIDs = ["dictionary-rebellion"]
         let calendar = utcCalendar
         let adapter = PackPageSourceAdapter()
         let septemberNow = date(2026, 9, 1, hour: 10, calendar: calendar)
@@ -418,13 +437,10 @@ final class WorldSystemsTests: XCTestCase {
 
     func testNocturneFolioUnlocksContentAndSparks() {
         let savedOwned = PackEntitlements.ownedPackIDs
-        let savedGranted = PackEntitlements.launchGrantedPackIDs
         defer {
             PackEntitlements.ownedPackIDs = savedOwned
-            PackEntitlements.launchGrantedPackIDs = savedGranted
         }
         PackEntitlements.ownedPackIDs = []
-        PackEntitlements.launchGrantedPackIDs = ["dictionary-rebellion"]
         XCTAssertFalse(PageArchetypePackRegistry.archetypes().contains { $0.id == "last-light" })
         let baseCount = WonderSparkRegistry.sparks.count
 
@@ -513,13 +529,30 @@ final class WorldSystemsTests: XCTestCase {
     func testCatalogListingsAreWellFormed() {
         var seenProducts = Set<String>()
         for listing in BookShopCatalog.listings {
-            XCTAssertTrue(listing.productID.hasPrefix("com.openclaw.enchantify.insidecover.pack."), listing.id)
+            let prefix = listing.family == .standingOrder
+                ? "com.openclaw.enchantify.insidecover.pass."
+                : "com.openclaw.enchantify.insidecover.pack."
+            XCTAssertTrue(listing.productID.hasPrefix(prefix), listing.id)
             XCTAssertTrue(seenProducts.insert(listing.productID).inserted, "duplicate product \(listing.productID)")
             XCTAssertFalse(listing.goblinPitch.isEmpty)
             XCTAssertFalse(listing.contents.isEmpty)
         }
         let eventListing = BookShopCatalog.listing(forPackID: "starlit-paper-trial-archive")
         XCTAssertEqual(eventListing?.resolvedSaleState, .archivedEvent)
+        XCTAssertEqual(eventListing?.fallbackDisplayPrice, "$2.99")
+        let pass = BookShopCatalog.listing(forPackID: PackEntitlements.standingOrderPackID)
+        XCTAssertEqual(pass?.family, .standingOrder)
+    }
+
+    func testStandingOrderUnlocksEveryPack() {
+        defer { PackEntitlements.ownedPackIDs = [] }
+        PackEntitlements.ownedPackIDs = [PackEntitlements.standingOrderPackID]
+        XCTAssertTrue(PackEntitlements.hasStandingOrder)
+        XCTAssertTrue(PackEntitlements.isUnlocked("dictionary-rebellion"))
+        XCTAssertTrue(PackEntitlements.isUnlocked("starlit-paper-trial-archive"))
+        XCTAssertTrue(PackEntitlements.isUnlocked("pack.night-and-garden"))
+        PackEntitlements.ownedPackIDs = []
+        XCTAssertFalse(PackEntitlements.isUnlocked("dictionary-rebellion"))
     }
 
     func testEntitlementsUnlockLockedPacks() {
@@ -579,7 +612,7 @@ final class WorldSystemsTests: XCTestCase {
 
     func testCurrentEventsCanCarryLiveSeasonAndOpenedArchiveTogether() {
         defer { PackEntitlements.ownedPackIDs = [] }
-        PackEntitlements.ownedPackIDs = ["starlit-paper-trial-archive"]
+        PackEntitlements.ownedPackIDs = ["dictionary-rebellion", "starlit-paper-trial-archive"]
         let calendar = Calendar(identifier: .gregorian)
         let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 12, hour: 12))!
         var inputs = BookSourceInputs.empty
@@ -1154,6 +1187,108 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertFalse(mission.id.isEmpty)
         XCTAssertFalse(mission.prompt.isEmpty)
         XCTAssertFalse(mission.proofPrompt.isEmpty)
+    }
+
+    func testPlayfulMissionRegistryUsesWaningGibbousMoonErrand() {
+        let calendar = utcCalendar
+        let start = date(2026, 7, 1, hour: 21, calendar: calendar)
+        let waning = firstDate(after: start, where: { MoonPhaseCalendar.phase(on: $0).name == "Waning Gibbous" }, calendar: calendar)
+
+        let mission = PlayfulMissionRegistry.mission(
+            for: BookDay(id: "moon-mission", date: waning, pages: []),
+            inputs: .empty,
+            now: waning
+        )
+
+        XCTAssertEqual(mission.id, "moon-waning-gibbous-shadow")
+        XCTAssertTrue(mission.tags.contains("natural-phenomenon"))
+        XCTAssertTrue(mission.prompt.lowercased().contains("moon"))
+    }
+
+    func testPlayfulMissionRegistryUsesStormWindErrandFromWeather() {
+        var inputs = BookSourceInputs.empty
+        inputs.weather = WeatherSourceSignal(
+            phrase: "Pressure drop and storms after dark",
+            source: "test",
+            forecast: "gusts with a cold front"
+        )
+        let now = MoonPhaseCalendar.nextNewMoon(after: date(2026, 7, 1, hour: 12, calendar: utcCalendar), calendar: utcCalendar)
+
+        let mission = PlayfulMissionRegistry.mission(
+            for: BookDay(id: "storm-mission", date: now, pages: []),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertEqual(mission.id, "storm-wind-shift")
+        XCTAssertTrue(mission.tags.contains("wind"))
+        XCTAssertFalse(mission.allowsPhoto)
+    }
+
+    func testPlayfulMissionRegistryUsesWaterPlaceErrand() {
+        var inputs = BookSourceInputs.empty
+        inputs.nearbyPlaces = [
+            LocalPlaceSignal(id: "harbor", name: "Belfast Harbor Walk", category: "harbor", distanceLabel: "0.4 km", locality: "Belfast")
+        ]
+        let now = MoonPhaseCalendar.nextNewMoon(after: date(2026, 7, 1, hour: 12, calendar: utcCalendar), calendar: utcCalendar)
+
+        let mission = PlayfulMissionRegistry.mission(
+            for: BookDay(id: "water-mission", date: now, pages: []),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertEqual(mission.id, "water-flow-low-point")
+        XCTAssertTrue(mission.tags.contains("water"))
+        XCTAssertTrue(mission.prompt.lowercased().contains("water"))
+    }
+
+    func testStandaloneNoticeWonderCompassStartsWithHigherPageBelief() throws {
+        let now = date(2026, 7, 1, hour: 12, calendar: utcCalendar)
+        let day = BookDay(id: "notice-boost", date: now, pages: [])
+        let pages = WonderCompassPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: .empty,
+            now: now
+        )
+        let notice = try XCTUnwrap(pages.first {
+            $0.payload.metadata["compassMode"] == "standalone" &&
+            $0.payload.metadata["compassStep"] == "notice"
+        })
+
+        XCTAssertEqual(notice.payload.metadata["startingPageBelief"], "62")
+        XCTAssertNil(notice.payload.metadata["readerBeliefReward"])
+
+        let source = notice.source
+        let baseline = BookPageSourceRegistry.defaultBelief(for: source)
+        let narrativeBias = (BookPageSourceRegistry.narrativeWeight(for: source) - 20) / 4
+        let adjusted = CuratorSurfacePreferences.none.adjustedScore(for: notice)
+        XCTAssertEqual(adjusted, notice.score + narrativeBias + (62 - baseline) / 2)
+    }
+
+    func testPlayfulMissionWonderCompassStartsWithHigherPageBelief() throws {
+        let now = date(2026, 7, 1, hour: 12, calendar: utcCalendar)
+        let day = BookDay(id: "playful-belief-boost", date: now, pages: [])
+        let pages = WonderCompassPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: .empty,
+            now: now
+        )
+        let mission = try XCTUnwrap(pages.first {
+            $0.payload.metadata["compassMode"] == "standalone" &&
+            $0.payload.metadata["playfulMissionID"]?.isEmpty == false
+        })
+
+        XCTAssertEqual(mission.payload.metadata["startingPageBelief"], "62")
+        XCTAssertNil(mission.payload.metadata["readerBeliefReward"])
+
+        let source = mission.source
+        let baseline = BookPageSourceRegistry.defaultBelief(for: source)
+        let narrativeBias = (BookPageSourceRegistry.narrativeWeight(for: source) - 20) / 4
+        let adjusted = CuratorSurfacePreferences.none.adjustedScore(for: mission)
+        XCTAssertEqual(adjusted, mission.score + narrativeBias + (62 - baseline) / 2)
     }
 
     func testShadowWonderActivatesAfterDuskThornInvestmentAtNight() {

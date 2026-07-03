@@ -5,25 +5,72 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="ReEnchanted turns the day you actually lived into pages you can keep. Open the book, page through real screens, keep what's true, and watch your choices braid into a Book of You."
+      content="ReEnchanted is a free, private iPhone journal that turns ordinary days into magical pages you can keep. Local-first, open source, no accounts."
     >
     <meta name="theme-color" content="#070611">
     <link rel="canonical" href="https://reenchanted.app/">
     <link rel="icon" href="./favicon.svg" type="image/svg+xml">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="ReEnchanted">
-    <meta property="og:title" content="ReEnchanted — a living book for ordinary days">
-    <meta property="og:description" content="A free, magical iPhone book that turns the day you actually lived into pages you can keep. Play with pages. Keep some. Read your story.">
+    <meta property="og:title" content="ReEnchanted | Private iPhone Journal for Ordinary Days">
+    <meta property="og:description" content="A free, private iPhone journal that turns ordinary days into magical pages you can keep. Play with pages. Keep some. Read your story.">
     <meta property="og:url" content="https://reenchanted.app/">
     <meta property="og:image" content="https://reenchanted.app/assets/og-card.jpg">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:site" content="@Enchantifyink">
-    <meta name="twitter:title" content="ReEnchanted — a living book for ordinary days">
-    <meta name="twitter:description" content="A free, magical iPhone book that turns the day you actually lived into pages you can keep.">
+    <meta name="twitter:title" content="ReEnchanted | Private iPhone Journal for Ordinary Days">
+    <meta name="twitter:description" content="A free, private iPhone journal that turns ordinary days into magical pages you can keep.">
     <meta name="twitter:image" content="https://reenchanted.app/assets/og-card.jpg">
-    <title>ReEnchanted — a living book for ordinary days</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://reenchanted.app/#organization",
+            "name": "ReEnchanted",
+            "url": "https://reenchanted.app/",
+            "logo": "https://reenchanted.app/assets/og-card.jpg",
+            "sameAs": [
+              "https://github.com/teign07/ReEnchanted",
+              "https://x.com/Enchantifyink",
+              "https://bsky.app/profile/enchantifyacademy.bsky.social",
+              "https://www.patreon.com/thedoobaleedoos"
+            ]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://reenchanted.app/#website",
+            "url": "https://reenchanted.app/",
+            "name": "ReEnchanted",
+            "description": "A free, private iPhone journal that turns ordinary days into magical pages you can keep.",
+            "publisher": { "@id": "https://reenchanted.app/#organization" },
+            "inLanguage": "en"
+          },
+          {
+            "@type": "MobileApplication",
+            "@id": "https://reenchanted.app/#app",
+            "name": "ReEnchanted",
+            "url": "https://reenchanted.app/",
+            "description": "ReEnchanted is a free, private iPhone and iPad journaling app that turns ordinary days into magical pages you can keep.",
+            "applicationCategory": "LifestyleApplication",
+            "operatingSystem": "iOS, iPadOS",
+            "isAccessibleForFree": true,
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD",
+              "availability": "https://schema.org/PreOrder"
+            },
+            "sameAs": "https://github.com/teign07/ReEnchanted",
+            "publisher": { "@id": "https://reenchanted.app/#organization" }
+          }
+        ]
+      }
+    </script>
+    <title>ReEnchanted | Private iPhone Journal for Ordinary Days</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
@@ -66,7 +113,7 @@
         <div class="glow-sheet-notch" aria-hidden="true">✦</div>
         <button class="glow-close" id="glow-close" type="button" aria-label="Close Glow menu">×</button>
         <div class="glow-explainer">
-          <h2 id="glow-sheet-title">Glow Barely There</h2>
+          <p class="glow-sheet-heading" id="glow-sheet-title">Glow Barely There</p>
           <p class="glow-state" id="glow-state">The current belief state is waiting for its first spark.</p>
           <p>
             Belief is what you give. Glow is what the Book shows. You earn it by using the page:
@@ -140,9 +187,10 @@
           <h1>Real Life,<br><span class="accent">ReEnchanted</span></h1>
           <p class="hero-tagline">Play with Pages. <span>Keep Some.</span> Read Your Story.</p>
           <p class="hero-lede">
-            A free, magical iPhone book that turns the day you actually lived - weather, walks,
+            A free, private iPhone journal that turns the day you actually lived - weather, walks,
             moods, music, the people who pass through - into pages you can keep.
-            Keep what's true. Let the rest wait. Watch it braid into a story only you could write.
+            Local-first and open source, it lets you keep what's true, let the rest wait,
+            and watch your choices braid into a story only you could write.
           </p>
           <div class="hero-actions">
             <a class="button primary" href="#book">Open the Book ↓</a>
@@ -380,9 +428,12 @@
                     <ul class="sky-legend" id="sky-legend"></ul>
                   </div>
 
-                  <form class="email-capture braid-email" data-source="braid" novalidate>
+                  <form class="email-capture braid-email" data-source="braid" action="https://buttondown.com/api/emails/embed-subscribe/potions" method="post">
                     <p class="braid-email-pitch">You made a Book of You in a minute. Want yours when it opens?</p>
                     <label class="sr-only" for="email-braid">Your email for the TestFlight invite</label>
+                    <input type="hidden" name="embed" value="1">
+                    <input type="hidden" name="tag" value="testflight">
+                    <input type="hidden" name="metadata__source" value="braid">
                     <div class="email-row">
                       <input id="email-braid" class="email-input" type="email" name="email" required
                              autocomplete="email" placeholder="you@example.com">
@@ -1294,11 +1345,14 @@
           <p class="cta-sub">Play with pages. Keep some. Read your story.</p>
           <p class="cta-status">
             <span class="cta-status-dot" aria-hidden="true"></span>
-            In active development · <strong>TestFlight this summer</strong>
+            In active development · <strong>TestFlight list opening soon</strong>
           </p>
 
-          <form class="email-capture" data-source="final-cta" novalidate>
+          <form class="email-capture" data-source="final-cta" action="https://buttondown.com/api/emails/embed-subscribe/potions" method="post">
             <label class="sr-only" for="email-final">Your email for the TestFlight invite</label>
+            <input type="hidden" name="embed" value="1">
+            <input type="hidden" name="tag" value="testflight">
+            <input type="hidden" name="metadata__source" value="final-cta">
             <div class="email-row">
               <input id="email-final" class="email-input" type="email" name="email" required
                      autocomplete="email" placeholder="you@example.com">
@@ -1322,6 +1376,8 @@
       <span>Developed by an Obsessed Guy with an awesome wife, 2 cats, and a happy, small life.</span>
       <span>Private by design · Made for iPhone &amp; iPad</span>
       <span class="footer-license">Code <a href="https://github.com/teign07/ReEnchanted/blob/main/LICENSE" target="_blank" rel="noopener">MPL-2.0</a> · Art &amp; content © ReEnchanted</span>
+      <a href="./privacy.html">Privacy</a>
+      <a href="./terms.html">Terms</a>
       <button class="footer-dedication" id="dedication-open" type="button">Dedication</button>
       <button class="footer-cats" id="footer-cats" type="button" aria-expanded="false" aria-controls="cat-note">
         <span class="cat-eyes" aria-hidden="true"><i></i><i></i></span>
@@ -1370,7 +1426,7 @@
       <article class="lore-panel" data-lore-kind="">
         <button class="lore-close" type="button" data-lore-close aria-label="Close">×</button>
         <p class="eyebrow lore-kicker" id="lore-modal-kicker"></p>
-        <h2 class="lore-modal-title" id="lore-modal-title"></h2>
+        <h2 class="lore-modal-title" id="lore-modal-title">ReEnchanted lore</h2>
         <figure class="lore-figure" id="lore-figure" hidden>
           <img id="lore-figure-img" alt="" decoding="async">
           <figcaption class="lore-gallery-nav" id="lore-gallery-nav" hidden>
@@ -1387,6 +1443,8 @@
         <p class="lore-sign">- The Book</p>
       </article>
     </div>
+
+    <iframe class="sr-only" id="buttondown-subscribe-frame" name="buttondown-subscribe-frame" title="Newsletter signup response"></iframe>
 
     <!-- You looked behind the page. Riddlewind approves. Penny misfiled a receipt marked 97.3. -->
     <div class="promo-lightbox" id="promo-lightbox" hidden>

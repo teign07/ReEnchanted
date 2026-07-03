@@ -3165,6 +3165,42 @@ enum EventKitWriter {
         return false
         #endif
     }
+
+    static func addAcademySessionEvent(sessionID: String, title: String, notes: String, room: String, start: Date, end: Date) async -> Bool {
+        #if canImport(EventKit)
+        let store = EKEventStore()
+        let granted: Bool
+        if #available(iOS 17.0, *) {
+            granted = (try? await store.requestFullAccessToEvents()) ?? false
+        } else {
+            granted = (try? await store.requestAccess(to: .event)) ?? false
+        }
+        guard granted, let calendar = store.defaultCalendarForNewEvents else { return false }
+
+        let marker = "ReEnchanted Academy Session: \(sessionID)"
+        let searchStart = start.addingTimeInterval(-60)
+        let searchEnd = end.addingTimeInterval(60)
+        let predicate = store.predicateForEvents(withStart: searchStart, end: searchEnd, calendars: [calendar])
+        if store.events(matching: predicate).contains(where: { event in
+            event.title == title &&
+            abs(event.startDate.timeIntervalSince(start)) < 60 &&
+            (event.notes ?? "").contains(marker)
+        }) {
+            return true
+        }
+
+        let event = EKEvent(eventStore: store)
+        event.title = title
+        event.notes = [notes, marker].filter { !$0.isEmpty }.joined(separator: "\n\n")
+        event.location = room
+        event.startDate = start
+        event.endDate = end
+        event.calendar = calendar
+        do { try store.save(event, span: .thisEvent, commit: true); return true } catch { return false }
+        #else
+        return false
+        #endif
+    }
 }
 
 #if canImport(MapKit)
@@ -3495,6 +3531,14 @@ enum CompassCurrentPlaceReader {
 import StoreKit
 #endif
 
+/// The public legal documents, hosted on the landing site. App Review requires
+/// functional Terms of Use (EULA) and Privacy Policy links inside the binary,
+/// near the subscription. Mirrored in App Store Connect metadata.
+enum LegalDocuments {
+    static let termsOfUse = URL(string: "https://reenchanted.app/terms.html")!
+    static let privacyPolicy = URL(string: "https://reenchanted.app/privacy.html")!
+}
+
 /// What the BookShop needs from a payment system. Real purchases always use
 /// StoreKit prices; in-world currencies stay separate.
 struct BookShopOffer: Identifiable, Equatable {
@@ -3600,7 +3644,7 @@ struct ScrivenersCounterMerchant: BookShopMerchant {
             BookShopOffer(
                 id: listing.productID,
                 listing: listing,
-                displayPrice: "$0.00 dev",
+                displayPrice: listing.fallbackDisplayPrice ?? "$0.00 dev",
                 isPurchasable: true
             )
         }

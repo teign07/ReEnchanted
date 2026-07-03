@@ -546,18 +546,149 @@ enum SurfaceCadence {
     }
 }
 
-/// From 5pm, a one-line teaser naming the threads tonight's braid has already
-/// caught — anticipation for the Book of You without moving its reveal.
+/// From 8pm, the desk's evening resolution. On a day with kept pages it
+/// teases the threads tonight's Book of You braid has already caught; on an
+/// unwritten day it resolves the evening from the Book's own shelf instead —
+/// rereading earlier days by lamplight, never counting what the reader owes.
+/// Either way the reader gets a sanctioned ending without the braid's reveal
+/// moving and without the desk going quiet.
 enum BraidEmber {
-    static func teaser(for day: BookDay, now: Date = Date(), calendar: Calendar = .current) -> String? {
-        guard calendar.component(.hour, from: now) >= 17 else { return nil }
+    struct Ember: Equatable {
+        enum Kind: Equatable {
+            /// Two or three kept threads — tonight's braid is teased.
+            case braid
+            /// One kept thread — still enough to bind.
+            case singleThread
+            /// Nothing kept — the Book spends the evening on its own shelves.
+            case lamplight
+        }
+
+        var kind: Kind
+        var line: String
+        var undertone: String
+    }
+
+    static let braidUndertone = "The Book of You braids tonight."
+    static let lamplightUndertone = "Nothing owed. The Book is always ready to play."
+
+    static let singleThreadLines = [
+        "Tonight\u{2019}s braid holds a single thread: {thread}. One true thing is enough.",
+        "One thread on the desk tonight \u{2014} {thread} \u{2014} and a whole braid to spin from it.",
+        "Tonight\u{2019}s braid begins with {thread}. Small true things are load-bearing."
+    ]
+
+    /// Lamplight lines when one earlier day offers an echo.
+    static let rereadLines = [
+        "Today went straight to living \u{2014} the best chapters often do. I reread {echo} by lamplight; it still glows.",
+        "Nothing crossed the desk today, so I took down {echo} and read it again. It holds.",
+        "Today stayed in the Unwritten Chapter, where most good days live. {echo} kept me company."
+    ]
+
+    /// Lamplight lines when two earlier days can be laid side by side.
+    static let rhymeLines = [
+        "Today went straight to living, so I read my own shelves: {echoA} laid beside {echoB}. They rhyme.",
+        "The desk stayed clear today, so I shelved {echoA} next to {echoB}. Neighbors now.",
+        "An unwritten day, so I visited old pages: {echoA} still glows, and {echoB} has not moved an inch."
+    ]
+
+    /// Lamplight lines when the archive has nothing to reread yet.
+    static let hearthLines = [
+        "Today went straight to living. The lamp is lit whenever you are.",
+        "An unwritten day. Most good ones are. The shelf stays warm.",
+        "No ink today, and no matter. The Book read by lamplight and left the door on the latch."
+    ]
+
+    static func evening(
+        for day: BookDay,
+        previousDays: [BookDay] = [],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Ember? {
+        guard calendar.component(.hour, from: now) >= 20 else { return nil }
         let threads = threadLabels(for: day)
-        guard threads.count >= 2 else { return nil }
-        let countWord = threads.count == 2 ? "two" : "three"
-        let joined = threads.count == 2
-            ? "\(threads[0]) and \(threads[1])"
-            : "\(threads[0]), \(threads[1]), and \(threads[2])"
-        return "Tonight\u{2019}s braid has caught \(countWord) threads: \(joined)."
+        let seed = KeepMarginalia.seed(for: "ember:\(day.id)")
+        switch threads.count {
+        case 0:
+            let echoes = eveningEchoes(before: day, previousDays: previousDays, now: now, calendar: calendar)
+            let line: String
+            switch echoes.count {
+            case 0:
+                line = hearthLines[Int(seed % UInt64(hearthLines.count))]
+            case 1:
+                line = rereadLines[Int((seed >> 8) % UInt64(rereadLines.count))]
+                    .replacingOccurrences(of: "{echo}", with: echoes[0])
+            default:
+                line = rhymeLines[Int((seed >> 8) % UInt64(rhymeLines.count))]
+                    .replacingOccurrences(of: "{echoA}", with: echoes[0])
+                    .replacingOccurrences(of: "{echoB}", with: echoes[1])
+            }
+            return Ember(kind: .lamplight, line: line, undertone: lamplightUndertone)
+        case 1:
+            let line = singleThreadLines[Int((seed >> 8) % UInt64(singleThreadLines.count))]
+                .replacingOccurrences(of: "{thread}", with: threads[0])
+            return Ember(kind: .singleThread, line: line, undertone: braidUndertone)
+        default:
+            let countWord = threads.count == 2 ? "two" : "three"
+            let joined = threads.count == 2
+                ? "\(threads[0]) and \(threads[1])"
+                : "\(threads[0]), \(threads[1]), and \(threads[2])"
+            return Ember(
+                kind: .braid,
+                line: "Tonight\u{2019}s braid has caught \(countWord) threads: \(joined).",
+                undertone: braidUndertone
+            )
+        }
+    }
+
+    /// Up to `limit` echo phrases from the most recent earlier days that kept
+    /// anything, strongest label per day, deduped across days: "yesterday's
+    /// harbor", "Tuesday's kettle", "the harbor from June 3".
+    static func eveningEchoes(
+        before day: BookDay,
+        previousDays: [BookDay],
+        now: Date,
+        calendar: Calendar = .current,
+        limit: Int = 2
+    ) -> [String] {
+        // Day IDs are "YYYY-MM-DD", so lexicographic order is chronological.
+        let prior = previousDays
+            .filter { $0.id < day.id }
+            .sorted { $0.id > $1.id }
+            .prefix(30)
+        var phrases: [String] = []
+        var bareSeen: Set<String> = []
+        for pastDay in prior {
+            guard let label = threadLabels(for: pastDay).first else { continue }
+            let bare = bareLabel(label)
+            guard !bare.isEmpty, !bareSeen.contains(bare) else { continue }
+            bareSeen.insert(bare)
+            phrases.append(echoPhrase(bare: bare, dayDate: pastDay.date, now: now, calendar: calendar))
+            if phrases.count >= limit { break }
+        }
+        return phrases
+    }
+
+    /// "harbor" from "the harbor" / "a weather".
+    static func bareLabel(_ label: String) -> String {
+        for article in ["the ", "a ", "an "] where label.hasPrefix(article) {
+            return String(label.dropFirst(article.count))
+        }
+        return label
+    }
+
+    static func echoPhrase(bare: String, dayDate: Date, now: Date, calendar: Calendar = .current) -> String {
+        let daysApart = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: dayDate),
+            to: calendar.startOfDay(for: now)
+        ).day ?? 0
+        if daysApart == 1 {
+            return "yesterday\u{2019}s \(bare)"
+        }
+        if daysApart <= 6 {
+            return "\(dayDate.formatted(.dateTime.weekday(.wide)))\u{2019}s \(bare)"
+        }
+        return "the \(bare) from \(dayDate.formatted(.dateTime.month(.wide).day()))"
     }
 
     /// Up to three short labels for today's captured pages, strongest first.

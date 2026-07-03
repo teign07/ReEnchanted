@@ -1976,6 +1976,22 @@ extension ContentView {
         BookFeedback.play(.braidComplete)
     }
 
+    /// Closes an entitlement the App Store no longer vouches for. Only the
+    /// Standing Order ever travels this path — outright purchases are permanent.
+    @MainActor
+    func revokePack(_ packID: String) {
+        guard PackEntitlements.ownedPackIDs.contains(packID) else { return }
+        PackEntitlements.ownedPackIDs.remove(packID)
+        vault.data.ownedPacks = Array(PackEntitlements.ownedPackIDs).sorted()
+        SentenceBuilderPackRegistry.reload()
+        vault.save()
+        surfaceRefreshDate = Date()
+        rebuildSurfaceCache()
+        if packID == PackEntitlements.standingOrderPackID {
+            statusMessage = "The Standing Order has lapsed. Packs bound outright stay with your save."
+        }
+    }
+
     @MainActor
     @discardableResult
     func openWorldEventArchiveIfUseful(forPackID packID: String, now: Date = Date()) -> Bool {

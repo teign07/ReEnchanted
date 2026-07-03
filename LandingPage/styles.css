@@ -479,13 +479,14 @@ h2 {
   margin: 0 auto 18px;
   text-align: center;
 }
-.glow-explainer h2,
+.glow-explainer .glow-sheet-heading,
 .glow-explainer p {
   margin: 0;
 }
-.glow-explainer h2 {
+.glow-explainer .glow-sheet-heading {
   color: #2b2117;
   font-family: var(--serif);
+  font-weight: 800;
   font-size: clamp(1.85rem, 4vw, 2.6rem);
   line-height: 1;
 }

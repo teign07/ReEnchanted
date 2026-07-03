@@ -1657,12 +1657,21 @@ struct CuratorSurfacePreferences: Equatable {
         let profile = pageBeliefProfiles[page.sourceID]
             ?? BookPageSourceRegistry.beliefProfile(for: page.source)
         let baseline = BookPageSourceRegistry.defaultBelief(for: page.source)
-        let beliefDelta = profile.belief - baseline
+        let effectiveBelief = max(profile.belief, startingPageBelief(for: page) ?? profile.belief)
+        let beliefDelta = effectiveBelief - baseline
         let narrativeBias = (profile.narrativeWeight - 20) / 4
         let beliefBias = beliefDelta / 2
         let automagicFloor = BookPageSourceRegistry.automagicSourceIDs.contains(page.sourceID) ? 68 : 0
         let lowBeliefChance = lowBeliefChanceBoost(for: page, profile: profile)
         return max(automagicFloor, page.score + narrativeBias + beliefBias + lowBeliefChance)
+    }
+
+    private func startingPageBelief(for page: SurfacePage) -> Int? {
+        guard let raw = page.payload.metadata["startingPageBelief"],
+              let value = Int(raw) else {
+            return nil
+        }
+        return max(0, min(100, value))
     }
 
     private func lowBeliefChanceBoost(for page: SurfacePage, profile: PageBeliefProfile) -> Int {

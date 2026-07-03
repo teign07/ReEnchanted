@@ -2,6 +2,12 @@ import XCTest
 @testable import InsideCoverCore
 
 final class BookCuratorTests: XCTestCase {
+    private func ownDictionaryRebellionForTest() -> Set<String> {
+        let savedOwned = PackEntitlements.ownedPackIDs
+        PackEntitlements.ownedPackIDs.insert("dictionary-rebellion")
+        return savedOwned
+    }
+
     func testCuratorReturnsExactlyThreeWhenEnoughCandidatesExist() {
         let pages = BookCurator.surfacedPages(
             for: emptyDay(),
@@ -2200,6 +2206,8 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testWorldEventResolverActivatesDictionaryRebellionByCalendar() throws {
+        let savedOwned = ownDictionaryRebellionForTest()
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
         let now = localDate(year: 2026, month: 9, day: 10, hour: 12)
 
         let events = WorldEventResolver.activeEvents(now: now)
@@ -2211,6 +2219,8 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testDictionaryRebellionInfluencesStoryPacket() {
+        let savedOwned = ownDictionaryRebellionForTest()
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
         let now = localDate(year: 2026, month: 9, day: 10, hour: 16)
 
         let packet = StoryScenePacketBuilder.packet(
@@ -2226,6 +2236,8 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testWorldEventResolverPromotesOutcomeFromKeptEventPages() throws {
+        let savedOwned = ownDictionaryRebellionForTest()
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
         let now = localDate(year: 2026, month: 9, day: 12, hour: 12)
         let pages = (0..<3).map { index in
             BookPage(
@@ -2249,6 +2261,8 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testWorldEventResolverClassifiesTouchKinds() throws {
+        let savedOwned = ownDictionaryRebellionForTest()
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
         let now = localDate(year: 2026, month: 9, day: 12, hour: 12)
         let pages = [
             BookPage(
@@ -2291,20 +2305,25 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(event.influenceLine.contains("word ruling 1"))
     }
 
-    func testDictionaryRebellionPackIsLockedButGrantedFreeAtLaunch() {
+    func testDictionaryRebellionPackIsLockedAndAvailableAsPaidListing() {
         // The content ships in a locked pack...
         let rebellion = PageArchetypePackRegistry.bundledPacks.first { $0.id == "dictionary-rebellion" }
         XCTAssertNotNil(rebellion, "the dictionary-rebellion content pack should be bundled")
         XCTAssertTrue(rebellion?.isLocked ?? false, "content pack must ship availability:\"locked\"")
 
-        // ...but the launch grant unlocks it with no purchase written into ownedPackIDs.
         let savedOwned = PackEntitlements.ownedPackIDs
         defer { PackEntitlements.ownedPackIDs = savedOwned }
         PackEntitlements.ownedPackIDs = []
-        XCTAssertTrue(PackEntitlements.isUnlocked("dictionary-rebellion"),
-                      "launchGrantedPackIDs should keep the season free for now")
+        XCTAssertFalse(PackEntitlements.isUnlocked("dictionary-rebellion"))
 
-        // So the negotiable words actually load through the entitlement-gated registry.
+        let listing = BookShopCatalog.listing(forPackID: "dictionary-rebellion")
+        XCTAssertEqual(listing?.fallbackDisplayPrice, "$4.99")
+        XCTAssertEqual(listing?.resolvedSaleState, .standard)
+        XCTAssertEqual(listing?.comingSoon, false)
+        XCTAssertTrue(listing?.goblinPitch.contains("small riot") == true)
+
+        // Buying the pack unlocks negotiable words through the entitlement-gated registry.
+        PackEntitlements.ownedPackIDs = ["dictionary-rebellion"]
         let words = PageArchetypePackRegistry.wordNegotiations()
         let byWord = Dictionary(words.map { ($0.word, $0) }, uniquingKeysWith: { first, _ in first })
         XCTAssertNotNil(byWord["fine"])
@@ -2358,16 +2377,13 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testDictionaryRebellionContentIsFullyGatedByOnePack() {
-        let savedGrant = PackEntitlements.launchGrantedPackIDs
         let savedOwned = PackEntitlements.ownedPackIDs
         defer {
-            PackEntitlements.launchGrantedPackIDs = savedGrant
             PackEntitlements.ownedPackIDs = savedOwned
         }
 
         // No entitlement -> the whole season is absent from the base game:
         // no world event, no negotiable words, no aftermath pages.
-        PackEntitlements.launchGrantedPackIDs = []
         PackEntitlements.ownedPackIDs = []
         XCTAssertFalse(WorldEventRegistry.enabledEvents().contains { $0.event.id == "dictionary-rebellion" },
                        "the rebellion world event must not surface without its content pack")
@@ -2379,8 +2395,8 @@ final class BookCuratorTests: XCTestCase {
                        "gated cast must not exist without the pack")
         XCTAssertFalse(NarrativePackRegistry.entities.contains { $0.id == "pippa-pilcrow" })
 
-        // Granting the single pack id restores every channel at once.
-        PackEntitlements.launchGrantedPackIDs = ["dictionary-rebellion"]
+        // Owning the single pack id restores every channel at once.
+        PackEntitlements.ownedPackIDs = ["dictionary-rebellion"]
         XCTAssertTrue(WorldEventRegistry.enabledEvents().contains { $0.event.id == "dictionary-rebellion" })
         XCTAssertFalse(PageArchetypePackRegistry.wordNegotiations().filter { $0.eventID == "dictionary-rebellion" }.isEmpty)
         XCTAssertEqual(PageArchetypePackRegistry.archetypes().filter { $0.tags.contains("aftermath") }.count, 3)
@@ -2389,6 +2405,8 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testWordNegotiationAdapterBuildsPackDrivenSurfaceAndSkipsRuledWords() throws {
+        let savedOwned = ownDictionaryRebellionForTest()
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
         let now = localDate(year: 2026, month: 9, day: 12, hour: 12)
         let day = BookDay(id: "2026-09-12", date: localDate(year: 2026, month: 9, day: 12, hour: 0), pages: [])
         var inputs = richInputs()
@@ -2446,6 +2464,8 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testDictionaryRebellionOutcomeFeedsStoryPacket() {
+        let savedOwned = ownDictionaryRebellionForTest()
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
         let now = localDate(year: 2026, month: 9, day: 12, hour: 16)
         let touches = (0..<5).map { index in
             BookPage(
@@ -2471,6 +2491,8 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testWorldEventsBoostAndTagSurfacedPages() throws {
+        let savedOwned = ownDictionaryRebellionForTest()
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
         let now = localDate(year: 2026, month: 9, day: 10, hour: 10)
 
         let pages = BookCurator.surfacedPages(
@@ -2488,6 +2510,8 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testWorldEventDoorSurfacesFieldworkDuringActiveEvent() throws {
+        let savedOwned = ownDictionaryRebellionForTest()
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
         let now = localDate(year: 2026, month: 9, day: 10, hour: 10)
 
         let pages = BookCurator.surfacedPages(
@@ -2507,6 +2531,8 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testWorldEventDoorReflectsOutcomeAfterPlayerTouchesEvent() throws {
+        let savedOwned = ownDictionaryRebellionForTest()
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
         let now = localDate(year: 2026, month: 9, day: 12, hour: 10)
         let touches = (0..<5).map { index in
             BookPage(

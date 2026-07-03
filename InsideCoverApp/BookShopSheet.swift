@@ -19,6 +19,7 @@ struct BookShopSheet: View {
     let goblinWarmth: Int
     let onBuyWare: (MarketWare) -> Void   // in-world purchase (Attention/Belief)
     let onUnlock: (String) -> Void        // packID, after a verified App Store purchase
+    var onRevoke: (String) -> Void = { _ in }   // packID, when the App Store says a lapsed subscription no longer stands
     var onOpenArchive: (String) -> Void = { _ in }
     var onHaggle: (MarketWare) -> Int? = { _ in nil }   // spends 1 Warmth; returns discount, or nil if refused
     var onClerkBanter: () async -> String? = { nil }
@@ -87,7 +88,12 @@ struct BookShopSheet: View {
     @State private var physicalBookThirdPartyPrintConsent = false
 
     private var ownedListings: [BookShopListing] {
-        BookShopCatalog.listings.filter { !$0.comingSoon && PackEntitlements.isUnlocked($0.packID) }
+        BookShopCatalog.listings.filter {
+            $0.family != .standingOrder && !$0.comingSoon && PackEntitlements.isUnlocked($0.packID)
+        }
+    }
+    private var standingOrderOffer: BookShopOffer? {
+        offers.first { $0.listing.family == .standingOrder }
     }
     private var freePacks: [PageArchetypePack] {
         PageArchetypePackRegistry.bundledPacks.filter { ["nocturne-folio", "margins-and-mysteries"].contains($0.id) }
@@ -126,9 +132,15 @@ struct BookShopSheet: View {
                         binderySection
 
                         shelfBlock(title: "The Paid Shelf", subtitle: merchantName.isEmpty ? "The till is waking." : merchantName, symbol: "creditcard.fill", accent: BookPalette.teal) {
-                            if !freePacks.isEmpty {
+                            if PackEntitlements.hasStandingOrder {
+                                standingOrderActiveCard()
+                            } else if let passOffer = standingOrderOffer {
+                                standingOrderCard(passOffer)
+                            }
+                            if !freePacks.isEmpty || !BookShopCatalog.freeGifts.isEmpty {
                                 subsectionLabel("Free Gifts")
                                 ForEach(freePacks) { pack in freePackCard(pack) }
+                                ForEach(BookShopCatalog.freeGifts) { gift in freeGiftCard(gift) }
                             }
                             if isLoading {
                                 ProgressView("The Goblins are unlocking the till...")
@@ -137,7 +149,9 @@ struct BookShopSheet: View {
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 16)
                             } else {
-                                let purchasable = offers.filter { !PackEntitlements.isUnlocked($0.listing.packID) }
+                                let purchasable = offers.filter {
+                                    $0.listing.family != .standingOrder && !PackEntitlements.isUnlocked($0.listing.packID)
+                                }
                                 ForEach(purchasable) { offer in offerCard(offer) }
                                 if !ownedListings.isEmpty {
                                     subsectionLabel("Already Bound to You")
@@ -154,9 +168,11 @@ struct BookShopSheet: View {
 
                         standingSection
 
-                        Text("Paid packs use App Store prices and travel with your save. Attention and Belief are only spent inside the Book.")
+                        Text("Paid packs use App Store prices and travel with your save. The Standing Order renews yearly through the App Store and can be cancelled anytime in Settings; packs bought outright are yours forever. Attention and Belief are only spent inside the Book.")
                             .font(.system(.caption2, design: .serif).italic())
                             .foregroundStyle(BookPalette.nightText.opacity(0.55))
+
+                        legalLinksRow
                     }
                     .padding(18)
                 }
@@ -179,6 +195,15 @@ struct BookShopSheet: View {
                 merchantName = merchant.tillName
                 offers = await merchant.offers()
                 isLoading = false
+                // Subscriptions lapse; outright purchases never do. When the
+                // real till answered, let the ledger close a Standing Order
+                // the App Store no longer vouches for — and only that.
+                if !offers.isEmpty, merchant is StoreKitMerchant, PackEntitlements.hasStandingOrder {
+                    let owned = await merchant.restorePurchases()
+                    if !owned.contains(PackEntitlements.standingOrderPackID) {
+                        onRevoke(PackEntitlements.standingOrderPackID)
+                    }
+                }
             }
         }
     }
@@ -318,6 +343,19 @@ struct BookShopSheet: View {
             .buttonStyle(.bordered)
             .tint(BookPalette.teal)
         }
+        .padding(.top, 2)
+    }
+
+    /// Terms of Use (EULA) and Privacy Policy — App Review requires both to be
+    /// reachable in the binary, near anything that sells a subscription.
+    private var legalLinksRow: some View {
+        HStack(spacing: 6) {
+            Link("Terms of Use", destination: LegalDocuments.termsOfUse)
+            Text("·").foregroundStyle(BookPalette.nightText.opacity(0.4))
+            Link("Privacy Policy", destination: LegalDocuments.privacyPolicy)
+        }
+        .font(.system(.caption2, design: .serif).weight(.semibold))
+        .tint(BookPalette.teal)
         .padding(.top, 2)
     }
 
@@ -2204,7 +2242,7 @@ struct BookShopSheet: View {
             Button {
                 Task { await buy(offer) }
             } label: {
-                Label(isPurchasing ? "Binding..." : "Bind it to my save", systemImage: "seal")
+                Label(isPurchasing ? "Binding..." : "Bind it to my save — \(offer.displayPrice)", systemImage: "seal")
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
@@ -2228,6 +2266,88 @@ struct BookShopSheet: View {
         }
     }
 
+    /// The everything-pass, shelved above the folios it contains.
+    private func standingOrderCard(_ offer: BookShopOffer) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(BookPalette.violet.opacity(0.18))
+                    Image(systemName: "books.vertical.fill")
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(BookPalette.violet)
+                }
+                .frame(width: 42, height: 42)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(offer.listing.title)
+                        .font(.system(.headline, design: .serif, weight: .bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text("EVERY PACK · ALL YEAR")
+                        .font(.caption2.weight(.black))
+                        .kerning(0.8)
+                        .foregroundStyle(BookPalette.violet.opacity(0.85))
+                }
+                Spacer()
+                priceTag(offer.displayPrice, label: "per year", tint: BookPalette.violet)
+            }
+            Text("\u{201C}\(offer.listing.goblinPitch)\u{201D}")
+                .font(.system(.caption, design: .serif).italic())
+                .foregroundStyle(BookPalette.ink.opacity(0.66))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(offer.listing.contents)
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.78))
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                Task { await buy(offer) }
+            } label: {
+                Label(isPurchasing ? "Binding..." : "Open a standing order — \(offer.displayPrice)/yr", systemImage: "book.closed.fill")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(BookPalette.violet)
+            .disabled(isPurchasing || !offer.isPurchasable)
+            Text("Auto-renews yearly through the App Store. Cancel anytime; packs bought outright stay yours forever.")
+                .font(.caption2)
+                .foregroundStyle(BookPalette.ink.opacity(0.55))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(13)
+        .background(
+            LinearGradient(
+                colors: [BookPalette.page.opacity(0.98), BookPalette.paper.opacity(0.86), BookPalette.violet.opacity(0.12)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.violet.opacity(0.32), lineWidth: 1)
+        }
+    }
+
+    private func standingOrderActiveCard() -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark.seal.fill")
+                .foregroundStyle(BookPalette.violet)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("The Standing Order")
+                    .font(.system(.subheadline, design: .serif, weight: .bold))
+                    .foregroundStyle(BookPalette.ink)
+                Text("Open and standing. Every pack on this shelf — and every new one the Goblins print — binds itself to your save.")
+                    .font(.caption2)
+                    .foregroundStyle(BookPalette.ink.opacity(0.66))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+        .padding(11)
+        .background(BookPalette.violet.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
     private func offerSymbol(for listing: BookShopListing) -> String {
         switch listing.family {
         case .soundPack: return "radio.fill"
@@ -2237,7 +2357,23 @@ struct BookShopSheet: View {
     }
 
     private func freePackCard(_ pack: PageArchetypePack) -> some View {
-        let isBound = PackEntitlements.isUnlocked(pack.id) || boundFreePackIDs.contains(pack.id)
+        freeGiftCard(
+            packID: pack.id,
+            title: pack.displayName,
+            detail: "A gift folio of \(pack.archetypes.count) extra page shapes. Bind it here when you want the Book to start using it."
+        )
+    }
+
+    private func freeGiftCard(_ gift: BookShopFreeGift) -> some View {
+        freeGiftCard(
+            packID: gift.packID,
+            title: gift.title,
+            detail: "\(gift.contents) Bind it here when you want the Book to start using it."
+        )
+    }
+
+    private func freeGiftCard(packID: String, title: String, detail: String) -> some View {
+        let isBound = PackEntitlements.isUnlocked(packID) || boundFreePackIDs.contains(packID)
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 10) {
                 ZStack {
@@ -2249,7 +2385,7 @@ struct BookShopSheet: View {
                 }
                 .frame(width: 42, height: 42)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(pack.displayName)
+                    Text(title)
                         .font(.system(.headline, design: .serif, weight: .bold))
                         .foregroundStyle(BookPalette.ink)
                     Text(isBound ? "Bound to your save" : "Free gift")
@@ -2260,14 +2396,14 @@ struct BookShopSheet: View {
                 Spacer()
                 priceTag("$0", label: "gift", tint: BookPalette.lampGold)
             }
-            Text("A gift folio of \(pack.archetypes.count) extra page shapes. Bind it here when you want the Book to start using it.")
+            Text(detail)
                 .font(.caption)
                 .foregroundStyle(BookPalette.ink.opacity(0.76))
                 .fixedSize(horizontal: false, vertical: true)
             Button {
                 guard !isBound else { return }
-                boundFreePackIDs.insert(pack.id)
-                onUnlock(pack.id)
+                boundFreePackIDs.insert(packID)
+                onUnlock(packID)
                 clerkLine = "The clerk stamps the gift folio with theatrical reluctance. \"Free. Obviously suspicious. Enjoy it.\""
             } label: {
                 Label(isBound ? "Already bound" : "Bind the free gift", systemImage: isBound ? "checkmark.seal.fill" : "seal")
@@ -2381,7 +2517,9 @@ struct BookShopSheet: View {
         switch await merchant.purchase(productID: offer.id) {
         case .bound:
             onUnlock(offer.listing.packID)
-            clerkLine = "The clerk stamps the ledger twice. \u{201C}\(offer.listing.title) is bound to you. No refunds; the ink remembers.\u{201D}"
+            clerkLine = offer.listing.family == .standingOrder
+                ? "The clerk opens a fresh page and writes your name at the top of the ledger. \u{201C}A standing order. Everything we print finds you now.\u{201D}"
+                : "The clerk stamps the ledger twice. \u{201C}\(offer.listing.title) is bound to you. No refunds; the ink remembers.\u{201D}"
             BookFeedback.play(.braidComplete)
         case .pending:
             clerkLine = "The clerk squints at the till. \u{201C}The App Store says this purchase is pending. Come back shortly.\u{201D}"

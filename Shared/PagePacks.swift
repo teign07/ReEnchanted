@@ -628,7 +628,7 @@ enum PageArchetypePackRegistry {
     ]
 
     /// The Dictionary Rebellion content pack — the negotiable words behind the
-    /// season. Ships `locked`; granted free at launch via `PackEntitlements`.
+    /// season. Ships `locked`; buying the pack binds it into `ownedPackIDs`.
     /// The engine (Reader's Lexicon, Word Negotiation page, Treaty) is free base
     /// game; these words are the sellable content. Each word is scoped to the
     /// `dictionary-rebellion` WorldEvent and one of its phases
@@ -1193,8 +1193,8 @@ enum MarginTutorCatalog {
         ),
         MarginTutorNote(
             id: "ask-the-book",
-            title: "Asking the Book",
-            text: "Ask anything. The Book answers as itself — short, a little animist, genuinely useful. Each exchange becomes a page you can keep or let drift."
+            title: "Chatting with the Book",
+            text: "Say anything. The Book replies as itself — short, a little animist, genuinely useful. Each exchange becomes a page you can keep or let drift."
         ),
         MarginTutorNote(
             id: "todays-margins",
@@ -1466,6 +1466,7 @@ struct BookShopListing: Identifiable, Codable, Equatable {
         case soundPack
         case eventPack
         case wordPack
+        case standingOrder
 
         var shelfLabel: String {
             switch self {
@@ -1477,6 +1478,7 @@ struct BookShopListing: Identifiable, Codable, Equatable {
             case .soundPack: return "Sound Bindings"
             case .eventPack: return "World Events"
             case .wordPack: return "Word Hoards"
+            case .standingOrder: return "Standing Orders"
             }
         }
     }
@@ -1504,6 +1506,7 @@ struct BookShopListing: Identifiable, Codable, Equatable {
     var goblinPitch: String     // the clerk's in-world sales line
     var contents: String        // honest plain description of what's inside
     var productID: String       // App Store Connect product identifier
+    var fallbackDisplayPrice: String? = nil
     var comingSoon: Bool = false
     var saleState: SaleState? = nil
 
@@ -1513,30 +1516,40 @@ struct BookShopListing: Identifiable, Codable, Equatable {
     }
 }
 
+/// A shelf item the Goblins simply give away. Bound like a purchase (the
+/// entitlement rides the save), priced like a rumor.
+struct BookShopFreeGift: Identifiable, Codable, Equatable {
+    var id: String
+    var packID: String
+    var title: String
+    var goblinPitch: String
+    var contents: String
+}
+
 enum BookShopCatalog {
     /// Everything the Goblins are willing to sell, ever listed here.
-    /// Product IDs follow com.openclaw.enchantify.insidecover.pack.<packID>.
+    /// Product IDs follow com.openclaw.enchantify.insidecover.pack.<packID>;
+    /// the Standing Order (an auto-renewable subscription) uses .pass. instead.
     static let listings: [BookShopListing] = [
+        BookShopListing(
+            id: "listing-standing-order-annual",
+            packID: PackEntitlements.standingOrderPackID,
+            family: .standingOrder,
+            title: "The Standing Order",
+            goblinPitch: "One line in the ledger, renewed yearly, and every folio the Empire prints walks itself to your shelf. The clerk calls it the only honest bargain in the building.",
+            contents: "Every paid pack on this shelf today, and every new one the Goblins print while the order stands — word hoards, world events, sound bindings, all of it — bound to your save automatically.",
+            productID: "com.openclaw.enchantify.insidecover.pass.standing-order.annual",
+            fallbackDisplayPrice: "$39.99"
+        ),
         BookShopListing(
             id: "listing-dictionary-rebellion",
             packID: "dictionary-rebellion",
             family: .eventPack,
             title: "The Dictionary Rebellion",
-            goblinPitch: "A back-to-school incident involving runaway definitions, tiny placards, and a suspicious number of pencils.",
-            contents: "The September word rebellion: negotiable words, treaty aftermath pages, and event traces for the live school-season arc.",
+            goblinPitch: "A small riot in the margins: twenty-odd words with picket signs, a professor with a rubber stamp, and a punctuation pixie who keeps stealing the full stops.",
+            contents: "A September world-event pack: living words to negotiate, Mook and Pippa in the Cast, fieldwork prompts, event pages, treaty aftermaths, and lexicon choices that can bend the Book's later prose.",
             productID: "com.openclaw.enchantify.insidecover.pack.dictionary-rebellion",
-            comingSoon: true,
-            saleState: .liveEvent
-        ),
-        BookShopListing(
-            id: "listing-night-and-garden",
-            packID: "pack.night-and-garden",
-            family: .wordPack,
-            title: "Night & Garden Word Hoard",
-            goblinPitch: "Moths, moss, and moonlit verbs. The Index Empire counted every word twice and taxed neither.",
-            contents: "More senses, livelier verbs, and two new context themes (Garden, Night) for the sentence builder.",
-            productID: "com.openclaw.enchantify.insidecover.pack.night-and-garden",
-            saleState: .standard
+            fallbackDisplayPrice: "$4.99"
         ),
         BookShopListing(
             id: "listing-starlit-paper-trial-archive",
@@ -1546,7 +1559,20 @@ enum BookShopCatalog {
             goblinPitch: "A past event, boxed carefully enough that the night can unfold again when you open it.",
             contents: "A replayable seven-day archived world event: three phases, fieldwork prompts, lexical pressure, outcome tracking, and traces for letters, radio, widgets, Book of You, and monthly bindings.",
             productID: "com.openclaw.enchantify.insidecover.pack.starlit-paper-trial-archive",
+            fallbackDisplayPrice: "$2.99",
             saleState: .archivedEvent
+        )
+    ]
+
+    /// What the Goblins hand over for nothing. Still bound to the save on
+    /// purpose, so the reader chooses when the Book starts using it.
+    static let freeGifts: [BookShopFreeGift] = [
+        BookShopFreeGift(
+            id: "gift-night-and-garden",
+            packID: "pack.night-and-garden",
+            title: "Night & Garden Word Hoard",
+            goblinPitch: "Moths, moss, and moonlit verbs. The Index Empire counted every word twice and taxed neither.",
+            contents: "More senses, livelier verbs, and two new context themes (Garden, Night) for the sentence builder."
         )
     ]
 
@@ -1559,15 +1585,26 @@ enum BookShopCatalog {
 /// written only by the merchant after a verified purchase (or the dev
 /// counter in internal builds).
 enum PackEntitlements {
+    /// The Standing Order: the annual everything-pass. While it is bound to
+    /// the save, every locked pack counts as owned. It is the one entitlement
+    /// that can lapse (auto-renewable subscription), so only the merchant's
+    /// live ledger may revoke it — outright purchases are permanent.
+    static let standingOrderPackID = "standing-order"
+
     nonisolated(unsafe) static var ownedPackIDs: Set<String> = []
 
-    /// Packs that ship `availability: "locked"` but are granted before a
-    /// purchase. Other locked packs can still be bound manually as Bookshop
-    /// gifts when their id is written into `ownedPackIDs`.
-    nonisolated(unsafe) static var launchGrantedPackIDs: Set<String> = ["dictionary-rebellion", "pack.night-and-garden"]
+    static var hasStandingOrder: Bool {
+        ownedPackIDs.contains(standingOrderPackID)
+    }
 
     static func isUnlocked(_ packID: String) -> Bool {
-        launchGrantedPackIDs.contains(packID) || ownedPackIDs.contains(packID)
+        owns(packID, in: ownedPackIDs)
+    }
+
+    /// The same ownership rule for callers that carry their own snapshot of
+    /// the owned set (curator inputs, stall builders, radio gates).
+    static func owns(_ packID: String, in ownedPackIDs: Set<String>) -> Bool {
+        ownedPackIDs.contains(packID) || ownedPackIDs.contains(standingOrderPackID)
     }
 }
 

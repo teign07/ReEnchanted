@@ -3662,6 +3662,11 @@ enum CharacterLetterPageGenerator {
             ? introductoryLetterOccasion(for: entity, interest: interest, homeContext: homeContext)
             : letterOccasion(inputs: inputs)
         let crossLetter = crossLetterMemory(for: entity, day: day, inputs: inputs, now: now)
+        let relationshipWeather = thirdPartyRelationshipContext(
+            for: entity,
+            inputs: inputs,
+            allowInCurrentLetter: !isFirstLetterFromSender
+        )
         let eventPacket = inputs.activeWorldEvents.influencePacket
         let letterEventInstruction = inputs.activeWorldEvents
             .map { $0.packet.letterInstruction }
@@ -3679,6 +3684,9 @@ enum CharacterLetterPageGenerator {
         Relationship context:
         \(isFirstLetterFromSender ? "This is your first letter to the player. Introduce yourself before asking anything of them. Let this letter establish who you are, what you notice, and why you are writing from the margins now." : (crossLetter ?? "This is not your first letter to them, but there is no urgent prior-letter memory to acknowledge. Build naturally from the established relationship."))
 
+        Offscreen relationship weather:
+        \(relationshipWeather.isEmpty ? "No third-party cast relationship should be mentioned in this letter." : relationshipWeather.joined(separator: "\n"))
+
         Writing Voice:
         \(voice.promptDescription)
 
@@ -3692,7 +3700,7 @@ enum CharacterLetterPageGenerator {
         \(eventPacket.isEmpty ? "No world event is currently pressing on this letter." : eventPacket)
         \(letterEventInstruction)
 
-        Write a real letter to the player. If this is the first letter from this sender, make it an introduction letter first: the sender should name their relation to the margins, reveal their voice through one or two concrete self-details, and offer a small reason the player might want to hear from them again. Do not assume prior intimacy. If a letter occasion is given, it is the reason this letter exists - open from it and let it carry the letter, gently and without diagnosing. Use live web research if clippings are supplied. If no clippings are supplied, fall back to the model's own general knowledge without pretending it browsed.
+        Write a real letter to the player. If this is the first letter from this sender, make it an introduction letter first: the sender should name their relation to the margins, reveal their voice through one or two concrete self-details, and offer a small reason the player might want to hear from them again. Do not assume prior intimacy. If a letter occasion is given, it is the reason this letter exists - open from it and let it carry the letter, gently and without diagnosing. Offscreen relationship weather is optional ambience: mention at most one line, in passing, only if it fits the letter's natural voice; do not turn it into the main plot or invent a full argument. Use live web research if clippings are supplied. If no clippings are supplied, fall back to the model's own general knowledge without pretending it browsed.
         """
         var metadata = [
             "source": source.id,
@@ -3704,6 +3712,7 @@ enum CharacterLetterPageGenerator {
             "letterOccasion": occasion ?? "",
             "letterRelationshipStage": isFirstLetterFromSender ? "introduction" : "continuing",
             "crossLetterMemory": crossLetter ?? "",
+            "thirdPartyRelationshipContext": relationshipWeather.joined(separator: "\n"),
             "researchQuery": query,
             "writingVoice": voice.promptDescription,
             "chapterTalismanMoves": talismanMoveLines,
@@ -3863,6 +3872,85 @@ enum CharacterLetterPageGenerator {
         }
 
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
+    static func thirdPartyRelationshipContext(
+        for entity: NarrativeWorldEntity,
+        inputs: BookSourceInputs,
+        allowInCurrentLetter: Bool = false
+    ) -> [String] {
+        guard allowInCurrentLetter else { return [] }
+        let characters = (NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity))
+            .filter { $0.kind == .character }
+        let characterByID = Dictionary(uniqueKeysWithValues: characters.map { ($0.id, $0) })
+        guard characterByID[entity.id] != nil else { return [] }
+
+        let authoredByPair = Dictionary(
+            grouping: NarrativePackRegistry.relationships,
+            by: { NarrativeGraphData.relationshipPairKey($0.sourceEntityID, $0.targetEntityID) }
+        )
+
+        struct Candidate {
+            var kind: CastBondKind
+            var line: String
+            var score: Int
+            var otherName: String
+        }
+
+        var candidates: [Candidate] = []
+        let knownIDs = Set(characterByID.keys)
+        let pairs = Set(inputs.relationshipField.keys).union(authoredByPair.keys)
+        for pairKey in pairs {
+            let ids = pairKey.split(separator: "|").map(String.init)
+            guard ids.count == 2, ids.contains(entity.id) else { continue }
+            let otherID = ids[0] == entity.id ? ids[1] : ids[0]
+            guard knownIDs.contains(otherID), let other = characterByID[otherID] else { continue }
+
+            let tie = inputs.relationshipField[pairKey] ?? .zero
+            let authored = authoredByPair[pairKey] ?? []
+            let authoredWarmth = authored.map(\.warmth).max() ?? 0
+            let authoredTension = authored.map(\.tension).max() ?? 0
+            let authoredTrust = authored.map(\.trust).max() ?? 0
+            let authoredWeight = authored.map(\.narrativeWeight).max() ?? 0
+            let warmth = tie.warmth + authoredWarmth + authoredTrust / 2
+            let tension = tie.tension + authoredTension
+            let familiarity = tie.familiarity + authoredWeight / 6
+            let dynamicShift = abs(tie.warmth) + tie.tension + tie.familiarity
+
+            if tension > warmth, tension >= 5, dynamicShift > 0 {
+                candidates.append(Candidate(
+                    kind: .rivalry,
+                    line: "[Contrast: You have grown tense with \(other.name) lately. Mention one brief, concrete annoyance or wary observation about them in passing, if it fits.]",
+                    score: tension + dynamicShift,
+                    otherName: other.name
+                ))
+            } else if warmth >= 5, warmth > tension, familiarity >= 2 {
+                candidates.append(Candidate(
+                    kind: .alliance,
+                    line: "[Alliance: You are close with \(other.name) lately. Mention one small kindness, shared clue, or coordinated observation from them in passing, if it fits.]",
+                    score: warmth + familiarity + dynamicShift,
+                    otherName: other.name
+                ))
+            }
+        }
+
+        let contrasts = candidates
+            .filter { $0.kind == .rivalry }
+            .sorted { left, right in
+                if left.score == right.score { return left.otherName < right.otherName }
+                return left.score > right.score
+            }
+            .prefix(1)
+            .map(\.line)
+        let alliances = candidates
+            .filter { $0.kind == .alliance }
+            .sorted { left, right in
+                if left.score == right.score { return left.otherName < right.otherName }
+                return left.score > right.score
+            }
+            .prefix(1)
+            .map(\.line)
+        return Array(contrasts + alliances).prefix(2).map(\.self)
     }
 
     /// The oblique memory line recorded when the reader writes back to a sender.
@@ -4334,9 +4422,15 @@ struct PlayfulMission: Identifiable, Equatable {
 
 enum PlayfulMissionRegistry {
     static func mission(for day: BookDay, inputs: BookSourceInputs, now: Date = Date(), shadowVariant: Bool = false) -> PlayfulMission {
-        let missions = rankedMissions(for: day, inputs: inputs, now: now, shadowVariant: shadowVariant)
         let slot = SurfaceCadence.slotID(for: now, hours: 2)
         let seed = abs("\(day.id)-\(slot)-playful-mission".stableHash)
+        if !shadowVariant {
+            let phenomena = naturalPhenomenonMissions(inputs: inputs, now: now)
+            if !phenomena.isEmpty {
+                return phenomena[seed % phenomena.count]
+            }
+        }
+        let missions = rankedMissions(for: day, inputs: inputs, now: now, shadowVariant: shadowVariant)
         if shadowVariant, ShadowWonder.state(inputs: inputs, now: now).isActive {
             let shadowMissions = missions.filter { $0.tags.map { $0.lowercased() }.contains("shadow-wonder") }
             if !shadowMissions.isEmpty {
@@ -4348,6 +4442,71 @@ enum PlayfulMissionRegistry {
             }
         }
         return missions[seed % missions.count]
+    }
+
+    private static func naturalPhenomenonMissions(inputs: BookSourceInputs, now: Date) -> [PlayfulMission] {
+        var result: [PlayfulMission] = []
+        let moon = MoonPhaseCalendar.phase(on: now)
+        if moon.name == "Waning Gibbous" {
+            result.append(mission(
+                "moon-waning-gibbous-shadow",
+                "Moon Shadow Errand",
+                "Tonight, if the moon is visible, find one shadow it casts. If it hides, find the place where moonlight would have landed.",
+                "Write the moon-shadow, or the place it would have touched.",
+                ["natural-phenomenon", "moon", "waning-gibbous", "shadow", "night", "outside"]
+            ))
+        }
+
+        let weatherText = [inputs.weather?.phrase, inputs.weather?.forecast, inputs.enchantedWeather?.summary]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: " ")
+        if containsAny(weatherText, ["pressure drop", "dropping pressure", "falling pressure", "storm", "thunder", "squall", "front", "gust"]) {
+            result.append(mission(
+                "storm-wind-shift",
+                "Wind Change Watch",
+                "Step to a safe outside threshold, close your eyes, and listen for the exact moment the wind changes direction or argues with itself.",
+                "Write the wind's change: direction, sound, or first clue.",
+                ["natural-phenomenon", "weather", "storm", "wind", "sound", "outside"],
+                allowsPhoto: false
+            ))
+        }
+
+        let placeText = placeEvidenceText(inputs: inputs)
+        if containsAny(placeText, ["harbor", "river", "lake", "pond", "creek", "stream", "water", "waterfront", "shore", "beach", "bay", "marina", "bridge"]) {
+            result.append(mission(
+                "water-flow-low-point",
+                "Water Chooses Down",
+                "Find the highest or lowest physical point nearby, then look for which way water would travel from there.",
+                "Write the point you chose and the direction water would go.",
+                ["natural-phenomenon", "water", "place", "outside", "movement"]
+            ))
+        } else if containsAny(placeText, ["hill", "ridge", "mountain", "trail", "overlook", "stairs", "elevator", "slope", "summit", "valley"]) {
+            result.append(mission(
+                "altitude-nearby-point",
+                "High Low Reading",
+                "Find the highest or lowest physical point nearby. Stand there for ten seconds and decide what the place is sending downhill.",
+                "Write the point and what seems to move away from it.",
+                ["natural-phenomenon", "altitude", "place", "outside", "movement"],
+                allowsPhoto: false
+            ))
+        }
+
+        return result
+    }
+
+    private static func containsAny(_ haystack: String, _ needles: [String]) -> Bool {
+        needles.contains { haystack.contains($0) }
+    }
+
+    private static func placeEvidenceText(inputs: BookSourceInputs) -> String {
+        let nearby = inputs.nearbyPlaces
+            .map { "\($0.name) \($0.category) \($0.locality)" }
+            .joined(separator: " ")
+        let anchor = inputs.nearbyAnchor.map { proximity in
+            let anchor = proximity.anchor
+            return "\(anchor.name) \(anchor.kind.rawValue) \(anchor.weather) \(anchor.playerWords) \(anchor.localRule)"
+        } ?? ""
+        return "\(nearby) \(anchor)".lowercased()
     }
 
     private static func rankedMissions(for day: BookDay, inputs: BookSourceInputs, now: Date, shadowVariant: Bool) -> [PlayfulMission] {
