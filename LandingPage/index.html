@@ -74,7 +74,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./styles.css?v=23">
+    <link rel="stylesheet" href="./styles.css?v=26">
   </head>
   <body>
     <canvas id="spell-field" aria-hidden="true"></canvas>
@@ -177,8 +177,8 @@
         <div class="hero-copy">
           <p class="hero-problem">
             <span class="hero-problem-line">
-              Same commute. Same gray hours. Another day slipping past
-              unnoticed - nothing that felt worth remembering.
+              Same alarm. Same boring hours. Another night asking
+              "what did I even do today?" - nothing that felt worth remembering.
             </span>
             <span class="hero-problem-belief">Your life isn't actually that forgettable…</span>
           </p>
@@ -594,10 +594,10 @@
         <div class="toc-leaf">
           <header class="toc-head">
             <p class="toc-eyebrow">Table of contents</p>
-            <h2 id="toc-title">The Book goes deeper.</h2>
+            <h2 id="toc-title">When you have energy or interest, there are deeper doors.</h2>
             <p class="toc-sub">
-              One scroll can't hold all of it. Open the chapters that call to
-              you - each one unfolds right here.
+              Nothing here is required on the first visit. Open only the chapters
+              that call to you - each one unfolds right here.
             </p>
           </header>
           <div class="toc-rows">
@@ -631,11 +631,12 @@
       <section id="pages" class="pagetypes-section" data-drawer>
         <div class="section-head">
           <p class="eyebrow">Included free - no packs required</p>
-          <h2>Over <span class="pagetypes-count">50</span> kinds of page.</h2>
+          <h2>More doors, when you want them.</h2>
           <p class="section-sub">
-            Every day, the Book offers you a deck of different page types to play
-            with and keep. They ship in the base game, free forever - from quiet
-            logs to playful little games. Here are a few of them.
+            You never need to open them all. When you have energy or interest,
+            the base Book offers over <span class="pagetypes-count">50</span>
+            kinds of page to play with and keep - from quiet logs to playful
+            little games. Here are a few of them.
           </p>
         </div>
         <ul class="pagetypes-grid">
@@ -1082,8 +1083,9 @@
           <p class="eyebrow">ReEnchanted Radio</p>
           <h2>Dial in. Let the signal color the day.</h2>
           <p class="section-sub">
-            An analog station page for Academy broadcasts, music packs, and world
-            effects. Turn the dial, find a frequency, and go <em>on air</em>.
+            An optional analog station page for Academy broadcasts, music packs,
+            and world effects. When you want the shelves to have a soundtrack,
+            turn the dial, find a frequency, and go <em>on air</em>.
           </p>
         </div>
 
@@ -1190,11 +1192,11 @@
       <section id="packs" class="packs-section" data-drawer>
         <div class="section-head">
           <p class="eyebrow">The shelf keeps growing</p>
-          <h2>Content packs: new everything.</h2>
+          <h2>Content packs: optional doors.</h2>
           <p class="section-sub">
             Themed expansions that drop a whole world into the Book at once - and the
             Academy itself shifts week to week. The base game stays whole; packs are
-            for when you want more to keep.
+            for later, when you want more to keep.
           </p>
         </div>
 
@@ -1405,6 +1407,56 @@
       </aside>
     </footer>
 
+    <button class="feedback-tab" id="feedback-tab" type="button" aria-controls="feedback-board" aria-expanded="false">
+      <span class="feedback-tab-mark" aria-hidden="true">✎</span>
+      <span>Feedback</span>
+    </button>
+
+    <aside class="feedback-board" id="feedback-board" aria-labelledby="feedback-title" hidden>
+      <div class="feedback-panel">
+        <div class="feedback-head">
+          <p class="feedback-kicker">Quiet corner</p>
+          <h2 id="feedback-title">Feedback Board</h2>
+          <button class="feedback-close" id="feedback-close" type="button" aria-label="Close feedback board">×</button>
+        </div>
+        <p class="feedback-intro">
+          Send feedback about the ReEnchanted app. GitHub is best for bugs and feature ideas.
+          Email is best if you need a reply or TestFlight help.
+        </p>
+        <div class="feedback-lanes" aria-label="Feedback lanes">
+          <a class="feedback-lane" href="https://github.com/teign07/ReEnchanted/issues/new?title=App%20bug%3A%20&body=Where%20in%20the%20app%3A%0A%0AWhat%20happened%3A%0A%0AWhat%20I%20expected%3A%0A%0ADevice%20%2F%20iOS%20version%3A%0A" target="_blank" rel="noopener">
+            <span>01</span>
+            <strong>Report a bug</strong>
+            <small>Something in the app broke, crashed, disappeared, or acted wrong.</small>
+          </a>
+          <a class="feedback-lane" href="https://github.com/teign07/ReEnchanted/issues/new?title=App%20feature%20wish%3A%20&body=I%20wish%20ReEnchanted%20could%3A%0A%0AWhy%20it%20would%20matter%3A%0A%0AWhere%20I%20expected%20to%20find%20it%20in%20the%20app%3A%0A" target="_blank" rel="noopener">
+            <span>02</span>
+            <strong>Suggest a feature</strong>
+            <small>You want the app to add, change, or improve something.</small>
+          </a>
+          <a class="feedback-lane" href="mailto:hello@reenchanted.app?subject=ReEnchanted%20TestFlight%20or%20app%20feedback&body=What%20I%20need%20help%20with%3A%0A%0ADevice%20%2F%20iOS%20version%3A%0A%0AAnything%20else%3A%0A">
+            <span>03</span>
+            <strong>Get TestFlight help</strong>
+            <small>Email me if you need an invite, install help, or a private reply.</small>
+          </a>
+          <a class="feedback-lane" href="https://github.com/teign07/ReEnchanted/issues/new?title=Website%20feedback%3A%20&body=This%20part%20worked%20for%20me%20%2F%20lost%20me%3A%0A%0AThe%20line%20or%20section%3A%0A%0AWhat%20I%20wanted%20next%3A%0A" target="_blank" rel="noopener">
+            <span>04</span>
+            <strong>Website feedback</strong>
+            <small>Something on this page is confusing, broken, or could be clearer.</small>
+          </a>
+        </div>
+        <form class="feedback-draft" id="feedback-draft">
+          <label for="feedback-note">Write a note</label>
+          <textarea id="feedback-note" rows="4" maxlength="900" placeholder="What happened? What did you expect?"></textarea>
+          <div class="feedback-actions">
+            <span id="feedback-count">0 / 900</span>
+            <a class="feedback-submit" id="feedback-submit" href="https://github.com/teign07/ReEnchanted/issues/new" target="_blank" rel="noopener">Open draft on GitHub</a>
+            <a class="feedback-submit feedback-submit-secondary" id="feedback-email" href="mailto:hello@reenchanted.app">Email hello@reenchanted.app</a>
+          </div>
+        </form>
+      </div>
+    </aside>
+
     <div class="dedication-modal" id="dedication-modal" role="dialog" aria-modal="true" aria-labelledby="dedication-title" hidden>
       <div class="dedication-backdrop" data-dedication-close></div>
       <section class="dedication-panel" aria-describedby="dedication-copy">
@@ -1488,6 +1540,6 @@
         });
       })();
     </script>
-    <script src="./app.js?v=49"></script>
+    <script src="./app.js?v=52"></script>
   </body>
 </html>

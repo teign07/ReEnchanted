@@ -78,5 +78,33 @@ SRC_SHA="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknow
 DIRTY=""
 git -C "$REPO_ROOT" diff --quiet -- LandingPage/ 2>/dev/null || DIRTY=" +uncommitted"
 git commit --quiet -m "Sync landing site from ReEnchanted@${SRC_SHA}${DIRTY}"
+DEPLOY_SHA="$(git rev-parse HEAD)"
 git push --quiet origin "$DEPLOY_BRANCH"
-echo "✓ Published. GitHub Pages workflow will deploy https://reenchanted.app shortly."
+echo "✓ Published mirror commit ${DEPLOY_SHA:0:7}. Waiting for GitHub Pages ..."
+
+RUN_ID=""
+RUN_URL=""
+RUN_STATUS=""
+RUN_CONCLUSION=""
+for _ in {1..40}; do
+  RUN_JSON="$(gh api "repos/$DEPLOY_REPO/actions/runs?branch=$DEPLOY_BRANCH&head_sha=$DEPLOY_SHA&per_page=1" 2>/dev/null || true)"
+  RUN_ID="$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); r=(d.get("workflow_runs") or [{}])[0]; print(r.get("id",""))' 2>/dev/null || true)"
+  RUN_URL="$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); r=(d.get("workflow_runs") or [{}])[0]; print(r.get("html_url",""))' 2>/dev/null || true)"
+  RUN_STATUS="$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); r=(d.get("workflow_runs") or [{}])[0]; print(r.get("status",""))' 2>/dev/null || true)"
+  RUN_CONCLUSION="$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); r=(d.get("workflow_runs") or [{}])[0]; print(r.get("conclusion",""))' 2>/dev/null || true)"
+
+  if [[ "$RUN_STATUS" == "completed" ]]; then
+    if [[ "$RUN_CONCLUSION" == "success" ]]; then
+      echo "✓ GitHub Pages deployed https://reenchanted.app"
+      exit 0
+    fi
+    echo "error: GitHub Pages workflow failed (${RUN_CONCLUSION:-unknown})." >&2
+    [[ -n "$RUN_URL" ]] && echo "See: $RUN_URL" >&2
+    exit 1
+  fi
+  sleep 5
+done
+
+echo "warning: timed out waiting for GitHub Pages workflow." >&2
+[[ -n "$RUN_URL" ]] && echo "Still running: $RUN_URL" >&2
+exit 1
