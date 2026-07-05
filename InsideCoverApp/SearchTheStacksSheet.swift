@@ -97,11 +97,18 @@ struct SearchTheStacksSheet: View {
             .task(id: query) {
                 try? await Task.sleep(for: .milliseconds(220))
                 guard !Task.isCancelled else { return }
+                let searchQuery = query
+                guard !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    results = []
+                    return
+                }
                 if interpretedTerms.isEmpty == false {
                     interpretedTerms = []
                     interpretationNote = ""
                 }
-                results = StacksSearchEngine.hybridSearch(query, in: dataset)
+                let found = await searchResults(for: searchQuery)
+                guard !Task.isCancelled else { return }
+                results = found
             }
             .onAppear {
                 searchFocused = true
@@ -252,8 +259,15 @@ struct SearchTheStacksSheet: View {
         interpretedTerms = terms
         interpretationNote = JSONSalvage.string("note", in: raw)
             ?? "The Book read it as: \(terms.joined(separator: ", "))"
-        results = StacksSearchEngine.hybridSearch(query, in: dataset, extraTerms: terms)
+        results = await searchResults(for: query, extraTerms: terms)
         BookFeedback.play(.sourceRefresh)
+    }
+
+    private func searchResults(for query: String, extraTerms: [String] = []) async -> [StacksSearchResult] {
+        let snapshot = dataset
+        return await Task.detached(priority: .userInitiated) {
+            StacksSearchEngine.hybridSearch(query, in: snapshot, extraTerms: extraTerms)
+        }.value
     }
 }
 

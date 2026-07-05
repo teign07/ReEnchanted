@@ -89,6 +89,12 @@ struct StacksSearchDocument: Identifiable, Equatable {
     var searchableText: String {
         [kind.title, title, body].joined(separator: "\n")
     }
+
+    var semanticText: String {
+        let text = searchableText
+        guard text.count > 1_800 else { return text }
+        return String(text.prefix(1_800))
+    }
 }
 
 struct StacksSearchLink: Equatable {
@@ -116,15 +122,16 @@ protocol StacksSemanticScoring {
 struct NaturalLanguageStacksEmbeddingScorer: StacksSemanticScoring {
     let language: NLLanguage
     let modelID: String
+    private let embedding: NLEmbedding
 
     init?(language: NLLanguage = .english) {
-        guard NLEmbedding.sentenceEmbedding(for: language) != nil else { return nil }
+        guard let embedding = NLEmbedding.sentenceEmbedding(for: language) else { return nil }
         self.language = language
         self.modelID = "NaturalLanguage.sentenceEmbedding.\(language.rawValue)"
+        self.embedding = embedding
     }
 
     func similarity(between query: String, and document: String) -> Double? {
-        guard let embedding = NLEmbedding.sentenceEmbedding(for: language) else { return nil }
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedDocument = document.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty, !trimmedDocument.isEmpty else { return nil }
@@ -230,6 +237,7 @@ struct StacksQuery: Equatable {
 
 enum StacksSearchEngine {
     static let semanticScoreThreshold = 0.24
+    static let minimumSemanticQueryLength = 4
 
     static func search(
         _ raw: String,
@@ -275,7 +283,8 @@ enum StacksSearchEngine {
         semanticScorer: StacksSemanticScoring? = defaultSemanticScorer()
     ) -> [StacksSearchResult] {
         let lexicalResults = search(raw, in: dataset, extraTerms: extraTerms, now: now, limit: limit)
-        guard let semanticScorer else { return lexicalResults }
+        guard shouldRunSemanticSearch(raw, extraTerms: extraTerms),
+              let semanticScorer else { return lexicalResults }
 
         let graph = buildSearchGraph(from: dataset, now: now)
         var resultsByID = Dictionary(uniqueKeysWithValues: lexicalResults.map { ($0.id, $0) })
@@ -283,7 +292,7 @@ enum StacksSearchEngine {
         let lexicalIDs = Set(lexicalResults.map(\.id))
 
         for document in graph.documents {
-            guard let similarity = semanticScorer.similarity(between: queryText, and: document.searchableText),
+            guard let similarity = semanticScorer.similarity(between: queryText, and: document.semanticText),
                   similarity >= semanticScoreThreshold else { continue }
             let semanticScore = Int((similarity * 34).rounded())
             let connectionBoost = connectionBoost(for: document.id, links: graph.links, alreadyMatched: lexicalIDs)
@@ -504,6 +513,13 @@ enum StacksSearchEngine {
         #else
         return nil
         #endif
+    }
+
+    private static func shouldRunSemanticSearch(_ raw: String, extraTerms: [String]) -> Bool {
+        let queryText = ([raw] + extraTerms).joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let meaningfulCharacters = queryText.filter { $0.isLetter || $0.isNumber }
+        return meaningfulCharacters.count >= minimumSemanticQueryLength
     }
 
     // MARK: Kept pages (with mood day-correlation)
