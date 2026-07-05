@@ -4549,6 +4549,22 @@ struct PageVisualStyle {
                 watermarkMarginalia: "MarginaliaCompass",
                 watermarkOpacity: 0.13
             )
+        case .plainPage:
+            // Deliberately the plainest surface in the Book: muted paper, the
+            // faintest watermark. The sacred dumb door should not look enchanted.
+            return PageVisualStyle(
+                accent: Color(red: 0.34, green: 0.32, blue: 0.30),
+                symbolColor: Color(red: 0.34, green: 0.32, blue: 0.30),
+                paperTop: Color(red: 0.95, green: 0.93, blue: 0.87),
+                paperMiddle: Color(red: 0.88, green: 0.85, blue: 0.78),
+                paperBottom: Color(red: 0.72, green: 0.68, blue: 0.62),
+                scrapColor: Color(red: 0.90, green: 0.87, blue: 0.80),
+                sideMarginalia: "IlluminationScrapS02_08",
+                cornerMarginalia: "IlluminationScrapS03_12",
+                smallMarginalia: "IlluminationScrapS01_08",
+                watermarkMarginalia: "IlluminationScrapS02_13",
+                watermarkOpacity: 0.05
+            )
         case .diary:
             return PageVisualStyle(
                 accent: Color(red: 0.42, green: 0.31, blue: 0.54),

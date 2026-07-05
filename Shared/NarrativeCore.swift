@@ -3348,7 +3348,7 @@ enum NarrativeEventResolver {
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 1
             createdHint = "A ruled word enters the reader's Lexicon and can bend future sentences."
-        case .location, .lore, .patreon, .bookOfYou, .packPage, .calendar, .helpTips, .welcome, .bindery:
+        case .location, .lore, .patreon, .bookOfYou, .packPage, .calendar, .helpTips, .welcome, .bindery, .plainPage:
             break
         }
 

@@ -367,6 +367,9 @@ struct ContentView: View {
     @State var currentStall: GoblinStall?
     @State var isPactMapPresented = false
     @State var isLocationSealChoicesPresented = false
+    @State var isInputChoicesPresented = false
+    @State var isPlainPagePresented = false
+    @State var plainPageAutoRecord = false
     @State var busySealID: String?
     @State var bannerSeed = Int.random(in: 0..<10_000)
     @State var openingVoiceSeed = Int.random(in: 0..<10_000)
@@ -1080,6 +1083,33 @@ struct ContentView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Choose what the Location seal should read.")
+            }
+            .confirmationDialog(
+                "Add to the Book",
+                isPresented: $isInputChoicesPresented,
+                titleVisibility: .visible
+            ) {
+                Button("Photo") {
+                    Task { await pressGlassSeal() }
+                }
+                Button("Text") {
+                    plainPageAutoRecord = false
+                    isPlainPagePresented = true
+                }
+                Button("Audio") {
+                    plainPageAutoRecord = true
+                    isPlainPagePresented = true
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("No prompt, no magic — just put it here.")
+            }
+            .sheet(isPresented: $isPlainPagePresented) {
+                PlainPageSheet(autoRecord: plainPageAutoRecord) { text, media in
+                    keepPlainPage(text: text, media: media)
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $isSourceSettingsPresented) {
                 SourceSettingsSheet(
@@ -4809,6 +4839,29 @@ struct ContentView: View {
         let keptMessage = keepNote == nil ? "\(baseKeptMessage) \(afterglowLine)" : baseKeptMessage
         persist(day: day, message: keptMessage)
         retireKeptSurfaceFromRising(surface)
+    }
+
+    /// The sacred dumb door's keep: saves a Plain Page *quietly*. Unlike
+    /// `savePage`, it summons no cast voice, no belief ripple, no afterglow —
+    /// the entry moment is not processed. The page still enters the archive as
+    /// a real `.plainPage`, so the magic can find it later, if ever.
+    func keepPlainPage(text: String, media: [BookPageMediaAsset]) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty || !media.isEmpty else { return }
+        BookFeedback.play(.keepPage)
+        let page = BookPage(
+            type: .plainPage,
+            promptText: "",
+            userInput: trimmed,
+            tags: ["plain", "unsorted", "private"],
+            sourceID: "plain-page",
+            origin: .userAuthored,
+            privacy: .privateLocal,
+            mediaAssets: media
+        )
+        var day = today
+        day.pages.append(page)
+        persist(day: day, message: "Tucked into the Book, unsorted.")
     }
 
     /// The reader's living Lexicon, hoisted out of the view body so the

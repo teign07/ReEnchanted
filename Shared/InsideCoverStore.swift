@@ -1644,6 +1644,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "an unnamed inner weather" : "an inner weather of \(clipped)"
         case .diary:
             return clipped.isEmpty ? "a diary page held open" : "a diary page saying \(clipped)"
+        case .plainPage:
+            return clipped.isEmpty ? "a plain page, unsorted" : "a plain page saying \(clipped)"
         case .souvenir:
             return clipped.isEmpty ? "a souvenir still forming" : "a souvenir about \(clipped)"
         case .rest:

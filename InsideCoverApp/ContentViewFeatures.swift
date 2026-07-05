@@ -16,7 +16,7 @@ extension ContentView {
                 wax: Color(red: 0.20, green: 0.34, blue: 0.48),
                 seed: 29,
                 isBusy: busySealID == "camera",
-                action: { Task { await pressGlassSeal() } }
+                action: { presentInputChoices() }
             )
             MarginaliaSealButton(
                 title: "Body",
@@ -97,6 +97,15 @@ extension ContentView {
         BookFeedback.play(.tap)
         tutorTouch("seal-location")
         isLocationSealChoicesPresented = true
+    }
+
+    /// The Camera seal is really the "add anything" door: photo, plain text, or
+    /// voice. Tapping it fans out into those three, mirroring the Location seal.
+    func presentInputChoices() {
+        guard busySealID == nil else { return }
+        BookFeedback.play(.tap)
+        tutorTouch("seal-camera")
+        isInputChoicesPresented = true
     }
 
     @MainActor
@@ -2192,5 +2201,126 @@ extension ContentView {
                 }
             }
         }
+    }
+}
+
+// MARK: - Plain Page: the sacred dumb door
+//
+// One tap from the Camera seal. No prompt, no framing, no cast voice. The
+// reader writes (or speaks) anything; on Keep it enters the archive as an
+// unprocessed `.plainPage`. Deliberately does NOT reuse CapturePageSheet — the
+// whole point is that the entry moment is not enchanted.
+struct PlainPageSheet: View {
+    let autoRecord: Bool
+    let onKeep: (String, [BookPageMediaAsset]) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var recorder = KeptVoiceRecorder()
+    @State private var text = ""
+    @State private var voiceAsset: BookPageMediaAsset?
+    @State private var voiceMessage: String?
+    @FocusState private var isWriting: Bool
+
+    private var canKeep: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || voiceAsset != nil
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 14) {
+                ZStack(alignment: .topLeading) {
+                    if text.isEmpty {
+                        Text("…")
+                            .font(.system(.title3, design: .serif))
+                            .foregroundStyle(BookPalette.ink.opacity(0.28))
+                            .padding(.top, 8)
+                            .padding(.leading, 5)
+                    }
+                    TextEditor(text: $text)
+                        .font(.system(.title3, design: .serif))
+                        .foregroundStyle(BookPalette.ink)
+                        .scrollContentBackground(.hidden)
+                        .focused($isWriting)
+                }
+
+                if let voiceMessage {
+                    Label(voiceMessage, systemImage: "waveform")
+                        .font(.footnote)
+                        .foregroundStyle(BookPalette.teal)
+                }
+
+                HStack(spacing: 12) {
+                    Button {
+                        toggleRecording()
+                    } label: {
+                        Label(
+                            recorder.isRecording ? "Stop (\(Self.duration(recorder.elapsed)))" : "Speak",
+                            systemImage: recorder.isRecording ? "stop.circle.fill" : "mic.circle"
+                        )
+                    }
+                    .tint(recorder.isRecording ? BookPalette.lampGold : BookPalette.teal)
+
+                    Spacer()
+
+                    Button("Keep") {
+                        if recorder.isRecording { toggleRecording() }
+                        onKeep(text, voiceAsset.map { [$0] } ?? [])
+                        dismiss()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(BookPalette.teal)
+                    .disabled(!canKeep)
+                }
+            }
+            .padding(20)
+            .background(BookPalette.paper)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        recorder.discard()
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .onAppear {
+            if autoRecord {
+                toggleRecording()
+            } else {
+                isWriting = true
+            }
+        }
+    }
+
+    private func toggleRecording() {
+        if recorder.isRecording {
+            if let url = recorder.stop() {
+                voiceAsset = BookPageMediaAsset(
+                    kind: .audioFile,
+                    reference: url.path,
+                    caption: "",
+                    sourceID: "plain-page",
+                    metadata: ["keptVoice": "true"]
+                )
+                voiceMessage = "Voice kept."
+                BookFeedback.play(.keepPage)
+            } else {
+                voiceMessage = "Nothing was recorded."
+            }
+        } else {
+            voiceAsset = nil
+            voiceMessage = nil
+            BookFeedback.play(.tap)
+            if !recorder.start() {
+                voiceMessage = "The microphone could not start."
+            }
+        }
+    }
+
+    private static func duration(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds.rounded())
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 }

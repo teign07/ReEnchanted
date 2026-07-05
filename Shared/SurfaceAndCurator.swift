@@ -402,7 +402,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .simulate
         case .gossip:
             return .simulate
-        case .mood, .diary, .souvenir, .aboutYou:
+        case .mood, .diary, .souvenir, .aboutYou, .plainPage:
             return .capture
         }
     }

@@ -55,6 +55,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case inventory
     case bindery
     case bookPocket
+    /// The sacred dumb door: a promptless "just write" page. Never surfaced by
+    /// the curator — it exists only when the reader opens it by hand. Enters the
+    /// archive unprocessed; the magic can find it later, if ever.
+    case plainPage
 
     var id: String { rawValue }
 
@@ -187,6 +191,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "The Bindery"
         case .bookPocket:
             return "The Book's Pocket"
+        case .plainPage:
+            return "Plain Page"
         }
     }
 
@@ -298,6 +304,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Bindery"
         case .bookPocket:
             return "Pocket"
+        case .plainPage:
+            return "Plain"
         }
     }
 
@@ -409,6 +417,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "books.vertical.fill"
         case .bookPocket:
             return "bag.fill"
+        case .plainPage:
+            return "square.and.pencil"
         }
     }
 }
@@ -521,6 +531,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "manual",
             note: "What is happening inside this exact moment."
+        ),
+        BookPageSource(
+            id: "plain-page",
+            type: .plainPage,
+            title: "Plain Page",
+            shortTitle: "Plain",
+            symbolName: "square.and.pencil",
+            origin: .userAuthored,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "manual",
+            note: "Write anything. No prompt. No consequence."
         ),
         BookPageSource(
             id: "one-sentence-souvenir",
@@ -1196,6 +1218,8 @@ enum BookPageSourceRegistry {
             return 26
         case .quip, .location, .patreon:
             return 18
+        case .plainPage:
+            return 18
         }
     }
 
@@ -1242,6 +1266,8 @@ enum BookPageSourceRegistry {
         case .calendar:
             return 22
         case .quip, .location, .patreon:
+            return 14
+        case .plainPage:
             return 14
         }
     }
