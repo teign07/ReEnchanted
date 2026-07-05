@@ -2652,11 +2652,9 @@ final class BookCuratorTests: XCTestCase {
     }
 
     private func localDate(hour: Int, minute: Int = 0) -> Date {
-        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-        components.hour = hour
-        components.minute = minute
-        components.second = 0
-        return Calendar.current.date(from: components) ?? Date()
+        // Pinned to a fixed calendar day so curator ranking/variety/almanac
+        // rotation is deterministic regardless of the real system date.
+        localDate(year: 2026, month: 1, day: 15, hour: hour, minute: minute)
     }
 
     private func localDate(year: Int, month: Int, day: Int, hour: Int, minute: Int = 0) -> Date {
