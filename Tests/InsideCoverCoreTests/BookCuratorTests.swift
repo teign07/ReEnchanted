@@ -662,6 +662,57 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(midday.first?.payload.metadata["checkInWindowID"], "midday")
     }
 
+    func testGreyPressureAddsOneSentenceSouvenirVariant() {
+        let adapter = SouvenirPageSourceAdapter()
+        let day = BookDay(id: "2026-06-01", date: localDate(hour: 0), pages: [])
+        var inputs = richInputs()
+        inputs.quietDays = 3
+        inputs.narrative = NarrativeSourceSnapshot(activeThreadCount: 0, relationshipCount: 0, beliefWeight: 0)
+
+        let pages = adapter.candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: localDate(hour: 13)
+        )
+
+        let grey = pages.first { $0.payload.metadata["variant"] == "grey-edge" }
+        XCTAssertEqual(grey?.type, .souvenir)
+        XCTAssertEqual(grey?.payload.metadata["checkInWindowID"], "midday")
+        XCTAssertTrue(grey?.prompt.contains("one true detail") == true)
+        XCTAssertGreaterThan(grey?.score ?? 0, pages.first { $0.payload.metadata["variant"] == nil }?.score ?? 0)
+    }
+
+    func testGreyPressureSouvenirDoesNotAppearAfterWindowSouvenirIsKept() {
+        let adapter = SouvenirPageSourceAdapter()
+        let day = BookDay(
+            id: "2026-06-01",
+            date: localDate(hour: 0),
+            pages: [
+                BookPage(
+                    id: "midday-souvenir",
+                    type: .souvenir,
+                    createdAt: localDate(hour: 13, minute: 5),
+                    promptText: "Name one true detail within reach.",
+                    userInput: "The spoon flashed once in the sink.",
+                    tags: ["souvenir", "grey-edge", "check-in-window:midday"]
+                )
+            ]
+        )
+        var inputs = richInputs()
+        inputs.quietDays = 3
+        inputs.narrative = NarrativeSourceSnapshot(activeThreadCount: 0, relationshipCount: 0, beliefWeight: 0)
+
+        let pages = adapter.candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: localDate(hour: 13, minute: 30)
+        )
+
+        XCTAssertTrue(pages.isEmpty)
+    }
+
     func testBookRememberedSurfacesOldPageWhenTodayRhymes() {
         let now = localDate(hour: 9, minute: 15)
         let oldDate = Calendar.current.date(byAdding: .day, value: -180, to: now) ?? now.addingTimeInterval(-180 * 24 * 3600)
@@ -2633,6 +2684,148 @@ final class BookCuratorTests: XCTestCase {
         for type in types where type != expected {
             XCTAssertEqual(boosts[type], -18, file: file, line: line)
         }
+    }
+
+    func testReaderLearningCanLiftKeptPageType() {
+        let now = localDate(hour: 14, minute: 0)
+        let diary = SurfacePage(
+            id: "diary-learning",
+            type: .diary,
+            sourceID: "diary-page",
+            intent: .capture,
+            renderStyle: .promptCard,
+            score: 50,
+            prompt: "Diary",
+            detail: "Diary",
+            payload: BookPagePayload(headline: "Diary", body: "Diary", metadata: ["tags": "sensory,home"])
+        )
+        let lore = SurfacePage(
+            id: "lore-learning",
+            type: .lore,
+            sourceID: "labyrinth-lore",
+            intent: .importReference,
+            renderStyle: .loreLetter,
+            score: 54,
+            prompt: "Lore",
+            detail: "Lore",
+            payload: BookPagePayload(headline: "Lore", body: "Lore")
+        )
+        var learning = ReaderLearningModel()
+        for offset in 0..<3 {
+            learning.record(
+                ReaderLearningEvent(
+                    dayID: "2026-07-0\(offset + 1)",
+                    occurredAt: now.addingTimeInterval(Double(offset) * 60),
+                    action: .kept,
+                    surfaceID: diary.id,
+                    sourceID: diary.sourceID,
+                    type: diary.type,
+                    varietyKey: diary.varietyKey,
+                    hour: 14,
+                    tags: diary.readerLearningTags,
+                    evidence: "A true kept diary page."
+                )
+            )
+        }
+
+        let ranked = BookCurator.rankedPages(
+            from: [lore, diary],
+            limit: 2,
+            preferences: CuratorSurfacePreferences(readerLearning: learning),
+            mood: .neutral,
+            now: now
+        )
+
+        XCTAssertEqual(ranked.first?.page.id, diary.id)
+    }
+
+    func testReaderLearningCoolsDismissedSource() {
+        let page = SurfacePage(
+            id: "fuel-learning",
+            type: .fuel,
+            sourceID: "fuel-log",
+            intent: .capture,
+            renderStyle: .promptCard,
+            score: 70,
+            prompt: "Fuel",
+            detail: "Fuel",
+            payload: BookPagePayload(headline: "Fuel", body: "Fuel", metadata: ["tags": "body"])
+        )
+        var learning = ReaderLearningModel()
+        for offset in 0..<2 {
+            learning.record(
+                ReaderLearningEvent(
+                    dayID: "2026-07-0\(offset + 1)",
+                    action: .dismissed,
+                    surfaceID: page.id,
+                    sourceID: page.sourceID,
+                    type: page.type,
+                    varietyKey: page.varietyKey,
+                    hour: 9,
+                    tags: page.readerLearningTags
+                )
+            )
+        }
+
+        let neutralScore = CuratorSurfacePreferences.none.adjustedScore(for: page)
+        let learnedScore = CuratorSurfacePreferences(readerLearning: learning).adjustedScore(for: page)
+
+        XCTAssertLessThan(learnedScore, neutralScore)
+    }
+
+    func testBookLearnsNoticeSurfacesReaderLearningInsights() throws {
+        let now = localDate(year: 2026, month: 7, day: 4, hour: 14)
+        let oldDay = BookDay(
+            id: "2026-07-03",
+            date: localDate(year: 2026, month: 7, day: 3, hour: 8),
+            pages: [
+                BookPage(type: .souvenir, createdAt: localDate(year: 2026, month: 7, day: 3, hour: 8), promptText: "p", userInput: "The cup warmed both hands."),
+                BookPage(type: .diary, createdAt: localDate(year: 2026, month: 7, day: 3, hour: 9), promptText: "p", userInput: "The hallway stayed quiet."),
+                BookPage(type: .mood, createdAt: localDate(year: 2026, month: 7, day: 3, hour: 10), promptText: "p", userInput: "Weather under the ribs."),
+                BookPage(type: .fuel, createdAt: localDate(year: 2026, month: 7, day: 3, hour: 11), promptText: "p", userInput: "Toast and coffee.")
+            ]
+        )
+        let today = BookDay(id: "2026-07-04", date: localDate(year: 2026, month: 7, day: 4, hour: 0), pages: [])
+        let page = SurfacePage(
+            id: "souvenir-learning",
+            type: .souvenir,
+            sourceID: "one-sentence-souvenir",
+            score: 50,
+            prompt: "Souvenir",
+            detail: "Souvenir",
+            payload: BookPagePayload(headline: "Souvenir", body: "Souvenir", metadata: ["tags": "sensory,home"])
+        )
+        var learning = ReaderLearningModel()
+        for offset in 0..<4 {
+            learning.record(
+                ReaderLearningEvent(
+                    dayID: oldDay.id,
+                    occurredAt: now.addingTimeInterval(Double(offset) * 60),
+                    action: .kept,
+                    surfaceID: page.id,
+                    sourceID: page.sourceID,
+                    type: page.type,
+                    varietyKey: page.varietyKey,
+                    hour: 14,
+                    tags: page.readerLearningTags
+                )
+            )
+        }
+        var inputs = BookSourceInputs.empty
+        inputs.days = [oldDay]
+        inputs.readerLearning = learning
+
+        let notices = BookNoticesPageSourceAdapter().candidates(
+            for: today,
+            context: CuratorContext.make(for: today),
+            inputs: inputs,
+            now: now
+        )
+        let learningNotice = try XCTUnwrap(notices.first { $0.payload.metadata["bookLearning"] == "true" })
+
+        XCTAssertEqual(learningNotice.payload.headline, "The Book Learns")
+        XCTAssertTrue(learningNotice.payload.body.contains("I should show my work."))
+        XCTAssertTrue(learningNotice.payload.metadata["learningInsights"]?.contains("Souvenir") == true)
     }
 
     private func rankedCandidate(_ type: BookPageType, score: Int) -> SurfacePage {

@@ -543,7 +543,7 @@ struct StatusBanner: View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(message)
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.86))
+                .foregroundStyle(BookPalette.nightText.opacity(0.94))
                 .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: 8)
@@ -560,11 +560,12 @@ struct StatusBanner: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(BookPalette.nightPanel.opacity(0.88), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(.white.opacity(0.12), lineWidth: 1)
+                .stroke(BookPalette.lampGold.opacity(0.26), lineWidth: 1)
         }
+        .shadow(color: .black.opacity(0.28), radius: 10, x: 0, y: 6)
     }
 }
 
@@ -1618,6 +1619,37 @@ struct KeepMarginNoteToast: View {
     }
 }
 
+/// The faint echo the retired keep toast leaves tucked at the page edge — the
+/// cast portrait and glyph only, dimmed, so the settled desk still remembers
+/// the keep without holding a full toast on screen.
+struct KeepMarginTrace: View {
+    let note: KeepMarginalia.Note
+
+    private var voice: KeepMarginalia.Voice? { KeepMarginalia.voice(forSlug: note.castSlug) }
+    private var accent: Color { voice.map { Color(bookHex: $0.accentHex) } ?? BookPalette.gold }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(note.assetName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 22, height: 22)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(accent.opacity(0.4), lineWidth: 1))
+            if let glyph = voice?.glyph {
+                Text(glyph)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(accent.opacity(0.7))
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(BookPalette.nightPanel.opacity(0.5), in: Capsule())
+        .opacity(0.66)
+        .accessibilityHidden(true)
+    }
+}
+
 /// From 8pm, the desk's evening resolution: a braid teaser on kept days, a
 /// lamplight note on unwritten ones.
 struct BraidEmberStatusCard: View {
@@ -1637,10 +1669,11 @@ struct BraidEmberStatusCard: View {
                 Text(ember.line)
                     .font(.system(.subheadline, design: .serif))
                     .italic()
+                    .foregroundStyle(BookPalette.nightText)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(ember.undertone)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.6))
             }
             Spacer(minLength: 0)
         }
@@ -1668,10 +1701,11 @@ struct WeeklySignatureCard: View {
                 Text(line)
                     .font(.system(.subheadline, design: .serif))
                     .italic()
+                    .foregroundStyle(BookPalette.nightText)
                     .fixedSize(horizontal: false, vertical: true)
                 Text("The Monthly Binding gathers its signatures.")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.6))
             }
             Spacer(minLength: 0)
         }
@@ -2083,21 +2117,48 @@ struct LocalBrainWorkingStatusCard: View {
             }
             .waitActivitySurface(accent: descriptor.accent)
         case .radio:
-            HStack(spacing: 10) {
-                Image(systemName: radioManager.isPlaying ? "dot.radiowaves.left.and.right" : "radio")
-                    .foregroundStyle(descriptor.accent)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(radioManager.isPlaying ? (radioManager.activeStation?.title ?? "ReEnchanted Radio") : "Let the Radio keep the room")
-                        .font(.caption.weight(.bold))
-                    Text(radioManager.isPlaying ? radioManager.statusLine : "One tap tunes Fae-Fi while the page writes.")
-                        .font(.caption2)
-                        .foregroundStyle(BookPalette.ink.opacity(0.58))
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    Image(systemName: radioManager.isPlaying ? "dot.radiowaves.left.and.right" : "radio")
+                        .foregroundStyle(descriptor.accent)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(radioManager.isPlaying ? (radioManager.activeStation?.title ?? "ReEnchanted Radio") : "Let the Radio keep the room")
+                            .font(.caption.weight(.bold))
+                        Text(radioManager.isPlaying ? radioManager.statusLine : "Pick a station while the page writes.")
+                            .font(.caption2)
+                            .foregroundStyle(BookPalette.ink.opacity(0.58))
+                    }
+                    Spacer()
+                    if radioManager.isPlaying {
+                        Button("Stop") { radioManager.stop() }
+                            .font(.caption2.weight(.bold))
+                            .buttonStyle(.bordered)
+                            .tint(descriptor.accent)
+                    }
                 }
-                Spacer()
-                Button(radioManager.isPlaying ? "Stop" : "Tune in") { toggleRadio() }
-                    .font(.caption2.weight(.bold))
-                    .buttonStyle(.bordered)
-                    .tint(descriptor.accent)
+
+                let stations = RadioStationRegistry.stations(
+                    unlockedPackIDs: Set(PlayerVault.shared.data.ownedPacks ?? [])
+                )
+                if !stations.isEmpty {
+                    HStack(spacing: 7) {
+                        ForEach(stations) { station in
+                            let isActive = radioManager.isPlaying
+                                && radioManager.activeStation?.id == station.id
+                            Button {
+                                tuneStation(station.id)
+                            } label: {
+                                Text(station.title)
+                                    .font(.caption2.weight(.bold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.72)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(isActive ? descriptor.accent : BookPalette.ink.opacity(0.62))
+                        }
+                    }
+                }
             }
             .waitActivitySurface(accent: descriptor.accent)
         case .reset:
@@ -2117,17 +2178,14 @@ struct LocalBrainWorkingStatusCard: View {
         return LoosePageReader.fragments[abs("scribe-wait-\(label)-\(loosePageSalt)".stableHash) % LoosePageReader.fragments.count]
     }
 
-    private func toggleRadio() {
-        if radioManager.isPlaying {
+    private func tuneStation(_ stationID: String) {
+        let unlocked = Set(PlayerVault.shared.data.ownedPacks ?? [])
+        // Tapping the station that's already on the air turns the radio off.
+        if radioManager.isPlaying, radioManager.activeStation?.id == stationID {
             radioManager.stop()
             return
         }
-        let unlocked = Set(PlayerVault.shared.data.ownedPacks ?? [])
-        let stationID = RadioStationRegistry.station(id: "fae-fi", unlockedPackIDs: unlocked)?.id
-            ?? RadioStationRegistry.stations(unlockedPackIDs: unlocked).first?.id
-        if let stationID {
-            radioManager.tune(stationID: stationID, unlockedPackIDs: unlocked)
-        }
+        radioManager.tune(stationID: stationID, unlockedPackIDs: unlocked)
     }
 }
 

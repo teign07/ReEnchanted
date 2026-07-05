@@ -147,7 +147,9 @@ private struct InkbonesThrowOverlay: View {
     }
 }
 
-private struct InkbonesPiece: View {
+/// One tumbling "bone" of the Inkbones belief-throw. Internal (not private) so
+/// the onboarding Wicker roll can reuse the same dice visual grammar.
+struct InkbonesPiece: View {
     let index: Int
     let thrown: Bool
     let reduceMotion: Bool
@@ -822,6 +824,11 @@ struct CapturePageSheet: View {
     @State private var illuminatedQuoteCardURL: URL?
     @State private var isPreparingQuoteCard = false
     @State private var quoteCardMessage = ""
+    @State private var bookOfYouShareCardURL: URL?
+    @State private var isPressingBookOfYouShareCard = false
+    @State private var bookOfYouShareMessage = ""
+    @State private var bookOfYouRevealVideoURL: URL?
+    @State private var isPressingBookOfYouRevealVideo = false
     @State private var inventoryRevision = 0
     @State private var inventoryMessage = ""
     @State private var inventoryUnspokenSentence = ""
@@ -1251,6 +1258,26 @@ struct CapturePageSheet: View {
             return nil
         }
         return illuminatedQuoteCardURL
+    }
+
+    private var bookOfYouPressedPageURL: URL? {
+        guard let bookOfYouShareCardURL,
+              FileManager.default.fileExists(atPath: bookOfYouShareCardURL.path) else {
+            return nil
+        }
+        return bookOfYouShareCardURL
+    }
+
+    private var bookOfYouPageRevealURL: URL? {
+        guard let bookOfYouRevealVideoURL,
+              FileManager.default.fileExists(atPath: bookOfYouRevealVideoURL.path) else {
+            return nil
+        }
+        return bookOfYouRevealVideoURL
+    }
+
+    private var canPressBookOfYouShareCard: Bool {
+        surface.type == .bookOfYou && BookOfYouShareArtifact.make(from: surface) != nil
     }
 
     private var canShareIlluminatedQuoteCard: Bool {
@@ -1684,7 +1711,9 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private var pageShareControl: some View {
-        if let artifactURL = illuminatedArtifactURL {
+        if surface.type == .bookOfYou {
+            bookOfYouPressedPageShareControl
+        } else if let artifactURL = illuminatedArtifactURL {
             ShareLink(item: artifactURL) {
                 Label("Share page", systemImage: "square.and.arrow.up")
                     .font(.subheadline.weight(.bold))
@@ -1759,6 +1788,110 @@ struct CapturePageSheet: View {
                     }
             }
             .foregroundStyle(BookPalette.lampGold)
+        }
+    }
+
+    @ViewBuilder
+    private var bookOfYouPressedPageShareControl: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let artifact = BookOfYouShareArtifact.make(from: surface) {
+                BookOfYouPressedPageSpotlight(
+                    artifact: artifact,
+                    isWorking: isPressingBookOfYouShareCard || isPressingBookOfYouRevealVideo
+                )
+            }
+
+            if let videoURL = bookOfYouPageRevealURL {
+                ShareLink(item: videoURL) {
+                    Label("Share page reveal", systemImage: "play.rectangle")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(BookPalette.lampGold.opacity(0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(BookPalette.lampGold.opacity(0.44), lineWidth: 1)
+                        }
+                }
+                .foregroundStyle(BookPalette.lampGold)
+            } else if canPressBookOfYouShareCard {
+                Button {
+                    Task { await prepareBookOfYouRevealVideo() }
+                } label: {
+                    Label(isPressingBookOfYouRevealVideo ? "Pressing reveal..." : "Make page reveal video", systemImage: "play.rectangle")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(BookPalette.lampGold.opacity(0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(BookPalette.lampGold.opacity(0.44), lineWidth: 1)
+                        }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.lampGold)
+                .disabled(isPressingBookOfYouRevealVideo || isPressingBookOfYouShareCard)
+            }
+
+            if let url = bookOfYouPressedPageURL {
+                ShareLink(item: url) {
+                    Label("Share pressed page", systemImage: "square.and.arrow.up")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
+                        }
+                }
+                .foregroundStyle(BookPalette.lampGold)
+
+                ShareLink(item: sharePageText) {
+                    Label("Share text instead", systemImage: "text.quote")
+                        .font(.caption.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(BookPalette.paper.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .foregroundStyle(openPageSecondaryText)
+            } else if canPressBookOfYouShareCard {
+                Button {
+                    Task { await prepareBookOfYouShareCard(force: true) }
+                } label: {
+                    Label(isPressingBookOfYouShareCard ? "Pressing..." : "Press share page", systemImage: "book.pages")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
+                        }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.lampGold)
+                .disabled(isPressingBookOfYouShareCard)
+            } else {
+                ShareLink(item: sharePageText) {
+                    Label("Share page", systemImage: "square.and.arrow.up")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
+                        }
+                }
+                .foregroundStyle(BookPalette.lampGold)
+            }
+
+            if !bookOfYouShareMessage.isEmpty {
+                Text(bookOfYouShareMessage)
+                    .font(.caption)
+                    .foregroundStyle(openPageSecondaryText)
+            }
         }
     }
 
@@ -1907,6 +2040,9 @@ struct CapturePageSheet: View {
                 }
                 if canShareIlluminatedQuoteCard, quoteCardShareURL == nil {
                     await prepareIlluminatedQuoteCard(force: false)
+                }
+                if canPressBookOfYouShareCard, bookOfYouPressedPageURL == nil {
+                    await prepareBookOfYouShareCard(force: false)
                 }
                 if surface.isStoryPlayablePage, !isLocalBrainIssuePage, storyTurns.isEmpty, let storySceneDraft {
                     storyTurns = [StoryPageSessionTurn(draft: storySceneDraft)]
@@ -4528,7 +4664,13 @@ struct CapturePageSheet: View {
             if surface.type == .bookRemembered {
                 bookRememberedOpeningView
             } else if surface.type == .bookNotices {
-                bookNoticesOpeningView
+                if surface.payload.metadata["firstReading"] == "true" {
+                    firstReadingOpeningView
+                } else {
+                    bookNoticesOpeningView
+                }
+            } else if surface.type == .bookPocket {
+                bookPocketOpeningView
             } else {
                 HStack(spacing: 8) {
                     if let weatherSymbolName {
@@ -4542,7 +4684,7 @@ struct CapturePageSheet: View {
                 }
             }
 
-            if !surface.isStoryPlayablePage && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && surface.type != .bookRemembered && surface.type != .bookNotices && !isCompassPracticePage && surface.type != .supportGuild && !isPendingLetterPage {
+            if !surface.isStoryPlayablePage && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && surface.type != .bookRemembered && surface.type != .bookNotices && surface.type != .bookPocket && !isCompassPracticePage && surface.type != .supportGuild && !isPendingLetterPage {
                 Text(surface.payload.body)
                     .font(.system(.body, design: .serif))
                     .foregroundStyle(BookPalette.ink)
@@ -4601,6 +4743,46 @@ struct CapturePageSheet: View {
             if let action {
                 ritualCard(action)
             }
+        }
+        .opacity(didRevealCeremony ? 1 : 0.01)
+        .offset(y: didRevealCeremony ? 0 : 8)
+        .animation(.easeOut(duration: 0.55), value: didRevealCeremony)
+    }
+
+    /// The First Reading — a once-ever milestone, so it wears a warmer, lamplit
+    /// ceremony than the investigative teal of ordinary pattern-noticing. It is
+    /// the first time the Book proves it read *you*, and it should feel like a
+    /// light coming on, not a case being opened.
+    private var firstReadingOpeningView: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.caption2.weight(.bold))
+                Text("The First Reading")
+                    .font(.caption2.weight(.bold))
+                    .textCase(.uppercase)
+                    .tracking(1.6)
+            }
+            .foregroundStyle(BookPalette.lampGold)
+
+            ceremonyHeader(
+                title: surface.payload.headline.nonEmpty ?? "The Book Reads Back",
+                subtitle: "The first time the Book read you — and meant it.",
+                symbol: "book.closed",
+                tint: BookPalette.lampGold
+            )
+
+            Text(surface.payload.body)
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ceremonyFindingCard(
+                title: "A first light",
+                text: "This is the least the Book will ever know you. From here, it only deepens.",
+                symbol: "sparkle",
+                tint: BookPalette.lampGold
+            )
         }
         .opacity(didRevealCeremony ? 1 : 0.01)
         .offset(y: didRevealCeremony ? 0 : 8)
@@ -4694,6 +4876,90 @@ struct CapturePageSheet: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private struct PocketItem: Identifiable {
+        let id = UUID()
+        let glyph: String
+        let object: String
+        let pageShort: String
+        let foundAt: Date?
+    }
+
+    private var pocketItems: [PocketItem] {
+        let raw = surface.payload.metadata["pocketItems"] ?? ""
+        return raw.split(separator: "\n").compactMap { line -> PocketItem? in
+            let parts = line.split(separator: "\u{1F}", omittingEmptySubsequences: false).map(String.init)
+            guard parts.count >= 3, !parts[1].isEmpty else { return nil }
+            let date = parts.count >= 4 ? Double(parts[3]).map { Date(timeIntervalSince1970: $0) } : nil
+            return PocketItem(glyph: parts[0], object: parts[1], pageShort: parts[2], foundAt: date)
+        }
+    }
+
+    private func pocketDisplayObject(_ object: String) -> String {
+        guard let first = object.first else { return object }
+        return first.uppercased() + object.dropFirst()
+    }
+
+    private var bookPocketOpeningView: some View {
+        let items = pocketItems
+        let total = Int(surface.payload.metadata["pocketTotal"] ?? "") ?? items.count
+        return VStack(alignment: .leading, spacing: 14) {
+            ceremonyHeader(
+                title: "The Book turns out its Pocket.",
+                subtitle: "The little things pages left behind on their way off.",
+                symbol: "bag.fill",
+                tint: BookPalette.lampGold
+            )
+
+            Text("Kept, because keeping small things is what I am for.")
+                .font(.system(.callout, design: .serif))
+                .italic()
+                .foregroundStyle(BookPalette.ink.opacity(0.8))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 10) {
+                ForEach(items) { item in
+                    HStack(alignment: .center, spacing: 12) {
+                        Image(systemName: item.glyph.isEmpty ? "sparkle" : item.glyph)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(BookPalette.lampGold)
+                            .frame(width: 30, height: 30)
+                            .background(Circle().fill(BookPalette.lampGold.opacity(0.12)))
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(pocketDisplayObject(item.object))
+                                .font(.system(.callout, design: .serif, weight: .semibold))
+                                .foregroundStyle(BookPalette.ink.opacity(0.85))
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("left by the \(item.pageShort.lowercased()) page")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(BookPalette.ink.opacity(0.5))
+                        }
+
+                        Spacer(minLength: 8)
+
+                        if let date = item.foundAt {
+                            Text(date, style: .date)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(BookPalette.ink.opacity(0.44))
+                        }
+                    }
+                    .padding(12)
+                    .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(BookPalette.lampGold.opacity(0.18), lineWidth: 1)
+                    }
+                }
+            }
+
+            if total > items.count {
+                Text("\(total - items.count) more wait deeper in the lining.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.55))
+            }
+        }
     }
 
     private func ceremonyHeader(title: String, subtitle: String?, symbol: String, tint: Color) -> some View {
@@ -7073,10 +7339,6 @@ struct CapturePageSheet: View {
     }
 
     private var cameraCaptureDisplayImage: UIImage? {
-        if let renderedIlluminatedPageURL,
-           let image = UIImage(contentsOfFile: renderedIlluminatedPageURL.path) {
-            return image
-        }
         return manualPhotoImage ?? pendingCameraPhotoImage
     }
 
@@ -7578,6 +7840,54 @@ struct CapturePageSheet: View {
                 BookFeedback.play(.braidComplete)
             }
             quoteCardMessage = ""
+        }
+    }
+
+    @MainActor
+    private func prepareBookOfYouShareCard(force: Bool = false) async {
+        guard force || bookOfYouPressedPageURL == nil else {
+            return
+        }
+        guard let artifact = BookOfYouShareArtifact.make(from: surface) else {
+            return
+        }
+        isPressingBookOfYouShareCard = true
+        bookOfYouShareMessage = force ? "The Book is pressing one safe page for the outside world." : ""
+        defer { isPressingBookOfYouShareCard = false }
+
+        let renderedURL = BookOfYouShareCardRenderer.render(artifact: artifact)
+        bookOfYouShareCardURL = renderedURL
+        if renderedURL == nil {
+            BookFeedback.play(.error)
+            bookOfYouShareMessage = "The page did not finish pressing. Text sharing still works."
+        } else {
+            if force {
+                BookFeedback.play(.braidComplete)
+            }
+            bookOfYouShareMessage = "Only this pressed image is shared. The full braid stays in your Book."
+        }
+    }
+
+    @MainActor
+    private func prepareBookOfYouRevealVideo() async {
+        guard bookOfYouPageRevealURL == nil else {
+            return
+        }
+        guard let artifact = BookOfYouShareArtifact.make(from: surface) else {
+            return
+        }
+        isPressingBookOfYouRevealVideo = true
+        bookOfYouShareMessage = "The Book is pressing a short reveal for Stories."
+        defer { isPressingBookOfYouRevealVideo = false }
+
+        let renderedURL = await BookOfYouPageRevealVideoRenderer.render(artifact: artifact)
+        bookOfYouRevealVideoURL = renderedURL
+        if renderedURL == nil {
+            BookFeedback.play(.error)
+            bookOfYouShareMessage = "The reveal did not finish pressing. The still page is ready to share."
+        } else {
+            BookFeedback.play(.braidComplete)
+            bookOfYouShareMessage = "Only this reveal video is shared. The full braid stays in your Book."
         }
     }
 

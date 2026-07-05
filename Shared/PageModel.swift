@@ -54,6 +54,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case theBleed
     case inventory
     case bindery
+    case bookPocket
 
     var id: String { rawValue }
 
@@ -184,6 +185,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "The Inventory"
         case .bindery:
             return "The Bindery"
+        case .bookPocket:
+            return "The Book's Pocket"
         }
     }
 
@@ -293,6 +296,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Inventory"
         case .bindery:
             return "Bindery"
+        case .bookPocket:
+            return "Pocket"
         }
     }
 
@@ -402,6 +407,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "shippingbox.fill"
         case .bindery:
             return "books.vertical.fill"
+        case .bookPocket:
+            return "bag.fill"
         }
     }
 }
@@ -646,6 +653,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "when patterns gather",
             note: "The Book surfaces literary patterns, absences, living Beliefs, and duration."
+        ),
+        BookPageSource(
+            id: "the-book-pocket",
+            type: .bookPocket,
+            title: "The Book's Pocket",
+            shortTitle: "Pocket",
+            symbolName: "bag.fill",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "when the pocket fills",
+            note: "The little things swiped-away pages leave behind, emptied onto the desk now and then."
         ),
         BookPageSource(
             id: "spend-glow",
@@ -1145,7 +1164,7 @@ enum BookPageSourceRegistry {
             return 32
         case .narrativeOS, .bookFae, .wonderCompass, .anchor, .welcome:
             return 30
-        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery:
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery, .bookPocket:
             return 22
         case .diary, .souvenir, .askTheBook, .enchantment, .faeBargain:
             return 28
@@ -1184,7 +1203,7 @@ enum BookPageSourceRegistry {
         switch source.type {
         case .narrativeOS, .bookFae:
             return 34
-        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery:
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery, .bookPocket:
             return 18
         case .mood, .fuel:
             return 30

@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(NaturalLanguage)
+import NaturalLanguage
+#endif
 
 // MARK: - Search the Stacks
 //
@@ -16,6 +19,9 @@ struct StacksSearchResult: Identifiable, Equatable {
         case reference
         case elective
         case pageFamily
+        case selfFact
+        case narrativeEvent
+        case facultyEntry
 
         var title: String {
             switch self {
@@ -26,6 +32,9 @@ struct StacksSearchResult: Identifiable, Equatable {
             case .reference: return "From the Library"
             case .elective: return "Favors"
             case .pageFamily: return "Page Families"
+            case .selfFact: return "About You"
+            case .narrativeEvent: return "Story Threads"
+            case .facultyEntry: return "Faculty Notes"
             }
         }
 
@@ -38,6 +47,9 @@ struct StacksSearchResult: Identifiable, Equatable {
             case .reference: return "books.vertical"
             case .elective: return "envelope.badge"
             case .pageFamily: return "square.stack"
+            case .selfFact: return "person.text.rectangle"
+            case .narrativeEvent: return "sparkles.rectangle.stack"
+            case .facultyEntry: return "doc.text.magnifyingglass"
             }
         }
     }
@@ -60,7 +72,68 @@ struct StacksSearchDataset {
     var memories: [NarrativeEntityMemory] = []
     var electives: [UnwrittenElective] = []
     var references: [ReferenceSnippet] = []
+    var selfFacts: [SelfFact] = []
+    var narrativeEvents: [NarrativeEvent] = []
+    var facultyEntries: [FacultyEntry] = []
 }
+
+struct StacksSearchDocument: Identifiable, Equatable {
+    var id: String
+    var kind: StacksSearchResult.Kind
+    var title: String
+    var body: String
+    var dateLabel: String
+    var referenceID: String
+    var relatedIDs: Set<String> = []
+
+    var searchableText: String {
+        [kind.title, title, body].joined(separator: "\n")
+    }
+}
+
+struct StacksSearchLink: Equatable {
+    enum Kind: String {
+        case sameDay
+        case sourcePage
+        case sourceFamily
+        case entity
+        case tag
+        case source
+    }
+
+    var fromID: String
+    var toID: String
+    var kind: Kind
+    var weight: Int
+}
+
+protocol StacksSemanticScoring {
+    var modelID: String { get }
+    func similarity(between query: String, and document: String) -> Double?
+}
+
+#if canImport(NaturalLanguage)
+struct NaturalLanguageStacksEmbeddingScorer: StacksSemanticScoring {
+    let language: NLLanguage
+    let modelID: String
+
+    init?(language: NLLanguage = .english) {
+        guard NLEmbedding.sentenceEmbedding(for: language) != nil else { return nil }
+        self.language = language
+        self.modelID = "NaturalLanguage.sentenceEmbedding.\(language.rawValue)"
+    }
+
+    func similarity(between query: String, and document: String) -> Double? {
+        guard let embedding = NLEmbedding.sentenceEmbedding(for: language) else { return nil }
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedDocument = document.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty, !trimmedDocument.isEmpty else { return nil }
+        let distance = embedding.distance(between: trimmedQuery, and: trimmedDocument)
+        guard distance.isFinite else { return nil }
+        return max(0, min(1, 1 - distance))
+    }
+}
+#endif
 
 struct StacksQuery: Equatable {
     var raw: String
@@ -156,6 +229,8 @@ struct StacksQuery: Equatable {
 }
 
 enum StacksSearchEngine {
+    static let semanticScoreThreshold = 0.24
+
     static func search(
         _ raw: String,
         in dataset: StacksSearchDataset,
@@ -189,6 +264,246 @@ enum StacksSearchEngine {
                 }
                 .prefix(limit)
         )
+    }
+
+    static func hybridSearch(
+        _ raw: String,
+        in dataset: StacksSearchDataset,
+        extraTerms: [String] = [],
+        now: Date = Date(),
+        limit: Int = 40,
+        semanticScorer: StacksSemanticScoring? = defaultSemanticScorer()
+    ) -> [StacksSearchResult] {
+        let lexicalResults = search(raw, in: dataset, extraTerms: extraTerms, now: now, limit: limit)
+        guard let semanticScorer else { return lexicalResults }
+
+        let graph = buildSearchGraph(from: dataset, now: now)
+        var resultsByID = Dictionary(uniqueKeysWithValues: lexicalResults.map { ($0.id, $0) })
+        let queryText = ([raw] + extraTerms).joined(separator: " ")
+        let lexicalIDs = Set(lexicalResults.map(\.id))
+
+        for document in graph.documents {
+            guard let similarity = semanticScorer.similarity(between: queryText, and: document.searchableText),
+                  similarity >= semanticScoreThreshold else { continue }
+            let semanticScore = Int((similarity * 34).rounded())
+            let connectionBoost = connectionBoost(for: document.id, links: graph.links, alreadyMatched: lexicalIDs)
+            let score = semanticScore + connectionBoost
+            guard score > 0 else { continue }
+
+            if var existing = resultsByID[document.id] {
+                existing.score += score
+                resultsByID[document.id] = existing
+            } else {
+                resultsByID[document.id] = StacksSearchResult(
+                    id: document.id,
+                    kind: document.kind,
+                    title: document.title,
+                    snippet: semanticSnippet(for: raw, document: document, similarity: similarity),
+                    dateLabel: document.dateLabel,
+                    score: score,
+                    referenceID: document.referenceID
+                )
+            }
+        }
+
+        return Array(
+            resultsByID.values
+                .filter { $0.score > 0 }
+                .sorted { left, right in
+                    if left.score == right.score { return left.id < right.id }
+                    return left.score > right.score
+                }
+                .prefix(limit)
+        )
+    }
+
+    static func buildSearchGraph(from dataset: StacksSearchDataset, now: Date = Date()) -> (documents: [StacksSearchDocument], links: [StacksSearchLink]) {
+        var documents: [StacksSearchDocument] = []
+        var links: [StacksSearchLink] = []
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+
+        for day in dataset.days {
+            let dayDocumentID = "day-\(day.id)"
+            let dayBody = day.pages.map { "\($0.type.title): \($0.promptText) \($0.userInput) \($0.playerReply) \($0.tags.joined(separator: " "))" }.joined(separator: "\n")
+            documents.append(StacksSearchDocument(
+                id: dayDocumentID,
+                kind: .memory,
+                title: "Day \(day.id)",
+                body: dayBody,
+                dateLabel: formatter.string(from: day.date),
+                referenceID: day.id
+            ))
+            for page in day.pages {
+                let title = page.type == .bookOfYou ? BraidPageDetails.details(for: page).title : page.type.title
+                let pageDocumentID = "page-\(page.id)"
+                let body = "\(page.promptText)\n\(page.userInput)\n\(page.playerReply)\nTags: \(page.tags.joined(separator: ", "))\nSource: \(page.sourceID)"
+                documents.append(StacksSearchDocument(
+                    id: pageDocumentID,
+                    kind: .keptPage,
+                    title: title,
+                    body: body,
+                    dateLabel: formatter.string(from: page.createdAt),
+                    referenceID: page.id,
+                    relatedIDs: Set([dayDocumentID, "source-\(page.sourceID)"] + page.tags.map { "tag-\($0.lowercased())" })
+                ))
+                links.append(StacksSearchLink(fromID: pageDocumentID, toID: dayDocumentID, kind: .sameDay, weight: 4))
+                links.append(StacksSearchLink(fromID: pageDocumentID, toID: "source-\(page.sourceID)", kind: .sourceFamily, weight: 3))
+                for tag in page.tags {
+                    links.append(StacksSearchLink(fromID: pageDocumentID, toID: "tag-\(tag.lowercased())", kind: .tag, weight: 2))
+                }
+            }
+        }
+
+        for entity in dataset.entities {
+            let adjusted = max(0, min(100, entity.belief + (dataset.entityBeliefOffsets[entity.id] ?? 0)))
+            documents.append(StacksSearchDocument(
+                id: "entity-\(entity.id)",
+                kind: .castMember,
+                title: entity.name,
+                body: ([BeliefLexicon.glowName(for: adjusted), entity.kind.rawValue, entity.chapter ?? ""] + entity.traits + entity.tags + entity.beliefs + entity.goals + [entity.unwrittenInterest ?? ""]).joined(separator: "\n"),
+                dateLabel: "",
+                referenceID: entity.id,
+                relatedIDs: ["entity-\(entity.id)"]
+            ))
+        }
+
+        for anchor in dataset.anchors {
+            documents.append(StacksSearchDocument(
+                id: "anchor-\(anchor.id)",
+                kind: .anchor,
+                title: anchor.name,
+                body: "\(anchor.kind.title)\n\(anchor.playerWords)\n\(anchor.outerStacksRoom)\n\(anchor.fae)\n\(anchor.localRule)",
+                dateLabel: anchor.lastVisited == "none" ? "never visited" : "last \(anchor.lastVisited)",
+                referenceID: anchor.id
+            ))
+        }
+
+        for memory in dataset.memories {
+            let documentID = "memory-\(memory.id)"
+            documents.append(StacksSearchDocument(
+                id: documentID,
+                kind: .memory,
+                title: titleFromSlug(memory.entityID),
+                body: "\(memory.summary)\nTags: \(memory.tags.joined(separator: ", "))",
+                dateLabel: formatter.string(from: memory.createdAt),
+                referenceID: memory.id,
+                relatedIDs: Set(["entity-\(memory.entityID)"] + [memory.sourcePageID].compactMap { $0 }.map { "page-\($0)" })
+            ))
+            links.append(StacksSearchLink(fromID: documentID, toID: "entity-\(memory.entityID)", kind: .entity, weight: 5))
+            if let sourcePageID = memory.sourcePageID {
+                links.append(StacksSearchLink(fromID: documentID, toID: "page-\(sourcePageID)", kind: .sourcePage, weight: 7))
+            }
+        }
+
+        for event in dataset.narrativeEvents {
+            let documentID = "event-\(event.id)"
+            documents.append(StacksSearchDocument(
+                id: documentID,
+                kind: .narrativeEvent,
+                title: event.kind.rawValue.split(separator: "-").map(String.init).joined(separator: " ").capitalized,
+                body: "\(event.summary)\nTags: \(event.tags.joined(separator: ", "))",
+                dateLabel: formatter.string(from: event.createdAt),
+                referenceID: event.id,
+                relatedIDs: Set([event.sourcePageID].compactMap { $0 }.map { "page-\($0)" })
+            ))
+            if let sourcePageID = event.sourcePageID {
+                links.append(StacksSearchLink(fromID: documentID, toID: "page-\(sourcePageID)", kind: .sourcePage, weight: 6))
+            }
+        }
+
+        for fact in dataset.selfFacts where fact.usePermission != .doNotUse {
+            documents.append(StacksSearchDocument(
+                id: "selfFact-\(fact.id)",
+                kind: .selfFact,
+                title: fact.question,
+                body: "\(fact.answer)\n\(fact.bookTranslation)\nTags: \(fact.tags.joined(separator: ", "))",
+                dateLabel: formatter.string(from: fact.createdAt),
+                referenceID: fact.id
+            ))
+        }
+
+        for entry in dataset.facultyEntries {
+            let documentID = "faculty-\(entry.id)"
+            documents.append(StacksSearchDocument(
+                id: documentID,
+                kind: .facultyEntry,
+                title: entry.windowName,
+                body: "\(entry.kind.chartTitle)\n\(entry.rawText)\nTags: \(entry.tags.joined(separator: ", "))",
+                dateLabel: formatter.string(from: entry.createdAt),
+                referenceID: entry.id,
+                relatedIDs: Set([entry.sourcePageID].compactMap { $0 }.map { "page-\($0)" })
+            ))
+            if let sourcePageID = entry.sourcePageID {
+                links.append(StacksSearchLink(fromID: documentID, toID: "page-\(sourcePageID)", kind: .sourcePage, weight: 5))
+            }
+        }
+
+        for elective in dataset.electives {
+            documents.append(StacksSearchDocument(
+                id: "elective-\(elective.id)",
+                kind: .elective,
+                title: elective.title,
+                body: "\(elective.characterName)\n\(elective.ask)\n\(elective.practiceShape)",
+                dateLabel: elective.isActive ? "Active" : "Completed",
+                referenceID: elective.id
+            ))
+        }
+
+        for snippet in dataset.references {
+            documents.append(StacksSearchDocument(
+                id: "reference-\(snippet.id)",
+                kind: .reference,
+                title: snippet.title,
+                body: "\(snippet.body)\nTags: \(snippet.tags.joined(separator: ", "))",
+                dateLabel: snippet.sourceID == "wonder-compass" ? "Wonder Compass" : "Lore",
+                referenceID: snippet.id
+            ))
+        }
+
+        for source in BookPageSourceRegistry.activeSources {
+            documents.append(StacksSearchDocument(
+                id: "family-\(source.id)",
+                kind: .pageFamily,
+                title: source.title,
+                body: "\(source.note)\n\(source.type.title)\n\(source.id)",
+                dateLabel: "",
+                referenceID: source.id,
+                relatedIDs: ["source-\(source.id)"]
+            ))
+        }
+
+        return (documents, links)
+    }
+
+    private static func semanticSnippet(for raw: String, document: StacksSearchDocument, similarity: Double) -> String {
+        let query = StacksQuery.parse(raw)
+        let matched = query.terms.first { document.body.lowercased().contains($0) }
+        let base = snippetAround(matched, in: document.body)
+        let percent = Int((similarity * 100).rounded())
+        return "Semantic match \(percent)%. \(base)"
+    }
+
+    private static func titleFromSlug(_ slug: String) -> String {
+        slug.split(separator: "-")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
+    }
+
+    private static func connectionBoost(for documentID: String, links: [StacksSearchLink], alreadyMatched: Set<String>) -> Int {
+        links.reduce(0) { boost, link in
+            guard link.fromID == documentID || link.toID == documentID else { return boost }
+            let otherID = link.fromID == documentID ? link.toID : link.fromID
+            return alreadyMatched.contains(otherID) ? boost + link.weight : boost
+        }
+    }
+
+    private static func defaultSemanticScorer() -> StacksSemanticScoring? {
+        #if canImport(NaturalLanguage)
+        return NaturalLanguageStacksEmbeddingScorer()
+        #else
+        return nil
+        #endif
     }
 
     // MARK: Kept pages (with mood day-correlation)

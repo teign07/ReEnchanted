@@ -61,6 +61,25 @@ final class GoblinMarketTests: XCTestCase {
         XCTAssertTrue(pen?.contents.contains("make it make sense") ?? false)
     }
 
+    func testRadioSponsorWaresUseTheirOwnMechanics() throws {
+        let wares = Dictionary(uniqueKeysWithValues: GoblinMarketEngine.radioSponsorWares.map { ($0.id, $0) })
+
+        XCTAssertEqual(try XCTUnwrap(wares["radio-sponsor-thistledown-pocket-sunshine"]).good, .pocketSunshine)
+        XCTAssertEqual(try XCTUnwrap(wares["radio-sponsor-clover-honey-humming-jar"]).good, .hummingJar)
+        XCTAssertEqual(try XCTUnwrap(wares["radio-sponsor-porchlight-moth-lamp"]).good, .porchlightLamp)
+        XCTAssertEqual(try XCTUnwrap(wares["radio-sponsor-remembering-bell"]).good, .rememberingBell)
+        XCTAssertEqual(try XCTUnwrap(wares["radio-sponsor-bramblewine-dram"]).good, .bramblewineDram)
+        XCTAssertEqual(try XCTUnwrap(wares["radio-sponsor-melisande-after-hours-card"]).good, .afterHoursCard)
+    }
+
+    func testAfterHoursCardOpensTodaysSideDoor() {
+        var fae = FaePlayerState()
+        fae.lastMarketCardAt = date(2026, 7, 7)
+
+        XCTAssertTrue(FaeEconomy.canEnterMarket(state: fae, now: date(2026, 7, 7)))
+        XCTAssertFalse(FaeEconomy.canEnterMarket(state: fae, now: date(2026, 7, 8)))
+    }
+
     func testHiddenShelfGatedByConditions() {
         let calm = GoblinMarketEngine.stall(on: date(2026, 7, 7), fae: callingCardState(),
                                             belief: 40, greyLevel: 0, calendar: cal)

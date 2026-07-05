@@ -3004,3 +3004,422 @@ private extension UIViewController {
         return self
     }
 }
+
+// MARK: - The Standing Order paywall
+
+/// A disclosure-forward, four-page subscription walkthrough — a contract letter
+/// from the Bindery rather than an ad in a box. Free capabilities first, then
+/// what the Standing Order adds, then the three cadences (weekly/monthly/annual,
+/// each with a 3-day free trial), then the terms in plain ink with exact dates,
+/// a cancel path, and Restore. Reuses `BookShopTill`/`StoreKitMerchant` so a tap
+/// runs the same purchase + entitlement path as the goblin market.
+struct StandingOrderSheet: View {
+    /// Optional hero: the reader's own first-edition cover, shown on page 2 so
+    /// the pitch is illustrated with something they just made.
+    var heroArtifact: BookOfYouShareArtifact? = nil
+    /// Persist the granted packID (always the Standing Order pack).
+    var onSubscribed: (String) -> Void
+    var onDismiss: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var page = 0
+    @State private var selectedTierID = "standing-order-annual"
+    @State private var pricing: [String: StandingOrderTierPricing] = [:]
+    @State private var isPurchasing = false
+    @State private var statusLine = ""
+
+    private let pageCount = 4
+    private let tiers = BookShopCatalog.standingOrderTiers
+
+    private var selectedTier: StandingOrderTier {
+        tiers.first { $0.id == selectedTierID } ?? tiers[tiers.count - 1]
+    }
+
+    private func priceText(for tier: StandingOrderTier) -> String {
+        pricing[tier.productID]?.displayPrice ?? tier.fallbackDisplayPrice
+    }
+
+    private func trialDays(for tier: StandingOrderTier) -> Int {
+        pricing[tier.productID]?.trialDays ?? tier.freeTrialDays
+    }
+
+    var body: some View {
+        ZStack {
+            BookBackground()
+                .overlay { Rectangle().fill(BookPalette.nightPanel.opacity(0.5)) }
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                header
+                ScrollView {
+                    Group {
+                        switch page {
+                        case 0: freePage
+                        case 1: addsPage
+                        case 2: plansPage
+                        default: termsPage
+                        }
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 18)
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+                }
+                footer
+            }
+        }
+        .task {
+            let loaded = await StandingOrderPricing.load()
+            if !loaded.isEmpty {
+                withAnimation { pricing = loaded }
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "books.vertical.fill")
+                .font(.title3.weight(.black))
+                .foregroundStyle(BookPalette.lampGold)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("THE STANDING ORDER")
+                    .font(.system(size: 12, weight: .black))
+                    .tracking(1.4)
+                    .foregroundStyle(BookPalette.lampGold)
+                Text("A letter from the Bindery")
+                    .font(.system(.subheadline, design: .serif).weight(.semibold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.8))
+            }
+            Spacer(minLength: 0)
+            Button {
+                BookFeedback.play(.dismissPage)
+                onDismiss()
+            } label: {
+                Text("Not now")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.7))
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 18)
+        .padding(.bottom, 12)
+    }
+
+    private var footer: some View {
+        VStack(spacing: 10) {
+            if !statusLine.isEmpty {
+                Text(statusLine)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.8))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 22)
+            }
+
+            HStack(spacing: 6) {
+                ForEach(0..<pageCount, id: \.self) { index in
+                    Capsule()
+                        .fill(index == page ? BookPalette.lampGold : BookPalette.nightText.opacity(0.3))
+                        .frame(width: index == page ? 20 : 7, height: 6)
+                }
+            }
+
+            HStack(spacing: 10) {
+                if page > 0 {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.25)) { page -= 1 }
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.body.weight(.black))
+                            .frame(width: 52, height: 50)
+                            .background(BookPalette.paper.opacity(0.5), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .foregroundStyle(BookPalette.nightText)
+                    }
+                }
+
+                if page < pageCount - 1 {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.25)) { page += 1 }
+                        BookFeedback.play(.openPage)
+                    } label: {
+                        Text(page == pageCount - 2 ? "See the terms" : "Continue")
+                            .font(.body.weight(.black))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 15)
+                            .background(BookPalette.teal, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .foregroundStyle(BookPalette.nightText)
+                    }
+                } else {
+                    Button {
+                        Task { await subscribe() }
+                    } label: {
+                        Label(
+                            isPurchasing ? "Opening the ledger…" : "Start \(trialDays(for: selectedTier))-day free trial",
+                            systemImage: isPurchasing ? "hourglass" : "seal.fill"
+                        )
+                        .font(.body.weight(.black))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 15)
+                        .background(BookPalette.lampGold, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .foregroundStyle(BookPalette.ink)
+                    }
+                    .disabled(isPurchasing)
+                }
+            }
+            .padding(.horizontal, 22)
+        }
+        .padding(.bottom, 18)
+    }
+
+    // MARK: Page 1 — the free Book
+
+    private var freePage: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            pageTitle("The free Book is yours. Always.", subtitle: "No trial, no card, no catch. This is what the Book does for everyone, forever.")
+
+            benefitRow("eye", "Notice and keep", "Capture a real moment and keep it as a page. The core loop is never gated.")
+            benefitRow("moon.stars", "The nightly braid", "The Book of You gathers your kept pages into a grounded nightly entry.")
+            benefitRow("books.vertical", "Monthly & annual bindings — free", "Every month and every year binds into a real PDF edition — cover, star chart, and all — to keep, print at home, or read forever. Yours at no charge.", emphasized: true)
+            benefitRow("calendar", "The Almanac & souvenirs", "Jump to any date, press souvenir cards, and share what you make.")
+        }
+    }
+
+    // MARK: Page 2 — what the Standing Order adds
+
+    private var addsPage: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            pageTitle("The Standing Order adds the extras.", subtitle: "One line in the ledger, and every printed folio walks itself to your shelf.")
+
+            if let heroArtifact {
+                BookOfYouShareCard(artifact: heroArtifact)
+                    .frame(width: BookOfYouShareCard.renderSize.width, height: BookOfYouShareCard.renderSize.height)
+                    .scaleEffect(0.26, anchor: .center)
+                    .frame(width: BookOfYouShareCard.renderSize.width * 0.26, height: BookOfYouShareCard.renderSize.height * 0.26)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .frame(maxWidth: .infinity)
+                    .rotationEffect(.degrees(-2))
+                    .shadow(color: BookPalette.lampGold.opacity(0.3), radius: 16, y: 8)
+                    .padding(.vertical, 4)
+            }
+
+            benefitRow("square.grid.2x2", "Every content pack", "Word hoards, world events, sound bindings — every paid pack today and every new one the Bindery prints while your order stands.")
+            benefitRow("paintbrush.pointed", "Premium bindery covers", "Cloth, foil, and illustrated cover treatments for your bound editions.")
+            benefitRow("person.2", "Cast expansions & voices", "New characters to meet and extra local Gemma voices for the Book's prose.")
+            benefitRow("printer", "Print credits", "Toward physical hardcover editions from the Bindery.")
+        }
+    }
+
+    // MARK: Page 3 — choose a cadence
+
+    private var plansPage: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            pageTitle("Choose your cadence.", subtitle: "Every plan is the same Standing Order, and every plan starts with a 3-day free trial.")
+
+            ForEach(tiers) { tier in
+                tierCard(tier)
+            }
+
+            Button {
+                BookFeedback.play(.select)
+                onDismiss()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "cart")
+                    Text("Or buy single packs à la carte")
+                    Spacer(minLength: 0)
+                    Image(systemName: "arrow.up.right")
+                }
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                .padding(12)
+                .background(BookPalette.paper.opacity(0.4), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func tierCard(_ tier: StandingOrderTier) -> some View {
+        let selected = tier.id == selectedTierID
+        return Button {
+            BookFeedback.play(.select)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { selectedTierID = tier.id }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(selected ? BookPalette.lampGold : BookPalette.nightText.opacity(0.4))
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(tier.title)
+                            .font(.headline.weight(.black))
+                            .foregroundStyle(BookPalette.nightText)
+                        if let note = tier.valueNote {
+                            Text(note.uppercased())
+                                .font(.system(size: 9, weight: .black))
+                                .tracking(0.6)
+                                .foregroundStyle(BookPalette.ink)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(BookPalette.lampGold, in: Capsule())
+                        }
+                    }
+                    Text("3-day free trial, then \(priceText(for: tier)) / \(tier.periodUnit)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.74))
+                }
+                Spacer(minLength: 0)
+                Text(priceText(for: tier))
+                    .font(.system(.title3, design: .serif).weight(.black))
+                    .foregroundStyle(selected ? BookPalette.lampGold : BookPalette.nightText.opacity(0.8))
+            }
+            .padding(14)
+            .background((selected ? BookPalette.lampGold.opacity(0.12) : BookPalette.paper.opacity(0.4)), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke((selected ? BookPalette.lampGold : BookPalette.nightText.opacity(0.2)), lineWidth: selected ? 1.6 : 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    // MARK: Page 4 — the terms in plain ink
+
+    private var termsPage: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            pageTitle("The terms, in plain ink.", subtitle: "No trap doors. Here is exactly what happens and when.")
+
+            VStack(alignment: .leading, spacing: 12) {
+                termsLine("calendar", trialClause)
+                termsLine("bell", "We'll tap the glass the day before any coin moves — a reminder the day before your trial ends.")
+                termsLine("xmark.circle", "Cancel anytime in Settings → Apple ID → Subscriptions. Cancel before the trial ends and you are never charged.")
+                termsLine("lock.shield", "The free Book keeps everything you already made, trial or not. Your pages are always yours.")
+                termsLine("arrow.clockwise", "Payment is charged to your Apple ID. A subscription renews automatically unless cancelled at least 24 hours before the period ends.")
+            }
+            .padding(14)
+            .background(BookPalette.page.opacity(0.5), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            Button {
+                Task { await restore() }
+            } label: {
+                Label("Restore purchases", systemImage: "arrow.counterclockwise")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(BookPalette.teal)
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: 16) {
+                Link("Terms of Use", destination: LegalDocuments.termsOfUse)
+                Link("Privacy Policy", destination: LegalDocuments.privacyPolicy)
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(BookPalette.nightText.opacity(0.6))
+        }
+    }
+
+    private var trialClause: String {
+        let days = trialDays(for: selectedTier)
+        let start = Date()
+        let charge = Calendar.current.date(byAdding: .day, value: days, to: start) ?? start
+        let fmt = Date.FormatStyle.dateTime.month(.wide).day()
+        let price = priceText(for: selectedTier)
+        return "Your free trial starts today, \(start.formatted(fmt)). On \(charge.formatted(fmt)), Apple charges \(price) for the \(selectedTier.title.lowercased()) Standing Order unless you cancel first."
+    }
+
+    // MARK: Shared bits
+
+    private func pageTitle(_ title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(.title, design: .serif).weight(.bold))
+                .foregroundStyle(BookPalette.nightText)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(subtitle)
+                .font(.system(.callout, design: .serif))
+                .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.bottom, 4)
+    }
+
+    private func benefitRow(_ symbol: String, _ title: String, _ body: String, emphasized: Bool = false) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: symbol)
+                .font(.system(size: 16, weight: .black))
+                .foregroundStyle(emphasized ? BookPalette.ink : BookPalette.lampGold)
+                .frame(width: 38, height: 38)
+                .background((emphasized ? BookPalette.lampGold : BookPalette.nightPanel).opacity(emphasized ? 0.92 : 0.7), in: Circle())
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(BookPalette.nightText)
+                Text(body)
+                    .font(.system(.callout, design: .serif))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(BookPalette.page.opacity(emphasized ? 0.6 : 0.4), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke((emphasized ? BookPalette.lampGold : BookPalette.nightText).opacity(emphasized ? 0.4 : 0.12), lineWidth: 1)
+        }
+    }
+
+    private func termsLine(_ symbol: String, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: symbol)
+                .font(.caption.weight(.black))
+                .foregroundStyle(BookPalette.lampGold)
+                .frame(width: 20)
+            Text(text)
+                .font(.system(.callout, design: .serif))
+                .foregroundStyle(BookPalette.nightText.opacity(0.82))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func subscribe() async {
+        guard !isPurchasing else { return }
+        isPurchasing = true
+        defer { isPurchasing = false }
+        let merchant = await BookShopTill.resolveMerchant()
+        switch await merchant.purchase(productID: selectedTier.productID) {
+        case .bound:
+            BookFeedback.play(.braidComplete)
+            // Make the terms page's promise real: a tap on the glass the day
+            // before the trial converts to a charge.
+            StandingOrderTrialReminder.schedule(
+                trialDays: trialDays(for: selectedTier),
+                price: priceText(for: selectedTier),
+                periodUnit: selectedTier.periodUnit
+            )
+            onSubscribed(PackEntitlements.standingOrderPackID)
+            onDismiss()
+        case .pending:
+            statusLine = "The App Store says the order is pending approval. The ledger will wait."
+        case .cancelled:
+            statusLine = "The clerk re-shelves it without judgment. The free Book remains yours."
+            BookFeedback.play(.dismissPage)
+        case .failed(let reason):
+            statusLine = reason
+            BookFeedback.play(.error)
+        }
+    }
+
+    private func restore() async {
+        let merchant = await BookShopTill.resolveMerchant()
+        let owned = await merchant.restorePurchases()
+        if owned.contains(PackEntitlements.standingOrderPackID) {
+            onSubscribed(PackEntitlements.standingOrderPackID)
+            statusLine = "The ledger remembers you. Your Standing Order is restored."
+            BookFeedback.play(.braidComplete)
+        } else if owned.isEmpty {
+            statusLine = "The ledger finds no prior Standing Order under your name."
+        } else {
+            for packID in owned { onSubscribed(packID) }
+            statusLine = "Restored \(owned.count) prior binding\(owned.count == 1 ? "" : "s")."
+        }
+    }
+}

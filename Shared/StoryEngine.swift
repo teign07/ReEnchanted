@@ -1803,12 +1803,20 @@ enum StoryScenePacketBuilder {
             .sorted { $0.createdAt > $1.createdAt }
             .first {
                 now.timeIntervalSince($0.createdAt) <= 45 * 86_400
+                    // Welcome/Origin pages carry structured `Key: value` bodies,
+                    // not prose — grounding a story turn on one dumps the raw
+                    // metadata block into the character's motivation. Skip them.
+                    && $0.type != .welcome
+                    && !$0.tags.contains("first-door-origin")
                     && (!$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !$0.promptText.isEmpty)
             }
         if let kept {
-            let text = kept.userInput.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? kept.promptText
+            let raw = kept.userInput.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? kept.promptText
+            // Only the first line, then a two-sentence cap: a multi-line body can
+            // never run on into the grounding sentence even if one slips through.
+            let firstLine = raw.split(separator: "\n", omittingEmptySubsequences: true).first.map(String.init) ?? raw
             return StoryGrounding(kind: .keptPage, sourceID: kept.id,
-                text: "A kept \(kept.type.shortTitle) page says: \(text.bookPreviewSentenceLimit(2))")
+                text: "A kept \(kept.type.shortTitle) page says: \(firstLine.bookPreviewSentenceLimit(2))")
         }
         if let signal = realSignals.first(where: { $0.hasPrefix("Weather:") || $0.hasPrefix("Forecast:") || $0.hasPrefix("Body Page:") }) {
             return StoryGrounding(kind: .realSignal, sourceID: "real-signal", text: signal)
@@ -4420,6 +4428,20 @@ struct PlayfulMission: Identifiable, Equatable {
     var allowsPhoto: Bool = true
 }
 
+struct PromptWhisper: Identifiable, Equatable {
+    enum Kind: String {
+        case checkIn
+        case mission
+    }
+
+    var id: String
+    var kind: Kind
+    var title: String
+    var body: String
+    var keepPrompt: String
+    var tags: [String]
+}
+
 enum PlayfulMissionRegistry {
     static func mission(for day: BookDay, inputs: BookSourceInputs, now: Date = Date(), shadowVariant: Bool = false) -> PlayfulMission {
         let slot = SurfaceCadence.slotID(for: now, hours: 2)
@@ -4688,6 +4710,144 @@ enum PlayfulMissionRegistry {
         allowsPhoto: Bool = true
     ) -> PlayfulMission {
         PlayfulMission(id: id, title: title, prompt: prompt, proofPrompt: proofPrompt, tags: tags, allowsPhoto: allowsPhoto)
+    }
+}
+
+enum PromptWhisperRegistry {
+    static let checkIns: [PromptWhisper] = [
+        checkIn("what-now", "A page taps the glass", "What are you doing this exact second? One sentence.", "What were you doing when the Book tapped the glass?", ["present-moment", "check-in"]),
+        checkIn("loudest-sound", "The Book is listening", "What is the loudest sound around you right now?", "What sound was ruling the room?", ["sound", "check-in"]),
+        checkIn("body-honest", "Small body weather", "How does your body feel, honestly, in one line?", "What did your body report?", ["body", "check-in"]),
+        checkIn("nearest-color", "Color census", "What color is nearest your left hand?", "What color was closest?", ["color", "visual", "check-in"]),
+        checkIn("tiny-want", "A tiny want knocks", "What do you want in the next ten minutes?", "What tiny want appeared?", ["want", "check-in"]),
+        checkIn("room-mood", "Room report", "What mood does the room have right now?", "What mood did the room have?", ["place", "mood", "check-in"]),
+        checkIn("unreasonable-detail", "The detail insists", "What detail is being oddly dramatic near you?", "What detail insisted on being noticed?", ["visual", "check-in"]),
+        checkIn("one-good-thing", "Evidence, please", "Name one good thing that is already true.", "What good thing was already true?", ["gratitude", "check-in"]),
+        checkIn("hands-doing", "Hand report", "What are your hands doing right now?", "What were your hands doing?", ["body", "touch", "check-in"]),
+        checkIn("smallest-motion", "Motion ledger", "What is the smallest moving thing you can see?", "What small motion did you catch?", ["movement", "visual", "check-in"]),
+        checkIn("weather-inside-outside", "Two weathers", "Which feels stronger: the weather outside or the weather inside you?", "Which weather was stronger?", ["weather", "mood", "check-in"]),
+        checkIn("sentence-snapshot", "Keep one true thing", "Write the truest sentence available right now.", "What true sentence was available?", ["truth", "souvenir", "check-in"])
+    ]
+
+    static func promptWhisper(from mission: PlayfulMission) -> PromptWhisper {
+        PromptWhisper(
+            id: "mission-\(mission.id)",
+            kind: .mission,
+            title: mission.title,
+            body: mission.prompt,
+            keepPrompt: mission.proofPrompt,
+            tags: mission.tags
+        )
+    }
+
+    static func prompts(for day: BookDay, inputs: BookSourceInputs, now: Date, count: Int) -> [PromptWhisper] {
+        guard count > 0 else { return [] }
+        let missions = rankedMissionWhispers(for: day, inputs: inputs, now: now)
+        var prompts: [PromptWhisper] = []
+        var seen: Set<String> = []
+
+        for slot in 0..<(count * 3) {
+            let preferCheckIn = slot % 2 == 0
+            let firstPool = preferCheckIn ? checkIns : missions
+            let secondPool = preferCheckIn ? missions : checkIns
+            appendSeeded(from: firstPool, dayID: day.id, slot: slot, label: "first", seen: &seen, prompts: &prompts)
+            if prompts.count >= count { break }
+            appendSeeded(from: secondPool, dayID: day.id, slot: slot, label: "second", seen: &seen, prompts: &prompts)
+            if prompts.count >= count { break }
+        }
+
+        for prompt in checkIns + missions where prompts.count < count && seen.insert(prompt.id).inserted {
+            prompts.append(prompt)
+        }
+        return Array(prompts.prefix(count))
+    }
+
+    private static func checkIn(_ id: String, _ title: String, _ body: String, _ keepPrompt: String, _ tags: [String]) -> PromptWhisper {
+        PromptWhisper(id: "checkin-\(id)", kind: .checkIn, title: title, body: body, keepPrompt: keepPrompt, tags: tags)
+    }
+
+    private static func appendSeeded(
+        from pool: [PromptWhisper],
+        dayID: String,
+        slot: Int,
+        label: String,
+        seen: inout Set<String>,
+        prompts: inout [PromptWhisper]
+    ) {
+        guard !pool.isEmpty else { return }
+        let seed = abs("\(dayID)-\(slot)-prompt-whisper-\(label)".stableHash)
+        for offset in 0..<pool.count {
+            let candidate = pool[(seed + offset) % pool.count]
+            if seen.insert(candidate.id).inserted {
+                prompts.append(candidate)
+                return
+            }
+        }
+    }
+
+    private static func rankedMissionWhispers(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [PromptWhisper] {
+        let text = [
+            inputs.weather?.phrase,
+            inputs.body?.status,
+            day.capturedPages.suffix(6).map { "\($0.promptText) \($0.userInput) \($0.tags.joined(separator: " "))" }.joined(separator: " ")
+        ]
+        .compactMap(\.self)
+        .joined(separator: " ")
+        .lowercased()
+
+        var preferredTags: Set<String>
+        if text.contains("rain") || text.contains("storm") || text.contains("fog") {
+            preferredTags = ["weather", "sound", "scent", "inside"]
+        } else if text.contains("low") || text.contains("tired") || text.contains("rest") {
+            preferredTags = ["low-energy", "touch", "inside"]
+        } else if text.contains("work") || text.contains("errand") || text.contains("store") {
+            preferredTags = ["public", "visual", "errand"]
+        } else {
+            preferredTags = ["touch", "visual", "scent", "sound"]
+        }
+
+        let shadowActive = ShadowWonder.state(inputs: inputs, now: now).isActive
+        if shadowActive {
+            preferredTags.formUnion(["shadow-wonder", "shadow", "night", "history", "threshold", "old"])
+        }
+
+        return PlayfulMissionRegistry.missions
+            .filter { shadowActive || !$0.tags.map { $0.lowercased() }.contains("shadow-wonder") }
+            .sorted { left, right in
+                let leftScore = Set(left.tags).intersection(preferredTags).count + (shadowActive && ShadowWonder.prefers(mission: left) ? 4 : 0)
+                let rightScore = Set(right.tags).intersection(preferredTags).count + (shadowActive && ShadowWonder.prefers(mission: right) ? 4 : 0)
+                if leftScore == rightScore {
+                    return left.id < right.id
+                }
+                return leftScore > rightScore
+            }
+            .map(promptWhisper(from:))
+    }
+}
+
+enum PromptWhisperKeep {
+    static func page(for whisper: PromptWhisper, answer: String, now: Date) -> BookPage? {
+        let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let source = BookPageSourceRegistry.source(for: .souvenir)
+        let tags = (["souvenir", "prompt-whisper", whisper.kind.rawValue, whisper.id] + whisper.tags)
+            .reduce(into: [String]()) { result, tag in
+                if !result.contains(tag) {
+                    result.append(tag)
+                }
+            }
+        return BookPage(
+            type: .souvenir,
+            createdAt: now,
+            promptText: whisper.keepPrompt,
+            userInput: trimmed,
+            tags: tags,
+            sourceID: source.id,
+            origin: source.origin,
+            privacy: source.privacy,
+            promptVersion: "prompt-whisper-v1"
+        )
     }
 }
 

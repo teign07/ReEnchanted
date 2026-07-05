@@ -19,6 +19,7 @@ enum BraidPromptBuilder {
         var nowPlaying: String?
         var activeWorldEvents: [ResolvedWorldEvent] = []
         var readerLexicon: ReaderLexicon = ReaderLexicon()
+        var readerLearningPromptLines: [String] = []
 
         static let empty = Context()
     }
@@ -32,6 +33,8 @@ enum BraidPromptBuilder {
         nowPlaying: String? = nil,
         activeWorldEvents: [ResolvedWorldEvent] = [],
         readerLexicon: ReaderLexicon = ReaderLexicon(),
+        readerLearning: ReaderLearningModel = ReaderLearningModel(),
+        now: Date = Date(),
         calendar: Calendar = .current
     ) -> Context {
         let recentBraids = recentBraidTexts(excludingDayID: day.id, days: days)
@@ -57,7 +60,8 @@ enum BraidPromptBuilder {
             learnedGuidance: merged.signals.isEmpty ? nil : merged,
             nowPlaying: nowPlaying,
             activeWorldEvents: activeWorldEvents,
-            readerLexicon: readerLexicon
+            readerLexicon: readerLexicon,
+            readerLearningPromptLines: readerLearning.promptLines(now: now)
         )
     }
 
@@ -158,6 +162,23 @@ enum BraidPromptBuilder {
             learnedSection = ""
         }
 
+        let readerLearningSection: String
+        if !context.readerLearningPromptLines.isEmpty {
+            readerLearningSection = """
+
+
+            LEARNED READER CONTEXT:
+            \(context.readerLearningPromptLines.prefix(4).map { "- \($0)" }.joined(separator: "\n"))
+
+            READER-LEARNING RULE:
+            - These lines describe how prior pages met the reader. Use them only to choose emphasis, pacing, and restraint.
+            - Never invent facts from them. Today's kept pages remain the material.
+            - If a line says something is cooling or resting, do less of it unless today's kept pages clearly ask for it.
+            """
+        } else {
+            readerLearningSection = ""
+        }
+
         let clashSection: String
         if day.capturedPages.contains(where: { $0.tags.contains("clash") }) {
             clashSection = """
@@ -231,7 +252,7 @@ enum BraidPromptBuilder {
         - Prefer one fresh concrete detail over a second sentence explaining the same mood, object, weather, relationship, or threshold.
 
         KEPT PAGES FROM TODAY:
-        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(clashSection)\(themeSection)\(chapterSection)\(learnedSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(continuity)
+        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(clashSection)\(themeSection)\(chapterSection)\(learnedSection)\(readerLearningSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(continuity)
         """
     }
 
@@ -383,6 +404,11 @@ struct BraidPageDetails: Equatable {
     var body: String
     var themeName: String?
     var chapterName: String?
+    /// The morning callback naming the threads last night's ember promised, shown
+    /// as a small kicker above the braid so the reveal pays off the evening tease.
+    var promiseEcho: String?
+
+    static let promiseEchoTagPrefix = "promise-echo:"
 
     static func details(for page: BookPage) -> BraidPageDetails {
         let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -394,8 +420,22 @@ struct BraidPageDetails: Equatable {
             title: parsed.title ?? fallbackTitle.nonEmpty ?? "Book of You",
             body: parsed.body.nonEmpty ?? text,
             themeName: tagValue(prefix: "theme:", in: page.tags),
-            chapterName: tagValue(prefix: "chapter:", in: page.tags)
+            chapterName: tagValue(prefix: "chapter:", in: page.tags),
+            promiseEcho: tagValue(prefix: promiseEchoTagPrefix, in: page.tags)
         )
+    }
+
+    /// Stamps the evening ember's kept-promise callback onto a freshly braided
+    /// page (via a value-carrying tag, like `theme:`/`chapter:`). A no-op when the
+    /// day had no promised threads.
+    static func withPromiseEcho(_ page: BookPage, line: String?) -> BookPage {
+        guard let line = line?.nonEmpty else { return page }
+        var updated = page
+        var tags = Set(updated.tags)
+        tags = tags.filter { !$0.hasPrefix(promiseEchoTagPrefix) }
+        tags.insert("\(promiseEchoTagPrefix)\(line)")
+        updated.tags = tags.sorted()
+        return updated
     }
 
     static func annotated(_ page: BookPage, context: BraidPromptBuilder.Context) -> BookPage {

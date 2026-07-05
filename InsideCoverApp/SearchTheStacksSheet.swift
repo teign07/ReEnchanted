@@ -101,7 +101,7 @@ struct SearchTheStacksSheet: View {
                     interpretedTerms = []
                     interpretationNote = ""
                 }
-                results = StacksSearchEngine.search(query, in: dataset)
+                results = StacksSearchEngine.hybridSearch(query, in: dataset)
             }
             .onAppear {
                 searchFocused = true
@@ -252,7 +252,7 @@ struct SearchTheStacksSheet: View {
         interpretedTerms = terms
         interpretationNote = JSONSalvage.string("note", in: raw)
             ?? "The Book read it as: \(terms.joined(separator: ", "))"
-        results = StacksSearchEngine.search(query, in: dataset, extraTerms: terms)
+        results = StacksSearchEngine.hybridSearch(query, in: dataset, extraTerms: terms)
         BookFeedback.play(.sourceRefresh)
     }
 }

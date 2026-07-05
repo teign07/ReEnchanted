@@ -13,23 +13,34 @@ final class BookGreetingTests: XCTestCase {
         XCTAssertNotEqual(a, b)
     }
 
-    func testDynamicLineFollowsPriority() {
-        // Celebration outranks everything.
-        XCTAssertTrue(BookGreetingComposer.compose(.init(
-            name: "bj", celebrationTitle: "The Luminous Gathering",
-            openBargainFae: "Marginalia Goblin", keptYesterday: 3, seed: 0
-        )).line.contains("Luminous Gathering"))
-        // Then an open bargain.
-        XCTAssertTrue(BookGreetingComposer.compose(.init(
-            name: "bj", openBargainFae: "Sentence Salamander", keptYesterday: 3, seed: 0
-        )).line.contains("Sentence Salamander"))
-        // Then yesterday's pages.
-        XCTAssertTrue(BookGreetingComposer.compose(.init(name: "bj", keptYesterday: 2, seed: 0)).line.contains("2 pages"))
-        // Grey day.
-        XCTAssertTrue(BookGreetingComposer.compose(.init(name: "bj", greyLevel: 3, seed: 0)).line.contains("grey"))
-        // Default keeps the Book open-ended.
-        XCTAssertEqual(BookGreetingComposer.compose(.init(name: "bj", seed: 0)).line, "The Book is ready to play.")
-        XCTAssertFalse(BookGreetingComposer.compose(.init(name: "bj", seed: 0)).line.contains("Ready to make some magic?"))
+    func testReturningGreetingUsesRemembranceInsteadOfLiveMechanics() {
+        let recent = BookGreetingComposer.compose(.init(
+            name: "bj",
+            rememberedFactLines: ["You care about small rituals."],
+            recentKeptLines: ["The kettle clicked like a tiny door latch."],
+            keptPageCount: 4,
+            seed: 0
+        ))
+        XCTAssertTrue(recent.line.contains("I remember this from your margins"))
+        XCTAssertTrue(recent.line.contains("kettle"))
+
+        let fact = BookGreetingComposer.compose(.init(
+            name: "bj",
+            rememberedFactLines: ["You care about small rituals."],
+            keptPageCount: 4,
+            seed: 0
+        ))
+        XCTAssertTrue(fact.line.contains("Book remembers"))
+        XCTAssertTrue(fact.line.contains("small rituals"))
+
+        let count = BookGreetingComposer.compose(.init(name: "bj", keptPageCount: 2, seed: 0))
+        XCTAssertTrue(count.line.contains("2 kept fragments"))
+
+        let wonder = BookGreetingComposer.compose(.init(name: "bj", seed: 3))
+        XCTAssertTrue(wonder.line.lowercased().contains("i wonder"))
+        XCTAssertFalse(wonder.line.contains("bargain"))
+        XCTAssertFalse(wonder.line.contains("Wheel"))
+        XCTAssertFalse(wonder.line.contains("talisman"))
     }
 
     func testWorldChargePrioritizesLiveWorldSignals() {
@@ -60,6 +71,34 @@ final class BookGreetingTests: XCTestCase {
         XCTAssertTrue(kept.contains("next Page"))
     }
 
+    func testWorldChargeCarriesCelebrationFaeAndPactSignals() {
+        let celebration = WorldChargeComposer.compose(.init(
+            moonName: "New Moon",
+            celebrationTitle: "The Luminous Gathering",
+            hour: 12,
+            seed: 0
+        ))
+        XCTAssertTrue(celebration.contains("Luminous Gathering"))
+
+        let fae = WorldChargeComposer.compose(.init(
+            moonName: "New Moon",
+            hour: 12,
+            seed: 0,
+            openBargainFae: "Sentence Salamander"
+        ))
+        XCTAssertTrue(fae.contains("Sentence Salamander"))
+        XCTAssertTrue(fae.contains("Terms"))
+
+        let pact = WorldChargeComposer.compose(.init(
+            moonName: "New Moon",
+            hour: 12,
+            seed: 0,
+            pactLine: "The Wind Cipher asks for a small errand."
+        ))
+        XCTAssertTrue(pact.contains("Wind Cipher"))
+        XCTAssertTrue(pact.contains("Another Page"))
+    }
+
     func testAfterglowCarriesTheKeepOutward() {
         let line = BookAfterglow.line(
             for: "The hallway light made the umbrella look like a tiny lighthouse.",
@@ -72,5 +111,40 @@ final class BookGreetingTests: XCTestCase {
                 || line.contains("next Page")
                 || line.contains("outside the covers")
         )
+    }
+
+    func testOpeningVoiceSummarizesAgencySignals() {
+        let voice = BookOpenVoiceComposer.compose(.init(
+            moonName: "Waxing Crescent",
+            hour: 15,
+            seed: 0,
+            ascendantTalismanName: "The Dusk Thorn",
+            castActionLine: "Zara Finch invested 2 Belief in Wicker Eddies.",
+            relationshipLine: "Zara Finch and Wicker Eddies warmed by the Loom.",
+            beliefMovementLine: "Mothlight Beats brightened by 1.",
+            readerBelief: 34
+        ))
+
+        XCTAssertFalse(voice.heroLine.isEmpty)
+        XCTAssertFalse(voice.edgeLine.isEmpty)
+        XCTAssertTrue(
+            voice.edgeLine.contains("Relationship")
+                || voice.edgeLine.contains("Cast")
+                || voice.edgeLine.contains("Belief")
+                || voice.edgeLine.contains("Talisman")
+        )
+    }
+
+    func testOpeningVoiceKeepsReadableLineCount() {
+        let voice = BookOpenVoiceComposer.compose(.init(
+            moonName: "Full Moon",
+            hour: 22,
+            seed: 3,
+            castActionLine: "Penny Blackletter gave 3 Belief to Wonder Compass Pages.",
+            beliefMovementLine: "You brightened by 1. Yesterday's kept pages left a small ember behind."
+        ))
+
+        XCTAssertLessThanOrEqual(voice.heroLine.components(separatedBy: ". ").count, 2)
+        XCTAssertLessThanOrEqual(voice.edgeLine.components(separatedBy: ". ").count, 2)
     }
 }

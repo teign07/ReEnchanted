@@ -26,6 +26,11 @@ struct InsideCoverApp: App {
     var body: some Scene {
         WindowGroup {
             LockedBookRoot()
+                // The whole Book is a night-palette surface (nightPanel/nightText
+                // everywhere). Pin the color scheme so any text that inherits the
+                // default `.primary` renders light — never black-on-dark in a
+                // device set to Light Mode.
+                .preferredColorScheme(.dark)
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {

@@ -349,6 +349,24 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertEqual(pactNews.conditions?.timeOfDay, ["dusk", "night"])
     }
 
+    func testEveryCoreSponsorReadPointsToAMarketWare() throws {
+        let stations = try ["fae-fi", "mothlight-beats", "thornwave"].map {
+            try XCTUnwrap(RadioStationRegistry.station(id: $0))
+        }
+        let sponsorIDs = Set(stations.flatMap { station in
+            station.resolvedBanters
+                .filter { $0.category == .sponsor }
+                .map(\.id)
+        })
+        let mappedSponsorIDs = Set(GoblinMarketEngine.radioSponsorWareIDsByBanterID.keys)
+        let marketWareIDs = Set(GoblinMarketEngine.inWorldWares.map(\.id))
+
+        XCTAssertEqual(sponsorIDs, mappedSponsorIDs)
+        for (sponsorID, wareID) in GoblinMarketEngine.radioSponsorWareIDsByBanterID {
+            XCTAssertTrue(marketWareIDs.contains(wareID), "\(sponsorID) points at missing ware \(wareID)")
+        }
+    }
+
     func testPageContextConditionsMatchRecentKeptPages() {
         let context = RadioWorldContext(
             timeOfDay: "dusk",

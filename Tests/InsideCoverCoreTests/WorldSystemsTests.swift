@@ -1845,6 +1845,77 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(pageResults.first?.referenceID, photo.id)
     }
 
+    func testSearchGraphCoversBroadArchiveRecords() {
+        let page = BookPage(type: .diary, promptText: "Right now", userInput: "The old shelf creaked.", tags: ["shelf"])
+        let event = NarrativeEvent(
+            id: "event-1",
+            kind: .choiceSelected,
+            sourcePageType: .diary,
+            sourcePageID: page.id,
+            createdAt: Date(),
+            summary: "Morgan noticed the shelf again.",
+            tags: ["morgan"],
+            effect: NarrativeEventEffect()
+        )
+        let fact = SelfFact(
+            id: "fact-1",
+            questionID: "favorite-place",
+            question: "Where do you return?",
+            answer: "The porch.",
+            bookTranslation: "The porch is a threshold.",
+            sensitivity: .comfort,
+            usePermission: .storyOnly,
+            tags: ["porch"],
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        let faculty = FacultyEntry(
+            id: "faculty-1",
+            kind: .innerWeather,
+            dayID: "2026-06-10",
+            sourcePageID: page.id,
+            createdAt: Date(),
+            windowID: "weather",
+            windowName: "Inner Weather",
+            rawText: "A soft fog around the morning.",
+            tags: ["fog"]
+        )
+        var dataset = StacksSearchDataset()
+        dataset.days = [searchDay(id: "2026-06-10", pages: [page])]
+        dataset.narrativeEvents = [event]
+        dataset.selfFacts = [fact]
+        dataset.facultyEntries = [faculty]
+
+        let graph = StacksSearchEngine.buildSearchGraph(from: dataset)
+
+        XCTAssertTrue(graph.documents.contains { $0.kind == .keptPage && $0.referenceID == page.id })
+        XCTAssertTrue(graph.documents.contains { $0.kind == .narrativeEvent && $0.referenceID == event.id })
+        XCTAssertTrue(graph.documents.contains { $0.kind == .selfFact && $0.referenceID == fact.id })
+        XCTAssertTrue(graph.documents.contains { $0.kind == .facultyEntry && $0.referenceID == faculty.id })
+        XCTAssertTrue(graph.links.contains { $0.fromID == "event-\(event.id)" && $0.toID == "page-\(page.id)" })
+        XCTAssertTrue(graph.links.contains { $0.fromID == "faculty-\(faculty.id)" && $0.toID == "page-\(page.id)" })
+    }
+
+    func testHybridSearchUsesOnDeviceSemanticEmbeddingsWhenAvailable() throws {
+        #if canImport(NaturalLanguage)
+        guard let scorer = NaturalLanguageStacksEmbeddingScorer() else {
+            throw XCTSkip("NaturalLanguage sentence embeddings are not available on this runtime.")
+        }
+        let exact = try XCTUnwrap(scorer.similarity(
+            between: "I fell asleep on the sofa after dinner.",
+            and: "I fell asleep on the sofa after dinner."
+        ))
+        let unrelated = try XCTUnwrap(scorer.similarity(
+            between: "I fell asleep on the sofa after dinner.",
+            and: "The brass compass named a thunderstorm over the harbor."
+        ))
+
+        XCTAssertGreaterThan(exact, unrelated, "on-device embeddings should score identical meaning above unrelated text")
+        #else
+        throw XCTSkip("NaturalLanguage is not available on this platform.")
+        #endif
+    }
+
     // MARK: Player vault
 
     func testPlayerVaultDataRoundTrips() throws {

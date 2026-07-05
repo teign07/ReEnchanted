@@ -1276,6 +1276,7 @@ struct ReEnchantedSaveFile: Codable {
     var storySceneBiases: [String: Int]? = nil
     var bookNoticeEvidence: Int? = nil
     var nothingGreyOffset: Int? = nil
+    var readerLearning: ReaderLearningModel? = nil
     var openWorldEventArchive: OpenWorldEventArchive? = nil
     /// The full continuity digest at export time, so the wider Labyrinth
     /// (scene engine, NPC dialogue) can reference what the Book has noticed.
@@ -1412,7 +1413,7 @@ enum JSONSalvage {
 /// earned outside the page archive: anchors, favors, Belief offsets, and
 /// tutor progress. One file, one schema version, one migration story.
 struct PlayerVaultData: Codable, Equatable {
-    static let currentVersion = 1
+    static let currentVersion = 2
 
     var version: Int = PlayerVaultData.currentVersion
     var anchors: [AnchorRecord] = []
@@ -1421,6 +1422,7 @@ struct PlayerVaultData: Codable, Equatable {
     var pageBelief: [String: Int] = [:]
     var tutorSeen: [String] = []
     var surfaceHistory: [String: SurfaceHistoryRecord]?
+    var readerLearning: ReaderLearningModel?
     var ownedPacks: [String]?
     var currentArc: StoryArc?
     var lastCompletedArcThreadID: String?
@@ -1526,6 +1528,32 @@ struct BookShopFreeGift: Identifiable, Codable, Equatable {
     var contents: String
 }
 
+/// One billing cadence of the Standing Order. All three tiers grant the same
+/// all-packs entitlement (`PackEntitlements.standingOrderPackID`) and carry the
+/// same 3-day free trial — they differ only in how often the ledger renews.
+/// The paywall renders these; the goblin-market shelf still shows the annual as
+/// the single representative Standing Order card.
+struct StandingOrderTier: Identifiable, Equatable {
+    enum Cadence: String, Equatable {
+        case weekly
+        case monthly
+        case annual
+    }
+
+    var id: String
+    var cadence: Cadence
+    var productID: String
+    var title: String
+    /// Fallback shown before StoreKit prices load / when offline.
+    var fallbackDisplayPrice: String
+    /// Per-period unit shown after the price, e.g. "week", "month", "year".
+    var periodUnit: String
+    /// A plain-language value note, e.g. "Best value — 2 months free".
+    var valueNote: String?
+    /// Every tier ships the same trial; kept per-tier for clarity in the sheet.
+    var freeTrialDays: Int = 3
+}
+
 enum BookShopCatalog {
     /// Everything the Goblins are willing to sell, ever listed here.
     /// Product IDs follow com.openclaw.enchantify.insidecover.pack.<packID>;
@@ -1563,6 +1591,60 @@ enum BookShopCatalog {
             saleState: .archivedEvent
         )
     ]
+
+    /// The three cadences of the Standing Order, cheapest cadence first. All
+    /// grant the all-packs entitlement; all carry the 3-day trial. Product IDs
+    /// live in the same App Store Connect subscription group so the store
+    /// handles upgrade/downgrade proration.
+    static let standingOrderTiers: [StandingOrderTier] = [
+        StandingOrderTier(
+            id: "standing-order-weekly",
+            cadence: .weekly,
+            productID: "com.openclaw.enchantify.insidecover.pass.standing-order.weekly",
+            title: "Weekly",
+            fallbackDisplayPrice: "$3.99",
+            periodUnit: "week",
+            valueNote: "Try it lightly"
+        ),
+        StandingOrderTier(
+            id: "standing-order-monthly",
+            cadence: .monthly,
+            productID: "com.openclaw.enchantify.insidecover.pass.standing-order.monthly",
+            title: "Monthly",
+            fallbackDisplayPrice: "$6.99",
+            periodUnit: "month",
+            valueNote: nil
+        ),
+        StandingOrderTier(
+            id: "standing-order-annual",
+            cadence: .annual,
+            productID: "com.openclaw.enchantify.insidecover.pass.standing-order.annual",
+            title: "Annual",
+            fallbackDisplayPrice: "$39.99",
+            periodUnit: "year",
+            valueNote: "Best value — about 2 months free"
+        )
+    ]
+
+    /// Every product identifier that grants the Standing Order, across all
+    /// cadences plus the legacy annual listing. Used to recognize any tier's
+    /// receipt as the same all-packs entitlement.
+    static var standingOrderProductIDs: Set<String> {
+        var ids = Set(standingOrderTiers.map(\.productID))
+        for listing in listings where listing.packID == PackEntitlements.standingOrderPackID {
+            ids.insert(listing.productID)
+        }
+        return ids
+    }
+
+    /// Resolves a purchased product identifier to the content packID it grants,
+    /// honoring the Standing Order across all of its cadences.
+    static func packID(forProductID productID: String) -> String? {
+        if standingOrderProductIDs.contains(productID) {
+            return PackEntitlements.standingOrderPackID
+        }
+        return listings.first { $0.productID == productID }?.packID
+    }
 
     /// What the Goblins hand over for nothing. Still bound to the save on
     /// purpose, so the reader chooses when the Book starts using it.

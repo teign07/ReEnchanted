@@ -1213,6 +1213,8 @@ enum LocalModelManager {
         nowPlaying: String? = nil,
         activeWorldEvents: [ResolvedWorldEvent] = [],
         readerLexicon: ReaderLexicon = ReaderLexicon(),
+        readerLearning: ReaderLearningModel = ReaderLearningModel(),
+        now: Date = Date(),
         calendar: Calendar = .current
     ) -> BraidContext {
         BraidPromptBuilder.context(
@@ -1224,6 +1226,8 @@ enum LocalModelManager {
             nowPlaying: nowPlaying,
             activeWorldEvents: activeWorldEvents,
             readerLexicon: readerLexicon,
+            readerLearning: readerLearning,
+            now: now,
             calendar: calendar
         )
     }
@@ -1740,6 +1744,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "the Inventory's clasp opening" : "an object in the Inventory answering \(clipped)"
         case .bindery:
             return clipped.isEmpty ? "the Bindery calling a finished month to a cover" : "the Bindery offering to bind \(clipped)"
+        case .bookPocket:
+            return clipped.isEmpty ? "the Book turning out its Pocket" : "the Book's Pocket holding \(clipped)"
         }
     }
 

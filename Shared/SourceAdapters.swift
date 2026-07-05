@@ -29,6 +29,7 @@ struct BookSourceInputs: Equatable {
     var pactWar: PactWarState = PactWarState()
     var hemisphere: Hemisphere = .northern
     var surfaceHistory: [String: SurfaceHistoryRecord] = [:]
+    var readerLearning: ReaderLearningModel = ReaderLearningModel()
     var calendarEvents: [CalendarEventSignal] = []
     var calendarIntegrationEnabled = true
     var nearbyPlaces: [LocalPlaceSignal] = []
@@ -58,6 +59,7 @@ struct BookSourceInputs: Equatable {
     var readerLexicon: ReaderLexicon = ReaderLexicon()
     var localBrainIsReady = false
     var readerBeliefScore: Int = 30
+    var pocket: PocketLedger = PocketLedger()
 
     func recentVarietyKeys(within seconds: TimeInterval = 48 * 3600, now: Date = Date()) -> Set<String> {
         Set(surfaceHistory.filter { now.timeIntervalSince($0.value.lastShownAt) < seconds }.keys)
@@ -741,6 +743,15 @@ struct SouvenirPageSourceAdapter: BookPageSourceAdapter {
         guard !didCaptureSouvenir(in: window, day: day) else { return [] }
         let eveningPrompt = window.id == "evening"
         let shadowState = ShadowWonder.state(inputs: inputs, now: now)
+        let greyLevel = NothingTide.greyLevel(
+            quietDays: inputs.quietDays,
+            narrativeHeat: inputs.narrative?.recentEventCount ?? 0,
+            distressActive: false,
+            celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: inputs.hemisphere)
+                + BookJumpEngine.greyShift(state: inputs.bookJump, now: now)
+                + RadioStationRegistry.greyShift(state: inputs.radio, now: now)
+                + inputs.nothingGreyOffset
+        )
         var pages = [
             SurfacePage(
                 id: "\(source.id)-\(day.id)-\(window.id)",
@@ -764,6 +775,33 @@ struct SouvenirPageSourceAdapter: BookPageSourceAdapter {
                 )
             )
         ]
+        if greyLevel >= 2 {
+            pages.append(
+                SurfacePage(
+                    id: "\(source.id)-grey-edge-\(day.id)-\(window.id)",
+                    type: .souvenir,
+                    sourceID: source.id,
+                    intent: .capture,
+                    renderStyle: .quoteCard,
+                    score: 88 + greyLevel * 3,
+                    reason: "Grey pressure is near; one true sentence can turn the light up.",
+                    prompt: "Name one true detail within reach.",
+                    detail: "A color, sound, texture, or small proof that the day is not blank.",
+                    payload: BookPagePayload(
+                        headline: "One-Sentence Souvenir",
+                        body: "The grey edge is near the desk. Keep one exact thing it cannot flatten.",
+                        metadata: [
+                            "source": source.id,
+                            "checkInWindowID": window.id,
+                            "checkInWindowName": window.name,
+                            "variant": "grey-edge",
+                            "greyLevel": "\(greyLevel)",
+                            "tags": "souvenir,grey-edge,check-in-window:\(window.id)"
+                        ]
+                    )
+                )
+            )
+        }
         if shadowState.isActive {
             pages.append(
                 SurfacePage(
@@ -1057,6 +1095,294 @@ struct BookRememberedPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+/// Surfaces "The Book's Pocket" now and then, once a few keepsakes have gathered
+/// from pages the reader swiped away. The surface id is keyed to the keepsake
+/// count, so a Pocket page that's been seen or dismissed only returns once a new
+/// keepsake bumps the count — the page waits for the pocket to fill again.
+struct BookPocketPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .bookPocket)
+
+    /// The pocket needs to gather a little before it's worth emptying out.
+    static let minimumKeepsakes = 2
+    /// How many keepsakes the emptied-out letter shows at once.
+    static let shownKeepsakes = 8
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        let pocket = inputs.pocket
+        guard pocket.count >= Self.minimumKeepsakes else { return [] }
+        guard !openedPocketToday(day) else { return [] }
+
+        let shown = Array(pocket.newestFirst.prefix(Self.shownKeepsakes))
+        let latest = shown.first
+        // Keyed to the count so the same pocketful never re-surfaces once handled.
+        let surfaceID = "\(source.id)-\(pocket.count)"
+        let score = min(60, 40 + pocket.count * 2)
+        let serialized = shown.map { keepsake in
+            [keepsake.glyph, keepsake.object, keepsake.pageType.shortTitle, "\(keepsake.foundAt.timeIntervalSince1970)"]
+                .joined(separator: "\u{1F}")
+        }.joined(separator: "\n")
+
+        return [
+            SurfacePage(
+                id: surfaceID,
+                type: .bookPocket,
+                sourceID: source.id,
+                intent: .resurface,
+                renderStyle: .loreLetter,
+                score: score,
+                reason: latest.map { "The Book has been keeping \($0.object) and a few other small things." }
+                    ?? "The Book turns out its Pocket.",
+                prompt: "The Book turns out its Pocket.",
+                detail: shown.prefix(2).map(\.object).joined(separator: ", "),
+                payload: BookPagePayload(
+                    headline: "The Book's Pocket",
+                    body: Self.body(for: shown, total: pocket.count),
+                    metadata: [
+                        "source": source.id,
+                        "pocketItems": serialized,
+                        "pocketTotal": "\(pocket.count)",
+                        "tags": "book-pocket,keepsake,parting-whisper,local-memory"
+                    ]
+                )
+            )
+        ]
+    }
+
+    private func openedPocketToday(_ day: BookDay) -> Bool {
+        day.pages.contains { $0.type == .bookPocket || $0.tags.contains("book-pocket") }
+    }
+
+    static func body(for keepsakes: [PocketKeepsake], total: Int) -> String {
+        let opener = "I turned out my Pocket onto the desk. These are the little things pages left behind on their way off — kept, because keeping small things is what I am for."
+        let lines = keepsakes.map { "\u{2022} \($0.object), left by the \($0.pageType.shortTitle.lowercased()) page" }
+        let more = total > keepsakes.count ? "\n\n(\(total - keepsakes.count) more wait deeper in the lining.)" : ""
+        return opener + "\n\n" + lines.joined(separator: "\n") + more
+    }
+}
+
+/// The Book's earliest honest proof that it read *you*.
+///
+/// The pattern-noticing in `BookNoticesPageSourceAdapter` needs weeks of archive
+/// before it can honestly claim a recurring motif, so it stays folded away
+/// behind `libraryReadyForReflectivePages`. That leaves the crucial first days
+/// carried entirely by atmosphere. This fills the gap: the first time a handful
+/// of pages exist, the Book reflects *those specific pages* back — the reader's
+/// own words, the rhythm of their keeping, and at most one tentative thread that
+/// genuinely appears in two of them. It never claims a pattern it cannot show,
+/// and it says as much out loud.
+enum FirstReading {
+    struct Reflection: Equatable {
+        var pageCount: Int
+        var dayCount: Int
+        var fragments: [String]
+        var threadWord: String?
+        var threadCount: Int
+    }
+
+    /// Body and fuel logs stay out of the Book's commentary, matching
+    /// `EditionCurator` and `KeepMarginalia`.
+    static func reflectablePages(in inputs: BookSourceInputs, today: BookDay) -> [BookPage] {
+        (inputs.days + [today])
+            .flatMap(\.capturedPages)
+            .filter { !EditionCurator.defaultPrivateTypes.contains($0.type) }
+    }
+
+    /// Concrete words honest enough to name a thread around — things a reader
+    /// would recognise as "a thing," never moods or filler.
+    static let threadLexicon: [String] = [
+        "rain", "snow", "fog", "mist", "wind", "sun", "moon", "cloud", "storm",
+        "sky", "dusk", "dawn", "night", "star", "stars",
+        "kitchen", "window", "door", "street", "garden", "porch", "room", "car",
+        "road", "shore", "harbor", "water", "sea", "river",
+        "cup", "mug", "book", "page", "lamp", "key", "candle", "photo", "letter",
+        "coffee", "tea", "light", "shadow", "music", "song",
+        "mother", "father", "dog", "cat", "friend", "home"
+    ]
+
+    static func reflection(for pages: [BookPage], now: Date = Date(), calendar: Calendar = .current) -> Reflection? {
+        guard pages.count >= 3 else { return nil }
+        let dayCount = Set(pages.map { BookDay.id(for: $0.createdAt, calendar: calendar) }).count
+        let fragments = self.fragments(from: pages)
+        guard fragments.count >= 2 else { return nil }
+        let (word, count) = thread(in: pages)
+        return Reflection(
+            pageCount: pages.count,
+            dayCount: max(1, dayCount),
+            fragments: fragments,
+            threadWord: word,
+            threadCount: count
+        )
+    }
+
+    /// Up to three ways to name the reader's kept pages back to them, most vivid
+    /// first. Pages with real prose are quoted in the reader's own words;
+    /// wordless logs are named by what they are.
+    static func fragments(from pages: [BookPage]) -> [String] {
+        let ranked = pages.sorted { a, b in
+            let sa = StorySpark.score(text(of: a))
+            let sb = StorySpark.score(text(of: b))
+            if sa == sb { return a.createdAt > b.createdAt }
+            return sa > sb
+        }
+        var seen: Set<String> = []
+        var out: [String] = []
+        for page in ranked {
+            let fragment = self.fragment(for: page)
+            let key = fragment.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            out.append(fragment)
+            if out.count == 3 { break }
+        }
+        return out
+    }
+
+    private static func text(of page: BookPage) -> String {
+        (page.userInput.nonEmpty ?? page.promptText).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func fragment(for page: BookPage) -> String {
+        let raw = text(of: page)
+        let words = raw.split { !$0.isLetter && !$0.isNumber }
+        if words.count >= 3 {
+            let sentence = StorySpark.sentence(from: page)
+                .trimmingCharacters(in: CharacterSet(charactersIn: " .!?"))
+            if !sentence.isEmpty {
+                return "\u{201C}\(sentence)\u{201D}"
+            }
+        }
+        return named(page)
+    }
+
+    private static func named(_ page: BookPage) -> String {
+        switch page.type {
+        case .mood: return "a page of how the day felt"
+        case .weather: return "the weather you sealed"
+        case .souvenir: return "a sentence you kept"
+        case .diary: return "a note you left yourself"
+        case .location: return "a place you marked"
+        case .illuminatedPhoto, .illustration: return "an image you illuminated"
+        default: return "a page you kept"
+        }
+    }
+
+    /// The single most-shared concrete word, if one genuinely appears in two or
+    /// more pages. Deterministic: ties break toward the lexicon's order.
+    static func thread(in pages: [BookPage]) -> (word: String?, count: Int) {
+        let wordSets: [Set<String>] = pages.map { page in
+            Set(text(of: page).lowercased().split { !$0.isLetter }.map(String.init))
+        }
+        var best: String?
+        var bestCount = 0
+        for candidate in threadLexicon {
+            let count = wordSets.reduce(0) { $0 + ($1.contains(candidate) ? 1 : 0) }
+            if count >= 2 && count > bestCount {
+                best = candidate
+                bestCount = count
+            }
+        }
+        return (best, bestCount)
+    }
+
+    static func body(for reflection: Reflection) -> String {
+        var out = "I have read what you kept — \(countPhrase(reflection)). Not a life yet, but I read every word, and I was paying attention.\n\n"
+        out += reflectionParagraph(reflection.fragments)
+        if let word = reflection.threadWord {
+            out += "\n\n\(threadSentence(word: word, count: reflection.threadCount))"
+        }
+        out += "\n\nBooks should be careful with certainty, so I will not pretend to know you yet. But keep leaving pages, and the shapes will come — who keeps appearing, what you turn toward, what the quiet is about. For now I am only reading, and glad to be."
+        return out
+    }
+
+    private static func countPhrase(_ r: Reflection) -> String {
+        let pageWord = spelled(r.pageCount)
+        let pages = r.pageCount == 1 ? "page" : "pages"
+        if r.dayCount <= 1 {
+            return "\(pageWord) \(pages), all in one sitting"
+        }
+        return "\(pageWord) \(pages), across \(spelled(r.dayCount)) days"
+    }
+
+    private static func reflectionParagraph(_ fragments: [String]) -> String {
+        switch fragments.count {
+        case ...1:
+            return "You kept \(fragments.first ?? "a page")."
+        case 2:
+            return "You kept \(fragments[0]). And \(fragments[1])."
+        default:
+            return "You kept \(fragments[0]). Then \(fragments[1]). And \(fragments[2]) — the one I keep returning to."
+        }
+    }
+
+    private static func threadSentence(word: String, count: Int) -> String {
+        let lead = count >= 3 ? "\(spelled(count)) times now" : "twice now"
+        let capped = lead.prefix(1).uppercased() + lead.dropFirst()
+        return "\(capped), something about \(word). It may be nothing — I have only noted it in pencil."
+    }
+
+    private static func spelled(_ n: Int) -> String {
+        let words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"]
+        return (0...12).contains(n) ? words[n] : "\(n)"
+    }
+}
+
+/// Surfaces `FirstReading` as an early, honest `.bookNotices` page. It fires in
+/// the narrow window before the pattern-noticing gate opens, exactly once (the
+/// reader's kept copy carries a `first-reading` tag that suppresses it forever),
+/// and scores modestly so a genuine pattern notice outranks it once one exists.
+struct FirstReadingPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .bookNotices)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        let pages = FirstReading.reflectablePages(in: inputs, today: day)
+        // Early window only: enough kept pages to reflect, but not yet deep
+        // enough for the pattern-noticing in Book Notices to carry the weight.
+        guard (3...7).contains(pages.count) else { return [] }
+        // A milestone: once the reader keeps this reading, it never returns.
+        let alreadyKept = (inputs.days + [day])
+            .flatMap(\.pages)
+            .contains { $0.tags.contains("first-reading") }
+        guard !alreadyKept else { return [] }
+        // On a hard day the Book goes quiet and leads with care. This milestone
+        // is once-ever and self-suppressing, so it simply waits for a calmer
+        // session rather than crowding out gentleness.
+        guard !context.distress.isActive else { return [] }
+        guard let reflection = FirstReading.reflection(for: pages, now: now) else { return [] }
+
+        let slot = SurfaceCadence.slotID(for: now, hours: 24)
+        return [
+            SurfacePage(
+                id: "\(source.id)-first-reading-\(slot)",
+                type: .bookNotices,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                // A priority reflective milestone — scored a step above the
+                // Book's other must-see reflective moments (constellation
+                // naming 70, sealed wager 72) because this is the reader's first
+                // proof of being read, but deliberately below orientation and
+                // the distress/rest overrides (88–96) so a busy or hard desk
+                // still leads with care. Hard days are handled by the distress
+                // guard above; it is re-offered on calm sessions until kept.
+                score: 80,
+                reason: "The Book has read the pages you kept.",
+                prompt: "The Book has been reading.",
+                detail: reflection.fragments.first ?? "The Book read what you kept.",
+                payload: BookPagePayload(
+                    headline: "The Book Reads Back",
+                    body: FirstReading.body(for: reflection),
+                    metadata: [
+                        "source": source.id,
+                        "firstReading": "true",
+                        "reflectedPageCount": "\(reflection.pageCount)",
+                        "tags": "first-reading,book-notices,proof-of-reading,local-memory"
+                    ]
+                )
+            )
+        ]
+    }
+}
+
 struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .bookNotices)
 
@@ -1067,8 +1393,44 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         var pages: [SurfacePage] = []
         pages += namingSurfaces(for: day, inputs: inputs, now: now)
         pages += wagerSurfaces(for: day, inputs: inputs, now: now)
+        pages += learningSurfaces(for: day, inputs: inputs, now: now)
         pages += noticeSurfaces(for: day, inputs: inputs, now: now)
         return pages
+    }
+
+    private func learningSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard !didLearnToday(day) else { return [] }
+        let metrics = inputs.readerLearning.metrics(days: inputs.days + [day], now: now)
+        guard metrics.meaningfulEventCount >= 4 else { return [] }
+        let insights = inputs.readerLearning.insights(now: now, limit: 4)
+        guard !insights.isEmpty else { return [] }
+        let body = Self.learningBody(insights: insights, metrics: metrics)
+        let evidence = insights.map { "- \($0.line) \($0.evidence)" }.joined(separator: "\n")
+        let score = min(74, 46 + min(16, metrics.meaningfulEventCount / 2) + insights.count * 3)
+        return [
+            SurfacePage(
+                id: "\(source.id)-book-learns-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 24))",
+                type: .bookNotices,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                score: score,
+                reason: "The Book can say what it is learning about how pages meet you.",
+                prompt: "The Book shows its learning.",
+                detail: insights.prefix(2).map(\.line).joined(separator: " "),
+                payload: BookPagePayload(
+                    headline: "The Book Learns",
+                    body: body,
+                    metadata: [
+                        "source": source.id,
+                        "bookLearning": "true",
+                        "learningMetrics": "tenureDays:\(metrics.tenureDays),events:\(metrics.eventCount),positiveRate:\(metrics.positiveRatePercent)",
+                        "learningInsights": evidence,
+                        "tags": "book-learning,reader-learning,book-notices,local-memory"
+                    ]
+                )
+            )
+        ]
     }
 
     private func noticeSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
@@ -1249,8 +1611,32 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
     private func didNoticeToday(_ day: BookDay) -> Bool {
         day.pages.contains { page in
             page.tags.contains("book-notices")
-                || (page.type == .bookNotices && !page.tags.contains(where: { $0.hasPrefix("wager-") || $0.hasPrefix("named:") }))
+                || (page.type == .bookNotices && !page.tags.contains(where: {
+                    $0.hasPrefix("wager-") || $0.hasPrefix("named:") || $0 == "book-learning"
+                }))
         }
+    }
+
+    private func didLearnToday(_ day: BookDay) -> Bool {
+        day.pages.contains { page in
+            page.tags.contains("book-learning")
+        }
+    }
+
+    private static func learningBody(insights: [ReaderLearningInsight], metrics: ReaderLearningMetrics) -> String {
+        let lines = insights.map { insight in
+            "\(insight.line)\n\(insight.evidence)"
+        }.joined(separator: "\n\n")
+        let tenure = metrics.tenureDays > 0
+            ? "I have \(metrics.tenureDays) days of marginal weather to compare."
+            : "I am still learning my first weather."
+        return """
+        I should show my work.
+
+        \(lines)
+
+        \(tenure) \(metrics.meaningfulEventCount) reader decisions now shape what I offer next. This is not a profile hidden behind the shelf; it is a pencil mark I can erase when you teach me otherwise.
+        """
     }
 
     private static func body(for signals: [LiteraryContinuitySignal], theme: BookTheme?, clusters: [BookMotifCluster] = []) -> String {
@@ -6284,7 +6670,9 @@ enum BookPageSourceAdapters {
         BookOfYouPageSourceAdapter(),
         BookRememberedPageSourceAdapter(),
         BookConnectionsPageSourceAdapter(),
+        FirstReadingPageSourceAdapter(),
         BookNoticesPageSourceAdapter(),
+        BookPocketPageSourceAdapter(),
         TheBleedPageSourceAdapter(),
         AskTheBookPageSourceAdapter(),
         BodyPageSourceAdapter(),

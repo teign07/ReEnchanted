@@ -23,7 +23,8 @@ durations, relationships, recurring Beliefs, and seasonal shape.
 - Shared SwiftPM package: `InsideCoverCore`
 - Supported runtime target: iOS 17+
 - Shared-core test target: `Tests/InsideCoverCoreTests`
-- Current verified shared suite: 565 tests, 1 skipped
+- Current verified shared suite: see `Tests/InsideCoverCoreTests` and the latest
+  local `swift test` run; the suite is broad and changes frequently.
 - Device builds: build/install to a physical device (the local brain only runs on
   device; the iOS Simulator compiles but exercises only the fake fallbacks).
 - Widget status: **shipped** as a Home Screen / Lock Screen extension target,
@@ -39,6 +40,15 @@ continuous living world:
 - **Monthly world-event envelope:** active `WorldEvent`s now affect The Bleed,
   Radio, Book Whispers, widgets, Book of You braids, story packets, letters, and
   curation metadata, not just their own event door.
+- **Bindery and physical-book path:** the Book can now bind monthly/annual PDFs
+  and route a print-studio flow through BookShop for cloth/illustrated hardcover
+  variants, quotes, payment intents, hosted print files, Lulu order preview/order
+  creation, pending-order recovery, tracking, and explicit advanced file links.
+- **Inventory + Goblin Market:** the reader now has a first-class Inventory page
+  for Fae gifts, owned packs, story objects, custom cast artifacts, and usable
+  gift actions. The BookShop is also a living Goblin Market with Attention,
+  Belief-priced wares, haggling, calling cards, seasonal mood, warmth, purchase
+  gossip, and radio sponsorship hooks.
 - **Triggered Page Packs:** `PageArchetype` now has an optional Codable
   `PageTrigger`, so pack pages can surface from clock, weekday, moon phase,
   Almanac celebrations, weather, recent archive tags, absence/quiet days,
@@ -57,6 +67,13 @@ continuous living world:
   layer. Words can be recalled, pardoned, adopted, or freed; those rulings settle
   into a treaty and become an in-memory Sentence Builder pack that bends future
   prose without writing generated pack files into Documents.
+- **Word Negotiations:** Dictionary Rebellion words can now surface as their own
+  `wordNegotiation` pages, with authored grievances, ruling choices, missing-seed
+  state, event/phase gating, and keep-time application into the Reader's Lexicon.
+- **Pact War surfaces:** the Pact War has grown beyond background talisman
+  deltas into Pact Dispatches, Pact Verdict reports, Talisman Errands, shelf
+  territory control, sovereign shelf effects, page framing, and real report-back
+  loops.
 - **Wonder Compass widgets:** the Compass widget now supports large/extra-large
   families and can render a real five-direction run payload from the app, with a
   deterministic fallback and a Gemma-ready handoff path.
@@ -74,6 +91,13 @@ continuous living world:
 - **Center Page deepening:** the Center/Rest family now includes concrete
   "Gear Shifter" invitations for Alpha/Theta rest, so rest can appear as a
   specific relief rather than a generic prompt.
+- **Capture sheet deepening:** kept pages can now carry pressed-photo data,
+  voice notes/playback chips, dictated input, artifact quote cards, camera
+  capture, illuminated quote-card sharing, and page-specific action controls
+  without flattening everything into one text field.
+- **Bindery page source:** the app can surface binding itself as a page when a
+  month is ready, pointing toward PDF sharing or real cloth binding instead of
+  hiding export in a lab-only corner.
 - **Search the Stacks expansion:** archive search is now treated as a first-class
   product surface in both app and landing page copy, with richer semantic search
   examples and new screenshots.
@@ -290,10 +314,11 @@ mood, diary, souvenir, rest, body, fuel, weather, location, quip,
 aboutYou, wonderCompass, lore, patreon, illustration, illuminatedPhoto,
 narrativeOS, gossip, facultyResearch, letter, supportGuild,
 bookOfYou, askTheBook, inkrestOfficeHours, faeBargain, bookFae,
-pactDispatch, festival, twoReadings, castBond, todaysSky, radio,
+pactDispatch, pactVerdict, pactErrand, festival, twoReadings, castBond, todaysSky, radio,
 bookJump, enchantment, anchor, academyClass, elective, packPage,
-calendar, helpTips, welcome, marginsAtlas, bookConnections, bookRemembered,
-bookNotices, glowInvitation, gamePage, theBleed, inventory
+wordNegotiation, gamePage, calendar, helpTips, welcome, marginsAtlas,
+bookConnections, bookRemembered, bookNotices, glowInvitation, theBleed,
+inventory, bindery
 ```
 
 Important model types:
@@ -323,12 +348,13 @@ It returns zero or more `SurfacePage` candidates. The active adapter order is:
 Inventory, BookShop Preview, World Event, Rest, Mood, Diary, Souvenir,
 Book of You, Book Remembered, Book Connections, Book Notices, The Bleed,
 Ask the Book, Body, Fuel, Faculty Research, Character Letter, Support Guild,
-Dr. Inkrest's Office Hours, Fae Bargain, Book Fae, Pact Dispatch, Festival,
-Today's Sky, Radio, Book Jump, Two Readings, Cast Bond, Glow Invitation, Weather, Enchantment,
-Welcome, Local Brain Awake, Academy Class, Elective, Pack Page, Calendar, Quip,
-About You, Wonder Compass, Lore, Help Tips, Patreon, Illustration,
-Illuminated Photo, Story Page, Game Page, Margins Atlas, Gossip, Cast Member,
-Outer Stacks Anchor, Location
+Dr. Inkrest's Office Hours, Fae Bargain, Book Fae, Pact Dispatch, Pact Verdict,
+Pact Errand, Festival, Today's Sky, Radio, Book Jump, Two Readings, Cast Bond,
+Glow Invitation, Bindery, Weather, Enchantment, Welcome, First Door Origin,
+Local Brain Awake, First Door Apprenticeship, Academy Class, Elective, Game Page,
+Word Negotiation, Pack Page, Calendar, Quip, About You, Wonder Compass, Lore,
+Help Tips, Patreon, Illustration, Illuminated Photo, Story Page, Margins Atlas,
+Gossip, Cast Member, Outer Stacks Anchor, Location
 ```
 
 `BookSourceInputs` is the central context bundle. It carries body/weather
@@ -388,6 +414,20 @@ The Center/Rest family now includes **Gear Shifters** from the Wonder Compass's
 Center chapter: concrete Alpha and Theta rest invitations chosen by hour and
 day state. This lets rest surface as a specific nervous-system relief ("soft
 gaze", deeper repair, etc.) instead of a generic "take a break" card.
+
+`CapturePageSheet` is now the app's main interaction stage rather than a plain
+keep form. It hosts page-specific affordances: camera capture, illuminated photo
+flows, Story Page choices, Book Jump controls, Word Negotiation rulings, kept
+voice recording/playback, dictation, artifact quote extraction, illuminated
+quote-card sharing, Inventory actions, and full-screen Margins Atlas exploration.
+Supporting pieces include `CapturePageSections.swift`, `DictationInput.swift`,
+`KeptVoiceRecorder.swift`, `KeptVoicePlaybackChip.swift`,
+`PressedPhotograph.swift`, and `IlluminatedQuoteCardRenderer`.
+
+Kept media stays structured. Pressed photographs are downscaled before storage,
+voice recordings are referenced as media assets, Photos-library references are
+resolved only when binding/exporting with permission, and share cards are
+rendered into the app's own files instead of becoming hidden network work.
 
 ### Sentence Builder
 
@@ -464,6 +504,25 @@ Enabled packs come from bundled content plus user-imported
 `PackEntitlements`, so the same system supports free packs, imported packs, and
 BookShop purchases without adding new Swift page types.
 
+### Word Negotiations And The Reader's Lexicon
+
+`wordNegotiation` is the playable page type for Dictionary Rebellion language
+law. Packs can provide `WordNegotiationDefinition`s alongside ordinary page
+archetypes. A definition names the disputed word, its original sense, grievance,
+category, origin, default ruling, optional event/phase/mode gates, missing-seed
+state, and the available ruling choices.
+
+The page source is `WordNegotiationPageSourceAdapter`. It reads definitions from
+`PageArchetypePackRegistry.wordNegotiations()`, filters them by live/archive
+event state, skips words already ruled, and emits metadata such as
+`wordNegotiationWord`, `wordNegotiationChoices`, and per-choice replacement
+senses. Keeping the page applies the chosen `WordRuling` in `ContentView` so the
+reader's treaty becomes real system state rather than decorative copy.
+
+The settled lexicon can then become an in-memory Sentence Builder overlay. The
+Book does not write generated packs into Documents; it bends prose from the
+reader's actual rulings.
+
 The BookShop is the Marginalia Goblins' commerce layer:
 
 - `BookShopCatalog` lists packs across families: page folios, story forms,
@@ -484,6 +543,15 @@ than pretending the calendar changed.
 
 This is the content expansion spine: new pages, event archives, radio stations,
 and story-form bundles can be owned by the save and consumed by registries.
+
+The BookShop is also now a place. The Marginalia Goblins can open a living
+market stall through new-moon windows, calling cards, or the BookShop page. The
+stall sells local in-world wares for Attention or Belief: warm words for cast
+members, side-door time, and other small working goods. Goblin mood shifts by
+season, warmth can earn discounts, haggling spends warmth, and purchases can
+record gossip into the narrative field. Radio sponsor banter maps back to
+Goblin Market wares, so the commerce layer is part of the Academy broadcast
+world rather than a detached storefront.
 
 ### Game Pages: The Sentence Runner
 
@@ -733,6 +801,26 @@ surface, not a loose report.
 
 This system is intentionally archive-driven. It does not generate a whole book
 from scratch. It binds accumulated artifacts into a coherent monthly volume.
+
+### The Bindery And Physical Books
+
+`bindery` is now its own page family, not only a hidden export button. The
+`BinderyPageSourceAdapter` can surface when a completed month has enough kept
+pages to sew into a chapter, and its copy points toward sharing the PDF or
+sending the edition toward a real binding.
+
+The physical-book path lives mostly in `BookShopSheet.swift` and
+`Shared/PhysicalBookOrders.swift`. The app models quote requests, variants,
+shipping destinations/options, hosted interior/cover files, payment intents,
+order previews, submitted orders, and pending-order drafts. `PhysicalBookPricing`
+keeps manufacturing, markup, shipping, and processing math explicit and tested.
+
+The current studio flow supports print-preview variants such as cloth-foil and
+illustrated hardcovers, can ask a configured quote service for shipping/pricing,
+can prepare payment, records pending order state locally, can upload or accept
+hosted print-file URLs, and can create or preview a Lulu-style print order when
+the backend endpoint/token are configured. If the service is not configured, the
+PDF binding path still works locally.
 
 ### Ask The Book
 
@@ -1364,6 +1452,27 @@ Behavior:
 
 This makes world politics and attention mechanically persistent without turning
 the app into a combat system.
+
+### The Pact War
+
+The Pact War now has its own territory layer in `Shared/WorldSystems.swift`.
+`PactTerritoryRegistry` maps shelves/page families to contested territories,
+while `PactWarEngine` advances control, raids, challenges, sovereign states,
+errands, and lapses. The result is still literary attention politics, not combat:
+talismans argue over what kind of life the Book should notice.
+
+New page families make that state visible:
+
+- `pactDispatch` reports movement in the Chapter war.
+- `pactVerdict` summarizes control and consequences.
+- `pactErrand` lets a talisman ask the reader for a small real-world report, then
+  pays it back into territory control if delivered before the deadline.
+
+Pact effects can boost shelves, frame pages, add door epigraphs, whisper into
+Book of You prompts, and mark sovereign shelves. `PactWarEffects.framed(_:)`
+annotates surface pages without replacing their source identity, so a body page
+or souvenir remains itself while also showing which Chapter is currently leaning
+over that shelf.
 
 ## The Book Fae And Bargains
 

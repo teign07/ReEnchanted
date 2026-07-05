@@ -1635,17 +1635,20 @@ struct CuratorSurfacePreferences: Equatable {
     var dismissedSurfaceIDs: Set<String>
     var disabledSourceIDs: Set<String>
     var pageBeliefProfiles: [String: PageBeliefProfile]
+    var readerLearning: ReaderLearningModel
 
     static let none = CuratorSurfacePreferences()
 
     init(
         dismissedSurfaceIDs: Set<String> = [],
         disabledSourceIDs: Set<String> = [],
-        pageBeliefProfiles: [String: PageBeliefProfile] = [:]
+        pageBeliefProfiles: [String: PageBeliefProfile] = [:],
+        readerLearning: ReaderLearningModel = ReaderLearningModel()
     ) {
         self.dismissedSurfaceIDs = dismissedSurfaceIDs
         self.disabledSourceIDs = disabledSourceIDs
         self.pageBeliefProfiles = pageBeliefProfiles
+        self.readerLearning = readerLearning
     }
 
     func allows(_ page: SurfacePage) -> Bool {
@@ -1663,7 +1666,8 @@ struct CuratorSurfacePreferences: Equatable {
         let beliefBias = beliefDelta / 2
         let automagicFloor = BookPageSourceRegistry.automagicSourceIDs.contains(page.sourceID) ? 68 : 0
         let lowBeliefChance = lowBeliefChanceBoost(for: page, profile: profile)
-        return max(automagicFloor, page.score + narrativeBias + beliefBias + lowBeliefChance)
+        let learnedBias = readerLearning.scoreAdjustment(for: page)
+        return max(automagicFloor, page.score + narrativeBias + beliefBias + lowBeliefChance + learnedBias)
     }
 
     private func startingPageBelief(for page: SurfacePage) -> Int? {
@@ -1685,6 +1689,12 @@ extension String {
     var nonEmpty: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var readerLearningNormalizedTag: String {
+        trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
     }
 
     func bookPreviewSentenceLimit(_ limit: Int) -> String {

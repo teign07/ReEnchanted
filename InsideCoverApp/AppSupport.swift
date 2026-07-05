@@ -63,6 +63,7 @@ let appLog = Logger(subsystem: "com.openclaw.enchantify.insidecover", category: 
 
 extension Notification.Name {
     static let bookAppLockAuthorized = Notification.Name("bookAppLockAuthorized")
+    static let promptWhisperKept = Notification.Name("promptWhisperKept")
 }
 
 #if canImport(LocalAuthentication)
@@ -315,6 +316,18 @@ enum BookFeedback {
 
     static func chapterBinding() {
         BookHapticEngine.shared.playChapterBinding()
+    }
+
+    /// The Monthly Binding's own ceremonial haptic — distinct from every page
+    /// and braid cue, reserved for the month being sewn between covers.
+    static func monthBound() {
+        BookHapticEngine.shared.playMonthBound()
+    }
+
+    /// The print-ready export's ceremonial haptic — the foil-stamp press,
+    /// reserved for a month set for a physical printer.
+    static func pressReady() {
+        BookHapticEngine.shared.playPressReady()
     }
 
     static func pageRising(rarity: Int) {
@@ -608,6 +621,44 @@ private final class BookHapticEngine {
 
     func playChapterBinding() {
         _ = pattern("chapter-binding", [beat(0, 0.18, 0.18), beat(0.10, 0.24, 0.26), beat(0.21, 0.32, 0.38), beat(0.34, 0.44, 0.52), beat(0.52, 0.92, 0.82)], minimumInterval: 2)
+    }
+
+    /// The print-ready export — the month set for a physical press. A heavy
+    /// approach, the foil stamp landing hard and sharp, a release, a confirming
+    /// second stamp, then a metallic settle. Weightier than the sewn cue: this
+    /// one is about atoms, not pages.
+    func playPressReady() {
+        _ = pattern(
+            "press-ready",
+            [
+                beat(0.00, 0.55, 0.30),
+                beat(0.18, 1.00, 0.95),
+                beat(0.31, 0.40, 0.60),
+                beat(0.50, 0.86, 0.90),
+                beat(0.66, 0.30, 0.52)
+            ],
+            minimumInterval: 2
+        )
+    }
+
+    /// The Monthly Binding — the biggest recurring peak. Four quick rising
+    /// stitches (the signatures being sewn), a soft low settle (the covers
+    /// closing), then a firm, sharp press (the gilt wax seal). Deliberately
+    /// grander and longer than any single-page cue.
+    func playMonthBound() {
+        _ = pattern(
+            "month-bound",
+            [
+                beat(0.00, 0.14, 0.32),
+                beat(0.10, 0.17, 0.36),
+                beat(0.20, 0.20, 0.40),
+                beat(0.30, 0.24, 0.44),
+                beat(0.46, 0.44, 0.22),
+                beat(0.68, 0.72, 0.20),
+                beat(0.94, 1.00, 0.94)
+            ],
+            minimumInterval: 2
+        )
     }
 
     func playPageRise(rarity: Int) {
@@ -2642,12 +2693,61 @@ struct BookCameraCaptureView: UIViewControllerRepresentable {
 import UserNotifications
 #endif
 
+/// The one honest promise the paywall makes real: a local notification the day
+/// before a free trial converts to a charge. Independent of the `BookWhispers`
+/// channel (and its Colophon switch) so it fires even if in-world whispers are
+/// off — a billing courtesy, not a story beat. Non-repeating; a fresh purchase
+/// replaces any prior reminder.
+enum StandingOrderTrialReminder {
+    static let identifier = "standing-order-trial-reminder"
+
+    static func schedule(trialDays: Int, price: String, periodUnit: String, now: Date = Date()) {
+        #if canImport(UserNotifications)
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            let calendar = Calendar.current
+            // The day before the charge: trialStart + (trialDays - 1) days.
+            let reminderDay = calendar.date(byAdding: .day, value: max(0, trialDays - 1), to: now) ?? now
+            var comps = calendar.dateComponents([.year, .month, .day], from: reminderDay)
+            comps.hour = 10
+            comps.minute = 0
+
+            let content = UNMutableNotificationContent()
+            content.title = "Your free trial ends tomorrow"
+            content.body = "Tomorrow the Standing Order becomes \(price)/\(periodUnit). Keep it, or cancel in Settings — either way, every page you made stays yours."
+            content.sound = .default
+
+            let trigger: UNNotificationTrigger
+            if let fireDate = calendar.date(from: comps), fireDate > now {
+                trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+            } else {
+                // Trial too short for a day-before slot; nudge shortly instead.
+                trigger = UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false)
+            }
+
+            center.removePendingNotificationRequests(withIdentifiers: [identifier])
+            center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
+        }
+        #endif
+    }
+
+    static func cancel() {
+        #if canImport(UserNotifications)
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier])
+        #endif
+    }
+}
+
 /// The Book's voice outside the app: a few quiet, in-world local
 /// notifications. Class bells, the evening braid whisper, and aging quests.
 /// Everything is prefixed so a refresh can sweep ours without touching
 /// anything else, and the whole channel has one switch in the Colophon.
 enum BookWhispers {
     static let identifierPrefix = "book-whisper-"
+    static let promptIdentifierPrefix = "book-whisper-prompt-"
+    static let promptCategoryIdentifier = "book-whisper-prompt"
+    static let promptReplyActionIdentifier = "prompt-keep-reply"
 
     static func refreshSchedule(
         enabled: Bool,
@@ -2661,7 +2761,9 @@ enum BookWhispers {
         #if canImport(UserNotifications)
         let center = UNUserNotificationCenter.current()
         center.getPendingNotificationRequests { pending in
-            let ours = pending.map(\.identifier).filter { $0.hasPrefix(identifierPrefix) }
+            let ours = pending.map(\.identifier).filter {
+                $0.hasPrefix(identifierPrefix) && !$0.hasPrefix(promptIdentifierPrefix)
+            }
             center.removePendingNotificationRequests(withIdentifiers: ours)
             guard enabled else { return }
             center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
@@ -2672,7 +2774,49 @@ enum BookWhispers {
         #endif
     }
 
+    static func refreshPromptWhispers(
+        enabled: Bool,
+        day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date = Date()
+    ) {
+        #if canImport(UserNotifications)
+        let center = UNUserNotificationCenter.current()
+        center.getPendingNotificationRequests { pending in
+            let ours = pending.map(\.identifier).filter { $0.hasPrefix(promptIdentifierPrefix) }
+            center.removePendingNotificationRequests(withIdentifiers: ours)
+            guard enabled else { return }
+            center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                guard granted else { return }
+                schedulePromptWhispers(center: center, day: day, inputs: inputs, now: now)
+            }
+        }
+        #endif
+    }
+
     #if canImport(UserNotifications)
+    static func registerPromptCategory() {
+        let reply = UNTextInputNotificationAction(
+            identifier: promptReplyActionIdentifier,
+            title: "Keep it",
+            options: [],
+            textInputButtonTitle: "Keep",
+            textInputPlaceholder: "One sentence..."
+        )
+        let category = UNNotificationCategory(
+            identifier: promptCategoryIdentifier,
+            actions: [reply],
+            intentIdentifiers: [],
+            options: []
+        )
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationCategories { categories in
+            var updated = categories.filter { $0.identifier != promptCategoryIdentifier }
+            updated.insert(category)
+            center.setNotificationCategories(updated)
+        }
+    }
+
     private static func schedule(center: UNUserNotificationCenter, electives: [UnwrittenElective], whisperController: String?, whisperSovereign: Bool, festivalWhisper: (title: String, body: String)?, eventWhisper: (title: String, body: String)?, now: Date) {
         var requests: [UNNotificationRequest] = []
         let calendar = Calendar.current
@@ -2782,6 +2926,45 @@ enum BookWhispers {
         }
     }
 
+    private static func schedulePromptWhispers(center: UNUserNotificationCenter, day: BookDay, inputs: BookSourceInputs, now: Date) {
+        let calendar = Calendar.current
+        let slots: [(hour: Int, minute: Int)] = [(11, 0), (16, 0), (19, 30)]
+        let start = BookDay.startDate(for: day.id, fallback: day.date, calendar: calendar)
+
+        for dayOffset in 0..<3 {
+            guard let date = calendar.date(byAdding: .day, value: dayOffset, to: start) else { continue }
+            let scheduledDay = BookDay(id: BookDay.id(for: date, calendar: calendar), date: calendar.startOfDay(for: date), pages: dayOffset == 0 ? day.pages : [])
+            let prompts = PromptWhisperRegistry.prompts(for: scheduledDay, inputs: inputs, now: date, count: slots.count)
+            for (slotIndex, slot) in slots.enumerated() {
+                guard slotIndex < prompts.count else { continue }
+                var components = calendar.dateComponents([.year, .month, .day], from: date)
+                components.hour = slot.hour
+                components.minute = slot.minute
+                guard let fireDate = calendar.date(from: components), fireDate > now else { continue }
+
+                let whisper = prompts[slotIndex]
+                let content = UNMutableNotificationContent()
+                content.title = whisper.title
+                content.body = whisper.body
+                content.sound = .default
+                content.categoryIdentifier = promptCategoryIdentifier
+                content.userInfo = [
+                    "promptWhisperID": whisper.id,
+                    "keepPrompt": whisper.keepPrompt,
+                    "title": whisper.title,
+                    "body": whisper.body,
+                    "tags": whisper.tags.joined(separator: ","),
+                    "kind": whisper.kind.rawValue
+                ]
+                center.add(UNNotificationRequest(
+                    identifier: "\(promptIdentifierPrefix)\(scheduledDay.id)-\(slotIndex)",
+                    content: content,
+                    trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+                ))
+            }
+        }
+    }
+
     private static func bellRequest(
         for session: AcademySession,
         on day: Date,
@@ -2815,12 +2998,74 @@ enum BookWhispers {
 /// foreground (iOS suppresses them by default without this).
 final class BookWhisperPresenter: NSObject, UNUserNotificationCenterDelegate {
     static let shared = BookWhisperPresenter()
+    @MainActor var onPromptReply: ((PromptWhisper, String) -> Void)?
+
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         completionHandler([.banner, .sound, .list])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        guard response.notification.request.content.categoryIdentifier == BookWhispers.promptCategoryIdentifier,
+              response.actionIdentifier == BookWhispers.promptReplyActionIdentifier,
+              let textResponse = response as? UNTextInputNotificationResponse,
+              let whisper = Self.promptWhisper(from: response.notification.request.content.userInfo) else {
+            completionHandler()
+            return
+        }
+
+        let answer = textResponse.userText
+        Task { @MainActor in
+            if let onPromptReply {
+                onPromptReply(whisper, answer)
+                completionHandler()
+                return
+            }
+            Self.keepPromptReplyHeadlessly(whisper: whisper, answer: answer)
+            completionHandler()
+        }
+    }
+
+    private static func promptWhisper(from userInfo: [AnyHashable: Any]) -> PromptWhisper? {
+        guard let id = userInfo["promptWhisperID"] as? String,
+              let keepPrompt = userInfo["keepPrompt"] as? String,
+              let title = userInfo["title"] as? String,
+              let kindRaw = userInfo["kind"] as? String,
+              let kind = PromptWhisper.Kind(rawValue: kindRaw) else {
+            return nil
+        }
+        let body = userInfo["body"] as? String ?? keepPrompt
+        let tagsRaw = userInfo["tags"] as? String ?? ""
+        let tags = tagsRaw
+            .split(separator: ",")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return PromptWhisper(id: id, kind: kind, title: title, body: body, keepPrompt: keepPrompt, tags: tags)
+    }
+
+    @MainActor
+    private static func keepPromptReplyHeadlessly(whisper: PromptWhisper, answer: String) {
+        guard let page = PromptWhisperKeep.page(for: whisper, answer: answer, now: Date()) else { return }
+        let legacyDays = BookStore.loadDays()
+        let days = BookDatabase.loadDays(migratingFrom: legacyDays)
+        let now = Date()
+        let dayID = BookDay.id(for: now)
+        var day = (try? BookDatabase.day(id: dayID)) ?? BookStore.today(from: days, now: now)
+        day.pages.append(page)
+        do {
+            let databaseDays = try BookDatabase.upsert(day, fallbackDays: days)
+            try? BookStore.saveDays(databaseDays)
+            NotificationCenter.default.post(name: .promptWhisperKept, object: page)
+        } catch {
+            appLog.error("Prompt whisper keep failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }
 #endif
@@ -2829,6 +3074,7 @@ extension BookWhispers {
     /// Install the foreground presenter once, at launch.
     static func configureForegroundPresentation() {
         #if canImport(UserNotifications)
+        registerPromptCategory()
         UNUserNotificationCenter.current().delegate = BookWhisperPresenter.shared
         #endif
     }
@@ -3623,8 +3869,8 @@ struct StoreKitMerchant: BookShopMerchant {
         var owned: Set<String> = []
         for await entitlement in Transaction.currentEntitlements {
             if case .verified(let transaction) = entitlement,
-               let listing = BookShopCatalog.listings.first(where: { $0.productID == transaction.productID }) {
-                owned.insert(listing.packID)
+               let packID = BookShopCatalog.packID(forProductID: transaction.productID) {
+                owned.insert(packID)
             }
         }
         return owned
@@ -3657,6 +3903,75 @@ struct ScrivenersCounterMerchant: BookShopMerchant {
     func restorePurchases() async -> Set<String> {
         []
     }
+}
+
+/// Live pricing for one Standing Order cadence, resolved from StoreKit when the
+/// product exists in App Store Connect. Before the products exist (or offline),
+/// the paywall falls back to the tier's `fallbackDisplayPrice`.
+struct StandingOrderTierPricing: Equatable {
+    var productID: String
+    var displayPrice: String
+    /// e.g. "3-day free trial", nil when the product has no introductory offer.
+    var trialSummary: String?
+    /// The introductory free-trial length in days, if any.
+    var trialDays: Int?
+}
+
+enum StandingOrderPricing {
+    /// Queries StoreKit for the three cadences and returns a map keyed by
+    /// productID. Empty until the products go live in App Store Connect.
+    static func load() async -> [String: StandingOrderTierPricing] {
+        #if canImport(StoreKit)
+        let ids = BookShopCatalog.standingOrderTiers.map(\.productID)
+        guard let products = try? await Product.products(for: ids) else { return [:] }
+        var result: [String: StandingOrderTierPricing] = [:]
+        for product in products {
+            var trialSummary: String?
+            var trialDays: Int?
+            if let intro = product.subscription?.introductoryOffer, intro.paymentMode == .freeTrial {
+                let count = intro.period.value
+                let unit = unitLabel(for: intro.period.unit, count: count)
+                trialSummary = "\(count)-\(unit) free trial"
+                trialDays = approximateDays(intro.period)
+            }
+            result[product.id] = StandingOrderTierPricing(
+                productID: product.id,
+                displayPrice: product.displayPrice,
+                trialSummary: trialSummary,
+                trialDays: trialDays
+            )
+        }
+        return result
+        #else
+        return [:]
+        #endif
+    }
+
+    #if canImport(StoreKit)
+    private static func unitLabel(for unit: Product.SubscriptionPeriod.Unit, count: Int) -> String {
+        let base: String
+        switch unit {
+        case .day: base = "day"
+        case .week: base = "week"
+        case .month: base = "month"
+        case .year: base = "year"
+        @unknown default: base = "period"
+        }
+        return count == 1 ? base : "\(base)s"
+    }
+
+    private static func approximateDays(_ period: Product.SubscriptionPeriod) -> Int {
+        let per: Int
+        switch period.unit {
+        case .day: per = 1
+        case .week: per = 7
+        case .month: per = 30
+        case .year: per = 365
+        @unknown default: per = 1
+        }
+        return per * period.value
+    }
+    #endif
 }
 
 enum BookShopTill {

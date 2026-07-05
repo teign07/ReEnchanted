@@ -308,7 +308,29 @@ extension ContentView {
         statusMessage = result.name.isEmpty
             ? "The Academy doors are open."
             : "The Academy doors are open, \(result.name)."
-        BookFeedback.play(.braidComplete)
+
+        // The Standing Order offer comes first; onboarding then ends on its own
+        // ceremonial peak — the reader's first edition, bound — fired once the
+        // paywall closes, so the celebration is the true final beat.
+        let willOfferStandingOrder = !didOfferStandingOrder && !PackEntitlements.hasStandingOrder
+        if willOfferStandingOrder {
+            didOfferStandingOrder = true
+            // Illustrate the pitch with the reader's own first-edition cover.
+            standingOrderHeroArtifact = BookOfYouShareArtifact(
+                title: "The First Door",
+                excerpt: result.firstSouvenir.nonEmpty ?? "One true thing, kept before anyone explained keeping.",
+                dateLine: Date().formatted(date: .abbreviated, time: .omitted),
+                themeName: "Ordinary life",
+                chapterName: result.name.nonEmpty.map { "\($0)'s first edition" } ?? "Your first edition",
+                seed: (result.name + "|" + result.belief).stableHash
+            )
+            // Celebration is owed after the paywall dismisses.
+            pendingFirstEditionReaderName = result.name
+            showStandingOrderPaywall = true
+        } else {
+            // No offer to make — go straight to the finale celebration.
+            celebrateFirstEdition(readerName: result.name)
+        }
     }
 
     func applyOnboardingChapterAffinity(_ chapterID: String) {
@@ -340,6 +362,7 @@ extension ContentView {
         guard !trimmed.isEmpty else { return }
         let enabled = trimmed != "inside"
         bookWhispersEnabled = enabled
+        promptWhispersEnabled = enabled
         BookWhispers.refreshSchedule(
             enabled: enabled,
             electives: electives,
@@ -348,6 +371,7 @@ extension ContentView {
             festivalWhisper: festivalWhisperToday,
             eventWhisper: worldEventWhisperToday
         )
+        BookWhispers.refreshPromptWhispers(enabled: enabled, day: today, inputs: sourceInputs)
     }
 
     func keepOnboardingSouvenirIfNeeded(_ answer: String) {
@@ -380,6 +404,20 @@ extension ContentView {
             beliefScore = min(100, beliefScore + 1)
         }
         persist(day: day, message: "Your first true sentence is already tucked into Today's Margins.")
+    }
+
+    @MainActor
+    func keepPromptWhisperReply(_ whisper: PromptWhisper, answer: String) {
+        guard let page = PromptWhisperKeep.page(for: whisper, answer: answer, now: Date()) else { return }
+        var day = today
+        day.pages.append(page)
+        recordNarrativeEvent(for: page)
+        weaveRelationshipField(for: page)
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+            beliefScore = min(100, beliefScore + 1)
+        }
+        BookFeedback.play(.keepPage)
+        persist(day: day, message: "The prompt whisper became a kept page.")
     }
 
     @MainActor
@@ -472,6 +510,7 @@ extension ContentView {
         surfaceRefreshDate = Date()
         rebuildSurfaceCache()
         BookWhispers.refreshSchedule(enabled: bookWhispersEnabled, electives: list, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisperToday, eventWhisper: worldEventWhisperToday)
+        BookWhispers.refreshPromptWhispers(enabled: promptWhispersEnabled, day: today, inputs: sourceInputs)
     }
 
 
@@ -696,6 +735,7 @@ extension ContentView {
             storySceneBiases: vault.data.storySceneBiases,
             bookNoticeEvidence: vault.data.bookNoticeEvidence,
             nothingGreyOffset: vault.data.nothingGreyOffset,
+            readerLearning: vault.data.readerLearning,
             openWorldEventArchive: vault.data.openWorldEventArchive,
             continuity: continuity
         )
@@ -1154,7 +1194,11 @@ extension ContentView {
             let spine = PrintGeometry.spineWidthInches(pageCount: pages, spec: spec)
             let trim = "\(String(format: "%g", spec.trimWidthInches))×\(String(format: "%g", spec.trimHeightInches))in"
             colophonBindingNote = "\(edition.monthName) is ready for the press as \(spec.name) — a \(trim) interior of \(pages) pages and a cover wrap with a \(String(format: "%.2f", spine))in spine. Share both files, then upload them to a printer like Lulu."
-            BookFeedback.play(.braidComplete)
+            // The print-ready export gets its own foil-stamp ceremony, not the braid cue.
+            celebratePrintReady(
+                monthName: edition.monthName,
+                subtitle: "A \(pages)-page \(trim) hardcover, set for the press."
+            )
         } catch {
             colophonBindingNote = "The press would not take it — \(error.localizedDescription)"
             BookFeedback.play(.error)
@@ -1171,7 +1215,8 @@ extension ContentView {
         try MonthlyEditionPDFWriter.write(edition, to: url)
         preparedMonthlyEditionURL = url
         colophonBindingNote = "\(edition.monthName) is bound — \(edition.pageCount) \(edition.pageCount == 1 ? "page" : "pages") sewn between covers, waiting under the share mark."
-        BookFeedback.play(.braidComplete)
+        // The Monthly Binding gets its own ceremonial peak, not the shared braid cue.
+        celebrateMonthlyBinding(monthName: edition.monthName, pageCount: edition.pageCount)
     }
 
     /// The on-device brain re-reads the month and composes a closing in the
@@ -1397,6 +1442,10 @@ extension ContentView {
             if let importedGreyOffset = save.nothingGreyOffset {
                 vault.data.nothingGreyOffset = max(-10, min(10, importedGreyOffset))
             }
+            if let importedLearning = save.readerLearning {
+                let current = vault.data.readerLearning ?? ReaderLearningModel()
+                vault.data.readerLearning = current.merged(with: importedLearning)
+            }
             if let importedArchive = save.openWorldEventArchive,
                vault.data.openWorldEventArchive == nil {
                 vault.data.openWorldEventArchive = importedArchive
@@ -1512,7 +1561,8 @@ extension ContentView {
             themes: vault.data.themes ?? [],
             entityBeliefOffsets: entityBeliefLedger,
             learnedNotes: vault.data.learnedBraidNotes ?? [],
-            readerLexicon: vault.data.readerLexicon ?? ReaderLexicon()
+            readerLexicon: vault.data.readerLexicon ?? ReaderLexicon(),
+            readerLearning: vault.data.readerLearning ?? ReaderLearningModel()
         )
         let weak = BraidLearningLoop.weakDimensionNotes(for: page, context: context)
         let prompt = LocalModelManager.braidTasteNotePrompt(
@@ -1554,7 +1604,8 @@ extension ContentView {
             themes: vault.data.themes ?? [],
             entityBeliefOffsets: entityBeliefLedger,
             learnedNotes: vault.data.learnedBraidNotes ?? [],
-            readerLexicon: vault.data.readerLexicon ?? ReaderLexicon()
+            readerLexicon: vault.data.readerLexicon ?? ReaderLexicon(),
+            readerLearning: vault.data.readerLearning ?? ReaderLearningModel()
         )
         let weak = BraidLearningLoop.weakDimensionNotes(for: page, context: context)
         let prompt = LocalModelManager.braidRewritePrompt(
@@ -1878,7 +1929,10 @@ extension ContentView {
             memories: entityMemories,
             electives: electives,
             references: BookReferenceCatalog.wonderCompass
-                + BookReferenceCatalog.lorePacks.flatMap(\.snippets)
+                + BookReferenceCatalog.lorePacks.flatMap(\.snippets),
+            selfFacts: selfFacts,
+            narrativeEvents: narrativeEvents,
+            facultyEntries: facultyEntries
         )
     }
 
@@ -1928,7 +1982,7 @@ extension ContentView {
                     tags: "cast,search,entity:\(entity.id)"
                 )
             }
-        case .memory, .elective, .pageFamily:
+        case .memory, .elective, .pageFamily, .selfFact, .narrativeEvent, .facultyEntry:
             selectedSurface = searchInfoSurface(
                 title: result.title,
                 headline: result.title,
@@ -1970,10 +2024,59 @@ extension ContentView {
         surfaceRefreshDate = Date()
         rebuildSurfaceCache()
         let title = BookShopCatalog.listing(forPackID: packID)?.title ?? packID
-        statusMessage = openedArchive
-            ? "\(title) is bound and opened as your current archive. Its full arc will unfold from today."
-            : "\(title) is bound to your save. New pages will find their way to the desk."
+        statusMessage = ""
+        presentPurchaseThankYouSurface(packID: packID, title: title, openedArchive: openedArchive)
         BookFeedback.play(.braidComplete)
+    }
+
+    @MainActor
+    private func presentPurchaseThankYouSurface(packID: String, title: String, openedArchive: Bool) {
+        let surface = purchaseThankYouPage(packID: packID, title: title, openedArchive: openedArchive)
+        withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) {
+            purchaseThankYouSurface = surface
+        }
+    }
+
+    private func purchaseThankYouPage(packID: String, title: String, openedArchive: Bool) -> SurfacePage {
+        let isStandingOrder = packID == PackEntitlements.standingOrderPackID
+        let headline = isStandingOrder
+            ? "The Standing Order is open. Thank you."
+            : "\(title) is bound. Thank you."
+        let archiveLine = openedArchive
+            ? "\n\nThe first archive door is already open; its arc will unfold from today."
+            : "\n\nNew pages from this binding can now find their way to the desk."
+        let body = """
+        Creator's Note
+
+        Thank you for helping keep ReEnchanted alive. This Book is built out of small strange things: pages that notice back, sounds from the margins, odd little doors, and real bindings you can keep.
+
+        Your support buys the quiet practical magic too: time to write, draw, tune, test, and keep the Book kind. No hovering receipt should have to sit above your feed forever; this note is just a warm slip of paper, here long enough to be read, then ready to be swiped away.\(archiveLine)
+        """
+
+        return SurfacePage(
+            id: "purchase-thanks-\(packID)-\(Int(Date().timeIntervalSince1970))",
+            type: .patreon,
+            sourceID: "creator-thanks",
+            intent: .importReference,
+            renderStyle: .loreLetter,
+            score: 98,
+            reason: "A creator's note arrived with the binding.",
+            prompt: headline,
+            detail: "A readable thank-you page, tucked into Pages Rising.",
+            payload: BookPagePayload(
+                headline: headline,
+                body: body,
+                metadata: [
+                    "source": "creator-thanks",
+                    "surfaceLabel": "Thank you",
+                    "symbol": "heart.fill",
+                    "purchaseThankYou": "true",
+                    "packID": packID,
+                    "packTitle": title,
+                    "tags": "creator-note,purchase-thanks,\(isStandingOrder ? "standing-order" : "content-pack")"
+                ]
+            )
+        )
     }
 
     /// Closes an entitlement the App Store no longer vouches for. Only the
@@ -1988,7 +2091,7 @@ extension ContentView {
         surfaceRefreshDate = Date()
         rebuildSurfaceCache()
         if packID == PackEntitlements.standingOrderPackID {
-            statusMessage = "The Standing Order has lapsed. Packs bound outright stay with your save."
+            statusMessage = "The Standing Order has quietly closed. Nothing is taken \u{2014} every page you wrote is still yours, bound in plain ink, and the lamp stays lit. Reopen the order whenever you like."
         }
     }
 
@@ -2068,19 +2171,8 @@ extension ContentView {
 
             let passesNote = knocksThisSession == 1 ? Int.random(in: 0..<4) == 0 : Int.random(in: 0..<3) == 0
             if passesNote || knocksThisSession >= 4 {
-                let note = BannerKnockNotes.note(
-                    greyLevel: NothingTide.greyLevel(
-                        quietDays: NothingTide.quietDays(in: days, today: today.id),
-                        narrativeHeat: narrativeEvents.prefix(24).count,
-                        distressActive: false,
-                        celebrationGreyShift: vault.data.nothingGreyOffset ?? 0
-                    ),
-                    ascendantChapterName: ascendantTalisman.flatMap { AcademyChapterRegistry.chapter(forTalismanID: $0.id)?.name },
-                    hour: Calendar.current.component(.hour, from: now),
-                    moonName: MoonPhaseCalendar.phase().name,
-                    knocksThisSession: knocksThisSession,
-                    roll: Int.random(in: 0..<1_000)
-                )
+                openingVoiceSeed = Int.random(in: 0..<10_000) + knocksThisSession
+                let note = openingVoice.knockLine
                 BookFeedback.play(.select)
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.78)) {
                     bookKnockNote = note

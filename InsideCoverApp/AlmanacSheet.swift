@@ -26,6 +26,10 @@ struct AlmanacSheet: View {
         AlmanacModel.grid(forMonthContaining: monthAnchor, days: days, calendar: calendar)
     }
 
+    private var thread: ThreadOfTheMonth.Progress {
+        ThreadOfTheMonth.progress(forMonthContaining: monthAnchor, days: days, calendar: calendar)
+    }
+
     private var bounds: (earliest: Date, latest: Date)? {
         AlmanacModel.bounds(days: days, calendar: calendar)
     }
@@ -37,6 +41,9 @@ struct AlmanacSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         monthHeader
+                        if thread.litDays > 0 {
+                            threadBanner
+                        }
                         weekdayHeader
                         monthGrid
                         if let day = selectedDay {
@@ -106,6 +113,52 @@ struct AlmanacSheet: View {
             .opacity(canGoForward ? 1 : 0.3)
         }
         .foregroundStyle(BookPalette.lampGold)
+    }
+
+    /// The Thread of the Month: a warm count of lit days and the keepsake earned,
+    /// never a chain and never a guilt-inducing gap tally. Only shown for a month
+    /// that has something in it.
+    private var threadBanner: some View {
+        let progress = thread
+        return HStack(spacing: 10) {
+            Image(systemName: progress.seal.sfSymbol)
+                .font(.title3)
+                .foregroundStyle(BookPalette.lampGold)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(threadCountText(progress))
+                    .font(.system(.subheadline, design: .serif).weight(.semibold))
+                    .foregroundStyle(BookPalette.nightText)
+                Text(threadTierText(progress))
+                    .font(.system(.caption, design: .serif).italic())
+                    .foregroundStyle(BookPalette.nightText.opacity(0.6))
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(BookPalette.lampGold.opacity(0.10))
+        )
+    }
+
+    private func threadCountText(_ progress: ThreadOfTheMonth.Progress) -> String {
+        let dayWord = progress.litDays == 1 ? "day" : "days"
+        return "\(progress.litDays) lit \(dayWord) this month"
+    }
+
+    private func threadTierText(_ progress: ThreadOfTheMonth.Progress) -> String {
+        if progress.seal != .unbound, let next = progress.nextSeal {
+            let more = progress.litDaysToNextSeal
+            let dayWord = more == 1 ? "day" : "days"
+            return "\(progress.seal.name.capitalized) \u{00B7} \(more) more \(dayWord) to \(next.name)"
+        } else if progress.seal != .unbound {
+            return "\(progress.seal.name.capitalized) \u{2014} a full, well-kept month"
+        } else if let next = progress.nextSeal {
+            let more = progress.litDaysToNextSeal
+            let dayWord = more == 1 ? "day" : "days"
+            return "\(more) more \(dayWord) to start the thread"
+        }
+        return "The thread has begun."
     }
 
     private var weekdaySymbols: [String] {

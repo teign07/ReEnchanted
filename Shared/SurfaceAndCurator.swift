@@ -394,7 +394,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .importReference
         case .enchantment:
             return .capture
-        case .illuminatedPhoto, .bookRemembered:
+        case .illuminatedPhoto, .bookRemembered, .bookPocket:
             return .resurface
         case .location:
             return .reflect
@@ -691,6 +691,24 @@ enum BraidEmber {
         return "the \(bare) from \(dayDate.formatted(.dateTime.month(.wide).day()))"
     }
 
+    /// The morning callback that pays off the evening ember: it names the exact
+    /// same threads the ember promised, so the braid reveal reads as a kept
+    /// promise instead of a scheduled delivery. Mirrors `evening(...)`'s three
+    /// kept-thread cases; nil on an unwritten day, which had no promise to keep.
+    static func keptPromiseLine(for day: BookDay) -> String? {
+        let threads = threadLabels(for: day)
+        switch threads.count {
+        case 0:
+            return nil
+        case 1:
+            return "Last night the braid held a single thread \u{2014} \(threads[0]). Here is what it made of it."
+        case 2:
+            return "Last night the braid caught \(threads[0]) and \(threads[1]). Here is what it made of them."
+        default:
+            return "Last night the braid caught \(threads[0]), \(threads[1]), and \(threads[2]). Here is what it made of them."
+        }
+    }
+
     /// Up to three short labels for today's captured pages, strongest first.
     /// A page with prose is named by its most vivid word; a wordless log is
     /// named by its page type.
@@ -717,6 +735,175 @@ enum BraidEmber {
         }
         return labels
     }
+}
+
+/// Now and then — not every time — a page you swipe away leaves a little
+/// something behind. A parting whisper from the Book: mostly a warm wink as the
+/// page wanders off, and once in a rarer while, a keepsake that reads like it
+/// slipped out of the page on its way to the stacks. Kept unpredictable on
+/// purpose: often enough to be discovered, rare enough that it never becomes the
+/// expected reply. Swiping still costs nothing — the whisper is pure delight.
+enum PartingWhisper {
+    /// The real thing a keepsake leaves behind: a small object the Book presses
+    /// into its Pocket, where it stays. `object` names it for the collection;
+    /// `glyph` is the SF Symbol the Pocket shows.
+    struct Keepsake: Equatable {
+        var object: String
+        var glyph: String
+    }
+
+    struct Whisper: Equatable {
+        enum Kind: Equatable {
+            /// The common case: a small aside as the page slips away.
+            case wink
+            /// The rarer case: the page left a real object behind.
+            case keepsake
+        }
+
+        var kind: Kind
+        var line: String
+        /// Present only for `.keepsake`: the object to press into the Pocket.
+        var keepsake: Keepsake?
+    }
+
+    /// Roughly one swipe in six earns a whisper at all.
+    static let whisperChance = 0.16
+    /// Of those, a little under a third are the rarer keepsake — so a keepsake
+    /// lands on about one swipe in twenty-two, and leaves a real object.
+    static let keepsakeChance = 0.28
+
+    /// `{page}` is filled with the page's short title, matching the mundane
+    /// dismissal line's "the <kind> page" phrasing.
+    static let winkLines = [
+        "The {page} page tips its hat on the way out.",
+        "Off it goes. The Book pretends not to watch the {page} page leave.",
+        "The {page} page wanders back into the stacks, whistling.",
+        "Gone \u{2014} but the {page} page left the door on the latch.",
+        "The Book lets the {page} page go and keeps the spot warm with a thumb.",
+        "The {page} page bows out. The margins hold its warmth a while.",
+        "Away it drifts. The lamp leans after the {page} page, then settles.",
+        "The {page} page slips off to nap in the stacks. The Book tucks it in."
+    ]
+
+    /// Each keepsake pairs the whispered line with the object it leaves in the
+    /// Pocket and the glyph that stands for it.
+    struct KeepsakeTemplate: Equatable {
+        var line: String
+        var object: String
+        var glyph: String
+    }
+
+    static let keepsakeTemplates: [KeepsakeTemplate] = [
+        KeepsakeTemplate(
+            line: "The {page} page left a pressed petal in the gutter. The Book slips it into its Pocket.",
+            object: "a pressed petal",
+            glyph: "leaf"
+        ),
+        KeepsakeTemplate(
+            line: "Something fell out of the {page} page as it went \u{2014} a single word, still warm. The Book pockets it.",
+            object: "a still-warm word",
+            glyph: "text.quote"
+        ),
+        KeepsakeTemplate(
+            line: "The {page} page slipped away and left a coin of lamplight spinning on the desk. Into the Pocket it goes.",
+            object: "a coin of lamplight",
+            glyph: "sun.max"
+        ),
+        KeepsakeTemplate(
+            line: "A loose thread came off the {page} page. The Book winds it round a finger and drops it in its Pocket.",
+            object: "a loose gold thread",
+            glyph: "scribble"
+        ),
+        KeepsakeTemplate(
+            line: "The {page} page left a fingerprint of gold on the corner. The Book keeps it where only you will find it.",
+            object: "a fingerprint of gold",
+            glyph: "hand.point.up.left"
+        ),
+        KeepsakeTemplate(
+            line: "On its way out, the {page} page whispered a rumor to the Book. The Book seals it in its Pocket \u{2014} unread, for now.",
+            object: "a sealed rumor",
+            glyph: "seal"
+        )
+    ]
+
+    /// Weighty narrative and transactional cards keep their own partings, so the
+    /// whisper stays out of their way.
+    static let excludedTypes: Set<BookPageType> = [
+        .bookOfYou, .faeBargain, .pactVerdict, .pactErrand, .pactDispatch, .welcome
+    ]
+
+    static func isEligible(_ surface: SurfacePage) -> Bool {
+        if excludedTypes.contains(surface.type) { return false }
+        if surface.payload.metadata["purchaseThankYou"] == "true" { return false }
+        return true
+    }
+
+    /// Whether swiping `surface` away leaves a whisper, and which one. Draws its
+    /// rolls from `generator`, so callers pass a live `SystemRandomNumberGenerator`
+    /// for genuine unpredictability while tests inject a seeded one to pin the
+    /// outcome.
+    static func onDismiss<G: RandomNumberGenerator>(
+        of surface: SurfacePage,
+        whisperChance: Double = whisperChance,
+        keepsakeChance: Double = keepsakeChance,
+        using generator: inout G
+    ) -> Whisper? {
+        guard isEligible(surface) else { return nil }
+        guard Double.random(in: 0..<1, using: &generator) < whisperChance else { return nil }
+
+        let page = surface.type.shortTitle.lowercased()
+        let isKeepsake = Double.random(in: 0..<1, using: &generator) < keepsakeChance
+        if isKeepsake {
+            let template = keepsakeTemplates[Int.random(in: 0..<keepsakeTemplates.count, using: &generator)]
+            return Whisper(
+                kind: .keepsake,
+                line: template.line.replacingOccurrences(of: "{page}", with: page),
+                keepsake: Keepsake(object: template.object, glyph: template.glyph)
+            )
+        }
+
+        let line = winkLines[Int.random(in: 0..<winkLines.count, using: &generator)]
+            .replacingOccurrences(of: "{page}", with: page)
+        return Whisper(kind: .wink, line: line, keepsake: nil)
+    }
+}
+
+/// One small thing a swiped-away page left behind, kept for good in the Book's
+/// Pocket. Unlike a dismissed page (which can be called back), a keepsake is a
+/// permanent trace — the consequence of letting pages go.
+struct PocketKeepsake: Identifiable, Codable, Equatable {
+    let id: String
+    let dayID: String
+    let pageType: BookPageType
+    /// The short noun for the object, e.g. "a pressed petal".
+    let object: String
+    /// SF Symbol name shown beside it in the Pocket.
+    let glyph: String
+    let foundAt: Date
+}
+
+/// The Book's Pocket: an accumulating collection of keepsakes. Newest keepsakes
+/// push out the oldest once it fills, so it stays a pocket, not an archive.
+struct PocketLedger: Codable, Equatable {
+    private(set) var keepsakes: [PocketKeepsake] = []
+
+    static let capacity = 60
+
+    mutating func press(_ keepsake: PocketKeepsake) {
+        keepsakes.removeAll { $0.id == keepsake.id }
+        keepsakes.append(keepsake)
+        if keepsakes.count > Self.capacity {
+            keepsakes.removeFirst(keepsakes.count - Self.capacity)
+        }
+    }
+
+    /// Most recently found first — the order the Pocket shows.
+    var newestFirst: [PocketKeepsake] {
+        keepsakes.sorted { $0.foundAt > $1.foundAt }
+    }
+
+    var isEmpty: Bool { keepsakes.isEmpty }
+    var count: Int { keepsakes.count }
 }
 
 struct DailyCheckInWindow: Equatable {
@@ -986,6 +1173,356 @@ struct SurfaceHistoryRecord: Codable, Equatable {
     var recentShowCount: Int
 }
 
+enum ReaderLearningAction: String, Codable, Equatable {
+    case surfaced
+    case kept
+    case dismissed
+    case loved
+    case missed
+}
+
+struct ReaderLearningEvent: Identifiable, Codable, Equatable {
+    var id: String
+    var dayID: String
+    var occurredAt: Date
+    var action: ReaderLearningAction
+    var surfaceID: String
+    var sourceID: String
+    var type: BookPageType
+    var varietyKey: String
+    var hour: Int
+    var tags: [String]
+    var evidence: String?
+
+    init(
+        id: String = UUID().uuidString,
+        dayID: String,
+        occurredAt: Date = Date(),
+        action: ReaderLearningAction,
+        surfaceID: String,
+        sourceID: String,
+        type: BookPageType,
+        varietyKey: String,
+        hour: Int,
+        tags: [String] = [],
+        evidence: String? = nil
+    ) {
+        self.id = id
+        self.dayID = dayID
+        self.occurredAt = occurredAt
+        self.action = action
+        self.surfaceID = surfaceID
+        self.sourceID = sourceID
+        self.type = type
+        self.varietyKey = varietyKey
+        self.hour = max(0, min(23, hour))
+        self.tags = Array(Set(tags.map(\.readerLearningNormalizedTag).filter { !$0.isEmpty })).sorted()
+        self.evidence = evidence?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty.map {
+            String($0.prefix(160))
+        }
+    }
+}
+
+struct ReaderLearningAffinity: Codable, Equatable {
+    var surfaced: Int = 0
+    var kept: Int = 0
+    var dismissed: Int = 0
+    var loved: Int = 0
+    var missed: Int = 0
+    var lastUpdatedAt: Date?
+
+    var meaningfulSignals: Int {
+        kept + dismissed + loved + missed
+    }
+
+    var rawScore: Int {
+        kept * 3 + loved * 6 - dismissed * 3 - missed * 5
+    }
+
+    mutating func record(_ event: ReaderLearningEvent) {
+        switch event.action {
+        case .surfaced:
+            surfaced += 1
+        case .kept:
+            kept += 1
+        case .dismissed:
+            dismissed += 1
+        case .loved:
+            loved += 1
+        case .missed:
+            missed += 1
+        }
+        lastUpdatedAt = event.occurredAt
+    }
+
+    func curationAdjustment(scale: Int, maximum: Int) -> Int {
+        guard meaningfulSignals > 0 else { return 0 }
+        let confidence = min(scale, meaningfulSignals)
+        let weighted = rawScore * confidence / scale
+        return max(-maximum, min(maximum, weighted))
+    }
+}
+
+struct ReaderLearningDailyDigest: Codable, Equatable {
+    var dayID: String
+    var learnedAt: Date
+    var eventCount: Int
+    var strongestType: BookPageType?
+    var strongestTag: String?
+    var coolingType: BookPageType?
+}
+
+enum ReaderLearningInsightKind: String, Codable, Equatable {
+    case warmingType
+    case coolingType
+    case warmingTag
+    case timeWindow
+    case compounding
+}
+
+struct ReaderLearningInsight: Identifiable, Codable, Equatable {
+    var id: String
+    var kind: ReaderLearningInsightKind
+    var line: String
+    var evidence: String
+    var strength: Int
+}
+
+struct ReaderLearningMetrics: Codable, Equatable {
+    var tenureDays: Int
+    var eventCount: Int
+    var meaningfulEventCount: Int
+    var kept: Int
+    var dismissed: Int
+    var loved: Int
+    var missed: Int
+    var learnedSurfaceCount: Int
+    var activeDigestCount: Int
+
+    var positiveRatePercent: Int {
+        let total = kept + dismissed + loved + missed
+        guard total > 0 else { return 0 }
+        return Int(((Double(kept + loved) / Double(total)) * 100).rounded())
+    }
+}
+
+struct ReaderLearningModel: Codable, Equatable {
+    static let currentVersion = 1
+    static let maxEvents = 400
+
+    var version: Int = ReaderLearningModel.currentVersion
+    var events: [ReaderLearningEvent] = []
+    var sourceAffinities: [String: ReaderLearningAffinity] = [:]
+    var typeAffinities: [BookPageType: ReaderLearningAffinity] = [:]
+    var tagAffinities: [String: ReaderLearningAffinity] = [:]
+    var dailyDigests: [ReaderLearningDailyDigest] = []
+    var lastUpdatedAt: Date?
+
+    mutating func record(_ event: ReaderLearningEvent) {
+        events.append(event)
+        if events.count > Self.maxEvents {
+            events = Array(events.suffix(Self.maxEvents))
+        }
+
+        sourceAffinities[event.sourceID, default: ReaderLearningAffinity()].record(event)
+        typeAffinities[event.type, default: ReaderLearningAffinity()].record(event)
+        for tag in event.tags.prefix(8) {
+            tagAffinities[tag, default: ReaderLearningAffinity()].record(event)
+        }
+        lastUpdatedAt = event.occurredAt
+        rebuildDailyDigest(for: event.dayID)
+    }
+
+    func scoreAdjustment(for page: SurfacePage) -> Int {
+        let source = sourceAffinities[page.sourceID]?.curationAdjustment(scale: 4, maximum: 10) ?? 0
+        let type = typeAffinities[page.type]?.curationAdjustment(scale: 5, maximum: 12) ?? 0
+        let tag = page.readerLearningTags
+            .compactMap { tagAffinities[$0]?.curationAdjustment(scale: 4, maximum: 4) }
+            .sorted(by: >)
+            .prefix(3)
+            .reduce(0, +)
+        return max(-16, min(20, source + type + tag))
+    }
+
+    func metrics(days: [BookDay] = [], now: Date = Date(), calendar: Calendar = .current) -> ReaderLearningMetrics {
+        let firstEventAt = events.map(\.occurredAt).min()
+        let firstPageAt = days.flatMap(\.pages).map(\.createdAt).min()
+        let firstTouch = [firstEventAt, firstPageAt].compactMap { $0 }.min()
+        let tenureDays = firstTouch.map { max(1, calendar.dateComponents([.day], from: $0, to: now).day ?? 0) } ?? 0
+        let totals = events.reduce(into: [ReaderLearningAction: Int]()) { counts, event in
+            counts[event.action, default: 0] += 1
+        }
+        return ReaderLearningMetrics(
+            tenureDays: tenureDays,
+            eventCount: events.count,
+            meaningfulEventCount: events.filter { $0.action != .surfaced }.count,
+            kept: totals[.kept] ?? 0,
+            dismissed: totals[.dismissed] ?? 0,
+            loved: totals[.loved] ?? 0,
+            missed: totals[.missed] ?? 0,
+            learnedSurfaceCount: sourceAffinities.values.filter { $0.meaningfulSignals > 0 }.count,
+            activeDigestCount: dailyDigests.count
+        )
+    }
+
+    func insights(now: Date = Date(), limit: Int = 4) -> [ReaderLearningInsight] {
+        var insights: [ReaderLearningInsight] = []
+        if let warming = strongestType(warming: true) {
+            insights.append(ReaderLearningInsight(
+                id: "warming-type-\(warming.type.rawValue)",
+                kind: .warmingType,
+                line: "\(warming.type.shortTitle) is warming in the margins.",
+                evidence: "\(warming.affinity.kept + warming.affinity.loved) positive signals, \(warming.affinity.dismissed + warming.affinity.missed) cooling signals.",
+                strength: warming.affinity.rawScore
+            ))
+        }
+        if let cooling = strongestType(warming: false) {
+            insights.append(ReaderLearningInsight(
+                id: "cooling-type-\(cooling.type.rawValue)",
+                kind: .coolingType,
+                line: "The Book is letting \(cooling.type.shortTitle.lowercased()) rest.",
+                evidence: "\(cooling.affinity.dismissed + cooling.affinity.missed) cooling signals.",
+                strength: abs(cooling.affinity.rawScore)
+            ))
+        }
+        if let tag = strongestTag() {
+            insights.append(ReaderLearningInsight(
+                id: "warming-tag-\(tag.key)",
+                kind: .warmingTag,
+                line: "A pattern keeps returning: \(tag.key.replacingOccurrences(of: "-", with: " ")).",
+                evidence: "\(tag.affinity.kept + tag.affinity.loved) positive signals taught this tag.",
+                strength: tag.affinity.rawScore
+            ))
+        }
+        if let hour = strongestPositiveHour() {
+            insights.append(ReaderLearningInsight(
+                id: "time-window-\(hour)",
+                kind: .timeWindow,
+                line: "The Book is learning when pages land.",
+                evidence: "Positive keeps cluster around \(Self.hourLabel(hour)).",
+                strength: 4
+            ))
+        }
+        let metrics = metrics(now: now)
+        if metrics.meaningfulEventCount >= 6 {
+            insights.append(ReaderLearningInsight(
+                id: "compounding-\(metrics.meaningfulEventCount)",
+                kind: .compounding,
+                line: "This Book is no longer starting from zero.",
+                evidence: "\(metrics.meaningfulEventCount) reader decisions now shape curation across \(metrics.learnedSurfaceCount) surfaces.",
+                strength: min(20, metrics.meaningfulEventCount)
+            ))
+        }
+        return insights
+            .sorted {
+                if $0.strength == $1.strength { return $0.id < $1.id }
+                return $0.strength > $1.strength
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    func promptLines(now: Date = Date(), limit: Int = 4) -> [String] {
+        insights(now: now, limit: limit).map { "\($0.line) \($0.evidence)" }
+    }
+
+    func merged(with imported: ReaderLearningModel) -> ReaderLearningModel {
+        var merged = ReaderLearningModel()
+        for event in (events + imported.events).sorted(by: { $0.occurredAt < $1.occurredAt }) {
+            if !merged.events.contains(where: { $0.id == event.id }) {
+                merged.record(event)
+            }
+        }
+        return merged
+    }
+
+    private mutating func rebuildDailyDigest(for dayID: String) {
+        let dayEvents = events.filter { $0.dayID == dayID }
+        guard !dayEvents.isEmpty else { return }
+        let positiveActions: Set<ReaderLearningAction> = [.kept, .loved]
+        let negativeActions: Set<ReaderLearningAction> = [.dismissed, .missed]
+
+        let typeScores = dayEvents.reduce(into: [BookPageType: Int]()) { scores, event in
+            if positiveActions.contains(event.action) { scores[event.type, default: 0] += 1 }
+            if negativeActions.contains(event.action) { scores[event.type, default: 0] -= 1 }
+        }
+        let tagScores = dayEvents.reduce(into: [String: Int]()) { scores, event in
+            for tag in event.tags {
+                if positiveActions.contains(event.action) { scores[tag, default: 0] += 1 }
+                if negativeActions.contains(event.action) { scores[tag, default: 0] -= 1 }
+            }
+        }
+
+        let digest = ReaderLearningDailyDigest(
+            dayID: dayID,
+            learnedAt: dayEvents.map(\.occurredAt).max() ?? Date(),
+            eventCount: dayEvents.count,
+            strongestType: typeScores.filter { $0.value > 0 }.max { $0.value < $1.value }?.key,
+            strongestTag: tagScores.filter { $0.value > 0 }.max { $0.value < $1.value }?.key,
+            coolingType: typeScores.filter { $0.value < 0 }.min { $0.value < $1.value }?.key
+        )
+        dailyDigests.removeAll { $0.dayID == dayID }
+        dailyDigests.append(digest)
+        dailyDigests = Array(dailyDigests.sorted { $0.learnedAt < $1.learnedAt }.suffix(45))
+    }
+
+    private func strongestType(warming: Bool) -> (type: BookPageType, affinity: ReaderLearningAffinity)? {
+        typeAffinities
+            .filter { _, affinity in
+                affinity.meaningfulSignals >= 2 && (warming ? affinity.rawScore > 0 : affinity.rawScore < 0)
+            }
+            .map { (type: $0.key, affinity: $0.value) }
+            .sorted {
+                let left = abs($0.affinity.rawScore)
+                let right = abs($1.affinity.rawScore)
+                if left == right { return $0.type.rawValue < $1.type.rawValue }
+                return left > right
+            }
+            .first
+    }
+
+    private func strongestTag() -> (key: String, affinity: ReaderLearningAffinity)? {
+        tagAffinities
+            .filter { key, affinity in
+                affinity.rawScore > 0 && affinity.meaningfulSignals >= 2 && !Self.ignoredInsightTags.contains(key)
+            }
+            .map { (key: $0.key, affinity: $0.value) }
+            .sorted {
+                if $0.affinity.rawScore == $1.affinity.rawScore { return $0.key < $1.key }
+                return $0.affinity.rawScore > $1.affinity.rawScore
+            }
+            .first
+    }
+
+    private func strongestPositiveHour() -> Int? {
+        let counts = events.reduce(into: [Int: Int]()) { counts, event in
+            switch event.action {
+            case .kept, .loved:
+                counts[event.hour, default: 0] += 1
+            default:
+                break
+            }
+        }
+        return counts.filter { $0.value >= 2 }.sorted {
+            if $0.value == $1.value { return $0.key < $1.key }
+            return $0.value > $1.value
+        }.first?.key
+    }
+
+    private static func hourLabel(_ hour: Int) -> String {
+        switch hour {
+        case 5..<12: return "morning"
+        case 12..<17: return "afternoon"
+        case 17..<22: return "evening"
+        default: return "night"
+        }
+    }
+
+    private static let ignoredInsightTags: Set<String> = [
+        "book-notices", "literary-continuity", "patterns", "clusters"
+    ]
+}
+
 struct CalendarEventSignal: Codable, Equatable, Identifiable {
     var id: String
     var title: String
@@ -1065,6 +1602,22 @@ extension SurfacePage {
         var keys = Set(curatorServedHistoryKeys)
         keys.insert(id)
         return keys
+    }
+
+    var readerLearningTags: [String] {
+        let rawTags = payload.metadata["tags"]?
+            .split(separator: ",")
+            .map { String($0) } ?? []
+        let metadataTags = [
+            payload.metadata["illustrationKind"],
+            payload.metadata["storyGenreID"].map { "genre:\($0)" },
+            payload.metadata["storyFormID"].map { "form:\($0)" },
+            payload.metadata["senderID"].map { "sender:\($0)" },
+            payload.metadata["entityID"].map { "entity:\($0)" },
+            payload.metadata["anchorID"].map { "anchor:\($0)" },
+            payload.metadata["packArchetypeID"].map { "pack:\($0)" }
+        ].compactMap { $0 }
+        return Array(Set((rawTags + metadataTags).map(\.readerLearningNormalizedTag).filter { !$0.isEmpty })).sorted()
     }
 }
 

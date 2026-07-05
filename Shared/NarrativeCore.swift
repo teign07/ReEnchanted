@@ -3193,6 +3193,11 @@ enum NarrativeEventResolver {
             threadDeltas["ordinary-magic", default: 0] += 1
             relationshipDeltas["book-authors-reader", default: 0] += 2
             createdHint = "A kept Glow invitation records that the reader chose to steer attention deliberately."
+        case .bookPocket:
+            entityDeltas["the-book", default: 0] += 2
+            threadDeltas["ordinary-magic", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+            createdHint = "The little things swiped-away pages leave behind can return as talismans."
         case .theBleed:
             entityDeltas["penny-blackletter", default: 0] += 2
             entityDeltas["the-book", default: 0] += 1

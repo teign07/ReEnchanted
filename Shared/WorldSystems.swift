@@ -5233,9 +5233,14 @@ enum FaeMarketCatalog {
 
 extension FaeEconomy {
     /// True when the reader can shop: the new-moon window is open, or they hold
-    /// a calling card to spend.
+    /// a calling card to spend. After-hours cards bought from the radio sponsor
+    /// shelf prop the side door open for the rest of the current Book day.
     static func canEnterMarket(state: FaePlayerState, now: Date = Date()) -> Bool {
         if marketWindowIsOpen(on: now) { return true }
+        if let lastMarketCardAt = state.lastMarketCardAt,
+           BookDay.id(for: lastMarketCardAt) == BookDay.id(for: now) {
+            return true
+        }
         return state.activeGifts.contains { $0.effect == .callingCard }
     }
 
@@ -5301,6 +5306,12 @@ enum MarketGood: Equatable {
     case gift(FaeGiftEffect, FaeKind)   // grants a consumable Fae gift
     case warmWord                        // Belief → a point of Belief to a cast member
     case pack(String)                    // money → unlock a content pack (packID)
+    case pocketSunshine                  // lowers the saved Nothing-grey offset now
+    case hummingJar                       // turns Belief into Attention and tunes Fae-Fi
+    case porchlightLamp                   // tunes Mothlight and opens Book Remembered
+    case rememberingBell                  // opens Book Remembered and warms the Literary Elves
+    case bramblewineDram                  // buys Attention at a grey cost and tunes Thornwave
+    case afterHoursCard                   // opens today's side door without becoming a Fae gift
 }
 
 struct MarketWare: Identifiable, Equatable {
@@ -5346,6 +5357,81 @@ enum GoblinMarketEngine {
                    currency: .belief, basePrice: 12, good: .gift(.longMemory, .literaryElf), rarity: 3)
     ]
 
+    /// Products that radio sponsor reads point back to. These stay in the same
+    /// in-world economy as the rest of the stall, so every ad is for a real ware
+    /// the reader can eventually find and buy.
+    static let radioSponsorWares: [MarketWare] = [
+        MarketWare(
+            id: "radio-sponsor-thistledown-pocket-sunshine",
+            title: "Thistledown & Co. Pocket Sunshine",
+            clerkPitch: "A coat-pocket sunbeam. Small print says it is not the weather, but the weather has been known to listen.",
+            contents: "Spends Belief to immediately push the Nothing's grey two shades back.",
+            currency: .belief,
+            basePrice: 9,
+            good: .pocketSunshine,
+            rarity: 1
+        ),
+        MarketWare(
+            id: "radio-sponsor-clover-honey-humming-jar",
+            title: "Clover Honey Collective Humming Jar",
+            clerkPitch: "Warm afternoon, stoppered and humming. Do not shake it unless you want the shelves to remember summer.",
+            contents: "Spends Belief to gain 3 Attention and tune the radio to Fae-Fi.",
+            currency: .belief,
+            basePrice: 8,
+            good: .hummingJar,
+            rarity: 1
+        ),
+        MarketWare(
+            id: "radio-sponsor-porchlight-moth-lamp",
+            title: "Porchlight & Moth Lamp",
+            clerkPitch: "A lamp left on for what has not come home yet. Excellent for pages with cold hands.",
+            contents: "Spends Belief to tune Mothlight Beats and open Book Remembered.",
+            currency: .belief,
+            basePrice: 12,
+            good: .porchlightLamp,
+            rarity: 3
+        ),
+        MarketWare(
+            id: "radio-sponsor-remembering-bell",
+            title: "The Remembering Bell",
+            clerkPitch: "Ring it over a page you thought you lost. If it rings back, be polite.",
+            contents: "Spends Belief to open Book Remembered and warm the Literary Elves by two.",
+            currency: .belief,
+            basePrice: 10,
+            good: .rememberingBell,
+            rarity: 2
+        ),
+        MarketWare(
+            id: "radio-sponsor-bramblewine-dram",
+            title: "Bramblewine Dram",
+            clerkPitch: "A sip for nights with teeth. The cork lists the price twice, which is almost honest.",
+            contents: "Spends Belief to gain 5 Attention, tune Thornwave, and let the grey lean one shade closer.",
+            currency: .belief,
+            basePrice: 11,
+            good: .bramblewineDram,
+            rarity: 3
+        ),
+        MarketWare(
+            id: "radio-sponsor-melisande-after-hours-card",
+            title: "Melisande's After-Hours Calling Card",
+            clerkPitch: "Show it after the shutters go down. Melisande will overcharge you accurately.",
+            contents: "Spends Belief to keep the market's side door open for the rest of today and warm the Goblins by two.",
+            currency: .belief,
+            basePrice: 10,
+            good: .afterHoursCard,
+            rarity: 2
+        )
+    ]
+
+    static let radioSponsorWareIDsByBanterID: [String: String] = [
+        "faefi-sponsor-thistledown": "radio-sponsor-thistledown-pocket-sunshine",
+        "faefi-sponsor-cloverhoney": "radio-sponsor-clover-honey-humming-jar",
+        "mothlight-sponsor-porchlightmoth": "radio-sponsor-porchlight-moth-lamp",
+        "mothlight-sponsor-theremembering": "radio-sponsor-remembering-bell",
+        "thornwave-sponsor-bramblewine": "radio-sponsor-bramblewine-dram",
+        "thornwave-sponsor-goblin-market": "radio-sponsor-melisande-after-hours-card"
+    ]
+
     /// Every in-world ware (Attention from the Fae market + Belief consumables).
     static var inWorldWares: [MarketWare] {
         let attention = FaeMarketCatalog.offers.map { offer in
@@ -5360,7 +5446,7 @@ enum GoblinMarketEngine {
                 rarity: offer.effect == .callingCard ? 2 : 1
             )
         }
-        return attention + beliefWares
+        return attention + beliefWares + radioSponsorWares
     }
 
     /// Mood moves the price; Warmth with the goblins earns a quiet discount
@@ -6784,37 +6870,43 @@ enum SkyAlmanac {
 //
 // Each time a returning reader opens the app (after the opening movie, not the
 // first run), the Book greets them by name with a rotating opener and one
-// dynamic line summarizing what's alive in the world right now. Pure, testable;
-// the app animates it in as a temporary overlay.
+// remembered line. Live world-state belongs in the hero subtitle; this overlay
+// is for being known, welcomed, and gently invited back into noticing.
 
 struct BookGreetingContext: Equatable {
     var name: String
-    var celebrationTitle: String?
-    var openBargainFae: String?
-    var pactLine: String?
-    var keptYesterday: Int
-    var greyLevel: Int
+    var rememberedFactLines: [String]
+    var recentKeptLines: [String]
+    var keptPageCount: Int
+    var quietDays: Int
     var seed: Int
 
-    init(name: String, celebrationTitle: String? = nil, openBargainFae: String? = nil,
-         pactLine: String? = nil, keptYesterday: Int = 0, greyLevel: Int = 0, seed: Int = 0) {
+    init(
+        name: String,
+        rememberedFactLines: [String] = [],
+        recentKeptLines: [String] = [],
+        keptPageCount: Int = 0,
+        quietDays: Int = 0,
+        seed: Int = 0
+    ) {
         self.name = name
-        self.celebrationTitle = celebrationTitle
-        self.openBargainFae = openBargainFae
-        self.pactLine = pactLine
-        self.keptYesterday = keptYesterday
-        self.greyLevel = greyLevel
+        self.rememberedFactLines = rememberedFactLines
+        self.recentKeptLines = recentKeptLines
+        self.keptPageCount = keptPageCount
+        self.quietDays = quietDays
         self.seed = seed
     }
 }
 
 struct BookGreeting: Equatable {
     var greeting: String   // "Hello, bj — I'm so glad you're back."
-    var line: String       // the dynamic summary / call to magic
+    var line: String       // one remembered line / affirmation / wonder prompt
 }
 
 struct WorldChargeContext: Equatable {
     var keptToday: Int
+    var availablePages: Int
+    var resurfacedPages: Int
     var weatherPhrase: String?
     var enchantedWeatherLine: String?
     var moonName: String
@@ -6822,18 +6914,46 @@ struct WorldChargeContext: Equatable {
     var greyLevel: Int
     var hour: Int
     var seed: Int
+    var openBargainFae: String?
+    var pactLine: String?
+    var tunedStationTitle: String?
+    var recentPageTypes: [BookPageType]
+    var hasBookOfYou: Bool
+    var quietDays: Int
+    var ascendantTalismanName: String?
+    var boundTalismanName: String?
+    var castActionLine: String?
+    var relationshipLine: String?
+    var beliefMovementLine: String?
+    var readerBelief: Int
 
     init(
         keptToday: Int = 0,
+        availablePages: Int = 0,
+        resurfacedPages: Int = 0,
         weatherPhrase: String? = nil,
         enchantedWeatherLine: String? = nil,
         moonName: String,
         celebrationTitle: String? = nil,
         greyLevel: Int = 0,
         hour: Int = 12,
-        seed: Int = 0
+        seed: Int = 0,
+        openBargainFae: String? = nil,
+        pactLine: String? = nil,
+        tunedStationTitle: String? = nil,
+        recentPageTypes: [BookPageType] = [],
+        hasBookOfYou: Bool = false,
+        quietDays: Int = 0,
+        ascendantTalismanName: String? = nil,
+        boundTalismanName: String? = nil,
+        castActionLine: String? = nil,
+        relationshipLine: String? = nil,
+        beliefMovementLine: String? = nil,
+        readerBelief: Int = 0
     ) {
         self.keptToday = keptToday
+        self.availablePages = availablePages
+        self.resurfacedPages = resurfacedPages
         self.weatherPhrase = weatherPhrase
         self.enchantedWeatherLine = enchantedWeatherLine
         self.moonName = moonName
@@ -6841,37 +6961,54 @@ struct WorldChargeContext: Equatable {
         self.greyLevel = greyLevel
         self.hour = hour
         self.seed = seed
+        self.openBargainFae = openBargainFae
+        self.pactLine = pactLine
+        self.tunedStationTitle = tunedStationTitle
+        self.recentPageTypes = recentPageTypes
+        self.hasBookOfYou = hasBookOfYou
+        self.quietDays = quietDays
+        self.ascendantTalismanName = ascendantTalismanName
+        self.boundTalismanName = boundTalismanName
+        self.castActionLine = castActionLine
+        self.relationshipLine = relationshipLine
+        self.beliefMovementLine = beliefMovementLine
+        self.readerBelief = readerBelief
     }
+}
+
+struct BookOpenVoice: Equatable {
+    var heroLine: String
+    var epigraph: String
+    var factTitle: String
+    var factLine: String
+    var encouragement: String
+    var quip: String
+    var edgeLine: String
+    var knockLine: String
 }
 
 enum WorldChargeComposer {
     static func compose(_ context: WorldChargeContext) -> String {
-        if let celebration = context.celebrationTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !celebration.isEmpty {
-            return "The Wheel is keeping \(celebration). Let one ordinary thing answer it."
-        }
+        let liveLines = [
+            context.celebrationTitle?.nonEmpty.map { "The Wheel is keeping \($0). Let one ordinary thing answer it." },
+            context.relationshipLine?.nonEmpty.map { "The Loom moved: \($0.bookPreviewSentenceLimit(1))" },
+            context.castActionLine?.nonEmpty.map { "The cast kept acting offscreen: \($0.bookPreviewSentenceLimit(1))" },
+            context.beliefMovementLine?.nonEmpty.map { "Belief shifted in the margins: \($0.bookPreviewSentenceLimit(1))" },
+            context.ascendantTalismanName?.nonEmpty.map { "\($0) is leaning on the binding today. The Pages may answer differently." },
+            context.tunedStationTitle?.nonEmpty.map { "\($0) is still in the paper. Let the next Page keep rhythm." },
+            context.enchantedWeatherLine?.nonEmpty.map { "The sky left a margin note: \($0.bookPreviewSentenceLimit(1))" },
+            context.weatherPhrase?.nonEmpty.map { weatherLine(for: $0, seed: context.seed) },
+            context.greyLevel >= 2 ? "A grey edge is near the desk. One true detail can turn the light up." : nil,
+            context.openBargainFae?.nonEmpty.map { "A \($0) still has a finger under the page. Terms may flutter." },
+            context.pactLine?.nonEmpty.map { "\($0.bookPreviewSentenceLimit(1)) Another Page is listening from the map." },
+            context.availablePages > 0 ? "\(context.availablePages) Page\(context.availablePages == 1 ? "" : "s") are tapping at the glass. Choose the one that glows back." : nil,
+            context.keptToday > 0 ? "The margins hold \(context.keptToday) fragment\(context.keptToday == 1 ? "" : "s"). The next Page is already listening." : nil,
+            context.resurfacedPages > 0 ? "\(context.resurfacedPages) older Page\(context.resurfacedPages == 1 ? "" : "s") found the stair back up." : nil,
+            context.moonName != "New Moon" ? "The \(context.moonName) is stamped in the corner. Let it choose one small thing." : nil
+        ].compactMap { $0?.nonEmpty }
 
-        if let enchanted = context.enchantedWeatherLine?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !enchanted.isEmpty {
-            return "The sky left a margin note: \(enchanted.bookPreviewSentenceLimit(1))"
-        }
-
-        if let weather = context.weatherPhrase?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !weather.isEmpty {
-            return weatherLine(for: weather, seed: context.seed)
-        }
-
-        if context.greyLevel >= 2 {
-            return "A grey edge is near the desk. One true detail can turn the light up."
-        }
-
-        if context.keptToday > 0 {
-            let count = context.keptToday
-            return "The margins hold \(count) fragment\(count == 1 ? "" : "s"). The next Page is already listening."
-        }
-
-        if context.moonName != "New Moon" {
-            return "The \(context.moonName) is stamped in the corner. Let it choose one small thing."
+        if !liveLines.isEmpty {
+            return liveLines[abs(context.seed) % liveLines.count]
         }
 
         return timeLine(hour: context.hour, seed: context.seed)
@@ -6942,6 +7079,166 @@ enum WorldChargeComposer {
     }
 }
 
+enum BookOpenVoiceComposer {
+    static func compose(_ context: WorldChargeContext) -> BookOpenVoice {
+        let hero = WorldChargeComposer.compose(context)
+        return BookOpenVoice(
+            heroLine: hero,
+            epigraph: epigraph(for: context),
+            factTitle: factTitle(for: context),
+            factLine: factLine(for: context),
+            encouragement: encouragement(for: context),
+            quip: quip(for: context),
+            edgeLine: edgeLine(for: context),
+            knockLine: knockLine(for: context)
+        )
+    }
+
+    private static func epigraph(for context: WorldChargeContext) -> String {
+        var lines = [
+            "Every shelf remembers who lingered.",
+            "What you notice, notices back.",
+            "A kept sentence outlives its weather.",
+            "Doors prefer to be asked.",
+            "The Book turns when you do.",
+            "Small true things are load-bearing.",
+            "Ink dries; the day does not have to.",
+            "Somewhere in the Stacks, your page is already breathing.",
+            "Attention is the only ink the Book accepts.",
+            "Wonder is a practice, not a weather."
+        ]
+        if context.relationshipLine?.nonEmpty != nil {
+            lines.append("The Loom is never still, only quiet from this side.")
+        }
+        if context.castActionLine?.nonEmpty != nil {
+            lines.append("The cast keeps walking when the cover closes.")
+        }
+        if context.ascendantTalismanName?.nonEmpty != nil {
+            lines.append("Talismans vote with pressure, not hands.")
+        }
+        return pick(lines, seed: context.seed, salt: 17)
+    }
+
+    private static func factTitle(for context: WorldChargeContext) -> String {
+        if context.relationshipLine?.nonEmpty != nil { return "Loom Weather" }
+        if context.castActionLine?.nonEmpty != nil { return "Offscreen Action" }
+        if context.beliefMovementLine?.nonEmpty != nil { return "Belief Drift" }
+        if context.ascendantTalismanName?.nonEmpty != nil { return "Talisman Pressure" }
+        if context.tunedStationTitle?.nonEmpty != nil { return "Radio Trace" }
+        return "Book Fact"
+    }
+
+    private static func factLine(for context: WorldChargeContext) -> String {
+        if let relationship = context.relationshipLine?.nonEmpty {
+            return relationship.bookPreviewSentenceLimit(1)
+        }
+        if let cast = context.castActionLine?.nonEmpty {
+            return cast.bookPreviewSentenceLimit(1)
+        }
+        if let belief = context.beliefMovementLine?.nonEmpty {
+            return belief.bookPreviewSentenceLimit(1)
+        }
+        if let talisman = context.ascendantTalismanName?.nonEmpty {
+            let bound = context.boundTalismanName?.nonEmpty.map { " Your bound talisman, \($0), feels the pressure." } ?? ""
+            return "\(talisman) is ascendant in the margins.\(bound)"
+        }
+        if let station = context.tunedStationTitle?.nonEmpty {
+            return "\(station) leaves rhythm in the paper even after the dial goes quiet."
+        }
+        if let recent = context.recentPageTypes.first {
+            return "\(recent.title) Pages are warmer because you have been teaching the Book where to look."
+        }
+        if context.hasBookOfYou {
+            return "The Book of You is not a summary. It is the day's private braid learning your shape."
+        }
+        return "The Book changes its first whisper from the same facts it uses to raise Pages."
+    }
+
+    private static func encouragement(for context: WorldChargeContext) -> String {
+        if context.readerBelief <= 12 {
+            return "Low Glow is not failure. One honest fragment is enough to relight the desk."
+        }
+        if context.quietDays >= 3 {
+            return "A quiet stretch still counts. Start with the smallest true thing that will let you name it."
+        }
+        if context.keptToday > 0 {
+            return "You already gave the day a handle. The next Page can be play, not proof."
+        }
+        if context.availablePages > 1 {
+            return "Pick by tug, not obligation. The Book keeps the other doors warm."
+        }
+        return pick([
+            "Bring back one detail from the room after this.",
+            "Let the ordinary have one more chance to show off.",
+            "Open lightly. The Book has plenty of Pages.",
+            "Nothing here needs to be impressive. Specific is enough."
+        ], seed: context.seed, salt: 31)
+    }
+
+    private static func quip(for context: WorldChargeContext) -> String {
+        if context.greyLevel >= 2 {
+            return "The grey has been asked to wait outside. It is doing a poor job."
+        }
+        if context.openBargainFae?.nonEmpty != nil {
+            return "A Fae bargain is basically a receipt with opinions."
+        }
+        if context.availablePages >= 3 {
+            return "Three Pages at once. The desk is pretending this is normal."
+        }
+        if context.moonName == "Full Moon" {
+            return "Full moon protocol: everything gets a little dramatic and denies it."
+        }
+        return pick([
+            "The margins have excellent posture today.",
+            "Somewhere, a bookmark is taking credit.",
+            "The Book has checked the ordinary. Suspiciously alive.",
+            "No one tell the index how much is happening."
+        ], seed: context.seed, salt: 47)
+    }
+
+    private static func edgeLine(for context: WorldChargeContext) -> String {
+        let lines = [
+            context.relationshipLine.map { "Relationship weather: \($0.bookPreviewSentenceLimit(1))" },
+            context.castActionLine.map { "Cast action: \($0.bookPreviewSentenceLimit(1))" },
+            context.beliefMovementLine.map { "Belief change: \($0.bookPreviewSentenceLimit(1))" },
+            context.ascendantTalismanName.map { "Talisman action: \($0) has the strongest hand on the binding." },
+            context.tunedStationTitle.map { "Radio edge: \($0) is coloring the next room." },
+            context.resurfacedPages > 0 ? "\(context.resurfacedPages) older Page\(context.resurfacedPages == 1 ? "" : "s") found the stair back up." : nil
+        ].compactMap { $0?.nonEmpty }
+
+        if lines.isEmpty {
+            return "Edges awake: sky, moon, Pages, Belief, and the quiet machinery under the cover."
+        }
+        return pick(lines, seed: context.seed, salt: 61)
+    }
+
+    private static func knockLine(for context: WorldChargeContext) -> String {
+        if let talisman = context.ascendantTalismanName?.nonEmpty, context.seed % 4 == 0 {
+            return "\(talisman) knocks back from inside the binding."
+        }
+        if let relationship = context.relationshipLine?.nonEmpty, context.seed % 4 == 1 {
+            return "The Loom answers: \(relationship.bookPreviewSentenceLimit(1))"
+        }
+        if context.greyLevel >= 2 {
+            return "The cover taps twice. The grey heard you. Good."
+        }
+        if context.keptToday > 0 {
+            return "Something under today's kept fragment knocks back."
+        }
+        return pick([
+            "Tap received. The nearest Page is pretending it was already awake.",
+            "The cover warms under your hand.",
+            "A shelf somewhere answers with one careful creak.",
+            "The Book knocks back, politely theatrical."
+        ], seed: context.seed, salt: 73)
+    }
+
+    private static func pick(_ values: [String], seed: Int, salt: Int) -> String {
+        guard !values.isEmpty else { return "" }
+        return values[abs(seed + salt) % values.count]
+    }
+}
+
 enum BookGreetingComposer {
     static let openers: [String] = [
         "Hello, {name} — I'm so glad you're back.",
@@ -6957,21 +7254,36 @@ enum BookGreetingComposer {
         let opener = openers[abs(context.seed) % openers.count]
             .replacingOccurrences(of: "{name}", with: name)
 
-        let line: String
-        if let title = context.celebrationTitle {
-            line = "Tonight the Wheel keeps \(title). The next Page is awake."
-        } else if let fae = context.openBargainFae {
-            line = "A \(fae) is still waiting on a bargain. The Book is ready to play."
-        } else if let pact = context.pactLine, !pact.isEmpty {
-            line = "\(pact) Another Page is near."
-        } else if context.keptYesterday > 0 {
-            line = "You kept \(context.keptYesterday) page\(context.keptYesterday == 1 ? "" : "s") yesterday. Shall we add to them?"
-        } else if context.greyLevel >= 2 {
-            line = "It's been a little grey. One kept page can turn the light back up."
-        } else {
-            line = "The Book is ready to play."
-        }
+        let lines = rememberedLines(for: context)
+        let line = lines[abs(context.seed / 3) % lines.count]
         return BookGreeting(greeting: opener, line: line)
+    }
+
+    private static func rememberedLines(for context: BookGreetingContext) -> [String] {
+        var lines: [String] = []
+        lines.append(contentsOf: context.recentKeptLines.compactMap { line in
+            line.nonEmpty.map { "I remember this from your margins: \"\($0.bookPreviewSentenceLimit(1))\"" }
+        })
+        lines.append(contentsOf: context.rememberedFactLines.compactMap { line in
+            line.nonEmpty.map { "The Book remembers this about you: \($0.bookPreviewSentenceLimit(1))" }
+        })
+
+        if context.keptPageCount > 0 {
+            lines.append("The Book has \(context.keptPageCount) kept fragment\(context.keptPageCount == 1 ? "" : "s") of you in its margins. None of them were wasted.")
+            lines.append("You have already taught the Book how to look for small bright things.")
+        }
+        if context.quietDays >= 2 {
+            lines.append("Even a quiet stretch is still a thread. The Book kept your place.")
+        }
+
+        lines.append(contentsOf: [
+            "You are becoming easier for wonder to find.",
+            "I wonder what ordinary thing will recognize you first today?",
+            "I wonder what small detail is trying to become a souvenir?",
+            "Nothing here needs you to be impressive. Specific is enough.",
+            "The Book has noticed: you come back. That counts."
+        ])
+        return lines
     }
 }
 
@@ -7594,6 +7906,36 @@ enum KeepMarginalia {
         rejoinderLine: "Ignore the stamp — he underlined your good word twice when he thought no one was looking."
     )
 
+    /// The Book's own gentle acknowledgement of a keep too thin to earn a full
+    /// cast note — so the keep moment is never met with silence. Deliberately
+    /// milestone-free: it claims nothing, so it never spends the first-friend or
+    /// duet beat, and it lives outside the eligibility/keep-count accounting.
+    static let floorLines = [
+        "Kept. Short and true is still true.",
+        "A small page, safely shelved. The Book asks nothing more of it.",
+        "Even a few words hold their shape here. Kept.",
+        "The Book took it exactly as it was. Nothing has to be longer to be kept."
+    ]
+
+    /// A floor note for a public keep that fell short of the substance bar but
+    /// still put ink on the page. Nil for private logs and truly empty keeps, and
+    /// nil once the keep is substantial enough for a real cast voice (`isEligible`).
+    static func floorNote(for input: String, pageType: BookPageType, pageID: String) -> Note? {
+        guard !EditionCurator.defaultPrivateTypes.contains(pageType) else { return nil }
+        guard !isEligible(input: input, pageType: pageType) else { return nil }
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wordCount = trimmed.split { !$0.isLetter && !$0.isNumber }.count
+        guard wordCount >= 1 else { return nil }
+        let seed = seed(for: pageID)
+        let line = floorLines[Int((seed >> 8) % UInt64(floorLines.count))]
+        return Note(
+            castSlug: "book-sprite",
+            castName: "The Book",
+            assetName: "LabyrinthFaeBookSprite",
+            line: line
+        )
+    }
+
     /// True when a keep is substantial enough (and public enough) to earn ink.
     /// Mirrors the guards that already open `note(...)`.
     static func isEligible(input: String, pageType: BookPageType) -> Bool {
@@ -7672,6 +8014,32 @@ enum KeepMarginalia {
         return Note(
             castSlug: "almanac",
             castName: "The Almanac \u{2014} \(commonName)",
+            assetName: "LabyrinthFaeBookSprite",
+            line: line
+        )
+    }
+
+    /// The Almanac's line when a keep lights a new day that crosses one of the
+    /// month's thread milestones. Voiced by the Almanac, keyed to the keepsake
+    /// tier just earned — it counts the days the reader showed up, never the days
+    /// they missed, and asks for nothing in return.
+    static func threadNote(litDays: Int, seal: ThreadOfTheMonth.Seal, monthName: String) -> Note {
+        let line: String
+        switch seal {
+        case .inked:
+            line = "\(monthName) has ink in it now — \(litDays) days you showed up. The Book started a thread to hold them."
+        case .sealed:
+            line = "\(litDays) lit days this month. The Almanac warmed a little wax and pressed a seal on \(monthName). It's yours."
+        case .ribboned:
+            line = "\(litDays) days of \(monthName) carry your ink. The Book tied a ribbon around them — a good month, and not over yet."
+        case .bound:
+            line = "\(litDays) lit days. \(monthName) is cloth-bound now, a full and well-kept volume. The thread holds every one."
+        case .unbound:
+            line = "\(monthName) begins its thread. This is the first stitch."
+        }
+        return Note(
+            castSlug: "almanac",
+            castName: "The Almanac \u{2014} the Thread of \(monthName)",
             assetName: "LabyrinthFaeBookSprite",
             line: line
         )

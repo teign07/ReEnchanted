@@ -286,7 +286,8 @@ struct MLXBookBraider: Braider {
                     worldEvents: activeWorldEvents
                 ),
                 activeWorldEvents: activeWorldEvents,
-                readerLexicon: PlayerVault.shared.data.readerLexicon ?? ReaderLexicon()
+                readerLexicon: PlayerVault.shared.data.readerLexicon ?? ReaderLexicon(),
+                readerLearning: PlayerVault.shared.data.readerLearning ?? ReaderLearningModel()
             )
         case .task:
             context = .empty

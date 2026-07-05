@@ -131,6 +131,9 @@ struct EditionStyle {
 // MARK: - PDF writer
 
 enum MonthlyEditionPDFWriter {
+    private static let mediaPresentationKey = "monthlyEditionPresentation"
+    private static let fullPageMediaPresentation = "fullPage"
+
     static func write(_ edition: MonthlyEdition, to url: URL) throws {
         let pageBounds = CGRect(x: 0, y: 0, width: 612, height: 792)
         let style = EditionStyle.style(for: edition)
@@ -1201,6 +1204,20 @@ enum MonthlyEditionPDFWriter {
                 context: context,
                 cursor: &cursor
             )
+            if let asset = fullPageMediaAsset(from: item.mediaAssets),
+               let image = image(from: asset) {
+                drawFullPageMediaLeaf(
+                    image,
+                    item: item,
+                    asset: asset,
+                    style: style,
+                    context: context,
+                    cursor: &cursor
+                )
+                if index < section.items.count - 1 {
+                    beginComposedPage(context, style: style, cursor: &cursor)
+                }
+            }
         }
     }
 
@@ -1237,9 +1254,10 @@ enum MonthlyEditionPDFWriter {
         }
 
         drawText(item.title, font: .systemFont(ofSize: 12, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 4)
-        if item.kind == .image, let image = firstImage(from: item.mediaAssets) {
+        let inlineAssets = inlineMediaAssets(from: item.mediaAssets)
+        if item.kind == .image, let image = firstImage(from: inlineAssets) {
             drawFramedImage(image, style: style, context: context, cursor: &cursor)
-            if let caption = item.mediaAssets.first?.caption, !caption.isEmpty {
+            if let caption = inlineAssets.first?.caption, !caption.isEmpty {
                 drawText(caption, font: .serifItalicFont(ofSize: 9), color: style.palette.ink.withAlphaComponent(0.6), cursor: &cursor, spacingAfter: 6)
             }
         }
@@ -1297,9 +1315,10 @@ enum MonthlyEditionPDFWriter {
             font: .systemFont(ofSize: 12, weight: .bold),
             width: cursor.contentWidth
         ) + 4
-        if item.kind == .image, !item.mediaAssets.isEmpty {
+        let inlineAssets = inlineMediaAssets(from: item.mediaAssets)
+        if item.kind == .image, !inlineAssets.isEmpty {
             height += 246
-            if let caption = item.mediaAssets.first?.caption, !caption.isEmpty {
+            if let caption = inlineAssets.first?.caption, !caption.isEmpty {
                 height += measuredTextHeight(caption, font: .serifItalicFont(ofSize: 9), width: cursor.contentWidth) + 6
             }
         }
@@ -1794,6 +1813,48 @@ enum MonthlyEditionPDFWriter {
         cursor.y += size.height + 18
     }
 
+    private static func drawFullPageMediaLeaf(
+        _ image: UIImage,
+        item: MonthlyEditionItem,
+        asset: BookPageMediaAsset,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        context.beginPage()
+        cursor.reset()
+        cursor.pageIndex += 1
+        drawComposedBackground(style: style, seed: "\(cursor.pageSeed)-fullmedia", in: cursor.bounds)
+
+        let maxRect = cursor.bounds.inset(by: UIEdgeInsets(top: 44, left: 42, bottom: 72, right: 42))
+        let scale = min(maxRect.width / image.size.width, maxRect.height / image.size.height)
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let rect = CGRect(
+            x: maxRect.midX - size.width / 2,
+            y: maxRect.midY - size.height / 2,
+            width: size.width,
+            height: size.height
+        )
+        let mat = rect.insetBy(dx: -10, dy: -10)
+        style.palette.accentSoft.setFill()
+        UIBezierPath(roundedRect: mat, cornerRadius: 5).fill()
+        image.draw(in: rect)
+        style.palette.accent.withAlphaComponent(0.72).setStroke()
+        let frame = UIBezierPath(roundedRect: mat, cornerRadius: 5)
+        frame.lineWidth = 1.1
+        frame.stroke()
+
+        let caption = asset.caption.nonEmpty ?? item.title
+        drawCentered(
+            caption,
+            font: .serifItalicFont(ofSize: 10),
+            color: style.palette.ink.withAlphaComponent(0.62),
+            y: cursor.bounds.maxY - 48,
+            in: cursor.bounds.insetBy(dx: 70, dy: 0)
+        )
+        cursor.y = cursor.bottom
+    }
+
     private static func ensureSpace(_ needed: CGFloat, style: EditionStyle, context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor) {
         if cursor.y + needed > cursor.bottom {
             beginComposedPage(context, style: style, cursor: &cursor)
@@ -1802,20 +1863,36 @@ enum MonthlyEditionPDFWriter {
 
     // MARK: Image resolution
 
+    private static func fullPageMediaAsset(from assets: [BookPageMediaAsset]) -> BookPageMediaAsset? {
+        assets.first(where: isFullPageMediaAsset)
+    }
+
+    private static func inlineMediaAssets(from assets: [BookPageMediaAsset]) -> [BookPageMediaAsset] {
+        assets.filter { !isFullPageMediaAsset($0) }
+    }
+
+    private static func isFullPageMediaAsset(_ asset: BookPageMediaAsset) -> Bool {
+        asset.metadata[mediaPresentationKey] == fullPageMediaPresentation
+    }
+
     private static func firstImage(from assets: [BookPageMediaAsset]) -> UIImage? {
         for asset in assets {
-            switch asset.kind {
-            case .renderedImageFile:
-                if let image = UIImage(contentsOfFile: asset.reference) { return image }
-            case .bundledImage:
-                if let image = UIImage(named: asset.reference) { return image }
-            case .photoLibraryAsset:
-                if let image = photoLibraryImage(localIdentifier: asset.reference) { return image }
-            case .audioFile:
-                continue
-            }
+            if let image = image(from: asset) { return image }
         }
         return nil
+    }
+
+    private static func image(from asset: BookPageMediaAsset) -> UIImage? {
+        switch asset.kind {
+        case .renderedImageFile:
+            return UIImage(contentsOfFile: asset.reference)
+        case .bundledImage:
+            return UIImage(named: asset.reference)
+        case .photoLibraryAsset:
+            return photoLibraryImage(localIdentifier: asset.reference)
+        case .audioFile:
+            return nil
+        }
     }
 
     /// Resolves a Photos-library asset synchronously at binding time. Only

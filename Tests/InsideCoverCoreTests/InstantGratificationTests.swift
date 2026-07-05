@@ -426,6 +426,70 @@ final class InstantGratificationTests: XCTestCase {
         )
     }
 
+    // MARK: Keep floor — never a silent keep
+
+    func testFloorNoteCatchesThinPublicKeeps() throws {
+        // A keep too thin for a full cast voice still earns the Book's own line.
+        let note = try XCTUnwrap(KeepMarginalia.floorNote(for: "tired today", pageType: .diary, pageID: "thin-1"))
+        XCTAssertEqual(note.castSlug, "book-sprite")
+        XCTAssertTrue(KeepMarginalia.floorLines.contains(note.line))
+    }
+
+    func testFloorNoteIsDeterministic() {
+        XCTAssertEqual(
+            KeepMarginalia.floorNote(for: "so tired", pageType: .diary, pageID: "thin-x"),
+            KeepMarginalia.floorNote(for: "so tired", pageType: .diary, pageID: "thin-x")
+        )
+    }
+
+    func testFloorNoteStaysOutOfPrivateEmptyAndSubstantialKeeps() {
+        // Private logs stay silent.
+        XCTAssertNil(KeepMarginalia.floorNote(for: "so tired", pageType: .body, pageID: "b"))
+        // Truly empty keeps stay silent.
+        XCTAssertNil(KeepMarginalia.floorNote(for: "   ", pageType: .diary, pageID: "e"))
+        // Substantial keeps belong to the real cast voices, not the floor.
+        XCTAssertNil(
+            KeepMarginalia.floorNote(
+                for: "The kettle sang twice before I noticed the morning had turned.",
+                pageType: .diary,
+                pageID: "rich"
+            )
+        )
+    }
+
+    // MARK: Braid pays off the ember
+
+    func testKeptPromiseLineNamesTheEmbersThreads() throws {
+        let line = try XCTUnwrap(BraidEmber.keptPromiseLine(for: dayWithTwoProsePages()))
+        XCTAssertTrue(line.contains("harbor"))
+        XCTAssertTrue(line.contains("cathedral"))
+        XCTAssertTrue(line.hasPrefix("Last night the braid caught"))
+    }
+
+    func testKeptPromiseLineIsNilOnUnwrittenDays() {
+        XCTAssertNil(BraidEmber.keptPromiseLine(for: emptyDay()))
+    }
+
+    func testKeptPromiseLineHandlesSingleThread() throws {
+        let single = BookDay(
+            id: "2026-06-12",
+            date: Self.date(year: 2026, month: 6, day: 12, hour: 0),
+            pages: [prosePage(id: "solo", createdAtHour: 9, input: "Rain over the harbor.")]
+        )
+        let line = try XCTUnwrap(BraidEmber.keptPromiseLine(for: single))
+        XCTAssertTrue(line.contains("single thread"))
+        XCTAssertTrue(line.contains("harbor"))
+    }
+
+    func testWithPromiseEchoRoundTripsThroughTags() throws {
+        let braid = BookPage(type: .bookOfYou, promptText: "Book of You: The Kept Harbor", userInput: "Body.")
+        let line = try XCTUnwrap(BraidEmber.keptPromiseLine(for: dayWithTwoProsePages()))
+        let stamped = BraidPageDetails.withPromiseEcho(braid, line: line)
+        XCTAssertEqual(BraidPageDetails.details(for: stamped).promiseEcho, line)
+        // A nil line leaves the page's tags untouched.
+        XCTAssertEqual(BraidPageDetails.withPromiseEcho(braid, line: nil).tags, braid.tags)
+    }
+
     // Use the current calendar throughout: `BookDay.capturedPages` derives its
     // day window with `Calendar.current`, so fixtures must live in the same
     // timezone or they fall outside the window on non-UTC hosts.

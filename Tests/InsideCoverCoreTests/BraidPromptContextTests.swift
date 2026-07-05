@@ -681,6 +681,23 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertFalse(BraidPromptBuilder.prompt(for: quietDay, context: .empty).contains("WHERE BELIEF WAS TESTED"))
     }
 
+    func testBraidPromptCarriesReaderLearningContextAsGuidance() {
+        let day = BookDay(id: "learning-day", date: date("2026-07-01T20:30:00Z"), pages: [
+            BookPage(type: .souvenir, promptText: "One line", userInput: "The porch light clicked on.", origin: .userAuthored)
+        ])
+        let context = BraidPromptBuilder.Context(
+            readerLearningPromptLines: [
+                "One-Sentence Souvenir is warming in the margins. 3 positive signals, 0 cooling signals."
+            ]
+        )
+
+        let prompt = BraidPromptBuilder.prompt(for: day, context: context)
+
+        XCTAssertTrue(prompt.contains("LEARNED READER CONTEXT:"))
+        XCTAssertTrue(prompt.contains("Use them only to choose emphasis, pacing, and restraint."))
+        XCTAssertTrue(prompt.contains("One-Sentence Souvenir is warming"))
+    }
+
     private func date(_ value: String) -> Date {
         ISO8601DateFormatter().date(from: value)!
     }
