@@ -6132,6 +6132,77 @@ struct GlowInvitationPageSourceAdapter: BookPageSourceAdapter {
 /// `opensBookShop` route the BookShop preview uses), where the actual binding,
 /// sharing, and — later — physical printing live. Swiping it away costs nothing,
 /// and it returns at most once per month.
+/// Surfaces the reader's most recently completed week as a keepable *issue* —
+/// the fast retention beat ("your week became an issue") that the deferred
+/// monthly/annual bindings can't give. It shares the `.bindery` page family but
+/// carries its own `sourceID` so it never touches the monthly Bindery's
+/// once-per-month history. Distress-gated; each issue is offered once and
+/// retired when kept (tag `weekly-issue:<n>`).
+struct WeeklyIssuePageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .bindery)
+    private var sourceID: String { "\(source.id)-weekly" }
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive, !context.distress.isActive else { return [] }
+        guard let issue = WeeklyIssue.current(days: inputs.days, today: day, now: now) else { return [] }
+
+        // Each issue is offered once; keeping it retires that number forever.
+        let keptTag = "weekly-issue:\(issue.number)"
+        let alreadyKept = (inputs.days + [day]).flatMap(\.pages).contains { $0.tags.contains(keptTag) }
+        guard !alreadyKept else { return [] }
+
+        let issueLabel = "Issue No. \(issue.number)"
+        let pageWord = issue.keptCount == 1 ? "page" : "pages"
+        let headline = issue.isFirstIssue ? "Your First Issue" : "This Week Became an Issue"
+        let opener = issue.isFirstIssue
+            ? "Seven days ago you opened the Book for the first time. Look what a week became."
+            : "Another seven days have closed. The Book gathered them into an issue while you were busy living them."
+        let highlightBlock = issue.highlights.isEmpty
+            ? ""
+            : "\n\n" + issue.highlights.map { "\u{2022} \($0)" }.joined(separator: "\n")
+        let setAside = issue.setAsideLine.map { "\n\n\($0)" } ?? ""
+        let body = """
+        \(issueLabel) \u{2014} \(issue.dateRange)
+
+        \(opener) \(issue.keptCount) \(pageWord) you kept, gathered into a week you can hold.\(highlightBlock)\(setAside)
+
+        The month and the year are still gathering. This week is already whole — keep the issue to shelve it.
+        """
+
+        // The first issue is a milestone retention beat, scored a touch higher;
+        // later issues stay solid but below orientation and distress/rest.
+        let score = issue.isFirstIssue ? 82 : 74
+        return [
+            SurfacePage(
+                id: "\(sourceID)-\(issue.number)",
+                type: .bindery,
+                sourceID: sourceID,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                score: score,
+                reason: issue.isFirstIssue ? "Your first week became an issue." : "Your week became an issue.",
+                prompt: issueLabel,
+                detail: "\(issue.keptCount) \(pageWord) from \(issue.dateRange), gathered into an issue.",
+                payload: BookPagePayload(
+                    headline: headline,
+                    body: body,
+                    metadata: [
+                        "source": sourceID,
+                        "weeklyIssue": "true",
+                        "weeklyIssueNumber": "\(issue.number)",
+                        "weeklyIssueRange": issue.dateRange,
+                        "weeklyIssueKeptCount": "\(issue.keptCount)",
+                        "weeklyIssueHighlights": issue.highlights.joined(separator: "\n"),
+                        "weeklyIssueFirst": issue.isFirstIssue ? "true" : "false",
+                        "noBeliefReward": "true",
+                        "tags": "weekly-issue,edition,\(keptTag),bindery"
+                    ]
+                )
+            )
+        ]
+    }
+}
+
 struct BinderyPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .bindery)
 
@@ -6693,6 +6764,7 @@ enum BookPageSourceAdapters {
         TwoReadingsPageSourceAdapter(),
         CastBondPageSourceAdapter(),
         GlowInvitationPageSourceAdapter(),
+        WeeklyIssuePageSourceAdapter(),
         BinderyPageSourceAdapter(),
         WeatherPageSourceAdapter(),
         EnchantmentPageSourceAdapter(),

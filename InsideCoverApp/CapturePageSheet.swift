@@ -1898,7 +1898,7 @@ struct CapturePageSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                BookBackground()
+                BookBackground(isQuiet: isLocalBrainWorking)
 
                 ScrollViewReader { scrollProxy in
                     ScrollView {
@@ -3437,7 +3437,7 @@ struct CapturePageSheet: View {
 
             RadioSignalMeter(
                 stationID: active?.id ?? "static",
-                isPlaying: isPowered && (active == nil || radioManager.playback.activeStationID == active?.id)
+                isPlaying: !isLocalBrainWorking && isPowered && (active == nil || radioManager.playback.activeStationID == active?.id)
             )
             .frame(height: 42)
 
@@ -4671,6 +4671,8 @@ struct CapturePageSheet: View {
                 }
             } else if surface.type == .bookPocket {
                 bookPocketOpeningView
+            } else if surface.payload.metadata["weeklyIssue"] == "true" {
+                weeklyIssueOpeningView
             } else {
                 HStack(spacing: 8) {
                     if let weatherSymbolName {
@@ -4684,7 +4686,7 @@ struct CapturePageSheet: View {
                 }
             }
 
-            if !surface.isStoryPlayablePage && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && surface.type != .bookRemembered && surface.type != .bookNotices && surface.type != .bookPocket && !isCompassPracticePage && surface.type != .supportGuild && !isPendingLetterPage {
+            if !surface.isStoryPlayablePage && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && surface.type != .bookRemembered && surface.type != .bookNotices && surface.type != .bookPocket && surface.payload.metadata["weeklyIssue"] != "true" && !isCompassPracticePage && surface.type != .supportGuild && !isPendingLetterPage {
                 Text(surface.payload.body)
                     .font(.system(.body, design: .serif))
                     .foregroundStyle(BookPalette.ink)
@@ -4753,6 +4755,85 @@ struct CapturePageSheet: View {
     /// ceremony than the investigative teal of ordinary pattern-noticing. It is
     /// the first time the Book proves it read *you*, and it should feel like a
     /// light coming on, not a case being opened.
+    /// The Weekly Issue — the reader's past seven days packaged as a felt
+    /// magazine issue: masthead, issue number, date range, and the week's
+    /// highlights. "Your week became an issue" is meant to land at a glance,
+    /// which is why it wears a cover rather than a paragraph.
+    private var weeklyIssueOpeningView: some View {
+        let m = surface.payload.metadata
+        let number = m["weeklyIssueNumber"] ?? "1"
+        let range = m["weeklyIssueRange"] ?? ""
+        let keptCount = m["weeklyIssueKeptCount"] ?? ""
+        let isFirst = m["weeklyIssueFirst"] == "true"
+        let highlights = (m["weeklyIssueHighlights"] ?? "")
+            .split(separator: "\n").map(String.init)
+        let countWord = keptCount == "1" ? "page" : "pages"
+
+        return VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("THE BOOK OF YOU")
+                        .font(.caption2.weight(.bold))
+                        .tracking(2)
+                        .foregroundStyle(BookPalette.ink.opacity(0.55))
+                    Spacer(minLength: 8)
+                    Text(range)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.55))
+                }
+                Text("Issue No. \(number)")
+                    .font(.system(.largeTitle, design: .serif).weight(.bold))
+                    .foregroundStyle(BookPalette.ink)
+                Text(isFirst ? "Your first week, bound." : "Your week became an issue.")
+                    .font(.system(.callout, design: .serif))
+                    .italic()
+                    .foregroundStyle(BookPalette.lampGold)
+            }
+
+            Rectangle()
+                .fill(BookPalette.lampGold.opacity(0.3))
+                .frame(height: 1)
+
+            HStack(spacing: 6) {
+                Image(systemName: "doc.text.fill")
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.teal)
+                Text("\(keptCount) \(countWord) kept this week")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.7))
+            }
+
+            if !highlights.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("In this issue")
+                        .font(.caption.weight(.bold))
+                        .textCase(.uppercase)
+                        .foregroundStyle(BookPalette.teal)
+                    ForEach(Array(highlights.enumerated()), id: \.offset) { _, line in
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "circle.fill")
+                                .font(.system(size: 5))
+                                .foregroundStyle(BookPalette.lampGold)
+                                .padding(.top, 7)
+                            Text(line)
+                                .font(.system(.callout, design: .serif))
+                                .foregroundStyle(BookPalette.ink.opacity(0.9))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+            }
+
+            Text("The month and the year are still gathering. This week is already whole — keep the issue to shelve it.")
+                .font(.footnote)
+                .foregroundStyle(BookPalette.ink.opacity(0.6))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .opacity(didRevealCeremony ? 1 : 0.01)
+        .offset(y: didRevealCeremony ? 0 : 8)
+        .animation(.easeOut(duration: 0.55), value: didRevealCeremony)
+    }
+
     private var firstReadingOpeningView: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 6) {
@@ -8090,7 +8171,7 @@ struct CapturePageSheet: View {
                 let sentences = s.split { ".!?".contains($0) }.filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).count > 3 }.count
                 let words = s.split { $0 == " " || $0 == "\n" }.count
                 let rejectsAtmosphere = draft.blueprint.map { $0.sceneMode == .conversation } ?? true
-                return sentences >= 3 && words >= 45
+                return sentences >= 5 && words >= 110
                     && !StoryTurnValidator.isNearDuplicate(s, of: priorScene)
                     && (!rejectsAtmosphere || !StoryTurnValidator.isAtmosphereDominated(s, characterNames: names))
             }
@@ -10287,8 +10368,8 @@ struct StoryPageContinuationContext: Equatable {
     var currentDraft: StoryPageSceneDraft
     var selectedChoice: StoryPageChoiceDraft
 
-    var promptContext: String {
-        let resolvedTurns = turns.isEmpty
+    var resolvedTurns: [StoryPageSessionTurn] {
+        turns.isEmpty
             ? [StoryPageSessionTurn(draft: currentDraft, selectedChoice: selectedChoice)]
             : turns.map { turn in
                 var copy = turn
@@ -10297,22 +10378,47 @@ struct StoryPageContinuationContext: Equatable {
                 }
                 return copy
             }
+    }
+
+    var turnCount: Int {
+        resolvedTurns.count
+    }
+
+    var latestTurn: StoryPageSessionTurn {
+        resolvedTurns.last ?? StoryPageSessionTurn(draft: currentDraft, selectedChoice: selectedChoice)
+    }
+
+    var latestChoice: StoryPageChoiceDraft {
+        latestTurn.selectedChoice ?? selectedChoice
+    }
+
+    var latestScene: String {
+        latestTurn.draft.scene
+    }
+
+    var latestResult: String {
+        latestTurn.result(for: latestChoice)
+    }
+
+    var promptContext: String {
+        let turnsForPrompt = resolvedTurns
 
         // Prior turns arrive COMPRESSED: the model never sees full earlier
         // prose, because whatever it sees, it echoes. Summaries carry the
         // facts; the contract below forbids reuse.
-        let turnCount = resolvedTurns.count
-        let rendered = resolvedTurns.enumerated().map { index, turn in
+        let turnCount = turnsForPrompt.count
+        let rendered = turnsForPrompt.enumerated().map { index, turn in
             let choice = turn.selectedChoice ?? selectedChoice
-            let isLatest = index == resolvedTurns.count - 1
+            let isLatest = index == turnsForPrompt.count - 1
             let sceneLine = isLatest
-                ? turn.draft.scene.bookPreviewSentenceLimit(3)
+                ? turn.draft.scene.bookPreviewSentenceLimit(4)
                 : turn.draft.scene.bookPreviewSentenceLimit(1)
+            let resultLine = turn.result(for: choice).bookPreviewSentenceLimit(isLatest ? 3 : 1)
             return """
             TURN \(index + 1) (already written, already read):
             What happened: \(sceneLine)
             The reader chose: \(choice.title) — \(choice.prompt)
-            Consequence: \(turn.result(for: choice).bookPreviewSentenceLimit(2))
+            Consequence / last visible state: \(resultLine)
             Hidden movement: \(choice.effectLine)
             """
         }.joined(separator: "\n\n")
@@ -10348,11 +10454,15 @@ struct StoryPageContinuationContext: Equatable {
         return """
         The reader asked for the one optional final beat. Everything under "already written" has ALREADY BEEN READ — it is context, never material to reuse.
 
+        LAST VISIBLE STATE TO CONTINUE FROM:
+        \(latestResult.bookPreviewSentenceLimit(3))
+
         THE CONTRACT FOR THE NEW SCENE:
         - Never repeat a sentence, image, or opening line from earlier turns, and never re-describe the setting; it exists.
-        - The chosen action already happened. Start from what it changed and show its cost or gift through what a character says; do not restate the action itself.
+        - The chosen action and its consequence already happened. The first sentence must begin AFTER the last visible state above.
+        - Start from what the consequence changed and show its cost or gift through what a character says; do not restate the action itself.
         \(recipeContinuation)
-        - 3-5 full sentences, beginning at a new point in the conversation. This is the final setup before the final reader choice — do not open a third beat.
+        - 140-220 words in 2-3 short paragraphs, beginning at a new point in the conversation. This is the final setup before the final reader choice — do not open a third beat.
         \(beatDirective)\(lensLine)
 
         \(rendered)
@@ -10414,7 +10524,7 @@ enum StoryRecipeValidator {
         }
         let words = scene.split { $0.isWhitespace }.count
         let sentences = scene.split { ".!?".contains($0) }.count
-        if words < 55 || sentences < 3 { failures.append("Write a complete snack-sized vignette of at least three sentences."); score -= 20 }
+        if words < 100 || sentences < 5 { failures.append("Write a complete vignette of at least five sentences."); score -= 20 }
         let dialogueMarks = prose.scene.filter { $0 == "\"" || $0 == "“" || $0 == "”" }.count
         if blueprint.sceneMode == .conversation && dialogueMarks < 4 {
             failures.append("Let conversation carry this conversation-mode recipe."); score -= 15
@@ -10696,8 +10806,8 @@ enum StoryPageResultPromptBuilder {
 
         REQUIREMENTS:
         - Return only the result prose.
-        - 55-95 words.
-        - 3-5 sentences.
+        - 90-150 words.
+        - 5-8 sentences.
         - Make the consequence specific to the selected action, not generic.
         - \(context.draft.blueprint == nil ? "Make most of this result spoken exchange and include no more than one small physical action." : recipeResultRule)
         - Let one relationship, secret, refusal, promise, or question gain weight.
@@ -10874,7 +10984,7 @@ enum StoryPagePromptBuilder {
 
         OUTPUT FORMAT, EXACTLY:
         SCENE:
-        \(isBookFae ? "140-220" : "110-170") words. Setup, choice pressure, and a landing held open for the reader. Real life becoming a fantasy story, not a quest log. Address the reader as "you" only when natural.\(draft.blueprint == nil ? " Mostly dialogue when a character is present; rooms and props stay backdrop." : " Follow SCENE RECIPE's mode for what carries the scene.")\(draft.continuationContext == nil ? "" : " Continue the same thread: do not recap; let the previous consequence change the first paragraph.")
+        \(isBookFae ? "240-380" : "260-420") words in 3-5 short paragraphs. Setup, choice pressure, and a landing held open for the reader. Real life becoming a fantasy story, not a quest log. Address the reader as "you" only when natural.\(draft.blueprint == nil ? " Mostly dialogue when a character is present; rooms and props stay backdrop." : " Follow SCENE RECIPE's mode for what carries the scene.")\(draft.continuationContext == nil ? "" : " Continue the same thread: do not recap; begin after the previous consequence and let it change the first paragraph.")
         Only the vignette goes here — no choices, button titles, labels, mechanics, or instructions.
 
         SLICE_OF_LIFE_CHOICE:

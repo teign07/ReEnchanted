@@ -1213,3 +1213,111 @@ enum PrintGeometry {
                 panelTopY: spec.coverWrapMarginInches, spineWidth: spine)
     }
 }
+
+/// A single week of the reader's life, packaged as a felt *issue* — the fast,
+/// legible retention beat the deferred monthly/annual bindings cannot give:
+/// "your week became an issue," seven days after you started, and every seven
+/// days after. Deterministic and local; the same week always makes the same
+/// issue. Anchored to the reader's own start (their first kept page), so Issue
+/// No. 1 is always the reader's first seven days — not a partial calendar week.
+struct WeeklyIssue: Equatable {
+    /// The reader's Nth week since their first kept page (1-indexed, forever).
+    var number: Int
+    var startDate: Date
+    var endDate: Date
+    /// "Jul 1–7"
+    var dateRange: String
+    /// Pages the reader kept during the week.
+    var keptCount: Int
+    /// A few strongest lines lifted from the week, most vivid first.
+    var highlights: [String]
+    var setAsideLine: String?
+
+    var isFirstIssue: Bool { number == 1 }
+
+    /// One issue's window, and how many days after it closes it stays fresh on
+    /// the shelf — a magazine you didn't grab in a few days has moved on. Day
+    /// counts (not raw seconds) so the boundaries land on calendar days and
+    /// survive daylight-saving shifts.
+    static let weekDays = 7
+    static let freshnessDays = 4
+    /// A week needs at least this many bound-worthy pages to earn a cover.
+    static let minimumIssuePages = 2
+    static let maximumHighlights = 3
+
+    /// The most recent issue that has fully closed and is still fresh enough to
+    /// surface — or nil if the reader is mid-week, too new to have finished one,
+    /// or the closed week was too thin to bind. Anchored to the start of the day
+    /// of the reader's first kept page, so Issue No. 1 is exactly their days
+    /// 1–7. `days` is every archived day; `today` folds in the current day,
+    /// which usually isn't in `days` yet.
+    static func current(days: [BookDay], today: BookDay? = nil, now: Date = Date(), calendar: Calendar = .current) -> WeeklyIssue? {
+        let allDays = today.map { days + [$0] } ?? days
+        let captured = allDays.flatMap(\.capturedPages)
+        guard let firstKeep = captured.map(\.createdAt).min() else { return nil }
+        let anchor = calendar.startOfDay(for: firstKeep)
+        guard let daysElapsed = calendar.dateComponents([.day], from: anchor, to: calendar.startOfDay(for: now)).day,
+              daysElapsed >= weekDays else { return nil }           // still inside week one
+        let number = daysElapsed / weekDays                          // fully-closed weeks
+        guard daysElapsed % weekDays < freshnessDays else { return nil }  // the issue has gone stale
+
+        guard let start = calendar.date(byAdding: .day, value: (number - 1) * weekDays, to: anchor),
+              let end = calendar.date(byAdding: .day, value: number * weekDays, to: anchor),
+              let lastDay = calendar.date(byAdding: .day, value: -1, to: end) else { return nil }
+        let weekPages = captured.filter { $0.createdAt >= start && $0.createdAt < end }
+        let curated = EditionCurator.curate(weekPages, now: now)
+        guard curated.keptCount >= minimumIssuePages else { return nil }
+
+        return WeeklyIssue(
+            number: number,
+            startDate: start,
+            endDate: end,
+            dateRange: rangeString(start: start, end: lastDay, calendar: calendar),
+            keptCount: weekPages.count,
+            highlights: highlights(from: curated.pages),
+            setAsideLine: curated.setAsideLine
+        )
+    }
+
+    private static func highlights(from pages: [BookPage]) -> [String] {
+        let ranked = pages.sorted { a, b in
+            let sa = StorySpark.score(a.userInput.nonEmpty ?? a.promptText)
+            let sb = StorySpark.score(b.userInput.nonEmpty ?? b.promptText)
+            if sa == sb { return a.createdAt < b.createdAt }
+            return sa > sb
+        }
+        var seen: Set<String> = []
+        var out: [String] = []
+        for page in ranked {
+            let line = highlightLine(for: page)
+            let key = line.lowercased()
+            guard !line.isEmpty, !seen.contains(key) else { continue }
+            seen.insert(key)
+            out.append(line)
+            if out.count == maximumHighlights { break }
+        }
+        return out
+    }
+
+    private static func highlightLine(for page: BookPage) -> String {
+        let raw = (page.userInput.nonEmpty ?? page.promptText).trimmingCharacters(in: .whitespacesAndNewlines)
+        let words = raw.split { !$0.isLetter && !$0.isNumber }
+        if words.count >= 3 {
+            return StorySpark.sentence(from: page).trimmingCharacters(in: CharacterSet(charactersIn: " .!?"))
+        }
+        return page.type.title
+    }
+
+    private static func rangeString(start: Date, end: Date, calendar: Calendar) -> String {
+        let month = DateFormatter()
+        month.calendar = calendar
+        month.dateFormat = "MMM"
+        let dayOf = { (d: Date) in calendar.component(.day, from: d) }
+        let startMonth = month.string(from: start)
+        let endMonth = month.string(from: end)
+        if startMonth == endMonth {
+            return "\(startMonth) \(dayOf(start))\u{2013}\(dayOf(end))"
+        }
+        return "\(startMonth) \(dayOf(start)) \u{2013} \(endMonth) \(dayOf(end))"
+    }
+}
