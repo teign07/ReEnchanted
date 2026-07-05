@@ -905,7 +905,15 @@ struct MLXStoryPageWriter: StoryPageWriting {
     func write(surface: SurfacePage) async throws -> StoryPageProse {
         let draft = StoryPageSceneDraft(surface: surface)
         let prompt = StoryPagePromptBuilder.prompt(for: draft, nowPlaying: RadioAtmosphereContext.current)
-        let maxTokens = surface.type == .academyClass ? 520 : 300
+        let maxTokens: Int
+        switch surface.type {
+        case .academyClass:
+            maxTokens = 780
+        case .bookFae:
+            maxTokens = 1_040
+        default:
+            maxTokens = 920
+        }
         let sourceID: String
         if surface.type == .academyClass {
             sourceID = "academy-class-page"
@@ -967,7 +975,7 @@ struct MLXStoryPageResultWriter: StoryPageResultWriting {
         let response = try await MLXBraidTaskRunner.run(
             prompt: prompt,
             instructions: StoryPageResultPromptBuilder.instructions,
-            maxTokens: 160,
+            maxTokens: 280,
             sourceID: sourceID,
             tags: ["story-page", "story-result"],
             temperature: 0.8,
@@ -2835,7 +2843,12 @@ extension SurfacePage {
     func storyContinuationCopy(context: StoryPageContinuationContext) -> SurfacePage {
         var metadata = payload.metadata
         metadata["storyContinuationContext"] = context.promptContext
-        metadata["storyTurnCount"] = "\(context.turns.count + 1)"
+        metadata["storyTurnCount"] = "\(context.turnCount + 1)"
+        metadata["storyPreviousScene"] = context.latestScene
+        metadata["storySelectedChoiceID"] = context.latestChoice.id
+        metadata["storySelectedChoiceTitle"] = context.latestChoice.title
+        metadata["storySelectedChoicePrompt"] = context.latestChoice.prompt
+        metadata["storySelectedResult"] = context.latestResult
         metadata.removeValue(forKey: "storyScene")
         metadata.removeValue(forKey: "storyResultSliceOfLife")
         metadata.removeValue(forKey: "storyResultProgressArc")
@@ -2846,7 +2859,7 @@ extension SurfacePage {
         metadata["storyMechanicMandateReason"] = StoryPageMechanicMandate.none.reason
         metadata["proseStatus"] = "continuing"
         return SurfacePage(
-            id: "\(id)-continued-\(context.turns.count + 1)",
+            id: "\(id)-continued-\(context.turnCount + 1)",
             type: type,
             sourceID: sourceID,
             intent: intent,
