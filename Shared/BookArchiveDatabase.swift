@@ -366,7 +366,10 @@ final class StoredFacultyEntry {
     }
 }
 
-@MainActor
+/// Not thread-safe: each instance tracks load-source/error state, so an
+/// instance must stay on one actor. The app's shared instance lives behind
+/// the @MainActor `BookDatabase` wrapper; background readers (Siri queries,
+/// braid context) open their own short-lived instance instead.
 final class BookArchiveDatabase {
     static let schemaVersion = 5
     static let backupDirectoryName = "BookArchiveBackups"
@@ -401,7 +404,17 @@ final class BookArchiveDatabase {
         self.storeURL = storeURL
     }
 
-    func loadDays(migratingFrom legacyDays: [BookDay]) -> [BookDay] {
+    /// The legacy JSON archive is only decoded when SwiftData has nothing to
+    /// offer — once migrated, the (whole-history) decode never runs again.
+    func loadDays(migratingFrom legacyDays: @autoclosure () -> [BookDay]) -> [BookDay] {
+        var decodedLegacyDays: [BookDay]?
+        func legacy() -> [BookDay] {
+            if let decodedLegacyDays { return decodedLegacyDays }
+            let days = legacyDays()
+            decodedLegacyDays = days
+            return days
+        }
+
         do {
             let context = try makeContext()
             let storedDays = try fetchDays(in: context)
@@ -411,17 +424,18 @@ final class BookArchiveDatabase {
                 return storedDays
             }
 
-            if legacyDays.contains(where: { !$0.pages.isEmpty }) {
-                lastBackupURL = try writeBackup(days: legacyDays, generatedAt: Date(), reason: "pre-swiftdata-migration")
+            let migratingDays = legacy()
+            if migratingDays.contains(where: { !$0.pages.isEmpty }) {
+                lastBackupURL = try writeBackup(days: migratingDays, generatedAt: Date(), reason: "pre-swiftdata-migration")
             }
-            try saveDays(legacyDays, in: context)
+            try saveDays(migratingDays, in: context)
             lastLoadSource = .migratedFromJSON
             lastError = nil
-            return legacyDays
+            return migratingDays
         } catch {
             lastLoadSource = .fallbackJSON
             lastError = error.localizedDescription
-            return legacyDays
+            return legacy()
         }
     }
 

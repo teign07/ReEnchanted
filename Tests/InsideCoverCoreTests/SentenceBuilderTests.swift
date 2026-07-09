@@ -18,9 +18,26 @@ final class SentenceBuilderTests: XCTestCase {
         XCTAssertTrue(analysis.hasConcreteAnchor)
         XCTAssertTrue(analysis.hasSensoryDetail)
         XCTAssertTrue(analysis.hasLivingMotion)
+        XCTAssertTrue(analysis.hasWorldActor)
         XCTAssertTrue(analysis.hasCrossedSense)
         XCTAssertEqual(analysis.memoryStrength, 4)
         XCTAssertTrue(analysis.isVivid)
+    }
+
+    func testAnalysisDetectsWorldActor() {
+        let engine = SentenceBuilderEngine()
+
+        XCTAssertTrue(engine.analyze("The bench caught my weight.").hasWorldActor)
+        XCTAssertTrue(engine.analyze("The door waited in the rain.").hasWorldActor)
+        XCTAssertTrue(engine.analyze("The mug kept the light.").hasWorldActor)
+    }
+
+    func testAnalysisDoesNotTreatReaderAsWorldActor() {
+        let engine = SentenceBuilderEngine()
+
+        XCTAssertFalse(engine.analyze("I saw the bench and waited.").hasWorldActor)
+        XCTAssertFalse(engine.analyze("I carried the mug.").hasWorldActor)
+        XCTAssertFalse(engine.analyze("The mug was warm.").hasWorldActor)
     }
 
     func testAvoidWordsPromptGroundedMagicBeforeOrdinarySteps() {
@@ -297,6 +314,32 @@ final class SentenceBuilderTests: XCTestCase {
         XCTAssertEqual(active.ritualTitle, "Wake the worn edge")
         XCTAssertTrue(active.themes.contains { $0.id == "thornlight" })
         XCTAssertTrue(active.themes.contains { $0.id == "decay" })
+    }
+
+    func testChapterNineMasteryPackAddsPennySentenceDesk() throws {
+        SentenceBuilderPackRegistry.reload()
+        let pack = SentenceBuilderPackRegistry.composedChapterNineMastery(readerLexicon: ReaderLexicon())
+
+        XCTAssertEqual(pack.displayName, "Penny's Sentence Desk")
+        XCTAssertEqual(pack.ritualTitle, "File the evidence")
+        XCTAssertTrue(pack.starterTemplates.contains { $0.id == "chapter-nine-specific-detail" })
+        XCTAssertTrue(pack.starterTemplates.contains { $0.id == "chapter-nine-crossed-wire" })
+        XCTAssertTrue(pack.themes.contains { $0.id == "souvenir-evidence" })
+
+        let engine = SentenceBuilderEngine(pack: pack)
+        let analysis = engine.analyze("The bench caught my weight with warm quiet.")
+
+        XCTAssertTrue(analysis.hasConcreteAnchor)
+        XCTAssertTrue(analysis.hasSensoryDetail)
+        XCTAssertTrue(analysis.hasLivingMotion)
+        XCTAssertTrue(analysis.hasCrossedSense)
+        XCTAssertTrue(analysis.isVivid)
+    }
+
+    func testPennySentenceMasteryLessonsAreMultiplePagesWorth() {
+        XCTAssertEqual(PennySentenceMasteryLesson.allCases.count, 4)
+        XCTAssertEqual(PennySentenceMasteryLesson.crossedWires.masteryHint, "Penny wants a crossed sense: taste, sound, smell, color, texture in the wrong lane.")
+        XCTAssertTrue(PennySentenceMasteryLesson.twentyFourHourVault.tags.contains("sentence-lesson:twenty-four-hour-vault"))
     }
 
     func testSentencePackImportValidationRejectsEmptyAndMalformedFiles() throws {

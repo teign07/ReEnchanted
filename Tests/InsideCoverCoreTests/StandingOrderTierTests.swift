@@ -9,7 +9,7 @@ final class StandingOrderTierTests: XCTestCase {
     func testThreeCadencesExistWithTrials() {
         let tiers = BookShopCatalog.standingOrderTiers
         XCTAssertEqual(Set(tiers.map(\.cadence)), [.weekly, .monthly, .annual])
-        XCTAssertTrue(tiers.allSatisfy { $0.freeTrialDays == 3 }, "Every cadence carries the 3-day trial.")
+        XCTAssertTrue(tiers.allSatisfy { $0.freeTrialDays == 10 }, "Every cadence carries the 10-day trial.")
         XCTAssertTrue(tiers.allSatisfy { !$0.fallbackDisplayPrice.isEmpty })
     }
 

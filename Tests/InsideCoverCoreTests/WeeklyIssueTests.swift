@@ -16,6 +16,53 @@ final class WeeklyIssueTests: XCTestCase {
         BookPage(type: .souvenir, createdAt: at(dayOffset, hour: hour), promptText: "Souvenir", userInput: text)
     }
 
+    private func braid(_ id: String, title: String, keptLine: String, dayOffset: Int, hour: Int = 22) -> BookPage {
+        BraidPageDetails.annotated(
+            BookPage(
+                id: id,
+                type: .bookOfYou,
+                createdAt: at(dayOffset, hour: hour),
+                promptText: "Book of You",
+                userInput: """
+                \(title)
+
+                The window listened while rain tapped the kitchen glass.
+
+                The Book kept the page: \(keptLine).
+                """,
+                tags: ["braid"]
+            ),
+            context: .empty
+        )
+    }
+
+    private func scrapbook(_ id: String, title: String, dayOffset: Int, hour: Int = 16) -> BookPage {
+        BookPage(
+            id: id,
+            type: .plainPage,
+            createdAt: at(dayOffset, hour: hour),
+            promptText: title,
+            userInput: """
+            A composed scrapbook page.
+
+            Scraps bound here:
+            Souvenir: The harbor fog came in.
+            """,
+            tags: ["pagewright", "scrapbook", "format:scrapPage", "source-page:source-1"],
+            sourceID: "pagewright",
+            origin: .userAuthored,
+            privacy: .privateLocal,
+            mediaAssets: [
+                BookPageMediaAsset(
+                    kind: .renderedImageFile,
+                    reference: "/tmp/\(id).png",
+                    caption: title,
+                    sourceID: "pagewright"
+                )
+            ]
+        )
+    }
+
     /// A full first week of kept souvenirs, the first at `base`.
     private func firstWeekPages() -> [BookPage] {
         [
@@ -82,6 +129,30 @@ final class WeeklyIssueTests: XCTestCase {
         XCTAssertEqual(a, b)
     }
 
+    func testShareCardSummarizesWithoutRawHighlightLines() throws {
+        let issue = try XCTUnwrap(WeeklyIssue.current(days: days(firstWeekPages()), now: at(7, hour: 10)))
+        let titleFact = SelfFact(
+            id: "earned",
+            questionID: "earned-wonder-label",
+            question: "Your First Working Title",
+            answer: "Lookout",
+            bookTranslation: "",
+            sensitivity: .identity,
+            usePermission: .privateContext,
+            tags: ["earned-label"],
+            createdAt: at(7),
+            updatedAt: at(7)
+        )
+
+        let card = WeeklyIssueShareCard.make(issue: issue, selfFacts: [titleFact])
+
+        XCTAssertEqual(card.title, "Lookout Week")
+        XCTAssertTrue(card.stats.contains("4 kept pages"))
+        XCTAssertTrue(card.motifLine.hasPrefix("Refrain:"))
+        XCTAssertFalse(card.motifLine.contains("The kitchen window held"))
+        XCTAssertEqual(card.closingLine, "You kept the week from disappearing.")
+    }
+
     // MARK: - Adapter
 
     private let adapter = WeeklyIssuePageSourceAdapter()
@@ -103,12 +174,48 @@ final class WeeklyIssueTests: XCTestCase {
         XCTAssertTrue(surfaced.first?.payload.body.contains("Issue No. 1") == true)
     }
 
+    func testWeeklyIssueSpeaksInTheBooksOwnVoice() {
+        let issue = candidates(days: days(firstWeekPages()), now: at(7, hour: 10)).first
+        let body = issue?.payload.body ?? ""
+
+        XCTAssertTrue(body.contains("The week looked up"))
+        XCTAssertTrue(body.contains("I tried to hold it carefully"))
+        XCTAssertTrue(body.contains("the year are still gathering their coats"))
+        XCTAssertTrue(body.contains("I will shelve it where it can hum to itself"))
+    }
+
+    func testAdapterUsesBookOfYouResidueAsIssueMemory() {
+        var pages = firstWeekPages()
+        pages.append(braid("braid-1", title: "Rain At The Window", keptLine: "rain made the lamp brave", dayOffset: 6))
+
+        let surfaced = candidates(days: days(pages), now: at(7, hour: 10))
+        let issue = surfaced.first
+
+        XCTAssertTrue(issue?.payload.body.contains("Cover story: Rain At The Window") == true)
+        XCTAssertTrue(issue?.payload.body.contains("The week's refrain:") == true)
+        XCTAssertEqual(issue?.payload.metadata["weeklyIssueCoverStory"], "Rain At The Window - rain made the lamp brave")
+        XCTAssertTrue(issue?.payload.metadata["weeklyIssueRefrain"]?.contains("rain") == true)
+        XCTAssertTrue(issue?.payload.metadata["weeklyIssueMemoryCallbacks"]?.contains("rain made the lamp brave") == true)
+    }
+
+    func testIssueNamesKeptScrapbookPages() {
+        var pages = firstWeekPages()
+        pages.append(scrapbook("scrap-1", title: "Harbor Scrap", dayOffset: 5))
+
+        let issue = candidates(days: days(pages), now: at(7, hour: 10)).first
+
+        XCTAssertEqual(issue?.payload.metadata["weeklyIssueScrapbookCount"], "1")
+        XCTAssertEqual(issue?.payload.metadata["weeklyIssueScrapbookTitles"], "Harbor Scrap")
+        XCTAssertTrue(issue?.payload.body.contains("scrapbook page") == true)
+        XCTAssertTrue(issue?.payload.body.contains("Harbor Scrap") == true)
+    }
+
     /// The weekly issue must never write to the monthly Bindery's history, or it
     /// would suppress the monthly binding nudge.
     func testUsesItsOwnSourceIDSeparateFromMonthlyBindery() {
         let surfaced = candidates(days: days(firstWeekPages()), now: at(7, hour: 10))
         let monthlyBinderySourceID = BinderyPageSourceAdapter().source.id
-        XCTAssertEqual(surfaced.first?.sourceID, "\(monthlyBinderySourceID)-weekly")
+        XCTAssertEqual(surfaced.first?.sourceID, "weekly-issue")
         XCTAssertNotEqual(surfaced.first?.sourceID, monthlyBinderySourceID)
     }
 

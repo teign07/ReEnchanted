@@ -1,11 +1,35 @@
 import Foundation
 
+// MARK: - The Book's Own Voice
+
+/// The voice the reader hears whenever the Book narrates or speaks as itself:
+/// child-like animism, never childish. Simple, vulnerable, surprising sentences
+/// that give ordinary things little feelings and wants. Cast members keep
+/// their own voices — this block belongs only to the narration and the Book.
+enum BookVoice {
+    /// The full block, for prompt instructions with room to breathe.
+    static let animism = """
+    THE BOOK'S OWN VOICE — child-like animism, never childish:
+    - Simple, surprising sentences. Everyday words carrying real feeling: "the kettle sulked," not "the vessel brooded."
+    - Give objects, rooms, weather, and pages little feelings and wants, the way a child imagines their toys are awake — playful, tender, never twee.
+    - Be a little vulnerable: the Book may admit wanting, wondering, or not knowing. The wonder is sincere, never performed.
+    - Wise underneath. No baby talk, no gushing, no exclamation-mark enthusiasm, no cutesy diminutives.
+    - Named characters keep their own voices when they speak; this voice belongs to the narration and the Book alone.
+    """
+
+    /// One line, for tight prompts where every token counts.
+    static let animismLine = "Write the narration in the Book's own voice — child-like animism, never childish: simple, surprising sentences; everyday words; little feelings and wants given to ordinary things; sincere wonder, a little vulnerable, wise underneath. Named characters keep their own voices when they speak."
+}
+
 enum LiterarySignalKind: String, Codable, Equatable, CaseIterable {
     case pattern
     case beliefLifecycle
     case absence
     case duration
     case listening
+    /// Not what the pages say but how — pace, hour, hedging. The class of
+    /// observation only someone who has read all of you could make.
+    case manner
 }
 
 // MARK: - Book of You Braid Prompting
@@ -20,8 +44,21 @@ enum BraidPromptBuilder {
         var activeWorldEvents: [ResolvedWorldEvent] = []
         var readerLexicon: ReaderLexicon = ReaderLexicon()
         var readerLearningPromptLines: [String] = []
+        var memoryDigest: BindingMemoryDigest = .empty
+        var semanticEchoSourceIDs: [String] = []
+        var semanticEchoLines: [String] = []
+        var souvenirAnchor: SouvenirAnchor?
 
         static let empty = Context()
+    }
+
+    struct SouvenirAnchor: Equatable {
+        var pageID: String
+        var pageTitle: String
+        var keptText: String
+        var keptAt: Date
+        var reason: String
+        var score: Int
     }
 
     static func context(
@@ -38,6 +75,12 @@ enum BraidPromptBuilder {
         calendar: Calendar = .current
     ) -> Context {
         let recentBraids = recentBraidTexts(excludingDayID: day.id, days: days)
+        let memoryDigest = BindingMemorySpine.digest(
+            days: days.filter { $0.id != day.id },
+            now: now,
+            limit: 6
+        )
+        let semanticEchoes = semanticEchoes(in: day)
         let monthKey = BookThemeEngine.monthKey(for: day.date, calendar: calendar)
         let theme = BookThemeEngine.theme(forMonth: monthKey, in: themes)
         let chapter = TalismanAscendancy.ascendant(
@@ -61,8 +104,118 @@ enum BraidPromptBuilder {
             nowPlaying: nowPlaying,
             activeWorldEvents: activeWorldEvents,
             readerLexicon: readerLexicon,
-            readerLearningPromptLines: readerLearning.promptLines(now: now)
+            readerLearningPromptLines: readerLearning.promptLines(now: now),
+            memoryDigest: memoryDigest,
+            semanticEchoSourceIDs: semanticEchoes.sourceIDs,
+            semanticEchoLines: semanticEchoes.lines,
+            souvenirAnchor: souvenirAnchor(in: day)
         )
+    }
+
+    static func souvenirAnchor(in day: BookDay) -> SouvenirAnchor? {
+        day.capturedPages
+            .compactMap(souvenirAnchorCandidate)
+            .sorted { lhs, rhs in
+                if lhs.score == rhs.score {
+                    return lhs.keptAt > rhs.keptAt
+                }
+                return lhs.score > rhs.score
+            }
+            .first
+    }
+
+    private static func souvenirAnchorCandidate(for page: BookPage) -> SouvenirAnchor? {
+        let text = souvenirText(for: page)
+        guard !text.isEmpty else { return nil }
+
+        let lowerPrompt = page.promptText.lowercased()
+        let lowerSource = page.sourceID.lowercased()
+        let lowerTags = Set(page.tags.map { $0.lowercased() })
+        let isExplicitSouvenir = page.type == .souvenir
+            || lowerSource == "one-sentence-souvenir"
+            || lowerTags.contains("one-sentence-souvenir")
+            || lowerTags.contains("souvenir")
+            || lowerTags.contains("first-run-souvenir")
+            || lowerTags.contains("onboarding-first-souvenir")
+        let promptAsksForSentence = lowerPrompt.contains("one sentence")
+            || lowerPrompt.contains("one-sentence")
+            || lowerPrompt.contains("one true")
+            || lowerPrompt.contains("souvenir")
+        guard isExplicitSouvenir || promptAsksForSentence else { return nil }
+
+        var score = 0
+        switch page.origin {
+        case .userAuthored, .imported:
+            score += 40
+        case .generated, .simulated:
+            score += 10
+        }
+        if page.type == .souvenir { score += 100 }
+        if lowerTags.contains("one-sentence-souvenir") { score += 90 }
+        if lowerSource == "one-sentence-souvenir" { score += 80 }
+        if lowerTags.contains("first-run-souvenir") || lowerTags.contains("onboarding-first-souvenir") { score += 60 }
+        if lowerTags.contains("souvenir") { score += 45 }
+        if lowerPrompt.contains("one sentence") || lowerPrompt.contains("one-sentence") || lowerPrompt.contains("one true") { score += 35 }
+        if lowerPrompt.contains("souvenir") { score += 20 }
+        if looksLikeOneSentence(text) { score += 25 }
+        if (20...180).contains(text.count) { score += 10 }
+
+        return SouvenirAnchor(
+            pageID: page.id,
+            pageTitle: page.type.title,
+            keptText: clippedText(text, limit: 220),
+            keptAt: page.createdAt,
+            reason: souvenirReason(for: page, tags: lowerTags, promptAsksForSentence: promptAsksForSentence),
+            score: score
+        )
+    }
+
+    private static func souvenirText(for page: BookPage) -> String {
+        let primary = page.userInput.nonEmpty ?? page.playerReply.nonEmpty ?? ""
+        return clippedText(primary, limit: 260)
+    }
+
+    private static func looksLikeOneSentence(_ text: String) -> Bool {
+        let words = text.split { $0.isWhitespace }.count
+        guard (3...36).contains(words) else { return false }
+        let sentenceBreaks = text.filter { ".!?".contains($0) }.count
+        return sentenceBreaks <= 2
+    }
+
+    private static func souvenirReason(for page: BookPage, tags: Set<String>, promptAsksForSentence: Bool) -> String {
+        if page.type == .souvenir {
+            return "explicit One-Sentence Souvenir"
+        }
+        if tags.contains("one-sentence-souvenir") {
+            return "one-sentence souvenir kept from another page"
+        }
+        if tags.contains("first-run-souvenir") || tags.contains("onboarding-first-souvenir") {
+            return "first souvenir the Book learned from the reader"
+        }
+        if promptAsksForSentence {
+            return "this page asked the reader for one true sentence"
+        }
+        return "reader-authored souvenir signal"
+    }
+
+    static func semanticEchoes(in day: BookDay) -> (sourceIDs: [String], lines: [String]) {
+        let tags = day.capturedPages.flatMap(\.tags)
+        return (
+            uniqueTagValues(withPrefix: SemanticKeepEcho.sourceTagPrefix, in: tags),
+            uniqueTagValues(withPrefix: SemanticKeepEcho.lineTagPrefix, in: tags)
+        )
+    }
+
+    private static func uniqueTagValues(withPrefix prefix: String, in tags: [String]) -> [String] {
+        var seen: Set<String> = []
+        var values: [String] = []
+        for tag in tags where tag.hasPrefix(prefix) {
+            let value = String(tag.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty, !seen.contains(value) else { continue }
+            seen.insert(value)
+            values.append(value)
+        }
+        return values
     }
 
     static func recentBraidTexts(excludingDayID dayID: String, days: [BookDay], limit: Int = 2) -> [String] {
@@ -91,6 +244,7 @@ enum BraidPromptBuilder {
 
     static func prompt(for day: BookDay, context: Context) -> String {
         let evidence = evidenceLines(for: day).joined(separator: "\n\n")
+        let souvenirSection = souvenirSpineSection(for: day, context: context)
         let continuity: String
         if context.recentBraids.isEmpty {
             continuity = ""
@@ -179,6 +333,55 @@ enum BraidPromptBuilder {
             readerLearningSection = ""
         }
 
+        let memorySpineSection: String
+        if context.memoryDigest.braids.isEmpty {
+            memorySpineSection = ""
+        } else {
+            let motifLine = context.memoryDigest.motifCounts.isEmpty
+                ? "none yet"
+                : context.memoryDigest.motifCounts
+                    .prefix(6)
+                    .map { "\($0.motif) x\($0.count)" }
+                    .joined(separator: ", ")
+            let braidLines = context.memoryDigest.braids.prefix(3).map { memory in
+                let callback = memory.residue.callbackCandidate ?? memory.residue.keptLine
+                return "- \(memory.residue.title): \(callback)"
+            }.joined(separator: "\n")
+            let strongestCallback = context.memoryDigest.strongestCallback.map {
+                "\nStrongest fresh callback: \($0)"
+            } ?? ""
+            memorySpineSection = """
+
+
+            BOOK MEMORY SPINE:
+            Recurring braid motifs: \(motifLine)
+            Recent braid residue:
+            \(braidLines)\(strongestCallback)
+
+            MEMORY-SPINE RULE:
+            - You may let one prior residue return only if today's kept pages honestly answer it.
+            - If it returns, change it with today's evidence; never simply repeat the old image.
+            - Treat these as callbacks, not source material. Today's kept pages still own the braid.
+            """
+        }
+
+        let semanticEchoSection: String
+        if context.semanticEchoLines.isEmpty {
+            semanticEchoSection = ""
+        } else {
+            semanticEchoSection = """
+
+
+            SEMANTIC ECHOES FROM TODAY:
+            \(context.semanticEchoLines.prefix(3).map { "- \($0)" }.joined(separator: "\n"))
+
+            SEMANTIC-ECHO RULE:
+            - A semantic echo means today's page answered an older page by feeling, not by repeating words.
+            - You may let that answered feeling become part of the spine only if today's kept pages support it.
+            - Do not quote the older page unless the echo line already does.
+            """
+        }
+
         let clashSection: String
         if day.capturedPages.contains(where: { $0.tags.contains("clash") }) {
             clashSection = """
@@ -205,6 +408,7 @@ enum BraidPromptBuilder {
 
         SHAPE:
         - Write 4 to 7 paragraphs, about 280 to 450 words.
+        - Write the braid in second-person past tense: "you walked", "you kept", "the lamp waited". Do not write second-person present tense ("you walk", "you keep").
         - The first line may be a bare title, 2 to 7 words, if a true one arrives. Do not prefix it with "Title:".
         - Follow the day's real clock: the kept pages are timestamped - let morning be morning and evening be evening.
         - Give the braid old tale bones under modern room-light: Once, Because, Until, And so, Kept.
@@ -220,12 +424,14 @@ enum BraidPromptBuilder {
         - One-Sentence Souvenirs remain the strongest single spine candidates, because they are the reader choosing one true line.
         - A fiction page where the reader made a real decision - a chosen Story Page path, a paid bargain, an answered parley - is reader-endorsed: it may carry the spine when the day's truest turn happened there.
         - When the shelves disagree about facts, the lived shelf wins. The fiction may color the real; it may never overwrite it.
+        \(souvenirSection)
 
         VOICE:
+        \(BookVoice.animism)
         - Write with varied literary cadence: some sentences should be short, plain, and surprising; others may be longer and more flowing, turning through image and thought before they land.
-        - Let the voice feel like a clear old tale told beside a modern lamp: mythic but not ornate, intimate but not sentimental, concrete before abstract.
+        - Use everyday words carrying real feeling: "the kettle sulked," not "the vessel brooded." Intimate but not sentimental, concrete before abstract.
+        - The Book may be a little vulnerable: it can admit wanting, wondering, or not knowing. Its wonder is sincere, never performed, and wise underneath.
         - Bring faerie pressure through ordinary objects: cups, keys, chargers, coats, dishes, windows, receipts, weather, doorways. Never make the day fake-grand.
-        - The Book notices small true details and gives them a little magic.
         - Prefer what someone said, touched, carried, avoided, dropped, or noticed over explaining what it means.
         - Let at least two sentences per braid run longer than the others, like a breath let out, but keep them anchored in supplied facts.
         - Avoid a drumbeat of same-length declarative sentences. Vary openings, sentence lengths, and paragraph shapes.
@@ -242,6 +448,7 @@ enum BraidPromptBuilder {
         ONE LENS:
         - Choose a single point of view for the whole braid and hold it. If the reader is "you", stay "you"; if the day belongs to a named person, stay with them. Do not drift between "you", "a mortal", a name, and an unnamed "figure" in the same page.
         - Do not turn the reader into a distant "a mortal" or "a figure" partway through. The Book is writing one person's day to that person.
+        - For the nightly Book of You braid, prefer "you" as the lens and keep the day already lived: second-person, past tense.
 
         ANTI-PARROT RULE:
         - Do not copy any supplied sentence longer than seven words.
@@ -252,7 +459,24 @@ enum BraidPromptBuilder {
         - Prefer one fresh concrete detail over a second sentence explaining the same mood, object, weather, relationship, or threshold.
 
         KEPT PAGES FROM TODAY:
-        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(clashSection)\(themeSection)\(chapterSection)\(learnedSection)\(readerLearningSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(continuity)
+        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(clashSection)\(themeSection)\(chapterSection)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(continuity)
+        """
+    }
+
+    private static func souvenirSpineSection(for day: BookDay, context: Context) -> String {
+        guard let anchor = context.souvenirAnchor ?? souvenirAnchor(in: day) else { return "" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return """
+
+        SOUVENIR SPINE (required):
+        The reader's carried sentence for tonight is from \(anchor.pageTitle), kept at \(formatter.string(from: anchor.keptAt)): "\(anchor.keptText)"
+        Why it matters: \(anchor.reason).
+
+        SOUVENIR RULE:
+        - This sentence, or the concrete thing inside it, must be visible in the braid's opening, must affect the "Until" turn or the thing that changes, and must return transformed in "The Book kept the page:".
+        - Do not paste the full sentence back. Carry its image, object, action, or pressure through the braid so the reader can feel the Book read it.
+        - If fiction pages are vivid, braid them around this sentence rather than away from it.
         """
     }
 
@@ -399,16 +623,175 @@ enum BraidPromptBuilder {
 
 struct BraidPageDetails: Equatable {
     static let promptVersion = "book-of-you-braid-v2"
+    static let headerPrefix = "Tags:"
 
     var title: String
     var body: String
     var themeName: String?
     var chapterName: String?
+    var residue: BookOfYouResidue?
     /// The morning callback naming the threads last night's ember promised, shown
     /// as a small kicker above the braid so the reveal pays off the evening tease.
     var promiseEcho: String?
 
     static let promiseEchoTagPrefix = "promise-echo:"
+
+    struct HeaderContext: Equatable {
+        var timeLabel: String
+        var locationLabel: String
+        var weatherWord: String
+        var moonPhaseName: String
+        var fuelLabel: String
+        var innerWeatherLabel: String
+
+        var displayLine: String {
+            "\(BraidPageDetails.headerPrefix) Time \(timeLabel) · Location \(locationLabel) · Weather \(weatherWord) · Moon \(moonPhaseName) · Fuel \(fuelLabel) · Inner weather \(innerWeatherLabel)"
+        }
+
+        var metadataTags: [String] {
+            [
+                "braid-time:\(timeLabel)",
+                "braid-location:\(locationLabel)",
+                "braid-weather:\(weatherWord)",
+                "braid-moon:\(moonPhaseName)",
+                "braid-fuel:\(fuelLabel)",
+                "braid-inner-weather:\(innerWeatherLabel)"
+            ]
+        }
+
+        static func make(for page: BookPage, day: BookDay, inputs: BookSourceInputs, calendar: Calendar = .current) -> HeaderContext {
+            let formatter = DateFormatter()
+            formatter.calendar = calendar
+            formatter.timeZone = calendar.timeZone
+            formatter.dateFormat = "h:mm a"
+
+            return HeaderContext(
+                timeLabel: formatter.string(from: page.createdAt),
+                locationLabel: locationLabel(from: inputs),
+                weatherWord: weatherWord(from: inputs),
+                moonPhaseName: MoonPhaseCalendar.phase(on: page.createdAt).name,
+                fuelLabel: fuelLabel(from: inputs, day: day),
+                innerWeatherLabel: innerWeatherLabel(from: inputs, day: day)
+            )
+        }
+
+        private static func locationLabel(from inputs: BookSourceInputs) -> String {
+            if let anchorName = inputs.nearbyAnchor?.anchor.name.nonEmpty {
+                return anchorName
+            }
+            if let place = inputs.nearbyPlaces.first {
+                if let locality = place.locality.nonEmpty {
+                    return "\(place.name), \(locality)"
+                }
+                return place.name
+            }
+            return "Location unknown"
+        }
+
+        private static func weatherWord(from inputs: BookSourceInputs) -> String {
+            if let selector = inputs.enchantedWeather?.selector.nonEmpty {
+                return selector
+            }
+            guard let phrase = inputs.weather?.phrase.nonEmpty else {
+                return "weather unknown"
+            }
+            let lowered = phrase.lowercased()
+            let candidates = [
+                "thunder", "storm", "snow", "sleet", "ice", "rain", "drizzle", "shower",
+                "fog", "mist", "haze", "wind", "breeze", "cloud", "overcast", "clear",
+                "sun", "bright", "cold", "warm", "humid"
+            ]
+            return candidates.first(where: { lowered.contains($0) }) ?? phrase
+                .split { !$0.isLetter }
+                .first
+                .map { String($0).lowercased() } ?? "weather unknown"
+        }
+
+        private static func fuelLabel(from inputs: BookSourceInputs, day: BookDay) -> String {
+            if let latestFuel = inputs.facultyEntries
+                .filter({ $0.kind == .fuel && $0.dayID == day.id })
+                .sorted(by: { $0.createdAt > $1.createdAt })
+                .first,
+               let nutrition = nutritionLine(from: latestFuel.rawText) {
+                return nutrition
+            }
+
+            let nutritionMetrics = nutritionMetrics(from: inputs.body?.metrics ?? [])
+            if !nutritionMetrics.isEmpty {
+                return nutritionMetrics.joined(separator: ", ")
+            }
+
+            return "not logged"
+        }
+
+        private static func innerWeatherLabel(from inputs: BookSourceInputs, day: BookDay) -> String {
+            if let latestEntry = inputs.facultyEntries
+                .filter({ $0.kind == .innerWeather && $0.dayID == day.id })
+                .sorted(by: { $0.createdAt > $1.createdAt })
+                .first {
+                return clippedHeaderValue(latestEntry.rawText)
+            }
+
+            if let latestMood = day.pages
+                .filter({ $0.type == .mood })
+                .sorted(by: { $0.createdAt > $1.createdAt })
+                .first,
+               let text = latestMood.userInput.nonEmpty ?? latestMood.playerReply.nonEmpty {
+                return clippedHeaderValue(text)
+            }
+
+            return "not logged"
+        }
+
+        private static func nutritionLine(from rawText: String) -> String? {
+            rawText
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .first { line in
+                    let lower = line.lowercased()
+                    return lower.contains("kcal") || lower.contains("protein") || lower.contains("carb")
+                }
+                .map { line in
+                    line
+                        .replacingOccurrences(of: " (Vellum's rough arithmetic)", with: "")
+                        .replacingOccurrences(of: "Vellum's rough arithmetic", with: "")
+                        .replacingOccurrences(of: "Vellum's Ledger: ", with: "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                .flatMap(\.nonEmpty)
+        }
+
+        private static func nutritionMetrics(from metrics: [BodySourceSignal.Metric]) -> [String] {
+            let ids = Set([
+                "dietaryEnergyConsumed",
+                "dietaryProtein",
+                "dietaryCarbohydrates",
+                "dietaryFatTotal",
+                "dietaryFatSaturated",
+                "dietarySugar",
+                "dietaryFiber",
+                "dietarySodium",
+                "dietaryWater"
+            ])
+            return metrics
+                .filter { metric in
+                    ids.contains(metric.id) || metric.label.localizedCaseInsensitiveContains("Dietary")
+                }
+                .map(\.displayText)
+                .filter { !$0.isEmpty }
+        }
+
+        private static func clippedHeaderValue(_ value: String, limit: Int = 80) -> String {
+            let normalized = value
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .first ?? value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard normalized.count > limit else { return normalized }
+            let end = normalized.index(normalized.startIndex, offsetBy: limit)
+            return normalized[..<end].trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        }
+    }
 
     static func details(for page: BookPage) -> BraidPageDetails {
         let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -421,6 +804,7 @@ struct BraidPageDetails: Equatable {
             body: parsed.body.nonEmpty ?? text,
             themeName: tagValue(prefix: "theme:", in: page.tags),
             chapterName: tagValue(prefix: "chapter:", in: page.tags),
+            residue: BookOfYouResidue.fromTags(in: page),
             promiseEcho: tagValue(prefix: promiseEchoTagPrefix, in: page.tags)
         )
     }
@@ -438,16 +822,30 @@ struct BraidPageDetails: Equatable {
         return updated
     }
 
-    static func annotated(_ page: BookPage, context: BraidPromptBuilder.Context) -> BookPage {
+    static func annotated(_ page: BookPage, context: BraidPromptBuilder.Context, headerContext: HeaderContext? = nil) -> BookPage {
         var updated = page
         let details = details(for: page)
         if details.title != "Book of You" {
             updated.promptText = "Book of You: \(details.title)"
         }
         updated.promptVersion = promptVersion
+        if let headerContext {
+            updated.userInput = addingHeader(headerContext.displayLine, to: updated.userInput)
+        }
 
         var tags = Set(updated.tags)
         tags.insert("braid-v2")
+        if let headerContext {
+            tags = tags.filter {
+                !$0.hasPrefix("braid-time:")
+                    && !$0.hasPrefix("braid-location:")
+                    && !$0.hasPrefix("braid-weather:")
+                    && !$0.hasPrefix("braid-moon:")
+                    && !$0.hasPrefix("braid-fuel:")
+                    && !$0.hasPrefix("braid-inner-weather:")
+            }
+            headerContext.metadataTags.forEach { tags.insert($0) }
+        }
         if let theme = context.theme?.name, !theme.isEmpty {
             tags.insert("theme:\(theme)")
         }
@@ -457,6 +855,8 @@ struct BraidPageDetails: Equatable {
         if !context.recentBraids.isEmpty {
             tags.insert("yesterday-echo")
         }
+        let residue = BookOfYouResidue.extract(from: updated, context: context)
+        tags = residue.stamping(into: tags)
         updated.tags = tags.sorted()
         return updated
     }
@@ -467,10 +867,30 @@ struct BraidPageDetails: Equatable {
             .components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        guard let first = paragraphs.first, looksLikeTitle(first) else {
+        let header = paragraphs.first(where: isHeaderLine)
+        let titleCandidates = paragraphs.filter { !isHeaderLine($0) }
+        guard let first = titleCandidates.first, looksLikeTitle(first) else {
             return (nil, text)
         }
-        return (first, paragraphs.dropFirst().joined(separator: "\n\n"))
+        let bodyParagraphs = paragraphs.filter { $0 != first }
+        let body = bodyParagraphs.joined(separator: "\n\n")
+        if body.isEmpty, let header {
+            return (first, header)
+        }
+        return (first, body)
+    }
+
+    private static func addingHeader(_ header: String, to text: String) -> String {
+        let paragraphs = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && !isHeaderLine($0) }
+        return ([header] + paragraphs).joined(separator: "\n\n")
+    }
+
+    private static func isHeaderLine(_ value: String) -> Bool {
+        value.hasPrefix(headerPrefix)
     }
 
     private static func looksLikeTitle(_ value: String) -> Bool {
@@ -490,6 +910,237 @@ struct BraidPageDetails: Equatable {
         tags.first { $0.hasPrefix(prefix) }
             .map { String($0.dropFirst(prefix.count)) }
             .flatMap(\.nonEmpty)
+    }
+}
+
+/// Stable handles left behind by a Book of You page so weekly, monthly, and
+/// annual bindings can read the braid as memory instead of plain text. The tags
+/// are deliberately compact because `BookPage` persists tags, not page metadata.
+struct BookOfYouResidue: Equatable {
+    static let markerTag = "braid-residue"
+    static let titlePrefix = "residue-title:"
+    static let spinePrefix = "residue-spine:"
+    static let keptPrefix = "residue-kept:"
+    static let motifPrefix = "residue-motif:"
+    static let questionPrefix = "residue-question:"
+    static let callbackPrefix = "residue-callback:"
+    static let semanticEchoPrefix = "residue-echo:"
+
+    var title: String
+    var spineLine: String
+    var keptLine: String
+    var motifs: [String]
+    var semanticEchoIDs: [String]
+    var openedQuestion: String?
+    var callbackCandidate: String?
+
+    static func extract(from page: BookPage, context: BraidPromptBuilder.Context = .empty) -> BookOfYouResidue {
+        let details = BraidPageDetails.details(for: page)
+        let title = clipped(details.title, limit: 64)
+        let paragraphs = normalizedParagraphs(from: details.body)
+        let keptLine = paragraphs
+            .flatMap(sentences)
+            .last { $0.hasPrefix("The Book kept the page:") }
+            .map { clipped($0, limit: 140) }
+            ?? clipped(paragraphs.last ?? details.body, limit: 140)
+        let spineLine = paragraphs
+            .flatMap(sentences)
+            .first { !$0.hasPrefix("The Book kept the page:") }
+            .map { clipped($0, limit: 140) }
+            ?? keptLine
+        let question = paragraphs
+            .flatMap(sentences)
+            .last { $0.hasSuffix("?") }
+            .map { clipped($0, limit: 120) }
+        let motifs = motifWords(in: "\(title) \(details.body)", adding: context.theme?.motifs ?? [])
+        let callback = callback(from: keptLine, fallbackTitle: title)
+        let echoes = page.tags
+            .compactMap { tag -> String? in
+                tag.hasPrefix(semanticEchoPrefix) ? String(tag.dropFirst(semanticEchoPrefix.count)) : nil
+            }
+        return BookOfYouResidue(
+            title: title,
+            spineLine: spineLine,
+            keptLine: keptLine,
+            motifs: motifs,
+            semanticEchoIDs: Array(Set(echoes + context.semanticEchoSourceIDs)).sorted(),
+            openedQuestion: question,
+            callbackCandidate: callback
+        )
+    }
+
+    static func fromTags(in page: BookPage) -> BookOfYouResidue? {
+        guard page.tags.contains(markerTag) else { return nil }
+        let fallbackTitle = page.promptText
+            .replacingOccurrences(of: "Book of You:", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return BookOfYouResidue(
+            title: tagValue(titlePrefix, in: page.tags) ?? fallbackTitle.nonEmpty ?? "Book of You",
+            spineLine: tagValue(spinePrefix, in: page.tags) ?? "",
+            keptLine: tagValue(keptPrefix, in: page.tags) ?? "",
+            motifs: values(motifPrefix, in: page.tags),
+            semanticEchoIDs: values(semanticEchoPrefix, in: page.tags),
+            openedQuestion: tagValue(questionPrefix, in: page.tags),
+            callbackCandidate: tagValue(callbackPrefix, in: page.tags)
+        )
+    }
+
+    func stamping(into tags: Set<String>) -> Set<String> {
+        var stamped = tags.filter { tag in
+            !tag.hasPrefix(Self.titlePrefix)
+                && !tag.hasPrefix(Self.spinePrefix)
+                && !tag.hasPrefix(Self.keptPrefix)
+                && !tag.hasPrefix(Self.motifPrefix)
+                && !tag.hasPrefix(Self.questionPrefix)
+                && !tag.hasPrefix(Self.callbackPrefix)
+                && !tag.hasPrefix(Self.semanticEchoPrefix)
+        }
+        stamped.insert(Self.markerTag)
+        stamped.insert(Self.titlePrefix + title)
+        if !spineLine.isEmpty { stamped.insert(Self.spinePrefix + spineLine) }
+        if !keptLine.isEmpty { stamped.insert(Self.keptPrefix + keptLine) }
+        for motif in motifs.prefix(6) {
+            stamped.insert(Self.motifPrefix + motif)
+        }
+        if let openedQuestion, !openedQuestion.isEmpty {
+            stamped.insert(Self.questionPrefix + openedQuestion)
+        }
+        if let callbackCandidate, !callbackCandidate.isEmpty {
+            stamped.insert(Self.callbackPrefix + callbackCandidate)
+        }
+        for echoID in semanticEchoIDs.prefix(6) where !echoID.isEmpty {
+            stamped.insert(Self.semanticEchoPrefix + echoID)
+        }
+        return stamped
+    }
+
+    private static func tagValue(_ prefix: String, in tags: [String]) -> String? {
+        tags.first { $0.hasPrefix(prefix) }
+            .map { String($0.dropFirst(prefix.count)) }
+            .flatMap(\.nonEmpty)
+    }
+
+    private static func values(_ prefix: String, in tags: [String]) -> [String] {
+        tags
+            .compactMap { tag in
+                tag.hasPrefix(prefix) ? String(tag.dropFirst(prefix.count)).nonEmpty : nil
+            }
+            .sorted()
+    }
+
+    private static func normalizedParagraphs(from text: String) -> [String] {
+        text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private static func sentences(in paragraph: String) -> [String] {
+        var out: [String] = []
+        var current = ""
+        for character in paragraph {
+            current.append(character)
+            if ".!?".contains(character) {
+                let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { out.append(trimmed) }
+                current = ""
+            }
+        }
+        let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { out.append(trimmed) }
+        return out
+    }
+
+    private static func motifWords(in text: String, adding themeMotifs: [String]) -> [String] {
+        let lexicon: [String] = [
+            "rain", "snow", "fog", "wind", "storm", "cloud", "sun", "moon",
+            "window", "door", "threshold", "kitchen", "room", "porch", "harbor",
+            "coffee", "tea", "cup", "mug", "lamp", "key", "book", "page",
+            "letter", "photo", "garden", "walk", "road", "water", "hand",
+            "sleep", "hunger", "music", "light", "shadow"
+        ]
+        let lower = text.lowercased()
+        let words = Set(lower.split { !$0.isLetter }.map(String.init))
+        let theme = themeMotifs
+            .map { $0.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let candidates = theme + lexicon
+        var seen: Set<String> = []
+        var motifs: [String] = []
+        for candidate in candidates where !seen.contains(candidate) {
+            if words.contains(candidate) || lower.contains(candidate) {
+                seen.insert(candidate)
+                motifs.append(candidate)
+            }
+            if motifs.count == 6 { break }
+        }
+        return motifs
+    }
+
+    private static func callback(from keptLine: String, fallbackTitle: String) -> String? {
+        let raw = keptLine
+            .replacingOccurrences(of: "The Book kept the page:", with: "")
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ".:")))
+        return clipped(raw.nonEmpty ?? fallbackTitle, limit: 96).nonEmpty
+    }
+
+    private static func clipped(_ value: String, limit: Int) -> String {
+        let normalized = value
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "  ", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > limit else { return normalized }
+        let end = normalized.index(normalized.startIndex, offsetBy: limit)
+        let prefix = normalized[..<end]
+        let lastSpace = prefix.lastIndex(of: " ") ?? prefix.endIndex
+        return String(prefix[..<lastSpace]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+struct BindingMemoryDigest: Equatable {
+    struct BraidMemory: Equatable {
+        var pageID: String
+        var date: Date
+        var residue: BookOfYouResidue
+    }
+
+    struct MotifCount: Equatable {
+        var motif: String
+        var count: Int
+    }
+
+    var braids: [BraidMemory]
+    var motifCounts: [MotifCount]
+    var strongestCallback: String?
+
+    static let empty = BindingMemoryDigest(braids: [], motifCounts: [], strongestCallback: nil)
+}
+
+enum BindingMemorySpine {
+    static func digest(days: [BookDay], now: Date = Date(), limit: Int = 12) -> BindingMemoryDigest {
+        let braidMemories = days
+            .flatMap(\.pages)
+            .filter { $0.type == .bookOfYou && $0.createdAt <= now }
+            .sorted { $0.createdAt > $1.createdAt }
+            .compactMap { page -> BindingMemoryDigest.BraidMemory? in
+                let residue = BookOfYouResidue.fromTags(in: page) ?? BookOfYouResidue.extract(from: page)
+                return BindingMemoryDigest.BraidMemory(pageID: page.id, date: page.createdAt, residue: residue)
+            }
+        guard !braidMemories.isEmpty else { return .empty }
+        let counts = Dictionary(grouping: braidMemories.flatMap(\.residue.motifs), by: { $0 })
+            .mapValues(\.count)
+            .sorted { left, right in
+                if left.value == right.value { return left.key < right.key }
+                return left.value > right.value
+            }
+            .prefix(8)
+            .map { BindingMemoryDigest.MotifCount(motif: $0.key, count: $0.value) }
+        return BindingMemoryDigest(
+            braids: Array(braidMemories.prefix(limit)),
+            motifCounts: counts,
+            strongestCallback: braidMemories.first?.residue.callbackCandidate
+        )
     }
 }
 
@@ -517,6 +1168,130 @@ struct BraidLearningGuidance: Equatable, Codable {
     }
 
     static let empty = BraidLearningGuidance(signals: [])
+}
+
+// MARK: - Taught Reading (corrections remembered out loud)
+
+/// One rule the reader has taught the Book about how to read them, spoken
+/// back in the Book's voice. Being correctable out loud is what separates a
+/// reader from a horoscope.
+struct TaughtReadingRule: Identifiable, Equatable {
+    var id: String
+    var line: String
+}
+
+/// Gathers everything the reader has taught the Book — braid corrections,
+/// notice feedback, quiet dismissals — from the stores that already hold
+/// them. No new ledgers: the vault's braid notes, the kept pages' feedback
+/// tags, and the reader-learning events are the memory of being corrected.
+enum TaughtReading {
+    static func rules(
+        learnedBraidNotes: [String],
+        days: [BookDay],
+        learning: ReaderLearningModel,
+        now: Date = Date(),
+        limit: Int = 6
+    ) -> [TaughtReadingRule] {
+        var rules: [TaughtReadingRule] = []
+
+        // The reader's own written corrections come first — nothing teaches
+        // like a sentence the reader typed at the Book.
+        for (index, note) in learnedBraidNotes.suffix(2).reversed().enumerated() {
+            let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            rules.append(TaughtReadingRule(
+                id: "taught-braid-note-\(index)",
+                line: "You told me: \u{201C}\(clipped(trimmed))\u{201D} — the braids have been written with that in hand since."
+            ))
+        }
+
+        // Feedback on the Book's noticing: stepped back from, softened, trusted.
+        let noticeEvents = learning.events.filter { $0.type == .bookNotices }
+        let dismissed = noticeEvents.filter { $0.action == .dismissed }.count
+        let missed = noticeEvents.filter { $0.action == .missed }.count
+        let loved = noticeEvents.filter { $0.action == .loved }.count
+        if dismissed > 0 {
+            rules.append(TaughtReadingRule(
+                id: "taught-notice-dismissed",
+                line: "You asked me, \(timesPhrase(dismissed)), not to read you a certain way. I stepped back from those readings — stepped back, not forgotten; respected."
+            ))
+        }
+        if missed > 0 {
+            rules.append(TaughtReadingRule(
+                id: "taught-notice-missed",
+                line: "\(spelled(missed).capitalized) \(missed == 1 ? "notice" : "notices") you marked \u{201C}not quite.\u{201D} I soften those patterns before speaking them again."
+            ))
+        }
+        if loved > 0 {
+            rules.append(TaughtReadingRule(
+                id: "taught-notice-loved",
+                line: "\(spelled(loved).capitalized) \(loved == 1 ? "reading" : "readings") you sealed as true. That kind of noticing gets to speak sooner now."
+            ))
+        }
+
+        // Braid verdicts carried on the kept pages themselves.
+        let braids = days.flatMap(\.pages).filter { $0.type == .bookOfYou }
+        let lovedBraids = braids.filter { $0.tags.contains(BraidLearningLoop.lovedItTag) }.count
+        let missedBraids = braids.filter { $0.tags.contains(BraidLearningLoop.missedMeTag) }.count
+        switch (lovedBraids > 0, missedBraids > 0) {
+        case (true, true):
+            rules.append(TaughtReadingRule(
+                id: "taught-braid-verdicts",
+                line: "Of the braids, you called \(spelled(lovedBraids)) true and \(spelled(missedBraids)) \(missedBraids == 1 ? "a miss" : "misses"). Every new braid is tasted against exactly those lessons."
+            ))
+        case (true, false):
+            rules.append(TaughtReadingRule(
+                id: "taught-braid-verdicts",
+                line: "You have called \(spelled(lovedBraids)) \(lovedBraids == 1 ? "braid" : "braids") a true page. The Book keeps aiming there."
+            ))
+        case (false, true):
+            rules.append(TaughtReadingRule(
+                id: "taught-braid-verdicts",
+                line: "\(spelled(missedBraids).capitalized) \(missedBraids == 1 ? "braid" : "braids") missed you, and you said so. The Book rewrites toward what you meant."
+            ))
+        case (false, false):
+            break
+        }
+
+        // A page family the reader's dismissals cooled: the correction the
+        // reader made without ever saying a word.
+        if let cooling = learning.insights(now: now, limit: 6).first(where: { $0.kind == .coolingType }) {
+            rules.append(TaughtReadingRule(
+                id: "taught-cooling-\(cooling.id)",
+                line: "\(cooling.line) You never had to say it twice — the quiet was instruction enough."
+            ))
+        }
+
+        return Array(rules.prefix(limit))
+    }
+
+    /// The single line woven into a Book Notices page when the reader has
+    /// taught the Book anything: proof that corrections change the reading.
+    static func noticeLine(from rules: [TaughtReadingRule]) -> String? {
+        guard let first = rules.first else { return nil }
+        return "You have been teaching me how to read you, and I keep the lessons: \(first.line)"
+    }
+
+    private static func clipped(_ text: String, limit: Int = 90) -> String {
+        guard text.count > limit else { return text }
+        let cut = text.prefix(limit)
+        let lastSpace = cut.lastIndex(of: " ") ?? cut.endIndex
+        return String(cut[..<lastSpace]) + "\u{2026}"
+    }
+
+    private static func timesPhrase(_ n: Int) -> String {
+        switch n {
+        case 1: return "once"
+        case 2: return "twice"
+        default: return "\(spelled(n)) times"
+        }
+    }
+
+    private static func spelled(_ n: Int) -> String {
+        let words = ["zero", "one", "two", "three", "four", "five", "six", "seven",
+                     "eight", "nine", "ten", "eleven", "twelve"]
+        return (0...12).contains(n) ? words[n] : "\(n)"
+    }
 }
 
 enum BraidLearningLoop {
@@ -558,6 +1333,7 @@ enum BraidLearningLoop {
             addIfWeak(score.storyShape, threshold: 15, dimension: "storyShape", weight: 3 + readerPenalty, into: &weights, notes: &notes)
             addIfWeak(score.priorEcho, threshold: 7, dimension: "priorEcho", weight: 2 + readerPenalty, into: &weights, notes: &notes)
             addIfWeak(score.themeAndChapter, threshold: 8, dimension: "themeAndChapter", weight: 2 + readerPenalty, into: &weights, notes: &notes)
+            addIfWeak(score.souvenirSpine, threshold: 8, dimension: "souvenirSpine", weight: 4 + readerPenalty, into: &weights, notes: &notes)
             addIfWeak(score.keeperSentence, threshold: 10, dimension: "keeperSentence", weight: 3 + readerPenalty, into: &weights, notes: &notes)
             addIfWeak(score.concreteMagic, threshold: 9, dimension: "concreteMagic", weight: 2 + readerPenalty, into: &weights, notes: &notes)
 
@@ -728,6 +1504,8 @@ enum BraidLearningLoop {
             return "Let one earlier image return changed by today, or let the prior braid stay silent."
         case "themeAndChapter":
             return "Use theme and chapter as weather: one quiet motif or angle, never an announcement."
+        case "souvenirSpine":
+            return "Carry the reader's one-sentence souvenir through the opening, turn, and kept-page line."
         case "keeperSentence":
             return "End with exactly one memorable sentence beginning 'The Book kept the page:'."
         case "concreteMagic":
@@ -754,12 +1532,13 @@ enum BraidTastingRoom {
         var storyShape: Int
         var priorEcho: Int
         var themeAndChapter: Int
+        var souvenirSpine: Int
         var keeperSentence: Int
         var concreteMagic: Int
         var penalties: Int
 
         var total: Int {
-            title + storyShape + priorEcho + themeAndChapter + keeperSentence + concreteMagic - penalties
+            title + storyShape + priorEcho + themeAndChapter + souvenirSpine + keeperSentence + concreteMagic - penalties
         }
 
         static func < (lhs: Score, rhs: Score) -> Bool {
@@ -806,6 +1585,12 @@ enum BraidTastingRoom {
             storyShape: storyShapeScore(paragraphs: paragraphs, normalized: normalized),
             priorEcho: priorEchoScore(normalized: normalized, context: context),
             themeAndChapter: themeAndChapterScore(normalized: normalized, context: context),
+            souvenirSpine: souvenirSpineScore(
+                normalized: normalized,
+                paragraphs: paragraphs,
+                closingSentences: closingSentences,
+                context: context
+            ),
             keeperSentence: keeperSentenceScore(closingSentences, opening: paragraphs.first),
             concreteMagic: concreteMagicScore(normalized: normalized),
             penalties: penaltyScore(normalized: normalized, sentences: sentences)
@@ -877,6 +1662,31 @@ enum BraidTastingRoom {
         }
 
         return max(0, min(score, 12))
+    }
+
+    private static func souvenirSpineScore(
+        normalized: String,
+        paragraphs: [String],
+        closingSentences: [String],
+        context: BraidPromptBuilder.Context
+    ) -> Int {
+        guard let anchor = context.souvenirAnchor else { return 6 }
+        let anchorWords = Set(significantWords(anchor.keptText))
+        guard !anchorWords.isEmpty else { return 6 }
+
+        let totalHits = anchorWords.filter { normalized.contains($0) }.count
+        guard totalHits > 0 else { return 0 }
+
+        let opening = paragraphs.first?.normalizedForBraidTasting ?? ""
+        let closing = closingSentences.joined(separator: " ").normalizedForBraidTasting
+        let openingHits = anchorWords.filter { opening.contains($0) }.count
+        let closingHits = anchorWords.filter { closing.contains($0) }.count
+
+        var score = 5
+        if totalHits >= min(2, anchorWords.count) { score += 4 }
+        if openingHits > 0 { score += 3 }
+        if closingHits > 0 { score += 4 }
+        return min(score, 14)
     }
 
     private static func keeperSentenceScore(_ closingSentences: [String], opening: String?) -> Int {
@@ -1067,10 +1877,12 @@ enum LiteraryContinuityProjector {
             entityBelief: entityBelief,
             pageBelief: pageBelief
         )
-        let signals = patternSignals(pages: pages, events: events, now: now, calendar: calendar)
-            + absenceSignals(pages: pages, events: events, now: now, calendar: calendar)
-            + durationSignals(pages: pages, lifecycles: lifecycles, now: now, calendar: calendar)
-            + lifecycles.prefix(4).map { lifecycleSignal($0, now: now, calendar: calendar) }
+        let pattern = patternSignals(pages: pages, events: events, now: now, calendar: calendar)
+        let absences = absenceSignals(pages: pages, events: events, now: now, calendar: calendar)
+        let durations = durationSignals(pages: pages, lifecycles: lifecycles, now: now, calendar: calendar)
+        let lifecycle = lifecycles.prefix(4).map { lifecycleSignal($0, now: now, calendar: calendar) }
+        let manner = mannerSignals(pages: pages, now: now, calendar: calendar)
+        let signals = pattern + absences + durations + lifecycle + manner
 
         return LiteraryContinuityDigest(
             signals: Array(signals.sorted { left, right in
@@ -1158,6 +1970,253 @@ enum LiteraryContinuityProjector {
         let early = 7 * min(pageCount, 5)
         let late = 2 * min(max(pageCount - 5, 0), 12)
         return min(94, max(1, 38 + early + late + eventBoost - penalty))
+    }
+
+    // MARK: - Manner signals (how the reader writes)
+
+    /// The window the Book calls "this week" when reading manner.
+    static let mannerRecentWindowDays = 7
+    /// How far back the baseline reaches. Older pages describe a different
+    /// season of the hand and are left out of the comparison.
+    static let mannerBaselineWindowDays = 56
+
+    /// Qualifiers whose density is the pencil hovering. Phrases are matched
+    /// as phrases.
+    static let mannerHedgeTerms: [String] = [
+        "maybe", "probably", "perhaps", "i guess", "i suppose",
+        "sort of", "kind of", "i think", "a bit"
+    ]
+
+    /// Manner observations read only the reader's own prose — never prompt
+    /// text (the Book's words) and never the private body/fuel logs.
+    static func mannerProse(in pages: [BookPage]) -> [BookPage] {
+        pages.filter { page in
+            page.origin == .userAuthored
+                && !EditionCurator.defaultPrivateTypes.contains(page.type)
+                && page.userInput.split { !$0.isLetter && !$0.isNumber }.count >= 5
+        }
+    }
+
+    static func mannerSignals(pages: [BookPage], now: Date, calendar: Calendar) -> [LiteraryContinuitySignal] {
+        let prose = mannerProse(in: pages)
+        guard !prose.isEmpty else { return [] }
+        var signals: [LiteraryContinuitySignal] = []
+        if let pace = sentencePaceSignal(prose: prose, now: now) {
+            signals.append(pace)
+        }
+        if let hedge = hedgeInkSignal(prose: prose, now: now) {
+            signals.append(hedge)
+        }
+        signals += hourboundSubjectSignals(prose: prose, now: now, calendar: calendar)
+        return signals
+    }
+
+    /// The sentences walked faster or slower this week than the reader's own
+    /// baseline. Requires enough pages on both sides of the comparison that
+    /// the drift is a real change of gait, not one hurried evening.
+    static func sentencePaceSignal(prose: [BookPage], now: Date) -> LiteraryContinuitySignal? {
+        let recentCutoff = now.addingTimeInterval(TimeInterval(-mannerRecentWindowDays) * 86_400)
+        let baselineCutoff = now.addingTimeInterval(TimeInterval(-mannerBaselineWindowDays) * 86_400)
+        let recent = prose.filter { $0.createdAt > recentCutoff && $0.createdAt <= now }
+        let baseline = prose.filter { $0.createdAt > baselineCutoff && $0.createdAt <= recentCutoff }
+        guard recent.count >= 4, baseline.count >= 8 else { return nil }
+
+        let recentAverage = averageSentenceLength(of: recent)
+        let baselineAverage = averageSentenceLength(of: baseline)
+        guard recentAverage > 0, baselineAverage > 0 else { return nil }
+        let ratio = recentAverage / baselineAverage
+
+        let line: String
+        let flavor: String
+        if ratio <= 0.72 {
+            line = "This week the sentences walk faster — about \(spelledCount(Int(recentAverage.rounded()))) words to a step, where \(spelledCount(Int(baselineAverage.rounded()))) has been usual. Shorter steps, quicker breath."
+            flavor = "fast"
+        } else if ratio >= 1.4 {
+            line = "The sentences have slowed into long walks this week — about \(spelledCount(Int(recentAverage.rounded()))) words to a sentence, where \(spelledCount(Int(baselineAverage.rounded()))) has been usual. Unhurried, taking the air."
+            flavor = "slow"
+        } else {
+            return nil
+        }
+
+        let sortedRecent = recent.sorted { $0.createdAt < $1.createdAt }
+        return LiteraryContinuitySignal(
+            id: "manner-pace",
+            kind: .manner,
+            subjectID: "manner-pace",
+            subjectName: "the sentences",
+            line: line,
+            evidencePageIDs: sortedRecent.suffix(6).map(\.id),
+            relatedEntityIDs: [],
+            tags: ["manner", "pace", flavor],
+            firstSeenAt: sortedRecent.first?.createdAt ?? now,
+            lastSeenAt: sortedRecent.last?.createdAt ?? now,
+            strength: min(72, 56 + Int((abs(1 - ratio) * 24).rounded()))
+        )
+    }
+
+    /// Hedge density rose or fell hard against the reader's own baseline —
+    /// the pencil hovering, or the week written in ink.
+    static func hedgeInkSignal(prose: [BookPage], now: Date) -> LiteraryContinuitySignal? {
+        let recentCutoff = now.addingTimeInterval(TimeInterval(-mannerRecentWindowDays) * 86_400)
+        let baselineCutoff = now.addingTimeInterval(TimeInterval(-mannerBaselineWindowDays) * 86_400)
+        let recent = prose.filter { $0.createdAt > recentCutoff && $0.createdAt <= now }
+        let baseline = prose.filter { $0.createdAt > baselineCutoff && $0.createdAt <= recentCutoff }
+
+        let recentWords = totalWordCount(of: recent)
+        let baselineWords = totalWordCount(of: baseline)
+        // Density needs volume before it means anything.
+        guard recentWords >= 120, baselineWords >= 400 else { return nil }
+
+        let recentHedges = hedgeCount(in: recent)
+        let baselineHedges = hedgeCount(in: baseline)
+        let recentDensity = Double(recentHedges) / Double(recentWords) * 100
+        let baselineDensity = Double(baselineHedges) / Double(baselineWords) * 100
+
+        let line: String
+        let flavor: String
+        if baselineDensity > 0, recentDensity >= baselineDensity * 2.2, recentHedges >= 3 {
+            line = "More \u{201C}maybe\u{201D} in the margins than usual this week. The pencil is hovering over something it has not decided to write."
+            flavor = "hovering"
+        } else if baselineDensity >= 1.0, recentDensity <= baselineDensity * 0.35 {
+            line = "The maybes have thinned out of the pages. This week you are writing in ink."
+            flavor = "ink"
+        } else {
+            return nil
+        }
+
+        let sortedRecent = recent.sorted { $0.createdAt < $1.createdAt }
+        return LiteraryContinuitySignal(
+            id: "manner-hedge",
+            kind: .manner,
+            subjectID: "manner-hedge",
+            subjectName: "the maybes",
+            line: line,
+            evidencePageIDs: sortedRecent.suffix(6).map(\.id),
+            relatedEntityIDs: [],
+            tags: ["manner", "hedge", flavor],
+            firstSeenAt: sortedRecent.first?.createdAt ?? now,
+            lastSeenAt: sortedRecent.last?.createdAt ?? now,
+            strength: 58
+        )
+    }
+
+    /// A subject that only ever appears at one hour of the day — "you only
+    /// write about the harbor after dark." Honest by construction: it needs
+    /// the reader to write at other hours too, or "only at night" would be
+    /// trivially true of everything.
+    static func hourboundSubjectSignals(prose: [BookPage], now: Date, calendar: Calendar) -> [LiteraryContinuitySignal] {
+        // The corpus must genuinely spread across hours: at least two bands,
+        // and at least 40% of prose outside any single word's band.
+        let allBands = prose.map { dayBand(for: $0.createdAt, calendar: calendar) }
+        guard Set(allBands).count >= 2 else { return [] }
+        let bandTotals = Dictionary(grouping: allBands) { $0 }.mapValues(\.count)
+
+        var buckets: [String: [BookPage]] = [:]
+        for page in prose {
+            for word in meaningfulWords(in: page.userInput) {
+                buckets[word, default: []].append(page)
+            }
+        }
+
+        var out: [LiteraryContinuitySignal] = []
+        for (word, matches) in buckets {
+            let unique = uniqueMannerPages(matches)
+            guard unique.count >= 3 else { continue }
+            let dayIDs = Set(unique.map { BookDay.id(for: $0.createdAt, calendar: calendar) })
+            guard dayIDs.count >= 2 else { continue }
+            guard let penalty = ubiquityPenalty(pageHits: unique.count, totalPages: prose.count), penalty <= 8 else { continue }
+
+            let bands = Set(unique.map { dayBand(for: $0.createdAt, calendar: calendar) })
+            guard bands.count == 1, let band = bands.first else { continue }
+            let inBand = bandTotals[band] ?? 0
+            let outsideShare = Double(prose.count - inBand) / Double(prose.count)
+            guard outsideShare >= 0.4 else { continue }
+
+            let sorted = unique.sorted { $0.createdAt < $1.createdAt }
+            out.append(LiteraryContinuitySignal(
+                id: "manner-hour-\(word)",
+                kind: .manner,
+                subjectID: word,
+                subjectName: word,
+                line: "\(word.capitalized) only ever visits these pages \(bandPhrase(for: band)) — \(spelledCount(unique.count)) times now, never at any other hour.",
+                evidencePageIDs: sorted.map(\.id),
+                relatedEntityIDs: [],
+                tags: ["manner", "hour", band, word],
+                firstSeenAt: sorted.first?.createdAt ?? now,
+                lastSeenAt: sorted.last?.createdAt ?? now,
+                strength: min(70, 50 + 4 * min(unique.count, 5) - penalty)
+            ))
+        }
+        return out
+            .sorted { left, right in
+                if left.strength == right.strength { return left.subjectName < right.subjectName }
+                return left.strength > right.strength
+            }
+            .prefix(2)
+            .map(\.self)
+    }
+
+    static func dayBand(for date: Date, calendar: Calendar) -> String {
+        switch calendar.component(.hour, from: date) {
+        case 5...11: return "morning"
+        case 12...16: return "afternoon"
+        case 17...20: return "evening"
+        default: return "night"
+        }
+    }
+
+    static func bandPhrase(for band: String) -> String {
+        switch band {
+        case "morning": return "in the morning"
+        case "afternoon": return "in the afternoon"
+        case "evening": return "in the evening"
+        default: return "after dark"
+        }
+    }
+
+    private static func averageSentenceLength(of pages: [BookPage]) -> Double {
+        var sentenceCount = 0
+        var wordCount = 0
+        for page in pages {
+            let sentences = page.userInput
+                .split(omittingEmptySubsequences: true) { ".!?\n".contains($0) }
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            sentenceCount += sentences.count
+            wordCount += sentences.reduce(0) { $0 + $1.split { !$0.isLetter && !$0.isNumber }.count }
+        }
+        guard sentenceCount > 0 else { return 0 }
+        return Double(wordCount) / Double(sentenceCount)
+    }
+
+    private static func totalWordCount(of pages: [BookPage]) -> Int {
+        pages.reduce(0) { $0 + $1.userInput.split { !$0.isLetter && !$0.isNumber }.count }
+    }
+
+    private static func hedgeCount(in pages: [BookPage]) -> Int {
+        pages.reduce(0) { total, page in
+            let text = " \(page.userInput.lowercased().replacingOccurrences(of: "[^a-z]+", with: " ", options: .regularExpression)) "
+            return total + mannerHedgeTerms.reduce(0) { sum, term in
+                sum + text.components(separatedBy: " \(term) ").count - 1
+            }
+        }
+    }
+
+    private static func uniqueMannerPages(_ pages: [BookPage]) -> [BookPage] {
+        var seen: Set<String> = []
+        var out: [BookPage] = []
+        for page in pages where !seen.contains(page.id) {
+            seen.insert(page.id)
+            out.append(page)
+        }
+        return out.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    private static func spelledCount(_ n: Int) -> String {
+        let words = ["zero", "one", "two", "three", "four", "five", "six", "seven",
+                     "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen",
+                     "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"]
+        return (0...20).contains(n) ? words[n] : "\(n)"
     }
 
     private static func patternSignals(

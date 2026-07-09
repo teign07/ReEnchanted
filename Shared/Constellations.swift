@@ -213,6 +213,12 @@ enum ConstellationKeeper {
                 "%@ After Midnight",
                 "Tuned to %@"
             ]
+        case .manner:
+            templates = [
+                "The Way %@ Arrives",
+                "%@, In Its Own Hand",
+                "The %@ Manner"
+            ]
         }
         let template = templates[stableIndex(for: "\(seed)-name", count: templates.count)]
         return String(format: template, subjectName)

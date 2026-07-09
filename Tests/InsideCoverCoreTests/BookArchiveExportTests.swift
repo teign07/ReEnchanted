@@ -99,6 +99,99 @@ final class BookArchiveExportTests: XCTestCase {
         XCTAssertFalse(edition.sections.flatMap(\.items).contains { $0.id == "may" || $0.id == "july" })
     }
 
+    func testMonthlyEditionCarriesScrapbookPagesInOwnSection() {
+        let scrapbook = BookPage(
+            id: "scrapbook",
+            type: .plainPage,
+            createdAt: date(day: 6, hour: 16),
+            promptText: "Harbor Scrap",
+            userInput: """
+            A composed scrapbook page.
+
+            Scraps bound here:
+            Souvenir: The harbor fog came in.
+            """,
+            tags: ["pagewright", "scrapbook", "format:scrapPage", "source-page:souvenir"],
+            sourceID: "pagewright",
+            origin: .userAuthored,
+            privacy: .privateLocal,
+            mediaAssets: [
+                BookPageMediaAsset(
+                    kind: .renderedImageFile,
+                    reference: "/tmp/harbor-scrap.png",
+                    caption: "Harbor Scrap",
+                    sourceID: "pagewright"
+                )
+            ]
+        )
+        let souvenir = BookPage(
+            id: "souvenir",
+            type: .souvenir,
+            createdAt: date(day: 6, hour: 12),
+            promptText: "Souvenir",
+            userInput: "The harbor fog came in without a sound."
+        )
+
+        let edition = MonthlyEditionBuilder.edition(
+            from: [BookDay(id: "2026-06-06", date: date(day: 6, hour: 0), pages: [souvenir, scrapbook])],
+            readerName: "bj",
+            startDate: date(day: 1, hour: 0),
+            endDate: date(day: 30, hour: 23),
+            generatedAt: date(day: 30, hour: 23),
+            calendar: calendar
+        )
+
+        let section = edition.sections.first { $0.id == "scrapbook-pages" }
+        XCTAssertEqual(section?.title, "Scrapbook Pages")
+        XCTAssertEqual(section?.items.map(\.id), ["scrapbook"])
+        XCTAssertEqual(section?.items.first?.title, "Harbor Scrap")
+        XCTAssertEqual(section?.items.first?.kind, .image)
+        XCTAssertFalse(edition.sections.first { $0.id == "images" }?.items.contains { $0.id == "scrapbook" } ?? false)
+        XCTAssertFalse(edition.sections.first { $0.id == "other-kept-pages" }?.items.contains { $0.id == "scrapbook" } ?? false)
+    }
+
+    func testMonthlyEditionCarriesBookMemorySpineFromBraids() {
+        let braid = BraidPageDetails.annotated(
+            BookPage(
+                id: "braid-rain",
+                type: .bookOfYou,
+                createdAt: date(day: 3, hour: 22),
+                promptText: "Book of You",
+                userInput: """
+                Rain At The Window
+
+                The lamp waited by the window while rain tapped the glass.
+
+                The Book kept the page: rain made the lamp brave.
+                """,
+                tags: ["braid"]
+            ),
+            context: .empty
+        )
+        let days = [
+            BookDay(id: "2026-06-03", date: date(day: 3, hour: 0), pages: [
+                BookPage(id: "souvenir", type: .souvenir, createdAt: date(day: 3, hour: 12), promptText: "Souvenir", userInput: "Rain at the kitchen window."),
+                braid
+            ])
+        ]
+
+        let edition = MonthlyEditionBuilder.edition(
+            from: days,
+            readerName: "bj",
+            startDate: date(day: 1, hour: 0),
+            endDate: date(day: 30, hour: 23),
+            generatedAt: date(day: 30, hour: 23),
+            calendar: calendar
+        )
+
+        let spine = edition.sections.first { $0.id == "book-memory-spine" }
+        XCTAssertEqual(spine?.title, "Book Memory Spine")
+        XCTAssertTrue(spine?.items.contains { $0.id == "memory-spine-cover-story" && $0.body.contains("Rain At The Window") } == true)
+        XCTAssertTrue(spine?.items.contains { $0.id == "memory-spine-refrain" && $0.body.contains("rain") } == true)
+        XCTAssertTrue(spine?.items.contains { $0.id == "memory-spine-callbacks" && $0.body.contains("rain made the lamp brave") } == true)
+        XCTAssertTrue(edition.memorySpinePromptLines.contains { $0.contains("Cover Story") && $0.contains("Rain At The Window") })
+    }
+
     func testMonthlyEditionGroupsRepeatedWordSignals() {
         let pages = (1...3).map { dayNumber in
             BookPage(
@@ -236,6 +329,25 @@ final class BookArchiveExportTests: XCTestCase {
         XCTAssertTrue(edition.foreword.contains("first binding"))
         XCTAssertTrue(edition.foreword.contains("not enough month to name the whole weather"))
         XCTAssertTrue(edition.closing?.contains("not calling this the whole sky yet") == true)
+    }
+
+    func testMonthlyEditionForewordAndClosingUseTheBooksOwnVoice() {
+        let page = BookPage(id: "souvenir", type: .souvenir, createdAt: date(day: 4, hour: 9), promptText: "One line", userInput: "Rain on the window.")
+
+        let edition = MonthlyEditionBuilder.edition(
+            from: [BookDay(id: "2026-06-04", date: date(day: 4, hour: 0), pages: [page])],
+            readerName: "bj",
+            startDate: date(day: 1, hour: 0),
+            endDate: date(day: 30, hour: 23),
+            generatedAt: date(day: 30, hour: 23),
+            calendar: calendar
+        )
+
+        XCTAssertTrue(edition.foreword.contains("The cover is small and a little proud"))
+        XCTAssertTrue(edition.foreword.contains("loose pages get lonely"))
+        XCTAssertTrue(edition.foreword.contains("my small paper hand"))
+        XCTAssertTrue(edition.closing?.contains("these first pages kept tapping the glass") == true)
+        XCTAssertTrue(edition.closing?.contains("the bookmark will pretend it was not waiting") == true)
     }
 
     func testMonthlyEditionKeepsBodyAndFuelOutOfDefaultBinding() {

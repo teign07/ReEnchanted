@@ -1020,9 +1020,12 @@ struct IlluminatedQuoteCard: View {
                     .foregroundStyle(c.ink.accent.opacity(0.86))
                     .tracking(1.2)
 
-                Text("ReEnchanted")
+                Text("Made with ReEnchanted \u{00B7} reenchanted.app")
                     .font(.system(size: 24, weight: .bold, design: .serif))
                     .foregroundStyle(BookPalette.ink.opacity(0.66))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+                    .frame(width: Self.contentWidth)
             }
         }
     }
@@ -1359,6 +1362,8 @@ struct BookOfYouShareArtifact: Equatable {
         return pieces.isEmpty ? "Pressed from the Book of You" : pieces.joined(separator: " · ")
     }
 
+    static let publicSeal = "Make your own Book of You \u{00B7} reenchanted.app"
+
     static func make(from surface: SurfacePage) -> BookOfYouShareArtifact? {
         guard surface.type == .bookOfYou else { return nil }
         let tags = surface.payload.metadata["tags"]?
@@ -1412,7 +1417,7 @@ struct BookOfYouShareArtifact: Equatable {
             .flatMap { sentences(in: $0) }
             .filter { sentence in
                 let words = sentence.split { !$0.isLetter && !$0.isNumber }.count
-                return words >= 9 && words <= 48
+                return words >= 8 && words <= 34
             }
             .sorted { lhs, rhs in
                 score(lhs) > score(rhs)
@@ -1449,8 +1454,8 @@ struct BookOfYouShareArtifact: Equatable {
         guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
             return nil
         }
-        guard value.count > 260 else { return value }
-        let end = value.index(value.startIndex, offsetBy: 257)
+        guard value.count > 190 else { return value }
+        let end = value.index(value.startIndex, offsetBy: 187)
         return String(value[..<end]).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
     }
 
@@ -1482,8 +1487,9 @@ struct BookOfYouShareCard: View {
     let artifact: BookOfYouShareArtifact
 
     static let renderSize = CGSize(width: 1080, height: 1350)
-    private static let horizontalInset: CGFloat = 96
+    private static let horizontalInset: CGFloat = 104
     private static var contentWidth: CGFloat { renderSize.width - horizontalInset * 2 }
+    private static let quoteBoxHeight: CGFloat = 520
 
     private var composition: QuoteCardComposition {
         QuoteCardComposition(seed: artifact.seed, baseFontSize: excerptFontSize)
@@ -1491,9 +1497,9 @@ struct BookOfYouShareCard: View {
 
     private var excerptFontSize: CGFloat {
         let count = artifact.excerpt.count
-        if count > 220 { return 42 }
-        if count > 160 { return 48 }
-        if count > 100 { return 56 }
+        if count > 165 { return 42 }
+        if count > 130 { return 46 }
+        if count > 95 { return 52 }
         return 64
     }
 
@@ -1535,7 +1541,7 @@ struct BookOfYouShareCard: View {
                 marginaliaImage(mark)
             }
 
-            VStack(spacing: 28) {
+            VStack(spacing: 24) {
                 Text("THE BOOK OF YOU")
                     .font(.system(size: 22, weight: .bold, design: .serif))
                     .foregroundStyle(c.ink.accent.opacity(0.86))
@@ -1547,8 +1553,9 @@ struct BookOfYouShareCard: View {
                     .foregroundStyle(BookPalette.ink)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
+                    .lineLimit(2)
                     .minimumScaleFactor(0.72)
-                    .frame(width: Self.contentWidth)
+                    .frame(width: Self.contentWidth, height: 128)
 
                 ZStack {
                     Rectangle()
@@ -1567,8 +1574,10 @@ struct BookOfYouShareCard: View {
                     .multilineTextAlignment(.center)
                     .lineSpacing(8)
                     .tracking(c.quoteTracking)
-                    .frame(width: Self.contentWidth)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(8)
+                    .minimumScaleFactor(0.62)
+                    .allowsTightening(true)
+                    .frame(width: Self.contentWidth, height: Self.quoteBoxHeight)
 
                 VStack(spacing: 12) {
                     Text(artifact.contextLine)
@@ -1586,6 +1595,13 @@ struct BookOfYouShareCard: View {
                     Text("Pressed in ReEnchanted")
                         .font(.system(size: 24, weight: .bold, design: .serif))
                         .foregroundStyle(BookPalette.ink.opacity(0.66))
+
+                    Text(BookOfYouShareArtifact.publicSeal)
+                        .font(.system(size: 18, weight: .semibold, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.54))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.62)
+                        .frame(width: Self.contentWidth)
                 }
             }
             .frame(width: Self.contentWidth)
@@ -2016,18 +2032,38 @@ struct BookOfYouPageRevealFrame: View {
     let progress: Double
 
     static let renderSize = CGSize(width: 1080, height: 1920)
+    private static let bookSize = CGSize(width: 820, height: 1160)
+    private static let leatherTop = Color(red: 0.08, green: 0.09, blue: 0.18)
+    private static let leatherMid = Color(red: 0.05, green: 0.055, blue: 0.12)
+    private static let leatherLow = Color(red: 0.025, green: 0.03, blue: 0.07)
 
     private var eased: Double {
         let t = min(1, max(0, progress))
         return t * t * (3 - 2 * t)
     }
 
+    private var appearProgress: Double {
+        openingProgress(eased, from: 0.00, to: 0.14)
+    }
+
+    private var titleProgress: Double {
+        openingProgress(eased, from: 0.12, to: 0.32)
+    }
+
+    private var openProgress: Double {
+        openingProgress(eased, from: 0.28, to: 0.78)
+    }
+
     private var pageProgress: Double {
-        min(1, max(0, (eased - 0.18) / 0.58))
+        openingProgress(eased, from: 0.50, to: 0.90)
     }
 
     private var textProgress: Double {
-        min(1, max(0, (eased - 0.44) / 0.38))
+        openingProgress(eased, from: 0.70, to: 1.0)
+    }
+
+    private var floodProgress: Double {
+        openingProgress(eased, from: 0.64, to: 1.0)
     }
 
     var body: some View {
@@ -2044,51 +2080,195 @@ struct BookOfYouPageRevealFrame: View {
 
             revealDust
 
-            RoundedRectangle(cornerRadius: 42, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.12, green: 0.07, blue: 0.10),
-                            Color(red: 0.28, green: 0.18, blue: 0.12),
-                            Color(red: 0.10, green: 0.05, blue: 0.08)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 42, style: .continuous)
-                        .stroke(BookPalette.lampGold.opacity(0.34), lineWidth: 5)
-                }
-                .frame(width: 820, height: 1180)
-                .rotation3DEffect(.degrees(-16 + pageProgress * 16), axis: (x: 0, y: 1, z: 0), perspective: 0.72)
-                .offset(x: -24 * (1 - pageProgress), y: 40 * (1 - pageProgress))
-                .opacity(1 - pageProgress * 0.82)
+            RadialGradient(
+                colors: [
+                    BookPalette.lampGold.opacity(0.72 * floodProgress),
+                    BookPalette.gold.opacity(0.24 * floodProgress),
+                    .clear
+                ],
+                center: .center,
+                startRadius: 0,
+                endRadius: 900
+            )
+            .blendMode(.screen)
 
-            BookOfYouShareCard(artifact: artifact)
-                .scaleEffect(0.78)
-                .opacity(pageProgress)
-                .blur(radius: (1 - pageProgress) * 8)
-                .mask(alignment: .top) {
-                    Rectangle()
-                        .frame(width: BookOfYouShareCard.renderSize.width, height: BookOfYouShareCard.renderSize.height * max(0.08, pageProgress))
-                }
-                .shadow(color: BookPalette.lampGold.opacity(0.22 * pageProgress), radius: 30, x: 0, y: 18)
-                .offset(y: 18 - 44 * pageProgress)
+            ZStack {
+                innerBookPage
+                pressedPage
+                frontCover
+            }
+            .frame(width: Self.bookSize.width, height: Self.bookSize.height)
+            .scaleEffect(0.86 + 0.10 * appearProgress)
+            .opacity(appearProgress)
+            .shadow(color: .black.opacity(0.48 * appearProgress), radius: 40, x: 0, y: 26)
+            .offset(y: -70 + 18 * (1 - appearProgress))
 
             VStack(spacing: 12) {
-                Text("THE BOOK PRESSED A PAGE")
+                Text(openProgress < 0.72 ? "THE BOOK OPENS" : "THE BOOK PRESSED A PAGE")
                     .font(.system(size: 23, weight: .bold, design: .serif))
                     .tracking(2.4)
                     .foregroundStyle(BookPalette.lampGold.opacity(0.82))
                 Text("ReEnchanted")
                     .font(.system(size: 34, weight: .bold, design: .serif))
                     .foregroundStyle(Color(red: 0.96, green: 0.88, blue: 0.70).opacity(0.88))
+                Text(BookOfYouShareArtifact.publicSeal)
+                    .font(.system(size: 23, weight: .semibold, design: .serif))
+                    .foregroundStyle(Color(red: 0.96, green: 0.88, blue: 0.70).opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .frame(width: 900)
             }
             .opacity(textProgress)
             .offset(y: 760)
         }
         .frame(width: Self.renderSize.width, height: Self.renderSize.height)
+    }
+
+    private var innerBookPage: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [BookPalette.page, BookPalette.paper, BookPalette.page.opacity(0.94)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            Image("ParchmentTexture")
+                .resizable()
+                .scaledToFill()
+                .opacity(0.34)
+                .blendMode(.multiply)
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [.black.opacity(0.24), .clear, BookPalette.lampGold.opacity(0.16)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(width: 34)
+                .offset(x: -Self.bookSize.width / 2 + 22)
+                .blur(radius: 5)
+                .opacity(0.25 + 0.55 * openProgress)
+
+            VStack(spacing: 18) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 36, weight: .black))
+                    .foregroundStyle(BookPalette.lampGold.opacity(0.86))
+                Text("The Book of You")
+                    .font(.system(size: 34, weight: .bold, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.72))
+                Rectangle()
+                    .fill(BookPalette.lampGold.opacity(0.38))
+                    .frame(width: 240, height: 1.5)
+            }
+            .opacity(openingProgress(openProgress, from: 0.22, to: 0.58) * (1 - pageProgress * 0.82))
+            .offset(y: -20)
+
+            ForEach(0..<18, id: \.self) { index in
+                let x = Self.unit(seed: artifact.seed, key: "book-spark-x-\(index)")
+                let rise = pageProgress * (40 + Self.unit(seed: artifact.seed, key: "book-spark-rise-\(index)") * 130)
+                Image(systemName: index.isMultiple(of: 3) ? "sparkle" : "circle.fill")
+                    .font(.system(size: index.isMultiple(of: 3) ? 13 : 5, weight: .black))
+                    .foregroundStyle(BookPalette.lampGold.opacity(0.16 + 0.50 * pageProgress))
+                    .position(
+                        x: 120 + x * (Self.bookSize.width - 240),
+                        y: 950 - rise - Self.unit(seed: artifact.seed, key: "book-spark-y-\(index)") * 360
+                    )
+            }
+        }
+        .frame(width: Self.bookSize.width, height: Self.bookSize.height)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(BookPalette.parchmentEdge.opacity(0.42), lineWidth: 2)
+        }
+    }
+
+    private var pressedPage: some View {
+        BookOfYouShareCard(artifact: artifact)
+            .scaleEffect(0.64 + 0.05 * pageProgress)
+            .opacity(pageProgress)
+            .blur(radius: (1 - pageProgress) * 7)
+            .rotationEffect(.degrees(-2.6 + 2.6 * pageProgress))
+            .shadow(color: BookPalette.lampGold.opacity(0.28 * pageProgress), radius: 30, x: 0, y: 18)
+            .offset(y: 38 - 64 * pageProgress)
+    }
+
+    private var frontCover: some View {
+        let faceOpacity = 1 - openingProgress(openProgress, from: 0.30, to: 0.62)
+        return ZStack {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Self.leatherTop, Self.leatherMid, Self.leatherLow],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(BookPalette.lampGold.opacity(0.14))
+                        .frame(width: 28)
+                        .blur(radius: 8)
+                }
+
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.74), lineWidth: 4)
+                .padding(42)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(BookPalette.gold.opacity(0.42), lineWidth: 2)
+                .padding(68)
+
+            VStack(spacing: 18) {
+                Image(systemName: "book.closed.fill")
+                    .font(.system(size: 54, weight: .black))
+                    .foregroundStyle(BookPalette.lampGold)
+                    .shadow(color: BookPalette.lampGold.opacity(0.45), radius: 14)
+                    .opacity(faceOpacity)
+
+                WrittenGoldText(
+                    "The Book",
+                    font: .system(size: 70, weight: .semibold, design: .serif),
+                    progress: titleProgress
+                )
+                WrittenGoldText(
+                    "of You",
+                    font: .system(size: 70, weight: .semibold, design: .serif),
+                    progress: titleProgress
+                )
+
+                Text(String(artifact.title.prefix(48)))
+                    .font(.system(size: 26, weight: .semibold, design: .serif))
+                    .foregroundStyle(BookPalette.gold.opacity(0.74))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.64)
+                    .frame(width: 560)
+                    .opacity(faceOpacity * titleProgress)
+                    .padding(.top, 10)
+
+                Rectangle()
+                    .fill(BookPalette.lampGold.opacity(0.50))
+                    .frame(width: 250, height: 2)
+                    .opacity(faceOpacity)
+                    .padding(.top, 8)
+            }
+            .padding(.horizontal, 88)
+        }
+        .frame(width: Self.bookSize.width, height: Self.bookSize.height)
+        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .rotation3DEffect(
+            .degrees(-156 * openProgress),
+            axis: (x: 0, y: 1, z: 0),
+            anchor: .leading,
+            perspective: 0.58
+        )
+        .shadow(color: .black.opacity(0.20 * (1 - openProgress)), radius: 24, x: 0, y: 18)
     }
 
     private var revealDust: some View {
@@ -2099,7 +2279,7 @@ struct BookOfYouPageRevealFrame: View {
                 let size = 3 + Self.unit(seed: artifact.seed, key: "dust-s-\(index)") * 9
                 let drift = (eased - 0.5) * (24 + Self.unit(seed: artifact.seed, key: "dust-d-\(index)") * 46)
                 Circle()
-                    .fill(BookPalette.lampGold.opacity(0.18 + 0.42 * textProgress))
+                    .fill(BookPalette.lampGold.opacity(0.12 + 0.46 * max(openProgress, textProgress)))
                     .frame(width: size, height: size)
                     .blur(radius: size > 8 ? 1.8 : 0.4)
                     .position(
@@ -2239,6 +2419,200 @@ enum BookOfYouPageRevealVideoRenderer {
         return directory
     }
 }
+
+#if canImport(UIKit)
+@MainActor
+enum BookOfYouPDFRenderer {
+    static func render(page: BookPage, surface: SurfacePage) -> URL? {
+        let details = BraidPageDetails.details(for: page)
+        let pageBounds = CGRect(x: 0, y: 0, width: 612, height: 792)
+        let margins = UIEdgeInsets(top: 64, left: 70, bottom: 78, right: 70)
+        let title = details.title.nonEmpty ?? surface.payload.headline.nonEmpty ?? "The Book of You"
+        let body = details.body.nonEmpty ?? surface.payload.body
+        let contextLine = [details.themeName, details.chapterName].compactMap { $0?.nonEmpty }.joined(separator: " \u{00B7} ")
+        let dateLine = page.createdAt.formatted(date: .abbreviated, time: .omitted)
+
+        do {
+            let directory = try renderedDirectory()
+            let url = directory.appendingPathComponent("book-of-you-\(page.id.stableHash.magnitude).pdf")
+            let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
+
+            try renderer.writePDF(to: url) { context in
+                var y = beginPage(context, bounds: pageBounds, margins: margins, title: title)
+                drawCentered("THE BOOK OF YOU", font: .systemFont(ofSize: 10, weight: .bold), color: accent, y: y, in: pageBounds, tracking: 1.8)
+                y += 25
+                y = drawWrapped(title, font: .serifFont(ofSize: 25, weight: .bold), color: ink, x: margins.left, y: y, width: contentWidth(pageBounds, margins), alignment: .center, spacingAfter: 8)
+                if !contextLine.isEmpty {
+                    y = drawWrapped(contextLine, font: .serifItalicFont(ofSize: 11), color: ink.withAlphaComponent(0.66), x: margins.left, y: y, width: contentWidth(pageBounds, margins), alignment: .center, spacingAfter: 3)
+                }
+                drawCentered(dateLine.uppercased(), font: .systemFont(ofSize: 8.5, weight: .bold), color: accent.withAlphaComponent(0.82), y: y, in: pageBounds, tracking: 1.1)
+                y += 29
+                drawRule(y: y, bounds: pageBounds, margins: margins)
+                y += 25
+
+                let chunks = bodyChunks(from: body)
+                for chunk in chunks {
+                    let height = measuredHeight(chunk, font: bodyFont, width: contentWidth(pageBounds, margins))
+                    if y + height > pageBounds.height - margins.bottom {
+                        y = beginPage(context, bounds: pageBounds, margins: margins, title: title)
+                    }
+                    y = drawWrapped(chunk, font: bodyFont, color: ink.withAlphaComponent(0.92), x: margins.left, y: y, width: contentWidth(pageBounds, margins), alignment: .natural, spacingAfter: 13)
+                }
+            }
+            return url
+        } catch {
+            appLog.error("Book of You PDF render failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    private static let ink = UIColor(red: 0.13, green: 0.10, blue: 0.08, alpha: 1)
+    private static let accent = UIColor(red: 0.48, green: 0.23, blue: 0.12, alpha: 1)
+    private static let paperTop = UIColor(red: 0.96, green: 0.91, blue: 0.80, alpha: 1)
+    private static let paperBottom = UIColor(red: 0.82, green: 0.72, blue: 0.58, alpha: 1)
+    private static let bodyFont = UIFont.serifFont(ofSize: 12.4, weight: .regular)
+
+    private static func beginPage(
+        _ context: UIGraphicsPDFRendererContext,
+        bounds: CGRect,
+        margins: UIEdgeInsets,
+        title: String
+    ) -> CGFloat {
+        context.beginPage()
+        guard let cg = UIGraphicsGetCurrentContext() else { return margins.top }
+        let colors = [paperTop.cgColor, paperBottom.cgColor] as CFArray
+        if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) {
+            cg.drawLinearGradient(
+                gradient,
+                start: CGPoint(x: bounds.midX, y: bounds.minY),
+                end: CGPoint(x: bounds.midX, y: bounds.maxY),
+                options: []
+            )
+        }
+
+        drawCentered(
+            "Made with ReEnchanted \u{00B7} reenchanted.app",
+            font: .systemFont(ofSize: 8.5, weight: .semibold),
+            color: ink.withAlphaComponent(0.50),
+            y: bounds.height - 42,
+            in: bounds,
+            tracking: 0
+        )
+        (String(title.prefix(68)).uppercased() as NSString).draw(
+            at: CGPoint(x: margins.left, y: 32),
+            withAttributes: [
+                .font: UIFont.systemFont(ofSize: 7.5, weight: .semibold),
+                .foregroundColor: ink.withAlphaComponent(0.38)
+            ]
+        )
+        return margins.top
+    }
+
+    private static func bodyChunks(from body: String) -> [String] {
+        body.components(separatedBy: "\n\n")
+            .flatMap { paragraph -> [String] in
+                let trimmed = paragraph.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return [] }
+                let words = trimmed.split(separator: " ")
+                guard words.count > 95 else { return [trimmed] }
+                return stride(from: 0, to: words.count, by: 95).map { start in
+                    words[start..<min(start + 95, words.count)].joined(separator: " ")
+                }
+            }
+    }
+
+    private static func contentWidth(_ bounds: CGRect, _ margins: UIEdgeInsets) -> CGFloat {
+        bounds.width - margins.left - margins.right
+    }
+
+    private static func measuredHeight(_ text: String, font: UIFont, width: CGFloat) -> CGFloat {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = 3.6
+        let attributed = NSAttributedString(string: text, attributes: [
+            .font: font,
+            .paragraphStyle: paragraph
+        ])
+        return attributed.boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        ).integral.height + 5
+    }
+
+    private static func drawWrapped(
+        _ text: String,
+        font: UIFont,
+        color: UIColor,
+        x: CGFloat,
+        y: CGFloat,
+        width: CGFloat,
+        alignment: NSTextAlignment,
+        spacingAfter: CGFloat
+    ) -> CGFloat {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = 3.6
+        paragraph.alignment = alignment
+        let attributed = NSAttributedString(string: text, attributes: [
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraph
+        ])
+        let height = attributed.boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        ).integral.height + 5
+        attributed.draw(in: CGRect(x: x, y: y, width: width, height: height))
+        return y + height + spacingAfter
+    }
+
+    private static func drawCentered(
+        _ text: String,
+        font: UIFont,
+        color: UIColor,
+        y: CGFloat,
+        in bounds: CGRect,
+        tracking: CGFloat
+    ) {
+        let attributed = NSAttributedString(string: text, attributes: [
+            .font: font,
+            .foregroundColor: color,
+            .kern: tracking
+        ])
+        let size = attributed.size()
+        attributed.draw(at: CGPoint(x: bounds.midX - size.width / 2, y: y))
+    }
+
+    private static func drawRule(y: CGFloat, bounds: CGRect, margins: UIEdgeInsets) {
+        accent.withAlphaComponent(0.42).setFill()
+        UIBezierPath(rect: CGRect(x: margins.left + 80, y: y, width: bounds.width - margins.left - margins.right - 160, height: 1.2)).fill()
+    }
+
+    private static func renderedDirectory() throws -> URL {
+        let baseURL = InsideCoverStore.containerURL
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let directory = baseURL.appendingPathComponent("BookOfYouPDFs", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+}
+
+private extension UIFont {
+    static func serifFont(ofSize size: CGFloat, weight: UIFont.Weight) -> UIFont {
+        let descriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .body)
+            .withDesign(.serif)?
+            .addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: weight]])
+        return descriptor.map { UIFont(descriptor: $0, size: size) } ?? .systemFont(ofSize: size, weight: weight)
+    }
+
+    static func serifItalicFont(ofSize size: CGFloat) -> UIFont {
+        let descriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .body)
+            .withDesign(.serif)?
+            .withSymbolicTraits(.traitItalic)
+        return descriptor.map { UIFont(descriptor: $0, size: size) } ?? .italicSystemFont(ofSize: size)
+    }
+}
+#endif
 
 struct SurfaceCard: View {
     let surface: SurfacePage
@@ -2708,6 +3082,143 @@ struct SwipeDismissSurfaceCard: View {
     }
 }
 
+struct SwipeDismissBookOfYouHero<Content: View>: View {
+    let content: Content
+    let onDismiss: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dragOffset: CGFloat = 0
+    @State private var isTucking = false
+
+    private let dismissThreshold: CGFloat = 96
+    private let horizontalDragRatio: CGFloat = 1.6
+    private let waxDeep = Color(red: 0.24, green: 0.06, blue: 0.08)
+    private let waxRed = Color(red: 0.42, green: 0.13, blue: 0.13)
+
+    init(@ViewBuilder content: () -> Content, onDismiss: @escaping () -> Void) {
+        self.content = content()
+        self.onDismiss = onDismiss
+    }
+
+    private var dragProgress: CGFloat {
+        min(1, abs(min(0, dragOffset)) / dismissThreshold)
+    }
+
+    private var tiltDegrees: Double {
+        guard !reduceMotion else { return 0 }
+        let base = Double(dragProgress) * 2.5
+        return isTucking ? base + 5 : base
+    }
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            marginReveal
+
+            content
+                .scaleEffect(reduceMotion ? 1 : (isTucking ? 0.92 : 1 - dragProgress * 0.025), anchor: .bottomLeading)
+                .rotationEffect(.degrees(-tiltDegrees), anchor: .bottomLeading)
+                .offset(x: dragOffset)
+                .overlay(alignment: .topTrailing) {
+                    Button {
+                        onDismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(BookPalette.nightText.opacity(0.48))
+                            .padding(10)
+                    }
+                    .buttonStyle(.bookPress())
+                    .accessibilityLabel("Dismiss Book of You preview")
+                }
+                .overlay(alignment: .trailing) {
+                    SwipeDismissHandle()
+                        .padding(.trailing, 2)
+                        .gesture(
+                            DragGesture(minimumDistance: 26)
+                                .onChanged(handleDragChanged)
+                                .onEnded(handleDragEnded)
+                        )
+                }
+        }
+        .accessibilityHint("Use the close button or small right-edge tab to dismiss this preview.")
+    }
+
+    private var marginReveal: some View {
+        let sealed = dragProgress > 0.75 || isTucking
+        return HStack {
+            Spacer()
+            VStack(spacing: 6) {
+                Image(systemName: sealed ? "seal.fill" : "seal")
+                    .font(.title3.weight(.bold))
+                    .rotationEffect(.degrees(reduceMotion ? 0 : Double(dragProgress) * -12))
+                Text("Shelve preview")
+                    .font(.caption.weight(.bold))
+            }
+            .foregroundStyle(BookPalette.page.opacity(0.9))
+            .scaleEffect(reduceMotion ? 1 : 0.84 + dragProgress * 0.2)
+            .shadow(color: .black.opacity(0.4), radius: 3, y: 1)
+            .padding(.trailing, 26)
+        }
+        .frame(maxWidth: .infinity, minHeight: 176)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [waxDeep, waxRed],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.22 + dragProgress * 0.3), lineWidth: 1)
+        }
+        .opacity(reduceMotion ? 1 : 0.3 + dragProgress * 0.7)
+    }
+
+    private func handleDragChanged(_ value: DragGesture.Value) {
+        guard isDeliberateHorizontalDismiss(value) else {
+            dragOffset = 0
+            return
+        }
+        dragOffset = min(0, value.translation.width)
+    }
+
+    private func handleDragEnded(_ value: DragGesture.Value) {
+        guard isDeliberateHorizontalDismiss(value) else {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                dragOffset = 0
+            }
+            return
+        }
+
+        let shouldDismiss = value.translation.width < -dismissThreshold || value.predictedEndTranslation.width < -dismissThreshold * 1.4
+        if shouldDismiss {
+            withAnimation(.easeIn(duration: 0.26)) {
+                dragOffset = -520
+                isTucking = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                onDismiss()
+                dragOffset = 0
+                isTucking = false
+            }
+        } else {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                dragOffset = 0
+            }
+        }
+    }
+
+    private func isDeliberateHorizontalDismiss(_ value: DragGesture.Value) -> Bool {
+        let horizontal = abs(value.translation.width)
+        let vertical = abs(value.translation.height)
+        return value.translation.width < 0 && horizontal > vertical * horizontalDragRatio
+    }
+}
+
 private struct SwipeDismissHandle: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hinting = false
@@ -3074,6 +3585,21 @@ struct FragmentRow: View {
         PageVisualStyle.style(for: page.type)
     }
 
+    private var isScrapbookPage: Bool {
+        page.tags.contains("scrapbook") || page.tags.contains("pagewright")
+    }
+
+    private var displayTitle: String {
+        guard isScrapbookPage else { return page.type.title }
+        return page.promptText.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Scrapbook Page"
+    }
+
+    private var thumbnailAsset: BookPageMediaAsset? {
+        page.pagewrightPreviewImageAsset
+            ?? page.mediaAssets.first { !$0.isPagewrightPDF }
+            ?? page.mediaAssets.first
+    }
+
     var body: some View {
         ZStack(alignment: .trailing) {
             HStack {
@@ -3094,7 +3620,7 @@ struct FragmentRow: View {
             }
 
             HStack(alignment: .top, spacing: 12) {
-                if let mediaAsset = page.mediaAssets.first {
+                if let mediaAsset = thumbnailAsset {
                     BookOfYouMediaThumbnail(asset: mediaAsset, width: 56, height: 48)
                 } else {
                     Image(systemName: page.type.symbolName)
@@ -3104,7 +3630,7 @@ struct FragmentRow: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(page.type.title)
+                    Text(displayTitle)
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(BookPalette.ink)
                     Text(fragmentText)
@@ -3157,6 +3683,11 @@ struct FragmentRow: View {
 
     private var fragmentText: String {
         let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if isScrapbookPage {
+            let note = text.components(separatedBy: "\n\nScraps bound here:").first?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return note?.nonEmpty ?? "A kept scrapbook page. Tap to preview the plate."
+        }
         return text.isEmpty ? page.promptText : text
     }
 
@@ -4565,7 +5096,7 @@ struct PageVisualStyle {
                 watermarkMarginalia: "IlluminationScrapS02_13",
                 watermarkOpacity: 0.05
             )
-        case .diary:
+        case .diary, .note:
             return PageVisualStyle(
                 accent: Color(red: 0.42, green: 0.31, blue: 0.54),
                 symbolColor: Color(red: 0.42, green: 0.31, blue: 0.54),
@@ -5931,6 +6462,7 @@ struct OnboardingFlowView: View {
         var tastePreference: String
         var comfortBoundary: String
         var whisperCadence: String
+        var confirmedWagers: [String]
     }
 
     let onGlowUnlocked: () -> Void
@@ -5978,6 +6510,9 @@ struct OnboardingFlowView: View {
     @State private var tastePreference = ""
     @State private var comfortBoundary = ""
     @State private var whisperCadence = ""
+    // Night-one wagers the reader tapped to confirm — the Barnum beat, kept
+    // honest by paying off later as receipts in First Reading.
+    @State private var confirmedWagers: Set<String> = []
     @State private var benefitChecklistVisibleCount = 0
     @State private var firstPressText = ""
     @State private var selectedFirstPressPresetID: String?
@@ -7036,6 +7571,7 @@ struct OnboardingFlowView: View {
                 body: "Characters give your real actions social gravity. They ask, disagree, remember, and make ordinary choices feel worth noticing."
             )
             onboardingCastGlimpse
+            onboardingWagerBeat
             continueButton("Meet the morning")
         case 10:
             onboardingTitle("Wicker Interrupts")
@@ -7143,6 +7679,11 @@ struct OnboardingFlowView: View {
                 symbol: "rectangle.stack",
                 title: "What you just built",
                 body: "You gave the Book enough real material to begin: details, preference, belief, image, choice, and one memory hook. Next it starts paying that back as pages, returns, Compass prompts, and a Book of You."
+            )
+            onboardingBenefitCard(
+                symbol: "moon.stars",
+                title: "Your first appointment",
+                body: "Keep a few pages through the day — real or made-up, both count. This evening, once the light goes low, the Book braids them into your first Book of You. Come back and read the story it made of your day. Early bird? It'll be ready from six."
             )
             onboardingFirstBindingInvite
             continueButton("Step into your story")
@@ -9521,6 +10062,90 @@ struct OnboardingFlowView: View {
         }
     }
 
+    /// The three wagers for this reader — stable per install so the payoff can
+    /// name exactly what was guessed.
+    private var onboardingWagers: [FirstWagers.Wager] {
+        FirstWagers.three(seed: name.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "reader")
+    }
+
+    /// The Barnum beat, made honest: the Book ventures three guesses before it
+    /// has read a page, framed as wagers. Tapping one lets it stand; each
+    /// confirmed guess is kept and paid off later as a receipt.
+    private var onboardingWagerBeat: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles.rectangle.stack")
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(BookPalette.lampGold)
+                    .frame(width: 26, height: 26)
+                    .background(BookPalette.nightPanel.opacity(0.88), in: Circle())
+                Text("Three guesses, before I've read a page of you")
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(BookPalette.ink.opacity(0.74))
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+
+            Text("\"Let me wager,\" the Book says, quieter than Zara. \"I have not read a word you've kept yet, so these are only guesses. Tap the ones that land. I'll remember the bets — and one day I'll show you where you proved me right.\"")
+                .font(.system(.callout, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.66))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 8) {
+                ForEach(onboardingWagers) { wager in
+                    let confirmed = confirmedWagers.contains(wager.id)
+                    Button {
+                        isOnboardingFieldFocused = false
+                        withAnimation(.spring(response: 0.34, dampingFraction: 0.76)) {
+                            if confirmed {
+                                confirmedWagers.remove(wager.id)
+                            } else {
+                                confirmedWagers.insert(wager.id)
+                            }
+                        }
+                        BookFeedback.play(.select)
+                    } label: {
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: confirmed ? "checkmark.seal.fill" : "seal")
+                                .font(.title3.weight(.bold))
+                                .foregroundStyle(confirmed ? BookPalette.lampGold : BookPalette.ink.opacity(0.4))
+                                .padding(.top, 1)
+                            Text(wager.guess)
+                                .font(.system(.callout, design: .serif))
+                                .foregroundStyle(BookPalette.ink.opacity(confirmed ? 0.9 : 0.72))
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(13)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(confirmed ? BookPalette.lampGold.opacity(0.13) : BookPalette.page.opacity(0.52), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke((confirmed ? BookPalette.lampGold : BookPalette.lampGold.opacity(0.18)), lineWidth: confirmed ? 1.3 : 1)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(confirmed ? .isSelected : [])
+                }
+            }
+
+            Text(confirmedWagers.isEmpty
+                 ? "None yet? That's an answer too. Guessing is the Book's job, not yours."
+                 : "The Book seals \(confirmedWagers.count == 1 ? "that bet" : "those bets"). It will not forget \(confirmedWagers.count == 1 ? "it" : "them").")
+                .font(.footnote.weight(.bold))
+                .foregroundStyle(BookPalette.ink.opacity(0.6))
+                .fixedSize(horizontal: false, vertical: true)
+                .animation(.easeInOut(duration: 0.25), value: confirmedWagers)
+        }
+        .padding(12)
+        .background(BookPalette.page.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.2), lineWidth: 1)
+        }
+        .padding(.top, 10)
+    }
+
     private var onboardingChapterAffinityPicker: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
@@ -10028,6 +10653,16 @@ struct OnboardingFlowView: View {
         let whisperLine = whisperCadence == "inside"
             ? "The brass bell closed itself without complaint. The Book will keep its voice inside the covers."
             : "The brass bell learned your first preference: \(whisperTitle.lowercased()). It will ask the system politely before it speaks outside the app."
+        let confirmedCount = onboardingWagers.map(\.id).filter(confirmedWagers.contains).count
+        let wagerLine: String
+        switch confirmedCount {
+        case 0:
+            wagerLine = "The Book made three guesses about you before reading a page, and you let it keep them all to itself. Fair. It intends to earn them."
+        case 1:
+            wagerLine = "The Book made three guesses about you before reading a page. You let one of them stand. It has written that bet down, and means to show you where you prove it right."
+        default:
+            wagerLine = "The Book made three guesses about you before reading a page. You let \(confirmedCount == 3 ? "all three" : "two") stand — and it has written the bets down, to be paid back later in your own words."
+        }
 
         return """
         Zara turns the blank page toward you, and for the first time it writes without asking a question.
@@ -10041,6 +10676,8 @@ struct OnboardingFlowView: View {
         \(chapterLine)
 
         \(wickerBraidLine)
+
+        \(wagerLine)
 
         By the time the cast noticed, the Book had learned a first appetite: \(tasteTitle.lowercased()). It also learned an edge: \(comfortTitle.lowercased()). \(whisperLine)
 
@@ -10779,7 +11416,9 @@ struct OnboardingFlowView: View {
             wickerRollSucceeded: wickerOutcome?.succeeded ?? false,
             tastePreference: trimmedTaste.nonEmpty ?? (useDefaults ? "cozy" : ""),
             comfortBoundary: trimmedComfort.nonEmpty ?? (useDefaults ? "balanced" : ""),
-            whisperCadence: trimmedWhisper.nonEmpty ?? (useDefaults ? "inside" : "")
+            whisperCadence: trimmedWhisper.nonEmpty ?? (useDefaults ? "inside" : ""),
+            // Skipping onboarding leaves the Book its own guesses; only real taps count.
+            confirmedWagers: useDefaults ? [] : onboardingWagers.map(\.id).filter(confirmedWagers.contains)
         )
     }
 }

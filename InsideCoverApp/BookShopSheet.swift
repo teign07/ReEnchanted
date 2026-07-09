@@ -27,6 +27,10 @@ struct BookShopSheet: View {
     var onMarkNextMarket: () -> Void = {}
 
     // The Bindery shelf: sew a finished month (or year) into a keepable chapter.
+    var binderyWeeklyIssueLabel: String = ""
+    var binderyWeeklyIssuePageCount: Int = 0
+    var preparedWeeklyIssueCardURL: URL? = nil
+    var preparedWeeklyIssuePDFURL: URL? = nil
     var binderyMonthLabel: String = ""
     var binderyMonthPageCount: Int = 0
     var preparedMonthlyEditionURL: URL? = nil
@@ -35,6 +39,7 @@ struct BookShopSheet: View {
     var preparedPrintInteriorURL: URL? = nil
     var preparedPrintCoverURL: URL? = nil
     var printPreviewEdition: MonthlyEdition? = nil
+    var onBindWeeklyIssue: () -> Void = {}
     var onBindMonth: () -> Void = {}
     var onBindMonthGemma: () -> Void = {}
     var onBindYear: () -> Void = {}
@@ -531,6 +536,58 @@ struct BookShopSheet: View {
             accent: BookPalette.lampGold
         ) {
             VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .center, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(binderyWeeklyIssuePageCount > 0 ? binderyWeeklyIssueLabel : "No weekly issue yet")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(BookPalette.ink)
+                        Text(binderyWeeklyIssuePageCount > 0
+                             ? "\(binderyWeeklyIssuePageCount) \(binderyWeeklyIssuePageCount == 1 ? "page" : "pages") gathered into this issue"
+                             : "A closed week with enough kept pages becomes a small PDF issue.")
+                            .font(.caption2)
+                            .foregroundStyle(BookPalette.ink.opacity(0.6))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    if let preparedWeeklyIssueCardURL {
+                        VStack(alignment: .trailing, spacing: 6) {
+                            ShareLink(item: preparedWeeklyIssueCardURL) {
+                                Label("Share card", systemImage: "square.and.arrow.up")
+                                    .font(.caption2.weight(.bold))
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(BookPalette.teal)
+                            if let preparedWeeklyIssuePDFURL {
+                                ShareLink(item: preparedWeeklyIssuePDFURL) {
+                                    Label("Full PDF", systemImage: "doc.richtext")
+                                        .font(.caption2.weight(.bold))
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(BookPalette.lampGold)
+                            }
+                        }
+                    } else if let preparedWeeklyIssuePDFURL {
+                        ShareLink(item: preparedWeeklyIssuePDFURL) {
+                            Label("Share PDF", systemImage: "doc.richtext")
+                                .font(.caption2.weight(.bold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(BookPalette.teal)
+                    } else if binderyWeeklyIssuePageCount > 0 {
+                        Button {
+                            BookFeedback.play(.openPage)
+                            onBindWeeklyIssue()
+                        } label: {
+                            Label("Bind issue", systemImage: "doc.richtext")
+                                .font(.caption2.weight(.bold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(BookPalette.teal)
+                    }
+                }
+
+                Divider().overlay(BookPalette.ink.opacity(0.12))
+
                 HStack(alignment: .center, spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(binderyMonthPageCount > 0 ? binderyMonthLabel : "No finished month yet")
@@ -3010,7 +3067,7 @@ private extension UIViewController {
 /// A disclosure-forward, four-page subscription walkthrough — a contract letter
 /// from the Bindery rather than an ad in a box. Free capabilities first, then
 /// what the Standing Order adds, then the three cadences (weekly/monthly/annual,
-/// each with a 3-day free trial), then the terms in plain ink with exact dates,
+/// each with a 10-day free trial), then the terms in plain ink with exact dates,
 /// a cancel path, and Restore. Reuses `BookShopTill`/`StoreKitMerchant` so a tap
 /// runs the same purchase + entitlement path as the goblin market.
 struct StandingOrderSheet: View {
@@ -3212,7 +3269,7 @@ struct StandingOrderSheet: View {
 
     private var plansPage: some View {
         VStack(alignment: .leading, spacing: 14) {
-            pageTitle("Choose your cadence.", subtitle: "Every plan is the same Standing Order, and every plan starts with a 3-day free trial.")
+            pageTitle("Choose your cadence.", subtitle: "Every plan is the same Standing Order, and every plan starts with a 10-day free trial.")
 
             ForEach(tiers) { tier in
                 tierCard(tier)
@@ -3262,7 +3319,7 @@ struct StandingOrderSheet: View {
                                 .background(BookPalette.lampGold, in: Capsule())
                         }
                     }
-                    Text("3-day free trial, then \(priceText(for: tier)) / \(tier.periodUnit)")
+                    Text("\(trialDays(for: tier))-day free trial, then \(priceText(for: tier)) / \(tier.periodUnit)")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(BookPalette.nightText.opacity(0.74))
                 }

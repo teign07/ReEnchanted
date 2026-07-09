@@ -39,6 +39,21 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFaeFiFaeFi.m4a").path))
     }
 
+    func testFaeFiIncludesImportedPennyBanterBatch() throws {
+        let station = try XCTUnwrap(RadioStationRegistry.station(id: "fae-fi"))
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
+
+        for index in 1...10 {
+            let suffix = String(format: "%02d", index)
+            let banter = try XCTUnwrap(station.banters?.first { $0.id == "faefi-penny-banter-\(suffix)" })
+
+            XCTAssertNil(banter.conditions)
+            XCTAssertEqual(banter.assetName, "DJ_faefi_penny_banter_\(suffix)")
+            XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_faefi_penny_banter_\(suffix).m4a").path))
+        }
+    }
+
     func testMothlightCatalogIncludesInTheStory() throws {
         let station = try XCTUnwrap(RadioStationRegistry.station(id: "mothlight-beats"))
         let track = try XCTUnwrap(station.tracks.first { $0.id == "mothlight-in-the-story" })
@@ -70,6 +85,21 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioMothlightTalesEnd.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioMothlightBookJumping.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioMothlightPorchlightFading.m4a").path))
+    }
+
+    func testMothlightIncludesImportedEuphonyBanterBatch() throws {
+        let station = try XCTUnwrap(RadioStationRegistry.station(id: "mothlight-beats"))
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
+
+        for index in 1...12 {
+            let suffix = String(format: "%02d", index)
+            let banter = try XCTUnwrap(station.banters?.first { $0.id == "mothlight-euphony-banter-\(suffix)" })
+
+            XCTAssertNil(banter.conditions)
+            XCTAssertEqual(banter.assetName, "DJ_mothlight_euphony_banter_\(suffix)")
+            XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_mothlight_euphony_banter_\(suffix).m4a").path))
+        }
     }
 
     func testThornwaveCatalogIncludesNewestTracks() throws {
@@ -105,6 +135,11 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertEqual(velvetArrears.assetName, "RadioThornwaveVelvetArrears")
         XCTAssertEqual(velvetArrears.durationSeconds, 233)
 
+        let goblinMarket = try XCTUnwrap(station.tracks.first { $0.id == "thornwave-goblin-market" })
+        XCTAssertEqual(goblinMarket.title, "Goblin Market")
+        XCTAssertEqual(goblinMarket.assetName, "RadioThornwaveGoblinMarket")
+        XCTAssertEqual(goblinMarket.durationSeconds, 158)
+
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioThornwaveLongTitlesInTheDark.m4a").path))
@@ -112,6 +147,22 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioThornwaveNoConflictNoStory.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioThornwaveMagicMargins.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioThornwaveVelvetArrears.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioThornwaveGoblinMarket.m4a").path))
+    }
+
+    func testThornwaveIncludesImportedWickerBanterBatch() throws {
+        let station = try XCTUnwrap(RadioStationRegistry.station(id: "thornwave"))
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
+
+        for index in 1...18 {
+            let suffix = String(format: "%02d", index)
+            let banter = try XCTUnwrap(station.banters?.first { $0.id == "thornwave-wicker-banter-\(suffix)" })
+
+            XCTAssertNil(banter.conditions)
+            XCTAssertEqual(banter.assetName, "DJ_thornwave_wicker_banter_\(suffix)")
+            XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("DJ_thornwave_wicker_banter_\(suffix).m4a").path))
+        }
     }
 
     func testAliveSelectionVariesAndAvoidsImmediateRepeats() {

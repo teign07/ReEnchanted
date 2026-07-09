@@ -447,7 +447,7 @@ enum TheBleedEditionBuilder {
             prompt: announcement.payload.metadata["bleedEditionKind"] == BleedEditionKind.morning.rawValue
                 ? "The Morning Edition, unfolded."
                 : "The Evening Edition, unfolded.",
-            detail: "Read by lamplight; keep what deserves the archive.",
+            detail: "Read it by lamplight, and keep the bits that feel too good to lose.",
             payload: BookPagePayload(
                 headline: announcement.payload.headline,
                 body: body,

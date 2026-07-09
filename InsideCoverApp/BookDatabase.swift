@@ -34,9 +34,23 @@ enum BookDatabase {
         return try work()
     }
 
-    static func loadDays(migratingFrom legacyDays: [BookDay]) -> [BookDay] {
+    static func loadDays(migratingFrom legacyDays: @autoclosure () -> [BookDay]) -> [BookDay] {
         refreshDatabaseIfNeeded()
-        return database.loadDays(migratingFrom: legacyDays)
+        return database.loadDays(migratingFrom: legacyDays())
+    }
+
+    /// A private handle for work that must stay off the main actor (launch
+    /// hydration, foreground reloads, Siri/Spotlight entity queries, braid
+    /// context building). The caller owns the instance, so the main actor's
+    /// shared one is never touched from another thread. Test store overrides
+    /// don't apply here — this always reads the real store.
+    nonisolated static func detachedDatabase() -> BookArchiveDatabase {
+        BookArchiveDatabase(storeURL: resolvedStoreURL())
+    }
+
+    /// One-shot read of the archive for off-main callers.
+    nonisolated static func loadDaysDetached() -> [BookDay] {
+        detachedDatabase().loadDays(migratingFrom: BookStore.loadDays())
     }
 
     static func saveDays(_ days: [BookDay]) throws {
@@ -151,7 +165,7 @@ enum BookDatabase {
         }
     }
 
-    private static func resolvedStoreURL() -> URL {
+    nonisolated private static func resolvedStoreURL() -> URL {
         let baseURL = InsideCoverStore.containerURL
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return baseURL.appendingPathComponent(storeFileName)

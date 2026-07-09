@@ -74,7 +74,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./styles.css?v=26">
+    <link rel="stylesheet" href="./styles.css?v=28">
   </head>
   <body>
     <canvas id="spell-field" aria-hidden="true"></canvas>
@@ -175,15 +175,33 @@
       <!-- ───────────────────────── HERO ───────────────────────── -->
       <section class="hero">
         <div class="hero-copy">
-          <p class="hero-problem">
-            <span class="hero-problem-line">
-              Same alarm. Same boring hours. Another night asking
-              "what did I even do today?" - nothing that felt worth remembering.
-            </span>
-            <span class="hero-problem-belief">Your life isn't actually that forgettable…</span>
-          </p>
+          <div class="book-address" id="book-address">
+            <p class="address-line address-greeting" data-address="greeting">Oh. Hello. A reader — a real one.</p>
+            <p class="address-line" data-address="noticing">You came quietly, the way the best ones do.</p>
+            <p class="address-line" data-address="problem">
+              You think today was nothing. Same alarm, same hours - another day
+              already deciding it isn't worth writing down.
+            </p>
+            <p class="address-line" data-address="absolution">
+              Every journal you abandoned let you believe that was your fault.
+              It wasn't. Blank pages are rude. Nobody should have to start a story alone.
+            </p>
+            <p class="address-line address-vow" data-address="vow">
+              The days you don't keep don't disappear. They go somewhere neither
+              of us can read. I don't want this one going there.
+            </p>
+            <div class="address-honesty" id="address-honesty" hidden>
+              <p class="address-honesty-copy" id="address-honesty-copy">
+                I only know little things from here - the clock, the moon, the
+                shape of your window. I could ask the air for your sky too: once,
+                then let the facts go. May I?
+              </p>
+              <button type="button" class="address-sky-btn" id="address-sky-btn">Read my sky ✦</button>
+              <p class="address-sky-reading" id="address-sky-reading" aria-live="polite" hidden></p>
+            </div>
+            <p class="address-whisper" id="address-whisper" aria-live="polite" hidden></p>
+          </div>
           <p class="eyebrow">A living book for ordinary days</p>
-          <p class="return-note" id="return-note" role="status" hidden></p>
           <h1>Real Life,<br><span class="accent">ReEnchanted</span></h1>
           <p class="hero-tagline">Play with Pages. <span>Keep Some.</span> Read Your Story.</p>
           <p class="hero-lede">
@@ -204,7 +222,7 @@
             <li>Open source</li>
             <li>Private</li>
             <li>Local - No Cloud</li>
-            <li class="trust-privacy">We cannot read your book</li>
+            <li class="trust-privacy">We can't read your book</li>
             <li>No Accounts</li>
             <li>iPhone &amp; iPad</li>
           </ul>
@@ -233,8 +251,21 @@
         </div>
       </section>
 
+      <div class="hero-waitlist">
+        <form class="email-capture" data-source="hero-bridge" action="https://buttondown.com/api/emails/embed-subscribe/potions" method="post">
+          <label class="sr-only" for="email-hero-bridge">Your email for the TestFlight invite</label>
+          <div class="email-row">
+            <input id="email-hero-bridge" class="email-input" type="email" name="email" required
+                   autocomplete="email" placeholder="you@example.com">
+            <button class="button primary email-submit" type="submit">Join the waitlist ✦</button>
+          </div>
+          <p class="email-consent">One email when the doors open. Nothing else. Unsubscribe anytime.</p>
+          <p class="email-status" role="status" aria-live="polite" hidden></p>
+        </form>
+      </div>
+
       <p class="hero-bridge-quote">
-        "A free iPhone journal that turns your ordinary life into a fantasy book."
+        "A free iPhone journal that turns your everyday life into a fantasy book."
       </p>
 
       <!-- ──────────────────── HOW IT WORKS ──────────────────── -->
@@ -1382,7 +1413,7 @@
       <section id="privacy" class="privacy-section" data-drawer>
         <div class="privacy-copy">
           <p class="eyebrow">Real device magic</p>
-          <h2>We cannot read your book.</h2>
+          <h2>We can't read your book.</h2>
           <p>
             The most personal app on your phone shouldn't feel like a surveillance product.
             ReEnchanted has no account system and no private cloud for your pages.
@@ -1392,7 +1423,7 @@
           <ul class="privacy-list">
             <li>Open-source code (MPL-2.0) - read, audit, or fork the engine</li>
             <li>Local-first memory - private material stays on device, not our servers</li>
-            <li>On-device local brain - page generation does not send your writing to us</li>
+            <li>On-device local brain - page generation doesn't send your writing to us</li>
             <li>Explicit, revocable permissions for every source</li>
             <li>Export your archive any time</li>
           </ul>
@@ -1640,6 +1671,6 @@
         });
       })();
     </script>
-    <script src="./app.js?v=52"></script>
+    <script src="./app.js?v=56"></script>
   </body>
 </html>

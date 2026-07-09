@@ -6,11 +6,25 @@ import PhotosUI
 // Each struct boundary resets SwiftUI's generic type nesting (the cause of
 // the sheet-presentation segfault) and keeps the sheet's state surface small.
 
+struct ChapterBindingAcceptance: Equatable {
+    var chapterID: String
+    var chapterName: String = ""
+    var sealLine: String = ""
+    var oathLine: String = ""
+    var invitationLine: String = ""
+    var aftermathLine: String = ""
+}
+
 struct ChapterBindingFormView: View {
     let surface: SurfacePage
-    let onBindChapter: (String) -> Void
+    let onBindChapter: (ChapterBindingAcceptance) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var ceremonyIsAwake = false
+    @State private var celebrationBurst = false
+    @State private var isAcceptingBinding = false
+    @State private var didPlayReveal = false
 
     private var chosenChapter: AcademyChapter? {
         AcademyChapterRegistry.chapter(id: surface.payload.metadata["chosenChapterID"] ?? "")
@@ -32,6 +46,47 @@ struct ChapterBindingFormView: View {
 
     private var ceremony: ChapterBindingCeremonyProfile {
         ChapterBindingCeremonyProfile(chapterID: chosenChapter?.id)
+    }
+
+    private var acceptance: ChapterBindingAcceptance? {
+        guard let chapter = chosenChapter else { return nil }
+        let sharedCeremony = ChapterBindingCeremony.profile(for: chapter)
+        return ChapterBindingAcceptance(
+            chapterID: chapter.id,
+            chapterName: chapter.name,
+            sealLine: surface.payload.metadata["bindingSealLine"]?.nonEmpty ?? sharedCeremony.sealLine,
+            oathLine: surface.payload.metadata["bindingOathLine"]?.nonEmpty ?? sharedCeremony.oathLine,
+            invitationLine: surface.payload.metadata["bindingInvitationLine"]?.nonEmpty ?? sharedCeremony.invitationLine,
+            aftermathLine: surface.payload.metadata["bindingAftermathLine"]?.nonEmpty ?? sharedCeremony.aftermathLine
+        )
+    }
+
+    private func revealCeremony() {
+        guard !didPlayReveal else { return }
+        didPlayReveal = true
+        BookFeedback.chapterBindingReveal()
+        let animation: Animation = reduceMotion
+            ? .easeOut(duration: 0.2)
+            : .spring(response: 0.55, dampingFraction: 0.74)
+        withAnimation(animation.delay(0.08)) {
+            ceremonyIsAwake = true
+            celebrationBurst = true
+        }
+    }
+
+    private func acceptBinding() {
+        guard let acceptance, !isAcceptingBinding else { return }
+        BookFeedback.chapterBindingAccepted()
+        let animation: Animation = reduceMotion
+            ? .easeOut(duration: 0.16)
+            : .spring(response: 0.42, dampingFraction: 0.68)
+        withAnimation(animation) {
+            isAcceptingBinding = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.24 : 0.78)) {
+            onBindChapter(acceptance)
+            dismiss()
+        }
     }
 
     var body: some View {
@@ -57,6 +112,12 @@ struct ChapterBindingFormView: View {
                                 }
                                 .clipped()
                             }
+
+                        ChapterBindingCelebrationBurst(
+                            accent: ceremony.accent,
+                            isExpanded: celebrationBurst,
+                            reduceMotion: reduceMotion
+                        )
 
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(alignment: .center, spacing: 10) {
@@ -84,6 +145,9 @@ struct ChapterBindingFormView: View {
                         }
                         .padding(16)
                     }
+                    .scaleEffect(ceremonyIsAwake ? 1 : 0.97)
+                    .opacity(ceremonyIsAwake ? 1 : 0.88)
+                    .animation(.spring(response: 0.55, dampingFraction: 0.74), value: ceremonyIsAwake)
 
                     Text("Headmistress Thorne cups the air around the page, and somehow you feel the rings at your face: old ink, cool metal, the exact pressure of being read. The Great Hall fractures. Every kept page opens at once.")
                         .font(.callout)
@@ -122,6 +186,43 @@ struct ChapterBindingFormView: View {
                             .foregroundStyle(BookPalette.ink.opacity(0.62))
                             .fixedSize(horizontal: false, vertical: true)
                     }
+
+                    if let acceptance {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("The seal gives you work", systemImage: "seal.fill")
+                                .font(.caption.weight(.black))
+                                .textCase(.uppercase)
+                                .foregroundStyle(ceremony.accent)
+
+                            Text(acceptance.sealLine)
+                                .font(.callout.weight(.semibold))
+                                .foregroundStyle(BookPalette.ink.opacity(0.82))
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Text(acceptance.oathLine)
+                                .font(.system(.title3, design: .serif, weight: .bold))
+                                .foregroundStyle(BookPalette.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Divider()
+                                .overlay(ceremony.accent.opacity(0.35))
+
+                            Label("First Chapter invitation", systemImage: "sparkles")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(BookPalette.teal)
+                            Text(acceptance.invitationLine)
+                                .font(.callout)
+                                .foregroundStyle(BookPalette.ink.opacity(0.76))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(ceremony.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(ceremony.accent.opacity(0.28), lineWidth: 1)
+                        }
+                    }
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -150,25 +251,162 @@ struct ChapterBindingFormView: View {
             }
 
             Button {
-                guard let chapterID = chosenChapter?.id else { return }
-                BookFeedback.play(.braidStart)
-                onBindChapter(chapterID)
-                dismiss()
+                acceptBinding()
             } label: {
-                Label("Accept the Binding", systemImage: "seal")
+                Label(
+                    isAcceptingBinding
+                        ? "Sealing the Binding..."
+                        : (chosenChapter.map { "Accept \($0.name)'s Binding" } ?? "Accept the Binding"),
+                    systemImage: "seal.fill"
+                )
                     .font(.headline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
             }
             .buttonStyle(.borderedProminent)
             .tint(BookPalette.teal)
-            .disabled(chosenChapter == nil)
+            .disabled(chosenChapter == nil || isAcceptingBinding)
 
             Text("The binding is real: your Chapter tints how Story Pages meet you, and its talisman warms with your Belief. The Book chose from kept pages and invested Belief, not from a preference quiz.")
                 .font(.caption)
                 .foregroundStyle(BookPalette.ink.opacity(0.58))
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .overlay {
+            if isAcceptingBinding {
+                ChapterBindingAcceptedOverlay(
+                    chapterName: chosenChapter?.name ?? "Chapter",
+                    accent: ceremony.accent,
+                    reduceMotion: reduceMotion
+                )
+                .transition(.scale(scale: 0.92).combined(with: .opacity))
+            }
+        }
+        .onAppear {
+            revealCeremony()
+        }
+    }
+}
+
+private struct ChapterBindingCelebrationBurst: View {
+    let accent: Color
+    let isExpanded: Bool
+    let reduceMotion: Bool
+
+    private var palette: [Color] {
+        [accent, BookPalette.lampGold, BookPalette.gold, BookPalette.paper.opacity(0.95), .white.opacity(0.86)]
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                ForEach(0..<22, id: \.self) { index in
+                    let offset = particleOffset(index: index, size: proxy.size)
+                    Capsule(style: .continuous)
+                        .fill(palette[index % palette.count])
+                        .frame(
+                            width: index.isMultiple(of: 3) ? 5 : 3,
+                            height: index.isMultiple(of: 2) ? 24 : 15
+                        )
+                        .rotationEffect(.degrees(Double(index) * 23))
+                        .scaleEffect(isExpanded ? 0.58 : 0.34)
+                        .opacity(isExpanded ? 0 : 0.92)
+                        .offset(
+                            x: reduceMotion ? 0 : (isExpanded ? offset.width : 0),
+                            y: reduceMotion ? 0 : (isExpanded ? offset.height : 0)
+                        )
+                        .animation(
+                            reduceMotion
+                                ? .easeOut(duration: 0.18)
+                                : .easeOut(duration: 0.82).delay(Double(index) * 0.012),
+                            value: isExpanded
+                        )
+                }
+
+                ForEach(0..<3, id: \.self) { index in
+                    Circle()
+                        .stroke(accent.opacity(isExpanded ? 0 : 0.62), lineWidth: CGFloat(3 - index))
+                        .frame(width: isExpanded ? proxy.size.width * (0.42 + CGFloat(index) * 0.18) : 40)
+                        .animation(
+                            reduceMotion
+                                ? .easeOut(duration: 0.18)
+                                : .easeOut(duration: 0.72).delay(Double(index) * 0.06),
+                            value: isExpanded
+                        )
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .position(x: proxy.size.width / 2, y: proxy.size.height * 0.48)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func particleOffset(index: Int, size: CGSize) -> CGSize {
+        let angle = (Double(index) / 22.0) * Double.pi * 2.0
+        let radius = min(size.width, size.height) * (0.34 + CGFloat(index % 5) * 0.025)
+        return CGSize(
+            width: cos(angle) * radius,
+            height: sin(angle) * radius * 0.62
+        )
+    }
+}
+
+private struct ChapterBindingAcceptedOverlay: View {
+    let chapterName: String
+    let accent: Color
+    let reduceMotion: Bool
+
+    @State private var sealPressed = false
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [BookPalette.ink.opacity(0.78), accent.opacity(0.44)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            VStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(accent.opacity(0.24))
+                        .frame(width: sealPressed ? 118 : 86)
+                    Circle()
+                        .stroke(BookPalette.lampGold.opacity(0.82), lineWidth: 2)
+                        .frame(width: sealPressed ? 138 : 92)
+                    Image(systemName: "seal.fill")
+                        .font(.system(size: sealPressed ? 58 : 42, weight: .black))
+                        .foregroundStyle(BookPalette.lampGold)
+                        .shadow(color: accent.opacity(0.5), radius: 18)
+                }
+                .scaleEffect(sealPressed ? 1 : 0.72)
+
+                Text("\(chapterName) Bound")
+                    .font(.system(.title2, design: .serif, weight: .bold))
+                    .foregroundStyle(.white)
+                Text("The seal holds.")
+                    .font(.caption.weight(.bold))
+                    .textCase(.uppercase)
+                    .foregroundStyle(BookPalette.lampGold.opacity(0.88))
+            }
+            .padding(24)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .onAppear {
+            let animation: Animation = reduceMotion
+                ? .easeOut(duration: 0.12)
+                : .spring(response: 0.38, dampingFraction: 0.58)
+            withAnimation(animation) {
+                sealPressed = true
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(chapterName) Bound. The seal holds.")
     }
 }
 

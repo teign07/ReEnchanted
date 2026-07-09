@@ -199,6 +199,8 @@ struct SurfaceReadinessState: Codable, Equatable {
             return !hasNonEmptyMetadata("storyScene")
         case .gossip:
             return !hasNonEmptyMetadata("gossipProse")
+        case .note:
+            return !hasNonEmptyMetadata("noteProse")
         case .theBleed:
             return !hasNonEmptyMetadata("bleedProse")
         case .bookJump:
@@ -340,7 +342,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
         intent: BookPageIntent? = nil,
         renderStyle: BookPageRenderStyle = .promptCard,
         score: Int = 50,
-        reason: String = "The Book has room for this page.",
+        reason: String = "The Book has a little room for this page.",
         prompt: String,
         detail: String,
         payload: BookPagePayload? = nil
@@ -382,7 +384,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .reflect
         case .castBond:
             return .importReference
-        case .body, .fuel, .facultyResearch, .supportGuild, .weather, .letter, .academyClass, .bookConnections, .bookNotices, .glowInvitation, .theBleed, .todaysSky, .bookJump, .radio, .inventory, .gamePage:
+        case .body, .fuel, .facultyResearch, .supportGuild, .weather, .note, .letter, .academyClass, .bookConnections, .bookNotices, .glowInvitation, .theBleed, .todaysSky, .bookJump, .radio, .inventory, .gamePage:
             return .reflect
         case .elective:
             return .capture
@@ -482,9 +484,9 @@ extension SurfacePage {
             intent: .resurface,
             renderStyle: .illuminatedPhoto,
             score: 96,
-            reason: "Penny found a photo with ink on it.",
+            reason: "Penny found a photo with some ink hiding on it!",
             prompt: "Found in the Margins",
-            detail: "The Book found this in the camera roll and made it a page worth considering.",
+            detail: "The Book spotted this in your camera roll and turned it into a page worth a look.",
             payload: BookPagePayload(
                 headline: draft.analysis.marginalia.stampLabel,
                 body: draft.analysis.marginalia.closingLine,
@@ -581,21 +583,24 @@ enum BraidEmber {
     static let rereadLines = [
         "Today went straight to living \u{2014} the best chapters often do. I reread {echo} by lamplight; it still glows.",
         "Nothing crossed the desk today, so I took down {echo} and read it again. It holds.",
-        "Today stayed in the Unwritten Chapter, where most good days live. {echo} kept me company."
+        "Today stayed in the Unwritten Chapter, where most good days live. {echo} kept me company.",
+        "You gave the desk nothing today, and nothing was owed. I kept {echo} out on the stand anyway \u{2014} yours, waiting, glad of the company."
     ]
 
     /// Lamplight lines when two earlier days can be laid side by side.
     static let rhymeLines = [
         "Today went straight to living, so I read my own shelves: {echoA} laid beside {echoB}. They rhyme.",
         "The desk stayed clear today, so I shelved {echoA} next to {echoB}. Neighbors now.",
-        "An unwritten day, so I visited old pages: {echoA} still glows, and {echoB} has not moved an inch."
+        "An unwritten day, so I visited old pages: {echoA} still glows, and {echoB} has not moved an inch.",
+        "No ink today, and the Book kept your seat regardless: {echoA} beside {echoB}, both saved for whenever you next look."
     ]
 
     /// Lamplight lines when the archive has nothing to reread yet.
     static let hearthLines = [
         "Today went straight to living. The lamp is lit whenever you are.",
         "An unwritten day. Most good ones are. The shelf stays warm.",
-        "No ink today, and no matter. The Book read by lamplight and left the door on the latch."
+        "No ink today, and no matter. The Book read by lamplight and left the door on the latch.",
+        "Today asked nothing of you, and the Book chose you anyway. Lamp lit, door on the latch."
     ]
 
     static func evening(
@@ -1035,7 +1040,7 @@ enum BookCurator {
             }
         }
 
-        if BookSchedule.isBraidSurfaceTime(now),
+        if BookOfYouPageSourceAdapter.mayShowBraid(for: day, previousDays: inputs.days, now: now),
            !picked.contains(where: { $0.type == .bookOfYou }),
            let braid = candidates.first(where: { candidate in
                candidate.type == .bookOfYou
@@ -1096,15 +1101,25 @@ enum BookCurator {
         var picked: [SurfacePage] = []
         var pickedTypes: Set<BookPageType> = []
         var compositionCount = 0
+        var debutCount = 0
         // One blank-page prompt per three-slot desk: the home shelf (limit 3)
         // shows at most one, while wider introspection queries still surface the
         // full set of composition cards.
         let compositionLimit = max(1, limit / 3)
+        // Staged families debut one at a time on the desk, so an unlock is a
+        // single felt reveal rather than a wall of novelty. Wider queries
+        // (limit > 3) scale the allowance instead of starving.
+        let debutLimit = max(1, limit / 3)
         for page in deduped where picked.count < limit {
             guard !pickedTypes.contains(page.type) else { continue }
             if page.type.isCompositionPrompt, compositionCount >= compositionLimit { continue }
+            let isDebut = page.payload.metadata["firstReading"] == "true"
+                ? false
+                : IntroductionCurriculum.isManagedDebut(page.type, surfaceHistory: mood.surfaceHistory)
+            if isDebut, debutCount >= debutLimit { continue }
             picked.append(page)
             pickedTypes.insert(page.type)
+            if isDebut { debutCount += 1 }
             if page.type.isCompositionPrompt { compositionCount += 1 }
         }
         return picked
@@ -1119,6 +1134,37 @@ enum BookCurator {
             guard keys.isDisjoint(with: seen) else { return false }
             seen.formUnion(keys)
             return true
+        }
+    }
+
+    /// Anti-jitter for the desk. The curator's rank is time-sensitive, so an
+    /// idle rebuild with the same logical set of cards can still swap two
+    /// near-tied entries — which the desk's spring animations render as
+    /// visible bouncing. Cards are matched by `deskSlotKey` rather than raw
+    /// id because adapters rotate cadence slots and timestamps through their
+    /// ids. When the logical membership is unchanged, keep the previous
+    /// order; when a returning card's content is also unchanged, keep the
+    /// exact card already on screen so an id-only rotation never replays the
+    /// insert transition. Any real change (a card entered or left) falls
+    /// through to the curator's fresh order untouched.
+    static func stabilizedDeskOrder(
+        previous: [SurfacePage],
+        rebuilt: [SurfacePage]
+    ) -> [SurfacePage] {
+        let previousKeys = previous.map(\.deskSlotKey)
+        let rebuiltKeys = rebuilt.map(\.deskSlotKey)
+        // Duplicate slot keys would make the matching ambiguous. The desk's
+        // structural rules prevent them, but paths that bypass the curator
+        // (the first-run sequence) could not — prefer the fresh order over
+        // guessing.
+        guard Set(previousKeys).count == previousKeys.count,
+              Set(rebuiltKeys).count == rebuiltKeys.count,
+              Set(previousKeys) == Set(rebuiltKeys)
+        else { return rebuilt }
+        let rebuiltByKey = Dictionary(uniqueKeysWithValues: zip(rebuiltKeys, rebuilt))
+        return zip(previous, previousKeys).map { shown, key in
+            guard let fresh = rebuiltByKey[key] else { return shown }
+            return fresh.contentMatches(shown) ? shown : fresh
         }
     }
 }
@@ -1422,6 +1468,30 @@ struct ReaderLearningModel: Codable, Equatable {
             .map { $0 }
     }
 
+    func shortSummary(now: Date = Date()) -> String? {
+        let metrics = metrics(now: now)
+        guard metrics.meaningfulEventCount >= 3 else { return nil }
+
+        var clauses: [String] = []
+        if let warming = strongestType(warming: true) {
+            clauses.append("\(warming.type.shortTitle) has been landing")
+        }
+        if let tag = strongestTag() {
+            clauses.append("\(tag.key.replacingOccurrences(of: "-", with: " ")) keeps returning")
+        }
+        if let cooling = strongestType(warming: false) {
+            clauses.append("\(cooling.type.shortTitle.lowercased()) wants more quiet")
+        }
+        if let hour = strongestPositiveHour() {
+            clauses.append("pages tend to meet you in the \(Self.hourLabel(hour))")
+        }
+
+        guard !clauses.isEmpty else {
+            return "\(metrics.meaningfulEventCount) choices have started shaping the next prompts."
+        }
+        return clauses.prefix(3).joined(separator: "; ") + "."
+    }
+
     func promptLines(now: Date = Date(), limit: Int = 4) -> [String] {
         insights(now: now, limit: limit).map { "\($0.line) \($0.evidence)" }
     }
@@ -1604,6 +1674,28 @@ extension SurfacePage {
         return keys
     }
 
+    /// The desk slot a card logically occupies. Raw ids can't identify a slot:
+    /// many adapters rotate a cadence slot (or a raw timestamp) through their
+    /// candidate ids, so the same logical card comes back under a fresh id.
+    /// The desk's structural rules (one source family, one type) make this
+    /// pair unique per desk.
+    var deskSlotKey: String {
+        "\(sourceID)|\(type.rawValue)"
+    }
+
+    /// True when only the id differs — the card the reader sees is unchanged.
+    func contentMatches(_ other: SurfacePage) -> Bool {
+        type == other.type
+            && sourceID == other.sourceID
+            && intent == other.intent
+            && renderStyle == other.renderStyle
+            && score == other.score
+            && reason == other.reason
+            && prompt == other.prompt
+            && detail == other.detail
+            && payload == other.payload
+    }
+
     var readerLearningTags: [String] {
         let rawTags = payload.metadata["tags"]?
             .split(separator: ",")
@@ -1773,6 +1865,64 @@ enum CuratorTimeAffinity {
     }
 }
 
+/// The Introduction Season: the wider world debuts in stages as the library
+/// grows, instead of arriving all at once the moment the local brain wakes.
+/// The ladder throttles variety, never volume — capture pages and the core
+/// daily loop flow from day one, and each staged family enters as a single
+/// felt reveal (`isManagedDebut` lets one debut per desk build).
+///
+/// Crucially it locks only a family's *first* appearance: anything the desk
+/// has already shown — an arc in motion, a Weekly Issue riding the bindery
+/// type, an existing reader's whole world — keeps flowing. The season
+/// staggers debuts; it never confiscates.
+enum IntroductionCurriculum {
+    /// Kept pages required to enter each stage. Stage 0 is the open door.
+    static let stageThresholds = [0, 3, 6, 12]
+
+    static func stage(forKeptPageCount count: Int) -> Int {
+        var reached = 0
+        for (index, threshold) in stageThresholds.enumerated() where count >= threshold {
+            reached = index
+        }
+        return reached
+    }
+
+    /// Families with a staged debut. Anything absent is stage 0 — including
+    /// the Book of You braid (the nightly core loop), bindery/inventory
+    /// (they self-gate on archive readiness), and the 50-keep memory trio
+    /// (BookMemoryGate governs those).
+    static let requiredStage: [BookPageType: Int] = [
+        .narrativeOS: 1, .academyClass: 1, .elective: 1, .gamePage: 1,
+        .gossip: 2, .letter: 2, .facultyResearch: 2, .supportGuild: 2,
+        .inkrestOfficeHours: 2, .glowInvitation: 2, .wordNegotiation: 2,
+        .castBond: 2, .twoReadings: 2, .bookNotices: 2, .festival: 2,
+        .bookJump: 2,
+        .faeBargain: 3, .bookFae: 3, .pactDispatch: 3, .pactVerdict: 3,
+        .pactErrand: 3, .theBleed: 3
+    ]
+
+    static func locks(
+        _ type: BookPageType,
+        keptPageCount: Int,
+        surfaceHistory: [String: SurfaceHistoryRecord]
+    ) -> Bool {
+        guard let required = requiredStage[type] else { return false }
+        guard stage(forKeptPageCount: keptPageCount) < required else { return false }
+        return surfaceHistory[CuratorVarietyGovernor.typeKey(for: type)] == nil
+    }
+
+    /// True for a staged family the desk has never shown. At most one of
+    /// these joins each build, so unlocks arrive one reveal at a time —
+    /// stage-0 families are exempt, keeping a brand-new desk full.
+    static func isManagedDebut(
+        _ type: BookPageType,
+        surfaceHistory: [String: SurfaceHistoryRecord]
+    ) -> Bool {
+        requiredStage[type] != nil
+            && surfaceHistory[CuratorVarietyGovernor.typeKey(for: type)] == nil
+    }
+}
+
 /// Everything the curator should feel before ranking: the clock, the
 /// narrative temperature, what was recently served, and the shape of the
 /// real day's calendar.
@@ -1790,6 +1940,7 @@ struct CuratorMood {
     var isFirstHours: Bool = false
     var keptPageCount: Int = 0
     var composedTypesToday: Set<BookPageType> = []
+    var earnedWonderTitle: WonderTitle?
 
     static let neutral = CuratorMood()
 
@@ -1829,7 +1980,8 @@ struct CuratorMood {
                 .merging(RadioStationRegistry.heldSurfaceBoosts(state: inputs.radio)) { $0 + $1 },
             isFirstHours: firstHoursActive(inputs: inputs, now: now),
             keptPageCount: inputs.keptPageCount,
-            composedTypesToday: composedCompositionTypes(in: inputs.days, on: now, calendar: calendar)
+            composedTypesToday: composedCompositionTypes(in: inputs.days, on: now, calendar: calendar),
+            earnedWonderTitle: WonderTitleRegistry.earnedTitle(from: inputs.selfFacts)
         )
     }
 
@@ -1848,6 +2000,22 @@ struct CuratorMood {
     }
 
     func allows(_ page: SurfacePage) -> Bool {
+        if IntroductionCurriculum.locks(page.type, keptPageCount: keptPageCount, surfaceHistory: surfaceHistory) {
+            // The First Reading is a deliberately early Book Notices milestone:
+            // it fires at three kept pages as proof the Book has started reading
+            // back, while ordinary Book Notices still wait for the stage-2 door.
+            if page.payload.metadata["firstReading"] == "true" {
+                return true
+            }
+            // A jump already in motion is a continuation, not a debut.
+            let isActiveJump = page.type == .bookJump
+                && page.payload.metadata["bookJumpAction"] != BookJumpAction.start.rawValue
+                && page.payload.metadata["bookJumpAction"] != nil
+            // World events run on real, limited dates — the season's front
+            // door must not wait for a stage a new reader can't reach in time.
+            let isWorldEventDoor = page.sourceID == "world-event-door"
+            if !isActiveJump && !isWorldEventDoor { return false }
+        }
         guard isFirstHours else { return true }
         if page.type == .bookJump,
            let action = page.payload.metadata["bookJumpAction"],
@@ -1876,6 +2044,13 @@ struct CuratorMood {
             delta += Self.firstHoursOrientationBoosts[page.type] ?? 0
         }
 
+        // A staged family's very first appearance leans forward, so a stage
+        // unlock is felt soon after it is earned rather than lost in the rank.
+        if IntroductionCurriculum.isManagedDebut(page.type, surfaceHistory: surfaceHistory),
+           !IntroductionCurriculum.locks(page.type, keptPageCount: keptPageCount, surfaceHistory: surfaceHistory) {
+            delta += 10
+        }
+
         delta -= CuratorVarietyGovernor.fatiguePenalty(forKey: page.varietyKey, history: surfaceHistory, now: now)
         delta -= quietReflectionPenalty(for: page, now: now)
 
@@ -1901,6 +2076,7 @@ struct CuratorMood {
         // The Almanac leans the feast's themes forward.
         delta += almanacBoosts[page.type] ?? 0
         delta += wonderCompassFocusBoost(for: page)
+        delta += WonderTitleRegistry.scoreBoost(for: page, title: earnedWonderTitle)
 
         // Narrative heat: a field full of fresh events favors story-bearing
         // pages; a cold field favors pages that gather new material.

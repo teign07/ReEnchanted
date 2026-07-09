@@ -502,12 +502,29 @@ struct IlluminationAssetResolver {
 enum IlluminationPackRegistry {
     static let installedPacks: [IlluminationAssetPack] = [CoreMarginsPack.pack]
 
+    static var unlockedPacks: [IlluminationAssetPack] {
+        installedPacks.filter(isUnlocked)
+    }
+
+    static func pack(for id: String) -> IlluminationAssetPack? {
+        unlockedPacks.first { $0.id == id }
+    }
+
     static func packsSupporting(_ template: IlluminatedTemplateID) -> [IlluminationAssetPack] {
-        installedPacks.filter { $0.supportedTemplates.contains(template) }
+        unlockedPacks.filter { $0.supportedTemplates.contains(template) }
     }
 
     static func preferredPack(for template: IlluminatedTemplateID, motifs: [String]) -> IlluminationAssetPack {
         packsSupporting(template).first ?? CoreMarginsPack.pack
+    }
+
+    private static func isUnlocked(_ pack: IlluminationAssetPack) -> Bool {
+        switch pack.availability {
+        case .bundledFree, .userImported:
+            return true
+        case .patron, .paid, .locked:
+            return PackEntitlements.isUnlocked(pack.id)
+        }
     }
 }
 
@@ -1105,9 +1122,9 @@ struct IlluminatedPhotoPageSourceAdapter: BookPageSourceAdapter {
                 intent: .resurface,
                 renderStyle: .illuminatedPhoto,
                 score: 70,
-                reason: "The Labyrinth left an illustration with ink on it.",
+                reason: "The Labyrinth left a little illustration with ink still on it.",
                 prompt: "Illuminated from the Labyrinth",
-                detail: "A bundled illustration passed through Penny's press.",
+                detail: "A little illustration that took a trip through Penny's press.",
                 payload: BookPagePayload(
                     headline: draft.analysis.marginalia.stampLabel,
                     body: "\(plate.caption)\n\n\(draft.analysis.marginalia.closingLine)",

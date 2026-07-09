@@ -84,6 +84,12 @@ enum EditionCurator {
     /// explicitly asks to bind them.
     static let defaultPrivateTypes: Set<BookPageType> = [.body, .fuel]
 
+    static func isScrapbookPage(_ page: BookPage) -> Bool {
+        page.sourceID == "pagewright"
+            || page.tags.contains("pagewright")
+            || page.tags.contains("scrapbook")
+    }
+
     // MARK: Scoring
 
     static func tier(for type: BookPageType) -> Tier {
@@ -106,6 +112,7 @@ enum EditionCurator {
     static func bindingScore(_ page: BookPage) -> Int {
         var score = tier(for: page.type).rawValue
         let body = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if isScrapbookPage(page) { score += 35 }                      // composed pages should bind as pages
         if page.usedInBookOfYou { score += 40 }                       // it earned a night's braid
         if page.origin == .userAuthored && !body.isEmpty { score += 20 } // the reader wrote it
         score += min(30, body.count / 20)                             // substance, capped

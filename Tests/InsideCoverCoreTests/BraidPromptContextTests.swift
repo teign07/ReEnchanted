@@ -37,6 +37,8 @@ final class BraidPromptContextTests: XCTestCase {
 
         XCTAssertTrue(prompt.contains("Silently choose a short title for the day"))
         XCTAssertTrue(prompt.contains("Once, Because, Until, And so, Kept"))
+        XCTAssertTrue(prompt.contains("Write the braid in second-person past tense"))
+        XCTAssertTrue(prompt.contains("Do not write second-person present tense"))
         XCTAssertTrue(prompt.contains("MONTHLY THEME THREAD"))
         XCTAssertTrue(prompt.contains(theme.promptLine))
         XCTAssertTrue(prompt.contains("CHAPTER WEATHER"))
@@ -44,6 +46,29 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertTrue(prompt.contains("EARLIER PAGES OF THE BOOK OF YOU"))
         XCTAssertTrue(prompt.contains("brass key cooling on the sill"))
         XCTAssertTrue(prompt.contains("At most one image or motif from an earlier braid may return today"))
+    }
+
+    func testBookOfYouBraidUsesTheBooksOwnVoice() {
+        let day = BookDay(
+            id: "2026-06-16",
+            date: date("2026-06-16T20:30:00Z"),
+            pages: [
+                BookPage(
+                    type: .souvenir,
+                    createdAt: date("2026-06-16T08:00:00Z"),
+                    promptText: "One true thing",
+                    userInput: "The coffee cup sat beside the laptop while rain tapped the window.",
+                    origin: .userAuthored
+                )
+            ]
+        )
+
+        let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
+
+        XCTAssertTrue(prompt.contains("THE BOOK'S OWN VOICE"))
+        XCTAssertTrue(prompt.contains("child-like animism, never childish"))
+        XCTAssertTrue(prompt.contains("Give objects, rooms, weather, and pages little feelings and wants"))
+        XCTAssertTrue(prompt.contains("The Book may be a little vulnerable"))
     }
 
     func testRecentBraidTextsSelectNewestAndOlderEchoWithoutCurrentDay() {
@@ -177,6 +202,68 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertTrue(annotated.tags.contains("theme:Rain and Lamps"))
         XCTAssertTrue(annotated.tags.contains("chapter:Mossbloom"))
         XCTAssertTrue(annotated.tags.contains("yesterday-echo"))
+        XCTAssertTrue(annotated.tags.contains(BookOfYouResidue.markerTag))
+        XCTAssertTrue(annotated.tags.contains("residue-title:Rain At The Window"))
+        XCTAssertTrue(annotated.tags.contains("residue-motif:rain"))
+        XCTAssertTrue(annotated.tags.contains("residue-motif:window"))
+        XCTAssertEqual(details.residue?.callbackCandidate, "rain made the ordinary visible")
+        XCTAssertEqual(details.residue?.title, "Rain At The Window")
+    }
+
+    func testAnnotatedBraidAddsReadableContextTagsAtTop() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let day = BookDay(id: "2026-06-16", date: date("2026-06-16T12:00:00Z"), pages: [])
+        let page = BookPage(
+            type: .bookOfYou,
+            createdAt: date("2026-06-16T20:30:00Z"),
+            promptText: "Book of You",
+            userInput: """
+            Rain At The Window
+
+            You watched the rain gather on the glass.
+            """
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.weather = WeatherSourceSignal(phrase: "Current: Rain, 61F", source: "test")
+        inputs.nearbyPlaces = [
+            LocalPlaceSignal(id: "harbor", name: "Harbor Walk", category: "park", distanceLabel: "nearby", locality: "Portland")
+        ]
+        inputs.facultyEntries = [
+            FacultyEntry(
+                kind: .fuel,
+                dayID: day.id,
+                createdAt: date("2026-06-16T19:00:00Z"),
+                windowID: "evening",
+                windowName: "Evening",
+                rawText: "eggs and toast\n≈ 410 kcal · P 22g · C 31g · F 19g (Vellum's rough arithmetic)"
+            ),
+            FacultyEntry(
+                kind: .innerWeather,
+                dayID: day.id,
+                createdAt: date("2026-06-16T19:30:00Z"),
+                windowID: "evening",
+                windowName: "Evening",
+                rawText: "Static and rain."
+            )
+        ]
+        let header = BraidPageDetails.HeaderContext.make(for: page, day: day, inputs: inputs, calendar: calendar)
+
+        let annotated = BraidPageDetails.annotated(page, context: .empty, headerContext: header)
+        let details = BraidPageDetails.details(for: annotated)
+
+        XCTAssertTrue(annotated.userInput.hasPrefix("Tags: Time 8:30 PM · Location Harbor Walk, Portland · Weather rain · Moon"))
+        XCTAssertTrue(annotated.userInput.contains("Fuel ≈ 410 kcal · P 22g · C 31g · F 19g"))
+        XCTAssertTrue(annotated.userInput.contains("Inner weather Static and rain."))
+        XCTAssertFalse(annotated.userInput.contains("eggs and toast"))
+        XCTAssertEqual(details.title, "Rain At The Window")
+        XCTAssertTrue(details.body.hasPrefix("Tags: Time 8:30 PM · Location Harbor Walk, Portland · Weather rain · Moon"))
+        XCTAssertTrue(annotated.tags.contains("braid-time:8:30 PM"))
+        XCTAssertTrue(annotated.tags.contains("braid-location:Harbor Walk, Portland"))
+        XCTAssertTrue(annotated.tags.contains("braid-weather:rain"))
+        XCTAssertTrue(annotated.tags.contains { $0.hasPrefix("braid-moon:") })
+        XCTAssertTrue(annotated.tags.contains("braid-fuel:≈ 410 kcal · P 22g · C 31g · F 19g"))
+        XCTAssertTrue(annotated.tags.contains("braid-inner-weather:Static and rain."))
     }
 
     func testBraidContextFindsThemeAndAscendantChapter() {
@@ -210,6 +297,92 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertEqual(context.recentBraids.count, 1)
         XCTAssertEqual(context.theme?.name, "Windows and Keys")
         XCTAssertEqual(context.chapter?.id, "mossbloom")
+    }
+
+    func testBraidContextCarriesPriorResidueIntoMemorySpine() {
+        let currentDay = BookDay(id: "2026-06-16", date: date("2026-06-16T20:30:00Z"), pages: [
+            BookPage(
+                type: .souvenir,
+                createdAt: date("2026-06-16T08:00:00Z"),
+                promptText: "One true thing",
+                userInput: "The rain came back to the kitchen window."
+            )
+        ])
+        let priorPage = BraidPageDetails.annotated(
+            BookPage(
+                id: "braid-rain",
+                type: .bookOfYou,
+                createdAt: date("2026-06-15T22:00:00Z"),
+                promptText: "Book of You",
+                userInput: """
+                Lamp By The Glass
+
+                The lamp waited by the window while rain worried the glass.
+
+                The Book kept the page: rain made the lamp brave.
+                """,
+                tags: ["braid"]
+            ),
+            context: .empty
+        )
+        let priorDay = BookDay(id: "2026-06-15", date: date("2026-06-15T12:00:00Z"), pages: [priorPage])
+
+        let context = BraidPromptBuilder.context(for: currentDay, days: [priorDay, currentDay], now: currentDay.date)
+        let prompt = BraidPromptBuilder.prompt(for: currentDay, context: context)
+
+        XCTAssertEqual(context.memoryDigest.braids.first?.pageID, "braid-rain")
+        XCTAssertEqual(context.memoryDigest.strongestCallback, "rain made the lamp brave")
+        XCTAssertTrue(context.memoryDigest.motifCounts.contains { $0.motif == "rain" })
+        XCTAssertTrue(prompt.contains("BOOK MEMORY SPINE"))
+        XCTAssertTrue(prompt.contains("Lamp By The Glass"))
+        XCTAssertTrue(prompt.contains("rain made the lamp brave"))
+        XCTAssertTrue(prompt.contains("You may let one prior residue return only if today's kept pages honestly answer it."))
+    }
+
+    func testBraidContextCarriesSemanticEchoesIntoResidue() {
+        let echoLine = "Somewhere back in May you wrote \"The kettle sang twice\". Today's page answers it."
+        let echoTags = SemanticKeepEcho.tags(for: SemanticKeepEcho.Echo(
+            sourcePageID: "old-kettle",
+            excerpt: "The kettle sang twice",
+            monthLine: "back in May",
+            similarity: 0.82,
+            line: echoLine
+        ))
+        let currentDay = BookDay(id: "2026-06-16", date: date("2026-06-16T20:30:00Z"), pages: [
+            BookPage(
+                type: .souvenir,
+                createdAt: date("2026-06-16T08:00:00Z"),
+                promptText: "One true thing",
+                userInput: "Something small waited all evening for my attention.",
+                tags: echoTags
+            )
+        ])
+
+        let context = BraidPromptBuilder.context(for: currentDay, days: [currentDay], now: currentDay.date)
+        let prompt = BraidPromptBuilder.prompt(for: currentDay, context: context)
+        let annotated = BraidPageDetails.annotated(
+            BookPage(
+                type: .bookOfYou,
+                createdAt: date("2026-06-16T22:00:00Z"),
+                promptText: "Book of You",
+                userInput: """
+                Kettle Answer
+
+                The room listened while a small waiting thing finally got a name.
+
+                The Book kept the page: the old kettle had been answered without using its words.
+                """,
+                tags: ["braid"]
+            ),
+            context: context
+        )
+
+        XCTAssertEqual(context.semanticEchoSourceIDs, ["old-kettle"])
+        XCTAssertEqual(context.semanticEchoLines, [echoLine])
+        XCTAssertTrue(prompt.contains("SEMANTIC ECHOES FROM TODAY"))
+        XCTAssertTrue(prompt.contains(echoLine))
+        XCTAssertTrue(annotated.tags.contains("\(BookOfYouResidue.semanticEchoPrefix)old-kettle"))
+        XCTAssertEqual(BraidPageDetails.details(for: annotated).residue?.semanticEchoIDs, ["old-kettle"])
     }
 
     func testBraidTastingRoomRanksStrongerVariantFirst() {
@@ -659,6 +832,86 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Shelf: lived"))
         XCTAssertTrue(prompt.contains("Shelf: fiction"))
         XCTAssertTrue(prompt.contains("reader-endorsed fiction; high gravity"))
+    }
+
+    func testBraidPromptNamesRequiredSouvenirSpineFromAnyPage() throws {
+        let hourPage = BookPage(
+            id: "hour-souvenir",
+            type: .calendar,
+            createdAt: date("2026-07-01T17:30:00Z"),
+            promptText: "Hour Page: after",
+            userInput: "The lobby clock ticked while I found my coat.",
+            tags: ["calendar", "hour-page", "one-sentence-souvenir", "real-day"],
+            origin: .userAuthored
+        )
+        let day = BookDay(id: "spine-day", date: date("2026-07-01T20:30:00Z"), pages: [
+            BookPage(
+                type: .narrativeOS,
+                createdAt: date("2026-07-01T18:00:00Z"),
+                promptText: "Story Page",
+                userInput: "Wicker leaned on the ladder.",
+                origin: .generated
+            ),
+            hourPage
+        ])
+
+        let anchor = try XCTUnwrap(BraidPromptBuilder.souvenirAnchor(in: day))
+        let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
+
+        XCTAssertEqual(anchor.pageID, "hour-souvenir")
+        XCTAssertEqual(anchor.keptText, "The lobby clock ticked while I found my coat.")
+        XCTAssertEqual(anchor.reason, "one-sentence souvenir kept from another page")
+        XCTAssertTrue(prompt.contains("SOUVENIR SPINE (required):"))
+        XCTAssertTrue(prompt.contains("from Hour Page"))
+        XCTAssertTrue(prompt.contains("The lobby clock ticked while I found my coat."))
+        XCTAssertTrue(prompt.contains("must be visible in the braid's opening"))
+        XCTAssertTrue(prompt.contains("must return transformed in \"The Book kept the page:\""))
+    }
+
+    func testBraidTastingRoomScoresSouvenirSpine() throws {
+        let day = BookDay(id: "taste-spine-day", date: date("2026-07-01T20:30:00Z"), pages: [
+            BookPage(
+                id: "souvenir",
+                type: .souvenir,
+                createdAt: date("2026-07-01T08:00:00Z"),
+                promptText: "One sentence",
+                userInput: "The kettle clicked awake before the rain.",
+                origin: .userAuthored
+            )
+        ])
+        let anchor = try XCTUnwrap(BraidPromptBuilder.souvenirAnchor(in: day))
+        let context = BraidPromptBuilder.Context(souvenirAnchor: anchor)
+        let weak = BookPage(
+            type: .bookOfYou,
+            promptText: "Book of You: A Soft Evening",
+            userInput: """
+            A Soft Evening
+
+            You moved through the day and it felt meaningful.
+
+            The Book kept the page: the ordinary became something to remember.
+            """
+        )
+        let strong = BookPage(
+            type: .bookOfYou,
+            promptText: "Book of You: Kettle Before Rain",
+            userInput: """
+            Kettle Before Rain
+
+            The kettle clicked awake before the room had decided what morning was.
+
+            Later, the rain came to the glass, and even the story pages lowered their voices.
+
+            The Book kept the page: the kettle and the rain found one small beginning.
+            """
+        )
+
+        let weakScore = BraidTastingRoom.score(page: weak, context: context)
+        let strongScore = BraidTastingRoom.score(page: strong, context: context)
+
+        XCTAssertEqual(weakScore.souvenirSpine, 0)
+        XCTAssertGreaterThan(strongScore.souvenirSpine, weakScore.souvenirSpine)
+        XCTAssertGreaterThan(strongScore.total, weakScore.total)
     }
 
     func testBraidShelfClassification() {

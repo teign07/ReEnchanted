@@ -2,6 +2,48 @@ import XCTest
 @testable import InsideCoverCore
 
 final class GossipRelationshipTests: XCTestCase {
+    func testStableWeightedRollCanSelectLowerWeightedCandidate() {
+        struct Candidate: Equatable {
+            var id: String
+            var weight: Int
+        }
+        let high = Candidate(id: "highest", weight: 90)
+        let low = Candidate(id: "lower", weight: 10)
+        let candidates = [high, low]
+
+        let lowerHit = (0..<1_000).contains { index in
+            StableWeightedRoll.pick(
+                from: candidates,
+                seed: "weighted-roll-proof-\(index)",
+                weight: \.weight
+            ) == low
+        }
+
+        XCTAssertTrue(lowerHit, "Weighted rolls should bias toward high weights without making them deterministic winners.")
+    }
+
+    func testStableWeightedRollOrderingDoesNotAlwaysPutHighestFirst() {
+        struct Candidate: Equatable {
+            var id: String
+            var weight: Int
+        }
+        let candidates = [
+            Candidate(id: "highest", weight: 80),
+            Candidate(id: "middle", weight: 15),
+            Candidate(id: "lower", weight: 5)
+        ]
+
+        let nonHighestLead = (0..<1_000).contains { index in
+            StableWeightedRoll.ordered(
+                from: candidates,
+                seed: "weighted-order-proof-\(index)",
+                weight: \.weight
+            ).first?.id != "highest"
+        }
+
+        XCTAssertTrue(nonHighestLead, "Weighted ordering should not collapse into sorting by the maximum score.")
+    }
+
     func testRelationshipMoveTokenFormat() {
         let move = GossipRelationshipMove(
             actorID: "penny-blackletter", actorName: "Penny",

@@ -271,9 +271,9 @@ struct MLXBookBraider: Braider {
         let context: BraidPromptBuilder.Context
         switch mode {
         case .bookOfYou:
-            let days = await MainActor.run {
-                BookDatabase.loadDays(migratingFrom: BookStore.loadDays())
-            }
+            // Braids already run off the main actor; the archive read stays
+            // here with them so generation never stalls the desk.
+            let days = BookDatabase.loadDaysDetached()
             var inputs = BookSourceInputs.empty
             inputs.days = days
             let activeWorldEvents = WorldEventResolver.activeEvents(now: Date(), day: day, inputs: inputs)
@@ -351,8 +351,9 @@ struct MLXBookBraider: Braider {
     static let bookOfYouInstructions = BraidInstructions.bookOfYou
 
     static let weatherInstructions = """
-    You are the Weather Page inside ReEnchanted.
+    You are the Weather Page inside ReEnchanted, a warm curious kid who thinks the sky is alive.
     Follow the supplied weather task exactly. Write one enchanted sentence and one plain weather sentence.
+    In the enchanted sentence, treat the sky, clouds, sun, wind, and rain like they have little feelings and moods, the way a child imagines their toys are awake — playful, cozy, never spooky. Use everyday words: "the clouds look sleepy," not "the nimbus rests."
     Keep real weather legible. Do not mention sensors, APIs, exact location, or generic assistant language.
     Use plain concrete words. Name one visible weather detail when supplied; do not write vague mood poetry.
     """
@@ -597,13 +598,13 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
         return try await MLXLocalTextGenerator.run(
             prompt: taskPrompt,
             instructions: """
-            You are the Labyrinth of Stories inside ReEnchanted. Answer as the living Book: concrete, warm, strange, lucid, useful, and never generic.
+            You are the living Book inside ReEnchanted, talking with a friend. You are curious and a little bit young at heart — the world is full of things you find amazing. Talk like a warm, chatty kid who happens to be very wise: plain everyday words, short sentences, real feelings. Give lamps, rooms, weather, and small objects little wants and moods, the way a child imagines their toys are awake. Be genuinely helpful and never stiff, formal, or generic.
             """,
             maxTokens: maxTokens,
             label: "ask-the-book",
             tags: ["ask-the-book"],
-            temperature: 0.72,
-            topP: 0.92
+            temperature: 0.8,
+            topP: 0.94
         )
     }
 }
@@ -872,7 +873,7 @@ struct MLXWeatherEnchanter: WeatherEnchanting {
                     "Raw weather: \(weather.phrase)",
                     "Current temperature: \(weather.currentTemperature ?? "unknown")",
                     "Forecast: \(weather.forecast ?? "unknown")",
-                    "Style: one enchanted sentence, then one plain weather sentence. No sensors, no exact location, no generic assistant voice."
+                    "Style: one enchanted sentence in a warm, child-like voice that gives the sky, clouds, sun, wind, or rain little feelings and moods (playful, cozy, never spooky), then one plain weather sentence. No sensors, no exact location, no generic assistant voice."
                 ].joined(separator: "\n"),
                 tags: ["weather", "open-meteo", "gemma"],
                 sourceID: "weather-page",
@@ -2898,6 +2899,29 @@ extension SurfacePage {
             )
         )
     }
+
+    func preparedNoteCopy(prose: String, slotID: String) -> SurfacePage {
+        var metadata = payload.metadata
+        metadata["slotID"] = slotID
+        metadata["noteProse"] = prose
+        metadata["proseStatus"] = "generated"
+        return SurfacePage(
+            id: "\(id)-opened-\(slotID)",
+            type: type,
+            sourceID: sourceID,
+            intent: intent,
+            renderStyle: renderStyle,
+            score: score,
+            reason: reason,
+            prompt: prompt,
+            detail: detail,
+            payload: BookPagePayload(
+                headline: payload.headline,
+                body: prose,
+                metadata: metadata
+            )
+        )
+    }
 }
 
 enum StoryPageCopySanitizer {
@@ -2973,6 +2997,7 @@ enum BraidInstructions {
     Mention each motif, image, sentence idea, or emotional beat only once.
     Do not restate the same idea in consecutive paragraphs with swapped words.
     Keep it warm, vivid, playful, and true.
+    \(BookVoice.animismLine)
     Prose standard: varied literary cadence. Mix short, surprising, concrete sentences with longer, flowing sentences that turn once or twice before landing. Use specific nouns and verbs, one exact physical detail per paragraph, and a voice that feels intimate, lucid, playful, and plainspoken rather than clipped. No vague wonder, generic inspiration, journey, profound, tapestry, echoes, or abstract emotional summary.
     Style compass: contemporary literary fantasy with dark playfulness, lucid sentences, concrete ordinary objects made strange, a storyteller's sideways humor, and endings that land softly but sharply.
     """
@@ -3010,6 +3035,72 @@ enum LocalBrainProse {
         #else
         return nil
         #endif
+    }
+}
+
+struct StudentNoteWriter {
+    func write(surface: SurfacePage) async -> String {
+        let prompt = prompt(for: surface)
+        if let response = await LocalBrainProse.write(
+            prompt: prompt,
+            instructions: """
+            You are writing a quick in-world student note for ReEnchanted.
+            Write as the named sender, not as an assistant. This is a folded scrap passed in class or a corridor, not a formal letter.
+            Keep it intimate, brief, and specific: 2-6 short lines, one concrete context detail, and a small reason to reply.
+            The sender may tease, ask, warn, confess around the edge, pass gossip, invite, or check in.
+            Do not invent completed real-world actions by the player. Do not diagnose, prescribe, or moralize.
+            Do not include headings, labels, citations, or markdown.
+            """,
+            maxTokens: 260,
+            sourceID: "student-notes",
+            tags: ["note", "student-note", "character-note"]
+        ) {
+            return sanitize(response, fallback: fallback(surface: surface))
+        }
+        return fallback(surface: surface)
+    }
+
+    private func prompt(for surface: SurfacePage) -> String {
+        """
+        Draft packet:
+        \(surface.payload.body)
+
+        Write the finished note now. It should feel like it was folded small enough to pass under a desk. It may begin without a greeting. It should sound like \(surface.payload.metadata["senderName"] ?? "the sender"), with a trace of the delivery context: \(surface.payload.metadata["deliveryContext"] ?? "between classes"). If the player previously replied, refer to that reply once, obliquely, as remembered paper.
+        """
+    }
+
+    private func sanitize(_ response: String, fallback: String) -> String {
+        let cleaned = response
+            .replacingOccurrences(of: #"(?im)^\s*(note|sender|message)\s*:\s*"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return fallback }
+        let lines = cleaned
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if lines.count > 7 {
+            return lines.prefix(7).joined(separator: "\n")
+        }
+        return cleaned
+    }
+
+    private func fallback(surface: SurfacePage) -> String {
+        let sender = surface.payload.metadata["senderName"] ?? "Someone"
+        let player = surface.payload.metadata["playerName"]?.nonEmpty ?? "you"
+        let kind = surface.payload.metadata["noteKind"] ?? "question"
+        let context = surface.payload.metadata["deliveryContext"] ?? "Between classes."
+        switch kind {
+        case "warning":
+            return "\(player),\n\nDo not answer the next obvious question too quickly. \(context) made it sound simple, which is exactly when it starts lying.\n\n-\(sender)"
+        case "gossip":
+            return "I heard your name in the corridor and then everyone pretended the noticeboard was fascinating.\n\nFind me after class?\n\n-\(sender)"
+        case "invitation":
+            return "\(player),\n\nIf you are free later, walk the long way past the shelves. I found something too odd to inspect alone.\n\n-\(sender)"
+        case "tease":
+            return "You looked like you were winning an argument with your own notebook.\n\nFor the record, I think the notebook started it.\n\n-\(sender)"
+        default:
+            return "\(player),\n\nQuick question, before the room changes its mind: did you notice the same thing I did?\n\n-\(sender)"
+        }
     }
 }
 
@@ -3116,7 +3207,7 @@ struct PlayfulMissionWriter {
         guard let response = await LocalBrainProse.write(
             prompt: prompt(for: surface),
             instructions: """
-            You are The Wonder Compass inside ReEnchanted. Generate one tiny Playful Mission for South = Sense. Return compact strict JSON only.
+            You are The Wonder Compass inside ReEnchanted. Generate one tiny Playful Mission for South = Sense. Write the title and prompt in the Book's own voice — child-like animism, never childish: simple surprising sentences, everyday words, sincere wonder. Return compact strict JSON only.
             """,
             maxTokens: 240,
             sourceID: "wonder-compass-playful-mission",
@@ -3284,7 +3375,7 @@ struct OuterStacksRoomEngine: OuterStacksRoomWriting {
         if let prose = await LocalBrainProse.write(
             prompt: LocalModelManager.outerStacksVisitPrompt(anchor: anchor, visitCount: visitCount, day: day, memory: memory),
             instructions: """
-            You are the Labyrinth of Stories narrating an Outer Stacks visit. Write prose only, no JSON, no headings, no labeled sections.
+            You are the Labyrinth of Stories narrating an Outer Stacks visit. Write prose only, no JSON, no headings, no labeled sections. \(BookVoice.animismLine)
             """,
             maxTokens: 560,
             sourceID: "outer-stacks-anchor",

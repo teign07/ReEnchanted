@@ -196,6 +196,21 @@ enum SelfKnowledgePackRegistry {
 
     static func translation(for question: AboutYouQuestion, answer: String) -> String {
         let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        if question.tags.contains("earned-label") {
+            return "The Book treats this as an earned working title, not a personality box: \(trimmed)."
+        }
+        if question.tags.contains("rut-signal") {
+            return "The Book will remember this as the first place the Rut sounded familiar: \(trimmed)."
+        }
+        if question.tags.contains("rut-depth") {
+            return "The Book will treat this as a weather report, not a diagnosis: \(trimmed)."
+        }
+        if question.tags.contains("rut-season") {
+            return "The Book will call this season \(trimmed) when it needs to name the gray without making it permanent."
+        }
+        if question.tags.contains("wonder-entry") {
+            return "The Book will start near \(trimmed) when wonder needs to feel easy."
+        }
         switch question.sensitivity {
         case .identity:
             return "The Book may call you \(trimmed) when the page needs to remember who is holding it."
@@ -214,6 +229,10 @@ enum SelfKnowledgePackRegistry {
     }
 
     private static let coreQuestions: [AboutYouQuestion] = [
+        question("rut-signal", "Which 'ugh, that's me' line hit first?", "The Book isn't diagnosing you. It's finding the door that already opened.", "Time blur. Phone fog. Dinner decisions. Plans canceling felt like relief. Nothing tastes bright.", .comfort, .privateContext, ["rut", "rut-signal", "wonder-compass", "self-recognition", "state-not-identity"], 96),
+        question("rut-depth", "How loud is the Rut right now?", "Rough is enough. This is a weather report, not a tattoo.", "0-3: tired but functional. 4-7: in the rut. 8-10: whirlpool. 11-12: deep water.", .comfort, .privateContext, ["rut", "rut-depth", "wonder-compass", "self-recognition", "state-not-identity"], 95),
+        question("rut-season", "What should we call this season?", "Naming it takes some of its teeth. Keep it small and honest.", "The Fog. Maintenance Mode. The Too-Many-Tabs Era. Getting Back to Color.", .comfort, .privateContext, ["rut", "rut-season", "wonder-compass", "self-recognition", "state-not-identity"], 94),
+        question("wonder-entry", "What kind of wonder still works on you?", "Pick the door you'd actually open on a tired Tuesday.", "Looking out. Pocket adventure. Odd details. Color. Making. People. Quiet.", .delight, .privateContext, ["wonder", "wonder-compass", "wonder-entry", "wonder-affinity", "delight", "low-friction"], 93),
         question("home-place", "Where do you call home?", "A place can be true without being precise.", "A town, coast, room, region, or kind of place.", .comfort, .privateContext, ["home", "place"], 88),
         question("home-meaning", "What does home mean to you?", "Not the address. The feeling the Book should recognize.", "Safety, noise, chosen people, a porch light...", .comfort, .storyOnly, ["home", "meaning"], 84),
         question("favorite-color", "What color keeps finding you?", "The Book can tint future pages with a little more you in them.", "Blue, moss green, marigold, storm gray...", .delight, .privateContext, ["color", "delight"], 78),
@@ -253,6 +272,162 @@ enum SelfKnowledgePackRegistry {
             tags: tags,
             priority: priority
         )
+    }
+}
+
+struct WonderTitle: Equatable {
+    var id: String
+    var name: String
+    var why: String
+    var compassLine: String
+    var scoreBoosts: [BookPageType: Int]
+
+    var metadata: [String: String] {
+        [
+            "wonderTitleID": id,
+            "wonderTitleName": name,
+            "wonderTitleCompassLine": compassLine
+        ]
+    }
+}
+
+enum WonderTitleRegistry {
+    static let all: [WonderTitle] = [
+        WonderTitle(
+            id: "lookout",
+            name: "Lookout",
+            why: "You can turn one ordinary view into a real place to begin.",
+            compassLine: "Start by looking out. Your quest is allowed to begin one inch from where you are.",
+            scoreBoosts: [.weather: 10, .wonderCompass: 8, .location: 6, .souvenir: 4]
+        ),
+        WonderTitle(
+            id: "pocket-adventurer",
+            name: "Pocket Adventurer",
+            why: "You proved adventure can fit inside an ordinary day.",
+            compassLine: "Make it small enough to fit in a pocket. Then go.",
+            scoreBoosts: [.wonderCompass: 12, .anchor: 8, .location: 6, .souvenir: 4]
+        ),
+        WonderTitle(
+            id: "oddity-collector",
+            name: "Oddity Collector",
+            why: "You notice the strange little proof other people step around.",
+            compassLine: "Bring back the weird little proof. The stranger it is, the better it sticks.",
+            scoreBoosts: [.quip: 8, .wonderCompass: 8, .souvenir: 6, .lore: 4]
+        ),
+        WonderTitle(
+            id: "color-finder",
+            name: "Color Finder",
+            why: "You went looking for the first small place reality had not gone gray.",
+            compassLine: "Hunt the first bright thing. Let that be enough.",
+            scoreBoosts: [.illuminatedPhoto: 8, .weather: 6, .wonderCompass: 6, .souvenir: 4]
+        ),
+        WonderTitle(
+            id: "tiny-maker",
+            name: "Tiny Maker",
+            why: "You make the world feel movable again by changing one little thing.",
+            compassLine: "Change one tiny thing with your hands. That counts.",
+            scoreBoosts: [.enchantment: 8, .academyClass: 6, .wonderCompass: 6, .souvenir: 4]
+        ),
+        WonderTitle(
+            id: "quiet-lantern",
+            name: "Quiet Lantern",
+            why: "You keep one gentle light on when bright would be too much.",
+            compassLine: "Keep it gentle. A small light still changes the room.",
+            scoreBoosts: [.rest: 12, .body: 6, .mood: 6, .wonderCompass: 4]
+        ),
+        WonderTitle(
+            id: "porchlight",
+            name: "Porchlight",
+            why: "You notice the pull to vanish and still leave one thread back to people.",
+            compassLine: "Let one thread point toward a person. Tiny contact counts.",
+            scoreBoosts: [.letter: 10, .supportGuild: 6, .aboutYou: 4, .wonderCompass: 4]
+        ),
+        WonderTitle(
+            id: "proofkeeper",
+            name: "Proofkeeper",
+            why: "You kept enough small true things for the Book to stop guessing.",
+            compassLine: "Bring back one clear proof. Not impressive. Real.",
+            scoreBoosts: [.souvenir: 10, .bookRemembered: 5, .bookConnections: 4, .bookOfYou: 4]
+        )
+    ]
+
+    static func title(id: String) -> WonderTitle? {
+        all.first { $0.id == id }
+    }
+
+    static func title(named name: String) -> WonderTitle? {
+        let key = normalized(name)
+        return all.first { normalized($0.name) == key || $0.id == key }
+    }
+
+    static func earnedTitle(from facts: [SelfFact]) -> WonderTitle? {
+        facts.last { $0.questionID == "earned-wonder-label" }
+            .flatMap { title(named: $0.answer) }
+    }
+
+    static func classify(signal: SelfFact, depth: SelfFact, entry: SelfFact, keptPages: [BookPage]) -> WonderTitle {
+        let affinity = entry.answer.lowercased()
+        if contains(affinity, any: ["weird", "odd", "strange", "funny", "specific", "sign", "overheard"]) {
+            return requiredTitle("oddity-collector")
+        }
+        if contains(affinity, any: ["walk", "errand", "nearby", "mailbox", "adventure", "street", "park", "quest"]) {
+            return requiredTitle("pocket-adventurer")
+        }
+        if contains(affinity, any: ["color", "colour", "bright", "beauty", "flower", "light", "visual", "pretty", "delight"]) {
+            return requiredTitle("color-finder")
+        }
+        if contains(affinity, any: ["make", "making", "craft", "cook", "arrange", "fix", "build", "draw", "write"]) {
+            return requiredTitle("tiny-maker")
+        }
+        if contains(affinity, any: ["person", "people", "friend", "note", "letter", "call", "text", "family", "together", "reach"]) {
+            return requiredTitle("porchlight")
+        }
+        if contains(affinity, any: ["quiet", "rest", "low", "tired", "gentle", "soft", "grief", "heavy", "safe"]) {
+            return requiredTitle("quiet-lantern")
+        }
+        if contains(affinity, any: ["look", "window", "weather", "sky", "room", "porch", "home", "outside from here"]) {
+            return requiredTitle("lookout")
+        }
+
+        let text = ([signal.answer, depth.answer] + keptPages.flatMap { [$0.promptText, $0.userInput] })
+            .joined(separator: " ")
+            .lowercased()
+        if contains(text, any: ["11-12", "deep water", "whirlpool", "quiet", "rest", "heavy"]) {
+            return requiredTitle("quiet-lantern")
+        }
+        if contains(text, any: ["plans", "cancel", "friend", "reach out", "behind", "boring"]) {
+            return requiredTitle("porchlight")
+        }
+        if contains(text, any: ["joy", "flat", "taste", "color", "colour", "bright", "delight"]) {
+            return requiredTitle("color-finder")
+        }
+        if contains(text, any: ["phone", "scroll", "app", "screen", "time", "calendar", "blur"]) {
+            return requiredTitle("proofkeeper")
+        }
+        return requiredTitle("proofkeeper")
+    }
+
+    static func scoreBoost(for page: SurfacePage, title: WonderTitle?) -> Int {
+        guard let title else { return 0 }
+        return title.scoreBoosts[page.type] ?? 0
+    }
+
+    private static func requiredTitle(_ id: String) -> WonderTitle {
+        guard let title = title(id: id) else {
+            preconditionFailure("Missing Wonder title: \(id)")
+        }
+        return title
+    }
+
+    private static func normalized(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+    }
+
+    private static func contains(_ text: String, any needles: [String]) -> Bool {
+        needles.contains { text.contains($0) }
     }
 }
 

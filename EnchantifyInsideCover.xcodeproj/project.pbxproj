@@ -63,6 +63,7 @@
 		041000000000000000000205 /* ReEnchantedWidgetsExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 040000000000000000000201 /* ReEnchantedWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		041000000000000000000206 /* ReEnchantedWidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040000000000000000000106 /* ReEnchantedWidgetIntents.swift */; };
 		041000000000000000000207 /* ReEnchantedWidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040000000000000000000106 /* ReEnchantedWidgetIntents.swift */; };
+		041000000000000000000208 /* ReEnchantedSiriIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040000000000000000000107 /* ReEnchantedSiriIntents.swift */; };
 		2047CBE42FDEF60C00A6B7E4 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001002 /* MLXLLM */; };
 		2047CBE52FDEF60C00A6B7E4 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001003 /* MLXLMCommon */; };
 		2047CBE62FDEF60C00A6B7E4 /* MLXLMTokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001006 /* MLXLMTokenizers */; };
@@ -154,6 +155,7 @@
 		040000000000000000000104 /* ReEnchantedWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ReEnchantedWidgets.entitlements; sourceTree = "<group>"; };
 		040000000000000000000105 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		040000000000000000000106 /* ReEnchantedWidgetIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReEnchantedWidgetIntents.swift; sourceTree = "<group>"; };
+		040000000000000000000107 /* ReEnchantedSiriIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReEnchantedSiriIntents.swift; sourceTree = "<group>"; };
 		040000000000000000000201 /* ReEnchantedWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ReEnchantedWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -252,6 +254,7 @@
 				02000000000000000000010F /* PhysicalBookOrders.swift */,
 				02000000000000000000010E /* EditionCurator.swift */,
 				040000000000000000000106 /* ReEnchantedWidgetIntents.swift */,
+				040000000000000000000107 /* ReEnchantedSiriIntents.swift */,
 				010000000000000000000104 /* InsideCoverStore.swift */,
 				01000000000000000000010C /* BookReferenceLibrary.json */,
 				01000000000000000000010E /* BookArchiveDatabase.swift */,
@@ -435,6 +438,7 @@
 				010000000000000000000003 /* InsideCoverState.swift in Sources */,
 				041000000000000000000201 /* ReEnchantedWidgetSnapshot.swift in Sources */,
 				041000000000000000000206 /* ReEnchantedWidgetIntents.swift in Sources */,
+				041000000000000000000208 /* ReEnchantedSiriIntents.swift in Sources */,
 				010000000000000000000020 /* SentenceBuilder.swift in Sources */,
 				030000000000000000000200 /* StacksSearch.swift in Sources */,
 				020000000000000000000200 /* PageModel.swift in Sources */,

@@ -20,13 +20,61 @@ final class AnnualEditionTests: XCTestCase {
         )
     }
 
+    private func scrapbook(_ id: String, title: String, on when: Date) -> BookPage {
+        BookPage(
+            id: id,
+            type: .plainPage,
+            createdAt: when,
+            promptText: title,
+            userInput: """
+            A composed scrapbook page.
+
+            Scraps bound here:
+            Souvenir: The harbor fog came in.
+            """,
+            tags: ["annual-test", "pagewright", "scrapbook", "format:scrapPage"],
+            sourceID: "pagewright",
+            origin: .userAuthored,
+            privacy: .privateLocal,
+            mediaAssets: [
+                BookPageMediaAsset(
+                    kind: .renderedImageFile,
+                    reference: "/tmp/\(id).png",
+                    caption: title,
+                    sourceID: "pagewright"
+                )
+            ]
+        )
+    }
+
+    private func braid(_ id: String, title: String, keptLine: String, on when: Date) -> BookPage {
+        BraidPageDetails.annotated(
+            BookPage(
+                id: id,
+                type: .bookOfYou,
+                createdAt: when,
+                promptText: "Book of You",
+                userInput: """
+                \(title)
+
+                The rain tapped the window while the lamp kept watch.
+
+                The Book kept the page: \(keptLine).
+                """,
+                tags: ["annual-test", "braid"],
+                sourceID: BookPageSourceRegistry.source(for: .bookOfYou).id
+            ),
+            context: .empty
+        )
+    }
+
     /// A few months of kept pages, plus one empty month between them.
     private func sampleDays() -> [BookDay] {
         var days: [BookDay] = []
         // January — souvenirs + braids.
         days.append(BookDay(id: "2026-01-05", date: date(1, 5, hour: 0), pages: [
             page("jan-s1", type: .souvenir, on: date(1, 5)),
-            page("jan-b1", type: .bookOfYou, on: date(1, 5, hour: 22))
+            braid("jan-b1", title: "Rain At The Window", keptLine: "rain made the lamp brave", on: date(1, 5, hour: 22))
         ]))
         days.append(BookDay(id: "2026-01-18", date: date(1, 18, hour: 0), pages: [
             page("jan-s2", type: .souvenir, on: date(1, 18))
@@ -77,12 +125,46 @@ final class AnnualEditionTests: XCTestCase {
         XCTAssertEqual(first, again, "the same year binds identically")
     }
 
+    func testAnnualForewordAndClosingUseTheBooksOwnVoice() {
+        let annual = MonthlyEditionBuilder.annual(2026, from: sampleDays(), readerName: "bj", now: date(12, 31), calendar: calendar)
+
+        XCTAssertTrue(annual.foreword.contains("patted the corners flat"))
+        XCTAssertTrue(annual.foreword.contains("the month is still there, waiting where you left it"))
+        XCTAssertTrue(annual.foreword.contains("I kept turning the pages anyway"))
+        XCTAssertTrue(annual.closing.contains("with its corners tucked in"))
+        XCTAssertTrue(annual.closing.contains("The next page is always blank on purpose"))
+    }
+
     func testEachChapterKeepsItsOwnSections() {
         let annual = MonthlyEditionBuilder.annual(2026, from: sampleDays(), readerName: "bj", now: date(12, 31), calendar: calendar)
         for chapter in annual.chapters {
             XCTAssertFalse(chapter.sections.isEmpty, "\(chapter.monthName) should carry curated sections")
             XCTAssertFalse(chapter.foreword.isEmpty, "\(chapter.monthName) keeps its own foreword")
         }
+    }
+
+    func testAnnualCarriesScrapbookPagesThroughMonthlyChapters() {
+        let days = [
+            BookDay(id: "2026-01-05", date: date(1, 5, hour: 0), pages: [
+                page("jan-s1", type: .souvenir, on: date(1, 5)),
+                scrapbook("jan-scrap", title: "January Scrap", on: date(1, 5, hour: 16))
+            ])
+        ]
+
+        let annual = MonthlyEditionBuilder.annual(2026, from: days, readerName: "bj", now: date(12, 31), calendar: calendar)
+        let section = annual.chapters.first?.sections.first { $0.id == "scrapbook-pages" }
+
+        XCTAssertEqual(section?.title, "Scrapbook Pages")
+        XCTAssertEqual(section?.items.map(\.id), ["jan-scrap"])
+        XCTAssertEqual(section?.items.first?.title, "January Scrap")
+    }
+
+    func testAnnualCarriesYearLevelMemorySpine() {
+        let annual = MonthlyEditionBuilder.annual(2026, from: sampleDays(), readerName: "bj", now: date(12, 31), calendar: calendar)
+
+        XCTAssertTrue(annual.memorySpine?.motifs.contains { $0.contains("rain") } == true)
+        XCTAssertTrue(annual.memorySpine?.callbacks.contains { $0.contains("rain made the lamp brave") } == true)
+        XCTAssertTrue(annual.memorySpine?.coverStories.contains { $0.contains("Rain At The Window") } == true)
     }
 
     func testEmptyYearBindsToNothing() {

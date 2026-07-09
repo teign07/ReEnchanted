@@ -81,13 +81,14 @@ final class PactWarTests: XCTestCase {
         state.control[PactWarState.key("ember-seal", "shelf-reflection")] = 50
         var inputs = BookSourceInputs.empty
         inputs.pactWar = state
-        let mood = CuratorMood.make(inputs: inputs)
+        let now = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 1, hour: 12))!
+        let mood = CuratorMood.make(inputs: inputs, now: now)
         let diary = SurfacePage(
             id: "p", type: .diary, sourceID: "diary-page", intent: .capture,
             renderStyle: .promptCard, score: 50, reason: "", prompt: "", detail: "",
             payload: BookPagePayload(headline: "", body: "")
         )
-        XCTAssertGreaterThanOrEqual(mood.adjustment(for: diary), 8, "a dominated shelf lifts its pages")
+        XCTAssertGreaterThanOrEqual(mood.adjustment(for: diary, now: now), 8, "a dominated shelf lifts its pages")
     }
 
     func testFramingReflectsControllingChapter() {
@@ -137,7 +138,7 @@ final class PactWarTests: XCTestCase {
     func testWhisperAndHourVoicesShiftByController() {
         XCTAssertNotEqual(PactVoices.braidWhisper(controller: "ember-seal").body,
                           PactVoices.braidWhisper(controller: "moss-clasp").body)
-        XCTAssertEqual(PactVoices.braidWhisper(controller: nil).title, "The Book is ready to braid")
+        XCTAssertEqual(PactVoices.braidWhisper(controller: nil).title, "Come read your story")
         XCTAssertNotNil(PactVoices.hourQuestion(controller: "tide-glass", phase: "before"))
         XCTAssertNil(PactVoices.hourQuestion(controller: nil, phase: "before"))
     }

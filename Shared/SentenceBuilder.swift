@@ -40,6 +40,136 @@ struct SentenceStarterDraft: Identifiable, Equatable {
     }
 }
 
+enum PennySentenceMasteryLesson: String, Codable, Equatable, CaseIterable, Identifiable {
+    case specificDetail = "specific-detail"
+    case crossedWires = "crossed-wires"
+    case worldTakesVerb = "world-takes-verb"
+    case twentyFourHourVault = "twenty-four-hour-vault"
+
+    var id: String { rawValue }
+
+    var order: Int {
+        switch self {
+        case .specificDetail: return 1
+        case .crossedWires: return 2
+        case .worldTakesVerb: return 3
+        case .twentyFourHourVault: return 4
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .specificDetail:
+            return "Specific Is Evidence"
+        case .crossedWires:
+            return "Cross the Wires"
+        case .worldTakesVerb:
+            return "Give the World the Pen"
+        case .twentyFourHourVault:
+            return "The 24-Hour Vault"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .specificDetail: return "Specific"
+        case .crossedWires: return "Cross"
+        case .worldTakesVerb: return "Agency"
+        case .twentyFourHourVault: return "Vault"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .specificDetail:
+            return "sparkle.magnifyingglass"
+        case .crossedWires:
+            return "point.3.connected.trianglepath.dotted"
+        case .worldTakesVerb:
+            return "pencil.and.outline"
+        case .twentyFourHourVault:
+            return "lock.doc"
+        }
+    }
+
+    var focusLine: String {
+        switch self {
+        case .specificDetail:
+            return "Replace a label with one physical fact your future self can re-enter."
+        case .crossedWires:
+            return "Let one sense borrow another sense's vocabulary so the memory has a hook."
+        case .worldTakesVerb:
+            return "Move the action from you to the thing, and let the world do something back."
+        case .twentyFourHourVault:
+            return "Capture first, broadcast later. A private sentence lets the memory cure."
+        }
+    }
+
+    var pennyBriefing: String {
+        switch self {
+        case .specificDetail:
+            return "Blackletter filing note: 'Fun' is not evidence. Neither is 'nice.' Bring me one texture, one color, one sound, one object with fingerprints on it. The page cannot cross-examine fog."
+        case .crossedWires:
+            return "Today's legal mischief: mix the senses. If the rain has a color, if the soup has a volume, if the light tastes metallic, the filing cabinet jams open. Excellent."
+        case .worldTakesVerb:
+            return "Stop making yourself the only witness. The bench may catch you. The cup may keep watch. The door may assume you are about to begin. Let the object testify."
+        case .twentyFourHourVault:
+            return "A broadcast is not a memory; it is a press release. Capture the line, close the vault, and let tomorrow decide whether the public deserves it."
+        }
+    }
+
+    var practicePrompt: String {
+        switch self {
+        case .specificDetail:
+            return "Scan the last day. Find one small good moment and write the most specific physical detail from it."
+        case .crossedWires:
+            return "Take a plain sensory fact and cross it: make a sound carry color, a smell carry temperature, or light carry taste."
+        case .worldTakesVerb:
+            return "Rewrite an 'I saw / I found / I sat' sentence so the object acts first."
+        case .twentyFourHourVault:
+            return "Write one private souvenir sentence you will not post today. Let it belong to you first."
+        }
+    }
+
+    var placeholder: String {
+        switch self {
+        case .specificDetail:
+            return "The blue mug left a warm ring on the table..."
+        case .crossedWires:
+            return "The rain smelled green and silver..."
+        case .worldTakesVerb:
+            return "The bench caught my weight like it had saved the place..."
+        case .twentyFourHourVault:
+            return "I am keeping the gold light on the sink private until tomorrow..."
+        }
+    }
+
+    var masteryHint: String {
+        switch self {
+        case .specificDetail:
+            return "Penny wants a real thing plus a body detail."
+        case .crossedWires:
+            return "Penny wants a crossed sense: taste, sound, smell, color, texture in the wrong lane."
+        case .worldTakesVerb:
+            return "Penny wants a nonhuman thing doing a plain verb."
+        case .twentyFourHourVault:
+            return "Penny wants the sentence saved before the performance begins."
+        }
+    }
+
+    var tags: [String] {
+        [
+            "wonder-compass",
+            "wonder-compass:chapter-9",
+            "west-write",
+            "penny-blackletter",
+            "sentence-mastery",
+            "sentence-builder",
+            "sentence-lesson:\(rawValue)"
+        ]
+    }
+}
+
 /// A pocket of vocabulary that hangs together — a kitchen, weather, a bedroom.
 /// When the user's sentence names one of a theme's `anchors`, the builder draws
 /// its replacement chips from that theme first, so suggestions reflect context.
@@ -720,6 +850,107 @@ extension SentenceBuilderPack {
         author: "The Dusk Thorn",
         availability: "bundledFree"
     )
+
+    static let chapterNineMastery = SentenceBuilderPack(
+        id: "pack.chapter-nine-sentence-mastery",
+        displayName: "Penny's Sentence Desk",
+        ritualTitle: "File the evidence",
+        replayPrompt: "Close your eyes for one breath. What is the first concrete detail that comes back?",
+        replayHelper: "Do not summarize the day. Bring Penny one object, one sense, one action, or one private line worth saving.",
+        vagueWords: [],
+        avoidWords: [],
+        concreteWords: [
+            "aisle", "bakery", "bench", "bird", "blue jay", "canvas", "cereal",
+            "cloud", "coffee", "counter", "cup", "dock", "door", "fog", "garlic",
+            "gem", "jar", "jay", "lake", "lemon", "mailbox", "mountain", "note", "oil",
+            "page", "pie", "porch", "receipt", "river", "rock", "sentence",
+            "sidewalk", "sink", "song", "stone", "tutu", "vault", "water"
+        ],
+        sensoryWords: [
+            "blue", "brassy", "bright", "buttery", "cold", "crisp", "gold",
+            "gray", "green", "hot", "metallic", "orange", "private", "salty",
+            "silver", "slow", "smooth", "sour", "sticky", "warm"
+        ],
+        animateVerbs: [
+            "called", "caught", "danced", "filed", "fought", "grabbed", "groaned",
+            "hid", "kept", "leaned", "reached", "rumbled", "saved", "scratched",
+            "testified", "tilted", "waited", "watched", "whispered"
+        ],
+        crossingWords: [
+            "brass sour", "cold iron", "green smell", "orange sound",
+            "silver hush", "slow Sunday", "sour trumpet", "warm quiet"
+        ],
+        themes: [
+            LexicalTheme(
+                id: "souvenir-evidence",
+                name: "Souvenir evidence",
+                anchors: ["receipt", "note", "jar", "page", "sentence", "vault", "pocket"],
+                senses: ["private", "warm", "gold", "sticky", "smooth"],
+                verbs: ["filed", "kept", "hid", "saved", "testified"],
+                crossings: ["warm quiet", "silver hush", "slow Sunday"]
+            ),
+            LexicalTheme(
+                id: "kitchen-memory",
+                name: "Kitchen memory",
+                anchors: ["garlic", "oil", "cup", "coffee", "counter", "sink", "lemon", "pie"],
+                senses: ["buttery", "hot", "warm", "sour", "salty", "metallic"],
+                verbs: ["reached", "waited", "watched", "whispered"],
+                crossings: ["brass sour", "sour trumpet", "green smell"]
+            ),
+            LexicalTheme(
+                id: "outside-proof",
+                name: "Outside proof",
+                anchors: ["bench", "bird", "blue jay", "cloud", "dock", "fog", "lake", "mailbox",
+                          "mountain", "porch", "river", "rock", "sidewalk", "stone", "water"],
+                senses: ["blue", "bright", "cold", "gray", "green", "gold", "silver", "smooth"],
+                verbs: ["called", "caught", "grabbed", "groaned", "leaned", "rumbled", "tilted", "waited"],
+                crossings: ["cold iron", "green smell", "orange sound", "silver hush"]
+            )
+        ],
+        starterTemplates: [
+            SentenceStarterTemplate(
+                id: "chapter-nine-specific-detail",
+                title: "Specific evidence",
+                pattern: "The {sense} {anchor} {motion} before the day could delete it.",
+                slots: [
+                    SentenceStarterSlot(id: "sense", kind: .sense, title: "Physical detail", options: ["blue", "warm", "gold", "smooth"]),
+                    SentenceStarterSlot(id: "anchor", kind: .anchor, title: "Evidence", options: ["mug", "receipt", "bench", "cloud"]),
+                    SentenceStarterSlot(id: "motion", kind: .motion, title: "What it did", options: ["waited", "kept", "caught", "leaned"])
+                ]
+            ),
+            SentenceStarterTemplate(
+                id: "chapter-nine-crossed-wire",
+                title: "Crossed wire",
+                pattern: "The {anchor} tasted like {crossing}.",
+                slots: [
+                    SentenceStarterSlot(id: "anchor", kind: .anchor, title: "Witness", options: ["rain", "song", "coffee", "fog"]),
+                    SentenceStarterSlot(id: "crossing", kind: .crossing, title: "Wrong lane", options: ["cold iron", "orange sound", "slow Sunday", "silver hush"])
+                ]
+            ),
+            SentenceStarterTemplate(
+                id: "chapter-nine-world-acts",
+                title: "World takes the verb",
+                pattern: "The {anchor} {motion} me with {sense} patience.",
+                slots: [
+                    SentenceStarterSlot(id: "anchor", kind: .anchor, title: "Actor", options: ["bench", "door", "stone", "mountain"]),
+                    SentenceStarterSlot(id: "motion", kind: .motion, title: "Plain verb", options: ["caught", "waited", "grabbed", "tilted"]),
+                    SentenceStarterSlot(id: "sense", kind: .sense, title: "Trace", options: ["warm", "cold", "gold", "private"])
+                ]
+            ),
+            SentenceStarterTemplate(
+                id: "chapter-nine-vault",
+                title: "Vault sentence",
+                pattern: "I am keeping the {sense} {anchor} private until tomorrow.",
+                slots: [
+                    SentenceStarterSlot(id: "sense", kind: .sense, title: "What kind?", options: ["gold", "warm", "silver", "smooth"]),
+                    SentenceStarterSlot(id: "anchor", kind: .anchor, title: "What stays yours?", options: ["light", "coffee", "note", "cloud"])
+                ]
+            )
+        ],
+        version: 1,
+        author: "Penny Blackletter",
+        availability: "bundledFree"
+    )
 }
 
 /// Registry for sentence-builder content, mirroring `PageArchetypePackRegistry`
@@ -816,6 +1047,20 @@ enum SentenceBuilderPackRegistry {
 
     static func composedSouvenir(readerLexicon: ReaderLexicon, shadowWonderActive: Bool = false) -> SentenceBuilderPack {
         var pack = composedSouvenir()
+            .merged(with: readerLexicon.asSentenceBuilderPack())
+        if shadowWonderActive { pack = pack.merged(with: .shadowWonder) }
+        return pack
+    }
+
+    static func composedChapterNineMastery() -> SentenceBuilderPack {
+        if let hit = cache["chapter-nine-mastery"] { return hit }
+        let pack = composed(onto: .core.merged(with: .souvenir).merged(with: .chapterNineMastery))
+        cache["chapter-nine-mastery"] = pack
+        return pack
+    }
+
+    static func composedChapterNineMastery(readerLexicon: ReaderLexicon, shadowWonderActive: Bool = false) -> SentenceBuilderPack {
+        var pack = composedChapterNineMastery()
             .merged(with: readerLexicon.asSentenceBuilderPack())
         if shadowWonderActive { pack = pack.merged(with: .shadowWonder) }
         return pack
@@ -1016,6 +1261,7 @@ struct SentenceBuilderAnalysis: Equatable {
     var hasConcreteAnchor: Bool
     var hasSensoryDetail: Bool
     var hasLivingMotion: Bool
+    var hasWorldActor: Bool
     var hasCrossedSense: Bool
     var memoryStrength: Int
     var craftMarks: [SentenceBuilderCraftMark]
@@ -1046,6 +1292,7 @@ struct SentenceBuilderEngine {
         let hasConcreteAnchor = containsAnyWord(from: pack.concreteWords, in: wordSet)
         let hasSensoryDetail = containsAnyWord(from: pack.sensoryWords, in: wordSet)
         let hasLivingMotion = containsAnyWord(from: pack.animateVerbs, in: wordSet)
+        let hasWorldActor = detectsWorldActor(in: normalizedWords)
         let hasCrossedSense = pack.crossingWords.contains { lower.contains($0.lowercased()) }
             || (hasSensoryDetail && lower.contains(" sound"))
             || (hasSensoryDetail && lower.contains(" taste"))
@@ -1113,6 +1360,7 @@ struct SentenceBuilderEngine {
             hasConcreteAnchor: hasConcreteAnchor,
             hasSensoryDetail: hasSensoryDetail,
             hasLivingMotion: hasLivingMotion,
+            hasWorldActor: hasWorldActor,
             hasCrossedSense: hasCrossedSense,
             memoryStrength: memoryStrength,
             craftMarks: marks,
@@ -1300,6 +1548,36 @@ struct SentenceBuilderEngine {
 
     private func containsAnyWord(from words: [String], in wordSet: Set<String>) -> Bool {
         words.contains { wordSet.contains($0.lowercased()) }
+    }
+
+    private func detectsWorldActor(in sentenceWords: [String]) -> Bool {
+        let concrete = Set(pack.concreteWords.compactMap { entry -> String? in
+            let tokens = words(in: entry)
+            return tokens.count == 1 ? tokens[0] : nil
+        })
+        let livingVerbs = Set(pack.animateVerbs.compactMap { entry -> String? in
+            let tokens = words(in: entry)
+            return tokens.count == 1 ? tokens[0] : nil
+        })
+        let firstPersonSubjects: Set<String> = ["i", "we"]
+        let firstPersonWords: Set<String> = ["i", "me", "my", "mine", "we", "us", "our", "ours"]
+        guard !concrete.isEmpty, !livingVerbs.isEmpty else { return false }
+
+        for index in sentenceWords.indices where concrete.contains(sentenceWords[index]) {
+            let lookbehindStart = max(0, index - 4)
+            let lookbehind = sentenceWords[lookbehindStart..<index]
+            guard !lookbehind.contains(where: { firstPersonSubjects.contains($0) }) else { continue }
+
+            let lookaheadEnd = min(sentenceWords.count, index + 5)
+            guard index + 1 < lookaheadEnd else { continue }
+            for verbIndex in (index + 1)..<lookaheadEnd where livingVerbs.contains(sentenceWords[verbIndex]) {
+                let bridge = sentenceWords[(index + 1)..<verbIndex]
+                if !bridge.contains(where: { firstPersonWords.contains($0) }) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     private func starterTheme(for draft: SentenceStarterDraft) -> LexicalTheme? {

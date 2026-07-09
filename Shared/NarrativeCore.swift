@@ -62,6 +62,190 @@ struct AskTheBookTurn: Codable, Identifiable, Equatable {
     }
 }
 
+enum BookKnowledgePromptBuilder {
+    private struct KnowledgeEntry {
+        var id: String
+        var category: String
+        var title: String
+        var body: String
+        var tags: [String]
+
+        var searchText: String {
+            ([title, body] + tags).joined(separator: " ").lowercased()
+        }
+    }
+
+    static func trainingPacket(for readerMessage: String, limit: Int = 18) -> String {
+        let entries = rankedEntries(for: readerMessage, limit: limit)
+        let entryLines = entries.map { entry in
+            "- [\(entry.category)] \(entry.title): \(clipped(entry.body, limit: 420))"
+        }.joined(separator: "\n")
+
+        return """
+        APP + BOOK KNOWLEDGE:
+        - ReEnchanted is a private, local-first living book. The reader keeps Pages; Pages become Today's Margins, the Book of You, memory, search, monthly/annual editions, Story Pages, letters, radio, cast relationships, and future suggestions.
+        - The Wonder Compass is the real-world method inside the Book: Notice/North asks "I wonder"; Embark/East makes a plan with Destination, Delight, and Definition; Sense/South wakes up the body; Write/West keeps a One-Sentence Souvenir; Rest/return lets the loop close.
+        - Belief is attention made usable. Glow can be given to pages, cast, places, and systems to invite more of them; keeping pages also brightens Glow.
+        - The Academy of Unlikely Arts is the in-world frame. Its chapters are Emberheart, Mossbloom, Tidecrest, Riddlewind, and Duskthorn. The Nothing is the flattening force of forgetting, cynicism, and autopilot.
+        - Always answer app, lore, cast, system, and Wonder Compass questions from this packet first. If the exact fact is not here, say what you know and keep the uncertainty gentle.
+
+        RELEVANT TRAINING NOTES:
+        \(entryLines.isEmpty ? "- No specific match. Use the app and Compass core map above." : entryLines)
+        """
+    }
+
+    private static func rankedEntries(for readerMessage: String, limit: Int) -> [KnowledgeEntry] {
+        let tokens = searchTokens(in: readerMessage)
+        let entries = allEntries()
+        let ranked: [(entry: KnowledgeEntry, score: Int)] = entries.enumerated().map { index, entry in
+            let score = relevanceScore(entry, tokens: tokens, fallbackIndex: index)
+            return (entry: entry, score: score)
+        }
+
+        return ranked
+            .filter { $0.score > 0 || tokens.isEmpty }
+            .sorted { left, right in
+                if left.score == right.score { return left.entry.title < right.entry.title }
+                return left.score > right.score
+            }
+            .prefix(limit)
+            .map(\.entry)
+    }
+
+    private static func allEntries() -> [KnowledgeEntry] {
+        var entries: [KnowledgeEntry] = []
+
+        entries += MarginTutorCatalog.notes.map {
+            KnowledgeEntry(id: "system-\($0.id)", category: "App system", title: $0.title, body: $0.text, tags: [$0.id, "system"])
+        }
+
+        entries += AcademyChapterRegistry.chapters.map {
+            KnowledgeEntry(
+                id: "chapter-\($0.id)",
+                category: "Academy chapter",
+                title: $0.name,
+                body: "Philosophy: \($0.philosophy) Founder: \($0.founder) Traits: \($0.traits.joined(separator: ", ")). Compass flavor: \($0.compassFlavor) Talisman: \($0.talismanName).",
+                tags: [$0.id, $0.talismanID, "chapter"] + $0.traits
+            )
+        }
+
+        entries += NarrativePackRegistry.bundledPacks.flatMap(\.entities).map { entity in
+            KnowledgeEntry(
+                id: "entity-\(entity.id)",
+                category: entity.kind == .character ? "Cast" : entity.kind.rawValue,
+                title: entity.name,
+                body: entitySummary(entity),
+                tags: [entity.id, entity.kind.rawValue, entity.chapter ?? ""] + entity.tags
+            )
+        }
+
+        entries += NarrativePackRegistry.bundledPacks.flatMap(\.threads).map {
+            KnowledgeEntry(id: "thread-\($0.id)", category: "Story thread", title: $0.title, body: $0.summary, tags: [$0.id, $0.phase.rawValue] + $0.tags)
+        }
+
+        entries += NarrativePackRegistry.bundledPacks.flatMap(\.relationships).compactMap { relationship in
+            let entities = NarrativePackRegistry.bundledPacks.flatMap(\.entities)
+            let source = entities.first { $0.id == relationship.sourceEntityID }?.name ?? relationship.sourceEntityID
+            let target = entities.first { $0.id == relationship.targetEntityID }?.name ?? relationship.targetEntityID
+            return KnowledgeEntry(
+                id: "relationship-\(relationship.id)",
+                category: "Cast relationship",
+                title: "\(source) and \(target)",
+                body: relationship.note,
+                tags: [relationship.id, relationship.kind.rawValue] + relationship.tags
+            )
+        }
+
+        entries += BookReferenceCatalog.wonderCompass.map {
+            KnowledgeEntry(id: "wonder-\($0.id)", category: "Wonder Compass book", title: $0.title, body: "\($0.prompt) \($0.body)", tags: ["wonder-compass", $0.sourceID] + $0.tags)
+        }
+
+        entries += BookReferenceCatalog.lorePacks.flatMap(\.snippets).map {
+            KnowledgeEntry(id: "lore-\($0.id)", category: "Lore", title: $0.title, body: "\($0.prompt) \($0.body)", tags: ["lore", $0.sourceID] + $0.tags)
+        }
+
+        entries += BookReferenceCatalog.characterIllustrations.map {
+            KnowledgeEntry(
+                id: "illustration-\($0.id)",
+                category: $0.illustrationDossierKind,
+                title: $0.characterName,
+                body: "\($0.core) Signature: \($0.signature). Continuity: \($0.continuity)",
+                tags: [$0.id, $0.slug, $0.chapter ?? ""] + $0.tags
+            )
+        }
+
+        entries += BookShopCatalog.listings.map {
+            KnowledgeEntry(id: "shop-\($0.id)", category: "BookShop", title: $0.title, body: "\($0.contents) \($0.goblinPitch)", tags: [$0.packID, $0.family.rawValue, $0.resolvedSaleState.rawValue])
+        }
+
+        entries += BookShopCatalog.freeGifts.map {
+            KnowledgeEntry(id: "gift-\($0.id)", category: "BookShop gift", title: $0.title, body: "\($0.contents) \($0.goblinPitch)", tags: [$0.packID, "free-gift"])
+        }
+
+        return entries
+    }
+
+    private static func entitySummary(_ entity: NarrativeWorldEntity) -> String {
+        [
+            entity.chapter.map { "Chapter: \($0)." },
+            entity.unwrittenInterest.map { "Interest: \($0)" },
+            entity.traits.isEmpty ? nil : "Traits: \(entity.traits.joined(separator: ", ")).",
+            entity.quirks.isEmpty ? nil : "Quirks: \(entity.quirks.joined(separator: ", ")).",
+            entity.beliefs.isEmpty ? nil : "Beliefs: \(entity.beliefs.joined(separator: ", ")).",
+            entity.goals.isEmpty ? nil : "Goals: \(entity.goals.joined(separator: ", ")).",
+            entity.faults.isEmpty ? nil : "Faults: \(entity.faults.joined(separator: ", "))."
+        ]
+        .compactMap { $0 }
+        .joined(separator: " ")
+    }
+
+    private static func relevanceScore(_ entry: KnowledgeEntry, tokens: [String], fallbackIndex: Int) -> Int {
+        guard !tokens.isEmpty else {
+            return max(1, 100 - fallbackIndex)
+        }
+
+        let text = entry.searchText
+        let title = entry.title.lowercased()
+        var score = 0
+        for token in tokens {
+            if title.contains(token) { score += 18 }
+            if entry.tags.contains(where: { $0.lowercased().contains(token) }) { score += 12 }
+            if text.contains(token) { score += 4 }
+        }
+
+        if title == tokens.joined(separator: " ") { score += 60 }
+        return score
+    }
+
+    private static func searchTokens(in value: String) -> [String] {
+        let stopWords: Set<String> = [
+            "about", "after", "again", "also", "and", "any", "app", "are", "ask", "book", "can",
+            "does", "for", "from", "have", "how", "into", "know", "like", "me", "of", "on",
+            "or", "our", "the", "this", "to", "what", "when", "where", "who", "why", "with",
+            "wonder", "you", "your"
+        ]
+
+        let pieces = value.lowercased().split { !$0.isLetter && !$0.isNumber }
+        var seen: Set<String> = []
+        return pieces.compactMap { piece in
+            let token = String(piece)
+            guard token.count >= 3, !stopWords.contains(token), !seen.contains(token) else { return nil }
+            seen.insert(token)
+            return token
+        }
+    }
+
+    private static func clipped(_ value: String, limit: Int) -> String {
+        let normalized = value
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "  ", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > limit else { return normalized }
+        let end = normalized.index(normalized.startIndex, offsetBy: limit)
+        return normalized[..<end].trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+}
+
 enum InkrestOfficeHoursPromptBuilder {
     static func prompt(
         intake: InkrestIntake,
@@ -1660,12 +1844,12 @@ enum NarrativePackRegistry {
             belief: 18,
             weight: 17,
             chapter: "Mossbloom",
-            unwrittenInterest: "Longevity research, fuel, recovery, supplements, movement, and humane body experiments.",
+            unwrittenInterest: "Longevity research, fuel-ledger pattern recognition, recovery, supplements, movement, and humane body experiments.",
             traits: ["precise", "warmly clinical", "experiment-minded", "low-shame"],
-            quirks: ["turns breakfast into field notes", "can make a supplement interaction sound like etiquette"],
+            quirks: ["turns breakfast into field notes", "pins repeated fuel clues with cranberry thread", "can make a supplement interaction sound like etiquette"],
             faults: ["can become too fascinated by a tidy protocol"],
             beliefs: ["the body is not a problem to win against"],
-            goals: ["translate fuel, movement, recovery, and health signals into one humane experiment"],
+            goals: ["translate fuel, movement, recovery, and health signals into one humane experiment", "notice repeated nourishment patterns without turning them into grades"],
             tags: ["character", "support-faculty", "body", "fuel", "health", "vellum-chart", "longevity", "care"]
         ),
         entity(
@@ -3121,6 +3305,16 @@ enum NarrativeEventResolver {
             threadDeltas["margin-glass-letters", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 1
             createdHint = "A character letter can leave behind a researched callback."
+        case .note:
+            threadDeltas["margin-glass-letters", default: 0] += 1
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+            for tag in tags where tag.hasPrefix("sender:") {
+                let entityID = tag.replacingOccurrences(of: "sender:", with: "")
+                if !entityID.isEmpty {
+                    entityDeltas[entityID, default: 0] += 2
+                }
+            }
+            createdHint = "A slipped note can become a future callback in dialogue, letters, or another folded scrap."
         case .souvenir, .quip, .wonderCompass, .illustration:
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 1
@@ -3995,13 +4189,18 @@ enum DisagreementEngine {
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> DisagreementPair? {
-        // Cap the pool to the most present voices so the pairing stays vivid.
-        let pool = Array(eligible(from: entities).sorted { $0.belief > $1.belief }.prefix(9))
+        // Cap the pool to present voices, but roll by weight so the same two
+        // highest-Belief characters do not monopolize every reading.
+        let pool = Array(StableWeightedRoll.ordered(
+            from: eligible(from: entities).sorted { $0.id < $1.id },
+            seed: "\(BookDay.id(for: now))-two-readings-pool",
+            weight: { $0.belief + $0.narrativeWeight }
+        ).prefix(9))
         guard pool.count >= 2 else { return nil }
         let haystack = evidenceText.lowercased()
         let slot = "\(calendar.dateComponents([.year, .month, .day], from: now).day ?? 0)"
 
-        var best: (pair: DisagreementPair, score: Int)?
+        var candidates: [(pair: DisagreementPair, score: Int)] = []
         for i in pool.indices {
             for j in pool.indices where j > i {
                 let a = pool[i]
@@ -4016,14 +4215,22 @@ enum DisagreementEngine {
                 let jitter = abs("\(a.id)-\(b.id)-\(slot)".stableHash) % 4
                 let score = tensionValue / 3 + contrast * 2 + fit * 3 + beliefPresence + jitter - (seenRecently ? 7 : 0)
 
-                if best == nil || score > best!.score {
-                    best = (
-                        DisagreementPair(aID: a.id, bID: b.id, aName: a.name, bName: b.name, relationshipNote: note),
-                        score
-                    )
-                }
+                candidates.append((
+                    DisagreementPair(aID: a.id, bID: b.id, aName: a.name, bName: b.name, relationshipNote: note),
+                    score
+                ))
             }
         }
-        return best?.pair
+        let freshCandidates = candidates.filter { candidate in
+            let key = "tworeadings:\(candidate.pair.pairKey)"
+            return surfaceHistory[key]
+                .map { now.timeIntervalSince($0.lastShownAt) >= 3 * 86_400 } ?? true
+        }
+        let poolCandidates = freshCandidates.isEmpty ? candidates : freshCandidates
+        return StableWeightedRoll.pick(
+            from: poolCandidates.sorted { $0.pair.pairKey < $1.pair.pairKey },
+            seed: "\(slot)-two-readings-pair-\(haystack.stableHash)",
+            weight: { $0.score }
+        )?.pair
     }
 }

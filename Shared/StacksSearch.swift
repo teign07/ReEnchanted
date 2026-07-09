@@ -862,3 +862,232 @@ enum KeepEcho {
         )
     }
 }
+
+// MARK: - The Semantic Echo
+
+/// The deeper recognition note: a just-kept page that shares *no* content word
+/// with an older page and still carries the same feeling. The inversion of
+/// `KeepEcho` — there, a shared rare word is the trigger; here, any shared
+/// content word disqualifies, so when this note speaks the connection could
+/// not have come from string matching. It rides the same sentence embedding
+/// as Search the Stacks and stays deterministic for a fixed scorer.
+enum SemanticKeepEcho {
+    static let markerTag = "semantic-echo"
+    static let sourceTagPrefix = "semantic-echo-source:"
+    static let lineTagPrefix = "semantic-echo-line:"
+
+    struct Echo: Equatable {
+        var sourcePageID: String
+        var excerpt: String
+        var monthLine: String
+        var similarity: Double
+        var line: String
+    }
+
+    /// Same age bar as the word echo — recognition, not repetition.
+    static let minimumAgeDays = KeepEcho.minimumAgeDays
+    /// Far above the Stacks search-relevance floor: the Book claims a felt
+    /// connection only when the embedding is nearly certain.
+    static let similarityFloor = 0.55
+    /// Both sentences need enough body to carry a feeling.
+    static let minimumWordCount = 6
+    /// Keep-time cost bound — only the strongest archive prose is compared.
+    static let maximumCandidates = 120
+
+    /// The one scorer reused across keeps: the sentence-embedding model is not
+    /// free to load, and its first touch should happen off the main thread.
+    static let keepTimeScorer: StacksSemanticScoring? = {
+        #if canImport(NaturalLanguage)
+        return NaturalLanguageStacksEmbeddingScorer()
+        #else
+        return nil
+        #endif
+    }()
+
+    static func find(
+        for input: String,
+        pageType: BookPageType,
+        pageID: String,
+        in days: [BookDay],
+        scorer: StacksSemanticScoring?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Echo? {
+        guard let scorer else { return nil }
+        guard !EditionCurator.defaultPrivateTypes.contains(pageType) else { return nil }
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard wordCount(of: trimmed) >= minimumWordCount else { return nil }
+        let inputWords = contentWords(in: trimmed)
+
+        let cutoff = now.addingTimeInterval(TimeInterval(-minimumAgeDays) * 86_400)
+        let candidates = days.flatMap(\.capturedPages)
+            .filter { page in
+                page.createdAt <= cutoff
+                    && page.id != pageID
+                    && !EditionCurator.defaultPrivateTypes.contains(page.type)
+                    && wordCount(of: page.userInput) >= minimumWordCount
+                    && contentWords(in: page.userInput).isDisjoint(with: inputWords)
+            }
+            .sorted { left, right in
+                let leftSpark = StorySpark.score(left.userInput)
+                let rightSpark = StorySpark.score(right.userInput)
+                if leftSpark != rightSpark { return leftSpark > rightSpark }
+                if left.createdAt != right.createdAt { return left.createdAt > right.createdAt }
+                return left.id < right.id
+            }
+            .prefix(maximumCandidates)
+        guard !candidates.isEmpty else { return nil }
+
+        var best: (page: BookPage, similarity: Double)?
+        for page in candidates {
+            guard let similarity = scorer.similarity(between: trimmed, and: page.userInput),
+                  similarity >= similarityFloor else { continue }
+            if let current = best {
+                if similarity > current.similarity
+                    || (similarity == current.similarity && page.createdAt < current.page.createdAt) {
+                    best = (page, similarity)
+                }
+            } else {
+                best = (page, similarity)
+            }
+        }
+        guard let best else { return nil }
+
+        let month = best.page.createdAt.formatted(.dateTime.month(.wide))
+        let sameYear = calendar.component(.year, from: best.page.createdAt)
+            == calendar.component(.year, from: now)
+        let year = calendar.component(.year, from: best.page.createdAt)
+        let monthLine = sameYear ? "back in \(month)" : "in \(month) \(year)"
+        let excerpt = excerpt(of: best.page.userInput)
+
+        let seed = KeepMarginalia.seed(for: pageID)
+        let lines = [
+            "This page and one from \(monthLine) — \u{201C}\(excerpt)\u{201D} — are the same feeling wearing different words.",
+            "The Book set this beside a page from \(monthLine): \u{201C}\(excerpt)\u{201D}. Different words. Same weather.",
+            "Somewhere \(monthLine) you wrote \u{201C}\(excerpt)\u{201D}. Today\u{2019}s page answers it. The Book cannot say how it knows. It knows."
+        ]
+        return Echo(
+            sourcePageID: best.page.id,
+            excerpt: excerpt,
+            monthLine: monthLine,
+            similarity: best.similarity,
+            line: lines[Int((seed >> 16) % UInt64(lines.count))]
+        )
+    }
+
+    static func note(from echo: Echo) -> KeepMarginalia.Note {
+        KeepMarginalia.Note(
+            castSlug: "the-book",
+            castName: "The Book",
+            assetName: "LabyrinthFaeBookSprite",
+            line: echo.line
+        )
+    }
+
+    static func tags(for echo: Echo) -> [String] {
+        [
+            markerTag,
+            "\(sourceTagPrefix)\(echo.sourcePageID)",
+            "\(lineTagPrefix)\(echo.line)"
+        ]
+    }
+
+    /// The quoted fragment of the old page: its first sentence, clipped on a
+    /// word boundary so the toast never carries a wall of text.
+    static func excerpt(of text: String, limit: Int = 64) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let firstSentence = trimmed
+            .split(omittingEmptySubsequences: true) { ".!?\n".contains($0) }
+            .first
+            .map(String.init)?
+            .trimmingCharacters(in: .whitespaces) ?? trimmed
+        guard firstSentence.count > limit else { return firstSentence }
+        let clipped = firstSentence.prefix(limit)
+        let lastSpace = clipped.lastIndex(of: " ") ?? clipped.endIndex
+        return String(clipped[..<lastSpace]) + "\u{2026}"
+    }
+
+    /// Words that would let string matching take credit for the connection.
+    /// Four letters is deliberately stricter than the word echo's five —
+    /// "rain" or "dark" shared between the two pages would already explain
+    /// the rhyme the ordinary way.
+    static func contentWords(in text: String) -> Set<String> {
+        Set(
+            text.lowercased()
+                .split { !$0.isLetter }
+                .map(String.init)
+                .filter { $0.count >= 4 && !KeepMarginalia.stopWords.contains($0) }
+        )
+    }
+
+    private static func wordCount(of text: String) -> Int {
+        text.split { !$0.isLetter && !$0.isNumber }.count
+    }
+}
+
+// MARK: - The Semantic Notice
+
+/// The same word-disjoint "same feeling" recognition as `SemanticKeepEcho`,
+/// but surfaced on the Book Notices page instead of at the keep moment. It
+/// anchors on the reader's most recent substantial prose page and finds the
+/// older page that rhymes with it in feeling while sharing no content word —
+/// a connection recurrence-counting could never make, sitting beside the
+/// recurrence observations as their stranger cousin.
+struct SemanticNoticePairing: Equatable {
+    var anchorPageID: String
+    var anchorExcerpt: String
+    var sourcePageID: String
+    var sourceExcerpt: String
+    var monthLine: String
+    var similarity: Double
+
+    /// How recent the anchor page must be to count as "what you're writing now."
+    static let anchorWindowDays = 10
+
+    static func find(
+        days: [BookDay],
+        scorer: StacksSemanticScoring?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> SemanticNoticePairing? {
+        guard let scorer else { return nil }
+        let anchorCutoff = now.addingTimeInterval(TimeInterval(-anchorWindowDays) * 86_400)
+        let anchor = days.flatMap(\.capturedPages)
+            .filter { page in
+                page.origin == .userAuthored
+                    && page.createdAt >= anchorCutoff
+                    && page.createdAt <= now
+                    && !EditionCurator.defaultPrivateTypes.contains(page.type)
+                    && page.userInput.split { !$0.isLetter && !$0.isNumber }.count >= SemanticKeepEcho.minimumWordCount
+            }
+            .max { $0.createdAt < $1.createdAt }
+        guard let anchor else { return nil }
+
+        // Reuse the keep-time engine: the best word-disjoint semantic match at
+        // least two weeks older than the anchor.
+        guard let echo = SemanticKeepEcho.find(
+            for: anchor.userInput,
+            pageType: anchor.type,
+            pageID: anchor.id,
+            in: days,
+            scorer: scorer,
+            now: now,
+            calendar: calendar
+        ) else { return nil }
+
+        return SemanticNoticePairing(
+            anchorPageID: anchor.id,
+            anchorExcerpt: SemanticKeepEcho.excerpt(of: anchor.userInput),
+            sourcePageID: echo.sourcePageID,
+            sourceExcerpt: echo.excerpt,
+            monthLine: echo.monthLine,
+            similarity: echo.similarity
+        )
+    }
+
+    /// The Book's own paragraph for the Notices page — a felt connection it
+    /// cannot explain, told plainly and without a scorecard.
+    var noticeParagraph: String {
+        "And something stranger than recurrence: two pages that share no words but the same weather. Lately you wrote \u{201C}\(anchorExcerpt)\u{201D}, and \(monthLine) you wrote \u{201C}\(sourceExcerpt)\u{201D}. Nothing links them but a feeling. I cannot say how I know they belong together. I only know I set them side by side and did not want to separate them."
+    }
+}

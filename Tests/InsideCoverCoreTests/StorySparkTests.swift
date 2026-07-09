@@ -54,7 +54,7 @@ final class StorySparkTests: XCTestCase {
         let metadata = surface.payload.metadata
         let tags = Set((metadata["tags"] ?? "").split(separator: ",").map(String.init))
 
-        XCTAssertEqual(surface.prompt, "Let this sentence open a door?")
+        XCTAssertEqual(surface.prompt, "Want this little sentence to open a door?")
         XCTAssertEqual(surface.payload.headline, "Story Spark: A Sentence Opens")
         XCTAssertEqual(metadata["storyRecipeID"], "souvenir-door")
         XCTAssertEqual(metadata["storyRecipeGroundingKind"], StoryGroundingKind.souvenirDoor.rawValue)

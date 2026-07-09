@@ -679,7 +679,7 @@ final class BookCuratorTests: XCTestCase {
         let grey = pages.first { $0.payload.metadata["variant"] == "grey-edge" }
         XCTAssertEqual(grey?.type, .souvenir)
         XCTAssertEqual(grey?.payload.metadata["checkInWindowID"], "midday")
-        XCTAssertTrue(grey?.prompt.contains("one true detail") == true)
+        XCTAssertTrue(grey?.prompt.contains("one real thing") == true)
         XCTAssertGreaterThan(grey?.score ?? 0, pages.first { $0.payload.metadata["variant"] == nil }?.score ?? 0)
     }
 
@@ -757,6 +757,84 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertLessThanOrEqual(topShelf.filter { $0.type == .bookRemembered }.count, 1)
     }
 
+    func testBookRememberedSurfacesOldPageWhenSemanticEchoAnsweredIt() {
+        let now = localDate(hour: 9, minute: 15)
+        let oldDate = Calendar.current.date(byAdding: .day, value: -180, to: now) ?? now.addingTimeInterval(-180 * 24 * 3600)
+        let echoDate = Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now.addingTimeInterval(-24 * 3600)
+        let remembered = BookPage(
+            id: "kettle-waiting",
+            type: .souvenir,
+            createdAt: oldDate,
+            promptText: "Catch one bright particular.",
+            userInput: "The kettle sang twice and nobody came.",
+            tags: ["souvenir"]
+        )
+        let echoLine = "Somewhere back in May you wrote \"The kettle sang twice\". Today's page answers it."
+        let newer = BookPage(
+            id: "small-waiting",
+            type: .souvenir,
+            createdAt: echoDate,
+            promptText: "Catch one bright particular.",
+            userInput: "Something small waited all evening for my attention.",
+            tags: SemanticKeepEcho.tags(for: SemanticKeepEcho.Echo(
+                sourcePageID: "kettle-waiting",
+                excerpt: "The kettle sang twice",
+                monthLine: "back in May",
+                similarity: 0.83,
+                line: echoLine
+            ))
+        )
+        var inputs = richInputs().withMatureLibrary(now: now)
+        inputs.resurfacingCandidates = [remembered]
+        inputs.days.append(BookDay(id: BookDay.id(for: echoDate), date: Calendar.current.startOfDay(for: echoDate), pages: [newer]))
+        let today = BookDay(id: BookDay.id(for: now), date: Calendar.current.startOfDay(for: now), pages: [])
+
+        let pages = BookRememberedPageSourceAdapter().candidates(
+            for: today,
+            context: CuratorContext.make(for: today),
+            inputs: inputs,
+            now: now
+        )
+
+        let page = pages.first { $0.type == BookPageType.bookRemembered }
+        XCTAssertEqual(page?.payload.metadata["rememberedPageID"], "kettle-waiting")
+        XCTAssertTrue(page?.payload.metadata["rhymeReason"]?.contains("answered this one by feeling") == true)
+        XCTAssertTrue(page?.payload.metadata["rhymeReason"]?.contains(echoLine) == true)
+    }
+
+    func testBookConnectionsCountsSemanticEchoesAsGraphEdges() {
+        let now = localDate(hour: 9, minute: 15)
+        let echoLine = "Somewhere back in May you wrote \"The kettle sang twice\". Today's page answers it."
+        let echoPage = BookPage(
+            id: "small-waiting",
+            type: .souvenir,
+            createdAt: now.addingTimeInterval(-24 * 3600),
+            promptText: "Catch one bright particular.",
+            userInput: "Something small waited all evening for my attention.",
+            tags: SemanticKeepEcho.tags(for: SemanticKeepEcho.Echo(
+                sourcePageID: "kettle-waiting",
+                excerpt: "The kettle sang twice",
+                monthLine: "back in May",
+                similarity: 0.83,
+                line: echoLine
+            ))
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.days = [BookDay(id: BookDay.id(for: echoPage.createdAt), date: Calendar.current.startOfDay(for: echoPage.createdAt), pages: [echoPage])]
+        let today = BookDay(id: BookDay.id(for: now), date: Calendar.current.startOfDay(for: now), pages: [])
+
+        let pages = BookConnectionsPageSourceAdapter().candidates(
+            for: today,
+            context: CuratorContext.make(for: today),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertEqual(pages.first?.payload.metadata["semanticEchoCount"], "1")
+        XCTAssertEqual(pages.first?.payload.metadata["semanticEchoLead"], echoLine)
+        XCTAssertEqual(pages.first?.payload.metadata["lead"], "kettle-waiting")
+    }
+
     func testBookRememberedDoesNotRepeatAfterTodayKeptAVisitation() {
         let now = localDate(hour: 9, minute: 15)
         let oldDate = Calendar.current.date(byAdding: .day, value: -90, to: now) ?? now.addingTimeInterval(-90 * 24 * 3600)
@@ -785,6 +863,54 @@ final class BookCuratorTests: XCTestCase {
         )
         var inputs = richInputs()
         inputs.resurfacingCandidates = [remembered]
+
+        let pages = BookRememberedPageSourceAdapter().candidates(
+            for: today,
+            context: CuratorContext.make(for: today),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertTrue(pages.isEmpty)
+    }
+
+    func testBookRememberedLetsRecentlyReturnedPageRest() {
+        let now = localDate(hour: 9, minute: 15)
+        let oldDate = Calendar.current.date(byAdding: .day, value: -180, to: now) ?? now.addingTimeInterval(-180 * 24 * 3600)
+        let remembered = BookPage(
+            id: "fog-walk",
+            type: .souvenir,
+            createdAt: oldDate,
+            promptText: "Catch one bright particular.",
+            userInput: "The fog on the walk made the window light look soft.",
+            tags: ["souvenir", "fog", "walk"],
+            usedInBookOfYou: true
+        )
+        let returnedAt = Calendar.current.date(byAdding: .day, value: -10, to: now) ?? now.addingTimeInterval(-10 * 24 * 3600)
+        let returnDay = BookDay(
+            id: BookDay.id(for: returnedAt),
+            date: Calendar.current.startOfDay(for: returnedAt),
+            pages: [
+                BookPage(
+                    id: "recent-return",
+                    type: .bookRemembered,
+                    createdAt: returnedAt,
+                    promptText: "The Book remembered.",
+                    userInput: "A remembered page returned.",
+                    tags: ["book-remembered", "remembered-page:fog-walk"]
+                )
+            ]
+        )
+        var inputs = richInputs().withMatureLibrary(now: now)
+        inputs.days.append(returnDay)
+        inputs.weather = WeatherSourceSignal(
+            phrase: "Fog at the window.",
+            source: "test",
+            forecast: "fog through morning",
+            conditionSymbolName: "cloud.fog"
+        )
+        inputs.resurfacingCandidates = [remembered]
+        let today = BookDay(id: BookDay.id(for: now), date: Calendar.current.startOfDay(for: now), pages: [])
 
         let pages = BookRememberedPageSourceAdapter().candidates(
             for: today,
@@ -1511,11 +1637,12 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testStoryPageSurfaceCarriesScenePacketMetadata() throws {
-        var inputs = richInputs()
+        let now = localDate(hour: 16)
+        var inputs = richInputs().withMatureLibrary(now: now)
         let draft = NarrativeOSPageSourceAdapter.draftCandidate(
             for: dayWithMusicSouvenir(),
             inputs: inputs,
-            now: localDate(hour: 16)
+            now: now
         )
         var metadata = draft.payload.metadata
         metadata["storyScene"] = "The headphones entered the margins as a minor talisman."
@@ -1542,7 +1669,7 @@ final class BookCuratorTests: XCTestCase {
         let pages = BookCurator.surfacedPages(
             for: dayWithMusicSouvenir(),
             inputs: inputs,
-            now: localDate(hour: 16),
+            now: now,
             limit: 24
         )
 
@@ -1557,7 +1684,8 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testBeliefInvestedStoryPageSurfacesAsPreviewBeforeGeneration() throws {
-        var inputs = richInputs()
+        let now = localDate(hour: 16)
+        var inputs = richInputs().withMatureLibrary(now: now)
         inputs.preparedStoryPageSurface = nil
         let profiles = BookPageSourceRegistry.beliefProfiles(ledger: ["narrative-os": 80])
         let preferences = CuratorSurfacePreferences(
@@ -1567,7 +1695,7 @@ final class BookCuratorTests: XCTestCase {
         let pages = BookCurator.surfacedPages(
             for: dayWithMusicSouvenir(),
             inputs: inputs,
-            now: localDate(hour: 16),
+            now: now,
             limit: 3,
             preferences: preferences
         )
@@ -2823,7 +2951,95 @@ final class BookCuratorTests: XCTestCase {
 
         XCTAssertEqual(learningNotice.payload.headline, "The Book Learns")
         XCTAssertTrue(learningNotice.payload.body.contains("I should show my work."))
+        XCTAssertTrue(learningNotice.payload.body.contains("Short summary:"))
+        XCTAssertTrue(learningNotice.payload.body.contains("not a diagnosis"))
         XCTAssertTrue(learningNotice.payload.metadata["learningInsights"]?.contains("Souvenir") == true)
+        XCTAssertTrue(learningNotice.payload.metadata["learningSummary"]?.contains("Souvenir") == true)
+        XCTAssertTrue(learningNotice.payload.metadata["tinyPatternCards"]?.contains("Prompt memory") == true)
+        XCTAssertTrue(learningNotice.payload.metadata["adaptiveActions"]?.contains("scrapbookPage") == true)
+        XCTAssertEqual(learningNotice.payload.metadata["feedbackPrompt"], "Did the Book read this right?")
+    }
+
+    func testStabilizedDeskOrderKeepsShownCardsWhenOnlyIDsRotate() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-1720000000", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood)
+        ]
+        // The same logical cards come back under rotated cadence/timestamp ids
+        // and a fresh time-sensitive rank order.
+        let rebuilt = [
+            deskCard(id: "desk-mood-s02", type: .mood),
+            deskCard(id: "desk-quip-s02", type: .quip),
+            deskCard(id: "desk-lore-1720000123", type: .lore)
+        ]
+
+        let stabilized = BookCurator.stabilizedDeskOrder(previous: shown, rebuilt: rebuilt)
+
+        XCTAssertEqual(stabilized.map(\.id), shown.map(\.id))
+    }
+
+    func testStabilizedDeskOrderSwapsRefreshedContentIntoItsSlot() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore)
+        ]
+        let rebuilt = [
+            deskCard(id: "desk-lore-s02", type: .lore, detail: "A new letter arrived."),
+            deskCard(id: "desk-quip-s02", type: .quip)
+        ]
+
+        let stabilized = BookCurator.stabilizedDeskOrder(previous: shown, rebuilt: rebuilt)
+
+        XCTAssertEqual(stabilized.map(\.deskSlotKey), shown.map(\.deskSlotKey))
+        XCTAssertEqual(stabilized.first?.id, "desk-quip-s01")
+        XCTAssertEqual(stabilized.last?.id, "desk-lore-s02")
+        XCTAssertEqual(stabilized.last?.detail, "A new letter arrived.")
+    }
+
+    func testStabilizedDeskOrderTakesFreshOrderWhenMembershipChanges() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore)
+        ]
+        let rebuilt = [
+            deskCard(id: "desk-mood-s01", type: .mood),
+            deskCard(id: "desk-quip-s02", type: .quip)
+        ]
+
+        let stabilized = BookCurator.stabilizedDeskOrder(previous: shown, rebuilt: rebuilt)
+
+        XCTAssertEqual(stabilized.map(\.id), rebuilt.map(\.id))
+    }
+
+    func testStabilizedDeskOrderTakesFreshOrderWhenSlotKeysCollide() {
+        let shown = [
+            deskCard(id: "desk-quip-a", type: .quip),
+            deskCard(id: "desk-quip-b", type: .quip)
+        ]
+        let rebuilt = [
+            deskCard(id: "desk-quip-b", type: .quip),
+            deskCard(id: "desk-quip-a", type: .quip)
+        ]
+
+        let stabilized = BookCurator.stabilizedDeskOrder(previous: shown, rebuilt: rebuilt)
+
+        XCTAssertEqual(stabilized.map(\.id), rebuilt.map(\.id))
+    }
+
+    private func deskCard(
+        id: String,
+        type: BookPageType,
+        detail: String = "A card on the desk."
+    ) -> SurfacePage {
+        SurfacePage(
+            id: id,
+            type: type,
+            sourceID: "desk-\(type.rawValue)",
+            score: 60,
+            prompt: type.title,
+            detail: detail
+        )
     }
 
     private func rankedCandidate(_ type: BookPageType, score: Int) -> SurfacePage {

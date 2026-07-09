@@ -553,6 +553,11 @@ enum MonthlyEditionPDFWriter {
                 drawAnnualStarChart(named, annual: annual, style: annualStyle, bounds: pageBounds)
             }
 
+            // Back matter: the Book's memory spine for the year.
+            if let memorySpine = annual.memorySpine, !memorySpine.isEmpty {
+                drawAnnualMemorySpine(memorySpine, annual: annual, style: annualStyle, context: context, cursor: &cursor)
+            }
+
             // The closing.
             drawAnnualColophon(annual, style: annualStyle, context: context, cursor: &cursor)
         }
@@ -593,6 +598,7 @@ enum MonthlyEditionPDFWriter {
 
         drawCentered("\(annual.dayCount) days bound \u{00B7} \(annual.pageCount) kept pages", font: .systemFont(ofSize: 11, weight: .medium), color: text.withAlphaComponent(0.7), y: 700, in: bounds)
         drawCentered("bound in the \(style.palette.name.lowercased()) style", font: .serifItalicFont(ofSize: 10), color: text.withAlphaComponent(0.5), y: 718, in: bounds)
+        drawCentered("Made with ReEnchanted \u{00B7} reenchanted.app", font: .systemFont(ofSize: 8.5, weight: .semibold), color: text.withAlphaComponent(0.48), y: 738, in: bounds)
     }
 
     private static func drawAnnualForeword(
@@ -701,6 +707,86 @@ enum MonthlyEditionPDFWriter {
         }
     }
 
+    private static func drawAnnualMemorySpine(
+        _ memorySpine: AnnualMemorySpine,
+        annual: AnnualEdition,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        beginComposedPage(context, style: style, cursor: &cursor)
+        let head = "THE BOOK OF YOU \u{00B7} \(annual.readerName) \u{00B7} THE \(annual.year) ANNUAL"
+        let headAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 8, weight: .semibold),
+            .foregroundColor: style.palette.ink.withAlphaComponent(0.45)
+        ]
+        (head as NSString).draw(at: CGPoint(x: cursor.left, y: 30), withAttributes: headAttributes)
+
+        drawText("Book Memory Spine", font: .serifFont(ofSize: 24, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 6)
+        drawText(
+            "The nightly Book of You pages, read again as a year of callbacks, refrains, cover stories, and questions still warm.",
+            font: .serifItalicFont(ofSize: 10.5),
+            color: style.palette.ink.withAlphaComponent(0.65),
+            cursor: &cursor,
+            spacingAfter: 12
+        )
+        drawAccentRule(style, cursor: &cursor)
+
+        drawAnnualMemoryList(
+            title: "What Kept Returning",
+            lines: memorySpine.motifs,
+            style: style,
+            context: context,
+            cursor: &cursor
+        )
+        drawAnnualMemoryList(
+            title: "Cover Stories",
+            lines: memorySpine.coverStories,
+            style: style,
+            context: context,
+            cursor: &cursor
+        )
+        drawAnnualMemoryList(
+            title: "Pages That Answered Back",
+            lines: memorySpine.callbacks,
+            style: style,
+            context: context,
+            cursor: &cursor
+        )
+        drawAnnualMemoryList(
+            title: "Questions Still Warm",
+            lines: memorySpine.openQuestions,
+            style: style,
+            context: context,
+            cursor: &cursor
+        )
+
+        drawOrnamentRow(style, centerY: cursor.y + 18, in: cursor.bounds, color: style.palette.accent)
+    }
+
+    private static func drawAnnualMemoryList(
+        title: String,
+        lines: [String],
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        guard !lines.isEmpty else { return }
+        ensureSpace(70, style: style, context: context, cursor: &cursor)
+        drawText(title, font: .systemFont(ofSize: 12, weight: .bold), color: style.palette.accent, cursor: &cursor, spacingAfter: 7)
+        for line in lines.prefix(8) {
+            ensureSpace(42, style: style, context: context, cursor: &cursor)
+            drawText(
+                line,
+                font: .serifFont(ofSize: 10.5, weight: .regular),
+                color: style.palette.ink.withAlphaComponent(0.90),
+                cursor: &cursor,
+                spacingAfter: 7
+            )
+        }
+        cursor.y += 8
+    }
+
     private static func drawAnnualColophon(
         _ annual: AnnualEdition,
         style: EditionStyle,
@@ -717,6 +803,8 @@ enum MonthlyEditionPDFWriter {
         drawCentered("The Book of You \u{00B7} \(annual.readerName) \u{00B7} The \(annual.year) Annual", font: .serifItalicFont(ofSize: 12), color: style.palette.ink.withAlphaComponent(0.8), y: cursor.y, in: cursor.bounds)
         cursor.y += 22
         drawCentered("Bound by the Book itself, which read every page twice, and the year once more.", font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.55), y: cursor.y, in: cursor.bounds)
+        cursor.y += 20
+        drawCentered("Made with ReEnchanted \u{00B7} reenchanted.app", font: .systemFont(ofSize: 8.5, weight: .semibold), color: style.palette.ink.withAlphaComponent(0.48), y: cursor.y, in: cursor.bounds)
     }
 
     private static func spelledOut(_ n: Int) -> String {
@@ -798,6 +886,13 @@ enum MonthlyEditionPDFWriter {
             font: .serifItalicFont(ofSize: 10),
             color: text.withAlphaComponent(0.5),
             y: 718,
+            in: bounds
+        )
+        drawCentered(
+            "Made with ReEnchanted \u{00B7} reenchanted.app",
+            font: .systemFont(ofSize: 8.5, weight: .semibold),
+            color: text.withAlphaComponent(0.48),
+            y: 738,
             in: bounds
         )
     }
@@ -1400,6 +1495,14 @@ enum MonthlyEditionPDFWriter {
             y: cursor.y,
             in: cursor.bounds
         )
+        cursor.y += 20
+        drawCentered(
+            "Made with ReEnchanted \u{00B7} reenchanted.app",
+            font: .systemFont(ofSize: 8.5, weight: .semibold),
+            color: style.palette.ink.withAlphaComponent(0.48),
+            y: cursor.y,
+            in: cursor.bounds
+        )
     }
 
     // MARK: Marginalia material
@@ -1975,52 +2078,955 @@ private extension UIFont {
 // MARK: - The Bleed broadsheet PDF
 
 enum BleedPDFWriter {
+    private struct BleedArticle {
+        let title: String
+        let byline: String
+        let body: String
+    }
+
+    private struct BleedIssue {
+        let masthead: String
+        let issueLine: String
+        let tagline: String
+        let articles: [BleedArticle]
+        let colophon: String?
+    }
+
+    private struct ColumnState {
+        let pageBounds: CGRect
+        let columns: [CGRect]
+        let bottom: CGFloat
+        var columnIndex: Int = 0
+        var y: CGFloat
+
+        init(pageBounds: CGRect, columns: [CGRect], bottom: CGFloat) {
+            self.pageBounds = pageBounds
+            self.columns = columns
+            self.bottom = bottom
+            self.y = columns.first?.minY ?? 0
+        }
+
+        var rect: CGRect { columns[columnIndex] }
+        var remaining: CGFloat { bottom - y }
+
+        mutating func advanceColumn() -> Bool {
+            guard columnIndex < columns.count - 1 else { return false }
+            columnIndex += 1
+            y = columns[columnIndex].minY
+            return true
+        }
+    }
+
     static func write(headline: String, body: String, to url: URL) throws {
         let pageBounds = CGRect(x: 0, y: 0, width: 612, height: 792)
-        let margins = UIEdgeInsets(top: 50, left: 56, bottom: 56, right: 56)
         let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
-        let ink = UIColor(red: 0.12, green: 0.11, blue: 0.10, alpha: 1)
-        let rule = UIColor(red: 0.30, green: 0.26, blue: 0.22, alpha: 1)
+        let issue = parseIssue(headline: headline, body: body)
+        let ink = UIColor(red: 0.13, green: 0.105, blue: 0.075, alpha: 1)
+        let brown = UIColor(red: 0.35, green: 0.22, blue: 0.12, alpha: 1)
+        let redInk = UIColor(red: 0.52, green: 0.12, blue: 0.10, alpha: 1)
+        let contentLeft: CGFloat = 82
+        let contentRight: CGFloat = 530
+        let gutter: CGFloat = 14
+        let columnWidth = (contentRight - contentLeft - gutter * 2) / 3
+        let columns = (0..<3).map { index in
+            CGRect(
+                x: contentLeft + CGFloat(index) * (columnWidth + gutter),
+                y: 214,
+                width: columnWidth,
+                height: 520
+            )
+        }
 
         try renderer.writePDF(to: url) { context in
-            var cursor = PDFCursor(bounds: pageBounds, margins: margins)
-            context.beginPage()
+            var pageNumber = 1
 
-            // Nameplate
-            draw("The Bleed", font: .serifFont(ofSize: 44, weight: .black), color: ink, centered: true, cursor: &cursor, bounds: pageBounds, after: 4)
-            draw("Where the Labyrinth meets the page. Where the page bleeds into the world.", font: .serifItalicFont(ofSize: 10), color: ink.withAlphaComponent(0.7), centered: true, cursor: &cursor, bounds: pageBounds, after: 8)
-            thickRule(rule, cursor: &cursor)
-            draw(headline, font: .systemFont(ofSize: 10, weight: .bold), color: ink.withAlphaComponent(0.8), centered: true, cursor: &cursor, bounds: pageBounds, after: 6)
-            thickRule(rule, cursor: &cursor)
-            cursor.y += 8
-
-            for block in body.components(separatedBy: "\n\n") {
-                let trimmed = block.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { continue }
-                if cursor.y > cursor.bottom - 90 {
-                    context.beginPage()
-                    cursor.reset()
+            func beginPage(front: Bool) -> ColumnState {
+                let topY: CGFloat = front ? 214 : 72
+                let pageColumns = columns.map {
+                    CGRect(x: $0.minX, y: topY, width: $0.width, height: 734 - topY)
                 }
-                if trimmed.hasPrefix("\u{2014}"), trimmed.contains("\u{2014}") {
-                    // Column header block: "— TITLE —" plus byline line(s).
-                    let lines = trimmed.components(separatedBy: "\n")
-                    cursor.y += 6
-                    draw(lines[0].trimmingCharacters(in: CharacterSet(charactersIn: "\u{2014} ")), font: .serifFont(ofSize: 16, weight: .bold), color: ink, centered: false, cursor: &cursor, bounds: pageBounds, after: 1)
-                    for extra in lines.dropFirst() {
-                        draw(extra, font: .serifItalicFont(ofSize: 9), color: ink.withAlphaComponent(0.6), centered: false, cursor: &cursor, bounds: pageBounds, after: 1)
-                    }
-                    cursor.y += 6
+                context.beginPage()
+                drawParchmentPage(
+                    bounds: pageBounds,
+                    pageNumber: pageNumber,
+                    issue: issue,
+                    ink: ink,
+                    accent: brown,
+                    redInk: redInk
+                )
+                if front {
+                    drawNameplate(issue: issue, fallbackHeadline: headline, bounds: pageBounds, ink: ink, accent: brown, redInk: redInk)
                 } else {
-                    draw(trimmed, font: .serifFont(ofSize: 10.5, weight: .regular), color: ink.withAlphaComponent(0.92), centered: false, cursor: &cursor, bounds: pageBounds, after: 10)
+                    drawContinuedHeader(issue: issue, pageNumber: pageNumber, bounds: pageBounds, ink: ink, accent: brown)
+                }
+                drawColumnRules(pageColumns, color: ink.withAlphaComponent(0.18), bottom: 734)
+                return ColumnState(pageBounds: pageBounds, columns: pageColumns, bottom: 734)
+            }
+
+            var state = beginPage(front: true)
+
+            func nextColumnOrPage() {
+                if !state.advanceColumn() {
+                    pageNumber += 1
+                    context.beginPage()
+                    drawParchmentPage(
+                        bounds: pageBounds,
+                        pageNumber: pageNumber,
+                        issue: issue,
+                        ink: ink,
+                        accent: brown,
+                        redInk: redInk
+                    )
+                    drawContinuedHeader(issue: issue, pageNumber: pageNumber, bounds: pageBounds, ink: ink, accent: brown)
+                    let pageColumns = columns.map {
+                        CGRect(x: $0.minX, y: 72, width: $0.width, height: 662)
+                    }
+                    drawColumnRules(pageColumns, color: ink.withAlphaComponent(0.18), bottom: 734)
+                    state = ColumnState(pageBounds: pageBounds, columns: pageColumns, bottom: 734)
                 }
             }
+
+            if let lead = issue.articles.first {
+                drawLeadArticle(lead, state: &state, ink: ink, accent: brown, redInk: redInk, nextColumnOrPage: nextColumnOrPage)
+                drawInkwellAd(state: &state, ink: ink, accent: brown, nextColumnOrPage: nextColumnOrPage)
+                for article in issue.articles.dropFirst() {
+                    drawArticle(article, state: &state, ink: ink, accent: brown, nextColumnOrPage: nextColumnOrPage)
+                }
+            } else {
+                let fallback = BleedArticle(title: issue.masthead, byline: issue.issueLine, body: body)
+                drawLeadArticle(fallback, state: &state, ink: ink, accent: brown, redInk: redInk, nextColumnOrPage: nextColumnOrPage)
+            }
+
+            if let colophon = issue.colophon {
+                drawColophon(colophon, state: &state, ink: ink, accent: brown, nextColumnOrPage: nextColumnOrPage)
+            }
+        }
+    }
+
+    private static func parseIssue(headline: String, body: String) -> BleedIssue {
+        let blocks = body.components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let headerLines = (blocks.first ?? headline)
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let masthead = headerLines.first ?? headline
+        let issueLine = headerLines.dropFirst().first ?? "A ReEnchanted broadsheet"
+        let tagline = headerLines.dropFirst(2).first ?? "Where the Labyrinth meets the page. Where the page bleeds into the world."
+
+        var articles: [BleedArticle] = []
+        var colophon: String?
+        for block in blocks.dropFirst() {
+            if block.hasPrefix("\u{2014}") {
+                let lines = block.components(separatedBy: .newlines)
+                let title = (lines.first ?? "Dispatch")
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "\u{2014} "))
+                    .capitalized
+                let byline = lines.dropFirst().first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "P. Blackletter"
+                let body = lines.dropFirst(2).joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+                articles.append(BleedArticle(title: title, byline: byline, body: body))
+            } else {
+                colophon = [colophon, block].compactMap(\.self).joined(separator: "\n\n")
+            }
+        }
+        return BleedIssue(masthead: masthead, issueLine: issueLine, tagline: tagline, articles: articles, colophon: colophon)
+    }
+
+    private static func drawParchmentPage(
+        bounds: CGRect,
+        pageNumber: Int,
+        issue: BleedIssue,
+        ink: UIColor,
+        accent: UIColor,
+        redInk: UIColor
+    ) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        let top = UIColor(red: 0.96, green: 0.88, blue: 0.67, alpha: 1)
+        let bottom = UIColor(red: 0.80, green: 0.64, blue: 0.40, alpha: 1)
+        drawVerticalWash(in: bounds, top: top, bottom: bottom, cg: cg)
+
+        cg.saveGState()
+        cg.setBlendMode(.multiply)
+        for index in 0..<52 {
+            let seed = stableUnit("\(issue.masthead)-fiber-\(pageNumber)-\(index)")
+            let y = bounds.minY + 18 + seed * (bounds.height - 36)
+            let alpha = 0.035 + stableUnit("fiber-alpha-\(index)-\(pageNumber)") * 0.045
+            UIColor(red: 0.36, green: 0.22, blue: 0.10, alpha: alpha).setStroke()
+            let path = UIBezierPath()
+            path.lineWidth = 0.45
+            path.move(to: CGPoint(x: 24, y: y))
+            path.addCurve(
+                to: CGPoint(x: bounds.maxX - 24, y: y + stableSignedUnit("fiber-drift-\(index)") * 8),
+                controlPoint1: CGPoint(x: 190, y: y - 6),
+                controlPoint2: CGPoint(x: 410, y: y + 7)
+            )
+            path.stroke()
+        }
+        for index in 0..<5 {
+            let x = 70 + stableUnit("stain-x-\(pageNumber)-\(index)") * 470
+            let y = 100 + stableUnit("stain-y-\(issue.issueLine)-\(index)") * 570
+            let radius = 22 + stableUnit("stain-r-\(index)") * 48
+            UIColor(red: 0.42, green: 0.25, blue: 0.12, alpha: 0.055).setFill()
+            UIBezierPath(ovalIn: CGRect(x: x, y: y, width: radius, height: radius * 0.72)).fill()
+        }
+        cg.restoreGState()
+
+        drawDeckledBorder(bounds: bounds, color: accent.withAlphaComponent(0.42))
+        drawFoldLines(bounds: bounds, color: ink.withAlphaComponent(0.13))
+        drawMarginalia(bounds: bounds, pageNumber: pageNumber, issue: issue, ink: ink, redInk: redInk)
+        drawCentered(
+            "ReEnchanted \u{00B7} reenchanted.app \u{00B7} Page \(pageNumber)",
+            font: .systemFont(ofSize: 7.5, weight: .semibold),
+            color: ink.withAlphaComponent(0.42),
+            y: bounds.height - 32,
+            in: bounds
+        )
+    }
+
+    private static func drawNameplate(
+        issue: BleedIssue,
+        fallbackHeadline: String,
+        bounds: CGRect,
+        ink: UIColor,
+        accent: UIColor,
+        redInk: UIColor
+    ) {
+        let content = CGRect(x: 58, y: 44, width: 496, height: 154)
+        accent.withAlphaComponent(0.55).setStroke()
+        UIBezierPath(rect: content.insetBy(dx: -4, dy: -4)).stroke()
+        drawSmallCaps(issue.issueLine, fontSize: 8.5, color: ink.withAlphaComponent(0.66), y: content.minY + 6, in: content)
+        drawCentered("THE BLEED", font: .serifFont(ofSize: 54, weight: .black), color: ink, y: content.minY + 24, in: content)
+        drawCentered(issue.tagline, font: .serifItalicFont(ofSize: 10.5), color: ink.withAlphaComponent(0.74), y: content.minY + 86, in: content)
+
+        redInk.withAlphaComponent(0.72).setStroke()
+        let slash = UIBezierPath()
+        slash.lineWidth = 1.1
+        slash.move(to: CGPoint(x: content.minX + 24, y: content.minY + 114))
+        slash.addLine(to: CGPoint(x: content.maxX - 24, y: content.minY + 104))
+        slash.stroke()
+
+        drawCentered(
+            "VISUAL EDITION: \(fallbackHeadline.uppercased())",
+            font: .systemFont(ofSize: 9, weight: .heavy),
+            color: redInk.withAlphaComponent(0.82),
+            y: content.minY + 124,
+            in: content
+        )
+
+        drawSeal(center: CGPoint(x: content.maxX - 32, y: content.minY + 34), color: redInk)
+        drawSeal(center: CGPoint(x: content.minX + 32, y: content.minY + 112), color: accent)
+    }
+
+    private static func drawContinuedHeader(issue: BleedIssue, pageNumber: Int, bounds: CGRect, ink: UIColor, accent: UIColor) {
+        drawSmallCaps("THE BLEED CONTINUES \u{00B7} \(issue.issueLine) \u{00B7} PAGE \(pageNumber)", fontSize: 8, color: ink.withAlphaComponent(0.62), y: 34, in: CGRect(x: 72, y: 0, width: 468, height: 40))
+        accent.withAlphaComponent(0.45).setFill()
+        UIBezierPath(rect: CGRect(x: 82, y: 56, width: 448, height: 1.2)).fill()
+    }
+
+    private static func drawLeadArticle(
+        _ article: BleedArticle,
+        state: inout ColumnState,
+        ink: UIColor,
+        accent: UIColor,
+        redInk: UIColor,
+        nextColumnOrPage: () -> Void
+    ) {
+        drawArticleHeader(article, state: &state, ink: ink, accent: redInk, large: true, nextColumnOrPage: nextColumnOrPage)
+        drawPullQuote(from: article.body, state: &state, ink: ink, accent: accent, nextColumnOrPage: nextColumnOrPage)
+        drawFlowing(article.body, font: .serifFont(ofSize: 8.6, weight: .regular), color: ink.withAlphaComponent(0.93), state: &state, lineSpacing: 2.2, spacingAfter: 7, nextColumnOrPage: nextColumnOrPage)
+    }
+
+    private static func drawArticle(
+        _ article: BleedArticle,
+        state: inout ColumnState,
+        ink: UIColor,
+        accent: UIColor,
+        nextColumnOrPage: () -> Void
+    ) {
+        drawArticleHeader(article, state: &state, ink: ink, accent: accent, large: false, nextColumnOrPage: nextColumnOrPage)
+        drawFlowing(article.body, font: .serifFont(ofSize: 8.3, weight: .regular), color: ink.withAlphaComponent(0.91), state: &state, lineSpacing: 2.1, spacingAfter: 8, nextColumnOrPage: nextColumnOrPage)
+    }
+
+    private static func drawArticleHeader(
+        _ article: BleedArticle,
+        state: inout ColumnState,
+        ink: UIColor,
+        accent: UIColor,
+        large: Bool,
+        nextColumnOrPage: () -> Void
+    ) {
+        let titleFont = UIFont.serifFont(ofSize: large ? 14.5 : 11.5, weight: .bold)
+        let bylineFont = UIFont.serifItalicFont(ofSize: 7.8)
+        let titleHeight = measured(article.title.uppercased(), font: titleFont, width: state.rect.width, lineSpacing: 1.5)
+        let bylineHeight = measured(article.byline, font: bylineFont, width: state.rect.width, lineSpacing: 1)
+        if state.remaining < titleHeight + bylineHeight + 28 {
+            nextColumnOrPage()
+        }
+        accent.withAlphaComponent(0.72).setFill()
+        UIBezierPath(rect: CGRect(x: state.rect.minX, y: state.y, width: min(42, state.rect.width), height: 2)).fill()
+        state.y += 7
+        drawBlock(article.title.uppercased(), font: titleFont, color: ink, frame: CGRect(x: state.rect.minX, y: state.y, width: state.rect.width, height: titleHeight + 3), lineSpacing: 1.5, alignment: .left)
+        state.y += titleHeight + 1
+        drawBlock(article.byline, font: bylineFont, color: ink.withAlphaComponent(0.60), frame: CGRect(x: state.rect.minX, y: state.y, width: state.rect.width, height: bylineHeight + 3), lineSpacing: 1, alignment: .left)
+        state.y += bylineHeight + 8
+    }
+
+    private static func drawPullQuote(
+        from body: String,
+        state: inout ColumnState,
+        ink: UIColor,
+        accent: UIColor,
+        nextColumnOrPage: () -> Void
+    ) {
+        guard let sentence = firstSentence(in: body), sentence.count > 42 else { return }
+        let quote = "\u{201C}\(sentence)\u{201D}"
+        let font = UIFont.serifItalicFont(ofSize: 10.5)
+        let height = measured(quote, font: font, width: state.rect.width - 16, lineSpacing: 2.2) + 22
+        if state.remaining < height + 12 {
+            nextColumnOrPage()
+        }
+        let frame = CGRect(x: state.rect.minX, y: state.y, width: state.rect.width, height: height)
+        accent.withAlphaComponent(0.12).setFill()
+        UIBezierPath(roundedRect: frame, cornerRadius: 3).fill()
+        accent.withAlphaComponent(0.65).setStroke()
+        let path = UIBezierPath()
+        path.lineWidth = 1.2
+        path.move(to: CGPoint(x: frame.minX + 7, y: frame.minY + 8))
+        path.addLine(to: CGPoint(x: frame.minX + 7, y: frame.maxY - 8))
+        path.stroke()
+        drawBlock(quote, font: font, color: ink.withAlphaComponent(0.82), frame: frame.insetBy(dx: 13, dy: 9), lineSpacing: 2.2, alignment: .left)
+        state.y += height + 10
+    }
+
+    private static func drawInkwellAd(
+        state: inout ColumnState,
+        ink: UIColor,
+        accent: UIColor,
+        nextColumnOrPage: () -> Void
+    ) {
+        let height: CGFloat = 70
+        if state.remaining < height + 18 {
+            nextColumnOrPage()
+        }
+        let frame = CGRect(x: state.rect.minX, y: state.y, width: state.rect.width, height: height)
+        accent.withAlphaComponent(0.16).setFill()
+        UIBezierPath(rect: frame).fill()
+        accent.withAlphaComponent(0.46).setStroke()
+        UIBezierPath(rect: frame.insetBy(dx: 2, dy: 2)).stroke()
+        drawCentered("NOTICE FROM THE PRESS ROOM", font: .systemFont(ofSize: 6.8, weight: .black), color: ink.withAlphaComponent(0.72), y: frame.minY + 9, in: frame)
+        drawCentered("Ink may transfer.", font: .serifFont(ofSize: 12.5, weight: .bold), color: ink, y: frame.minY + 25, in: frame)
+        drawCentered("Read near candlelight. Trust only fresh margins.", font: .serifItalicFont(ofSize: 7.2), color: ink.withAlphaComponent(0.66), y: frame.minY + 46, in: frame)
+        state.y += height + 13
+    }
+
+    private static func drawColophon(
+        _ text: String,
+        state: inout ColumnState,
+        ink: UIColor,
+        accent: UIColor,
+        nextColumnOrPage: () -> Void
+    ) {
+        if state.remaining < 62 {
+            nextColumnOrPage()
+        }
+        accent.withAlphaComponent(0.48).setFill()
+        UIBezierPath(rect: CGRect(x: state.rect.minX, y: state.y, width: state.rect.width, height: 1)).fill()
+        state.y += 8
+        drawFlowing(text, font: .serifItalicFont(ofSize: 8), color: ink.withAlphaComponent(0.64), state: &state, lineSpacing: 1.8, spacingAfter: 4, nextColumnOrPage: nextColumnOrPage)
+    }
+
+    private static func drawFlowing(
+        _ text: String,
+        font: UIFont,
+        color: UIColor,
+        state: inout ColumnState,
+        lineSpacing: CGFloat,
+        spacingAfter: CGFloat,
+        nextColumnOrPage: () -> Void
+    ) {
+        let paragraphs = text.components(separatedBy: "\n\n")
+            .flatMap { $0.components(separatedBy: .newlines) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        for paragraph in paragraphs {
+            var remaining = paragraph
+            while !remaining.isEmpty {
+                if state.remaining < 34 {
+                    nextColumnOrPage()
+                }
+                let available = max(24, state.remaining - spacingAfter)
+                let chunk = chunkThatFits(remaining, font: font, width: state.rect.width, maxHeight: available, lineSpacing: lineSpacing)
+                if chunk.isEmpty {
+                    nextColumnOrPage()
+                    continue
+                }
+                let height = measured(chunk, font: font, width: state.rect.width, lineSpacing: lineSpacing)
+                drawBlock(chunk, font: font, color: color, frame: CGRect(x: state.rect.minX, y: state.y, width: state.rect.width, height: height + 4), lineSpacing: lineSpacing, alignment: .justified)
+                state.y += height + spacingAfter
+                remaining = String(remaining.dropFirst(chunk.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+    }
+
+    private static func chunkThatFits(_ text: String, font: UIFont, width: CGFloat, maxHeight: CGFloat, lineSpacing: CGFloat) -> String {
+        if measured(text, font: font, width: width, lineSpacing: lineSpacing) <= maxHeight {
+            return text
+        }
+        let words = text.split(separator: " ").map(String.init)
+        var low = 0
+        var high = words.count
+        var best = ""
+        while low <= high {
+            let mid = (low + high) / 2
+            let candidate = words.prefix(mid).joined(separator: " ")
+            if candidate.isEmpty {
+                low = mid + 1
+                continue
+            }
+            if measured(candidate, font: font, width: width, lineSpacing: lineSpacing) <= maxHeight {
+                best = candidate
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+        return best.isEmpty ? (words.first ?? "") : best
+    }
+
+    private static func measured(_ text: String, font: UIFont, width: CGFloat, lineSpacing: CGFloat) -> CGFloat {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = lineSpacing
+        let attributed = NSAttributedString(string: text, attributes: [
+            .font: font,
+            .paragraphStyle: paragraph
+        ])
+        return attributed.boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        ).integral.height + 3
+    }
+
+    private static func drawBlock(
+        _ text: String,
+        font: UIFont,
+        color: UIColor,
+        frame: CGRect,
+        lineSpacing: CGFloat,
+        alignment: NSTextAlignment
+    ) {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = lineSpacing
+        paragraph.alignment = alignment
+        paragraph.hyphenationFactor = 0.8
+        let attributed = NSAttributedString(string: text, attributes: [
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraph
+        ])
+        attributed.draw(in: frame)
+    }
+
+    private static func drawColumnRules(_ columns: [CGRect], color: UIColor, bottom: CGFloat) {
+        guard columns.count > 1 else { return }
+        color.setStroke()
+        for index in 0..<(columns.count - 1) {
+            let x = (columns[index].maxX + columns[index + 1].minX) / 2
+            let path = UIBezierPath()
+            path.lineWidth = 0.6
+            path.move(to: CGPoint(x: x, y: columns[index].minY))
+            path.addLine(to: CGPoint(x: x, y: bottom))
+            path.stroke()
+        }
+    }
+
+    private static func drawDeckledBorder(bounds: CGRect, color: UIColor) {
+        color.setStroke()
+        for inset in [18.0, 24.0] {
+            let path = UIBezierPath()
+            path.lineWidth = inset == 18 ? 1.2 : 0.6
+            let rect = bounds.insetBy(dx: inset, dy: inset)
+            path.move(to: CGPoint(x: rect.minX + 7, y: rect.minY))
+            for step in 0...18 {
+                let t = CGFloat(step) / 18
+                path.addLine(to: CGPoint(x: rect.minX + rect.width * t, y: rect.minY + stableSignedUnit("top-\(inset)-\(step)") * 2.8))
+            }
+            for step in 0...24 {
+                let t = CGFloat(step) / 24
+                path.addLine(to: CGPoint(x: rect.maxX + stableSignedUnit("right-\(inset)-\(step)") * 2.8, y: rect.minY + rect.height * t))
+            }
+            for step in stride(from: 18, through: 0, by: -1) {
+                let t = CGFloat(step) / 18
+                path.addLine(to: CGPoint(x: rect.minX + rect.width * t, y: rect.maxY + stableSignedUnit("bottom-\(inset)-\(step)") * 2.8))
+            }
+            for step in stride(from: 24, through: 0, by: -1) {
+                let t = CGFloat(step) / 24
+                path.addLine(to: CGPoint(x: rect.minX + stableSignedUnit("left-\(inset)-\(step)") * 2.8, y: rect.minY + rect.height * t))
+            }
+            path.close()
+            path.stroke()
+        }
+    }
+
+    private static func drawFoldLines(bounds: CGRect, color: UIColor) {
+        color.setStroke()
+        let vertical = UIBezierPath()
+        vertical.lineWidth = 0.8
+        vertical.move(to: CGPoint(x: bounds.midX, y: 26))
+        vertical.addLine(to: CGPoint(x: bounds.midX, y: bounds.maxY - 26))
+        vertical.stroke()
+        let horizontal = UIBezierPath()
+        horizontal.lineWidth = 0.55
+        horizontal.move(to: CGPoint(x: 28, y: bounds.midY + 6))
+        horizontal.addLine(to: CGPoint(x: bounds.maxX - 28, y: bounds.midY - 5))
+        horizontal.stroke()
+    }
+
+    private static func drawMarginalia(bounds: CGRect, pageNumber: Int, issue: BleedIssue, ink: UIColor, redInk: UIColor) {
+        let notes = marginaliaNotes(for: issue)
+        guard !notes.isEmpty else { return }
+        let leftNote = notes[(pageNumber - 1) % notes.count]
+        let rightNote = notes[pageNumber % notes.count]
+        drawMarginNote(leftNote, at: CGPoint(x: 41, y: 260 + stableUnit("left-note-\(pageNumber)") * 210), angle: -0.12, color: ink.withAlphaComponent(0.58), width: 82)
+        drawMarginNote(rightNote, at: CGPoint(x: bounds.maxX - 42, y: 210 + stableUnit("right-note-\(pageNumber)") * 260), angle: 0.10, color: redInk.withAlphaComponent(0.62), width: 86, rightAligned: true)
+
+        redInk.withAlphaComponent(0.42).setStroke()
+        let circle = UIBezierPath(ovalIn: CGRect(x: bounds.maxX - 73, y: 124, width: 32, height: 22))
+        circle.lineWidth = 1.1
+        circle.stroke()
+        let arrow = UIBezierPath()
+        arrow.lineWidth = 0.9
+        arrow.move(to: CGPoint(x: bounds.maxX - 58, y: 150))
+        arrow.addQuadCurve(to: CGPoint(x: bounds.maxX - 91, y: 192), controlPoint: CGPoint(x: bounds.maxX - 86, y: 158))
+        arrow.stroke()
+    }
+
+    private static func drawMarginNote(
+        _ text: String,
+        at point: CGPoint,
+        angle: CGFloat,
+        color: UIColor,
+        width: CGFloat,
+        rightAligned: Bool = false
+    ) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        cg.saveGState()
+        cg.translateBy(x: point.x, y: point.y)
+        cg.rotate(by: angle)
+        let frame = CGRect(x: rightAligned ? -width : 0, y: 0, width: width, height: 80)
+        drawBlock(text, font: .serifItalicFont(ofSize: 8.6), color: color, frame: frame, lineSpacing: 2.2, alignment: rightAligned ? .right : .left)
+        cg.restoreGState()
+    }
+
+    private static func marginaliaNotes(for issue: BleedIssue) -> [String] {
+        let titles = issue.articles.map(\.title).filter { !$0.isEmpty }
+        let lead = titles.first ?? "front page"
+        return [
+            "check this against the \(lead.lowercased()) desk",
+            "ink still wet",
+            "P.B. says keep the receipt",
+            "too loud to ignore",
+            "circle back after moonrise",
+            titles.dropFirst().first.map { "ask \($0.lowercased()) why" } ?? "ask the margin why"
+        ]
+    }
+
+    private static func firstSentence(in text: String) -> String? {
+        let trimmed = text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let stops = CharacterSet(charactersIn: ".!?")
+        if let range = trimmed.rangeOfCharacter(from: stops) {
+            return String(trimmed[...range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return trimmed.count > 120 ? String(trimmed.prefix(120)) : trimmed
+    }
+
+    private static func drawSeal(center: CGPoint, color: UIColor) {
+        color.withAlphaComponent(0.16).setFill()
+        UIBezierPath(ovalIn: CGRect(x: center.x - 18, y: center.y - 18, width: 36, height: 36)).fill()
+        color.withAlphaComponent(0.58).setStroke()
+        let path = UIBezierPath(ovalIn: CGRect(x: center.x - 14, y: center.y - 14, width: 28, height: 28))
+        path.lineWidth = 1.2
+        path.stroke()
+        drawCentered("B", font: .serifFont(ofSize: 12, weight: .bold), color: color.withAlphaComponent(0.70), y: center.y - 8, in: CGRect(x: center.x - 14, y: center.y - 14, width: 28, height: 28))
+    }
+
+    private static func drawSmallCaps(_ text: String, fontSize: CGFloat, color: UIColor, y: CGFloat, in bounds: CGRect) {
+        drawCentered(text.uppercased(), font: .systemFont(ofSize: fontSize, weight: .black), color: color, y: y, in: bounds)
+    }
+
+    private static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) {
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
+        let size = (text as NSString).size(withAttributes: attributes)
+        (text as NSString).draw(at: CGPoint(x: bounds.midX - size.width / 2, y: y), withAttributes: attributes)
+    }
+
+    private static func drawVerticalWash(in bounds: CGRect, top: UIColor, bottom: UIColor, cg: CGContext) {
+        let colors = [top.cgColor, bottom.cgColor] as CFArray
+        guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) else {
+            top.setFill()
+            UIBezierPath(rect: bounds).fill()
+            return
+        }
+        cg.drawLinearGradient(
+            gradient,
+            start: CGPoint(x: bounds.midX, y: bounds.minY),
+            end: CGPoint(x: bounds.midX, y: bounds.maxY),
+            options: []
+        )
+    }
+
+    private static func stableUnit(_ key: String) -> CGFloat {
+        CGFloat(positiveHash(key) % 10_000) / 10_000
+    }
+
+    private static func stableSignedUnit(_ key: String) -> CGFloat {
+        stableUnit(key) * 2 - 1
+    }
+
+    private static func positiveHash(_ key: String) -> Int {
+        var hash = 5381
+        for scalar in key.unicodeScalars {
+            hash = ((hash << 5) &+ hash) &+ Int(scalar.value)
+        }
+        return abs(hash)
+    }
+}
+
+// MARK: - Weekly Issue PDF
+
+enum WeeklyIssueShareCardRenderer {
+    static let defaultSize = CGSize(width: 1080, height: 1350)
+
+    static func write(_ card: WeeklyIssueShareCard, to url: URL, size: CGSize = defaultSize) throws {
+        let image = image(for: card, size: size)
+        guard let data = image.pngData() else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        try data.write(to: url, options: .atomic)
+    }
+
+    static func image(for card: WeeklyIssueShareCard, size: CGSize = defaultSize) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            draw(card, in: CGRect(origin: .zero, size: size), cg: context.cgContext)
+        }
+    }
+
+    private static func draw(_ card: WeeklyIssueShareCard, in bounds: CGRect, cg: CGContext) {
+        let ink = UIColor(red: 0.12, green: 0.09, blue: 0.07, alpha: 1)
+        let paperTop = UIColor(red: 0.98, green: 0.92, blue: 0.76, alpha: 1)
+        let paperBottom = UIColor(red: 0.72, green: 0.58, blue: 0.39, alpha: 1)
+        let teal = UIColor(red: 0.05, green: 0.42, blue: 0.45, alpha: 1)
+        let gold = UIColor(red: 0.78, green: 0.52, blue: 0.18, alpha: 1)
+        let red = UIColor(red: 0.54, green: 0.12, blue: 0.13, alpha: 1)
+
+        drawVerticalWash(in: bounds, top: paperTop, bottom: paperBottom, cg: cg)
+        drawStarField(in: bounds, color: gold)
+
+        let cardRect = bounds.insetBy(dx: 72, dy: 78)
+        let cardPath = UIBezierPath(roundedRect: cardRect, cornerRadius: 42)
+        UIColor.white.withAlphaComponent(0.28).setFill()
+        cardPath.fill()
+        gold.withAlphaComponent(0.46).setStroke()
+        cardPath.lineWidth = 3
+        cardPath.stroke()
+
+        drawCornerMarks(in: cardRect, color: red.withAlphaComponent(0.72))
+        drawCentered("THE BOOK OF YOU", font: .systemFont(ofSize: 28, weight: .bold), color: ink.withAlphaComponent(0.58), y: cardRect.minY + 58, in: bounds)
+        drawCentered("WEEKLY ISSUE", font: .systemFont(ofSize: 23, weight: .semibold), color: teal.withAlphaComponent(0.82), y: cardRect.minY + 96, in: bounds)
+
+        drawCentered("Issue No. \(card.issueNumber)", font: .serifFont(ofSize: 82, weight: .bold), color: ink, y: cardRect.minY + 178, in: bounds)
+        drawCentered(card.dateRange.uppercased(), font: .systemFont(ofSize: 27, weight: .heavy), color: red, y: cardRect.minY + 282, in: bounds)
+
+        let titleRect = CGRect(x: cardRect.minX + 86, y: cardRect.minY + 365, width: cardRect.width - 172, height: 174)
+        drawWrappedCentered(card.title, font: .serifFont(ofSize: 68, weight: .bold), color: ink, rect: titleRect)
+        let subtitleRect = CGRect(x: cardRect.minX + 112, y: titleRect.maxY + 18, width: cardRect.width - 224, height: 112)
+        drawWrappedCentered(card.subtitle, font: .serifItalicFont(ofSize: 30), color: ink.withAlphaComponent(0.76), rect: subtitleRect)
+
+        let statY = cardRect.minY + 730
+        drawStatPills(card.stats, y: statY, in: cardRect, ink: ink, fill: teal, accent: gold)
+
+        let motifRect = CGRect(x: cardRect.minX + 86, y: statY + 160, width: cardRect.width - 172, height: 128)
+        drawWrappedCentered(card.motifLine, font: .systemFont(ofSize: 32, weight: .semibold), color: ink.withAlphaComponent(0.82), rect: motifRect)
+
+        let closeRect = CGRect(x: cardRect.minX + 120, y: cardRect.maxY - 230, width: cardRect.width - 240, height: 92)
+        drawWrappedCentered(card.closingLine, font: .serifItalicFont(ofSize: 36), color: red.withAlphaComponent(0.90), rect: closeRect)
+        drawCentered("Made with ReEnchanted", font: .systemFont(ofSize: 24, weight: .bold), color: ink.withAlphaComponent(0.62), y: cardRect.maxY - 78, in: bounds)
+        drawCentered("reenchanted.app", font: .systemFont(ofSize: 21, weight: .semibold), color: ink.withAlphaComponent(0.46), y: cardRect.maxY - 43, in: bounds)
+    }
+
+    private static func drawStatPills(_ stats: [String], y: CGFloat, in cardRect: CGRect, ink: UIColor, fill: UIColor, accent: UIColor) {
+        let shown = Array(stats.prefix(3))
+        guard !shown.isEmpty else { return }
+        let gap: CGFloat = 18
+        let totalGap = gap * CGFloat(max(0, shown.count - 1))
+        let pillWidth = (cardRect.width - 150 - totalGap) / CGFloat(shown.count)
+        for (index, stat) in shown.enumerated() {
+            let rect = CGRect(
+                x: cardRect.minX + 75 + CGFloat(index) * (pillWidth + gap),
+                y: y,
+                width: pillWidth,
+                height: 106
+            )
+            let path = UIBezierPath(roundedRect: rect, cornerRadius: 26)
+            fill.withAlphaComponent(index == 0 ? 0.24 : 0.16).setFill()
+            path.fill()
+            accent.withAlphaComponent(0.45).setStroke()
+            path.lineWidth = 2
+            path.stroke()
+            drawWrappedCentered(stat.uppercased(), font: .systemFont(ofSize: 24, weight: .heavy), color: ink.withAlphaComponent(0.82), rect: rect.insetBy(dx: 14, dy: 18))
+        }
+    }
+
+    private static func drawStarField(in bounds: CGRect, color: UIColor) {
+        color.withAlphaComponent(0.16).setFill()
+        for index in 0..<72 {
+            let x = CGFloat((index * 139) % 1013) + 28
+            let y = CGFloat((index * 197) % 1279) + 31
+            let radius = CGFloat((index % 4) + 2)
+            UIBezierPath(ovalIn: CGRect(x: x, y: y, width: radius, height: radius)).fill()
+        }
+    }
+
+    private static func drawVerticalWash(in bounds: CGRect, top: UIColor, bottom: UIColor, cg: CGContext) {
+        let colors = [top.cgColor, bottom.cgColor] as CFArray
+        guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) else {
+            top.setFill()
+            UIBezierPath(rect: bounds).fill()
+            return
+        }
+        cg.drawLinearGradient(
+            gradient,
+            start: CGPoint(x: bounds.midX, y: bounds.minY),
+            end: CGPoint(x: bounds.midX, y: bounds.maxY),
+            options: []
+        )
+    }
+
+    private static func drawCornerMarks(in rect: CGRect, color: UIColor) {
+        color.setStroke()
+        for corner in 0..<4 {
+            let path = UIBezierPath()
+            let x = corner == 0 || corner == 2 ? rect.minX + 34 : rect.maxX - 34
+            let y = corner < 2 ? rect.minY + 34 : rect.maxY - 34
+            let xSign: CGFloat = corner == 0 || corner == 2 ? 1 : -1
+            let ySign: CGFloat = corner < 2 ? 1 : -1
+            path.move(to: CGPoint(x: x, y: y + ySign * 54))
+            path.addLine(to: CGPoint(x: x, y: y))
+            path.addLine(to: CGPoint(x: x + xSign * 54, y: y))
+            path.lineWidth = 4
+            path.stroke()
+        }
+    }
+
+    private static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) {
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
+        let size = (text as NSString).size(withAttributes: attributes)
+        (text as NSString).draw(at: CGPoint(x: bounds.midX - size.width / 2, y: y), withAttributes: attributes)
+    }
+
+    private static func drawWrappedCentered(_ text: String, font: UIFont, color: UIColor, rect: CGRect) {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineSpacing = 4
+        let attributed = NSAttributedString(string: text, attributes: [
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraph
+        ])
+        let measured = attributed.boundingRect(
+            with: CGSize(width: rect.width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        )
+        let y = rect.minY + max(0, (rect.height - measured.height) / 2)
+        attributed.draw(in: CGRect(x: rect.minX, y: y, width: rect.width, height: min(rect.height, measured.height + 12)))
+    }
+}
+
+enum WeeklyIssuePDFWriter {
+    static func write(
+        _ issue: WeeklyIssue,
+        readerName: String,
+        shareCard: WeeklyIssueShareCard? = nil,
+        editorialNote: String? = nil,
+        closingNote: String? = nil,
+        to url: URL
+    ) throws {
+        let pageBounds = CGRect(x: 0, y: 0, width: 612, height: 792)
+        let margins = UIEdgeInsets(top: 58, left: 64, bottom: 64, right: 64)
+        let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
+        let ink = UIColor(red: 0.12, green: 0.10, blue: 0.08, alpha: 1)
+        let accent = UIColor(red: 0.70, green: 0.48, blue: 0.20, alpha: 1)
+        let paperTop = UIColor(red: 0.96, green: 0.91, blue: 0.78, alpha: 1)
+        let paperBottom = UIColor(red: 0.78, green: 0.67, blue: 0.50, alpha: 1)
+
+        try renderer.writePDF(to: url) { context in
+            func beginPage() -> PDFCursor {
+                context.beginPage()
+                guard let cg = UIGraphicsGetCurrentContext() else {
+                    return PDFCursor(bounds: pageBounds, margins: margins)
+                }
+                drawVerticalWash(in: pageBounds, top: paperTop, bottom: paperBottom, cg: cg)
+                drawCentered("The Book of You \u{00B7} Weekly Issue", font: .systemFont(ofSize: 8, weight: .semibold), color: ink.withAlphaComponent(0.42), y: 30, in: pageBounds)
+                drawCentered("Made with ReEnchanted \u{00B7} reenchanted.app", font: .systemFont(ofSize: 8.5, weight: .semibold), color: ink.withAlphaComponent(0.48), y: pageBounds.height - 42, in: pageBounds)
+                return PDFCursor(bounds: pageBounds, margins: margins)
+            }
+
+            let card = shareCard ?? WeeklyIssueShareCard.make(issue: issue)
+            var cursor = beginPage()
+            drawCentered("T H E   B O O K   O F   Y O U", font: .systemFont(ofSize: 10, weight: .bold), color: ink.withAlphaComponent(0.64), y: cursor.y, in: pageBounds)
+            cursor.y += 32
+            drawCentered("Issue No. \(issue.number)", font: .serifFont(ofSize: 42, weight: .bold), color: ink, y: cursor.y, in: pageBounds)
+            cursor.y += 54
+            drawCentered(readerName, font: .serifItalicFont(ofSize: 15), color: ink.withAlphaComponent(0.70), y: cursor.y, in: pageBounds)
+            cursor.y += 28
+            drawCentered(issue.dateRange, font: .systemFont(ofSize: 10, weight: .semibold), color: accent, y: cursor.y, in: pageBounds)
+            cursor.y += 32
+            thickRule(accent.withAlphaComponent(0.48), cursor: &cursor)
+            cursor.y += 20
+
+            let lead = editorialNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                ?? (issue.isFirstIssue
+                    ? "Your first week, bound. Seven days after the Book opened, \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to become an issue."
+                    : "Your week became an issue. Another seven days closed, and \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to hold together.")
+            draw(lead, font: .serifFont(ofSize: 13, weight: .regular), color: ink.withAlphaComponent(0.90), centered: false, cursor: &cursor, bounds: pageBounds, after: 18)
+
+            drawWrappedPanel(
+                title: card.title,
+                body: "\(card.subtitle)\n\n\(card.motifLine)",
+                color: tealPDFColor(),
+                cursor: &cursor,
+                bounds: pageBounds
+            )
+
+            if !issue.highlights.isEmpty {
+                draw("In this issue", font: .systemFont(ofSize: 10, weight: .bold), color: accent, centered: false, cursor: &cursor, bounds: pageBounds, after: 8)
+                for line in issue.highlights {
+                    ensureSpace(52, context: context, cursor: &cursor, beginPage: beginPage)
+                    draw("\u{2022} \(line)", font: .serifFont(ofSize: 12, weight: .regular), color: ink.withAlphaComponent(0.88), centered: false, cursor: &cursor, bounds: pageBounds, after: 8)
+                }
+            }
+
+            if let setAsideLine = issue.setAsideLine {
+                cursor.y += 8
+                draw(setAsideLine, font: .serifItalicFont(ofSize: 10), color: ink.withAlphaComponent(0.58), centered: false, cursor: &cursor, bounds: pageBounds, after: 10)
+            }
+
+            cursor.y = max(cursor.y + 24, pageBounds.height - 170)
+            thickRule(accent.withAlphaComponent(0.38), cursor: &cursor)
+            let closing = closingNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                ?? "The month and the year are still gathering. This week is already whole."
+            draw(closing, font: .serifItalicFont(ofSize: 11), color: ink.withAlphaComponent(0.68), centered: true, cursor: &cursor, bounds: pageBounds, after: 8)
+
+            context.beginPage()
+            guard let cg = UIGraphicsGetCurrentContext() else { return }
+            drawVerticalWash(in: pageBounds, top: paperTop, bottom: paperBottom, cg: cg)
+            drawCentered("THE WRAPPED WEEK", font: .systemFont(ofSize: 9, weight: .heavy), color: ink.withAlphaComponent(0.50), y: 32, in: pageBounds)
+            var wrapCursor = PDFCursor(bounds: pageBounds, margins: margins)
+            drawCentered(card.title, font: .serifFont(ofSize: 34, weight: .bold), color: ink, y: wrapCursor.y, in: pageBounds)
+            wrapCursor.y += 58
+            draw(card.subtitle, font: .serifItalicFont(ofSize: 13), color: ink.withAlphaComponent(0.78), centered: true, cursor: &wrapCursor, bounds: pageBounds, after: 20)
+            drawStatGrid(card.stats, cursor: &wrapCursor, bounds: pageBounds, ink: ink, accent: accent)
+            wrapCursor.y += 18
+            drawWrappedPanel(title: "The week's refrain", body: card.motifLine, color: accent, cursor: &wrapCursor, bounds: pageBounds)
+            if issue.scrapbookCount > 0 {
+                let titles = issue.scrapbookTitles.joined(separator: ", ")
+                drawWrappedPanel(
+                    title: "Scrapbook plates",
+                    body: titles.isEmpty ? "\(issue.scrapbookCount) composed page\(issue.scrapbookCount == 1 ? "" : "s") joined the issue." : titles,
+                    color: UIColor(red: 0.54, green: 0.12, blue: 0.13, alpha: 1),
+                    cursor: &wrapCursor,
+                    bounds: pageBounds
+                )
+            }
+            drawCentered("Made with ReEnchanted · reenchanted.app", font: .systemFont(ofSize: 8.5, weight: .semibold), color: ink.withAlphaComponent(0.48), y: pageBounds.height - 42, in: pageBounds)
+        }
+    }
+
+    private static func ensureSpace(
+        _ needed: CGFloat,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor,
+        beginPage: () -> PDFCursor
+    ) {
+        if cursor.y + needed > cursor.bottom {
+            cursor = beginPage()
         }
     }
 
     private static func thickRule(_ color: UIColor, cursor: inout PDFCursor) {
         color.setFill()
-        UIBezierPath(rect: CGRect(x: cursor.left, y: cursor.y, width: cursor.contentWidth, height: 1.6)).fill()
+        UIBezierPath(rect: CGRect(x: cursor.left, y: cursor.y, width: cursor.contentWidth, height: 1.4)).fill()
         cursor.y += 7
+    }
+
+    private static func drawStatGrid(_ stats: [String], cursor: inout PDFCursor, bounds: CGRect, ink: UIColor, accent: UIColor) {
+        let shown = Array(stats.prefix(4))
+        guard !shown.isEmpty else { return }
+        let gap: CGFloat = 12
+        let columnWidth = (cursor.contentWidth - gap) / 2
+        let startY = cursor.y
+        for (index, stat) in shown.enumerated() {
+            let column = index % 2
+            let row = index / 2
+            let rect = CGRect(
+                x: cursor.left + CGFloat(column) * (columnWidth + gap),
+                y: startY + CGFloat(row) * 74,
+                width: columnWidth,
+                height: 58
+            )
+            let path = UIBezierPath(roundedRect: rect, cornerRadius: 10)
+            accent.withAlphaComponent(0.14).setFill()
+            path.fill()
+            accent.withAlphaComponent(0.34).setStroke()
+            path.lineWidth = 1
+            path.stroke()
+            drawCentered(stat.uppercased(), font: .systemFont(ofSize: 9, weight: .heavy), color: ink.withAlphaComponent(0.75), y: rect.minY + 22, in: rect)
+        }
+        cursor.y += CGFloat((shown.count + 1) / 2) * 74
+    }
+
+    private static func drawWrappedPanel(title: String, body: String, color: UIColor, cursor: inout PDFCursor, bounds: CGRect) {
+        let rect = CGRect(x: cursor.left, y: cursor.y, width: cursor.contentWidth, height: 116)
+        let path = UIBezierPath(roundedRect: rect, cornerRadius: 14)
+        color.withAlphaComponent(0.11).setFill()
+        path.fill()
+        color.withAlphaComponent(0.34).setStroke()
+        path.lineWidth = 1
+        path.stroke()
+        var inner = PDFCursor(bounds: bounds, margins: UIEdgeInsets(top: rect.minY + 16, left: rect.minX + 18, bottom: bounds.height - rect.maxY + 16, right: bounds.width - rect.maxX + 18))
+        draw(title.uppercased(), font: .systemFont(ofSize: 8.5, weight: .heavy), color: color, centered: false, cursor: &inner, bounds: bounds, after: 8)
+        draw(body, font: .serifFont(ofSize: 11.5, weight: .regular), color: UIColor(red: 0.12, green: 0.10, blue: 0.08, alpha: 0.86), centered: false, cursor: &inner, bounds: bounds, after: 0)
+        cursor.y += rect.height + 18
+    }
+
+    private static func tealPDFColor() -> UIColor {
+        UIColor(red: 0.05, green: 0.42, blue: 0.45, alpha: 1)
+    }
+
+    private static func drawVerticalWash(in bounds: CGRect, top: UIColor, bottom: UIColor, cg: CGContext) {
+        let colors = [top.cgColor, bottom.cgColor] as CFArray
+        guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) else {
+            top.setFill()
+            UIBezierPath(rect: bounds).fill()
+            return
+        }
+        cg.drawLinearGradient(
+            gradient,
+            start: CGPoint(x: bounds.midX, y: bounds.minY),
+            end: CGPoint(x: bounds.midX, y: bounds.maxY),
+            options: []
+        )
+    }
+
+    private static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) {
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
+        let size = (text as NSString).size(withAttributes: attributes)
+        (text as NSString).draw(at: CGPoint(x: bounds.midX - size.width / 2, y: y), withAttributes: attributes)
     }
 
     private static func draw(
@@ -2033,7 +3039,7 @@ enum BleedPDFWriter {
         after: CGFloat
     ) {
         let paragraph = NSMutableParagraphStyle()
-        paragraph.lineSpacing = 2.5
+        paragraph.lineSpacing = 3
         paragraph.alignment = centered ? .center : .natural
         let attributed = NSAttributedString(string: text, attributes: [
             .font: font,

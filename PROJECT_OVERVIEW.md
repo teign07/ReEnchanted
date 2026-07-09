@@ -104,6 +104,30 @@ continuous living world:
 - **Landing page refresh:** the static site now demonstrates the First Door,
   semantic search, radio dials, hidden lore marginalia, and new audio/screen
   assets in the separate `teign07/landingpage` repo.
+- **Pagewright:** a freeform scrapbook/collage composer where the reader
+  drags their own archive material (kept pages, photos, notes) onto a canvas
+  and binds it as a real PDF keepsake. The old "Camera" seal is now **Input**
+  and fans out to Photo / Text / Audio / Pagewright.
+- **Weekly Issue:** the past seven days packaged as a felt magazine issue
+  (masthead, issue number, highlights), anchored to the reader's own first
+  kept page so their week one is Issue No. 1; exports as its own PDF.
+- **Plain Page and the Book's Pocket:** a deliberately promptless "just
+  write" door that enters the archive unprocessed and never surfaces through
+  the curator, plus the existing Parting Whisper/Pocket keepsake system now
+  surfaces as its own `bookPocket` archive page type instead of a home-shelf
+  extra.
+- **Book Notices learns out loud:** notices can now carry small "tiny
+  pattern card" evidence, an adaptive-action menu (send to Pagewright, bind
+  the Weekly Issue, let a pattern rest), and a direct feedback prompt ("Did
+  the Book read this right?").
+- **Siri, Shortcuts, and Spotlight:** `Shared/ReEnchantedSiriIntents.swift`
+  exposes private kept pages to Siri/Shortcuts and Spotlight (iOS 18) as App
+  Intents/entities, with bundled shortcut phrases for writing a page and
+  opening the archive or Wonder Compass; an iOS 27 Notes-schema integration
+  is scaffolded but gated off behind a compile flag.
+- **Richer story continuation:** story turns now pass the previous scene and
+  the reader's chosen option into the next generation call, with larger
+  token budgets for story, academy, and Book Fae surfaces.
 
 ## Repository Layout
 
@@ -275,6 +299,28 @@ The First Door teaches the actual loop (offer → keep/wait → archive → the 
 remembers) and the core vocabulary (the Nothing, Belief, Glow, Chapters), and it
 explains the app as a living book of kept pages — never as a productivity app.
 
+> **Note:** the beat table above is the original 14-step shape; the flow is now
+> `stepCount = 16`. Two additions worth knowing:
+>
+> - **Night-one wagers (honest Barnum).** The Cast step embeds
+>   `onboardingWagerBeat`: the Book ventures three `FirstWagers` guesses framed
+>   as wagers ("before I've read a page of you"). Tapped confirmations persist as
+>   `first-wager` Self Facts and are paid off later by
+>   `FirstReading.wagerReceipt(...)` as receipts grounded in the reader's own
+>   kept words. Barnum belongs only to this cold-start window; the mature app
+>   stays Barnum-free.
+> - **The appointment is named.** The finale adds a "Your first appointment"
+>   card pointing at the evening braid ("come back and read your story; early
+>   bird? ready from six"), matched by the retitled default braid whisper.
+
+The daily loop is also more legible after onboarding: the braid may be **offered
+from 6pm** (`BookSchedule.isBraidSurfaceTime`; auto-braid still waits for the
+evening via `shouldAutoBraid`), the **first braid of an install** may fire early
+once ≥3 pages are kept so a morning onboarder closes the write→read-back circuit
+in session one (`BookOfYouPageSourceAdapter.mayShowBraid`), and daytime keeps
+carry a quiet "thread caught" anticipation cue
+(`KeepMarginalia.braidGatheringLine`).
+
 After completion, two private local source adapters keep the first week sticky:
 
 - `FirstDoorOriginPageSourceAdapter` (`sourceID: first-door-origin`) renders a
@@ -318,7 +364,7 @@ pactDispatch, pactVerdict, pactErrand, festival, twoReadings, castBond, todaysSk
 bookJump, enchantment, anchor, academyClass, elective, packPage,
 wordNegotiation, gamePage, calendar, helpTips, welcome, marginsAtlas,
 bookConnections, bookRemembered, bookNotices, glowInvitation, theBleed,
-inventory, bindery
+inventory, bindery, plainPage, bookPocket
 ```
 
 Important model types:
@@ -660,6 +706,16 @@ The same page type also carries the rarer continuity moments: constellation
 namings, sealed wagers, and opened seals (see Constellations And Sealed
 Margins below).
 
+Notices can now teach out loud. `NoticePatternCard` is a small evidence card
+(title, text, symbol) that backs up a claim with something concrete: prompt
+memory, a recurring thread, a landing-hour pattern, a compounding reader
+choice, or a motif cluster. Notice pages can carry a `learningSummary`, a set
+of these `tinyPatternCards`, an `adaptiveActions` menu, and a direct
+`feedbackPrompt` ("Did the Book read this right?"). The reader can act on a
+notice via `BookNoticeAdaptiveAction` (send the pattern to Pagewright, bind
+the Weekly Issue, or let the pattern rest) or answer with a
+`BookNoticeFeedbackChoice`, so noticing is not a one-way pronouncement.
+
 ### Constellations And Sealed Margins
 
 `Shared/Constellations.swift` makes noticing consequential over time.
@@ -822,6 +878,84 @@ hosted print-file URLs, and can create or preview a Lulu-style print order when
 the backend endpoint/token are configured. If the service is not configured, the
 PDF binding path still works locally.
 
+### Weekly Issue
+
+Alongside monthly editions, `WeeklyIssue` (`Shared/MonthlyEdition.swift`) packages
+the past seven days as a felt magazine issue: masthead, issue number, date
+range, and highlights. Issue numbering is anchored to the reader's own first
+kept page, so their first week of use is Issue No. 1 rather than an arbitrary
+calendar week. `WeeklyIssuePDFWriter` (`InsideCoverApp/MonthlyEditionPDF.swift`)
+renders it as its own PDF (`exportWeeklyIssuePDF`, `preparedWeeklyIssuePDFURL`),
+and a dedicated `BookPageSource` ("weekly-issue", type `.bindery`) surfaces the
+issue once a week closes. Covered by `Tests/InsideCoverCoreTests/WeeklyIssueTests.swift`.
+
+### Pagewright
+
+Pagewright is a freeform scrapbook/collage composer: the reader drags their
+own archive material — kept pages, photos, notes — onto a canvas and arranges
+it into a custom keepsake page, then binds the result as a real PDF. It is the
+biggest addition to `InsideCoverApp/ContentViewFeatures.swift` to date.
+
+- `PagewrightSheet` is the canvas-editing view; `PagewrightDraft`,
+  `PagewrightCanvasElement`, `PagewrightDayBucket`, `PagewrightPinnedNote`,
+  and `PagewrightMediaPreview` make up the underlying model.
+- `PagewrightTemplate` offers six starting layouts — Memory Wall, Photo
+  Scatter, Letter Home, Field Notes, Weekly Shrine, Soft Chaos — each with its
+  own suggested title, marginalia, and note style.
+- `PagewrightFormat`, `PagewrightBackground`, `PagewrightMarginaliaStyle`,
+  `PagewrightPinnedNoteStyle`, `PagewrightMarkTrayCategory`,
+  `PagewrightScrapTrayScope`, and `PagewrightTrayMode` control styling and the
+  material tray the reader picks from.
+- `PagewrightPDFWriter` / `PagewrightText` render the finished collage to PDF
+  for the share sheet.
+- The candidate material comes from `pagewrightCandidatePages`: any non-welcome,
+  non-help kept page with usable content or media, exposed through
+  `pagewrightVisualMediaAssets`.
+
+The entry point for all freeform input changed to match: the old "Camera" seal
+is now **Input**, and fans out to Photo / Text / Audio / Pagewright rather than
+jumping straight to the camera.
+
+### Plain Page And The Book's Pocket
+
+`plainPage` is a deliberately promptless "just write" door: no framing
+question, no marginalia, no ripple/afterglow processing — the reader's words
+enter the archive unprocessed. `PlainPageSourceAdapter` is registered for
+completeness but never returns a candidate, so the page is reached only through
+the **Input** seal's Text option (`PlainPageSheet`, kept via `keepPlainPage`),
+never surfaced by the curator. Its `BookPageSource` is `"plain-page"`
+(`square.and.pencil`).
+
+`bookPocket` gives the existing Parting Whisper/Pocket keepsake system (see
+"Parting whisper & Pocket" in project memory) its own archive page type,
+titled "The Book's Pocket", so pressed keepsakes read as a real kind of page
+rather than a home-shelf-only extra.
+
+### Siri, Shortcuts, And Spotlight
+
+`Shared/ReEnchantedSiriIntents.swift` exposes the Book to the system beyond the
+app's own UI:
+
+- `ReEnchantedSiriCommand` / `ReEnchantedSiriCommandStore` is a
+  UserDefaults-backed inbox for commands issued via Siri, drained on the next
+  foreground.
+- `ReEnchantedBookPageEntity` and `ReEnchantedBookPageQuery` expose kept pages
+  to Siri/Shortcuts as an `AppEntity`, filtered to `.privateLocal` pages
+  (capped at 300 loaded / 12 returned) and loaded off-main via
+  `BookDatabase.loadDaysDetached()` so Siri lookups never block the main thread.
+- `ReEnchantedIndexedBookPageEntity` / `ReEnchantedIndexBookPagesIntent` index
+  kept pages into Spotlight (`CSSearchableIndex`) on iOS 18+.
+- Three App Intents ship as real Shortcuts actions: `ReEnchantedCapturePageIntent`
+  ("Write a Page"), `ReEnchantedOpenArchiveIntent` ("Open the Book Archive"),
+  and `ReEnchantedOpenBookPageIntent` ("Open Book Page").
+- `ReEnchantedShortcuts: AppShortcutsProvider` bundles phrases such as "Write
+  in my ReEnchanted" and "Open my Wonder Compass in ReEnchanted".
+
+A further iOS 27 Notes-app schema integration (`@AppEntity(schema: .notes.note)`,
+so kept pages could appear as native Notes-style entities/folders/tags) is
+scaffolded but compiled out behind `#if REENCHANTED_IOS27_APP_SCHEMAS` — not
+yet enabled.
+
 ### Ask The Book
 
 Ask the Book is a conversational surface. It can answer from local context,
@@ -884,7 +1018,7 @@ The three newer rooms ship with bundled illustration assets
 (`LabyrinthLocationQuillquarium`, `LabyrinthLocationBookBurrow`,
 `LabyrinthLocationDorm`) and are covered by `StoryPageLocationTests`.
 
-The six bundled recipes are:
+The bundled core recipes include:
 
 - **Dorm-Room Visit** — conversation, companionship, or a small reveal;
 - **Nothing in the Library Corner** — environmental erasure with concrete
@@ -893,7 +1027,39 @@ The six bundled recipes are:
 - **Odd Favor** — one bounded fictional favor tied to the current thread;
 - **Shared Quiet** — ordinary company and exact noticing without forced drama;
 - **Concrete Disagreement** — two people differ over named evidence. It has
-  one-fifth normal weight and is suppressed for 72 hours after The Two Readings.
+  one-fifth normal weight and is suppressed for 72 hours after The Two Readings;
+
+plus A Sentence Opens (souvenir doors), Misdelivered Object, Tiny Heist, False
+Alarm, Field Test, and Trade at the Margin.
+
+Three recipes form the **chosen register** — the beats where the reader is not
+just seen but picked. They run on day-scale cooldowns so being picked stays
+election, not content:
+
+- **The Entrusting** — a cast member confides something they have told no one
+  else. Gated by the `.deepBond` requirement: the confiding character must hold
+  at least `StoryFormRegistry.deepBondMemoryFloor` (3) minted entity memories of
+  the reader, so the intimacy is documented history, never asserted. The
+  confidant is promoted to lead in `entities(for:)`. Cooldown 240h.
+- **The Summons** — the world formally asks for the reader specifically, with a
+  reader-specific reason built from the grounding, never destiny-flattery.
+  Deferring on her own terms is honored. Cooldown 336h.
+- **The Reader's Mark** — environmental proof that a kept page physically
+  changed a corner of the world; the mark is permanent world-fact afterwards.
+  Requires kept-page grounding. Cooldown 192h.
+
+Six recipes are **world-led** — the Labyrinth running its own life, so Story
+Pages are not always about the reader's diary: Expedition to the Unshelved,
+Loose in the Quillquarium, The Door That Was Not There, The Great Hall Wager,
+The Weather Indoors, and The Kitchens at Midnight. A world-led recipe carries
+the `world-led` preferred tag (`StoryRecipe.isWorldLed`; reader packs can opt
+in with no schema change). For these, the packet builder swaps grounding to
+atmosphere only (`worldLedGrounding`: a real weather signal if present,
+otherwise hour + season — never a kept page), the prompt reframes grounding as
+tint instead of subject, and `StoryRecipeValidator` skips the
+grounding-overlap requirement (via `StoryFormRegistry.isWorldLedRecipe(id:)`).
+Their choice directives demand three genuinely different plans with different
+costs, never three flavors of noticing.
 
 Normal recipes rest for 18 hours before repeating unless no other eligible
 recipe remains. Recipe, Form, and Genre each receive a surface-history key, so

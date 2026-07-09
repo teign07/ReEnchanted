@@ -2,7 +2,7 @@
 
 Two workstreams: (A) mini-celebrations that trigger dopamine through onboarding
 without going off the rails, and (B) a disclosure-forward, multi-step paywall
-with weekly/monthly/annual/à-la-carte plans, a 3-day trial, and revocable
+with weekly/monthly/annual/à-la-carte plans, a 10-day trial, and revocable
 entitlements.
 
 North star (unchanged): read + wonder, lamplight tone. The Book is a witness,
@@ -86,12 +86,12 @@ reason to decline the trial.
 3. **Choose your plan.**
    - Weekly — price anchor (e.g. $3.99/wk)
    - Monthly (e.g. $6.99/mo)
-   - Annual $39.99 — default-selected, "2 months free" framing, 3-day free
+   - Annual $39.99 — default-selected, "2 months free" framing, 10-day free
      trial badge (existing product `…pass.standing-order.annual`)
    - À la carte — link out to packs (existing $4.99/$2.99 products)
    - Localized prices via StoreKit 2 `Product.displayPrice`; computed renewal
      dates shown inline.
-4. **The terms, in plain ink.** "Your trial starts today, July 4. On July 7,
+4. **The terms, in plain ink.** "Your trial starts today, July 4. On July 14,
    Apple charges $39.99/year unless you cancel. Cancel anytime in Settings →
    Apple ID → Subscriptions — the Book keeps everything you already made.
    We will tap the glass the day before any coin moves." + Restore Purchases +
@@ -114,7 +114,7 @@ reason to decline the trial.
 
 - Create weekly + monthly auto-renewables in the same subscription group as
   the annual pass (upgrade/downgrade proration comes free).
-- Configure the 3-day introductory free-trial offer on annual (decide whether
+- Configure the 10-day introductory free-trial offer on annual (decide whether
   weekly gets one — see open questions).
 - Family Sharing decision per product.
 
@@ -127,7 +127,7 @@ reason to decline the trial.
    signature; Glow-waking ceremony; Bindery sewing beat.
 2. **Phase 2 — Paywall flow. DONE (UI + data + wiring).**
    - `StandingOrderTier` model + `BookShopCatalog.standingOrderTiers`
-     (weekly $3.99 / monthly $6.99 / annual $39.99, all 3-day trial) in
+     (weekly $3.99 / monthly $6.99 / annual $39.99, all 10-day trial) in
      `Shared/PagePacks.swift`.
    - `BookShopCatalog.packID(forProductID:)` resolver — any cadence's receipt
      grants the Standing Order pack; `StoreKitMerchant.restorePurchases` now
@@ -163,7 +163,7 @@ Steps 0, 3, 4, 5, 7, 8, 10, 15 all have beats. Step 3 (snack) uses
 ## App Store Connect prerequisites (before the tiers go live)
 - Create **weekly** + **monthly** auto-renewables in the SAME subscription
   group as the existing annual pass (productIDs in `standingOrderTiers`).
-- Configure the **3-day introductory free trial** on all three.
+- Configure the **10-day introductory free trial** on all three.
 - Paste Terms/Privacy URLs into the subscription group localization.
 - Until these exist, StoreKit returns no products → the sheet shows fallback
   prices and DEBUG builds fall through to the dev counter (purchase still
@@ -177,7 +177,7 @@ Steps 0, 3, 4, 5, 7, 8, 10, 15 all have beats. Step 3 (snack) uses
    credits, etc.). Core capture/keep/braid always free. Everything simple,
    clear, fair.
 2. **Weekly at launch: yes**, and — unlike the earlier lean — **all three
-   tiers get the 3-day free trial** (weekly, monthly, annual). Simplicity over
+   tiers get the 10-day free trial** (weekly, monthly, annual). Simplicity over
    trial-gating games.
 3. **Prices confirmed:** $3.99/wk, $6.99/mo, $39.99/yr.
 4. **Paywall ships in the launch build** so it can be tuned and refined live.

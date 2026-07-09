@@ -291,9 +291,10 @@ enum SupportFacultyPackRegistry {
             facultyName: "Dr. Elowen Vellum",
             pageTitle: "Body Marginalia Page",
             roleTitle: "Academy Longevity Physician",
-            purpose: "Translate body, fuel, movement, recovery, and health signals into one useful daily experiment with no shame attached.",
+            purpose: "Translate body, fuel, movement, recovery, and repeated ledger clues into one useful daily experiment with no shame attached.",
             reads: [
                 "fuel log",
+                "Vellum ledger pattern clues",
                 "HealthKit body signals",
                 "sleep and recovery context",
                 "blood pressure or labs when explicitly provided",
@@ -1423,20 +1424,20 @@ struct EnchantmentSpell: Identifiable, Equatable {
 
 enum StoryEnchantmentCatalog {
     static let spells: [EnchantmentSpell] = [
-        EnchantmentSpell(id: "everything-speaks", title: "Everything Speaks", detail: "Let a real object answer through close attention."),
-        EnchantmentSpell(id: "everything-is-poetry", title: "Everything's Poetry", detail: "Turn a real detail into a line with pressure and music."),
-        EnchantmentSpell(id: "everything-is-magic", title: "Everything's Magic", detail: "Reveal the spellbook nature of an ordinary subject."),
-        EnchantmentSpell(id: "everything-is-wonderful", title: "Everything's Wonderful", detail: "Find the wonder tucked inside a mundane thing."),
-        EnchantmentSpell(id: "everything-is-stories", title: "Everything's Stories", detail: "Let a short hidden story unfold from the subject."),
-        EnchantmentSpell(id: "everything-is-a-haiku", title: "Everything's a Haiku", detail: "Distill the subject into three quiet lines."),
-        EnchantmentSpell(id: "everything-is-nice", title: "Everything's Nice", detail: "Invite compliments and bright surprises from the subject."),
-        EnchantmentSpell(id: "mirror-mirror", title: "Mirror, Mirror", detail: "Ask a selfie for reflection, insight, and prophecy."),
-        EnchantmentSpell(id: "everything-is-puzzling", title: "Everything's Puzzling", detail: "Turn the subject into a riddle with teeth."),
-        EnchantmentSpell(id: "everything-is-connected", title: "Everything's Connected", detail: "Reveal the larger threads tied to the subject."),
-        EnchantmentSpell(id: "everything-is-astral", title: "Everything's Astral", detail: "Let the subject open a road for an astral double."),
-        EnchantmentSpell(id: "everything-is-roasted", title: "Everything's Roasted", detail: "Aim a comic burn at the subject's weak spot."),
-        EnchantmentSpell(id: "everything-is-punny", title: "Everything's Punny", detail: "Let wordplay crack the subject open sideways."),
-        EnchantmentSpell(id: "everything-is-a-joke", title: "Everything's a Joke", detail: "Use a lighthearted joke to loosen the tension.")
+        EnchantmentSpell(id: "everything-speaks", title: "Everything Speaks", detail: "Look really closely and let a real object talk back."),
+        EnchantmentSpell(id: "everything-is-poetry", title: "Everything's Poetry", detail: "Turn one real little detail into a line with music in it."),
+        EnchantmentSpell(id: "everything-is-magic", title: "Everything's Magic", detail: "Show the secret spellbook hiding inside an ordinary thing."),
+        EnchantmentSpell(id: "everything-is-wonderful", title: "Everything's Wonderful", detail: "Find the wonder tucked inside a plain little thing."),
+        EnchantmentSpell(id: "everything-is-stories", title: "Everything's Stories", detail: "Let a tiny hidden story sneak out of whatever you point at."),
+        EnchantmentSpell(id: "everything-is-a-haiku", title: "Everything's a Haiku", detail: "Squish it all down into three quiet little lines."),
+        EnchantmentSpell(id: "everything-is-nice", title: "Everything's Nice", detail: "Coax sweet compliments and happy surprises out of it."),
+        EnchantmentSpell(id: "mirror-mirror", title: "Mirror, Mirror", detail: "Ask a selfie for a good look, a nice truth, and a peek ahead."),
+        EnchantmentSpell(id: "everything-is-puzzling", title: "Everything's Puzzling", detail: "Turn it into a riddle with a little bite to it."),
+        EnchantmentSpell(id: "everything-is-connected", title: "Everything's Connected", detail: "Show all the bigger threads quietly tied to it."),
+        EnchantmentSpell(id: "everything-is-astral", title: "Everything's Astral", detail: "Let it open a little road for your dreamy astral twin."),
+        EnchantmentSpell(id: "everything-is-roasted", title: "Everything's Roasted", detail: "Point a silly, friendly little burn right at its weak spot."),
+        EnchantmentSpell(id: "everything-is-punny", title: "Everything's Punny", detail: "Let some goofy wordplay crack it open sideways."),
+        EnchantmentSpell(id: "everything-is-a-joke", title: "Everything's a Joke", detail: "Use a silly little joke to shake the tension loose.")
     ]
 
     static var promptCatalog: String {
@@ -1523,9 +1524,9 @@ enum FacultyResearchNoteGenerator {
             intent: .reflect,
             renderStyle: .gentleTranslation,
             score: facultyID == "dr-vellum" ? 59 : 57,
-            reason: "\(facultyName) is preparing a private research note for the evening Guild page.",
+            reason: "\(facultyName) is quietly getting a little research note ready for tonight's Guild page.",
             prompt: "\(facultyName) opens a research folio.",
-            detail: "A local-brain research brief for tonight's Support Guild meeting.",
+            detail: "A private little study, thought up right here on your phone, for tonight's Support Guild meeting.",
             payload: BookPagePayload(
                 headline: "\(facultyName)'s Research Folio",
                 body: body,
@@ -1545,13 +1546,16 @@ enum FacultyResearchNoteGenerator {
     private static func promptBody(for facultyID: String, topic: String, day: BookDay, inputs: BookSourceInputs) -> String {
         let metrics = inputs.body?.metrics.prefix(8).map(\.displayText).joined(separator: " | ") ?? "no HealthKit metrics"
         let entries = inputs.facultyEntries.prefix(8).map { "\($0.windowName): \($0.rawText)" }.joined(separator: "\n")
+        let fuelDigest = VellumFuelPatternDigest.make(from: inputs.facultyEntries.filter { $0.kind == .fuel })
         if facultyID == "dr-vellum" {
             return """
             Research focus: \(topic)
 
-            Vellum should connect current body evidence to longevity, fuel, recovery, sleep, heart signals, medication cautions, and one humane experiment. Use uncertainty. No diagnosis. No protocol heroics.
+            Vellum should connect current body evidence to longevity, fuel, recovery, sleep, heart signals, medication cautions, and one humane experiment. Make the pattern recognition the star: repeated fuel-ledger clues are evidence for what to observe next, not a score. Use uncertainty. No diagnosis. No protocol heroics.
 
             Body signals: \(metrics)
+            Vellum ledger pattern star: \(fuelDigest.summary)
+            Ledger clue counts: \(fuelDigest.researchLine)
             Recent chart entries:
             \(entries.isEmpty ? "No chart entries yet." : entries)
             """
@@ -1612,8 +1616,11 @@ enum WonderConciergeMode: String, CaseIterable {
 }
 
 enum BookSchedule {
+    /// The braid may be *offered* on the shelf from 6pm — an early-bird option,
+    /// not an obligation. The automatic braid (`shouldAutoBraid`) still waits
+    /// for the evening, so the ritual keeps its anticipation.
     static func isBraidSurfaceTime(_ date: Date = Date(), calendar: Calendar = .current) -> Bool {
-        minutesSinceStartOfDay(for: date, calendar: calendar) >= 20 * 60
+        minutesSinceStartOfDay(for: date, calendar: calendar) >= 18 * 60
     }
 
     static func shouldAutoBraid(_ date: Date = Date(), calendar: Calendar = .current) -> Bool {

@@ -733,6 +733,12 @@ enum GlowMenuAction {
     case openEnchantment(GlowEnchantmentMenuItem)
     case openPage(BookPageType)
     case openBookSection(String)
+    case openPagewright
+    case bindWeeklyIssue
+    case bindMonthlyEdition
+    case bindAnnualEdition
+    case exportPlainInk
+    case exportSealedCopy
     case openBookShop
     case openPactMap
 }
@@ -741,6 +747,7 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
     case belief
     case spells
     case pages
+    case bindery
     case book
 
     var id: String { rawValue }
@@ -753,6 +760,8 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
             return "Spells"
         case .pages:
             return "Pages"
+        case .bindery:
+            return "The Bindery"
         case .book:
             return "Book"
         }
@@ -766,6 +775,8 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
             return "Open a Compass Run or Enchantment."
         case .pages:
             return "Tune which Pages the Book notices."
+        case .bindery:
+            return "Make, share, print, and preserve kept pages."
         case .book:
             return "Read the Wonder Compass source."
         }
@@ -779,6 +790,8 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
             return "wand.and.stars"
         case .pages:
             return "book.pages"
+        case .bindery:
+            return "books.vertical.fill"
         case .book:
             return "book.closed"
         }
@@ -792,6 +805,8 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
             return "MarginaliaCompass"
         case .pages:
             return "MarginaliaScrap"
+        case .bindery:
+            return "MarginaliaSeal"
         case .book:
             return "MarginaliaStar"
         }
@@ -800,13 +815,15 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
     var rowOffset: CGFloat {
         switch self {
         case .belief:
-            return 192
+            return 164
         case .spells:
-            return 300
+            return 242
         case .pages:
-            return 408
+            return 320
+        case .bindery:
+            return 398
         case .book:
-            return 516
+            return 476
         }
     }
 
@@ -820,6 +837,15 @@ struct GlowCommandMenu: View {
     let pageTypes: [GlowPageMenuItem]
     let bookSections: [GlowBookSectionMenuItem]
     let enchantments: [GlowEnchantmentMenuItem]
+    let canBindWeeklyIssue: Bool
+    let canBindMonthlyEdition: Bool
+    let preparedPagewrightPDFURL: URL?
+    let preparedWeeklyIssueCardURL: URL?
+    let preparedWeeklyIssuePDFURL: URL?
+    let preparedMonthlyEditionURL: URL?
+    let preparedAnnualEditionURL: URL?
+    let preparedPlainInkURL: URL?
+    let preparedSaveFileURL: URL?
     let onCreateCastMember: () -> Void
     let onClose: () -> Void
     let onSelectAction: (GlowMenuAction) -> Void
@@ -838,8 +864,8 @@ struct GlowCommandMenu: View {
     var body: some View {
         GeometryReader { proxy in
             let panelWidth = min(430, max(294, proxy.size.width * 0.76))
-            let panelTop = max(proxy.safeAreaInsets.top + 74, 98)
-            let panelHeight = min(proxy.size.height - panelTop - 30, selectedSection == nil ? 500 : 690)
+            let panelTop = max(proxy.safeAreaInsets.top + 58, 82)
+            let panelHeight = min(proxy.size.height - panelTop - 22, selectedSection == nil ? 555 : 720)
             let isCompact = proxy.size.width < 720
             let submenuWidth = isCompact ? panelWidth - 28 : min(280, max(232, panelWidth * 0.68))
             let submenuTop = panelTop + (selectedSection?.rowOffset ?? 0) + 44
@@ -893,7 +919,7 @@ struct GlowCommandMenu: View {
     }
 
     private func mainPanel(width: CGFloat, height: CGFloat) -> some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 7) {
             crest
 
             VStack(spacing: 5) {
@@ -912,7 +938,7 @@ struct GlowCommandMenu: View {
             .padding(.horizontal, 20)
 
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 8) {
+                VStack(spacing: 6) {
                     ForEach(GlowMenuSection.allCases) { section in
                         glowMenuRow(section)
                         if selectedSection == section {
@@ -928,7 +954,7 @@ struct GlowCommandMenu: View {
             .frame(maxHeight: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .padding(.top, 17)
+        .padding(.top, 13)
         .padding(.bottom, 10)
         .frame(width: width, height: height)
         .background {
@@ -973,8 +999,8 @@ struct GlowCommandMenu: View {
 
     private var crest: some View {
         Color.clear
-        .frame(height: 44)
-        .padding(.top, 4)
+        .frame(height: 32)
+        .padding(.top, 2)
         .accessibilityHidden(true)
     }
 
@@ -987,7 +1013,7 @@ struct GlowCommandMenu: View {
                 selectedSection = selectedSection == section ? nil : section
             }
         } label: {
-            HStack(spacing: 14) {
+            HStack(spacing: 12) {
                 ZStack {
                     Image("ParchmentFiber")
                         .resizable()
@@ -1000,14 +1026,14 @@ struct GlowCommandMenu: View {
                         .opacity(isSelected ? 0.96 : 0.76)
                         .shadow(color: BookPalette.lampGold.opacity(0.22), radius: 7)
                 }
-                .frame(width: 58, height: 58)
+                .frame(width: 50, height: 50)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .stroke(BookPalette.lampGold.opacity(isSelected ? 0.58 : 0.22), lineWidth: 1)
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(section.title)
                         .font(.system(.headline, design: .serif, weight: .bold))
                         .foregroundStyle(BookPalette.ink)
@@ -1024,8 +1050,8 @@ struct GlowCommandMenu: View {
                     .foregroundStyle(BookPalette.ink.opacity(0.38))
                     .rotationEffect(.degrees(isSelected ? 90 : 0))
             }
-            .padding(9)
-            .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
+            .padding(8)
+            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(
@@ -1092,7 +1118,7 @@ struct GlowCommandMenu: View {
             ScrollView(.vertical, showsIndicators: true) {
                 submenuContent(section: section, compact: false)
             }
-            .frame(maxHeight: 390)
+            .frame(maxHeight: 500)
         }
         .padding(12)
         .frame(width: width)
@@ -1160,6 +1186,8 @@ struct GlowCommandMenu: View {
             ) {
                 onSelectAction(.openPactMap)
             }
+        case .bindery:
+            binderySubmenu(compact: compact)
         case .book:
             ForEach(bookSections) { section in
                 menuButton(
@@ -1170,6 +1198,93 @@ struct GlowCommandMenu: View {
                 ) {
                     onSelectAction(.openBookSection(section.id))
                 }
+            }
+        }
+    }
+
+    private func binderySubmenu(compact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let preparedPagewrightPDFURL {
+                shareMenuButton(
+                    title: "Share Last Scrapbook Page",
+                    detail: "The latest Pagewright PDF is ready for Apple's share sheet.",
+                    systemImage: "square.and.arrow.up",
+                    url: preparedPagewrightPDFURL,
+                    compact: compact
+                )
+            }
+
+            menuButton(
+                title: "Scrapbook a Page",
+                detail: "Choose kept pages and bind a Scrap, Pocket, Issue, or Letter PDF.",
+                systemImage: "scissors",
+                compact: compact
+            ) {
+                onSelectAction(.openPagewright)
+            }
+
+            binderyExportButton(
+                preparedURL: preparedWeeklyIssueCardURL ?? preparedWeeklyIssuePDFURL,
+                shareTitle: preparedWeeklyIssueCardURL == nil ? "Share Weekly Issue" : "Share Weekly Wrap",
+                bindTitle: "Bind Weekly Wrap",
+                detail: preparedWeeklyIssueCardURL == nil ? "A small issue from the most recent closed week." : "A social card from the most recent closed week.",
+                systemImage: "newspaper",
+                compact: compact,
+                canBind: canBindWeeklyIssue,
+                bindAction: .bindWeeklyIssue
+            )
+
+            binderyExportButton(
+                preparedURL: preparedMonthlyEditionURL,
+                shareTitle: "Share Monthly Edition",
+                bindTitle: "Bind Monthly Edition",
+                detail: "The current chapter of kept pages, bound as a PDF.",
+                systemImage: "book.pages",
+                compact: compact,
+                canBind: canBindMonthlyEdition,
+                bindAction: .bindMonthlyEdition
+            )
+
+            binderyExportButton(
+                preparedURL: preparedAnnualEditionURL,
+                shareTitle: "Share Annual Volume",
+                bindTitle: "Bind Annual Volume",
+                detail: "A year of chapters gathered into one book.",
+                systemImage: "books.vertical",
+                compact: compact,
+                canBind: true,
+                bindAction: .bindAnnualEdition
+            )
+
+            binderyExportButton(
+                preparedURL: preparedPlainInkURL,
+                shareTitle: "Share Plain Ink",
+                bindTitle: "Copy Out Plain Ink",
+                detail: "Every kept page as ordinary Markdown text.",
+                systemImage: "doc.plaintext",
+                compact: compact,
+                canBind: true,
+                bindAction: .exportPlainInk
+            )
+
+            binderyExportButton(
+                preparedURL: preparedSaveFileURL,
+                shareTitle: "Share Sealed Copy",
+                bindTitle: "Seal a Copy",
+                detail: "A full local backup of the Book: pages, photos, and continuity.",
+                systemImage: "book.closed",
+                compact: compact,
+                canBind: true,
+                bindAction: .exportSealedCopy
+            )
+
+            menuButton(
+                title: "Print Studio",
+                detail: "Open the BookShop's print path for proof files and physical bindings.",
+                systemImage: "printer",
+                compact: compact
+            ) {
+                onSelectAction(.openBookShop)
             }
         }
     }
@@ -1391,6 +1506,7 @@ struct GlowCommandMenu: View {
         detail: String,
         systemImage: String,
         compact: Bool,
+        isDisabled: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button {
@@ -1419,6 +1535,78 @@ struct GlowCommandMenu: View {
             .padding(.horizontal, compact ? 10 : 12)
             .padding(.vertical, compact ? 8 : 10)
             .background(.white.opacity(0.30), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .opacity(isDisabled ? 0.48 : 1)
+        }
+        .buttonStyle(.bookPress())
+        .disabled(isDisabled)
+    }
+
+    @ViewBuilder
+    private func binderyExportButton(
+        preparedURL: URL?,
+        shareTitle: String,
+        bindTitle: String,
+        detail: String,
+        systemImage: String,
+        compact: Bool,
+        canBind: Bool,
+        bindAction: GlowMenuAction
+    ) -> some View {
+        if let preparedURL {
+            shareMenuButton(
+                title: shareTitle,
+                detail: detail,
+                systemImage: "square.and.arrow.up",
+                url: preparedURL,
+                compact: compact
+            )
+        } else {
+            menuButton(
+                title: bindTitle,
+                detail: canBind ? detail : "Not enough kept pages are ready for this binding yet.",
+                systemImage: systemImage,
+                compact: compact,
+                isDisabled: !canBind
+            ) {
+                onSelectAction(bindAction)
+            }
+        }
+    }
+
+    private func shareMenuButton(
+        title: String,
+        detail: String,
+        systemImage: String,
+        url: URL,
+        compact: Bool
+    ) -> some View {
+        ShareLink(item: url) {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.teal)
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font((compact ? Font.caption : Font.subheadline).weight(.bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(detail)
+                        .font(compact ? .caption2 : .caption)
+                        .foregroundStyle(BookPalette.ink.opacity(0.66))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Image(systemName: "square.and.arrow.up")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.teal)
+            }
+            .padding(.horizontal, compact ? 10 : 12)
+            .padding(.vertical, compact ? 8 : 10)
+            .background(BookPalette.teal.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(BookPalette.teal.opacity(0.22), lineWidth: 1)
+            }
         }
         .buttonStyle(.bookPress())
     }
@@ -1573,6 +1761,13 @@ struct KeepMarginNoteToast: View {
                         Label(carryOutLine, systemImage: "sparkle.magnifyingglass")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(BookPalette.teal.opacity(0.92))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 2)
+                    }
+                    if let braidThreadLine = note.braidThreadLine {
+                        Label(braidThreadLine, systemImage: "point.3.filled.connected.trianglepath.dotted")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(BookPalette.lampGold.opacity(0.9))
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 2)
                     }

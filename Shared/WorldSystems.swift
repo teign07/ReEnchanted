@@ -882,6 +882,79 @@ enum RadioStationRegistry {
                     conditions: nil,
                     weight: 2
                 ),
+                // Unscheduled Penny breaks imported from the July 7 ElevenLabs
+                // batch. They are deliberately ungated so they can run anywhere
+                // in Fae-Fi's normal DJ cadence.
+                RadioBanter(
+                    id: "faefi-penny-banter-01", category: .stationID,
+                    assetName: "DJ_faefi_penny_banter_01",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 1 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-02", category: .gossip,
+                    assetName: "DJ_faefi_penny_banter_02",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 2 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-03", category: .news,
+                    assetName: "DJ_faefi_penny_banter_03",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 3 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-04", category: .network,
+                    assetName: "DJ_faefi_penny_banter_04",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 4 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-05", category: .gossip,
+                    assetName: "DJ_faefi_penny_banter_05",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 5 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-06", category: .news,
+                    assetName: "DJ_faefi_penny_banter_06",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 6 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-07", category: .stationID,
+                    assetName: "DJ_faefi_penny_banter_07",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 7 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-08", category: .gossip,
+                    assetName: "DJ_faefi_penny_banter_08",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 8 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-09", category: .news,
+                    assetName: "DJ_faefi_penny_banter_09",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 9 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-10", category: .network,
+                    assetName: "DJ_faefi_penny_banter_10",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 10 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
                 RadioBanter(
                     id: "faefi-psa-timetable", category: .news,
                     assetName: "DJ_faefi_psa_timetable_01",
@@ -1253,6 +1326,93 @@ enum RadioStationRegistry {
                     conditions: RadioBanter.Conditions(pageTypes: [.bookRemembered], minRecentPagesOfType: 1),
                     weight: 3
                 ),
+                // Unscheduled Euphony breaks imported from the July 7 ElevenLabs
+                // batch. They are deliberately ungated so they can run anywhere
+                // in Mothlight Beats' normal DJ cadence.
+                RadioBanter(
+                    id: "mothlight-euphony-banter-01", category: .stationID,
+                    assetName: "DJ_mothlight_euphony_banter_01",
+                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 1 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-euphony-banter-02", category: .gossip,
+                    assetName: "DJ_mothlight_euphony_banter_02",
+                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 2 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-euphony-banter-03", category: .news,
+                    assetName: "DJ_mothlight_euphony_banter_03",
+                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 3 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-euphony-banter-04", category: .network,
+                    assetName: "DJ_mothlight_euphony_banter_04",
+                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 4 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-euphony-banter-05", category: .stationID,
+                    assetName: "DJ_mothlight_euphony_banter_05",
+                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 5 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-euphony-banter-06", category: .gossip,
+                    assetName: "DJ_mothlight_euphony_banter_06",
+                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 6 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-euphony-banter-07", category: .news,
+                    assetName: "DJ_mothlight_euphony_banter_07",
+                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 7 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-euphony-banter-08", category: .network,
+                    assetName: "DJ_mothlight_euphony_banter_08",
+                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 8 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-euphony-banter-09", category: .stationID,
+                    assetName: "DJ_mothlight_euphony_banter_09",
+                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 9 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-euphony-banter-10", category: .gossip,
+                    assetName: "DJ_mothlight_euphony_banter_10",
+                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 10 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-euphony-banter-11", category: .news,
+                    assetName: "DJ_mothlight_euphony_banter_11",
+                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 11 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "mothlight-euphony-banter-12", category: .network,
+                    assetName: "DJ_mothlight_euphony_banter_12",
+                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 12 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
                 RadioBanter(
                     id: "mothlight-psa-samhain", category: .news,
                     assetName: "DJ_mothlight_psa_samhain_01",
@@ -1357,6 +1517,14 @@ enum RadioStationRegistry {
                     assetName: "RadioThornwaveVelvetArrears",
                     durationSeconds: 233,
                     moodTags: ["dark", "night", "velvet", "bargain"]
+                ),
+                RadioTrack(
+                    id: "thornwave-goblin-market",
+                    title: "Goblin Market",
+                    artist: "Thornwave",
+                    assetName: "RadioThornwaveGoblinMarket",
+                    durationSeconds: 158,
+                    moodTags: ["dark", "night", "market", "bargain"]
                 ),
                 RadioTrack(
                     id: "thornwave-mossy-night",
@@ -1642,6 +1810,135 @@ enum RadioStationRegistry {
                     caption: "One thing the whole band agrees on, and we agree on almost nothing: this is the sound the grey can't get into. ReEnchanted Radio. Keep believing out loud - it's the only thing that's ever worked, and I've spent my whole life trying to prove otherwise. Spin on.",
                     conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
                     weight: 2
+                ),
+                // Unscheduled Wicker breaks imported from the July 7 ElevenLabs
+                // batch. They are deliberately ungated so they can run anywhere
+                // in Thornwave's normal DJ cadence.
+                RadioBanter(
+                    id: "thornwave-wicker-banter-01", category: .stationID,
+                    assetName: "DJ_thornwave_wicker_banter_01",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 1 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-02", category: .gossip,
+                    assetName: "DJ_thornwave_wicker_banter_02",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 2 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-03", category: .news,
+                    assetName: "DJ_thornwave_wicker_banter_03",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 3 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-04", category: .network,
+                    assetName: "DJ_thornwave_wicker_banter_04",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 4 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-05", category: .gossip,
+                    assetName: "DJ_thornwave_wicker_banter_05",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 5 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-06", category: .news,
+                    assetName: "DJ_thornwave_wicker_banter_06",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 6 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-07", category: .stationID,
+                    assetName: "DJ_thornwave_wicker_banter_07",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 7 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-08", category: .gossip,
+                    assetName: "DJ_thornwave_wicker_banter_08",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 8 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-09", category: .news,
+                    assetName: "DJ_thornwave_wicker_banter_09",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 9 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-10", category: .network,
+                    assetName: "DJ_thornwave_wicker_banter_10",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 10 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-11", category: .gossip,
+                    assetName: "DJ_thornwave_wicker_banter_11",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 11 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-12", category: .news,
+                    assetName: "DJ_thornwave_wicker_banter_12",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 12 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-13", category: .stationID,
+                    assetName: "DJ_thornwave_wicker_banter_13",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 13 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-14", category: .gossip,
+                    assetName: "DJ_thornwave_wicker_banter_14",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 14 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-15", category: .news,
+                    assetName: "DJ_thornwave_wicker_banter_15",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 15 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-16", category: .network,
+                    assetName: "DJ_thornwave_wicker_banter_16",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 16 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-17", category: .gossip,
+                    assetName: "DJ_thornwave_wicker_banter_17",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 17 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
+                ),
+                RadioBanter(
+                    id: "thornwave-wicker-banter-18", category: .news,
+                    assetName: "DJ_thornwave_wicker_banter_18",
+                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 18 of the July 7 batch.",
+                    conditions: nil,
+                    weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-psa-clubs-night", category: .news,
@@ -3170,19 +3467,19 @@ enum WeatherEnchanter {
         let lowered = weather.phrase.lowercased()
         let mood: String
         if lowered.contains("storm") || lowered.contains("thunder") {
-            mood = "The stacks are keeping their lanterns low; the sky has teeth today."
+            mood = "The sky is having a big grumbly day and stomping its feet, so the Book keeps its lamp low and cozy."
         } else if lowered.contains("rain") || lowered.contains("drizzle") {
-            mood = "Rain is tapping at the margins, turning the ordinary streets into ink-wet pages."
+            mood = "The rain is tap-tap-tapping on the window like it wants to come in and read with you."
         } else if lowered.contains("fog") || lowered.contains("mist") {
-            mood = "The air has gone soft at the edges; the world is speaking in pencil."
+            mood = "The air pulled a soft grey blanket up over everything and got all sleepy at the edges."
         } else if lowered.contains("snow") || lowered.contains("ice") {
-            mood = "The weather has dusted the shelves in hush and silver."
+            mood = "The snow tiptoed in overnight and tucked everything under a quiet, sparkly blanket."
         } else if lowered.contains("wind") || lowered.contains("gust") {
-            mood = "A restless draft is moving through the corridors; loose pages may have opinions."
+            mood = "The wind is in a giggly, bouncy mood today and keeps tugging at everything it can reach."
         } else if lowered.contains("clear") || lowered.contains("sun") || lowered.contains("bright") {
-            mood = "The lamps are high today; even the dust looks ready for an expedition."
+            mood = "The sun is wide awake and beaming, like it can't wait for the two of you to go outside."
         } else {
-            mood = "The weather has left a quiet mark on the day, enough for the Book to tint the page."
+            mood = "The weather left one little friendly mark on the day, just enough for the Book to color the page with it."
         }
 
         return EnchantedWeatherSignal(
@@ -3326,6 +3623,67 @@ struct ChapterBindingChoice: Equatable {
     var scores: [String: Int]
     var evidenceLines: [String]
     var memoryFragments: [String]
+}
+
+struct ChapterBindingCeremony: Equatable {
+    var arrivalLine: String
+    var sealLine: String
+    var oathLine: String
+    var invitationLine: String
+    var aftermathLine: String
+
+    static func profile(for chapter: AcademyChapter) -> ChapterBindingCeremony {
+        switch chapter.id {
+        case "emberheart":
+            return ChapterBindingCeremony(
+                arrivalLine: "The seal takes heat first: red ink, a desk under lamplight, the fierce clean pressure of a door waiting for your hand.",
+                sealLine: "The Ember Seal marks the page with a bright, impatient edge.",
+                oathLine: "I will not wait outside my own life for permission.",
+                invitationLine: "First Emberheart work: choose one small door today and cross it on purpose.",
+                aftermathLine: "After this, authored doors and brave revisions can tug harder at the margins."
+            )
+        case "mossbloom":
+            return ChapterBindingCeremony(
+                arrivalLine: "The seal grows quiet first: rain-dark soil, old wood, green patience pushing through the binding where no one told it to grow.",
+                sealLine: "The Moss Clasp closes softly around the page, not to trap it, but to let it root.",
+                oathLine: "I will listen until the world answers in its own voice.",
+                invitationLine: "First Mossbloom work: keep one living detail today before naming what it means.",
+                aftermathLine: "After this, patient weather, body wisdom, and old green signals can surface more boldly."
+            )
+        case "tidecrest":
+            return ChapterBindingCeremony(
+                arrivalLine: "The seal breaks like weather first: salt, coffee-light, street glitter, one complete moment refusing to become a lesson.",
+                sealLine: "The Tide Glass flashes once, full of motion, and catches the room mid-breath.",
+                oathLine: "I will trust the moment before I turn it into a lesson.",
+                invitationLine: "First Tidecrest work: step toward one vivid present-tense thing and let it stay unfinished.",
+                aftermathLine: "After this, sudden weather, field pages, and bright unfinished hours can arrive with more force."
+            )
+        case "riddlewind":
+            return ChapterBindingCeremony(
+                arrivalLine: "The seal answers in more than one hand first: a table of voices, a puzzle half-solved, another sentence finding yours in the dark.",
+                sealLine: "The Wind Cipher clicks open, then refuses to solve itself alone.",
+                oathLine: "I will leave room for the answering voice.",
+                invitationLine: "First Riddlewind work: ask someone what they noticed and let their answer change the page.",
+                aftermathLine: "After this, letters, companions, and co-authored turns can find you more readily."
+            )
+        case "duskthorn":
+            return ChapterBindingCeremony(
+                arrivalLine: "The seal darkens first: thorn-shadow, violet glass, the honest edge that protects a story from going soft.",
+                sealLine: "The Dusk Thorn presses a violet line into the paper and leaves it there.",
+                oathLine: "I will keep the honest edge when smoothing it away would make the story false.",
+                invitationLine: "First Duskthorn work: name one protected boundary or difficult truth without apologizing for its shape.",
+                aftermathLine: "After this, thorned truths, conflicts, and shadowed wonder can answer sooner after dark."
+            )
+        default:
+            return ChapterBindingCeremony(
+                arrivalLine: "The seal gathers first as ink, light, and pressure.",
+                sealLine: "The Chapter seal presses itself into the page.",
+                oathLine: "I will keep what the Book recognized.",
+                invitationLine: "First Chapter work: keep one proof of this recognition today.",
+                aftermathLine: "After this, the recognized Chapter can tint the margins more clearly."
+            )
+        }
+    }
 }
 
 enum ChapterBindingOracle {
@@ -3941,7 +4299,7 @@ struct FuelItem: Equatable {
     var quantity: Double
 }
 
-struct NutritionEstimate: Equatable {
+struct NutritionEstimate: Codable, Equatable {
     var kilocalories: Double
     var protein: Double
     var carbohydrates: Double
@@ -4017,17 +4375,326 @@ enum FuelParser {
 
     /// Scale per-100g nutrients to a portion of this item.
     static func scale(per100g: NutritionEstimate, item: FuelItem) -> NutritionEstimate {
-        let nameWords = item.name.split(separator: " ").map(String.init)
-        let grams = nameWords.compactMap { portionGrams[$0] }.first
-            ?? portionGrams[item.name]
-            ?? 100
-        let factor = grams / 100 * item.quantity
+        let grams = estimatedGrams(for: item)
+        let factor = grams / 100
         return NutritionEstimate(
             kilocalories: per100g.kilocalories * factor,
             protein: per100g.protein * factor,
             carbohydrates: per100g.carbohydrates * factor,
             fat: per100g.fat * factor
         )
+    }
+
+    static func estimatedGrams(for item: FuelItem) -> Double {
+        let nameWords = item.name.split(separator: " ").map(String.init)
+        let grams = nameWords.compactMap { portionGrams[$0] }.first
+            ?? portionGrams[item.name]
+            ?? 100
+        return grams * item.quantity
+    }
+}
+
+enum VellumLedgerConfidence: String, Codable, Equatable {
+    case high
+    case fair
+    case low
+
+    var label: String {
+        switch self {
+        case .high: return "High"
+        case .fair: return "Fair"
+        case .low: return "Low"
+        }
+    }
+}
+
+struct FuelLedgerItem: Codable, Equatable {
+    var name: String
+    var quantity: Double
+    var grams: Double
+    var sourceDescription: String
+    var sourceID: Int?
+    var estimate: NutritionEstimate
+}
+
+struct FuelPatternClue: Codable, Equatable {
+    var id: String
+    var title: String
+    var detail: String
+}
+
+struct VellumFuelLedger: Codable, Equatable {
+    var total: NutritionEstimate
+    var confidence: VellumLedgerConfidence
+    var items: [FuelLedgerItem]
+    var assumptions: [String]
+    var patternClues: [FuelPatternClue]
+
+    var chartLine: String {
+        "Vellum's Ledger: \(total.shortMacroLine) (\(confidence.label.lowercased()) confidence)"
+    }
+
+    var presentation: String {
+        var lines = [chartLine]
+        if !assumptions.isEmpty {
+            lines.append("Assumptions: \(assumptions.prefix(3).joined(separator: "; "))")
+        }
+        if !patternClues.isEmpty {
+            lines.append("Pattern clues: \(patternClues.map(\.title).joined(separator: "; "))")
+        }
+        lines.append("This is a body clue, not a verdict.")
+        return lines.joined(separator: "\n")
+    }
+
+    var tags: [String] {
+        var result = ["vellum-ledger", "fuel-confidence:\(confidence.rawValue)"]
+        result.append(contentsOf: patternClues.map { "fuel-clue:\($0.id)" })
+        return result
+    }
+}
+
+extension NutritionEstimate {
+    var shortMacroLine: String {
+        "≈ \(Int(kilocalories.rounded())) kcal · P \(Int(protein.rounded()))g · C \(Int(carbohydrates.rounded()))g · F \(Int(fat.rounded()))g"
+    }
+}
+
+enum FuelPatternRecognizer {
+    static func clues(entry: String, total: NutritionEstimate, parsedItems: [FuelItem], matchedItems: Int) -> [FuelPatternClue] {
+        let lowered = entry.lowercased()
+        var clues: [FuelPatternClue] = []
+        let itemCount = max(parsedItems.count, 1)
+
+        if matchedItems < itemCount {
+            clues.append(FuelPatternClue(
+                id: "unknown-portion",
+                title: "Uncertain portion",
+                detail: "Vellum had to infer part of the plate; a correction would make the ledger sharper."
+            ))
+        }
+        if lowered.contains("skip") || lowered.contains("forgot") || lowered.contains("nothing") || lowered.contains("no breakfast") || lowered.contains("no lunch") {
+            clues.append(FuelPatternClue(
+                id: "fuel-gap",
+                title: "Fuel gap",
+                detail: "The useful pattern may be the distance between nourishment and the next mood or energy note."
+            ))
+        }
+        if containsAny(lowered, ["coffee", "espresso", "latte", "cappuccino", "matcha", "tea", "energy drink", "coke", "soda"]) {
+            clues.append(FuelPatternClue(
+                id: "caffeine-timing",
+                title: "Caffeine timing",
+                detail: "Caffeine belongs beside sleep and inner weather before anyone moralizes it."
+            ))
+        }
+        if total.protein >= 20 {
+            clues.append(FuelPatternClue(
+                id: "protein-anchor",
+                title: "Protein anchor",
+                detail: "This meal has enough protein to become a useful steadiness comparison later."
+            ))
+        } else if total.kilocalories > 250 && total.protein < 12 {
+            clues.append(FuelPatternClue(
+                id: "low-protein-window",
+                title: "Low protein window",
+                detail: "Vellum may compare this with energy or hunger notes one bell later."
+            ))
+        }
+        if total.carbohydrates >= 45 && total.protein < 15 {
+            clues.append(FuelPatternClue(
+                id: "quick-fuel",
+                title: "Quick fuel",
+                detail: "A carb-forward entry is a good candidate for a one-hour aftermath note."
+            ))
+        }
+        if containsAny(lowered, ["water", "seltzer", "tea", "broth", "soup"]) {
+            clues.append(FuelPatternClue(
+                id: "hydration-thread",
+                title: "Hydration thread",
+                detail: "Liquid fuel or water is present enough to compare with body steadiness."
+            ))
+        }
+        if total.kilocalories > 0 && total.kilocalories < 250 && !lowered.contains("snack") {
+            clues.append(FuelPatternClue(
+                id: "light-fuel",
+                title: "Light fuel",
+                detail: "This looks like a light window; it may matter if tiredness appears nearby."
+            ))
+        }
+
+        return Array(clues.prefix(4))
+    }
+
+    private static func containsAny(_ text: String, _ needles: [String]) -> Bool {
+        needles.contains { text.contains($0) }
+    }
+}
+
+struct VellumFuelPatternDigest: Equatable {
+    var summary: String
+    var researchLine: String
+    var clueIDs: [String]
+
+    var isEmpty: Bool { clueIDs.isEmpty }
+
+    static func make(from entries: [FacultyEntry]) -> VellumFuelPatternDigest {
+        let clueIDs = entries.flatMap { entry in
+            entry.tags.compactMap { tag -> String? in
+                guard tag.hasPrefix("fuel-clue:") else { return nil }
+                return String(tag.dropFirst("fuel-clue:".count))
+            } + fallbackClues(from: entry.rawText)
+        }
+        let counts = Dictionary(grouping: clueIDs, by: { $0 }).mapValues(\.count)
+        guard !counts.isEmpty else {
+            return VellumFuelPatternDigest(
+                summary: "No ledger pattern has repeated yet; Vellum is still collecting honest crumbs.",
+                researchLine: "No repeated fuel-ledger clues yet.",
+                clueIDs: []
+            )
+        }
+
+        let ranked = counts.sorted { left, right in
+            if left.value == right.value { return left.key < right.key }
+            return left.value > right.value
+        }
+        let phrases = ranked.prefix(3).map { id, count in
+            "\(label(for: id).lowercased()) x\(count)"
+        }
+        let dominant = ranked.first?.key ?? "fuel"
+        return VellumFuelPatternDigest(
+            summary: "Recent ledger clues: \(phrases.joined(separator: ", ")). \(interpretation(for: dominant))",
+            researchLine: ranked.prefix(4).map { "\($0.key)=\($0.value)" }.joined(separator: "; "),
+            clueIDs: ranked.map(\.key)
+        )
+    }
+
+    func contains(_ id: String) -> Bool {
+        clueIDs.contains(id)
+    }
+
+    private static func fallbackClues(from rawText: String) -> [String] {
+        let lowered = rawText.lowercased()
+        var ids: [String] = []
+        if lowered.contains("coffee") || lowered.contains("caffeine") { ids.append("caffeine-timing") }
+        if lowered.contains("protein anchor") || lowered.contains("p 20") || lowered.contains("p 2") { ids.append("protein-anchor") }
+        if lowered.contains("skipped") || lowered.contains("forgot") { ids.append("fuel-gap") }
+        if lowered.contains("quick fuel") { ids.append("quick-fuel") }
+        return ids
+    }
+
+    private static func label(for id: String) -> String {
+        switch id {
+        case "unknown-portion": return "Uncertain portion"
+        case "fuel-gap": return "Fuel gap"
+        case "caffeine-timing": return "Caffeine timing"
+        case "protein-anchor": return "Protein anchor"
+        case "low-protein-window": return "Low protein window"
+        case "quick-fuel": return "Quick fuel"
+        case "hydration-thread": return "Hydration thread"
+        case "light-fuel": return "Light fuel"
+        default: return id.replacingOccurrences(of: "-", with: " ")
+        }
+    }
+
+    private static func interpretation(for id: String) -> String {
+        switch id {
+        case "protein-anchor":
+            return "Protein is becoming one of Vellum's steadiness comparisons."
+        case "caffeine-timing":
+            return "Caffeine wants to be read beside sleep, timing, and inner weather."
+        case "fuel-gap":
+            return "The missing-meal shape may matter more than any single number."
+        case "quick-fuel":
+            return "One-hour aftermath notes would make the pattern much clearer."
+        case "low-protein-window":
+            return "Vellum may test whether steadier fuel changes the next bell."
+        default:
+            return "The useful next step is one gentle after-meal note."
+        }
+    }
+}
+
+struct FoodDataCentralNutrient: Decodable, Equatable {
+    var nutrientName: String?
+    var nutrientNumber: String?
+    var unitName: String?
+    var value: Double?
+}
+
+struct FoodDataCentralFood: Decodable, Equatable {
+    var fdcId: Int?
+    var description: String
+    var dataType: String?
+    var score: Double?
+    var foodNutrients: [FoodDataCentralNutrient]
+}
+
+struct FoodDataCentralSearchResponse: Decodable, Equatable {
+    var foods: [FoodDataCentralFood]
+}
+
+struct FoodDataCentralNutritionMatch: Equatable {
+    var estimate: NutritionEstimate
+    var food: FoodDataCentralFood
+}
+
+enum FoodDataCentralNutritionParser {
+    static func bestMatch(in foods: [FoodDataCentralFood], for query: String) -> FoodDataCentralNutritionMatch? {
+        foods
+            .compactMap { food -> (food: FoodDataCentralFood, estimate: NutritionEstimate, score: Double)? in
+                guard let estimate = estimatePer100g(from: food) else { return nil }
+                return (food, estimate, matchScore(food: food, query: query))
+            }
+            .sorted { left, right in
+                if left.score == right.score {
+                    return (left.food.score ?? 0) > (right.food.score ?? 0)
+                }
+                return left.score > right.score
+            }
+            .first
+            .map { FoodDataCentralNutritionMatch(estimate: $0.estimate, food: $0.food) }
+    }
+
+    static func estimatePer100g(from food: FoodDataCentralFood) -> NutritionEstimate? {
+        let estimate = NutritionEstimate(
+            kilocalories: nutrientValue(in: food, nutrientNumber: "208", namePrefix: "Energy", unit: "KCAL"),
+            protein: nutrientValue(in: food, nutrientNumber: "203", namePrefix: "Protein", unit: "G"),
+            carbohydrates: nutrientValue(in: food, nutrientNumber: "205", namePrefix: "Carbohydrate, by difference", unit: "G"),
+            fat: nutrientValue(in: food, nutrientNumber: "204", namePrefix: "Total lipid (fat)", unit: "G")
+        )
+        return estimate.kilocalories > 0 ? estimate : nil
+    }
+
+    private static func nutrientValue(in food: FoodDataCentralFood, nutrientNumber: String, namePrefix: String, unit: String) -> Double {
+        if let exact = food.foodNutrients.first(where: {
+            $0.nutrientNumber == nutrientNumber && normalizedUnit($0.unitName) == unit
+        })?.value {
+            return exact
+        }
+        return food.foodNutrients.first(where: {
+            ($0.nutrientName ?? "").hasPrefix(namePrefix) && normalizedUnit($0.unitName) == unit
+        })?.value ?? 0
+    }
+
+    private static func normalizedUnit(_ unit: String?) -> String {
+        (unit ?? "").uppercased()
+    }
+
+    private static func matchScore(food: FoodDataCentralFood, query: String) -> Double {
+        let description = food.description.lowercased()
+        let query = query.lowercased()
+        let tokens = query.split { !$0.isLetter && !$0.isNumber }.map(String.init)
+        var score = food.score ?? 0
+        if description == query { score += 200 }
+        score += Double(tokens.filter { description.contains($0) }.count) * 35
+        if food.dataType == "Foundation" { score += 25 }
+        if food.dataType == "SR Legacy" { score += 15 }
+        if query.contains("egg"), !query.contains("white"), description.contains("egg white") { score -= 120 }
+        if query.contains("egg"), !query.contains("yolk"), description.contains("yolk") { score -= 60 }
+        if !query.contains("substitute"), description.contains("substitute") { score -= 80 }
+        if !query.contains("powder"), description.contains("powder") { score -= 45 }
+        if !query.contains("dried"), description.contains("dried") { score -= 35 }
+        if description.contains("babyfood") { score -= 100 }
+        return score
     }
 }
 
@@ -6090,8 +6757,8 @@ enum PactVoices {
             return PactWhisper(title: "Name the hard part",
                                body: "The Dusk Thorn won't smooth it over: braid the page you'd rather skip.")
         default:
-            return PactWhisper(title: "The Book is ready to braid",
-                               body: "Today's kept pages can become tonight's Book of You entry.")
+            return PactWhisper(title: "Come read your story",
+                               body: "The Book has braided what you kept today into a page. Open it and read the story it made of your day.")
         }
     }
 
@@ -7656,6 +8323,9 @@ enum KeepMarginalia {
         var line: String
         var rippleLine: String? = nil
         var carryOutLine: String? = nil
+        /// A quiet daytime cue that today's keeps are gathering toward tonight's
+        /// braid — anticipation for the Book of You, not a progress meter.
+        var braidThreadLine: String? = nil
         var rejoinderName: String? = nil
         var rejoinderAsset: String? = nil
         var rejoinderLine: String? = nil
@@ -8061,6 +8731,39 @@ enum KeepMarginalia {
     }
 
     /// FNV-1a — stable across launches, unlike `hashValue`.
+    /// The daytime braid-anticipation cue for a keep. Returns nil at the first
+    /// keep of the day (nothing to gather yet) and once the braid is already
+    /// available in the evening (the ember and the braid card take over). The
+    /// count is how many pages were kept earlier today, before this one.
+    static func braidGatheringLine(keptEarlierToday: Int, now: Date = Date()) -> String? {
+        guard keptEarlierToday >= 1 else { return nil }
+        guard !BookSchedule.isBraidSurfaceTime(now) else { return nil }
+        let threadsNow = keptEarlierToday + 1
+        let options: [String]
+        switch threadsNow {
+        case 2:
+            options = [
+                "That's two threads today. Tonight I braid them together.",
+                "Two now. I'm keeping them side by side for this evening's braid.",
+                "Second thread caught. The Book of You is starting to gather."
+            ]
+        case 3:
+            options = [
+                "Three threads now — enough for a strong braid tonight.",
+                "That's three. Tonight's Book of You will have real weight.",
+                "Third thread. The braid is going to hold beautifully this evening."
+            ]
+        default:
+            options = [
+                "That's \(threadsNow) threads gathered for tonight's braid.",
+                "\(threadsNow) now. The Book of You is getting richer by the hour.",
+                "Another thread for the evening braid — \(threadsNow) and counting."
+            ]
+        }
+        let index = Int(seed(for: "braid-gathering-\(threadsNow)") % UInt64(options.count))
+        return options[index]
+    }
+
     static func seed(for pageID: String) -> UInt64 {
         pageID.unicodeScalars.reduce(into: UInt64(1_469_598_103_934_665_603)) {
             $0 = ($0 ^ UInt64($1.value)) &* 1_099_511_628_211

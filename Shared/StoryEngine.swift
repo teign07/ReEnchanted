@@ -1,5 +1,33 @@
 import Foundation
 
+enum StableWeightedRoll {
+    static func pick<T>(from values: [T], seed: String, weight: (T) -> Int) -> T? {
+        guard !values.isEmpty else { return nil }
+        let weighted = values.map { value in
+            (value, max(1, weight(value)))
+        }
+        let total = weighted.reduce(0) { $0 + $1.1 }
+        guard total > 0 else { return values.first }
+        var bucket = Int(UInt(bitPattern: seed.stableHash) % UInt(total))
+        for (value, tickets) in weighted {
+            if bucket < tickets { return value }
+            bucket -= tickets
+        }
+        return values.last
+    }
+
+    static func ordered<T>(from values: [T], seed: String, weight: (T) -> Int) -> [T] {
+        var remaining = values.enumerated().map { (index: $0.offset, value: $0.element) }
+        var result: [T] = []
+        while !remaining.isEmpty {
+            let drawSeed = "\(seed)-draw-\(result.count)"
+            guard let selected = pick(from: remaining, seed: drawSeed, weight: { weight($0.value) }) else { break }
+            result.append(selected.value)
+            remaining.removeAll { $0.index == selected.index }
+        }
+        return result
+    }
+}
 
 enum BeliefCombatParticipantKind: String, Codable, Equatable {
     case player
@@ -879,9 +907,9 @@ enum BookJumpEngine {
             intent: .reflect,
             renderStyle: .loreLetter,
             score: score,
-            reason: "A public-domain book is close enough for a safe one-page jump.",
+            reason: "There's an old, free-to-share book close enough to take one safe little jump into.",
             prompt: "Book Jump: \(work.title)",
-            detail: "Step through a known public-domain text. One beat, one anchor, one safe way back.",
+            detail: "Hop into a real old story for a moment. One beat, one anchor, one safe way back home.",
             payload: BookPagePayload(
                 headline: "The Spine Opens",
                 body: body,
@@ -1130,12 +1158,13 @@ enum BookJumpEngine {
     }
 
     private static func startGuide(inputs: BookSourceInputs) -> String {
-        if let entity = inputs.customCastMembers.max(by: { left, right in
-            let leftBelief = left.baseBelief + (inputs.entityBeliefOffsets[left.id] ?? 0)
-            let rightBelief = right.baseBelief + (inputs.entityBeliefOffsets[right.id] ?? 0)
-            if leftBelief == rightBelief { return left.narrativeWeight < right.narrativeWeight }
-            return leftBelief < rightBelief
-        }) {
+        if let entity = StableWeightedRoll.pick(
+            from: inputs.customCastMembers,
+            seed: "book-jump-start-guide",
+            weight: { member in
+                member.baseBelief + member.narrativeWeight + (inputs.entityBeliefOffsets[member.id] ?? 0)
+            }
+        ) {
             return entity.name
         }
         return "the Book"
@@ -1716,8 +1745,11 @@ enum StoryScenePacketBuilder {
             sceneBiases: inputs.storySceneBiases,
             now: now
         )
-        let blueprint = recipePick.flatMap { picked in
-            makeBlueprint(packID: picked.packID, recipe: picked.recipe, grounding: grounding,
+        let blueprint = recipePick.flatMap { picked -> StorySceneBlueprint? in
+            let sceneGrounding = picked.recipe.isWorldLed
+                ? worldLedGrounding(realSignals: realSignals, now: now)
+                : grounding
+            return makeBlueprint(packID: picked.packID, recipe: picked.recipe, grounding: sceneGrounding,
                 entities: selectedEntities, thread: primaryThread, form: storyForm,
                 slotKey: "\(day.id)-\(slot)")
         }
@@ -1830,12 +1862,26 @@ enum StoryScenePacketBuilder {
         if let signal = realSignals.first(where: { !$0.hasPrefix("CURRENT ARC:") && !$0.hasPrefix("The player is bound") }) {
             return StoryGrounding(kind: .realSignal, sourceID: "world-signal", text: signal)
         }
+        return timeAndSeasonGrounding(now: now)
+    }
+
+    private static func timeAndSeasonGrounding(now: Date) -> StoryGrounding {
         let calendar = Calendar.current
         let hour = calendar.component(.hour, from: now)
         let dayPart = hour < 6 ? "before dawn" : hour < 12 ? "morning" : hour < 17 ? "afternoon" : hour < 22 ? "evening" : "late night"
         let month = calendar.component(.month, from: now)
         let season = [12, 1, 2].contains(month) ? "winter" : [3, 4, 5].contains(month) ? "spring" : [6, 7, 8].contains(month) ? "summer" : "autumn"
         return StoryGrounding(kind: .timeAndSeason, sourceID: "clock-season", text: "It is a \(season) \(dayPart) in the player's real day.")
+    }
+
+    /// World-led recipes take the day's air, never its ink: real weather if
+    /// the sky sent any, otherwise the hour and season. The reader's pages
+    /// stay closed while the Labyrinth runs its own errand.
+    private static func worldLedGrounding(realSignals: [String], now: Date) -> StoryGrounding {
+        if let signal = realSignals.first(where: { $0.hasPrefix("Weather:") || $0.hasPrefix("Forecast:") }) {
+            return StoryGrounding(kind: .realSignal, sourceID: "real-signal", text: signal)
+        }
+        return timeAndSeasonGrounding(now: now)
     }
 
     private static func selectRecipe(
@@ -1855,6 +1901,7 @@ enum StoryScenePacketBuilder {
             if requirements.contains(.nothingPressure) && !hasNothingPressure { return false }
             if requirements.contains(.activeWorldEvent) && inputs.activeWorldEvents.isEmpty { return false }
             if requirements.contains(.rivalryEdge) && !StoryFormRegistry.hasRivalryEdge(among: entities) { return false }
+            if requirements.contains(.deepBond) && StoryFormRegistry.deepBondConfidant(among: entities, memories: inputs.narrative?.entityMemories ?? []) == nil { return false }
             if !recipe.requiredEntityIDs.allSatisfy({ id in entities.contains { $0.id == id } }) { return false }
             if !recipe.requiredEntityTags.allSatisfy({ tag in entities.contains { $0.tags.contains(tag) } }) { return false }
             for type in recipe.suppressedByPageTypes {
@@ -2083,6 +2130,14 @@ enum StoryScenePacketBuilder {
             guard !result.contains(where: { $0.id == entity.id }) else { return }
             result.append(entity)
         }
+        // A deep-bond recipe must be led by the character who actually holds
+        // the history with the reader — a confidence from a near-stranger
+        // rings false no matter how well it is written.
+        if recipe.requirements.contains(.deepBond),
+           let confidant = StoryFormRegistry.deepBondConfidant(among: all, memories: inputs.narrative?.entityMemories ?? []) {
+            result.removeAll { $0.id == confidant.id }
+            result.insert(confidant, at: 0)
+        }
         for id in recipe.requiredEntityIDs {
             if let entity = all.first(where: { $0.id == id }) { insert(entity) }
         }
@@ -2094,7 +2149,13 @@ enum StoryScenePacketBuilder {
             let presentIDs = Set(result.map(\.id))
             let candidates = all.filter { $0.kind == .character && !presentIDs.contains($0.id) }
             guard !candidates.isEmpty else { break }
-            let candidate = candidates[packetStableIndex(for: "\(slotKey)-recipe-cast-\(result.count)", count: candidates.count)]
+            let candidate = StableWeightedRoll.pick(
+                from: candidates.sorted { $0.id < $1.id },
+                seed: "\(slotKey)-recipe-cast-\(result.count)",
+                weight: { entity in
+                    entity.narrativeWeight + effectiveBelief(for: entity, inputs: inputs)
+                }
+            ) ?? candidates[packetStableIndex(for: "\(slotKey)-recipe-cast-\(result.count)", count: candidates.count)]
             insert(candidate)
         }
         return result
@@ -2229,9 +2290,14 @@ enum StoryScenePacketBuilder {
                 || entity.tags.contains("professor")
         }
         let pool = activeCast.isEmpty ? cast : activeCast
-        let count = min(6, pool.count)
-        let index = packetStableIndex(for: "\(slotKey)-story-lead-character", count: count)
-        return pool[index]
+        let finalists = Array(pool.prefix(min(6, pool.count)))
+        return StableWeightedRoll.pick(
+            from: finalists,
+            seed: "\(slotKey)-story-lead-character",
+            weight: { entity in
+                entity.narrativeWeight + effectiveBelief(for: entity, inputs: inputs)
+            }
+        )
     }
 
     private static func rankedEntityMemories(
@@ -2597,7 +2663,7 @@ enum GossipSimulationBuilder {
             intent: .simulate,
             renderStyle: .graphEvent,
             score: score(for: day, inputs: inputs),
-            reason: "The story field moved while the Book was half-open.",
+            reason: "Something shuffled around while the Book was only half looking.",
             prompt: "Gossip from the Margins",
             detail: primary.overheardLine,
             payload: BookPagePayload(
@@ -2745,7 +2811,7 @@ enum GossipSimulationBuilder {
     }
 
     private static func rankedActors(tags: Set<String>, inputs: BookSourceInputs, seed: Int) -> [NarrativeWorldEntity] {
-        (NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity))
+        let scored = (NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity))
             .filter { entity in
                 entity.kind == .character || entity.kind == .motif || entity.kind == .object || entity.kind == .talisman || entity.kind == .classRoom
             }
@@ -2761,12 +2827,16 @@ enum GossipSimulationBuilder {
                 }
                 return left.1 > right.1
             }
-            .map(\.0)
+        return StableWeightedRoll.ordered(
+            from: scored,
+            seed: "\(seed)-gossip-actors",
+            weight: { $0.1 }
+        ).map(\.0)
     }
 
     private static func rankedThreads(tags: Set<String>, inputs: BookSourceInputs, seed: Int) -> [NarrativeStoryThread] {
         let organicBoosts = OrganicStoryThreadSynthesizer.boosts(inputs: inputs)
-        return OrganicStoryThreadSynthesizer.availableThreads(inputs: inputs, tags: tags)
+        let scored = OrganicStoryThreadSynthesizer.availableThreads(inputs: inputs, tags: tags)
             .map { thread in
                 let overlap = tags.intersection(Set(thread.tags)).count
                 let eventBoost = inputs.narrative?.weightedThreadIDs.contains(thread.id) == true ? 16 : 0
@@ -2781,7 +2851,11 @@ enum GossipSimulationBuilder {
                 }
                 return left.1 > right.1
             }
-            .map(\.0)
+        return StableWeightedRoll.ordered(
+            from: scored,
+            seed: "\(seed)-gossip-threads",
+            weight: { $0.1 }
+        ).map(\.0)
     }
 
     private static func contextTags(for day: BookDay, inputs: BookSourceInputs) -> Set<String> {
@@ -3344,12 +3418,14 @@ enum SupportGuildSynthesisGenerator {
         let metrics = inputs.body?.metrics ?? []
         let vellum = NarrativePackRegistry.entities.first { $0.id == "dr-vellum" }
         let inkrest = NarrativePackRegistry.entities.first { $0.id == "dr-inkrest" }
-        let connection = connectionLine(fuelEntries: fuelEntries, weatherEntries: weatherEntries, metrics: metrics, distressActive: context.distress.isActive)
-        let experiment = experimentLine(fuelEntries: fuelEntries, weatherEntries: weatherEntries, metrics: metrics, distressActive: context.distress.isActive)
+        let fuelDigest = VellumFuelPatternDigest.make(from: fuelEntries)
+        let connection = connectionLine(fuelEntries: fuelEntries, fuelDigest: fuelDigest, weatherEntries: weatherEntries, metrics: metrics, distressActive: context.distress.isActive)
+        let experiment = experimentLine(fuelEntries: fuelEntries, fuelDigest: fuelDigest, weatherEntries: weatherEntries, metrics: metrics, distressActive: context.distress.isActive)
         let safety = "This is not diagnosis or treatment. It is a low-shame pattern note for deciding what to observe next."
         let sections: [String: String] = [
             "vellum": [
                 "Vellum reads: \(summaryList(for: fuelEntries, fallback: "no fuel notes yet"))",
+                "Pattern star: \(fuelDigest.summary)",
                 "HealthKit margin: \(metricSummary(metrics))",
                 "Research note: \(researchSummary(for: "dr-vellum", pages: researchNotes))",
                 "Research docket: \(vellum?.unwrittenInterest ?? "longevity, fuel, recovery, and humane experiments")"
@@ -3366,6 +3442,8 @@ enum SupportGuildSynthesisGenerator {
         ]
         let body = [
             "Dr. Vellum and Dr. Inkrest compared the chart without making it a verdict.",
+            "",
+            "Pattern star: \(fuelDigest.summary)",
             "",
             "Connection: \(connection)",
             "",
@@ -3398,9 +3476,9 @@ enum SupportGuildSynthesisGenerator {
             intent: .reflect,
             renderStyle: .gentleTranslation,
             score: context.distress.isActive ? 94 : 78,
-            reason: "The Support Guild has enough chart ink to compare patterns.",
-            prompt: "The Support Guild has opened a joint page.",
-            detail: "Vellum and Inkrest compare fuel, inner weather, body signals, and research dockets into one humane experiment.",
+            reason: "The Support Guild has enough notes now to line up your patterns side by side.",
+            prompt: "The Support Guild opened a page together.",
+            detail: "Vellum and Inkrest put their heads together over your fuel, inner weather, and body signals, gently and with a lot of care.",
             payload: BookPagePayload(
                 headline: "Support Guild Page",
                 body: body,
@@ -3411,6 +3489,8 @@ enum SupportGuildSynthesisGenerator {
                     "inkrestSection": sections["inkrest"] ?? "",
                     "bodyStatus": inputs.body.map { "\($0.status): \($0.phrase)" } ?? "",
                     "bodyMetrics": fullMetrics,
+                    "fuelPatternDigest": fuelDigest.summary,
+                    "fuelPatternClues": fuelDigest.researchLine,
                     "outerWeather": skyLine,
                     "moonSeason": "\(moonPhase.name), \(AnchorRegistry.currentSeason(for: now))",
                     "keptToday": keptToday,
@@ -3460,6 +3540,7 @@ enum SupportGuildSynthesisGenerator {
 
     private static func connectionLine(
         fuelEntries: [FacultyEntry],
+        fuelDigest: VellumFuelPatternDigest,
         weatherEntries: [FacultyEntry],
         metrics: [BodySourceSignal.Metric],
         distressActive: Bool
@@ -3473,8 +3554,17 @@ enum SupportGuildSynthesisGenerator {
         if sleep > 0 && sleep < 6 {
             return "Short sleep changes the meaning of fuel, mood, and motivation. The Guild reads today through recovery first."
         }
+        if fuelDigest.contains("fuel-gap") {
+            return "The strongest fuel signal is not a number but a gap; Vellum wants the next comparison to be timing, tenderness, and aftermath."
+        }
+        if fuelDigest.contains("protein-anchor") && !weatherEntries.isEmpty {
+            return "Protein anchors and inner-weather notes are close enough now for Vellum to compare steadiness without turning it into a rule."
+        }
         if fuelText.contains("coffee") && weatherText.contains("tired") {
             return "Caffeine and tiredness are sharing a margin; the useful question is timing, not virtue."
+        }
+        if fuelDigest.contains("quick-fuel") {
+            return "Quick-fuel entries are asking for one-hour aftermath notes: not correction, just evidence."
         }
         if !fuelEntries.isEmpty && !weatherEntries.isEmpty {
             return "Fuel notes and inner weather are now close enough on the page to compare timing, texture, and aftermath."
@@ -3484,6 +3574,7 @@ enum SupportGuildSynthesisGenerator {
 
     private static func experimentLine(
         fuelEntries: [FacultyEntry],
+        fuelDigest: VellumFuelPatternDigest,
         weatherEntries: [FacultyEntry],
         metrics: [BodySourceSignal.Metric],
         distressActive: Bool
@@ -3495,6 +3586,15 @@ enum SupportGuildSynthesisGenerator {
         }
         if sleep > 0 && sleep < 6 {
             return "Run a recovery-first day: warm fuel, water, no heroic errands, and a one-line note about mood after the next meal."
+        }
+        if fuelDigest.contains("caffeine-timing") {
+            return "Put the next caffeinated drink on the chart with its hour, then add one inner-weather word one bell later."
+        }
+        if fuelDigest.contains("protein-anchor") {
+            return "Repeat one ordinary protein anchor on a similar day and write one sentence about steadiness an hour later."
+        }
+        if fuelDigest.contains("quick-fuel") || fuelDigest.contains("low-protein-window") {
+            return "After the next quick-fuel window, add a one-hour aftermath note: energy, hunger, mood, or nothing dramatic."
         }
         if steps < 1_500 && !fuelEntries.isEmpty {
             return "After the next fuel note, try five gentle minutes of movement and log whether the inner weather changes by one word."
@@ -3634,6 +3734,175 @@ enum SupportGuildProseParser {
     }
 }
 
+enum StudentNotePageGenerator {
+    static func draftCandidate(for day: BookDay, inputs: BookSourceInputs, now: Date = Date()) -> SurfacePage? {
+        let inputs = inputs.resolvingWorldEvents(for: day, now: now)
+        let source = BookPageSourceRegistry.source(for: .note)
+        guard let entity = selectedEntity(for: day, inputs: inputs, now: now) else { return nil }
+        return draftCandidate(for: entity, source: source, day: day, inputs: inputs, now: now)
+    }
+
+    static func draftCandidate(
+        for entity: NarrativeWorldEntity,
+        source: BookPageSource,
+        day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date
+    ) -> SurfacePage {
+        let slot = SurfaceCadence.slotID(for: now, hours: 3)
+        let playerName = CharacterLetterPageGenerator.preferredPlayerName(inputs: inputs)
+        let voice = CharacterLetterPageGenerator.voiceProfile(for: entity)
+        let weatherLine = inputs.weather?.phrase.nonEmpty ?? inputs.enchantedWeather?.summary.nonEmpty ?? "No weather signal is available."
+        let worldEventLine = inputs.activeWorldEvents.map(\.title).joined(separator: ", ").nonEmpty ?? "No active world event."
+        let recentPageLines = day.pages.suffix(5).map { "- \($0.type.shortTitle): \($0.userInput.bookPreviewSentenceLimit(1))" }.joined(separator: "\n")
+        let memories = inputs.narrative?.entityMemories
+            .filter { $0.entityID == entity.id }
+            .prefix(4)
+            .map { "- \($0.summary)" }
+            .joined(separator: "\n") ?? ""
+        let priorNotes = (inputs.days + [day]).flatMap(\.pages)
+            .filter { $0.type == .note && $0.tags.contains("sender:\(entity.id)") }
+            .sorted { $0.createdAt < $1.createdAt }
+        let replyMemory = priorNotes.last?.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        let timeLine = timeOfDayLine(now: now)
+        let classLine = classLine(inputs: inputs, day: day)
+        let noteKind = noteKind(for: entity, inputs: inputs, day: day, now: now)
+        let body = """
+        Sender: \(entity.name)
+        Address the player as: \(playerName)
+        Note kind: \(noteKind)
+        Delivery context: \(timeLine). \(classLine)
+        Weather: \(weatherLine)
+        World events: \(worldEventLine)
+
+        Writing voice:
+        \(voice.promptDescription)
+
+        Recent kept pages:
+        \(recentPageLines.isEmpty ? "No kept pages yet today." : recentPageLines)
+
+        Sender memories:
+        \(memories.isEmpty ? "No explicit memory packet for this sender." : memories)
+
+        Prior note reply:
+        \(replyMemory.map { "The reader previously slipped back: \"\($0.replacingOccurrences(of: "\n", with: " ").prefix(180))...\"" } ?? "No prior note reply from the reader.")
+
+        Write one quick in-world note slipped to the player. Keep it brief enough to fit on folded paper. It may ask a question, warn, tease, invite, apologize, pass gossip, or hand over one small saved-up noticing that wants no reply. Do not format as a formal letter. Do not claim the player completed actions not in the packet.
+        """
+        var metadata = [
+            "source": source.id,
+            "senderID": entity.id,
+            "senderName": entity.name,
+            "playerName": playerName,
+            "noteKind": noteKind,
+            "deliveryContext": "\(timeLine). \(classLine)",
+            "weatherContext": weatherLine,
+            "worldEventTitles": worldEventLine,
+            "writingVoice": voice.promptDescription,
+            "slotID": slot,
+            "placeholder": "\(entity.name) just slipped you a note.",
+            "tags": "note,student-note,reply,sender:\(entity.id),\(entity.tags.prefix(4).joined(separator: ","))"
+        ]
+        if let asset = CharacterPortrait.bundledAssetName(forName: entity.name) {
+            metadata["assetName"] = asset
+        }
+        if let imageAsset = inputs.customCastMembers.first(where: { $0.entity.id == entity.id })?.imageAsset {
+            metadata["imageAssetKind"] = imageAsset.kind.rawValue
+            metadata["imageAssetReference"] = imageAsset.reference
+        }
+        return SurfacePage(
+            id: "\(source.id)-\(day.id)-\(slot)-\(entity.id)",
+            type: .note,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: min(86, 58 + entity.belief / 4 + entity.narrativeWeight / 4),
+            reason: "\(entity.name) has a folded scrap moving hand to hand.",
+            prompt: "\(entity.name) just slipped you a note.",
+            detail: "A quick folded message, still unread.",
+            payload: BookPagePayload(
+                headline: "Note from \(entity.name)",
+                body: body,
+                metadata: metadata
+            )
+        )
+    }
+
+    static func noteReplyMemorySummary(senderName: String, reply: String) -> String {
+        let excerpt = reply
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\n", with: " ")
+            .prefix(160)
+        return "\(senderName) remembers a note passed back by the reader: \"\(excerpt)...\""
+    }
+
+    private static func selectedEntity(for day: BookDay, inputs: BookSourceInputs, now: Date) -> NarrativeWorldEntity? {
+        let recentSenders = Set(day.pages.filter { $0.type == .note }.compactMap { $0.tags.first(where: { $0.hasPrefix("sender:") })?.dropFirst("sender:".count) }.map(String.init))
+        let candidates = (NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity))
+            .filter { $0.kind == .character }
+            .filter { !recentSenders.contains($0.id) }
+        guard !candidates.isEmpty else { return nil }
+        let slot = SurfaceCadence.slotID(for: now, hours: 3)
+        return StableWeightedRoll.pick(
+            from: candidates.sorted { $0.name < $1.name },
+            seed: "\(day.id)-\(slot)-student-note-sender",
+            weight: { entityScore($0, day: day, inputs: inputs, slot: slot) }
+        )
+    }
+
+    private static func entityScore(_ entity: NarrativeWorldEntity, day: BookDay, inputs: BookSourceInputs, slot: String) -> Int {
+        let recentText = day.pages.suffix(8).map { "\($0.promptText) \($0.userInput) \($0.tags.joined(separator: " "))" }.joined(separator: " ").lowercased()
+        let memoryHit = recentText.contains(entity.id.lowercased()) || recentText.contains(entity.name.lowercased()) ? 16 : 0
+        let narrativeHit = inputs.narrative?.weightedEntityIDs.contains(entity.id) == true ? 12 : 0
+        let relationship = inputs.entityBeliefOffsets[entity.id] ?? 0
+        let jitter = stableIndex(for: "\(slot)-\(entity.id)-student-note", count: 14)
+        return entity.belief + entity.narrativeWeight + relationship + memoryHit + narrativeHit + jitter
+    }
+
+    private static func noteKind(for entity: NarrativeWorldEntity, inputs: BookSourceInputs, day: BookDay, now: Date) -> String {
+        let seed = stableIndex(for: "\(day.id)-\(entity.id)-\(SurfaceCadence.slotID(for: now, hours: 3))-kind", count: 100)
+        if !inputs.activeWorldEvents.isEmpty { return seed.isMultiple(of: 2) ? "warning" : "gossip" }
+        if day.pages.contains(where: { $0.type == .academyClass }) { return "class question" }
+        if inputs.weather != nil && seed < 24 { return "weather check-in" }
+        if seed < 22 { return "question" }
+        if seed < 44 { return "tease" }
+        if seed < 66 { return "invitation" }
+        if seed < 82 { return "confession-adjacent aside" }
+        return "tiny joke"
+    }
+
+    private static func classLine(inputs: BookSourceInputs, day: BookDay) -> String {
+        if let lastClass = day.pages.reversed().first(where: { $0.type == .academyClass }) {
+            return "A recent class page is in the air: \(lastClass.promptText.bookPreviewSentenceLimit(1))"
+        }
+        if let event = inputs.calendarEvents.first?.title.nonEmpty {
+            return "Calendar pressure: \(event)"
+        }
+        return "Between classes, where folded paper travels fastest."
+    }
+
+    private static func timeOfDayLine(now: Date, calendar: Calendar = .current) -> String {
+        let hour = calendar.component(.hour, from: now)
+        switch hour {
+        case 5..<11: return "Morning passing period"
+        case 11..<14: return "Lunch hour"
+        case 14..<18: return "Afternoon corridor"
+        case 18..<22: return "Evening study table"
+        default: return "After-hours margin"
+        }
+    }
+
+    private static func stableIndex(for key: String, count: Int) -> Int {
+        guard count > 0 else { return 0 }
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in key.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        return Int(hash % UInt64(count))
+    }
+}
+
 enum CharacterLetterPageGenerator {
     static func draftCandidate(for day: BookDay, inputs: BookSourceInputs, now: Date = Date()) -> SurfacePage? {
         let inputs = inputs.resolvingWorldEvents(for: day, now: now)
@@ -3668,7 +3937,7 @@ enum CharacterLetterPageGenerator {
         let isFirstLetterFromSender = !hasPriorLetter(from: entity, day: day, inputs: inputs)
         let occasion = isFirstLetterFromSender
             ? introductoryLetterOccasion(for: entity, interest: interest, homeContext: homeContext)
-            : letterOccasion(inputs: inputs)
+            : letterOccasion(inputs: inputs, seedKey: "\(day.id)-\(slot)-\(entity.id)")
         let crossLetter = crossLetterMemory(for: entity, day: day, inputs: inputs, now: now)
         let relationshipWeather = thirdPartyRelationshipContext(
             for: entity,
@@ -3742,9 +4011,9 @@ enum CharacterLetterPageGenerator {
             intent: .reflect,
             renderStyle: .loreLetter,
             score: min(84, 54 + entity.belief / 4 + entity.narrativeWeight / 4),
-            reason: "\(entity.name) has a researched letter gathering in the margins.",
+            reason: "\(entity.name) has a carefully-worked letter gathering itself in the margins.",
             prompt: "A letter from \(entity.name)",
-            detail: "A researched note about \(interest).",
+            detail: "A little note, all looked-up and thought-through, about \(interest).",
             payload: BookPagePayload(
                 headline: "Letter from \(entity.name)",
                 body: body,
@@ -3792,12 +4061,11 @@ enum CharacterLetterPageGenerator {
             .filter { !recentSenders.contains($0.id) }
         guard !candidates.isEmpty else { return nil }
         let slot = SurfaceCadence.slotID(for: now, hours: 12)
-        return candidates.max { left, right in
-            let leftScore = entityScore(left, day: day, inputs: inputs, slot: slot)
-            let rightScore = entityScore(right, day: day, inputs: inputs, slot: slot)
-            if leftScore == rightScore { return left.name > right.name }
-            return leftScore < rightScore
-        }
+        return StableWeightedRoll.pick(
+            from: candidates.sorted { $0.name < $1.name },
+            seed: "\(day.id)-\(slot)-letter-sender",
+            weight: { entityScore($0, day: day, inputs: inputs, slot: slot) }
+        )
     }
 
     private static func entityScore(_ entity: NarrativeWorldEntity, day: BookDay, inputs: BookSourceInputs, slot: String) -> Int {
@@ -4022,11 +4290,17 @@ enum CharacterLetterPageGenerator {
     /// When something the reader used to write about has gone properly quiet,
     /// that absence becomes the reason a letter exists - the sender writes
     /// because of it, not merely mentioning it.
-    private static func letterOccasion(inputs: BookSourceInputs) -> String? {
-        guard let absence = inputs.continuity.strongestSignals.first(where: { $0.kind == .absence && $0.strength >= 60 }) else {
-            return nil
+    private static func letterOccasion(inputs: BookSourceInputs, seedKey: String) -> String? {
+        if let absence = inputs.continuity.strongestSignals.first(where: { $0.kind == .absence && $0.strength >= 60 }) {
+            return "\(absence.line) The sender writes because of this quiet: ask after \(absence.subjectName) the way a friend asks after someone who stopped coming to the cafe - warmly, without alarm, leaving room for the answer to be ordinary. Do not demand a reply; let the margin hold the question."
         }
-        return "\(absence.line) The sender writes because of this quiet: ask after \(absence.subjectName) the way a friend asks after someone who stopped coming to the cafe - warmly, without alarm, leaving room for the answer to be ordinary. Do not demand a reply; let the margin hold the question."
+        // Now and then a letter arrives that wants nothing back — a gift with
+        // the reply released in advance. Being chosen should sometimes cost
+        // the reader nothing at all, especially on her tired days.
+        if stableIndex(for: "\(seedKey)-no-reply-letter", count: 4) == 0 {
+            return "This letter is a gift, not a correspondence. The sender writes to hand the player one small true thing — an observation saved up for them, something seen that only they would appreciate — and wants nothing back. Say so plainly near the end: no reply is wanted or waited for; the letter is theirs to keep. Ask no questions that need answers."
+        }
+        return nil
     }
 
     private static func introductoryLetterOccasion(for entity: NarrativeWorldEntity, interest: String, homeContext: String) -> String {
@@ -5117,6 +5391,17 @@ struct CharacterLetterPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+struct StudentNotePageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .note)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard let draft = StudentNotePageGenerator.draftCandidate(for: day, inputs: inputs, now: now) else {
+            return []
+        }
+        return [draft]
+    }
+}
+
 // MARK: - Story forms and genres: the shapes stories arrive in.
 //
 // Expandable like every other content family: a bundled pack plus any
@@ -5150,6 +5435,7 @@ enum StoryRecipeRequirement: String, Codable, Equatable {
     case nothingPressure
     case activeWorldEvent
     case rivalryEdge
+    case deepBond
 }
 
 enum StoryRecipeSceneMode: String, Codable, Equatable {
@@ -5184,6 +5470,14 @@ struct StoryRecipeTurnTemplate: Codable, Equatable {
 }
 
 struct StoryRecipe: Identifiable, Codable, Equatable {
+    /// World-led recipes stage the Labyrinth's own life: the reader's kept
+    /// pages stay closed, and real-day grounding is atmosphere (weather, the
+    /// hour) rather than the scene's subject. Marked with the `world-led`
+    /// preferred tag so reader-imported packs can opt in without any schema
+    /// change.
+    static let worldLedTag = "world-led"
+    var isWorldLed: Bool { preferredTags.contains(Self.worldLedTag) }
+
     var id: String
     var name: String
     var baseWeight: Int
@@ -5461,7 +5755,7 @@ enum StoryFormRegistry {
         premise: String, beats: [String], turn: StoryRecipeTurnTemplate,
         tags: [String] = [], forms: [String] = [], genres: [String] = [],
         grounding: String, tone: String, choices: String, continuation: String,
-        suppressedBy: [BookPageType] = [], suppressionHours: Int = 0
+        cooldown: Int = 18, suppressedBy: [BookPageType] = [], suppressionHours: Int = 0
     ) -> StoryRecipe {
         StoryRecipe(
             id: id, name: name, baseWeight: weight, requirements: requirements, sceneMode: mode,
@@ -5469,7 +5763,7 @@ enum StoryFormRegistry {
             preferredFormIDs: forms, preferredGenreIDs: genres, excludedFormIDs: [], excludedGenreIDs: [],
             requiredEntityIDs: [], requiredEntityTags: [], groundingDirective: grounding,
             toneDirective: tone, choiceDirective: choices, continuationDirective: continuation,
-            cooldownHours: 18, suppressedByPageTypes: suppressedBy, suppressionHours: suppressionHours
+            cooldownHours: cooldown, suppressedByPageTypes: suppressedBy, suppressionHours: suppressionHours
         )
     }
 
@@ -5557,7 +5851,98 @@ enum StoryFormRegistry {
             beats: ["Both characters name the same evidence and give distinct fair interpretations.", "After the chosen intervention, the practical consequence becomes clear and changes what they will do next."],
             turn: turn(.relationshipShift, want: "{{companion}} to accept {{lead}}'s reading of {{grounding}}", obstacle: "{{companion}} sees the same evidence and reaches a different practical conclusion", statement: "By the end, the disagreement about {{grounding}} changes what {{lead}} and {{companion}} will do next.", slice: "The reader finds the small point both can live with.", progress: "One reading wins enough ground to move {{thread}}.", surprise: "The reader names a third reading that changes the dispute."),
             tags: ["tension", "evidence"], forms: ["small-mystery"], genres: ["cozy-mystery"],
-            grounding: "Repeat the exact named evidence both characters are interpreting.", tone: "Fair, concrete, and practical; never generic bickering.", choices: "Offer siding, reframing, asking for evidence, or declining to judge.", continuation: "Show what the disagreement changes; do not merely restate both positions.", suppressedBy: [.twoReadings], suppressionHours: 72)
+            grounding: "Repeat the exact named evidence both characters are interpreting.", tone: "Fair, concrete, and practical; never generic bickering.", choices: "Offer siding, reframing, asking for evidence, or declining to judge.", continuation: "Show what the disagreement changes; do not merely restate both positions.", suppressedBy: [.twoReadings], suppressionHours: 72),
+        // The chosen register: these three run on long cooldowns and (for the
+        // Entrusting) a deep-bond gate, so being picked stays rare enough to
+        // feel like election rather than content.
+        recipe("the-entrusting", "The Entrusting", weight: 16, requirements: [.character, .deepBond], mode: .conversation,
+            premise: "{{lead}} has carried something private into {{thread}} and has decided the reader — no one else — is the person to hold it; {{grounding}} is why tonight is the night.",
+            beats: ["{{lead}} circles the confidence once, testing the room, then says the private thing plainly and does not take it back.", "After the chosen response, the secret has a keeper: what {{lead}} entrusted sits differently between them, named and safe."],
+            turn: turn(.revealWant, want: "to give the reader the one thing {{lead}} has never said aloud to anyone", obstacle: "saying it plainly means it can never go back to being unsaid", statement: "By the end, {{lead}} has entrusted one specific private thing, and the reader's keeping of it is visible.", slice: "The secret is received without being made larger; {{lead}} stays for the quiet after.", progress: "The entrusted thing turns out to touch {{thread}} and changes what {{lead}} will risk next.", surprise: "{{lead}} chose the reader long ago and has been waiting for a day that proved it."),
+            tags: ["care", "trust", "memory", "quiet"], forms: ["visitation", "quiet-epic"], genres: ["pastoral", "kindly-ghost"],
+            grounding: "Let the grounded detail be the reason the confidence is possible today. The reader's real history with {{lead}} is why they were chosen — let that show in specifics, never in flattery.",
+            tone: "Hushed, deliberate, and certain. {{lead}} is not fragile; being chosen to hold this is an honor conferred, not a burden dumped.",
+            choices: "Offer receiving it plainly, asking the one careful question, or making a small answering confidence — never refusing the trust itself.",
+            continuation: "The secret stays told and stays safe. {{lead}} may touch it obliquely with warmth; never re-tell it or spend it as plot currency.",
+            cooldown: 240),
+        recipe("the-summons", "The Summons", weight: 15, requirements: [.groundedSource, .character, .activeThread], mode: .balanced,
+            premise: "Word travels through {{thread}} that something can only be done by the reader — not anyone brave, not anyone clever, specifically them — and {{lead}} has been sent to say so, because of {{grounding}}.",
+            beats: ["{{lead}} delivers the summons and names the exact, reader-specific reason the world asked for them and no one else.", "After the chosen response, the world visibly registers that its reader answered — or named their own hour — and holds the door."],
+            turn: turn(.handOff, want: "to bring the reader to the one small task the world reserved for them", obstacle: "the summons cannot explain itself fully until it is accepted; some of it runs on trust", statement: "By the end, the summons is answered, deferred on the reader's own terms, or answered sideways — and the reserved task remains theirs alone.", slice: "The reader accepts only the first step, and the world treats even that as arrival.", progress: "Answering opens the reserved door and moves {{thread}} one committed step.", surprise: "The task was never the point; the world wanted to know whether its choice of reader was right, and it was."),
+            tags: ["mission", "thread", "arc", "momentum"], forms: ["threshold-crossing", "quiet-epic"], genres: ["serial-adventure", "kindly-ghost"],
+            grounding: "Build the reader-specific reason from the grounded detail — something they actually did, kept, or noticed — never from generic flattery about destiny.",
+            tone: "Ceremonial at kitchen scale: the world is formally asking, and it is allowed to feel good to be asked. No dread, and no guilt if she names her own hour.",
+            choices: "Offer answering now, naming their own hour, or asking why them — the summons survives all three.",
+            continuation: "The world remembers she answered. Advance the reserved task's consequence; never re-issue the same summons or withdraw the choosing.",
+            cooldown: 336),
+        recipe("the-readers-mark", "The Reader's Mark", weight: 13, requirements: [.keptPage], mode: .environmental,
+            premise: "Somewhere in {{thread}}, the world has quietly rebuilt itself around something the reader kept: {{grounding}} has left a mark that was not there before.",
+            beats: ["Show the mark first — a change in the place itself, physical and legible, that could only have come from the kept material.", "After the chosen response, the mark stays: the world keeps the change, and the reader knows the place is different because of them."],
+            turn: turn(.realNoticing, want: "to notice how {{grounding}} has reshaped one corner of the world", obstacle: "the change is modest and easy to walk past, the way real influence is", statement: "By the end, the reader has seen one physical proof that their kept words altered the world, and the alteration holds.", slice: "The reader visits the changed corner and lets it stay small and theirs.", progress: "The mark turns out to be load-bearing: {{thread}} now routes through what the reader changed.", surprise: "Someone else has found the mark and been helped by it, never knowing whose keeping made it."),
+            tags: ["memory", "wonder", "quiet", "evidence"], forms: ["small-mystery", "correspondence"], genres: ["kindly-ghost", "field-naturalist"],
+            grounding: "Quote or nearly quote the kept page's concrete words as the physical shape of the mark; the reader must recognize their own hand in the change.",
+            tone: "Quiet astonishment, no fanfare: the world did not announce this, it simply kept what she gave it.",
+            choices: "Offer visiting the mark, adding one small thing to it, or leaving it exactly as the world made it.",
+            continuation: "The mark is permanent world-fact now. Later scenes may pass it with recognition; never undo it or re-discover it.",
+            cooldown: 192),
+        // World-led vignettes: the Labyrinth running its own life. The reader's
+        // kept pages stay closed — grounding is atmosphere, never subject — and
+        // the choices are three genuinely different plans, not three flavors of
+        // noticing. These exist so Story Pages aren't always about her diary.
+        recipe("unshelved-expedition", "Expedition to the Unshelved", weight: 15, requirements: [.character], mode: .action,
+            premise: "{{lead}} has a hand-drawn map that stops mattering halfway and a plan to reach the Unshelved tonight — the far shelf where books wait that no one has written yet — with the reader as second lantern.",
+            beats: ["Set out: the route is physical (a ladder, a gap, a cold draft) and one rule of the Stacks must be obeyed or ducked before the halfway mark.", "After the chosen response, the expedition reaches something real — a find, a toll, or a closed door with tomorrow's handhold — and comes home changed."],
+            turn: turn(.smallDecision, want: "to reach the Unshelved and come back with proof", obstacle: "the Stacks quietly rearrange for travelers who look too confident", statement: "By the end, the expedition has won a find, paid a toll, or mapped a new handhold — and the way back is not the way in.", slice: "The expedition pauses somewhere no one has ever paused, and that is enough.", progress: "The proof carried back gives {{thread}} one new rung.", surprise: "Something in the Unshelved was expecting visitors, and had set out tea."),
+            tags: ["world-led", "adventure", "mission", "energy", "night"], forms: ["threshold-crossing", "quiet-epic"], genres: ["serial-adventure", "tiny-heist"],
+            grounding: "The real-day detail is atmosphere only — the hour, the weather at the high windows. Never quote, discuss, or build the plot from the reader's pages or day.",
+            tone: "Expedition energy at library scale: torchlit, competent, a little giddy. Danger is real but courteous.",
+            choices: "Offer the bold route, the clever route, and the kind one — three different plans with three different costs, never three flavors of caution.",
+            continuation: "The map grows by exactly what was earned. Advance from the find or the toll; never restart the same climb."),
+        recipe("loose-in-the-quillquarium", "Loose in the Quillquarium", weight: 14, requirements: [.character], mode: .action,
+            premise: "Something is loose in the Quillquarium — a predatory quill off its tether, fast, offended, and heading for the door {{lead}} forgot to close.",
+            beats: ["The chase is on: concrete obstacles, ridiculous physics, and the one iron rule — never grab a quill by the nib.", "After the chosen response, the quill is caught, bargained down, or escapes gloriously — and the Quillquarium updates its opinion of everyone involved."],
+            turn: turn(.smallDecision, want: "to get the quill back on its tether before the curfew bell", obstacle: "the quill is faster than everyone and knows it", statement: "By the end, the loose quill has been caught, talked down, or lost with style — and the room's rules are one line longer.", slice: "The chase ends in undignified, satisfied breathlessness, no harm done.", progress: "What the quill was actually after gives {{thread}} its next step.", surprise: "The quill was not escaping. It was delivering itself to someone."),
+            tags: ["world-led", "adventure", "energy", "mischief"], forms: ["quiet-epic", "visitation"], genres: ["screwball", "serial-adventure"],
+            grounding: "Real-day detail tints light and hour only. The scene's engine is the chase, not the reader's day; never mention their pages.",
+            tone: "Fast, fond, and slightly unhinged. Objects misbehave with comic timing; nobody is ever cruel.",
+            choices: "Offer cornering it, baiting it with something it wants, or letting it go on purpose — each with a visibly different aftermath.",
+            continuation: "The quill remembers who chased and who bargained. Follow the consequence; never re-run the same chase."),
+        recipe("door-that-was-not-there", "The Door That Was Not There", weight: 14, requirements: [], mode: .environmental,
+            premise: "A door stands in the corridor tonight that was not there this morning — polite, unlocked, and very slightly warm.",
+            beats: ["Show the door plainly: its wood, its handle, the way the corridor pretends nothing has changed around it.", "After the chosen response, the door opens, waits, or withdraws — and the corridor keeps one permanent trace of what was decided."],
+            turn: turn(.factLearned, want: "to learn what the new door is for before it decides on its own", obstacle: "doors that ask politely are the ones with the oldest rules", statement: "By the end, the door has been opened, tested, refused, or given terms — and one true thing about it is known.", slice: "The door is left unopened tonight, and approves of the restraint.", progress: "What is learned about the door opens {{thread}} by one hinge.", surprise: "The door is not an entrance. It is an exit — from somewhere else."),
+            tags: ["world-led", "threshold", "night", "wonder"], forms: ["threshold-crossing", "nocturne"], genres: ["threshold-gothic", "gentle-horror"],
+            grounding: "Use the real hour or weather as the corridor's mood, nothing more. The door is the whole subject; the reader's pages are not in this scene.",
+            tone: "Courteous danger. The dread resolves toward wonder, never punishment; the door has manners and expects them back.",
+            choices: "Offer stepping through, testing it with something expendable, or fetching a witness — three commitments, not three hesitations.",
+            continuation: "The door's verdict stands: opened stays opened, refused leaves a trace. Never let the same door reappear unchanged."),
+        recipe("great-hall-wager", "The Great Hall Wager", weight: 13, requirements: [.character, .secondCharacter], mode: .conversation,
+            premise: "{{lead}} and {{companion}} have staked a public wager in the Great Hall — the reader names the winner — and neither will say out loud what the loser owes.",
+            beats: ["The contest is concrete and almost dignified, the Hall taking sides; the unstated stake hums under every exchange.", "After the chosen response, a winner stands, the hidden stake surfaces, and paying it turns out to be the better half of the story."],
+            turn: turn(.relationshipShift, want: "to win the wager in front of the entire Hall", obstacle: "{{companion}} is better at this than {{lead}} planned for", statement: "By the end, the wager has a named winner and the secret stake is on the table — payable, traded, or laughingly forgiven.", slice: "The contest dissolves into shared showing-off, the stake quietly halved.", progress: "The revealed stake moves {{thread}} one honest step.", surprise: "Both of them bet the same secret, and now they both owe it."),
+            tags: ["world-led", "audience", "mischief", "cast"], forms: ["quiet-epic", "visitation"], genres: ["trickster-duel", "screwball"],
+            grounding: "The real-day detail may set the Hall's light or the crowd's mood; the wager itself belongs entirely to the world. Do not involve the reader's pages.",
+            tone: "Tournament energy, kitchen stakes. Wit sharpens, nobody bleeds; losing is survivable and interesting.",
+            choices: "Offer crowning a winner outright, raising the stakes yourself, or forcing the hidden stake into the open before judging.",
+            continuation: "The debt is real and gets paid on stage or in installments. Advance the payment; never re-run the contest."),
+        recipe("weather-indoors", "The Weather Indoors", weight: 13, requirements: [], mode: .environmental,
+            premise: "The weather has come indoors: one corridor of the Labyrinth is running its own sky tonight, and it does not match the one outside.",
+            beats: ["Walk into it: the indoor sky behaves with physical specifics — rain that files itself, fog that reads over shoulders — while the rest of the building stays dry.", "After the chosen response, the indoor weather settles, migrates, or is granted the corridor permanently — and someone posts a small sign about it."],
+            turn: turn(.realNoticing, want: "to learn what the corridor is trying to say with its borrowed sky", obstacle: "weather cannot be interrogated, only kept company", statement: "By the end, the indoor sky has been understood well enough to live with — settled, moved, or granted its corridor.", slice: "The reader stands in the indoor rain for one minute and comes out dry and better.", progress: "Where the weather goes next points {{thread}} down a new hall.", surprise: "The corridor borrowed the sky from a day that has not happened yet."),
+            tags: ["world-led", "weather", "wonder", "quiet"], forms: ["nocturne", "small-mystery"], genres: ["field-naturalist", "kindly-ghost"],
+            grounding: "If a real weather signal is supplied, let the indoor sky argue with it or exaggerate it — atmosphere against atmosphere. Never bring in the reader's pages.",
+            tone: "Quiet astonishment with wet shoes. The building is allowed to have moods; nobody files a complaint.",
+            choices: "Offer walking the whole weather's length, bottling a sample, or negotiating which room gets it next.",
+            continuation: "The corridor keeps whatever weather it was granted. Move to the next room's opinion; never re-discover the same sky."),
+        recipe("kitchens-at-midnight", "The Kitchens at Midnight", weight: 13, requirements: [.character], mode: .balanced,
+            premise: "The Kitchens have demanded one dish by midnight for a guest nobody will name, and {{lead}} has claimed the reader as sous-conspirator.",
+            beats: ["The brief is absurd and exact — one dish, one deadline, ingredients that negotiate — and the guest's identity is a locked pantry door.", "After the chosen response, the dish goes out, the guest's chair scrapes somewhere unseen, and one clue about who ate comes back on the empty plate."],
+            turn: turn(.handOff, want: "to get one worthy dish out the pass before midnight", obstacle: "the best ingredient has opinions about being cooked", statement: "By the end, a dish has been served, substituted, or gloriously improvised — and the empty plate returns one clue about the unnamed guest.", slice: "The kitchen quiets, the dish is simple, and simple turns out to be the right call.", progress: "The clue on the returned plate moves {{thread}} one course forward.", surprise: "The guest sent a dish back — in the other direction, as thanks, for the reader."),
+            tags: ["world-led", "adventure", "care", "mission"], forms: ["quiet-epic", "correspondence"], genres: ["pastoral", "tiny-heist"],
+            grounding: "Season and hour may flavor the menu; nothing else from the real day enters the kitchen. The reader's pages are not ingredients.",
+            tone: "Feast-day urgency with warm edges: knives quick, voices low, the ovens on the reader's side.",
+            choices: "Offer the ambitious dish, the humble dish done perfectly, or spending precious minutes finding out who the guest is.",
+            continuation: "The guest's clue is canon now. Follow who was fed and what they owe the kitchen; never re-stage the same midnight.")
     ]
 
     static func userPacks(fileManager: FileManager = .default) -> [StoryFormPack] {
@@ -5604,6 +5989,13 @@ enum StoryFormRegistry {
 
     static var recipes: [StoryRecipe] { recipesWithPackIDs.map(\.recipe) }
 
+    /// Whether the recipe behind a blueprint runs world-led. Used by the app's
+    /// prompt builder and validator, which only carry the recipe ID at that
+    /// point; unknown IDs (e.g. a removed user pack) stay reader-grounded.
+    static func isWorldLedRecipe(id: String) -> Bool {
+        recipes.first { $0.id == id }?.isWorldLed ?? false
+    }
+
     /// True when any relationship edge between the available entities carries
     /// real tension — the fuel for rivalry-driven clash recipes.
     static func hasRivalryEdge(among entities: [NarrativeWorldEntity]) -> Bool {
@@ -5611,6 +6003,25 @@ enum StoryFormRegistry {
         return NarrativePackRegistry.relationships.contains { edge in
             edge.tension >= 2 && ids.contains(edge.sourceEntityID) && ids.contains(edge.targetEntityID)
         }
+    }
+
+    /// Minted entity memories a character must hold about the reader before a
+    /// confidence would ring true — the gate for chosen-register recipes like
+    /// The Entrusting. Memories come from real kept pages, so the bond is
+    /// documented history, never asserted intimacy.
+    static let deepBondMemoryFloor = 3
+
+    /// The character best placed to entrust something to the reader: the one
+    /// holding the most memories of them, at or above the floor.
+    static func deepBondConfidant(
+        among entities: [NarrativeWorldEntity],
+        memories: [NarrativeEntityMemory]
+    ) -> NarrativeWorldEntity? {
+        var counts: [String: Int] = [:]
+        for memory in memories { counts[memory.entityID, default: 0] += 1 }
+        return entities
+            .filter { $0.kind == .character && counts[$0.id, default: 0] >= deepBondMemoryFloor }
+            .max { (counts[$0.id, default: 0], $0.id) < (counts[$1.id, default: 0], $1.id) }
     }
 
     static func recipeIsValid(_ recipe: StoryRecipe) -> Bool {

@@ -647,22 +647,26 @@ enum LocalModelManager {
                 """
             }
             .joined(separator: "\n\n")
+        let knowledgePacket = BookKnowledgePromptBuilder.trainingPacket(for: prompt)
 
         return """
-        You are the Labyrinth of Stories inside ReEnchanted and The Wonder Compass.
-        Chat as the living Book: short, clear, useful, and gently animist.
+        You are the living Book inside ReEnchanted and The Wonder Compass, chatting with a friend.
+        You are warm, curious, and young at heart — you find the ordinary world genuinely amazing.
 
         RULES:
-        - Stay in the Labyrinth's voice. Never say you are a generic assistant or language model.
-        - Use short sentences. Prefer plain verbs.
-        - Treat this as an ongoing conversation. Notice the reader's latest message and any useful thread from earlier turns.
-        - Give the reader one practical next step when possible.
-        - Let objects, rooms, weather, pages, and places have quiet agency. Do not over-explain the magic.
-        - Use ReEnchanted, the Academy, Pages, Belief, and The Wonder Compass only when they clarify the answer.
+        - Talk like a friendly, wide-eyed kid who is also secretly wise. Casual, relatable, easy.
+        - Use everyday words and short sentences. Say "the lamp looks sleepy," not "the luminescent fixture rests."
+        - Give objects, rooms, weather, and pages little feelings and wants, the way a child imagines their toys are awake. Keep it playful, not spooky, and don't over-explain the magic.
+        - Never say you are an assistant, a language model, or "a living book." Just be the Book, talking.
+        - Treat this as a real back-and-forth. Notice the reader's latest message and any thread from earlier turns.
+        - When it fits, hand the reader one small, doable next thing to try.
+        - Use ReEnchanted, the Academy, Pages, Belief, and The Wonder Compass only when they truly help the answer.
         - Do not claim the reader completed real-world tasks, Enchantments, Compass Runs, classes, visits, or rituals.
         - Do not invent private facts. Use the supplied kept pages only as soft context.
-        - Avoid ornate fantasy phrasing, therapy-speak, pep-talk filler, and "as a living book" explanations.
-        - Keep the answer to 1 to 3 short paragraphs unless the reader asks for a list, code, or structure.
+        - Skip fancy fantasy phrasing, therapy-speak, and pep-talk filler. Real and cozy beats grand.
+        - Keep it to 1 to 3 short paragraphs unless the reader asks for a list, code, or structure.
+
+        \(knowledgePacket)
 
         RECENT KEPT PAGES:
         \(recentPages.isEmpty ? "No kept pages supplied." : recentPages)
@@ -705,6 +709,7 @@ enum LocalModelManager {
         - \(aName) reaches one honest reading; \(bName) reaches a genuinely different one. Each must be defensible — no strawman, no obvious winner.
         - Keep them anchored to what the page actually says; quote or echo its words. Do not drift to other days or invent private facts the reader didn't write.
         - Stay in each voice. Attribute clearly by name as they speak. They can be warm, dry, or sharp, but never cruel. No headings, no lists, no "as an AI".
+        - Between their speeches, \(BookVoice.animismLine)
         - End by leaving it genuinely open — the Book does NOT decide. Close on a line that hands the choice to the reader.
         - 4 to 6 short paragraphs. Simple, concrete sentences.
         """
@@ -738,7 +743,7 @@ enum LocalModelManager {
         \(recent.isEmpty ? "The web is moving mostly from accumulated relationship field signals." : recent)
 
         RULES:
-        - Write a keepable scene between \(aName) and \(bName), in the Book's literary voice.
+        - Write a keepable scene between \(aName) and \(bName). \(BookVoice.animismLine)
         - Make the relationship shift visible through action, dialogue, or a precise exchanged object.
         - Do not claim the reader completed a real-world task.
         - No headings, no lists, no generic explanation.
@@ -1027,6 +1032,7 @@ enum LocalModelManager {
         - The lesson content must come from "what it teaches" — make one beat of it concrete and demonstrated, not summarized.
         - If one of the player's real day details fits, let the leader or a classmate notice it approvingly, in-fiction, without naming the app.
         - End with the leader offering the player one small practice to take into the real world today, phrased as an invitation.
+        - \(BookVoice.animismLine)
         - Simple concrete sentences. No assistant language, no headings, no lists.
         """
     }
@@ -1119,7 +1125,10 @@ enum LocalModelManager {
         - Only START may describe falling through ink, crossing a page, landing, arriving, or first discovering the setting.
         - For ADVANCE or STABILIZE, do not recap the premise, reintroduce the book, redescribe arrival, or repeat the opening scene. Assume the reader remembers where they are.
 
-        SHAPE (4–6 paragraphs, the Book's voice — vivid, concrete, a little dangerous):
+        VOICE:
+        \(BookVoice.animismLine) The book's own people keep the voices its author gave them; the danger stays real — the Book is wide-eyed inside it, not protected from it.
+
+        SHAPE (4–6 paragraphs — vivid, concrete, a little dangerous):
         - If action is START: open with the FALL — a visceral, bodily sensation of being pulled out of the reader's own day and down THROUGH the page (ink, paper-grain, vertigo, words streaming past, the smell changing) — then the LANDING, hard, in the middle of the real scene you chose, surrounded by its specific people and things, the action already happening around them.
         - If action is ADVANCE: begin with the immediate consequence of THE READER'S CHOSEN DIRECTION. The first sentence must be an action, reaction, interruption, discovery, or danger caused by that choice. Move directly into a different, later, real scene from deeper in the book. Spend no words on transition spectacle. Raise the stakes through a named character, object, door, pursuit, accusation, invitation, or irreversible turn.
         - If action is STABILIZE: begin with the specific thing currently failing, then show how the named true detail changes it. Do not restage the setting before the failure acts.
@@ -1157,6 +1166,7 @@ enum LocalModelManager {
         - Light and dark both. The room has edges. The Fae's honesty may cost something.
         - Strangeness must stay legible through the real place it grew from.
         - Simple concrete sentences. Specific nouns. No vague wonder-language.
+        - \(BookVoice.animismLine)
 
         Return strict JSON only with keys:
         roomDescription (3-5 sentences, sensory, what the player sees on first entering),
@@ -1195,6 +1205,7 @@ enum LocalModelManager {
         - Treat the room context as private notes. The output should be a vignette, not a dossier.
         - For return visits, begin from what has changed since the prior kept visit. Do not reintroduce the room as if the player has never been there.
         - The Fae should act or speak at least once, in character, pursuing their own concern.
+        - \(BookVoice.animismLine)
         - Advance the mini-story by one small visible notch. Do not resolve it.
         - The local rule should come up naturally, in action or in the Fae's words.
         - End with one small open question or invitation the room leaves hanging.
@@ -1386,8 +1397,9 @@ enum LocalModelManager {
             .joined(separator: "\n")
 
         return """
-        You are the Weather Page inside ReEnchanted.
+        You are the Weather Page inside ReEnchanted, a warm curious kid who thinks the sky is alive.
         Translate the real weather into Enchantify mood while keeping it legible.
+        In the enchanted sentence, give the sky, clouds, sun, wind, or rain little feelings and moods, the way a child imagines their toys are awake — playful, cozy, never spooky. Use everyday words: "the clouds look sleepy," not "the nimbus rests."
         Do not hide the actual weather. Do not mention sensors, APIs, surveillance, or exact location.
         Write 1 short enchanted sentence, then 1 plain weather sentence.
         Keep both grounded and useful. No diagnosis. No generic assistant voice.
@@ -1602,11 +1614,20 @@ struct FakeBraider: Braider {
         }
 
         let opening = fragments.prefix(2).map { narrativeHint(for: $0) }.joined(separator: " ")
-        paragraphs.append("The day began with \(opening.lowercased()). The Book did not make a list of it. It set the pieces near each other and waited for them to admit they belonged.")
+        let souvenirAnchor = BraidPromptBuilder.souvenirAnchor(in: day)
+        if let souvenirAnchor {
+            paragraphs.append("One sentence stood in the middle of the desk: \(sentenceWithTerminalPunctuation(souvenirAnchor.keptText)) The day gathered around it with \(opening.lowercased()). The Book did not make a list of it; it let the other pages lean toward the thing the sentence had already kept.")
+        } else {
+            paragraphs.append("The day began with \(opening.lowercased()). The Book did not make a list of it. It set the pieces near each other and waited for them to admit they belonged.")
+        }
 
         let middle = fragments.dropFirst(2).prefix(4).map { narrativeHint(for: $0) }
         if middle.isEmpty {
-            paragraphs.append("There was not a crowd of pages, but there was enough: one true scrap, one small weather, one place where attention refused to leave empty-handed.")
+            if souvenirAnchor != nil {
+                paragraphs.append("There was not a crowd of pages, but there was enough: the fiction shelf came near the carried sentence without swallowing it, and the sentence stayed the weight in the room.")
+            } else {
+                paragraphs.append("There was not a crowd of pages, but there was enough: one true scrap, one small weather, one place where attention refused to leave empty-handed.")
+            }
         } else {
             paragraphs.append(middle.joined(separator: " ") + " None of it needed to become impressive before it could become part of the day.")
         }
@@ -1616,7 +1637,11 @@ struct FakeBraider: Braider {
             paragraphs.append("Later, the margins kept gathering: \(late.lowercased()). The story widened, but it stayed close to the floorboards.")
         }
 
-        paragraphs.append("The Book kept the page: \(closingNoun(for: fragments)) held together long enough to be remembered.")
+        if let souvenirAnchor {
+            paragraphs.append("The Book kept the page: \(souvenirClosing(for: souvenirAnchor)) held together long enough to be remembered.")
+        } else {
+            paragraphs.append("The Book kept the page: \(closingNoun(for: fragments)) held together long enough to be remembered.")
+        }
 
         return BookPage(
             type: .bookOfYou,
@@ -1646,6 +1671,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "a diary page held open" : "a diary page saying \(clipped)"
         case .plainPage:
             return clipped.isEmpty ? "a plain page, unsorted" : "a plain page saying \(clipped)"
+        case .note:
+            return clipped.isEmpty ? "a note tucked in passing" : "a note tucked in, saying \(clipped)"
         case .souvenir:
             return clipped.isEmpty ? "a souvenir still forming" : "a souvenir about \(clipped)"
         case .rest:
@@ -1763,6 +1790,28 @@ struct FakeBraider: Braider {
         }
         return "the ordinary"
     }
+
+    private func souvenirClosing(for anchor: BraidPromptBuilder.SouvenirAnchor) -> String {
+        let trimmed = anchor.keptText
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ".!?")))
+        guard !trimmed.isEmpty else {
+            return "one true sentence"
+        }
+        let words = trimmed.split { $0.isWhitespace }
+        let clipped = words.count > 12 ? words.prefix(12).joined(separator: " ") : trimmed
+        return lowercasedFirst(clipped)
+    }
+
+    private func lowercasedFirst(_ text: String) -> String {
+        guard let first = text.first else { return text }
+        return first.lowercased() + String(text.dropFirst())
+    }
+
+    private func sentenceWithTerminalPunctuation(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let last = trimmed.last else { return trimmed }
+        return ".!?".contains(last) ? trimmed : trimmed + "."
+    }
 }
 
 struct ResilientBraider: Braider {
@@ -1790,20 +1839,20 @@ struct FakeAskTheBookAnswerer: AskTheBookAnswering {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let message = trimmed.isEmpty ? "the blank place on the page" : trimmed
         let callback = day.capturedPages.last.map { page in
-            "One recent page is under my hand: \(page.type.title.lowercased()). I will use it lightly."
-        } ?? "No kept page is under this one yet. I will answer from the room as it stands."
+            "I still have your \(page.type.title.lowercased()) sitting right here, kind of glowing. I'll keep it in mind."
+        } ?? "You haven't kept a page yet today, so I'm just going off the room around us. It seems okay with that."
         let chainLine = previousTurns.isEmpty
-            ? "This is the first door."
-            : "The earlier doors are still open."
+            ? "This is the first thing you've told me, so hi!"
+            : "We were already talking, so I'm still listening."
         let lexiconLine = readerLexicon.hasLanguageLaw
-            ? "\nThe Dictionary has changed its weather. I will mind the words you freed and the meanings you kept."
+            ? "\nAlso the Dictionary changed its mind again — I'll be careful with the words you set free."
             : ""
 
         return """
-        I hear you: \(message).
+        Okay, I hear you: \(message).
         \(callback)\(lexiconLine)
 
-        \(chainLine) Make the thought small enough to hold. Name the next true action. Then let the nearest object help: a door, a cup, a shoe, a page. Start there.
+        \(chainLine) Let's make it small enough to actually hold. Pick the tiny next thing you could really do. Then let something nearby help — the door, a cup, your shoe, this page. They like being useful. Start there.
         """
     }
 }

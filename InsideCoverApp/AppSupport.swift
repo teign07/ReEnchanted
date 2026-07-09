@@ -242,6 +242,10 @@ enum BookFeedback {
         bookSoundIDs[cue.soundName] = soundID
         return soundID
     }
+
+    private static func playBookSound(_ cue: Cue) {
+        AudioServicesPlaySystemSound(bookSoundID(for: cue) ?? cue.systemSoundID)
+    }
     #endif
 
     static func play(_ cue: Cue) {
@@ -274,7 +278,7 @@ enum BookFeedback {
         #endif
 
         #if canImport(AudioToolbox)
-        AudioServicesPlaySystemSound(bookSoundID(for: cue) ?? cue.systemSoundID)
+        playBookSound(cue)
         #endif
     }
 
@@ -316,6 +320,29 @@ enum BookFeedback {
 
     static func chapterBinding() {
         BookHapticEngine.shared.playChapterBinding()
+    }
+
+    static func chapterBindingReveal() {
+        BookHapticEngine.shared.playChapterBinding()
+        #if canImport(AudioToolbox)
+        playBookSound(.braidStart)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            playBookSound(.sourceRefresh)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.42) {
+            playBookSound(.braidComplete)
+        }
+        #endif
+    }
+
+    static func chapterBindingAccepted() {
+        BookHapticEngine.shared.playChapterBinding()
+        #if canImport(AudioToolbox)
+        playBookSound(.braidComplete)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            playBookSound(.keepPage)
+        }
+        #endif
     }
 
     /// The Monthly Binding's own ceremonial haptic — distinct from every page
@@ -790,6 +817,9 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     /// A lock-screen pause is reversible. The in-app power/Quiet controls still
     /// call `stop`, which clears the station and removes Now Playing metadata.
     private var isPausedByRemoteControl = false
+    /// A memory-pressure pause is also reversible, but only by the local-brain
+    /// work lifecycle that caused it. User power/Quiet controls still win.
+    private var isPausedForMemoryPressure = false
     /// Invalidates pending caption-only advances when the dial changes.
     private var playoutToken = UUID()
     /// Song queued to play once the current DJ break finishes.
@@ -841,6 +871,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         isPlayingBanter = false
         isPlayingInterstitial = false
         isPausedByRemoteControl = false
+        isPausedForMemoryPressure = false
         isPlayingTuningNoise = false
         nowPlayingBanter = nil
         playoutToken = UUID()
@@ -1097,6 +1128,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         isPlayingBanter = false
         isPlayingInterstitial = false
         isPausedByRemoteControl = false
+        isPausedForMemoryPressure = false
         isPlayingTuningNoise = true
         nowPlayingBanter = nil
         activeStation = nil
@@ -1156,6 +1188,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         isPlayingBanter = false
         isPlayingInterstitial = false
         isPausedByRemoteControl = false
+        isPausedForMemoryPressure = false
         isPlayingTuningNoise = false
         nowPlayingBanter = nil
         tracksSinceTune = 0
@@ -1233,6 +1266,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         }
         isPlaying = false
         isPausedByRemoteControl = true
+        isPausedForMemoryPressure = false
         statusLine = activeStation.map { "\($0.displayFrequency) \($0.title) — paused." } ?? "Radio static paused."
         setSystemNowPlayingPlaybackRate(0)
         return true
@@ -1240,6 +1274,42 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
 
     private func resumeFromRemoteControl() -> Bool {
         guard isPausedByRemoteControl else { return false }
+        guard resumePausedPlayback() else { return false }
+        isPausedByRemoteControl = false
+        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title) — on air." } ?? "Radio static on air."
+        setSystemNowPlayingPlaybackRate(1)
+        return true
+    }
+
+    @discardableResult
+    func pauseForMemoryPressureDuringGeneration() -> Bool {
+        guard isPlaying else { return false }
+        systemNowPlayingPausedElapsed = currentSystemNowPlayingElapsed()
+        filePlayer?.pause()
+        if player.isPlaying {
+            player.pause()
+        }
+        isPlaying = false
+        isPausedByRemoteControl = false
+        isPausedForMemoryPressure = true
+        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title) — paused while the local brain frees memory." } ?? "Radio static paused while the local brain frees memory."
+        setSystemNowPlayingPlaybackRate(0)
+        AppMemoryLedger.record("radio-paused-for-memory-pressure")
+        return true
+    }
+
+    @discardableResult
+    func resumeAfterMemoryPressureIfNeeded() -> Bool {
+        guard isPausedForMemoryPressure else { return false }
+        guard resumePausedPlayback() else { return false }
+        isPausedForMemoryPressure = false
+        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title) — on air." } ?? "Radio static on air."
+        setSystemNowPlayingPlaybackRate(1)
+        AppMemoryLedger.record("radio-resumed-after-memory-pressure")
+        return true
+    }
+
+    private func resumePausedPlayback() -> Bool {
         configureAudioSession()
         if let elapsed = systemNowPlayingPausedElapsed {
             systemNowPlayingStartedAt = Date().addingTimeInterval(-elapsed)
@@ -1266,9 +1336,6 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             return false
         }
         isPlaying = true
-        isPausedByRemoteControl = false
-        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title) — on air." } ?? "Radio static on air."
-        setSystemNowPlayingPlaybackRate(1)
         return true
     }
 
@@ -1288,6 +1355,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         pendingBanter = nil
         isPlaying = true
         isPausedByRemoteControl = false
+        isPausedForMemoryPressure = false
         isPlayingBanter = false
         isPlayingInterstitial = false
         tracksSinceTune += 1
@@ -1669,11 +1737,15 @@ final class BookRadioManager {
     private(set) var statusLine = "Audio playback is unavailable on this platform."
     private(set) var sourceLine = "No broadcast is tuned."
     private(set) var nowPlayingBanter: RadioBanter?
+    private var isPausedForMemoryPressure = false
     private init() {}
     func restore(state: RadioPlaybackState, unlockedPackIDs: Set<String>) { playback = state }
     func tune(stationID: String, unlockedPackIDs: Set<String>) {
         activeStation = RadioStationRegistry.station(id: stationID, unlockedPackIDs: unlockedPackIDs)
         activeTrack = activeStation?.tracks.first
+        isPlaying = true
+        isPlayingTuningNoise = false
+        isPausedForMemoryPressure = false
         playback = RadioPlaybackState(activeStationID: stationID, startedAt: Date(), lastTunedAt: Date(), lastTrackID: activeStation?.tracks.first?.id)
         PlayerVault.shared.data.radio = playback
         PlayerVault.shared.save()
@@ -1688,6 +1760,7 @@ final class BookRadioManager {
     func playTuningNoise(frequency: Double, persist: Bool = true) {
         isPlaying = true
         isPlayingTuningNoise = true
+        isPausedForMemoryPressure = false
         activeStation = nil
         activeTrack = nil
         nowPlayingBanter = nil
@@ -1706,10 +1779,29 @@ final class BookRadioManager {
         nowPlayingBanter = nil
         isPlaying = false
         isPlayingTuningNoise = false
+        isPausedForMemoryPressure = false
         if persist {
             PlayerVault.shared.data.radio = playback
             PlayerVault.shared.save()
         }
+    }
+    @discardableResult
+    func pauseForMemoryPressureDuringGeneration() -> Bool {
+        guard isPlaying else { return false }
+        isPlaying = false
+        isPausedForMemoryPressure = true
+        statusLine = "Radio paused while the local brain frees memory."
+        AppMemoryLedger.record("radio-paused-for-memory-pressure")
+        return true
+    }
+    @discardableResult
+    func resumeAfterMemoryPressureIfNeeded() -> Bool {
+        guard isPausedForMemoryPressure else { return false }
+        isPlaying = true
+        isPausedForMemoryPressure = false
+        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title) — on air." } ?? "Radio static on air."
+        AppMemoryLedger.record("radio-resumed-after-memory-pressure")
+        return true
     }
     func hapticTick() {}
 }
@@ -3266,7 +3358,15 @@ final class PlayerVault {
 
     private init() {
         if let bytes = try? Data(contentsOf: Self.fileURL),
-           let decoded = try? JSONDecoder().decode(PlayerVaultData.self, from: bytes) {
+           var decoded = try? JSONDecoder().decode(PlayerVaultData.self, from: bytes) {
+            // One-time seed: first-run steps used to advance on served-history
+            // alone. Anyone already served a step under that rule counts as
+            // engaged, so onboarding never replays for existing readers.
+            if decoded.firstRunEngaged == nil {
+                decoded.firstRunEngaged = FirstRunPageSequence.seededEngagementKeys(
+                    fromServedHistory: decoded.surfaceHistory ?? [:]
+                )
+            }
             data = decoded
             return
         }
@@ -3911,7 +4011,7 @@ struct ScrivenersCounterMerchant: BookShopMerchant {
 struct StandingOrderTierPricing: Equatable {
     var productID: String
     var displayPrice: String
-    /// e.g. "3-day free trial", nil when the product has no introductory offer.
+    /// e.g. "10-day free trial", nil when the product has no introductory offer.
     var trialSummary: String?
     /// The introductory free-trial length in days, if any.
     var trialDays: Int?
@@ -4003,55 +4103,65 @@ enum VellumNutritionist {
         return stored.isEmpty ? "DEMO_KEY" : stored
     }
 
-    static func estimate(for entry: String) async -> NutritionEstimate? {
+    static func estimate(for entry: String) async -> VellumFuelLedger? {
         let items = FuelParser.items(from: entry)
         guard !items.isEmpty else { return nil }
         var total = NutritionEstimate.zero
+        var ledgerItems: [FuelLedgerItem] = []
         var matched = 0
         for item in items.prefix(6) {
-            guard let per100g = await lookupPer100g(item.name) else { continue }
-            total = total + FuelParser.scale(per100g: per100g, item: item)
+            guard let match = await lookupPer100g(item.name) else { continue }
+            let scaled = FuelParser.scale(per100g: match.estimate, item: item)
+            total = total + scaled
+            ledgerItems.append(FuelLedgerItem(
+                name: item.name,
+                quantity: item.quantity,
+                grams: FuelParser.estimatedGrams(for: item),
+                sourceDescription: match.food.description,
+                sourceID: match.food.fdcId,
+                estimate: scaled
+            ))
             matched += 1
         }
         guard matched > 0, total.kilocalories > 0 else { return nil }
-        return total
+        let confidence: VellumLedgerConfidence
+        if matched == items.count, items.count <= 3 {
+            confidence = .high
+        } else if matched >= max(1, items.count / 2) {
+            confidence = .fair
+        } else {
+            confidence = .low
+        }
+        let assumptions = ledgerItems.prefix(3).map { item in
+            let grams = Int(item.grams.rounded())
+            return "\(item.name) ≈ \(grams)g via \(item.sourceDescription)"
+        }
+        return VellumFuelLedger(
+            total: total,
+            confidence: confidence,
+            items: ledgerItems,
+            assumptions: assumptions,
+            patternClues: FuelPatternRecognizer.clues(entry: entry, total: total, parsedItems: items, matchedItems: matched)
+        )
     }
 
-    private static func lookupPer100g(_ food: String) async -> NutritionEstimate? {
+    private static func lookupPer100g(_ food: String) async -> FoodDataCentralNutritionMatch? {
         var components = URLComponents(string: "https://api.nal.usda.gov/fdc/v1/foods/search")
         components?.queryItems = [
             URLQueryItem(name: "api_key", value: apiKey),
             URLQueryItem(name: "query", value: food),
-            URLQueryItem(name: "dataType", value: "Foundation,SR Legacy"),
-            URLQueryItem(name: "pageSize", value: "1")
+            URLQueryItem(name: "dataType", value: "Foundation,SR Legacy,FNDDS"),
+            URLQueryItem(name: "pageSize", value: "8")
         ]
         guard let url = components?.url else { return nil }
         var request = URLRequest(url: url)
         request.timeoutInterval = 8
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               (response as? HTTPURLResponse)?.statusCode == 200,
-              let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let foods = parsed["foods"] as? [[String: Any]],
-              let first = foods.first,
-              let nutrients = first["foodNutrients"] as? [[String: Any]] else {
+              let parsed = try? JSONDecoder().decode(FoodDataCentralSearchResponse.self, from: data) else {
             return nil
         }
-        func value(_ names: [String]) -> Double {
-            for nutrient in nutrients {
-                guard let name = nutrient["nutrientName"] as? String,
-                      names.contains(where: { name.hasPrefix($0) }),
-                      let amount = nutrient["value"] as? Double else { continue }
-                return amount
-            }
-            return 0
-        }
-        let estimate = NutritionEstimate(
-            kilocalories: value(["Energy"]),
-            protein: value(["Protein"]),
-            carbohydrates: value(["Carbohydrate, by difference"]),
-            fat: value(["Total lipid (fat)"])
-        )
-        return estimate.kilocalories > 0 ? estimate : nil
+        return FoodDataCentralNutritionParser.bestMatch(in: parsed.foods, for: food)
     }
 }
 

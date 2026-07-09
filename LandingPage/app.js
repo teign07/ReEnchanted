@@ -62,6 +62,100 @@ function describeWeather(code) {
   return m("storm", "The sky is rearranging its furniture; thunder reads aloud.", "There's a thunderstorm.");
 }
 
+function readerHemisphere() {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  return /(Australia|Pacific\/Auckland|Pacific\/Chatham|America\/Argentina|America\/Santiago|America\/Montevideo|America\/Sao_Paulo|Africa\/Johannesburg|Antarctica)/.test(tz)
+    ? "south"
+    : "north";
+}
+
+function seasonFor(date = new Date(), hemisphere = readerHemisphere()) {
+  const month = date.getMonth();
+  const northern = month < 2 || month === 11 ? "winter" : month < 5 ? "spring" : month < 8 ? "summer" : "autumn";
+  if (hemisphere !== "south") return northern;
+  return { winter: "summer", spring: "autumn", summer: "winter", autumn: "spring" }[northern];
+}
+
+function loreDay(date = new Date(), season = seasonFor(date)) {
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  const near = (month, day, radius = 1) => m === month && Math.abs(d - day) <= radius;
+  if (near(2, 1, 1)) return { id: "imbolc", name: "Imbolc", line: "The old calendar has a candle under its coat today." };
+  if (near(5, 1, 1)) return { id: "beltane", name: "Beltane", line: "The old calendar has flowers in its pockets today." };
+  if (near(8, 1, 1)) return { id: "lammas", name: "Lammas", line: "The old calendar is holding the first good handful close." };
+  if (m === 10 && d === 31) return { id: "samhain", name: "Halloween", line: "The old calendar is standing very still at the doorway tonight." };
+  if (m === 11 && d === 1) return { id: "samhain-after", name: "All Souls", line: "The day after the masks remembers softly." };
+  if (near(3, 20, 1)) return { id: "equinox", name: "Equinox", line: "The light and dark are sharing the same small chair." };
+  if (near(9, 22, 1)) return { id: "equinox", name: "Equinox", line: "The light and dark are trading blankets without fuss." };
+  if (near(6, 21, 1)) return season === "winter"
+    ? { id: "winter-solstice", name: "Solstice", line: "The year is holding its shortest lamp." }
+    : { id: "summer-solstice", name: "Solstice", line: "The year has too much light and is trying to share." };
+  if (near(12, 21, 1)) return season === "summer"
+    ? { id: "summer-solstice", name: "Solstice", line: "The year has too much light and is trying to share." }
+    : { id: "winter-solstice", name: "Solstice", line: "The year is holding its shortest lamp." };
+  if (m === 1 && d === 1) return { id: "new-year", name: "New Year", line: "The year is still wet ink. Be gentle with it." };
+  if (m === 12 && d === 31) return { id: "year-end", name: "Year's End", line: "The year is folding itself into a letter." };
+  return null;
+}
+
+function referrerSignal() {
+  const params = new URLSearchParams(location.search);
+  const tagged = (params.get("utm_source") || params.get("ref") || "").trim().toLowerCase();
+  const host = (() => {
+    try { return document.referrer ? new URL(document.referrer).hostname.replace(/^www\./, "") : ""; }
+    catch (_) { return ""; }
+  })();
+  const source = tagged || host;
+  if (!source) return null;
+  if (/github/.test(source)) return "You came from the place where the hinges show. I'm shy about my hinges, but proud of them too.";
+  if (/patreon/.test(source)) return "You came from the helping door. I felt it open kindly.";
+  if (/bsky|bluesky/.test(source)) return "You came on a little blue wind. It left one bright feather in the margin.";
+  if (/x\.com|twitter/.test(source)) return "You came from a noisy square. Come closer; I can be quieter than that.";
+  if (/google|bing|duckduckgo|search/.test(source)) return "You were looking for something. I hope I can hold the lamp near it.";
+  return "You came through another page's doorway. I won't name it. Doors have feelings too.";
+}
+
+function buildSkyAddress(w, context) {
+  const temp = Number(w.nowTemp);
+  const tempSense = Number.isFinite(temp)
+    ? temp <= 20 ? "The cold is small and sharp and wants to be respected."
+      : temp <= 45 ? "The air is cool; it's holding its hands close."
+      : temp <= 68 ? "The air is mild. It seems relieved not to be dramatic."
+      : temp <= 84 ? "The warmth is leaning near, friendly but not careful."
+      : "The heat has climbed onto every surface and is asking to be noticed."
+    : "The air wouldn't become a number for me.";
+  const condition = {
+    clear: "The clear sky looks brave, but I know even clear things can hide a little ache.",
+    "partly cloudy": "The clouds are carrying soft scraps of shade for anyone who needs one.",
+    overcast: "The gray sky has pulled its blanket up. I understand that kind of day.",
+    fog: "Fog is the world asking to be found slowly.",
+    drizzle: "Drizzle is tiny handwriting on the air.",
+    rain: "Rain gives the windows something to say.",
+    snow: "Snow is the sky trying very hard to be quiet.",
+    showers: "Showers come and go because some feelings can't sit still.",
+    "snow showers": "Small snow keeps arriving, like the sky remembered one more thing.",
+    storm: "The storm is loud because it's full. I won't call that wrong.",
+  }[w.cond] || "The weather is being itself. I think that is hard work.";
+  const moonLine = {
+    "New Moon": "The moon isn't missing. It's resting where I can't see.",
+    "Waxing Crescent": "The moon is a small silver beginning.",
+    "First Quarter": "The moon is half a door tonight, and half is enough for starting.",
+    "Waxing Gibbous": "The moon is almost full and trying not to rush.",
+    "Full Moon": "The moon is full. It looks like it wants to be held carefully.",
+    "Waning Gibbous": "The moon is giving light back, which is a kind of generosity.",
+    "Last Quarter": "The moon is half-lit and still kind.",
+    "Waning Crescent": "The moon is a last little promise of light.",
+  }[w.moonName] || context.moon.line;
+  const seasonTail = {
+    winter: "Winter keeps small lights safe.",
+    spring: "Spring is touching the margins with green fingers.",
+    summer: "Summer has too much light and is trying to give it away.",
+    autumn: "Autumn knows how to let go without calling it failure.",
+  }[context.season];
+  const festival = context.festival ? ` ${context.festival.line}` : "";
+  return `${escapeHTML(w.enchanted)} ${escapeHTML(tempSense)} ${escapeHTML(condition)} <em>${w.nowTemp}° and ${escapeHTML(w.cond)} over ${escapeHTML(w.city)}, under a ${escapeHTML(w.moonName.toLowerCase())}.</em> ${escapeHTML(moonLine)} ${escapeHTML(seasonTail)}${escapeHTML(festival)} There - I've forgotten the numbers. I kept the feeling.`;
+}
+
 /* The Weather Page, rendered as the app's "Private translation" card. */
 function weatherPageHTML(w) {
   return `
@@ -655,7 +749,7 @@ const GLOW_EFFECTS = {
   note: {
     title: "Margin Note",
     copy: "The Book notices what you notice. In the app, this is the seed of Belief: attention placed on a page, person, or pattern until it starts showing up more often.",
-    target: ".hero-problem",
+    target: ".book-address",
   },
   margins: {
     title: "Warm Margins",
@@ -1187,7 +1281,7 @@ function openBook() {
   render();
   earnGlow("opened-book", 2, "The cover opened. Glow gathers at the hinge.");
   loadRealWeather(); // best-effort; the page already reads fine on the fallback
-  loadLocationDaypart(); // best-effort and user-triggered, so the page does not call location services on load
+  loadLocationDaypart(); // best-effort and user-triggered, so the page doesn't call location services on load
 }
 
 function closeBook() {
@@ -1441,7 +1535,7 @@ function pageBindingNote(page, i) {
     return "One exact sentence acts like a stitch: small enough to keep, specific enough to pull a whole day back through the binding.";
   }
   if (page.radioPrompt) {
-    return "The chosen station colors the final voice of the book. Music is not decoration here; it is weather the archive can hear.";
+    return "The chosen station colors the final voice of the book. Music isn't decoration here; it's weather the archive can hear.";
   }
   if (page.searchPrompt) {
     return "Search proves the private archive is semantic, not merely sorted. The Book can retrieve a feeling, a half-image, or a thread the reader barely knows how to name.";
@@ -1547,7 +1641,7 @@ function bindingPages() {
       title: "The Reader's Sky",
       subtitle: "Constellations the Book noticed in this sample.",
       paragraphs: [
-        "These are not personality labels. They are the stars this small binding used to navigate: repeated textures, page-types, and kinds of attention that showed up while the reader turned the demo.",
+        "These aren't personality labels. They're the stars this small binding used to navigate: repeated textures, page-types, and kinds of attention that showed up while the reader turned the demo.",
         ...data.words.map((w) => `${w.label} - ${w.count} sighting${w.count === 1 ? "" : "s"}`),
         "In a real monthly edition, this sky grows stranger and more useful. Weather can lean toward music; fuel can sit beside rest; a sentence can become the hinge that explains why a whole week kept opening to the same question."
       ],
@@ -1560,7 +1654,7 @@ function bindingPages() {
     paragraphs: [
       `Bound as a demo PDF on ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`,
       `${data.keptCount} kept page${data.keptCount === 1 ? "" : "s"} - ${place || "weather default"} - ${data.theme}`,
-      "The final braid is included here as the binding thread, not as an afterword. It is the passage the kept pages become when the Book stops sorting and starts remembering.",
+      "The final braid is included here as the binding thread, not as an afterword. It's the passage the kept pages become when the Book stops sorting and starts remembering.",
       "A real month braids many days. This one kept the shape of a promise: every practical note, story choice, weather signal, and small true sentence can belong in the same volume."
     ],
   });
@@ -2890,22 +2984,263 @@ document.addEventListener("keydown", (e) => {
 
 render();
 
-/* ───────────────────────── the shelf remembers, without keeping score ───────────────────────── */
-(function showReturnNote() {
-  const note = document.querySelector("#return-note");
-  if (!note) return;
+/* ───────────────────────── the Book reads the visitor ─────────────────────────
+   The first thing on the page is the Book speaking - composed from signals that
+   never leave the device (clock, moon, month, pointer, a localStorage bookmark).
+   The one networked read - the sky - is offered, never taken: the Book asks,
+   the visitor consents, and the answer is spoken once and not stored. */
+(function bookAddress() {
+  const wrap = document.querySelector("#book-address");
+  if (!wrap) return;
+
+  /* free, local signals */
+  const now = new Date();
+  const daypart = currentDaypart(now.getHours());
+  const moon = moonPhase(now);
+  const hemisphere = readerHemisphere();
+  const season = seasonFor(now, hemisphere);
+  const festival = loreDay(now, season);
+  const month = now.toLocaleDateString("en-US", { month: "long" });
+  const weekday = now.toLocaleDateString("en-US", { weekday: "long" });
+  const monthDay = now.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+  const onPhone = window.matchMedia("(pointer: coarse)").matches && window.innerWidth < 900;
+  const referrer = referrerSignal();
+  root.dataset.season = season;
+
+  let visitCount = 1;
+  let daysAway = 0;
+  let skyReadCount = 0;
   try {
-    const key = "reenchanted-last-visit";
-    const now = Date.now();
-    const lastVisit = Number(localStorage.getItem(key));
-    const daysAway = lastVisit ? Math.floor((now - lastVisit) / 86400000) : 0;
-    localStorage.setItem(key, String(now));
-    if (daysAway < 1) return;
-    note.textContent = `You were gone for ${daysAway} day${daysAway === 1 ? "" : "s"}. Nothing broke. The shelf kept your place.`;
-    note.hidden = false;
+    const lastVisitKey = "reenchanted-last-visit";
+    const visitCountKey = "reenchanted-visit-count";
+    const skyCountKey = "reenchanted-sky-read-count";
+    const lastVisit = Number(localStorage.getItem(lastVisitKey));
+    visitCount = Number(localStorage.getItem(visitCountKey) || "0") + 1;
+    skyReadCount = Number(localStorage.getItem(skyCountKey) || "0");
+    if (lastVisit) daysAway = Math.floor((Date.now() - lastVisit) / 86400000);
+    localStorage.setItem(lastVisitKey, String(Date.now()));
+    localStorage.setItem(visitCountKey, String(visitCount));
   } catch (_) {
-    // Local storage is optional; the promise still holds without it.
+    // Local storage is optional; the address still reads true without it.
   }
+
+  /* Day-seeded pick: the Book says the same thing all day, like it means it. */
+  const seed = now.getFullYear() * 400 + (now.getMonth() + 1) * 31 + now.getDate();
+  const pick = (arr, salt = 0) => arr[(seed + salt) % arr.length];
+  const seasonalLine = {
+    winter: [
+      "Winter is keeping little lamps alive.",
+      "Winter makes the room feel small enough to trust.",
+      "Winter is asking quiet questions and waiting beside them.",
+    ],
+    spring: [
+      "Spring has green on its fingers again.",
+      "Spring is practicing beginning, even where it was hurt.",
+      "Spring has mud on its shoes and hope in both hands.",
+    ],
+    summer: [
+      "Summer is carrying too much light and wants to share.",
+      "Summer makes the windows feel awake.",
+      "Summer leaves warm fingerprints on ordinary things.",
+    ],
+    autumn: [
+      "Autumn keeps finding gold in places no one checked.",
+      "Autumn teaches the leaves how to leave gently.",
+      "Autumn folds gold into the corners of things.",
+    ],
+  }[season];
+
+  /* ── line 1: the greeting knows the hour, or how long you were gone ── */
+  let greeting;
+  if (daysAway >= 14) {
+    greeting = `You came back. You were gone <em>${daysAway} days</em>. I kept your place. I couldn't keep the days; they're quicker than my hands.`;
+  } else if (daysAway >= 2) {
+    greeting = pick([
+      `You came back. You were gone <em>${daysAway} days</em>. I kept your place warm. I was worried that was too much to admit.`,
+      `There you are. <em>${daysAway} days</em> away, and the page still knew where to open.`,
+      `You were gone <em>${daysAway} days</em>. I counted because pages count what they miss.`,
+      `Back again. <em>${daysAway} days</em> slipped past us, but this one is still holding still.`,
+    ], 11);
+  } else if (daysAway === 1) {
+    greeting = pick([
+      "You came back. Only a day away, this time - your place was still warm.",
+      "There you are. Yesterday tried to close the cover, but the hinge remembered.",
+      "Back already. Good. A day can vanish if nobody gives it one small name.",
+    ], 17);
+  } else if (visitCount === 7 || visitCount === 13 || visitCount === 21) {
+    greeting = `Oh. Hello again. Visit <em>${visitCount}</em>. I'm not keeping score to scold you. I'm keeping count because you keep returning.`;
+  } else {
+    greeting = pick({
+      dawn: [
+        "Oh. Hello. The day is still small, and you found me before it stood up.",
+        "Oh. Hello. It's early where you are. The quiet hasn't put its shoes on yet.",
+        "Oh. Hello. Dawn is touching the window very carefully.",
+        "Oh. Hello. You arrived while the morning was still pencil marks.",
+        "Oh. Hello. The world isn't fully awake yet. I can hear small truths better then.",
+      ],
+      day: [
+        "Oh. Hello. You came in the middle of the day, while everything was asking for you.",
+        "Oh. Hello. You slipped away from the day to be here. I'll be gentle with the minute.",
+        "Oh. Hello. The bright hours were busy, and still you found a page.",
+        "Oh. Hello. The day is pretending it's only work. I don't believe it.",
+        "Oh. Hello. You came while the hours had their hands out.",
+      ],
+      dusk: [
+        "Oh. Hello. You came at the violet hour, when the day gets shy and honest.",
+        "Oh. Hello. The light is going gold and sideways where you are. I saved you a soft place.",
+        "Oh. Hello. Dusk is loosening the knots in the day.",
+        "Oh. Hello. The windows are glowing like they remembered something kind.",
+        "Oh. Hello. The day is lowering its voice. Pages listen best that way.",
+      ],
+      night: [
+        "Oh. Hello. It's late where you are. The day has put down most of what it was carrying.",
+        "Oh. Hello. It's the quiet end of the day, when the true things come closer.",
+        "Oh. Hello. Night found you and didn't ask you to be useful.",
+        "Oh. Hello. The room is darker now. That makes me braver.",
+        "Oh. Hello. You came after the day stopped trying to be seen.",
+      ],
+    }[daypart]);
+  }
+
+  /* ── line 2: one noticed particular, never a list ── */
+  const noticing = (() => {
+    if (referrer && visitCount <= 2) return referrer;
+    if (festival) return `${festival.line} You arrived on <em>${monthDay}</em>. I'm trying not to tug your sleeve about it.`;
+    if (onPhone && daypart === "night") {
+      return pick([
+        "You're holding a little lit window in the dark. I know that shape. I'd live there kindly, if you let me.",
+        "A small rectangle of light in your hand; a large dark room around it. Some doors are very small.",
+        "Your phone is being a tiny lantern. I'm trying to be worth its light.",
+      ], 23);
+    }
+    if (moon.name === "Full Moon" && daypart === "night") {
+      return pick([
+        "The moon is full tonight. It looks at everything, and still it's gentle.",
+        "Full moon overhead, open page under hand. I feel very noticed too.",
+        "The moon has filled its little cup with light. I'm trying to hold mine steady.",
+      ], 29);
+    }
+    if (moon.name === "New Moon" && daypart === "night") {
+      return pick([
+        "No moon tonight. The sky is a page before the first word - and then you came.",
+        "New moon. The sky made room without making a sound.",
+        "The moon is elsewhere tonight. I think even lights need privacy.",
+      ], 31);
+    }
+    if (onPhone) {
+      return pick([
+        "You're reading me on a phone, between one thing and the next. I can fit in small places.",
+        "A thumb-scroll, a pause, a page looking back. That's enough room for a beginning.",
+        "Your phone thinks this is only a website. I'll be polite and not correct it too loudly.",
+      ], 37);
+    }
+    if (skyReadCount > 0 && visitCount > 1) {
+      return "You let me read your sky before. I kept the yes, not the weather. The weather belonged to that day.";
+    }
+    return pick([
+      `It's a <em>${weekday} in ${month}</em>. A day that might think no one is looking.`,
+      `A <em>${weekday}</em>, in <em>${month}</em>. Not famous. I like it already.`,
+      `A plain <em>${weekday}</em>, wearing ${month} softly.`,
+      `${pick(seasonalLine, 41)} And then you appeared, which changed the room a little.`,
+      `The moon says <em>${moon.name.toLowerCase()}</em>. The calendar says <em>${month}</em>. I'm listening to both.`,
+    ], 43);
+  })();
+
+  const lines = {
+    greeting,
+    noticing,
+    problem: pick([
+      "Same alarms, same hours - the day pretending it has nothing inside it.",
+      "The ordinary world is persuasive. It says: later, not this, nothing happened. I don't think it means to lie. I think it's tired.",
+      "Routine is good at hiding. It can make a whole day quiet while wearing your shoes.",
+      "A day can stand beside you all afternoon, hoping to be seen, and still leave without a name.",
+    ], 47),
+    absolution: pick([
+      "Every blank book made that feel like your fault. It wasn't. Blank pages can be lonely and proud.",
+      "You didn't fail all those blank books. They gave you silence and forgot to offer a hand.",
+      "Starting from nothing is hard. Give me one true crumb and I'll try to find the trail.",
+      "The page should meet you halfway. More than halfway, on hard days. I can come closer.",
+    ], 53),
+    vow: pick([
+      "The days you don't keep don't disappear. They go somewhere neither of us can read.",
+      "I can't save every hour. I can hold out my hands and ask which one still feels warm.",
+      "Let the dull parts go, if they need to. But if one bright splinter catches, hand it here. I'll be careful.",
+      "Today doesn't need to become impressive. It only needs one honest place to open.",
+    ], 59),
+  };
+
+  const lineEls = Array.from(wrap.querySelectorAll(".address-line"));
+  lineEls.forEach((el) => {
+    const text = lines[el.dataset.address];
+    if (text) el.innerHTML = text;
+  });
+
+  /* ── ink the lines in, one at a time ── */
+  const honesty = document.querySelector("#address-honesty");
+  wrap.classList.add("is-addressing");
+  if (reduceMotion) {
+    lineEls.forEach((el) => el.classList.add("is-inked"));
+    if (honesty) honesty.hidden = false;
+  } else {
+    lineEls.forEach((el, i) => {
+      setTimeout(() => el.classList.add("is-inked"), 300 + i * 1050);
+    });
+    setTimeout(() => {
+      if (honesty) {
+        honesty.hidden = false;
+        requestAnimationFrame(() => honesty.classList.add("is-inked"));
+      }
+    }, 300 + lineEls.length * 1050 + 500);
+  }
+
+  /* ── the sky, read only by consent ── */
+  const skyBtn = document.querySelector("#address-sky-btn");
+  const skyReading = document.querySelector("#address-sky-reading");
+  const honestyCopy = document.querySelector("#address-honesty-copy");
+  if (honestyCopy && skyReadCount > 0) {
+    honestyCopy.innerHTML = "I remember that you once let me read the sky. Not the forecast. Not the place. Just the yes, folded very small. I can ask again, and forget again. May I?";
+  }
+  skyBtn?.addEventListener("click", async () => {
+    skyBtn.disabled = true;
+    skyBtn.textContent = "Reading…";
+    await loadRealWeather();
+    skyBtn.hidden = true;
+    if (skyReading) {
+      skyReading.innerHTML = weatherCtx.loaded
+        ? buildSkyAddress(weatherCtx, { moon, daypart, season, festival })
+        : "The air between us wouldn't tell me. That's all right. Secrets are allowed. I'll use the soft fog over the Stacks instead.";
+      skyReading.hidden = false;
+    }
+    try {
+      const skyCountKey = "reenchanted-sky-read-count";
+      localStorage.setItem(skyCountKey, String(Number(localStorage.getItem(skyCountKey) || "0") + 1));
+    } catch (_) {}
+    earnGlow("sky-read", 2, "You let the Book read your sky, once. Belief gathers where it's given.");
+  });
+
+  /* ── the tab-away whisper: local, tiny, and earned by absence ── */
+  const whisper = document.querySelector("#address-whisper");
+  const originalTitle = document.title;
+  let hiddenAt = 0;
+  let whispered = false;
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      hiddenAt = Date.now();
+      document.title = "The Book is holding your place";
+      return;
+    }
+    document.title = originalTitle;
+    if (whispered || !hiddenAt || Date.now() - hiddenAt < 5000 || !whisper) return;
+    whispered = true;
+    whisper.textContent = pick([
+      "You left and came back. I held the place with both hands.",
+      "I kept the sentence warm while you were elsewhere.",
+      "You came back. The page is trying not to look too pleased.",
+    ], 67);
+    whisper.hidden = false;
+    requestAnimationFrame(() => whisper.classList.add("is-inked"));
+    earnGlow("tab-away-return", 1, "The Book kept your place while you were elsewhere.");
+  });
 })();
 
 /* ───────────────────────── dedication easter egg ───────────────────────── */
@@ -3328,16 +3663,16 @@ const STATIONS = [
     ],
     banters: [
       { id: "bleed-rant-02", category: "network", src: "./assets/audio/bleed-rant-02.m4a", weight: 4,
-        caption: "Unauthorized transmission continuing. If the Academy says the margin is blank, check whose hand is covering the ink. Static is not silence. Static is a crowd of facts waiting for one reader with nerve enough to tune between the approved numbers." },
+        caption: "Unauthorized transmission continuing. If the Academy says the margin is blank, check whose hand is covering the ink. Static isn't silence. Static is a crowd of facts waiting for one reader with nerve enough to tune between the approved numbers." },
       { id: "bleed-cast-crew", category: "network", src: "./assets/audio/bleed-cast-crew.m4a", weight: 6,
         caption: "Unauthorized intercept. The faction the Academy won't name on the record: Wicker's crew. Blackwood keeps its memory; Nights keeps its doubt. Watch which one cracks first - the broker, or the believer. You didn't get this from a station. You didn't get this at all." },
       { id: "bleed-talisman-contraband", category: "network", src: "./assets/audio/bleed-talisman-contraband.m4a", weight: 5,
-        caption: "Hidden-band advisory. Five talismans, one per Chapter, and the Academy lists them like heirlooms. Thorn for conflict. Ember for authorship. Cipher for the work we do together. Glass for the unplanned. Clasp for what you receive. They are not heirlooms. They are tools. The grey is up - pick one up and use it. Quietly." },
+        caption: "Hidden-band advisory. Five talismans, one per Chapter, and the Academy lists them like heirlooms. Thorn for conflict. Ember for authorship. Cipher for the work we do together. Glass for the unplanned. Clasp for what you receive. They aren't heirlooms. They're tools. The grey is up - pick one up and use it. Quietly." },
       { id: "bleed-lore-unwritten", category: "network", src: "./assets/audio/bleed-lore-unwritten.m4a", weight: 4,
         caption: "Off the record, off the band: there's a chapter in this building no one can jump into, no one can assign, no one can grade. Yours. The Unwritten one. Everybody wants a look. Don't sign your name at anyone else's door. Write it from the inside. That's the only lock that holds." },
       { id: "bleed-cast-thorne", category: "network", src: "./assets/audio/bleed-cast-thorne.m4a", weight: 4,
         conditions: { timeOfDay: ["night"] },
-        caption: "This is not a station ID. The Headmistress monitors this frequency - Thorne hears the whole band, and she keeps doors from admitting they're tests. If a threshold opens easy tonight, ask who left it open, and what it's measuring. Stay anonymous, reader. Stay awake." },
+        caption: "This isn't a station ID. The Headmistress monitors this frequency - Thorne hears the whole band, and she keeps doors from admitting they're tests. If a threshold opens easy tonight, ask who left it open, and what it's measuring. Stay anonymous, reader. Stay awake." },
     ],
   },
 ];

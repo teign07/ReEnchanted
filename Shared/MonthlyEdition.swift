@@ -34,6 +34,17 @@ struct MonthlyEdition: Codable, Equatable {
     var isThinBinding: Bool {
         dayCount > 0 && dayCount < 7
     }
+
+    var memorySpinePromptLines: [String] {
+        guard let spine = sections.first(where: { $0.id == "book-memory-spine" }) else { return [] }
+        return spine.items.prefix(5).map { item in
+            let body = item.body
+                .replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: "  ", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return "\(item.title): \(body)"
+        }
+    }
 }
 
 /// A whole year, bound as a real book: a year-level foreword and closing wrap a
@@ -55,12 +66,52 @@ struct AnnualEdition: Codable, Equatable {
     var wagers: [BookWager]
     var closing: String
     var continuity: LiteraryContinuityDigest
+    /// Year-level residue from Book of You pages: the annual's private index of
+    /// refrains, callbacks, questions, and cover-story candidates. Optional so
+    /// older saved annuals still decode.
+    var memorySpine: AnnualMemorySpine?
 
     var isEmpty: Bool { chapters.isEmpty }
 
     /// The named threads carried across the whole year, for the back matter.
     var namedConstellations: [Constellation] {
         ConstellationKeeper.namedConstellations(constellations)
+    }
+}
+
+struct AnnualMemorySpine: Codable, Equatable {
+    var motifs: [String]
+    var callbacks: [String]
+    var coverStories: [String]
+    var openQuestions: [String]
+
+    var isEmpty: Bool {
+        motifs.isEmpty && callbacks.isEmpty && coverStories.isEmpty && openQuestions.isEmpty
+    }
+
+    static func from(days: [BookDay], now: Date = Date()) -> AnnualMemorySpine? {
+        let digest = BindingMemorySpine.digest(days: days, now: now, limit: 96)
+        guard !digest.braids.isEmpty else { return nil }
+        let motifs = digest.motifCounts.prefix(12).map { "\($0.motif) (\($0.count))" }
+        let callbackLines = digest.braids
+            .compactMap { memory -> String? in
+                guard let callback = memory.residue.callbackCandidate?.nonEmpty else { return nil }
+                return "\(memory.residue.title): \(callback)"
+            }
+        let callbacks = Array(callbackLines.prefix(16))
+        let coverStories = digest.braids
+            .prefix(12)
+            .map { "\($0.residue.title): \($0.residue.spineLine)" }
+        let questionLines = digest.braids
+            .compactMap(\.residue.openedQuestion)
+        let questions = Array(questionLines.prefix(8))
+        let spine = AnnualMemorySpine(
+            motifs: motifs,
+            callbacks: callbacks,
+            coverStories: coverStories,
+            openQuestions: questions
+        )
+        return spine.isEmpty ? nil : spine
     }
 }
 
@@ -220,7 +271,8 @@ enum MonthlyEditionBuilder {
             constellations: constellations,
             wagers: yearWagers,
             closing: closing,
-            continuity: yearContinuity
+            continuity: yearContinuity,
+            memorySpine: AnnualMemorySpine.from(days: yearDays, now: now)
         )
     }
 
@@ -281,6 +333,7 @@ enum MonthlyEditionBuilder {
         let sections = [
             themeSection(theme, pages: boundPages),
             worldEventSection(from: boundPages),
+            memorySpineSection(from: monthDays, generatedAt: generatedAt),
             openingSection(from: boundPages, continuity: continuity, setAsideLine: curated.setAsideLine),
             pageSection(
                 id: "daily-braids",
@@ -297,6 +350,7 @@ enum MonthlyEditionBuilder {
                 pages: boundPages.filter { $0.type == .souvenir },
                 limit: 40
             ),
+            scrapbookSection(from: boundPages),
             pageSection(
                 id: "letters",
                 title: "Letters And Voices",
@@ -310,7 +364,8 @@ enum MonthlyEditionBuilder {
                 title: "Other Kept Pages",
                 note: "Weather, anchors, enchantments, classes, questions, and other margins worth binding.",
                 pages: boundPages.filter { page in
-                    ![.bookOfYou, .souvenir, .letter, .narrativeOS, .bookConnections, .gossip, .facultyResearch, .supportGuild, .bookNotices, .illuminatedPhoto, .illustration, .enchantment].contains(page.type)
+                    !EditionCurator.isScrapbookPage(page)
+                        && ![.bookOfYou, .souvenir, .letter, .narrativeOS, .bookConnections, .gossip, .facultyResearch, .supportGuild, .bookNotices, .illuminatedPhoto, .illustration, .enchantment].contains(page.type)
                 },
                 limit: 48
             )
@@ -351,6 +406,87 @@ enum MonthlyEditionBuilder {
                 theme: theme,
                 calendar: calendar
             )
+        )
+    }
+
+    private static func memorySpineSection(from days: [BookDay], generatedAt: Date) -> MonthlyEditionSection {
+        let digest = BindingMemorySpine.digest(days: days, now: generatedAt, limit: 31)
+        guard !digest.braids.isEmpty else {
+            return MonthlyEditionSection(id: "book-memory-spine", title: "Book Memory Spine", note: "", items: [])
+        }
+
+        var items: [MonthlyEditionItem] = []
+        if let lead = digest.braids.first {
+            items.append(MonthlyEditionItem(
+                id: "memory-spine-cover-story",
+                kind: .continuity,
+                title: "Cover Story",
+                body: cleanedBookText("\(lead.residue.title)\n\n\(lead.residue.callbackCandidate ?? lead.residue.keptLine)"),
+                date: lead.date,
+                pageType: .bookOfYou,
+                sourceID: BookPageSourceRegistry.source(for: .bookOfYou).id,
+                mediaAssets: [],
+                tags: ["monthly-edition", "book-memory-spine", "cover-story"]
+            ))
+        }
+
+        if !digest.motifCounts.isEmpty {
+            let motifs = digest.motifCounts.prefix(8).map { "\($0.motif) (\($0.count))" }
+            items.append(MonthlyEditionItem(
+                id: "memory-spine-refrain",
+                kind: .continuity,
+                title: "The Month's Refrain",
+                body: "Across the nightly braids, these motifs kept returning: \(naturalList(Array(motifs))).",
+                date: digest.braids.first?.date,
+                pageType: .bookOfYou,
+                sourceID: BookPageSourceRegistry.source(for: .bookOfYou).id,
+                mediaAssets: [],
+                tags: ["monthly-edition", "book-memory-spine", "motifs"]
+            ))
+        }
+
+        let callbacks = digest.braids
+            .compactMap { memory -> String? in
+                guard let callback = memory.residue.callbackCandidate?.nonEmpty else { return nil }
+                return "\(memory.residue.title): \(callback)"
+            }
+            .prefix(6)
+        if !callbacks.isEmpty {
+            items.append(MonthlyEditionItem(
+                id: "memory-spine-callbacks",
+                kind: .continuity,
+                title: "Pages That Kept Answering",
+                body: callbacks.joined(separator: "\n"),
+                date: digest.braids.first?.date,
+                pageType: .bookOfYou,
+                sourceID: BookPageSourceRegistry.source(for: .bookOfYou).id,
+                mediaAssets: [],
+                tags: ["monthly-edition", "book-memory-spine", "callbacks"]
+            ))
+        }
+
+        let questions = digest.braids
+            .compactMap(\.residue.openedQuestion)
+            .prefix(4)
+        if !questions.isEmpty {
+            items.append(MonthlyEditionItem(
+                id: "memory-spine-open-questions",
+                kind: .continuity,
+                title: "Questions Still Warm",
+                body: questions.joined(separator: "\n"),
+                date: digest.braids.first?.date,
+                pageType: .bookOfYou,
+                sourceID: BookPageSourceRegistry.source(for: .bookOfYou).id,
+                mediaAssets: [],
+                tags: ["monthly-edition", "book-memory-spine", "questions"]
+            ))
+        }
+
+        return MonthlyEditionSection(
+            id: "book-memory-spine",
+            title: "Book Memory Spine",
+            note: "The nightly Book of You pages, read as callbacks, refrains, and open questions.",
+            items: items
         )
     }
 
@@ -506,6 +642,8 @@ enum MonthlyEditionBuilder {
         case .pattern:
             return signal.line
         case .listening:
+            return signal.line
+        case .manner:
             return signal.line
         }
     }
@@ -730,7 +868,8 @@ enum MonthlyEditionBuilder {
 
     private static func imageSection(from pages: [BookPage]) -> MonthlyEditionSection {
         let imagePages = pages.filter { page in
-            page.type == .illuminatedPhoto || page.type == .illustration || page.type == .enchantment || !page.mediaAssets.isEmpty
+            !EditionCurator.isScrapbookPage(page)
+                && (page.type == .illuminatedPhoto || page.type == .illustration || page.type == .enchantment || !page.mediaAssets.isEmpty)
         }
         return MonthlyEditionSection(
             id: "images",
@@ -744,11 +883,26 @@ enum MonthlyEditionBuilder {
         )
     }
 
+    private static func scrapbookSection(from pages: [BookPage]) -> MonthlyEditionSection {
+        let scrapbookPages = pages.filter(EditionCurator.isScrapbookPage)
+        return MonthlyEditionSection(
+            id: "scrapbook-pages",
+            title: "Scrapbook Pages",
+            note: "Pages the reader composed by hand from kept scraps, notes, marks, and images.",
+            items: scrapbookPages.prefix(12).map { page in
+                var item = pageItem(page)
+                item.kind = page.mediaAssets.isEmpty ? .page : .image
+                item.title = scrapbookTitle(for: page)
+                return item
+            }
+        )
+    }
+
     private static func pageItem(_ page: BookPage) -> MonthlyEditionItem {
         MonthlyEditionItem(
             id: page.id,
             kind: page.mediaAssets.isEmpty ? .page : .image,
-            title: page.type.title,
+            title: EditionCurator.isScrapbookPage(page) ? scrapbookTitle(for: page) : page.type.title,
             body: pageBody(page),
             date: page.createdAt,
             pageType: page.type,
@@ -762,6 +916,11 @@ enum MonthlyEditionBuilder {
         let userInput = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
         let raw = userInput.isEmpty ? page.promptText.trimmingCharacters(in: .whitespacesAndNewlines) : userInput
         return excerptForMonthlyBinding(cleanedBookText(raw), pageType: page.type)
+    }
+
+    private static func scrapbookTitle(for page: BookPage) -> String {
+        let title = page.promptText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return title.isEmpty ? "Scrapbook Page" : title
     }
 
     private static func isUsableThemeExcerpt(_ text: String) -> Bool {
@@ -889,9 +1048,9 @@ enum BookForewordWriter {
         let pageLine = pages.count == 1 ? "one page" : "\(pages.count) pages"
         let dayLine = dayCount == 1 ? "a single day" : "\(dayCount) days"
         if dayCount > 0 && dayCount < 7 {
-            paragraphs.append("This is a first binding from \(monthTitle): \(pageLine) across \(dayLine), not enough month to name the whole weather, but enough to keep what already refused to disappear. I do not bind months to flatter them. I bind them so they cannot quietly unhappen.")
+            paragraphs.append("This is a first binding from \(monthTitle): \(pageLine) across \(dayLine), not enough month to name the whole weather, but enough to keep what already refused to disappear. The cover is small and a little proud. I do not bind months to flatter them; I bind them because loose pages get lonely, and I do not want this one to quietly unhappen.")
         } else {
-            paragraphs.append("This is what \(monthTitle) left in my keeping: \(pageLine) across \(dayLine), each one kept on purpose. I do not bind months to flatter them. I bind them so they cannot quietly unhappen.")
+            paragraphs.append("This is what \(monthTitle) left in my keeping: \(pageLine) across \(dayLine), each one kept on purpose. The pages stood close together when I called them. I do not bind months to flatter them; I bind them because loose pages get lonely, and I do not want any of this to quietly unhappen.")
         }
 
         let signals = continuity.strongestSignals.prefix(3)
@@ -899,7 +1058,7 @@ enum BookForewordWriter {
             let lines = signals.map { signal in
                 signal.line.hasSuffix(".") ? String(signal.line.dropLast()) : signal.line
             }
-            paragraphs.append("Reading it back, I noticed things I did not notice at the time. \(lines.joined(separator: ". ")). None of this is a verdict; it is the shape attention left behind.")
+            paragraphs.append("Reading it back, I noticed things I did not notice at the time. \(lines.joined(separator: ". ")). None of this is a verdict. It is the shape attention left behind, with its elbows on the table.")
         }
 
         let named = ConstellationKeeper.namedConstellations(constellations)
@@ -914,7 +1073,7 @@ enum BookForewordWriter {
             default:
                 nameLine = "\(names.dropLast().joined(separator: ", ")), and \(names.last ?? "")"
             }
-            paragraphs.append("Some threads have been with us long enough that I have given them names: \(nameLine). A named constellation is a promise that I will keep watching, which is the only kind of promise a book can make.")
+            paragraphs.append("Some threads have been with us long enough that I have given them names: \(nameLine). A named constellation is a promise with a little lamp inside it. I will keep watching, which is the only kind of promise a book can make.")
         }
 
         let opened = wagers.filter { !$0.isSealed }
@@ -924,21 +1083,21 @@ enum BookForewordWriter {
             let wrong = opened.count - right
             let scoreLine: String
             if wrong == 0 {
-                scoreLine = "Every wager I opened this month came true, which I will try not to let go to my spine."
+                scoreLine = "Every wager I opened this month came true, which made my spine sit up straighter than was dignified."
             } else if right == 0 {
-                scoreLine = "Every wager I opened this month was wrong. I have written each one down anyway. Being wrong in writing is how a book learns."
+                scoreLine = "Every wager I opened this month was wrong. I have written each one down anyway. Being wrong in writing is how a book learns without pretending its ink is royal."
             } else {
-                scoreLine = "Of the wagers I opened this month, \(right) came true and \(wrong) did not. I record both with the same ink."
+                scoreLine = "Of the wagers I opened this month, \(right) came true and \(wrong) did not. I record both with the same ink, because the ink does not like favorites."
             }
             paragraphs.append(scoreLine)
         }
         if !sealed.isEmpty {
             paragraphs.append(sealed.count == 1
-                ? "One wager is still sealed in the margins. We will both find out."
-                : "\(sealed.count) wagers are still sealed in the margins. We will both find out.")
+                ? "One wager is still sealed in the margins. It is trying very hard not to peek. We will both find out."
+                : "\(sealed.count) wagers are still sealed in the margins. They are trying very hard not to peek. We will both find out.")
         }
 
-        paragraphs.append("Whatever else this month was, it was read. - The Book")
+        paragraphs.append("Whatever else this month was, it was read. I put my small paper hand on it and said: stay. - The Book")
 
         return paragraphs.joined(separator: "\n\n")
     }
@@ -959,32 +1118,32 @@ enum BookForewordWriter {
         var paragraphs: [String] = []
 
         let pageLine = pages.count == 1 ? "the single page" : "all \(pages.count) pages"
-        paragraphs.append("So \(monthTitle) closes. I have read \(pageLine) back to you and to myself, and what could be kept has been kept. A month does not end so much as settle — the loud parts quiet, and what was true underneath stays where I can find it again.")
+        paragraphs.append("So \(monthTitle) closes. I have read \(pageLine) back to you and to myself, and what could be kept has been kept. A month does not end so much as settle. The loud parts take off their shoes, and what was true underneath stays where I can find it again.")
 
         let strongest = continuity.strongestSignals.first
         if let strongest {
             let line = strongest.line.hasSuffix(".") ? String(strongest.line.dropLast()) : strongest.line
-            paragraphs.append("If this chapter leaves one thing in your hands, let it be this: \(line). I will be watching to see whether it holds, or turns, or asks for a different name.")
+            paragraphs.append("If this chapter leaves one thing in your hands, let it be this: \(line). I will be watching to see whether it holds, or turns, or asks for a different name. I like when a true thing knocks twice.")
         }
 
         let named = ConstellationKeeper.namedConstellations(constellations)
         if let firstNamed = named.first {
-            paragraphs.append("\(firstNamed.displayName) is still alight in the margins, and I have left it burning on purpose. A thread I have named does not get blown out at the end of a month; it carries into the next one, waiting for you to write it forward.")
+            paragraphs.append("\(firstNamed.displayName) is still alight in the margins, and I have left it burning on purpose. A thread I have named does not get blown out at the end of a month; it carries into the next one, holding its little breath.")
         }
 
         if let theme, !theme.isStable {
-            paragraphs.append("The early thread this month was \u{201C}\(theme.name)\u{201D}. I am not calling it the whole sky yet; I am only saying these words kept tapping the glass.")
+            paragraphs.append("The early thread this month was \u{201C}\(theme.name)\u{201D}. I am not calling it the whole sky yet; I am only saying these words kept tapping the glass, and the glass looked back.")
         } else if dayCount > 0 && dayCount < 7 {
             if let theme {
-                paragraphs.append("The early thread this month was \u{201C}\(theme.name)\u{201D}. I am not calling it the whole sky yet; I am only saying these words kept tapping the glass.")
+                paragraphs.append("The early thread this month was \u{201C}\(theme.name)\u{201D}. I am not calling it the whole sky yet; I am only saying these words kept tapping the glass, and the glass looked back.")
             } else {
                 paragraphs.append("I am not calling this the whole sky yet. I am only saying these first pages kept tapping the glass, and I heard them.")
             }
         } else if let theme {
-            paragraphs.append("The theme this month was \u{201C}\(theme.name)\u{201D}, and it had the last word as often as the first. Whether you chose it or it chose you, it is bound here now, and cannot be unsaid.")
+            paragraphs.append("The theme this month was \u{201C}\(theme.name)\u{201D}, and it had the last word as often as the first. Whether you chose it or it chose you, it is bound here now, sitting very still so it cannot be unsaid.")
         }
 
-        paragraphs.append("Nothing in these pages can quietly unhappen now. Turn back to them whenever you like — the month will be exactly where you left it, and the next page is blank on purpose. - The Book")
+        paragraphs.append("Nothing in these pages can quietly unhappen now. Turn back whenever you like. The month will be exactly where you left it, the bookmark will pretend it was not waiting, and the next page is blank on purpose. - The Book")
 
         return paragraphs.joined(separator: "\n\n")
     }
@@ -1011,7 +1170,7 @@ enum BookForewordWriter {
         case 1: chapterLine = "one month"
         default: chapterLine = "\(chapters.count) months"
         }
-        paragraphs.append("This is the year \(year), bound: \(pageLine) kept across \(dayLine), gathered into \(chapterLine). A year is too large to hold in the hand all at once, so I have folded it into chapters. Open any of them and the month is still there, waiting where you left it.")
+        paragraphs.append("This is the year \(year), bound: \(pageLine) kept across \(dayLine), gathered into \(chapterLine). A year is too large to hold in the hand all at once, so I folded it into chapters and patted the corners flat. Open any of them and the month is still there, waiting where you left it.")
 
         // The shape of the year, told through its themes.
         let themed = chapters.compactMap { chapter -> String? in
@@ -1019,7 +1178,7 @@ enum BookForewordWriter {
             return "\(chapter.monthName.split(separator: " ").first.map(String.init) ?? chapter.monthName), \(name)"
         }
         if !themed.isEmpty {
-            paragraphs.append("The year moved the way years do — not in a straight line, but in seasons of attention. \(themed.prefix(12).joined(separator: "; ")). Read in order, they make a sentence only a whole year could say.")
+            paragraphs.append("The year moved the way years do — not in a straight line, but in seasons of attention. \(themed.prefix(12).joined(separator: "; ")). Read in order, they make a sentence only a whole year could say, though it says it shyly.")
         }
 
         let signals = continuity.strongestSignals.prefix(4)
@@ -1027,7 +1186,7 @@ enum BookForewordWriter {
             let lines = signals.map { signal in
                 signal.line.hasSuffix(".") ? String(signal.line.dropLast()) : signal.line
             }
-            paragraphs.append("Across all twelve windows, some things kept returning until I could no longer call them coincidence. \(lines.joined(separator: ". ")). That is what a year is, finally: the patterns that survived it.")
+            paragraphs.append("Across all twelve windows, some things kept returning until I could no longer call them coincidence. \(lines.joined(separator: ". ")). That is what a year is, finally: the patterns that survived it and came back with damp shoes.")
         }
 
         let named = ConstellationKeeper.namedConstellations(constellations)
@@ -1039,7 +1198,7 @@ enum BookForewordWriter {
             case 2: nameLine = "\(names[0]) and \(names[1])"
             default: nameLine = "\(names.dropLast().joined(separator: ", ")), and \(names.last ?? "")"
             }
-            paragraphs.append("Some threads ran long enough through the year that I gave them names and a place in the sky: \(nameLine). They are charted at the back of this volume, so you can find them again from any month.")
+            paragraphs.append("Some threads ran long enough through the year that I gave them names and a place in the sky: \(nameLine). They are charted at the back of this volume, little lamps pinned high enough that any month can look up.")
         }
 
         let resolved = wagers.filter { $0.isSealed == false }
@@ -1048,16 +1207,16 @@ enum BookForewordWriter {
             let wrong = resolved.count - right
             let scoreLine: String
             if wrong == 0 {
-                scoreLine = "Every wager I opened and resolved this year came true. I am keeping the record anyway; a book that only remembers being right is not to be trusted."
+                scoreLine = "Every wager I opened and resolved this year came true. I am keeping the record anyway; a book that only remembers being right is not to be trusted, and my spine knows it."
             } else if right == 0 {
-                scoreLine = "Every resolved wager this year went against me. I have bound each one in full. Being wrong, written down, is how I learned to read you better."
+                scoreLine = "Every resolved wager this year went against me. I have bound each one in full. Being wrong, written down, is how I learned to read you better, even when the ink made a face."
             } else {
-                scoreLine = "Of the wagers resolved this year, \(right) came true and \(wrong) did not. Both are set in the same ink, because both were honest."
+                scoreLine = "Of the wagers resolved this year, \(right) came true and \(wrong) did not. Both are set in the same ink, because both were honest and the ink can carry two baskets."
             }
             paragraphs.append(scoreLine)
         }
 
-        paragraphs.append("Whatever else \(year) was, it was read — all the way to the end, and then once more, slowly, to make this. - The Book")
+        paragraphs.append("Whatever else \(year) was, it was read — all the way to the end, and then once more, slowly, to make this. I was not always certain I understood it. I kept turning the pages anyway. - The Book")
         return paragraphs.joined(separator: "\n\n")
     }
 
@@ -1065,7 +1224,7 @@ enum BookForewordWriter {
     static func annualClosing(year: Int, chapters: [MonthlyEdition]) -> String {
         let count = chapters.count
         let span = count <= 1 ? "this chapter" : "these \(count) chapters"
-        return "Here \(year) ends and is kept. Nothing in \(span) can quietly unhappen now; it has been written, named, and bound. Turn back whenever you like — the year will be exactly where you left it, and so, in some way, will you. The next page is always blank on purpose. - The Book"
+        return "Here \(year) ends and is kept. Nothing in \(span) can quietly unhappen now; it has been written, named, and bound. Turn back whenever you like. The year will be exactly where you left it, with its corners tucked in, and so, in some way, will you. The next page is always blank on purpose. - The Book"
     }
 }
 
@@ -1232,6 +1391,9 @@ struct WeeklyIssue: Equatable {
     /// A few strongest lines lifted from the week, most vivid first.
     var highlights: [String]
     var setAsideLine: String?
+    /// Kept Pagewright/Scrapbook pages in this issue's window.
+    var scrapbookCount: Int = 0
+    var scrapbookTitles: [String] = []
 
     var isFirstIssue: Bool { number == 1 }
 
@@ -1267,6 +1429,7 @@ struct WeeklyIssue: Equatable {
         let weekPages = captured.filter { $0.createdAt >= start && $0.createdAt < end }
         let curated = EditionCurator.curate(weekPages, now: now)
         guard curated.keptCount >= minimumIssuePages else { return nil }
+        let scrapbookPages = curated.pages.filter(EditionCurator.isScrapbookPage)
 
         return WeeklyIssue(
             number: number,
@@ -1275,7 +1438,11 @@ struct WeeklyIssue: Equatable {
             dateRange: rangeString(start: start, end: lastDay, calendar: calendar),
             keptCount: weekPages.count,
             highlights: highlights(from: curated.pages),
-            setAsideLine: curated.setAsideLine
+            setAsideLine: curated.setAsideLine,
+            scrapbookCount: scrapbookPages.count,
+            scrapbookTitles: scrapbookPages.prefix(3).map { page in
+                page.promptText.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Scrapbook Page"
+            }
         )
     }
 
@@ -1319,5 +1486,90 @@ struct WeeklyIssue: Equatable {
             return "\(startMonth) \(dayOf(start))\u{2013}\(dayOf(end))"
         }
         return "\(startMonth) \(dayOf(start)) \u{2013} \(endMonth) \(dayOf(end))"
+    }
+}
+
+struct WeeklyIssueShareCard: Equatable {
+    var issueNumber: Int
+    var dateRange: String
+    var keptCount: Int
+    var title: String
+    var subtitle: String
+    var motifLine: String
+    var stats: [String]
+    var closingLine: String
+    var titleName: String?
+
+    static func make(issue: WeeklyIssue, selfFacts: [SelfFact] = []) -> WeeklyIssueShareCard {
+        let wonderTitle = WonderTitleRegistry.earnedTitle(from: selfFacts)
+        let motifs = publicMotifs(from: issue.highlights)
+        let motifLine = motifs.isEmpty
+            ? "The week kept its own weather."
+            : "Refrain: \(motifs.joined(separator: ", "))"
+        let pageWord = issue.keptCount == 1 ? "page" : "pages"
+        let scrapbookStat = issue.scrapbookCount > 0
+            ? "\(issue.scrapbookCount) scrapbook \(issue.scrapbookCount == 1 ? "page" : "pages")"
+            : nil
+        let highlightStat = issue.highlights.isEmpty
+            ? nil
+            : "\(issue.highlights.count) bright \(issue.highlights.count == 1 ? "line" : "lines")"
+        let stats = [
+            "\(issue.keptCount) kept \(pageWord)",
+            highlightStat,
+            scrapbookStat,
+            issue.setAsideLine == nil ? nil : "archive extras"
+        ].compactMap { $0 }
+        let title: String
+        let subtitle: String
+        if let wonderTitle {
+            title = "\(wonderTitle.name) Week"
+            subtitle = wonderTitle.compassLine
+        } else if issue.isFirstIssue {
+            title = "First Issue Week"
+            subtitle = "Seven days in, the Book found enough proof to bind."
+        } else {
+            title = "A Week Worth Keeping"
+            subtitle = "The Book gathered the small true things before they could blur."
+        }
+
+        return WeeklyIssueShareCard(
+            issueNumber: issue.number,
+            dateRange: issue.dateRange,
+            keptCount: issue.keptCount,
+            title: title,
+            subtitle: subtitle,
+            motifLine: motifLine,
+            stats: stats,
+            closingLine: "You kept the week from disappearing.",
+            titleName: wonderTitle?.name
+        )
+    }
+
+    private static func publicMotifs(from highlights: [String]) -> [String] {
+        let stopWords: Set<String> = [
+            "about", "after", "again", "all", "also", "and", "any", "are", "before", "but",
+            "came", "can", "day", "did", "for", "from", "had", "has", "have", "here", "into",
+            "its", "just", "kept", "like", "made", "not", "one", "out", "over", "page", "that",
+            "the", "then", "there", "this", "was", "week", "were", "what", "when", "while",
+            "with", "you", "your"
+        ]
+        var counts: [String: Int] = [:]
+        for highlight in highlights {
+            let words = highlight
+                .lowercased()
+                .split { !$0.isLetter && !$0.isNumber }
+                .map(String.init)
+                .filter { $0.count >= 4 && !stopWords.contains($0) }
+            for word in Set(words) {
+                counts[word, default: 0] += 1
+            }
+        }
+        return counts
+            .sorted { left, right in
+                if left.value == right.value { return left.key < right.key }
+                return left.value > right.value
+            }
+            .prefix(3)
+            .map(\.key)
     }
 }

@@ -19,6 +19,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case illuminatedPhoto
     case narrativeOS
     case gossip
+    case note
     case facultyResearch
     case letter
     case supportGuild
@@ -119,6 +120,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Story Page"
         case .gossip:
             return "Gossip Page"
+        case .note:
+            return "Notes"
         case .facultyResearch:
             return "Faculty Research Note"
         case .letter:
@@ -232,6 +235,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Story"
         case .gossip:
             return "Gossip"
+        case .note:
+            return "Note"
         case .facultyResearch:
             return "Research"
         case .letter:
@@ -345,6 +350,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "point.3.connected.trianglepath.dotted"
         case .gossip:
             return "bubble.left.and.text.bubble.right"
+        case .note:
+            return "note.text"
         case .facultyResearch:
             return "doc.text.magnifyingglass"
         case .letter:
@@ -507,6 +514,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "at the turn of a month, when the last one is ready to bind",
             note: "Sews a finished month into a chapter you can keep, share, or print."
+        ),
+        BookPageSource(
+            id: "weekly-issue",
+            type: .bindery,
+            title: "Weekly Issue",
+            shortTitle: "Issue",
+            symbolName: "doc.richtext",
+            origin: .simulated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "weekly, once the week has closed",
+            note: "Gathers the most recently completed week into a small issue you can keep or share."
         ),
         BookPageSource(
             id: "inner-weather",
@@ -723,6 +742,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "four-hour turn",
             note: "What moved while you were elsewhere."
+        ),
+        BookPageSource(
+            id: "student-notes",
+            type: .note,
+            title: "Notes",
+            shortTitle: "Note",
+            symbolName: "note.text",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "passing periods, classes, weather, and relationship turns",
+            note: "Quick character notes slipped to you by students, with replies they remember."
         ),
         BookPageSource(
             id: "letter-page",
@@ -1204,7 +1235,7 @@ enum BookPageSourceRegistry {
             return 30
         case .todaysSky, .bookJump, .radio:
             return 30
-        case .weather, .gossip, .facultyResearch, .letter, .academyClass, .elective:
+        case .weather, .gossip, .note, .facultyResearch, .letter, .academyClass, .elective:
             return 26
         case .theBleed:
             return 30
@@ -1253,7 +1284,7 @@ enum BookPageSourceRegistry {
             return 24
         case .bookJump:
             return 30
-        case .weather, .gossip, .facultyResearch, .letter, .askTheBook, .enchantment, .academyClass, .elective:
+        case .weather, .gossip, .note, .facultyResearch, .letter, .askTheBook, .enchantment, .academyClass, .elective:
             return 22
         case .theBleed:
             return 26

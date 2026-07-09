@@ -481,8 +481,8 @@ enum PageArchetypePackRegistry {
                     id: "insomniacs-inventory",
                     title: "The Insomniac's Inventory",
                     headline: "Awake, Annotated",
-                    detail: "A census of everything keeping watch with you.",
-                    reason: "The small hours keep their own ledger.",
+                    detail: "Let's count up everything that's staying awake with you.",
+                    reason: "The late-late hours like to keep their own little list.",
                     bodyTemplate: "It is deep {timeOfDay}, under a {moon}. You are awake; so are other things. Count what is keeping watch with you — the refrigerator's hum, a streetlight, one worried thought, the cat. List them in the margin. An inventory makes the night smaller and stranger company into actual company.",
                     score: 58,
                     cadenceHours: 24,
@@ -495,8 +495,8 @@ enum PageArchetypePackRegistry {
                     id: "dream-ledger",
                     title: "The Dream Ledger",
                     headline: "Before It Dissolves",
-                    detail: "Dreams keep poorly. File the fragment now.",
-                    reason: "Morning is the only window for this filing.",
+                    detail: "Dreams get slippery fast — let's catch a piece before it floats off.",
+                    reason: "Morning is the only little window to grab this one.",
                     bodyTemplate: "It is {timeOfDay}; whatever you dreamed is already evaporating at the edges. Write the fragment that remains in the margin — an image, a feeling, a sentence somebody said. Wrong details are fine; dreams are unreliable witnesses. The Ledger accepts all testimony.",
                     score: 56,
                     cadenceHours: 24,
@@ -509,8 +509,8 @@ enum PageArchetypePackRegistry {
                     id: "last-light",
                     title: "Last Light",
                     headline: "What the Day Touched Leaving",
-                    detail: "The Book names what the last daylight chose.",
-                    reason: "Dusk files the day before night opens its own office.",
+                    detail: "The Book will name whatever the last bit of daylight touched.",
+                    reason: "Dusk tidies the day away before night takes over.",
                     bodyTemplate: "The light is leaving. {moonLine} Open this page and the Book will name what today's last light touched on its way out.",
                     score: 60,
                     cadenceHours: 24,
@@ -519,7 +519,7 @@ enum PageArchetypePackRegistry {
                     symbolName: "sun.haze",
                     tags: ["nocturne", "evening", "dusk"],
                     generation: PageArchetype.GenerationSpec(
-                        instructions: "You are the Book inside ReEnchanted at dusk: unhurried, exact, a little nocturnal. Prose only.",
+                        instructions: "You are the Book inside ReEnchanted at dusk: unhurried, exact, a little nocturnal. \(BookVoice.animismLine) Prose only.",
                         promptTemplate: "The weather today: {weather}. {moonLine} The player's day so far: {lastKeptPage}. Write 2 short paragraphs: first, name three plausible ordinary things the last daylight touched on its way out of the player's rooms and street (be specific, invent nothing impossible); second, name the first thing the night takes up instead, and what kind of night it intends to be. End with one short line inviting the player to add the thing the light actually touched, in the margin.",
                         maxTokens: 320
                     )
@@ -537,8 +537,8 @@ enum PageArchetypePackRegistry {
                     id: "the-nothing-stirs",
                     title: "The Nothing Stirs",
                     headline: "A Grey Page",
-                    detail: "Something has been quietly erased. The Book wants to write it back.",
-                    reason: "At night, the Nothing tests the edges of kept days.",
+                    detail: "Something got quietly rubbed out, and the Book wants to write it back.",
+                    reason: "At night, the Nothing sneaks around the edges of your kept days.",
                     bodyTemplate: "Late {timeOfDay}, under a {moon}. Somewhere in today's margins, one small detail has gone grey and silent — the Nothing has been chewing at it. Open this page and the Book will try to write it back before it fades.",
                     score: 48,
                     cadenceHours: 24,
@@ -547,7 +547,7 @@ enum PageArchetypePackRegistry {
                     symbolName: "circle.dotted",
                     tags: ["nothing", "night", "fourth-wall"],
                     generation: PageArchetype.GenerationSpec(
-                        instructions: "You are the Book inside ReEnchanted, writing against the Nothing — the grey, silent force that erases unnoticed details. Quiet, a little eerie, finally warm. Prose only.",
+                        instructions: "You are the Book inside ReEnchanted, writing against the Nothing — the grey, silent force that erases unnoticed details. Quiet, a little eerie, finally warm. \(BookVoice.animismLine) Prose only.",
                         promptTemplate: "The player's day so far: {lastKeptPage}. The weather: {weather}. {moonLine} Write 2 short paragraphs: first, name one small, plausible detail of such a day that the Nothing has almost erased (be specific but invent nothing impossible); second, write it back into the margins so it is kept. End with one sentence addressed directly to {playerName}: something true about why noticing matters tonight.",
                         maxTokens: 300
                     )
@@ -556,8 +556,8 @@ enum PageArchetypePackRegistry {
                     id: "grey-margin",
                     title: "The Grey Margin",
                     headline: "Almost Taken",
-                    detail: "Quiet days let the grey in. One sentence holds the line.",
-                    reason: "The margins have been quiet, and the Nothing notices quiet.",
+                    detail: "Quiet days let the grey sneak in. One little sentence holds it back.",
+                    reason: "The margins have been quiet, and the Nothing always notices quiet.",
                     bodyTemplate: "The margins have been quiet for a little while — no shame in that; days do what days do. But the Nothing collects unnoticed time, and something from the quiet days has started going grey. Write one sentence about anything true from the last few days — a meal, a sound, a small errand — and it stays in the Book for good.",
                     score: 50,
                     cadenceHours: 12,
@@ -569,8 +569,8 @@ enum PageArchetypePackRegistry {
                     id: "returning-reader-threshold",
                     title: "The Returning Reader",
                     headline: "The Door Remembered You",
-                    detail: "After quiet days, the Book opens without scolding.",
-                    reason: "Absence has weight in the stacks; return has more.",
+                    detail: "After some quiet days, the Book opens right up, no scolding at all.",
+                    reason: "Being away matters in the stacks, but coming back matters even more.",
                     bodyTemplate: "The Book has been quiet for {playerName}, but not empty. Dust gathered on the edge of the page and arranged itself into a welcome. Write one sentence from the days away — plain, unfinished, absolutely enough — and the door will know your hand again.",
                     score: 62,
                     cadenceHours: 24,
@@ -583,8 +583,8 @@ enum PageArchetypePackRegistry {
                     id: "rain-in-the-stacks",
                     title: "Rain in the Stacks",
                     headline: "Petrichor Between Pages",
-                    detail: "Wet weather makes the margins remember differently.",
-                    reason: "Rain has reached the Book's weather desk.",
+                    detail: "Wet weather makes the margins remember things a little differently.",
+                    reason: "Rain has pitter-pattered all the way to the Book's weather desk.",
                     bodyTemplate: "It is {timeOfDay}, {weather}, and the shelves have begun to smell faintly of pavement, ink, and safe rooms. Keep one rain-detail from wherever you are: a sound, a reflection, a damp sleeve, a window doing its best. The Book will press it between these pages until it dries into memory.",
                     score: 57,
                     cadenceHours: 8,
@@ -597,8 +597,8 @@ enum PageArchetypePackRegistry {
                     id: "full-moon-marginalia",
                     title: "Full-Moon Marginalia",
                     headline: "Write Where It Glows",
-                    detail: "The Luminous Gathering leaves a writable edge.",
-                    reason: "The moon is bright enough to annotate the shelves.",
+                    detail: "The big bright moon leaves an edge you can write on.",
+                    reason: "The moon is bright enough tonight to scribble notes on the shelves.",
                     bodyTemplate: "{moonLine} Tonight the margins are not blank; they are only waiting for light to catch them. Keep one sentence you would not have noticed by daylight. It can be tiny. Full moons are not impressed by size; they are impressed by gleam.",
                     score: 61,
                     cadenceHours: 24,
@@ -612,8 +612,8 @@ enum PageArchetypePackRegistry {
                     id: "hearth-inventory",
                     title: "Hearth Inventory",
                     headline: "Three Survivors",
-                    detail: "A tiny evening ritual: name what made it through the day with you.",
-                    reason: "Evenings hold still long enough to count what stayed.",
+                    detail: "A tiny evening ritual: name whatever made it through the day with you.",
+                    reason: "Evenings sit still just long enough to count what stayed.",
                     bodyTemplate: "It is {timeOfDay}, {weather}. Name three things within arm's reach that survived the day with you. Objects count. Habits count. People count double. Write them in the margin and keep the page.",
                     score: 52,
                     cadenceHours: 24,
@@ -716,7 +716,7 @@ enum PageArchetypePackRegistry {
             tags: ["world-event", "dictionary-rebellion", "back-to-school", "class", "lesson"],
             trigger: PageTrigger(months: [9]),
             generation: PageArchetype.GenerationSpec(
-                instructions: "Write as the Book staging a whimsical Academy substitute lecture for September. Make the classroom concrete and different each time. The lecture must turn one ordinary detail from the reader's day into a lesson, but leave the reader space to answer.",
+                instructions: "Write as the Book staging a whimsical Academy substitute lecture for September. Make the classroom concrete and different each time. The lecture must turn one ordinary detail from the reader's day into a lesson, but leave the reader space to answer. \(BookVoice.animismLine)",
                 promptTemplate: "Season: {season}. Weather: {weather}. Time: {timeOfDay}. Last kept page: {lastKeptPage}. Write 2 short paragraphs: first, describe the substitute lecture and the wrong word on the board; second, ask the reader to name what that word tried to teach, the example it used from today, and the homework it left. Keep it playful and grounded.",
                 maxTokens: 280
             )
@@ -735,7 +735,7 @@ enum PageArchetypePackRegistry {
             tags: ["world-event", "dictionary-rebellion", "back-to-school", "roll-call", "words"],
             trigger: PageTrigger(months: [9]),
             generation: PageArchetype.GenerationSpec(
-                instructions: "Write as the Book conducting September roll call among rebellious words. Keep the ritual simple but vary the attendance categories each time, so repeat visits feel like different little audits of the reader's day.",
+                instructions: "Write as the Book conducting September roll call among rebellious words. Keep the ritual simple but vary the attendance categories each time, so repeat visits feel like different little audits of the reader's day. \(BookVoice.animismLine)",
                 promptTemplate: "Season: {season}. Weather: {weather}. Time: {timeOfDay}. Last kept page: {lastKeptPage}. Write 2 short paragraphs: first, describe where roll call is happening in the stacks and what kind of attendance categories are being used today; second, ask the reader to choose three words from their day and give each one a short attendance note. Vary the categories from visit to visit: present/absent/changed, tardy/excused/loud, borrowed/forgotten/new, or another fitting trio.",
                 maxTokens: 260
             )
@@ -754,7 +754,7 @@ enum PageArchetypePackRegistry {
             tags: ["world-event", "dictionary-rebellion", "back-to-school", "spelling-bee", "mook"],
             trigger: PageTrigger(months: [9]),
             generation: PageArchetype.GenerationSpec(
-                instructions: "Write as a September spelling bee that is half classroom contest, half testimony. Professor Mook may appear as a fussy official, but the page should help the reader discover what one word from the day has been carrying. Vary the spelling constraint each time.",
+                instructions: "Write as a September spelling bee that is half classroom contest, half testimony. Professor Mook may appear as a fussy official, but the page should help the reader discover what one word from the day has been carrying. Vary the spelling constraint each time. \(BookVoice.animismLine)",
                 promptTemplate: "Season: {season}. Weather: {weather}. Time: {timeOfDay}. Last kept page: {lastKeptPage}. Write 2 short paragraphs: first, stage today's spelling bee in a concrete part of the library or classroom; second, ask the reader to choose one word from today and unpack it through a specific spelling constraint. Rotate the constraint: acrostic down the margin, three most important letters, first/last/middle letter, silent letter, borrowed letter, or a weather-shaped rule.",
                 maxTokens: 270
             )
@@ -773,7 +773,7 @@ enum PageArchetypePackRegistry {
             tags: ["world-event", "dictionary-rebellion", "back-to-school", "erasure", "bargain-seed"],
             trigger: PageTrigger(months: [9], rarity: 0.45),
             generation: PageArchetype.GenerationSpec(
-                instructions: "Write as the Book when September's comic language trouble briefly turns serious. Quiet, precise, protective. Foreshadow that the word 'remember' has gone cold without explaining the mystery. Do not frighten the reader; invite one concrete thing to keep safe.",
+                instructions: "Write as the Book when September's comic language trouble briefly turns serious. Quiet, precise, protective. Foreshadow that the word 'remember' has gone cold without explaining the mystery. Do not frighten the reader; invite one concrete thing to keep safe. \(BookVoice.animismLine)",
                 promptTemplate: "Season: {season}. Weather: {weather}. Time: {timeOfDay}. Last kept page: {lastKeptPage}. Write 2 short paragraphs: first, describe a blank cold place in the margin where a word should be; second, ask the reader to keep one concrete thing from today that should not be misfiled by the dark. Make the detail feel different each time by tying it to weather, time, or the last kept page.",
                 maxTokens: 280
             )
@@ -1177,6 +1177,76 @@ enum MarginTutorCatalog {
             text: "This scene is written from your real day. The choices are real forks: Slice of Life tends the day, Progress Arc moves the active thread, Surprise opens a side door. The cast remembers what you choose — for weeks."
         ),
         MarginTutorNote(
+            id: "academy-class",
+            title: "Classes & Clubs",
+            text: "This is a scheduled Academy page: a class, club, or office door that is open right now. It appears because the Book found a real-time session that fits the hour. Tap through for the small lesson, then keep it if you want that subject to echo later."
+        ),
+        MarginTutorNote(
+            id: "game-page",
+            title: "Game Pages",
+            text: "This is a small playable page, not homework in disguise. It appears when a kept word or story thread wants to move under your fingers. Play the round, keep the result if it mattered, and the Book can remember the outcome."
+        ),
+        MarginTutorNote(
+            id: "gossip-page",
+            title: "Gossip Pages",
+            text: "Gossip means the cast did something while you were away. It appears when relationships, favors, or little rivalries have enough charge to leave a trace. Read it for the social weather; keep it if you want that rumor to become part of the archive."
+        ),
+        MarginTutorNote(
+            id: "letter-page",
+            title: "Letters",
+            text: "A letter is a character reaching across the margin on purpose. It appears when someone in the cast has enough reason to answer, invite, tease, or report back. Read it like mail; keeping it gives that relationship a firmer thread."
+        ),
+        MarginTutorNote(
+            id: "faculty-research",
+            title: "Faculty Research",
+            text: "This is the Academy doing fieldwork on your patterns, not grading you. It appears when several kept pages start pointing at the same question. Read the finding, try the small experiment if it helps, and ignore it if it does not fit."
+        ),
+        MarginTutorNote(
+            id: "support-guild",
+            title: "The Support Guild",
+            text: "The Support Guild is low-shame pattern spotting across body, fuel, mood, and weather notes. It appears when the Book has enough signals to be useful without pretending to diagnose you. Use the page as a gentle hypothesis, then keep only what feels true."
+        ),
+        MarginTutorNote(
+            id: "inkrest-office-hours",
+            title: "Office Hours",
+            text: "Dr. Inkrest opens the door when a pattern deserves a slower look. This page appears because one thread has enough evidence for a focused question. Read the counsel, answer if you want, and the Book will use that answer as context later."
+        ),
+        MarginTutorNote(
+            id: "glow-invitation",
+            title: "Glow Invitations",
+            text: "A Glow Invitation is the Book asking where your attention wants to go next. It appears when a person, place, page type, or story thread is ready for more Belief. Choose only what you genuinely want more of; attention is how this place learns."
+        ),
+        MarginTutorNote(
+            id: "word-negotiation",
+            title: "Word Negotiation",
+            text: "Sometimes the Book asks what one of your words means in your life. It appears when a repeated word could become a doorway instead of a label. Pick the meaning that fits, or decline it, and future pages will use the word more carefully."
+        ),
+        MarginTutorNote(
+            id: "cast-bond",
+            title: "Cast Turns",
+            text: "A Cast Turn shows people in the margins changing their stance toward each other. It appears when Belief, choices, or story events nudge a relationship. Read it as social continuity; keep it if you want that turn to count."
+        ),
+        MarginTutorNote(
+            id: "two-readings",
+            title: "Two Readings",
+            text: "Two Readings lets two cast members disagree over the same evidence. It appears when your archive can support more than one honest interpretation. Read both sides, then keep the one that sharpens the question."
+        ),
+        MarginTutorNote(
+            id: "book-notices",
+            title: "The Book Notices",
+            text: "This is the Book saying what it thinks it has learned so far. It appears when there is enough handwriting, rhythm, or archive evidence to reflect back. Treat it as a check-in: keep it if it feels accurate, or let it go so the Book keeps listening."
+        ),
+        MarginTutorNote(
+            id: "festival-page",
+            title: "Festivals",
+            text: "Festival pages are calendar weather from the Wheel of the Year. They appear when a real seasonal door is open, so the timing matters more than your keep count. Read for the day’s flavor, then keep it if the ritual or image belongs in your margins."
+        ),
+        MarginTutorNote(
+            id: "book-jump",
+            title: "Book Jumps",
+            text: "A Book Jump is a small expedition into a public-domain story world. It appears when the Stacks can offer a clean doorway and a clear return. Choose a direction, bring back one souvenir, and the jump continues from what you kept."
+        ),
+        MarginTutorNote(
             id: "enchantment-page",
             title: "Enchantments",
             text: "Pick or take a photo, and the spell reads the real subject — only what the photo actually shows. Everything Speaks even lets the subject talk back. The camera is a wand here."
@@ -1185,6 +1255,36 @@ enum MarginTutorCatalog {
             id: "flyleaf",
             title: "The Flyleaf",
             text: "Quests live here, five at most. Do the thing out in the real world, come back with sentence, photo, or GPS proof, and the asker will remember it - and trust you with stranger requests."
+        ),
+        MarginTutorNote(
+            id: "fae-bargain",
+            title: "Fae Bargains",
+            text: "A bargain is optional magic with a cost written on the label. It appears when the Book can offer a trade instead of a command. Read the terms, accept only if you want the consequence, and swipe away freely if the price is wrong."
+        ),
+        MarginTutorNote(
+            id: "book-fae",
+            title: "The Book Fae",
+            text: "Book Fae pages are visits from the stranger citizens of the margins. They appear when a pact, gift, debt, or mood gives them a reason to knock. Listen for the offer or warning, then keep the page only if you want that fae thread to stay awake."
+        ),
+        MarginTutorNote(
+            id: "pact-dispatch",
+            title: "Pact Dispatches",
+            text: "A dispatch is news from an active pact: who moved, what changed, and what the Book thinks it means. It appears after choices or favors start having consequences. Read it for the current state, then decide whether to answer with action or attention."
+        ),
+        MarginTutorNote(
+            id: "pact-verdict",
+            title: "Pact Verdicts",
+            text: "A pact verdict is the closing note on a pact beat. It appears when the Book has enough evidence to say how the bargain landed. Read the result, keep it if you want the outcome remembered, and let it go if the thread should cool."
+        ),
+        MarginTutorNote(
+            id: "pact-errand",
+            title: "Pact Errands",
+            text: "A pact errand is a tiny real-world task attached to a larger magical promise. It appears when a talisman or faction wants proof outside the screen. Do the small thing only if it fits your day; the Book can wait."
+        ),
+        MarginTutorNote(
+            id: "the-bleed",
+            title: "The Bleed",
+            text: "The Bleed is what happens when outside pressure leaks into the margins. It appears when the Book has reason to make the interference visible instead of pretending everything is fine. Read it as a weather report, then choose the gentlest next action."
         ),
         MarginTutorNote(
             id: "compass-run",
@@ -1215,11 +1315,87 @@ enum MarginTutorCatalog {
             id: "colophon",
             title: "The Colophon",
             text: "The book's machinery lives down here — model status, charts, doorway settings. Every honest book admits how it was made; ours just keeps it in a drawer."
+        ),
+        MarginTutorNote(
+            id: "scrapbook-studio",
+            title: "Scrapbook Studio",
+            text: "This is the Pagewright: a worktable for pages you already kept. Pick scraps from your archive, arrange them by hand, add a note if you want, then keep the finished sheet so weekly, monthly, and yearly bindings can carry it forward."
+        ),
+        MarginTutorNote(
+            id: "scrapbook-scraps",
+            title: "Choosing Scraps",
+            text: "Scraps are kept pages, not raw material from nowhere. Add one because it belongs beside the others; filter by day, kind, photo, or search when the pile gets crowded. The finished page remembers which originals you used."
+        ),
+        MarginTutorNote(
+            id: "scrapbook-marks",
+            title: "Marks & Marginalia",
+            text: "Marks are decorations for the scrapbook page, with little locks on some of them. If a mark is open, place it freely. If it is locked, Zara's rule is simple: complete the named achievement, or spend one Belief to reveal a hint and decide whether the chase is worth it."
+        ),
+        MarginTutorNote(
+            id: "scrapbook-achievements",
+            title: "Scrapbook Achievements",
+            text: "Those lock labels are achievements, not chores. They point toward useful studio moves: name the page, add more scraps, choose a pull quote, export a draft, or gather pages from different days. The reward is more expressive marginalia, not a grade."
+        ),
+        MarginTutorNote(
+            id: "scrapbook-keep",
+            title: "Keeping a Scrapbook Page",
+            text: "Keep in Book makes this handmade sheet a real kept page. I checked the binding: the Book stores the image, your note, and the source scraps, then the weekly issue and later bindings can include it as a Scrapbook Page."
         )
     ]
 
     static func note(for id: String) -> MarginTutorNote? {
         notes.first { $0.id == id }
+    }
+
+    static func noteID(for type: BookPageType) -> String? {
+        switch type {
+        case .narrativeOS:
+            return "story-page"
+        case .academyClass:
+            return "academy-class"
+        case .elective:
+            return "flyleaf"
+        case .gamePage:
+            return "game-page"
+        case .gossip:
+            return "gossip-page"
+        case .letter:
+            return "letter-page"
+        case .facultyResearch:
+            return "faculty-research"
+        case .supportGuild:
+            return "support-guild"
+        case .inkrestOfficeHours:
+            return "inkrest-office-hours"
+        case .glowInvitation:
+            return "glow-invitation"
+        case .wordNegotiation:
+            return "word-negotiation"
+        case .castBond:
+            return "cast-bond"
+        case .twoReadings:
+            return "two-readings"
+        case .bookNotices:
+            return "book-notices"
+        case .festival:
+            return "festival-page"
+        case .bookJump:
+            return "book-jump"
+        case .faeBargain:
+            return "fae-bargain"
+        case .bookFae:
+            return "book-fae"
+        case .pactDispatch:
+            return "pact-dispatch"
+        case .pactVerdict:
+            return "pact-verdict"
+        case .pactErrand:
+            return "pact-errand"
+        case .theBleed:
+            return "the-bleed"
+        default:
+            return nil
+        }
     }
 }
 
@@ -1286,6 +1462,9 @@ struct ReEnchantedSaveFile: Codable {
     /// photographs themselves, not just dead absolute paths that break on a
     /// new phone. Absent in version 1 files. See `sealedMedia`/`rehomedDays`.
     var mediaFiles: [String: Data]? = nil
+    /// First-run steps the reader engaged with, so a restored Book never
+    /// replays onboarding the reader already lived past on the old phone.
+    var firstRunEngaged: [String]? = nil
 }
 
 extension BookPageMediaAsset.Kind {
@@ -1450,6 +1629,12 @@ struct PlayerVaultData: Codable, Equatable {
     /// me." Each is one short second-person nudge folded into future braid
     /// prompts as reader-taught guidance. Capped to the most recent few.
     var learnedBraidNotes: [String]?
+    /// History keys of first-run script steps the reader actually engaged
+    /// with — opened or deliberately swiped away. The script once advanced on
+    /// served-history alone, which let quick desk rebuilds (right after the
+    /// local brain finished downloading, say) burn through steps nobody read.
+    /// Nil means "never seeded": seeded once from surfaceHistory on load.
+    var firstRunEngaged: [String]?
 }
 
 // MARK: - The BookShop
@@ -1530,7 +1715,7 @@ struct BookShopFreeGift: Identifiable, Codable, Equatable {
 
 /// One billing cadence of the Standing Order. All three tiers grant the same
 /// all-packs entitlement (`PackEntitlements.standingOrderPackID`) and carry the
-/// same 3-day free trial — they differ only in how often the ledger renews.
+/// same 10-day free trial — they differ only in how often the ledger renews.
 /// The paywall renders these; the goblin-market shelf still shows the annual as
 /// the single representative Standing Order card.
 struct StandingOrderTier: Identifiable, Equatable {
@@ -1551,7 +1736,7 @@ struct StandingOrderTier: Identifiable, Equatable {
     /// A plain-language value note, e.g. "Best value — 2 months free".
     var valueNote: String?
     /// Every tier ships the same trial; kept per-tier for clarity in the sheet.
-    var freeTrialDays: Int = 3
+    var freeTrialDays: Int = 10
 }
 
 enum BookShopCatalog {
@@ -1593,7 +1778,7 @@ enum BookShopCatalog {
     ]
 
     /// The three cadences of the Standing Order, cheapest cadence first. All
-    /// grant the all-packs entitlement; all carry the 3-day trial. Product IDs
+    /// grant the all-packs entitlement; all carry the 10-day trial. Product IDs
     /// live in the same App Store Connect subscription group so the store
     /// handles upgrade/downgrade proration.
     static let standingOrderTiers: [StandingOrderTier] = [
