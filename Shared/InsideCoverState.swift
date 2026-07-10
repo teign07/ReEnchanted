@@ -1716,7 +1716,7 @@ extension String {
         var current = ""
         for character in normalized {
             current.append(character)
-            if ".!?".contains(character) {
+            if ".!?".contains(character), current.hasBookPreviewSentenceBoundary {
                 let sentence = current.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !sentence.isEmpty {
                     sentences.append(sentence)
@@ -1732,6 +1732,28 @@ extension String {
             return normalized
         }
         return sentences.prefix(limit).joined(separator: " ")
+    }
+
+    private var hasBookPreviewSentenceBoundary: Bool {
+        guard let last = last, ".!?".contains(last) else {
+            return false
+        }
+        guard last == "." else {
+            return true
+        }
+
+        let lastToken = split(separator: " ").last.map(String.init) ?? self
+        let abbreviation = lastToken
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+            .lowercased()
+        let nonTerminalAbbreviations: Set<String> = [
+            "dr", "prof", "mr", "mrs", "ms", "mx", "st", "sr", "jr", "vs", "etc"
+        ]
+        if nonTerminalAbbreviations.contains(abbreviation) {
+            return false
+        }
+
+        return true
     }
 }
 

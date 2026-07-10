@@ -172,7 +172,10 @@ enum BookMemoryGate {
     ]
 
     static func locks(_ type: BookPageType, keptPageCount: Int) -> Bool {
-        lockedTypes.contains(type) && keptPageCount < requiredKeptPageCount
+        if type == .patreon || type == .quip {
+            return keptPageCount < 30
+        }
+        return lockedTypes.contains(type) && keptPageCount < requiredKeptPageCount
     }
 
     static func remainingPages(for keptPageCount: Int) -> Int {
@@ -546,11 +549,21 @@ enum MarginsAtlasVariant: String, Codable, Equatable, CaseIterable {
 
 protocol BookPageSourceAdapter {
     var source: BookPageSource { get }
+    /// Declared here (not just defaulted in the extension) so an override on a
+    /// concrete adapter dispatches dynamically when called on the existential.
+    var servedSourceIDs: [String] { get }
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage]
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage
 }
 
 extension BookPageSourceAdapter {
+    /// Every active source ID this adapter can stamp onto a surfaced page.
+    /// Most adapters serve only their own `source`; a few (e.g. the Wonder
+    /// Compass) fan one adapter out across several child source IDs so those
+    /// children can carry their own Belief and titles. The curator invariant
+    /// "every active source has an adapter" reads this, not just `source.id`.
+    var servedSourceIDs: [String] { [source.id] }
+
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
         candidates(for: day, context: context, inputs: inputs, now: now).first ?? SurfacePage(
             id: "manual-\(source.type.rawValue)-\(day.id)-\(Int(now.timeIntervalSince1970))",
@@ -1728,6 +1741,7 @@ struct FirstReadingPageSourceAdapter: BookPageSourceAdapter {
                     metadata: [
                         "source": source.id,
                         "firstReading": "true",
+                        "milestone": "true",
                         "wagerReceipt": wagerReceipt == nil ? "false" : "true",
                         "reflectedPageCount": "\(reflection.pageCount)",
                         "tags": "first-reading,book-notices,proof-of-reading,local-memory"
@@ -1759,8 +1773,259 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         pages += namingSurfaces(for: day, inputs: inputs, now: now)
         pages += wagerSurfaces(for: day, inputs: inputs, now: now)
         pages += learningSurfaces(for: day, inputs: inputs, now: now)
+        pages += howYouSeeSurfaces(for: day, inputs: inputs, now: now)
+        pages += connectionNarrativeSurfaces(for: day, inputs: inputs, now: now)
         pages += noticeSurfaces(for: day, inputs: inputs, now: now)
         return pages
+    }
+
+    /// A high-evidence notice that reads several actual kept pages as one
+    /// developing thread. This sits beside the ordinary continuity notice: it
+    /// does not replace the wider pattern ledger, and it stays silent unless
+    /// the archive can put the source pages themselves on the table.
+    private func connectionNarrativeSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard !didNoticeToday(day) else { return [] }
+        let allDays = inputs.days + [day]
+        let pagesByID = Dictionary(
+            allDays.flatMap(\.capturedPages).map { ($0.id, $0) },
+            uniquingKeysWith: { _, newer in newer }
+        )
+        let spoken = Self.spokenConnectionIDs(days: allDays)
+
+        if let pairing = inputs.semanticNoticePairing,
+           let older = pagesByID[pairing.sourcePageID],
+           let newer = pagesByID[pairing.anchorPageID],
+           Self.isNarrativeConnectionEvidence(older),
+           Self.isNarrativeConnectionEvidence(newer) {
+            let connectionID = "semantic-\(older.id)-\(newer.id)"
+            if !spoken.contains(connectionID) {
+                return [Self.semanticConnectionSurface(
+                    source: source,
+                    day: day,
+                    older: older,
+                    newer: newer,
+                    pairing: pairing,
+                    connectionID: connectionID,
+                    now: now
+                )]
+            }
+        }
+
+        for signal in inputs.continuity.strongestSignals where signal.kind == .pattern && signal.strength >= 62 {
+            let evidence = signal.evidencePageIDs
+                .compactMap { pagesByID[$0] }
+                .filter(Self.isNarrativeConnectionEvidence)
+                .sorted { left, right in
+                    if left.createdAt == right.createdAt { return left.id < right.id }
+                    return left.createdAt < right.createdAt
+                }
+            let distinctDays = Set(evidence.map { BookDay.id(for: $0.createdAt) })
+            guard evidence.count >= 3,
+                  distinctDays.count >= 3,
+                  let first = evidence.first,
+                  let last = evidence.last,
+                  last.createdAt.timeIntervalSince(first.createdAt) >= 6 * 86_400 else { continue }
+
+            let middle = evidence[evidence.count / 2]
+            let selected = [first, middle, last]
+            let connectionID = "signal-\(signal.id)-\(selected.map(\.id).joined(separator: "-"))"
+            guard !spoken.contains(connectionID) else { continue }
+            return [Self.recurringConnectionSurface(
+                source: source,
+                day: day,
+                signal: signal,
+                pages: selected,
+                connectionID: connectionID,
+                now: now
+            )]
+        }
+        return []
+    }
+
+    private static let connectionSpokeTagPrefix = "connection-spoke:"
+
+    private static func spokenConnectionIDs(days: [BookDay]) -> Set<String> {
+        Set(days.flatMap(\.pages).flatMap(\.tags).compactMap { tag in
+            guard tag.hasPrefix(connectionSpokeTagPrefix) else { return nil }
+            return String(tag.dropFirst(connectionSpokeTagPrefix.count))
+        })
+    }
+
+    private static func isNarrativeConnectionEvidence(_ page: BookPage) -> Bool {
+        page.origin == .userAuthored
+            && !EditionCurator.defaultPrivateTypes.contains(page.type)
+            && page.userInput.split { !$0.isLetter && !$0.isNumber }.count >= 5
+    }
+
+    private static func semanticConnectionSurface(
+        source: BookPageSource,
+        day: BookDay,
+        older: BookPage,
+        newer: BookPage,
+        pairing: SemanticNoticePairing,
+        connectionID: String,
+        now: Date
+    ) -> SurfacePage {
+        let olderDate = connectionDateFormatter.string(from: older.createdAt)
+        let newerDate = connectionDateFormatter.string(from: newer.createdAt)
+        let body = """
+        I found two pages in different parts of the archive. They do not borrow each other's important words.
+
+        On \(olderDate), you kept:
+
+        \u{201C}\(pairing.sourceExcerpt)\u{201D}
+
+        On \(newerDate), you kept:
+
+        \u{201C}\(pairing.anchorExcerpt)\u{201D}
+
+        The newer page does not repeat the older one. Still, each changes how the other reads. Put together, they make a small before-and-after without telling me which one is the before.
+
+        Whatever joins them lives below vocabulary. I will not name the feeling on your behalf; that would flatten it. I have only left their corners touching, because the pages seemed less alone that way.
+        """
+        let cards = [
+            NoticePatternCard(title: olderDate, text: pairing.sourceExcerpt, symbol: "book.closed"),
+            NoticePatternCard(title: newerDate, text: pairing.anchorExcerpt, symbol: "book.pages")
+        ]
+        return SurfacePage(
+            id: "\(source.id)-thread-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 24))",
+            type: .bookNotices,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: 88,
+            reason: "Two kept pages far apart changed meaning when the Book set them side by side.",
+            prompt: "Two of your kept pages found each other.",
+            detail: "\u{201C}\(pairing.sourceExcerpt)\u{201D} / \u{201C}\(pairing.anchorExcerpt)\u{201D}",
+            payload: BookPagePayload(
+                headline: "The Thread Between",
+                body: body,
+                metadata: [
+                    "source": source.id,
+                    "connectionNarrative": "true",
+                    "connectionKind": "semantic",
+                    "connectionID": connectionID,
+                    "evidencePageIDs": "\(older.id),\(newer.id)",
+                    "tinyPatternCards": encodeNoticePatternCards(cards),
+                    "feedbackPrompt": "Did the Book read this right?",
+                    "tags": "book-notices,connection-narrative,semantic-connection,\(connectionSpokeTagPrefix)\(connectionID),local-memory"
+                ]
+            )
+        )
+    }
+
+    private static func recurringConnectionSurface(
+        source: BookPageSource,
+        day: BookDay,
+        signal: LiteraryContinuitySignal,
+        pages: [BookPage],
+        connectionID: String,
+        now: Date
+    ) -> SurfacePage {
+        let dates = pages.map { connectionDateFormatter.string(from: $0.createdAt) }
+        let excerpts = pages.map { connectionExcerpt(from: $0) }
+        let subject = signal.subjectName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = """
+        I pulled three pages because \(subject.lowercased()) was holding all of them by one corner.
+
+        On \(dates[0]), in a \(pages[0].type.title.lowercased()) page, you kept:
+
+        \u{201C}\(excerpts[0])\u{201D}
+
+        Then on \(dates[1]):
+
+        \u{201C}\(excerpts[1])\u{201D}
+
+        Most recently, on \(dates[2]):
+
+        \u{201C}\(excerpts[2])\u{201D}
+
+        The first page might have been chance. The second made a rhyme. The third made the earlier two turn their faces toward it. That is the connection I notice: not the same sentence three times, but your attention choosing the same door on three different days.
+
+        I do not yet know what \(subject.lowercased()) means in your book. I know it keeps accepting different pieces of your life without going blank. So I have put these pages together. Their corners seemed relieved.
+        """
+        let cards = zip(dates, excerpts).map { date, excerpt in
+            NoticePatternCard(title: date, text: excerpt, symbol: "bookmark")
+        }
+        return SurfacePage(
+            id: "\(source.id)-thread-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 24))",
+            type: .bookNotices,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: min(87, 78 + signal.strength / 10),
+            reason: "Three reader-authored pages have begun behaving like one continuing thread.",
+            prompt: "Three of your kept pages found each other.",
+            detail: "\(subject) returned across \(dates.joined(separator: ", ")).",
+            payload: BookPagePayload(
+                headline: "The Thread Between",
+                body: body,
+                metadata: [
+                    "source": source.id,
+                    "connectionNarrative": "true",
+                    "connectionKind": "recurrence",
+                    "connectionID": connectionID,
+                    "connectionSubject": subject,
+                    "continuitySignals": signal.promptLine,
+                    "evidencePageIDs": pages.map(\.id).joined(separator: ","),
+                    "tinyPatternCards": encodeNoticePatternCards(cards),
+                    "feedbackPrompt": "Did the Book read this right?",
+                    "tags": "book-notices,connection-narrative,spoke:\(signal.id),\(connectionSpokeTagPrefix)\(connectionID),local-memory"
+                ]
+            )
+        )
+    }
+
+    private static func connectionExcerpt(from page: BookPage) -> String {
+        BookAsks.clipped(page.userInput.bookPreviewSentenceLimit(1), limit: 150)
+    }
+
+    private static let connectionDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM d"
+        return formatter
+    }()
+
+    private func howYouSeeSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard !didNoticeToday(day) else { return [] }
+        let allDays = inputs.days + [day]
+        guard !Self.spokenSignalIDs(days: allDays, within: 90, now: now).contains("how-you-see"),
+              let receipt = HowYouSee.receipt(days: allDays, now: now) else { return [] }
+        let body = """
+        I am careful with certainty. But this I can show you, in your own hand.
+
+        In \(receipt.earlierMonthName) you kept: "\(receipt.earlierQuote)"
+
+        This week you kept: "\(receipt.recentQuote)"
+
+        The second one has weather in it, and weight, and something moving. The world did not get better written. You started reading it closer. I only keep the pages — the seeing is yours.
+        """
+        let cards = [
+            NoticePatternCard(title: "Then", text: "\(receipt.earlierMonthName): \(receipt.earlierQuote)", symbol: "text.quote"),
+            NoticePatternCard(title: "Now", text: receipt.recentQuote, symbol: "sparkles")
+        ]
+        return [SurfacePage(
+            id: "\(source.id)-how-you-see-\(day.id)",
+            type: .bookNotices,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: 86,
+            reason: "The Book found proof that the reader's own seeing has changed.",
+            prompt: "The Book shows you your own eyes changing.",
+            detail: receipt.recentQuote,
+            payload: BookPagePayload(
+                headline: "How You See",
+                body: body,
+                metadata: [
+                    "source": source.id,
+                    "howYouSee": "true",
+                    "tinyPatternCards": Self.encodeNoticePatternCards(cards),
+                    "feedbackPrompt": "Did the Book read this right?",
+                    "tags": "book-notices,how-you-see,spoke:how-you-see,local-memory"
+                ]
+            )
+        )]
     }
 
     private func learningSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
@@ -1947,6 +2212,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
                     body: body,
                     metadata: [
                         "source": source.id,
+                        "milestone": "true",
                         "constellationID": constellation.id,
                         "constellationName": name,
                         "constellationPhase": constellation.phase.rawValue,
@@ -1989,6 +2255,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
                     body: body,
                     metadata: [
                         "source": source.id,
+                        "milestone": "true",
                         "wagerID": opened.id,
                         "wagerMoment": "opened",
                         "wagerStatus": opened.status.rawValue,
@@ -2022,6 +2289,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
                     body: body,
                     metadata: [
                         "source": source.id,
+                        "milestone": "true",
                         "wagerID": sealed.id,
                         "wagerMoment": "sealed",
                         "wagerOpensAt": Self.sealDateFormatter.string(from: sealed.opensAt),
@@ -4121,7 +4389,7 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
 
         \(evidence)
 
-        Stories engulf the room. Your tongue catches old paper and lightning. Your skin remembers a thousand stories that are not yours and, threaded through them, the ordinary kept pieces that are. At the edges, the Nothing opens its grey mouth. The lines of your kept pages flare back.
+        Stories engulf the room. Your tongue catches old paper and lightning. Your skin remembers a thousand stories that are not yours and, threaded through them, the ordinary kept pieces that are. At the edges, Disbelief opens its grey mouth. The lines of your kept pages flare back.
 
         A jolt runs through the binding, like swallowing lightning. Ink lifts from the margins and gathers into a seal.
 
@@ -4191,6 +4459,17 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
 struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .wonderCompass)
 
+    /// The compass stamps its standalone Notice and Sense pages with their own
+    /// source IDs (for per-page Belief and titles), so this one adapter serves
+    /// all three.
+    var servedSourceIDs: [String] {
+        [
+            source.id,
+            BookPageSourceRegistry.wonderCompassNoticeSourceID,
+            BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID
+        ]
+    }
+
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else {
             return []
@@ -4227,6 +4506,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
                     body: snippet.body,
                     metadata: [
                         "source": source.id,
+                        "compassFamily": "wonder-compass",
                         "snippetID": snippet.id,
                         "tags": snippet.tags.joined(separator: ","),
                         "selector": selector
@@ -4268,6 +4548,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
                         body: shadowSnippet.body,
                         metadata: [
                             "source": source.id,
+                            "compassFamily": "wonder-compass",
                             "snippetID": shadowSnippet.id,
                             "shadowVariantOf": "\(source.id)-\(snippet.id)",
                             "variant": "shadow-wonder",
@@ -4310,6 +4591,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         metadata["proofKind"] = mission.allowsPhoto ? "sentence-or-photo" : "sentence"
         let tags = (seed.tags + ["compass-step:sense", "playful-mission"] + mission.tags.map { "mission:\($0)" }).joined(separator: ",")
         metadata["tags"] = isShadowVariant ? ShadowWonder.mergedTags(tags, inputs: inputs, now: now) : tags
+        metadata["source"] = BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID
         metadata["symbol"] = mission.allowsPhoto ? "camera.macro" : "hand.raised"
         metadata["startingPageBelief"] = "62"
         let isNaturalPhenomenonMission = mission.tags.contains("natural-phenomenon")
@@ -4329,7 +4611,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         return SurfacePage(
             id: "\(source.id)-\(isShadowVariant ? "shadow-" : "")playful-mission-\(mission.id)-\(SurfaceCadence.slotID(for: now, hours: 2))",
             type: .wonderCompass,
-            sourceID: source.id,
+            sourceID: BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID,
             intent: .capture,
             renderStyle: .promptCard,
             score: (context.distress.isActive ? 54 : 64) + (isShadowVariant ? shadowState.scoreBoost : 0),
@@ -4373,6 +4655,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
                     """,
                     metadata: [
                         "source": source.id,
+                        "compassFamily": "wonder-compass",
                         "snippetID": "wonder-compass-chapter9",
                         "chapterSourceID": "wonder-compass-chapter9",
                         "pennySentenceLesson": lesson.rawValue,
@@ -4478,6 +4761,10 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         if standalone, step == .notice {
             metadata["startingPageBelief"] = "62"
         }
+        let pageSourceID = standalone && step == .notice
+            ? BookPageSourceRegistry.wonderCompassNoticeSourceID
+            : source.id
+        metadata["source"] = pageSourceID
         metadata["placeholder"] = step.capturePlaceholder
         let title = WonderTitleRegistry.earnedTitle(from: inputs.selfFacts)
         if let title {
@@ -4497,7 +4784,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         return SurfacePage(
             id: "\(source.id)-\(isShadowVariant ? "shadow-" : "")\(standalone ? "solo" : "run")-\(seed.id)-\(step.rawValue)",
             type: .wonderCompass,
-            sourceID: source.id,
+            sourceID: pageSourceID,
             intent: .capture,
             renderStyle: .promptCard,
             score: score + (isShadowVariant ? shadowState.scoreBoost : 0),
@@ -4520,6 +4807,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         let tags = seed.tags + (step.map { ["compass-step:\($0.rawValue)"] } ?? [])
         var metadata: [String: String] = [
             "source": source.id,
+            "compassFamily": "wonder-compass",
             "tags": tags.joined(separator: ","),
             "runID": seed.id,
             "conciergeMode": seed.mode.rawValue,
@@ -7927,8 +8215,8 @@ struct GamePageSourceAdapter: BookPageSourceAdapter {
                     : "The Loom is waiting for a few more kept sentences before it can run."),
             prompt: isShadow ? "The Shadow Runner" : "The Sentence Runner",
             detail: isShadow
-                ? "Jump through your kept words and the worn-edge lexicon — rust, thorn, dusk. Avoid the Nothing's grey. Keep the dark, honest sentence the run makes."
-                : "Jump through words from your own archive. Avoid the Nothing's grey phrases. Keep what the run makes.",
+                ? "Jump through your kept words and the worn-edge lexicon — rust, thorn, dusk. Avoid Disbelief's grey. Keep the dark, honest sentence the run makes."
+                : "Jump through words from your own archive. Avoid Disbelief's grey phrases. Keep what the run makes.",
             payload: BookPagePayload(
                 headline: ready
                     ? (isShadow ? "Your worn words are moving in the dark." : "Your old words are moving again.")
@@ -7954,7 +8242,7 @@ struct GamePageSourceAdapter: BookPageSourceAdapter {
         .filter { seen.insert($0.phrase.lowercased()).inserted }
     }
 
-    /// The Nothing speaks in the reader's own flat words when it can: prefer the
+    /// The Disbelief speaks in the reader's own flat words when it can: prefer the
     /// generic phrases that actually appear in the archive, else fall back to the
     /// fixed lexicon so a thin archive still has grey to avoid.
     private func nothingPool(from days: [BookDay]) -> [String] {

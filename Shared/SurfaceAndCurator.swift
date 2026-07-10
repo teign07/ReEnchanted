@@ -1035,8 +1035,8 @@ enum BookCurator {
            }) {
             if picked.isEmpty {
                 picked = [inject]
-            } else {
-                picked[picked.count - 1] = inject
+            } else if let victim = injectionVictimIndex(in: picked, preferringLane: inject.type.deskLane) {
+                picked[victim] = inject
             }
         }
 
@@ -1050,14 +1050,32 @@ enum BookCurator {
            }) {
             if picked.isEmpty {
                 picked = [braid]
-            } else {
-                picked[picked.count - 1] = braid
+            } else if let victim = injectionVictimIndex(in: picked, preferringLane: .fiction) {
+                // The braid is the fiction slot; it may replace an existing
+                // non-braid fiction page so the desk stays balanced.
+                picked[victim] = braid
             }
         }
 
         return picked
             .map { PactWarEffects.framed($0, state: inputs.pactWar) }
             .map { $0.withReaderLexiconLanguageLaw(inputs.readerLexicon) }
+    }
+
+    /// The slot a guaranteed injection (sovereign shelf, evening braid) may
+    /// claim. Prefer a page already in the injected page's lane so the desk
+    /// stays balanced; otherwise the last non-milestone, non-braid slot. Never
+    /// returns a milestone slot — those are pinned and never evicted.
+    private static func injectionVictimIndex(
+        in picked: [SurfacePage],
+        preferringLane lane: DeskLane
+    ) -> Int? {
+        if let sameLane = picked.lastIndex(where: {
+            $0.type.deskLane == lane && !$0.isDeskMilestone && $0.type != .bookOfYou
+        }) {
+            return sameLane
+        }
+        return picked.lastIndex(where: { !$0.isDeskMilestone && $0.type != .bookOfYou })
     }
 
     static func rankedPages(
@@ -1110,18 +1128,52 @@ enum BookCurator {
         // single felt reveal rather than a wall of novelty. Wider queries
         // (limit > 3) scale the allowance instead of starving.
         let debutLimit = max(1, limit / 3)
-        for page in deduped where picked.count < limit {
-            guard !pickedTypes.contains(page.type) else { continue }
-            if page.type.isCompositionPrompt, compositionCount >= compositionLimit { continue }
-            let isDebut = page.payload.metadata["firstReading"] == "true"
+
+        func isDebut(_ page: SurfacePage) -> Bool {
+            page.payload.metadata["firstReading"] == "true"
                 ? false
                 : IntroductionCurriculum.isManagedDebut(page.type, surfaceHistory: mood.surfaceHistory)
-            if isDebut, debutCount >= debutLimit { continue }
+        }
+        func canAdd(_ page: SurfacePage) -> Bool {
+            guard picked.count < limit else { return false }
+            guard !pickedTypes.contains(page.type) else { return false }
+            if page.type.isCompositionPrompt, compositionCount >= compositionLimit { return false }
+            if isDebut(page), debutCount >= debutLimit { return false }
+            return true
+        }
+        func add(_ page: SurfacePage) {
+            if isDebut(page) { debutCount += 1 }
+            if page.type.isCompositionPrompt { compositionCount += 1 }
             picked.append(page)
             pickedTypes.insert(page.type)
-            if isDebut { debutCount += 1 }
-            if page.type.isCompositionPrompt { compositionCount += 1 }
         }
+
+        // The home desk (limit 3) is balanced across three lanes so the loudest
+        // world-sim pages can't take every slot: one page that reads the
+        // reader's real life, one from the living Academy world, one from
+        // everything else. Milestones are pinned above the lanes and never
+        // evicted. Distress still shapes scoring and eligibility, but never
+        // permits the world-sim to crowd the reader's real life off a complete
+        // three-slot home desk. Wider introspection queries keep plain ranking.
+        let laneBalanced = limit == 3
+        if laneBalanced {
+            for page in deduped where page.isDeskMilestone && canAdd(page) { add(page) }
+            for lane in DeskLane.allCases {
+                guard picked.count < limit else { break }
+                guard !picked.contains(where: { $0.type.deskLane == lane }) else { continue }
+                if let page = deduped.first(where: { $0.type.deskLane == lane && canAdd($0) }) {
+                    add(page)
+                }
+            }
+            for page in deduped where canAdd(page) { add(page) }
+            // Restore score order for display/stability; lane coverage is a
+            // membership guarantee, not a reordering.
+            let rank = Dictionary(uniqueKeysWithValues: deduped.enumerated().map { ($0.element.id, $0.offset) })
+            picked.sort { (rank[$0.id] ?? 0) < (rank[$1.id] ?? 0) }
+        } else {
+            for page in deduped where canAdd(page) { add(page) }
+        }
+
         return picked
             .enumerated()
             .map { offset, page in RankedSurfacePage(page: page, rank: offset + 1) }
@@ -1614,9 +1666,15 @@ extension SurfacePage {
         }
     }
 
+    /// A rare, must-see moment the Book has earned the right to show: the
+    /// first reading, a constellation naming, a sealed or opened wager. These
+    /// are pinned above the desk's three lanes and are never evicted.
+    var isDeskMilestone: Bool { payload.metadata["milestone"] == "true" }
+
     /// What "the same page again" means to a reader: the content identity,
     /// not the surface id (which changes every slot).
     var varietyKey: String {
+        if let family = payload.metadata["compassFamily"]?.nonEmpty { return "compass:\(family)" }
         if let id = payload.metadata["pairID"]?.nonEmpty { return "tworeadings:\(id)" }
         if let id = payload.metadata["entityID"]?.nonEmpty { return "cast:\(id)" }
         if let id = payload.metadata["snippetID"]?.nonEmpty { return "snippet:\(id)" }
@@ -1658,6 +1716,9 @@ extension SurfacePage {
             "source:\(sourceID)",
             CuratorVarietyGovernor.typeKey(for: type)
         ]
+        if let missionID = payload.metadata["playfulMissionID"]?.nonEmpty {
+            keys.append("playful-mission:\(missionID)")
+        }
         keys.append(contentsOf: supplementalStoryVarietyKeys)
 
         var uniqueKeys: [String] = []
@@ -1713,6 +1774,14 @@ extension SurfacePage {
     }
 }
 
+/// The three balancing lanes of the home desk. Every page kind belongs to
+/// exactly one, so the shelf can guarantee one of each.
+enum DeskLane: String, CaseIterable {
+    case outward   // the lens: reading your real life, body, and day
+    case fiction   // the living Academy world: story, cast, faculty, fae, war
+    case other     // play, reference, returns, images, utility
+}
+
 extension BookPageType {
     /// Cards that hand the reader a blank field and ask them to compose an
     /// original sentence. The desk should never present more than one of these
@@ -1720,6 +1789,42 @@ extension BookPageType {
     var isCompositionPrompt: Bool {
         switch self {
         case .mood, .diary, .souvenir, .aboutYou:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// The single source of truth for lane membership. `default` is `.other`
+    /// so any future page kind (e.g. the coming quotation pages) lands in the
+    /// grab-bag lane until it is deliberately reclassified.
+    var deskLane: DeskLane {
+        switch self {
+        // Outward — the reader attends to the actual world / their own day.
+        case .wonderCompass, .diary, .mood, .souvenir, .body, .fuel,
+             .todaysSky, .location, .anchor, .pactErrand, .rest, .plainPage:
+            return .outward
+        // Fiction — the Academy world performs, corresponds, or contends.
+        case .narrativeOS, .letter, .gossip, .facultyResearch, .supportGuild,
+             .inkrestOfficeHours, .faeBargain, .bookFae, .academyClass,
+             .elective, .festival, .twoReadings, .castBond, .bookJump,
+             .wordNegotiation, .theBleed, .pactDispatch, .pactVerdict,
+             .bookOfYou:
+            return .fiction
+        // Other — everything else: games, reference, returns, images, tools.
+        default:
+            return .other
+        }
+    }
+
+    /// Retained for later phases; derived so lane membership has one home.
+    var pointsOutward: Bool { deskLane == .outward }
+
+    /// Private support logs may feed faculty charts, but keeping them should not
+    /// visibly warm a named cast member's Belief.
+    var suppressesCastBeliefRipple: Bool {
+        switch self {
+        case .fuel, .mood:
             return true
         default:
             return false
@@ -2029,7 +2134,10 @@ struct CuratorMood {
         guard let record = surfaceHistory[CuratorVarietyGovernor.typeKey(for: page.type)] else {
             return true
         }
-        return now.timeIntervalSince(record.lastShownAt) >= Self.typeRefreshCooldown
+        let cooldown = Self.slowDeskTypes.contains(page.type)
+            ? Self.slowDeskRefreshCooldown
+            : Self.typeRefreshCooldown
+        return now.timeIntervalSince(record.lastShownAt) >= cooldown
     }
 
     func adjustment(for page: SurfacePage, now: Date = Date()) -> Int {
@@ -2091,9 +2199,9 @@ struct CuratorMood {
             delta += 4
         }
 
-        // The Nothing's tide: when the grey is up, its pages step forward
+        // The Disbelief's tide: when the grey is up, its pages step forward
         // and material-gathering pages get a small lantern. At grey zero
-        // the Nothing pages stay in the deep stacks — reward by absence.
+        // Disbelief pages stay in the deep stacks — reward by absence.
         if greyLevel >= 1 {
             if page.payload.metadata["packArchetypeID"] == "the-nothing-stirs" || page.payload.metadata["packArchetypeID"] == "grey-margin" {
                 delta += 6 + greyLevel * 4
@@ -2132,6 +2240,8 @@ struct CuratorMood {
 
     private static let firstHoursDuration: TimeInterval = 6 * 3600
     private static let typeRefreshCooldown: TimeInterval = 30 * 60
+    private static let slowDeskRefreshCooldown: TimeInterval = 72 * 3600
+    static let slowDeskTypes: Set<BookPageType> = [.radio, .inventory, .helpTips, .patreon, .quip]
 
     private static let firstHoursHiddenTypes: Set<BookPageType> = [
         .faeBargain,

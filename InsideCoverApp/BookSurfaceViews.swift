@@ -2618,7 +2618,6 @@ struct SurfaceCard: View {
     let surface: SurfacePage
     let isBusy: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var hasSurfaced = false
     @State private var idle = false
 
     private var visualStyle: PageVisualStyle {
@@ -2687,8 +2686,16 @@ struct SurfaceCard: View {
             || surface.renderStyle == .quoteCard
     }
 
+    /// A Playful Mission works better as a sealed little invitation on the desk.
+    /// Its title can tempt the reader, but the actual errand belongs to the page
+    /// they choose to open — otherwise the shelf repeats it before the page can.
+    private var hidesMissionFromPreview: Bool {
+        surface.payload.metadata["playfulMissionID"]?.nonEmpty != nil
+            && surface.payload.metadata["compassMode"] == "standalone"
+    }
+
     private var previewText: String? {
-        guard isReadingCard else { return nil }
+        guard isReadingCard, !hidesMissionFromPreview else { return nil }
         let body = surface.payload.body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return nil }
         let preview: String
@@ -2780,10 +2787,17 @@ struct SurfaceCard: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.trailing, 26)
 
-            Text(surface.detail)
-                .font(.footnote)
-                .foregroundStyle(BookPalette.ink.opacity(0.66))
-                .fixedSize(horizontal: false, vertical: true)
+            if hidesMissionFromPreview {
+                Text("A small, low-stakes invitation is waiting inside.")
+                    .font(.footnote)
+                    .foregroundStyle(BookPalette.ink.opacity(0.66))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(surface.detail)
+                    .font(.footnote)
+                    .foregroundStyle(BookPalette.ink.opacity(0.66))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if let illustrationAssetName {
                 Image(illustrationAssetName)
@@ -2838,6 +2852,10 @@ struct SurfaceCard: View {
                         x: (reduceMotion || isBusy || !idle) ? 0 : 3,
                         y: (reduceMotion || isBusy || !idle) ? 0 : -3
                     )
+                    .animation(
+                        (reduceMotion || isBusy) ? nil : .easeInOut(duration: 2.6).repeatForever(autoreverses: true),
+                        value: idle && !isBusy
+                    )
             }
             .foregroundStyle(visualStyle.accent)
         }
@@ -2851,6 +2869,10 @@ struct SurfaceCard: View {
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(visualStyle.accent.opacity(reduceMotion ? 0 : (idle ? 0.34 : 0.0)), lineWidth: 1.5)
+                .animation(
+                    reduceMotion ? nil : .easeInOut(duration: 2.6).repeatForever(autoreverses: true),
+                    value: idle
+                )
                 .padding(1.5)
                 .allowsHitTesting(false)
         }
@@ -2891,17 +2913,9 @@ struct SurfaceCard: View {
                 .allowsHitTesting(false)
         }
         .rotationEffect(.degrees(surface.id.stableHash.isMultiple(of: 2) ? -0.6 : 0.5))
-        .opacity(hasSurfaced ? 1 : 0)
-        .offset(y: hasSurfaced ? 0 : (reduceMotion ? 0 : -18))
         .onAppear {
-            guard !hasSurfaced else { return }
-            withAnimation(reduceMotion ? .linear(duration: 0.01) : .spring(response: 0.72, dampingFraction: 0.84)) {
-                hasSurfaced = true
-            }
             guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) {
-                idle = true
-            }
+            idle = true
         }
     }
 
@@ -2975,6 +2989,7 @@ struct SwipeDismissSurfaceCard: View {
                 SurfaceCard(surface: surface, isBusy: isBusy)
             }
             .buttonStyle(.bookPress())
+            .bookCardHover()
             .scaleEffect(reduceMotion ? 1 : (isTucking ? 0.9 : 1 - dragProgress * 0.03), anchor: .bottomLeading)
             .rotationEffect(.degrees(-tiltDegrees), anchor: .bottomLeading)
             .offset(x: dragOffset)
@@ -3447,7 +3462,8 @@ struct BraidingTableSheet: View {
                     .stroke(BookPalette.parchmentEdge.opacity(0.3), lineWidth: 1)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress(playsHaptic: false))
+        .bookCardHover()
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.5)
     }
@@ -3777,6 +3793,7 @@ struct ResurfacedPageRow: View {
         }
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Opens this returned page.")
+        .bookCardHover()
     }
 }
 
@@ -3901,6 +3918,7 @@ struct BookOfYouCard: View {
         }
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Opens today's Book of You page.")
+        .bookCardHover()
     }
 }
 
@@ -4013,6 +4031,7 @@ struct ArchiveCard: View {
         }
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Opens this Book of You page.")
+        .bookCardHover()
     }
 }
 
@@ -4076,19 +4095,19 @@ struct LivingMarginaliaImage: View {
             .scaleEffect(breath && isAnimating ? 1.025 : 0.995)
             .rotationEffect(.degrees(breath && isAnimating ? sway : -sway))
             .shadow(color: BookPalette.lampGold.opacity(glow ? (breath && isAnimating ? 0.45 : 0.22) : 0.12), radius: glow ? (breath && isAnimating ? 16 : 8) : 3)
+            .animation(
+                isAnimating ? .easeInOut(duration: 4.8).repeatForever(autoreverses: true) : nil,
+                value: breath
+            )
             .onAppear {
                 guard isAnimating else { return }
-                withAnimation(.easeInOut(duration: 4.8).repeatForever(autoreverses: true)) {
-                    breath = true
-                }
+                breath = true
             }
             .onChange(of: isPaused) { _, paused in
                 if paused {
                     breath = false
                 } else if !reduceMotion {
-                    withAnimation(.easeInOut(duration: 4.8).repeatForever(autoreverses: true)) {
-                        breath = true
-                    }
+                    breath = true
                 }
             }
     }
@@ -4118,19 +4137,19 @@ struct AmbientKenBurnsModifier: ViewModifier {
                 x: isAnimating ? (phase ? drift.width : -drift.width) : 0,
                 y: isAnimating ? (phase ? drift.height : -drift.height) : 0
             )
+            .animation(
+                isAnimating ? .easeInOut(duration: period).repeatForever(autoreverses: true) : nil,
+                value: phase
+            )
             .onAppear {
                 guard isAnimating else { return }
-                withAnimation(.easeInOut(duration: period).repeatForever(autoreverses: true)) {
-                    phase = true
-                }
+                phase = true
             }
             .onChange(of: isPaused) { _, paused in
                 if paused {
                     phase = false
                 } else if !reduceMotion {
-                    withAnimation(.easeInOut(duration: period).repeatForever(autoreverses: true)) {
-                        phase = true
-                    }
+                    phase = true
                 }
             }
     }
@@ -4153,19 +4172,19 @@ struct AmbientPulseModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(isAnimating ? (lit ? bright : dimmed) : bright)
+            .animation(
+                isAnimating ? .easeInOut(duration: period).repeatForever(autoreverses: true) : nil,
+                value: lit
+            )
             .onAppear {
                 guard isAnimating else { return }
-                withAnimation(.easeInOut(duration: period).repeatForever(autoreverses: true)) {
-                    lit = true
-                }
+                lit = true
             }
             .onChange(of: isPaused) { _, paused in
                 if paused {
                     lit = false
                 } else if !reduceMotion {
-                    withAnimation(.easeInOut(duration: period).repeatForever(autoreverses: true)) {
-                        lit = true
-                    }
+                    lit = true
                 }
             }
     }
@@ -5908,7 +5927,7 @@ struct MarginaliaSealButton: View {
                 }
                 .frame(width: 64, height: 64)
                 .rotationEffect(.degrees(reduceMotion ? 0 : tilt))
-                .scaleEffect(isPressed && !reduceMotion ? 0.92 : 1)
+                .scaleEffect(isPressed ? (reduceMotion ? 0.95 : 0.92) : 1)
 
                 Text(title)
                     .font(.system(.caption2, design: .serif, weight: .bold))
@@ -5920,6 +5939,7 @@ struct MarginaliaSealButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .bookCardHover()
         .disabled(isBusy)
         .onLongPressGesture(minimumDuration: .infinity, pressing: { pressing in
             withAnimation(.spring(response: 0.28, dampingFraction: 0.6)) {
@@ -5986,7 +6006,7 @@ private struct AmbientLetterField: View {
             }
             .opacity(isPaused ? 0.24 : 0.36)
         } else {
-            TimelineView(.animation(minimumInterval: 1 / 24)) { timeline in
+            TimelineView(.animation(minimumInterval: 1 / 12)) { timeline in
                 Canvas { context, size in
                     AmbientLetterFieldRenderer.draw(
                         in: context,
@@ -6129,6 +6149,14 @@ private enum AmbientLetterFieldRenderer {
     private static func drawCollisionSparks(_ letters: [Letter], in context: GraphicsContext, time: TimeInterval) {
         guard letters.count > 1 else { return }
 
+        // During the gather phase many letters overlap at once. Drawing a flare
+        // plus six shadow-filtered sparks for every colliding pair can balloon to
+        // hundreds of filtered layers in one full-screen frame and starve scroll
+        // rendering. A few brightest collisions sell the same effect at a fixed
+        // cost.
+        let maximumDrawnCollisions = 4
+        var drawnCollisions = 0
+
         for first in 0..<(letters.count - 1) {
             for second in (first + 1)..<letters.count {
                 let a = letters[first]
@@ -6171,6 +6199,11 @@ private enum AmbientLetterFieldRenderer {
                         Path(ellipseIn: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)),
                         with: .color(color.opacity(0.88 * strength))
                     )
+                }
+
+                drawnCollisions += 1
+                if drawnCollisions >= maximumDrawnCollisions {
+                    return
                 }
             }
         }
@@ -7292,7 +7325,7 @@ struct OnboardingFlowView: View {
 
             "Zara Finch," she says. "And before anyone gives you a brochure, you should know what we fight here."
 
-            "We call it the Nothing; yes, just like the Neverending Story. I've lived it. In books, the Nothing eats pages blank. In your world, it wears better disguises: boredom, routine, burnout, loneliness, days that feel too long while the years go too fast. The terrible little feeling that your life's happening, but not quite to you."
+            "We call it Disbelief. In books, it eats pages blank. In your world, it wears better disguises: boredom, routine, burnout, loneliness, days that feel too long while the years go too fast. The terrible little feeling that your life's happening, but not quite to you."
             """)
 
             if rehearsalChoice == .keep {
@@ -7312,7 +7345,7 @@ struct OnboardingFlowView: View {
 
             "You're not lazy. You're not boring. Your brain's doing what brains do: saving energy, predicting familiar days, and skipping details it thinks it already knows."
 
-            "The Academy fights that here. You fight it there. ReEnchanted gives you small, repeatable ways to notice your life before the Nothing turns it into wallpaper."
+            "The Academy fights that here. You fight it there. ReEnchanted gives you small, repeatable ways to notice your life before Disbelief turns it into wallpaper."
             """)
 
             continueButton("See your chapter")
@@ -7394,7 +7427,7 @@ struct OnboardingFlowView: View {
 
             At the far end of the aisle, a grey absence worries at the corner of a page. A word vanishes. Then another.
 
-            "The Nothing," Zara says. "It isn't a villain. It's what remains when Belief leaves: pages eaten blank here; burnout, routine, and a world reduced to wallpaper in the Unwritten."
+            "The Disbelief," Zara says. "It isn't a villain. It's what remains when Belief leaves: pages eaten blank here; burnout, routine, and a world reduced to wallpaper in the Unwritten."
 
             She raises her compass. The erased word returns in wet black ink. "Belief makes the magic happen. Not certainty. Attention. Care. The stubborn decision that something matters enough to become real again."
 
@@ -7480,7 +7513,7 @@ struct OnboardingFlowView: View {
 
             Nothing opens. No floor drops away. No music swells. The banners simply lean toward the newest person in the room.
 
-            "They're trying to decide what kind of attention you have," Zara says. "Every Chapter thinks it knows how to fight the Nothing. Every Chapter is partly right, which is why the argument has lasted this long."
+            "They're trying to decide what kind of attention you have," Zara says. "Every Chapter thinks it knows how to fight Disbelief. Every Chapter is partly right, which is why the argument has lasted this long."
 
             Zara steadies your elbow. "You won't Bind today. The Chapters will watch what you keep, and later the Binding will recognize where your Belief has actually been living."
 
@@ -7563,7 +7596,7 @@ struct OnboardingFlowView: View {
 
             When you have energy or interest, some will send letters across the binding. Some ask for evidence from your unreachable world. Some disagree about what your pages mean. They remember what you tell them, form opinions, and change their minds.
 
-            Your real life matters here because it isn't flavor text. A true action in the Unwritten carries more weight than something merely narrated inside the Book. It's how you help the Academy resist the Nothing — and how the Academy helps you notice your world before it disappears into routine.
+            Your real life matters here because it isn't flavor text. A true action in the Unwritten carries more weight than something merely narrated inside the Book. It's how you help the Academy resist Disbelief — and how the Academy helps you notice your world before it disappears into routine.
             """)
             onboardingBenefitCard(
                 symbol: "person.2.wave.2",
@@ -7716,7 +7749,7 @@ struct OnboardingFlowView: View {
         guard step > 0 else { return "First Page" }
         switch step - 1 {
         case 0: return "Arrival"
-        case 1: return "The Nothing"
+        case 1: return "The Disbelief"
         case 2: return "The Unwritten"
         case 3: return "Guide"
         case 4: return "Name"
@@ -10593,7 +10626,7 @@ struct OnboardingFlowView: View {
 
         A grey bite appears at the edge of the blank paper. Zara puts your first true sentence over it, and the damage stops.
 
-        She taps the cover once. "That's the work. Re-enchant the Unwritten before the Nothing convinces you it was ordinary. Off you go."
+        She taps the cover once. "That's the work. Re-enchant the Unwritten before Disbelief convinces you it was ordinary. Off you go."
         """
     }
 
@@ -11838,6 +11871,7 @@ struct BookGreetingOverlay: View {
     let greeting: BookGreeting
     var onDismiss: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shimmer = false
 
     var body: some View {
@@ -11881,12 +11915,14 @@ struct BookGreetingOverlay: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .transition(.move(edge: .top).combined(with: .opacity))
         .onAppear {
+            guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
                 shimmer = true
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isStaticText)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Double-tap to dismiss this greeting")
     }
 }
 

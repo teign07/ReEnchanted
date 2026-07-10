@@ -191,7 +191,7 @@ At season end (event `progress >= 1` or first archived resolution), set `readerL
 - **Monthly Edition** binding line — the event already supplies `outcome.monthlyEditionLine`; add a
   Treaty-specific line so the bound chapter records the *direction*, not just engagement.
 - **Cross-arc flag** for February: persist the Treaty (already on `ReaderLexicon`). The Thorned Bargain
-  reads `treaty == .secession` to open the margin-crack the Nothing comes through first. (No Bargain code
+  reads `treaty == .secession` to open the margin-crack Disbelief comes through first. (No Bargain code
   needed now — just guarantee the flag persists.)
 
 ---

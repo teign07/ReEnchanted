@@ -827,7 +827,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     /// DJ break queued to play once an interstitial finishes.
     private var pendingBanter: RadioBanter?
 
-    /// Optional hook so the app can feed live world-state (the Nothing's grey,
+    /// Optional hook so the app can feed live world-state (Disbelief's grey,
     /// an active festival) into banter selection without coupling the manager to
     /// the broader state graph. Time-of-day and the listening streak are derived
     /// locally. Returns (grey 0–100, festivalActive).
@@ -1834,6 +1834,135 @@ struct LocalBrainGenerationProgressSnapshot {
     var generatedTokens: Int?
     var tokensPerSecond: Double?
     var isFinal: Bool
+}
+
+/// View-facing progress lives outside `ContentView`'s large value-state graph.
+/// Gemma can publish several snapshots per second; keeping the latest snapshot
+/// in this small observable lets only the wet-ink card redraw instead of
+/// invalidating every shelf on the home screen. The text is stored verbatim.
+@Observable
+final class LocalBrainProgressViewState {
+    private(set) var snapshot: LocalBrainGenerationProgressSnapshot?
+
+    var preview: String? {
+        guard let text = snapshot?.text else { return nil }
+        let preview = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return preview.isEmpty ? nil : preview
+    }
+
+    var progressLine: String? {
+        guard let snapshot else { return nil }
+        var parts: [String] = []
+        if let generatedTokens = snapshot.generatedTokens {
+            parts.append("\(generatedTokens) tokens")
+        } else if snapshot.generatedCharacters > 0 {
+            parts.append("\(snapshot.generatedCharacters) chars")
+        }
+        if let tokensPerSecond = snapshot.tokensPerSecond {
+            parts.append("\(String(format: "%.1f", tokensPerSecond)) tok/s")
+        }
+        if let promptTokens = snapshot.promptTokens {
+            parts.append("\(promptTokens) prompt tokens")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    func update(_ snapshot: LocalBrainGenerationProgressSnapshot) {
+        self.snapshot = snapshot
+    }
+
+    func reset() {
+        snapshot = nil
+    }
+}
+
+/// Serializes the durable half of a keep away from the UI actor. The value
+/// snapshots crossing this boundary are immutable copies; each operation gets
+/// a fresh SwiftData context while the expensive container stays warm.
+struct BookPersistenceWriteResult: @unchecked Sendable {
+    let revision: UInt64
+    let days: [BookDay]
+    let storeReport: BookStore.Report
+    let databaseReport: BookArchiveDatabase.Report
+    let resurfacedPages: [BookPage]
+    let usedFallbackStore: Bool
+}
+
+actor BookPersistenceWriter {
+    static let shared = BookPersistenceWriter()
+
+    private let database = BookDatabase.detachedDatabase()
+    private var latestAcceptedRevision: UInt64 = 0
+
+    func persist(
+        revision: UInt64,
+        day: BookDay,
+        fallbackDays: [BookDay]
+    ) throws -> BookPersistenceWriteResult? {
+        // Calls originate in short-lived UI tasks. If a newer snapshot reaches
+        // the actor first, never let an older full-archive write replace it.
+        guard revision > latestAcceptedRevision else { return nil }
+        latestAcceptedRevision = revision
+
+        do {
+            let databaseDays = try database.upsert(day, fallbackDays: fallbackDays)
+            try BookStore.saveDays(databaseDays)
+            return result(
+                revision: revision,
+                days: databaseDays,
+                usedFallbackStore: false
+            )
+        } catch {
+            // Keep the existing JSON fallback, but do its whole-archive encode
+            // and atomic write here rather than stalling scrolling on MainActor.
+            try BookStore.saveDays(fallbackDays)
+            return result(
+                revision: revision,
+                days: fallbackDays,
+                usedFallbackStore: true
+            )
+        }
+    }
+
+    private func result(
+        revision: UInt64,
+        days: [BookDay],
+        usedFallbackStore: Bool
+    ) -> BookPersistenceWriteResult {
+        BookPersistenceWriteResult(
+            revision: revision,
+            days: days,
+            storeReport: BookStore.report(for: days),
+            databaseReport: database.report(for: days),
+            resurfacedPages: (try? database.resurfacingCandidates(limit: 3)) ?? [],
+            usedFallbackStore: usedFallbackStore
+        )
+    }
+}
+
+/// Gives an in-flight keep enough time to finish its atomic writes if the
+/// reader backgrounds the app immediately after tapping Keep.
+@MainActor
+final class BookPersistenceBackgroundTask {
+    #if canImport(UIKit)
+    private var identifier: UIBackgroundTaskIdentifier = .invalid
+    #endif
+
+    init() {
+        #if canImport(UIKit)
+        identifier = UIApplication.shared.beginBackgroundTask(withName: "Keep Book page") { [weak self] in
+            Task { @MainActor in self?.finish() }
+        }
+        #endif
+    }
+
+    func finish() {
+        #if canImport(UIKit)
+        guard identifier != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(identifier)
+        identifier = .invalid
+        #endif
+    }
 }
 
 extension View {
@@ -2886,6 +3015,51 @@ enum BookWhispers {
         #endif
     }
 
+    static func refreshAnchorDoorbells(enabled: Bool, anchors: [AnchorRecord], now: Date = Date()) {
+        #if canImport(UserNotifications) && canImport(CoreLocation)
+        let center = UNUserNotificationCenter.current()
+        let prefix = "book-whisper-doorbell-"
+        center.getPendingNotificationRequests { pending in
+            center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix(prefix) })
+            guard enabled,
+                  [.authorizedAlways, .authorizedWhenInUse].contains(CLLocationManager().authorizationStatus) else { return }
+            let defaults = UserDefaults.standard
+            let armed = Dictionary(uniqueKeysWithValues: anchors.compactMap { anchor in
+                (defaults.object(forKey: "anchorDoorbellArmed:\(anchor.id)") as? Date)
+                    .map { (anchor.id, $0) }
+            })
+            for bell in AnchorDoorbells.plan(anchors: anchors, lastArmed: armed, now: now) {
+                let region = CLCircularRegion(
+                    center: CLLocationCoordinate2D(latitude: bell.latitude, longitude: bell.longitude),
+                    radius: bell.radiusMeters,
+                    identifier: "\(prefix)\(bell.anchorID)"
+                )
+                region.notifyOnEntry = true
+                region.notifyOnExit = false
+                let content = UNMutableNotificationContent()
+                content.title = bell.title
+                content.body = bell.body
+                content.sound = .default
+                content.categoryIdentifier = promptCategoryIdentifier
+                content.userInfo = [
+                    "promptWhisperID": "anchor-doorbell-\(bell.anchorID)",
+                    "keepPrompt": bell.keepPrompt,
+                    "title": bell.title,
+                    "body": bell.body,
+                    "tags": bell.tags.joined(separator: ","),
+                    "kind": PromptWhisper.Kind.mission.rawValue
+                ]
+                center.add(UNNotificationRequest(
+                    identifier: "\(prefix)\(bell.anchorID)",
+                    content: content,
+                    trigger: UNLocationNotificationTrigger(region: region, repeats: false)
+                ))
+                defaults.set(now, forKey: "anchorDoorbellArmed:\(bell.anchorID)")
+            }
+        }
+        #endif
+    }
+
     #if canImport(UserNotifications)
     static func registerPromptCategory() {
         let reply = UNTextInputNotificationAction(
@@ -3054,6 +3228,32 @@ enum BookWhispers {
                     trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
                 ))
             }
+
+            guard let mission = PlayfulMissionRegistry.moonMission(on: date) else { continue }
+            var components = calendar.dateComponents([.year, .month, .day], from: date)
+            components.hour = 21
+            components.minute = 30
+            guard let fireDate = calendar.date(from: components), fireDate > now else { continue }
+
+            let whisper = PromptWhisperRegistry.promptWhisper(from: mission)
+            let content = UNMutableNotificationContent()
+            content.title = whisper.title
+            content.body = whisper.body
+            content.sound = .default
+            content.categoryIdentifier = promptCategoryIdentifier
+            content.userInfo = [
+                "promptWhisperID": whisper.id,
+                "keepPrompt": whisper.keepPrompt,
+                "title": whisper.title,
+                "body": whisper.body,
+                "tags": whisper.tags.joined(separator: ","),
+                "kind": whisper.kind.rawValue
+            ]
+            center.add(UNNotificationRequest(
+                identifier: "\(promptIdentifierPrefix)\(scheduledDay.id)-moon",
+                content: content,
+                trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            ))
         }
     }
 
@@ -3308,6 +3508,72 @@ enum OvernightScribe {
             return nil
         }
         return draft.surface
+    }
+}
+
+enum WeatherBell {
+    static let taskIdentifier = "com.openclaw.enchantify.insidecover.weather-bell"
+
+    static func register() {
+        #if canImport(BackgroundTasks)
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { task in
+            guard let task = task as? BGAppRefreshTask else { return }
+            handle(task)
+        }
+        #endif
+    }
+
+    static func scheduleNext(now: Date = Date()) {
+        #if canImport(BackgroundTasks)
+        let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
+        request.earliestBeginDate = now.addingTimeInterval(2.5 * 3600)
+        try? BGTaskScheduler.shared.submit(request)
+        #endif
+    }
+
+    #if canImport(BackgroundTasks)
+    private static func handle(_ task: BGAppRefreshTask) {
+        scheduleNext()
+        let work = Task {
+            _ = await refresh()
+            task.setTaskCompleted(success: true)
+        }
+        task.expirationHandler = { work.cancel() }
+    }
+    #endif
+
+    static func refresh(now: Date = Date()) async -> Bool? {
+        guard UserDefaults.standard.object(forKey: "promptWhispersEnabled") as? Bool ?? true else { return false }
+        if let last = UserDefaults.standard.object(forKey: "weatherBellLastFired") as? Date,
+           Calendar.current.isDate(last, inSameDayAs: now) { return false }
+        do {
+            let signal = try await withThrowingTaskGroup(of: WeatherSourceSignal.self) { group in
+                group.addTask { try await WeatherLocationReader.requestWeatherSignal() }
+                group.addTask {
+                    try await Task.sleep(for: .seconds(15))
+                    throw CancellationError()
+                }
+                let value = try await group.next()!
+                group.cancelAll()
+                return value
+            }
+            let text = [signal.phrase, signal.forecast].compactMap { $0 }.joined(separator: " ")
+            guard let mission = PlayfulMissionRegistry.weatherBellMission(weatherText: text) else { return false }
+            #if canImport(UserNotifications)
+            let whisper = PromptWhisperRegistry.promptWhisper(from: mission)
+            let content = UNMutableNotificationContent()
+            content.title = whisper.title
+            content.body = whisper.body
+            content.sound = .default
+            content.categoryIdentifier = BookWhispers.promptCategoryIdentifier
+            content.userInfo = ["promptWhisperID": whisper.id, "keepPrompt": whisper.keepPrompt, "title": whisper.title, "body": whisper.body, "tags": whisper.tags.joined(separator: ","), "kind": whisper.kind.rawValue]
+            try await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "book-whisper-weather-bell", content: content, trigger: nil))
+            #endif
+            UserDefaults.standard.set(now, forKey: "weatherBellLastFired")
+            return true
+        } catch {
+            return nil
+        }
     }
 }
 
@@ -4172,6 +4438,10 @@ enum VellumNutritionist {
 /// safe to layer onto buttons that already play their own `BookFeedback` cue.
 struct BookPressStyle: ButtonStyle {
     var scale: CGFloat = 0.96
+    /// Frequent controls still deserve to feel physical, but should not spend
+    /// the haptic budget on every touch-down (calendar cells, formatting tools,
+    /// and similar quick choices). Consequential actions keep the default.
+    var playsHaptic = true
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -4183,14 +4453,29 @@ struct BookPressStyle: ButtonStyle {
             .opacity(configuration.isPressed ? 0.92 : 1)
             .animation(.spring(response: 0.26, dampingFraction: 0.6), value: configuration.isPressed)
             .onChange(of: configuration.isPressed) { _, isPressed in
-                if isPressed { BookFeedback.pressTick() }
+                if isPressed && playsHaptic { BookFeedback.pressTick() }
             }
     }
 }
 
 extension ButtonStyle where Self == BookPressStyle {
     /// Tactile press feedback matching the Book's parchment aesthetic.
-    static func bookPress(scale: CGFloat = 0.96) -> BookPressStyle {
-        BookPressStyle(scale: scale)
+    static func bookPress(scale: CGFloat = 0.96, playsHaptic: Bool = true) -> BookPressStyle {
+        BookPressStyle(scale: scale, playsHaptic: playsHaptic)
+    }
+}
+
+/// A pointer-only lift for large, crafted surfaces. It is deliberately opt-in:
+/// small utility buttons already get enough feedback from `BookPressStyle`, and
+/// the Book should never feel as if every piece of ink is clamoring for notice.
+struct BookCardHoverModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content.hoverEffect(.lift)
+    }
+}
+
+extension View {
+    func bookCardHover() -> some View {
+        modifier(BookCardHoverModifier())
     }
 }

@@ -1352,9 +1352,9 @@
     {
       "id": "labyrinth-system-the-nothing",
       "sourceID": "labyrinth-lore",
-      "title": "The Nothing",
+      "title": "The Disbelief",
       "prompt": "Name the force that makes everything less.",
-      "body": "Let me name the thing I am set against. The Nothing is not a monster with a speech to give. It is erasure — colours dulling, details going missing, stories flattening, rooms becoming merely rooms. It feeds on inattention and routine until your whole world reads like a summary of itself. Every Enchantment, every Compass Run, is a small refusal: specific, sensory meaning made in the real world, where the Nothing cannot follow.",
+      "body": "Let me name the thing I am set against. The Disbelief is not a monster with a speech to give. It is erasure — colours dulling, details going missing, stories flattening, rooms becoming merely rooms. It feeds on inattention and routine until your whole world reads like a summary of itself. Every Enchantment, every Compass Run, is a small refusal: specific, sensory meaning made in the real world, where Disbelief cannot follow.",
       "tags": [
         "labyrinth-lore",
         "system",
@@ -1362,7 +1362,7 @@
         "attention",
         "wonder"
       ],
-      "practice": "Pick one thing the Nothing has flattened into 'just a room, just a commute' and make it specific and sensory again."
+      "practice": "Pick one thing Disbelief has flattened into 'just a room, just a commute' and make it specific and sensory again."
     },
     {
       "id": "labyrinth-system-anchor-rooms",
@@ -3893,7 +3893,7 @@
       "slug": "talisman-dusk-thorn",
       "status": "canonical",
       "chapter": "Duskthorn",
-      "core": "A single blackthorn spine set in tarnished silver: the talisman of honest conflict and the friction that protects a story from the Nothing. Beautiful, and it draws a little blood.",
+      "core": "A single blackthorn spine set in tarnished silver: the talisman of honest conflict and the friction that protects a story from Disbelief. Beautiful, and it draws a little blood.",
       "signature": "a single blackthorn spine mounted in tarnished silver, one bead of dark at its tip",
       "palette": "black violet, thorn green, tarnished silver",
       "silhouette": "the thorn upright in its setting, one dark bead at the point",
@@ -3901,7 +3901,7 @@
       "avoid": "generic fantasy prop, glossy anime, polished digital render, character face, busy background, inconsistent signature object",
       "assetName": "",
       "intendedAssetName": "LabyrinthTalismanDuskThorn",
-      "prompt": "Create an Enchantify Academy artifact dossier illustration in the house style: sparse graphite and ink linework, watercolor washes, jewel-color accents, antique parchment with character-specific marginalia. The subject is a single sacred object (a talisman), centered, reverent and a little uncanny, not a character. Subject: The Dusk Thorn — A single blackthorn spine set in tarnished silver: the talisman of honest conflict and the friction that protects a story from the Nothing. Beautiful, and it draws a little blood. Palette: black violet, thorn green, tarnished silver.",
+      "prompt": "Create an Enchantify Academy artifact dossier illustration in the house style: sparse graphite and ink linework, watercolor washes, jewel-color accents, antique parchment with character-specific marginalia. The subject is a single sacred object (a talisman), centered, reverent and a little uncanny, not a character. Subject: The Dusk Thorn — A single blackthorn spine set in tarnished silver: the talisman of honest conflict and the friction that protects a story from Disbelief. Beautiful, and it draws a little blood. Palette: black violet, thorn green, tarnished silver.",
       "negativePrompt": "Avoid generic fantasy pinup, glossy anime, polished digital fantasy render, photorealistic product shot, busy background, and inconsistent signature details.",
       "marginalia": [
         "file tab labeled The Dusk Thorn",

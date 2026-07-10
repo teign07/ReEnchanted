@@ -116,7 +116,7 @@ StoryFormPack(
         StoryGenre(id: "trickster-duel", name: "Trickster's Duel", lens: "Social pressure with a grin. The threat is being made to feel foolish for caring. Wit is the weapon and the wound.", moodTags: ["clash", "mischief", "audience"],
             exemplar: "\"Nice page,\" Wicker said, not reading it. \"Very brave, keeping the sad ones.\" He let the silence do his work, then flicked a paper pellet at the inkwell. \"Relax. If I wanted it, it'd be gone. I'm here because someone's lying to you, and it's embarrassingly not me.\"",
             palette: ["forged marginal note", "paper pellet", "inkwell", "borrowed grin", "the Stacks ladder", "a stolen title", "a dare", "an audience of two"]),
-        StoryGenre(id: "grey-static", name: "Grey Static", lens: "The Nothing edits, it does not attack: exact words go pale, lists become \"items\", days become \"fine\". Specificity is the counterspell.", moodTags: ["clash", "grey", "flattening"],
+        StoryGenre(id: "grey-static", name: "Grey Static", lens: "The Disbelief edits, it does not attack: exact words go pale, lists become \"items\", days become \"fine\". Specificity is the counterspell.", moodTags: ["clash", "grey", "flattening"],
             exemplar: "The list was still on the door, but someone had corrected it. Where it once said \"the good cup, the loud clock, Tuesday's moth,\" it now said \"items.\" Mara read it twice. \"Who signs their work 'fine'?\" she asked. The hallway light seemed suddenly very reasonable, very beige.",
             palette: ["the word \"fine\"", "a corrected list", "beige light", "a missing adjective", "blank margin", "a title gone \"Untitled\"", "the good cup", "static hum"]),
         StoryGenre(id: "threshold-gothic", name: "Threshold Gothic", lens: "Borrowed rules and courteous danger: things that must ask permission, and the terrible weight of granting it. Invitation logic, old handwriting, the wrong side of the glass.", moodTags: ["clash", "threshold", "invitation"],
@@ -133,7 +133,7 @@ Then add (near `coreRecipes`, reusing the existing private `recipe(...)` and
 ```swift
 static let unquietFolioRecipes: [StoryRecipe] = [
     recipe("grey-edit", "The Grey Edit", weight: 14, requirements: [.keptPage], mode: .balanced,
-        premise: "The Nothing has edited the kept page inside {{thread}}: the exact words of {{grounding}} have gone pale, corrected to \"fine.\"",
+        premise: "The Disbelief has edited the kept page inside {{thread}}: the exact words of {{grounding}} have gone pale, corrected to \"fine.\"",
         beats: ["Show the kept page with its specific words flattened to filler while {{lead}} names what is missing.", "After the chosen response, the true words return, partly return, or their first-stolen word is learned — and the grey's editing rule gets written down."],
         turn: turn(.factLearned, want: "to learn which exact word the grey took first from {{grounding}}", obstacle: "the flattened sentence reads as almost true, which is how it hides", statement: "By the end, at least one exact word has been restored or the grey's editing rule has been named.", slice: "One small true detail is read aloud and refuses to stay grey.", progress: "The restored word points at where the grey nests inside {{thread}}.", surprise: "The edit was practice: the grey is drafting toward a page that has not been written yet."),
         tags: ["clash", "grey", "nothing", "evidence", "words"], forms: ["small-mystery", "nocturne"], genres: ["grey-static", "gentle-horror"],

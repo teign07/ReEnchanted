@@ -11,6 +11,7 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.openclaw.enchantify.insidecover.overnight-scribe</string>
+		<string>com.openclaw.enchantify.insidecover.weather-bell</string>
 	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
@@ -26,6 +27,7 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
+		<string>fetch</string>
 		<string>processing</string>
 	</array>
 	<key>UIFileSharingEnabled</key>

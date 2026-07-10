@@ -203,6 +203,159 @@ final class ReflectiveVarietyTests: XCTestCase {
         XCTAssertEqual(again, bodies[0], "The same day rereads identically.")
     }
 
+    // MARK: - Connection narratives use the kept pages themselves
+
+    func testConnectionNarrativeIsAddedBesideOrdinaryNoticeAndQuotesItsEvidence() throws {
+        let pages = [
+            BookPage(
+                id: "harbor-first", type: .souvenir, createdAt: daysAgo(30),
+                promptText: "Souvenir", userInput: "The harbor held one strip of copper light under the ferry."
+            ),
+            BookPage(
+                id: "harbor-middle", type: .diary, createdAt: daysAgo(16),
+                promptText: "Diary", userInput: "I walked past the harbor after rain and heard the rigging knock."
+            ),
+            BookPage(
+                id: "harbor-latest", type: .note, createdAt: daysAgo(2),
+                promptText: "Note", userInput: "At the harbor, a gull dropped a mussel and waited for the world to open it."
+            )
+        ]
+        let thread = LiteraryContinuitySignal(
+            id: "pattern-harbor", kind: .pattern, subjectID: "harbor", subjectName: "Harbor",
+            line: "Harbor kept returning through the kept pages.",
+            evidencePageIDs: pages.map(\.id), relatedEntityIDs: [],
+            tags: ["harbor", "pattern"], firstSeenAt: pages[0].createdAt,
+            lastSeenAt: pages[2].createdAt, strength: 74
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.days = pages.map { day(pages: [$0]) } + [day(pages: filler())]
+        inputs.continuity = LiteraryContinuityDigest(
+            signals: [thread, signal(id: "sig-kettle", subject: "kettle")],
+            beliefLifecycles: []
+        )
+
+        let today = BookDay(id: "today", date: now, pages: [])
+        let surfaces = noticesAdapter.candidates(
+            for: today, context: CuratorContext.make(for: today), inputs: inputs, now: now
+        )
+        let connection = try XCTUnwrap(surfaces.first { $0.payload.metadata["connectionNarrative"] == "true" })
+        let ordinary = surfaces.first { $0.payload.metadata["continuitySignals"] != nil && $0.payload.metadata["connectionNarrative"] == nil }
+
+        XCTAssertNotNil(ordinary, "The connection narrative is additive; the ordinary notice remains available.")
+        XCTAssertEqual(connection.payload.headline, "The Thread Between")
+        XCTAssertEqual(connection.payload.metadata["connectionKind"], "recurrence")
+        XCTAssertEqual(connection.payload.metadata["evidencePageIDs"], "harbor-first,harbor-middle,harbor-latest")
+        for page in pages {
+            XCTAssertTrue(connection.payload.body.contains(page.userInput), "The narrative must show the actual kept evidence.")
+        }
+        XCTAssertTrue(connection.payload.body.contains("same door on three different days"))
+        XCTAssertGreaterThan(connection.score, ordinary?.score ?? 0)
+    }
+
+    func testConnectionNarrativeRejectsPromptTextAndGeneratedPagesAsPersonalEvidence() {
+        let pages = [
+            BookPage(
+                id: "real-one", type: .souvenir, createdAt: daysAgo(30),
+                promptText: "Harbor", userInput: "I watched the last boat settle against the harbor wall."
+            ),
+            BookPage(
+                id: "generated-two", type: .narrativeOS, createdAt: daysAgo(16),
+                promptText: "Harbor", userInput: "The harbor master folded the moon into a chart.", origin: .generated
+            ),
+            BookPage(
+                id: "blank-three", type: .note, createdAt: daysAgo(2),
+                promptText: "Write about the harbor", userInput: ""
+            )
+        ]
+        let thread = LiteraryContinuitySignal(
+            id: "pattern-harbor", kind: .pattern, subjectID: "harbor", subjectName: "Harbor",
+            line: "Harbor kept returning through the kept pages.",
+            evidencePageIDs: pages.map(\.id), relatedEntityIDs: [], tags: ["harbor"],
+            firstSeenAt: pages[0].createdAt, lastSeenAt: pages[2].createdAt, strength: 80
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.days = pages.map { day(pages: [$0]) } + [day(pages: filler())]
+        inputs.continuity = LiteraryContinuityDigest(signals: [thread], beliefLifecycles: [])
+        let today = BookDay(id: "today", date: now, pages: [])
+
+        let surfaces = noticesAdapter.candidates(
+            for: today, context: CuratorContext.make(for: today), inputs: inputs, now: now
+        )
+        XCTAssertFalse(surfaces.contains { $0.payload.metadata["connectionNarrative"] == "true" })
+    }
+
+    func testSemanticConnectionBecomesItsOwnNarrativeWithBothSourcePages() throws {
+        let older = BookPage(
+            id: "older-weather", type: .souvenir, createdAt: daysAgo(40),
+            promptText: "Souvenir", userInput: "The ferry horn crossed the dark water and found no answer."
+        )
+        let newer = BookPage(
+            id: "newer-weather", type: .diary, createdAt: daysAgo(2),
+            promptText: "Diary", userInput: "A blue cup waited beside the cold window until morning."
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.days = [day(pages: [older]), day(pages: [newer]), day(pages: filler())]
+        inputs.continuity = LiteraryContinuityDigest(
+            signals: [signal(id: "sig-harbor", subject: "harbor"), signal(id: "sig-kettle", subject: "kettle")],
+            beliefLifecycles: []
+        )
+        inputs.semanticNoticePairing = SemanticNoticePairing(
+            anchorPageID: newer.id,
+            anchorExcerpt: newer.userInput,
+            sourcePageID: older.id,
+            sourceExcerpt: older.userInput,
+            monthLine: "back in June",
+            similarity: 0.81
+        )
+        let today = BookDay(id: "today", date: now, pages: [])
+
+        let surfaces = noticesAdapter.candidates(
+            for: today, context: CuratorContext.make(for: today), inputs: inputs, now: now
+        )
+        let connection = try XCTUnwrap(surfaces.first { $0.payload.metadata["connectionKind"] == "semantic" })
+
+        XCTAssertEqual(connection.payload.headline, "The Thread Between")
+        XCTAssertEqual(connection.payload.metadata["evidencePageIDs"], "older-weather,newer-weather")
+        XCTAssertTrue(connection.payload.body.contains(older.userInput))
+        XCTAssertTrue(connection.payload.body.contains(newer.userInput))
+        XCTAssertTrue(connection.payload.body.contains("I will not name the feeling on your behalf"))
+        XCTAssertTrue(surfaces.contains { $0.payload.metadata["connectionNarrative"] == nil && $0.payload.metadata["continuitySignals"] != nil })
+    }
+
+    func testKeptConnectionNarrativeRestsThatExactSetOfPages() throws {
+        let pages = [
+            BookPage(id: "lamp-a", type: .souvenir, createdAt: daysAgo(30), promptText: "p", userInput: "The lamp made a warm island on the kitchen table."),
+            BookPage(id: "lamp-b", type: .diary, createdAt: daysAgo(16), promptText: "p", userInput: "I left the lamp on while the rain worried the windows."),
+            BookPage(id: "lamp-c", type: .note, createdAt: daysAgo(2), promptText: "p", userInput: "The lamp clicked off and the room kept its shape.")
+        ]
+        let thread = LiteraryContinuitySignal(
+            id: "pattern-lamp", kind: .pattern, subjectID: "lamp", subjectName: "Lamp",
+            line: "Lamp kept returning through the kept pages.", evidencePageIDs: pages.map(\.id),
+            relatedEntityIDs: [], tags: ["lamp"], firstSeenAt: pages[0].createdAt,
+            lastSeenAt: pages[2].createdAt, strength: 76
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.days = pages.map { day(pages: [$0]) } + [day(pages: filler())]
+        inputs.continuity = LiteraryContinuityDigest(signals: [thread], beliefLifecycles: [])
+        let today = BookDay(id: "today", date: now, pages: [])
+        let first = try XCTUnwrap(noticesAdapter.candidates(
+            for: today, context: CuratorContext.make(for: today), inputs: inputs, now: now
+        ).first { $0.payload.metadata["connectionNarrative"] == "true" })
+        let connectionTag = try XCTUnwrap((first.payload.metadata["tags"] ?? "")
+            .split(separator: ",").map(String.init).first { $0.hasPrefix("connection-spoke:") })
+        let kept = BookPage(
+            id: "kept-thread", type: .bookNotices, createdAt: daysAgo(1),
+            promptText: "The Thread Between", tags: [connectionTag]
+        )
+        inputs.days.append(day(pages: [kept]))
+
+        let later = BookDay(id: "later", date: now, pages: [])
+        let surfaces = noticesAdapter.candidates(
+            for: later, context: CuratorContext.make(for: later), inputs: inputs, now: now
+        )
+        XCTAssertFalse(surfaces.contains { $0.payload.metadata["connectionNarrative"] == "true" })
+    }
+
     // MARK: - Book Remembered rests returned pages
 
     func testRememberedPageIDsRecoverFromKeptTags() {

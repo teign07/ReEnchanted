@@ -183,6 +183,9 @@ Design principles:
 - **Gentle agency:** the reader keeps, dismisses, gives Belief, asks, answers,
   casts, binds, searches, and exports. The Book suggests; it does not pretend
   the reader completed real-world actions.
+- **One in, one out:** a new page family only joins the desk rotation when an
+  existing one is retired, slowed, or moved behind a door. The desk has three
+  slots; the lens must never be crowded out of the daylight one.
 
 ## The Core Loop
 
@@ -253,7 +256,7 @@ field is filled.
 | 1 | The Unwritten | **The Chapter Without an Ending** | Zara Finch frames the reader's ordinary life as the Great Unwritten Chapter — the one book no one in the Academy can jump into. The reader drags `UNWRITTEN` into the margin before continuing. |
 | 2 | Guide | **The Guide** | Zara introduces herself (portrait) and asks the reader's **favorite reading snack** → `snack`. |
 | 3 | Name | **The Name the Book Knows** | Collects the **preferred reader name** → `name` (used in letters, Welcome, generated text). |
-| 4 | Belief | **Belief and the Grey** | The Nothing, Belief, and Glow are explained via a **core-belief** prompt → `belief`. Once non-empty, an inline panel offers **Plant 3 Belief** vs **Keep it for now** → `investedBelief`. (This is where the Glow pill reveals.) |
+| 4 | Belief | **Belief and the Grey** | The Disbelief, Belief, and Glow are explained via a **core-belief** prompt → `belief`. Once non-empty, an inline panel offers **Plant 3 Belief** vs **Keep it for now** → `investedBelief`. (This is where the Glow pill reveals.) |
 | 5 | Chapters | **The School's Argument** | The five Academy Chapters are introduced (rendered from `AcademyChapterRegistry.publicChapters`). Chapter **Binding is explicitly deferred**, but Zara asks which Chapter tugs first → `drawnChapterID`; that talisman warms by 3 Belief and teaches that the strongest talisman influences page frequency, invitations, and atmosphere. |
 | 6 | First Page | **The First Page Rises** | A **practice page**: the reader chooses **Keep** or **Let it wait** (`rehearsalChoice`); choosing Keep reveals a one-sentence field → `firstSouvenir`. Teaches the core keep/dismiss loop in a no-stakes sandbox. |
 | 7 | Illumination | **The Plate Illuminates** | Optional illuminated-photo demo: the reader can choose or take a photo, and the app creates a local illuminated plate with `IlluminatedPageComposer` / `IlluminatedPageRenderer` **without calling Gemma**. It teaches the photo feature without blocking onboarding. |
@@ -296,7 +299,7 @@ comfortBoundary, whisperCadence }`:
   ("The Academy doors are open, <name>.").
 
 The First Door teaches the actual loop (offer → keep/wait → archive → the Book
-remembers) and the core vocabulary (the Nothing, Belief, Glow, Chapters), and it
+remembers) and the core vocabulary (Disbelief, Belief, Glow, Chapters), and it
 explains the app as a living book of kept pages — never as a productivity app.
 
 > **Note:** the beat table above is the original 14-step shape; the flow is now
@@ -605,7 +608,7 @@ world rather than a detached storefront.
 **The Sentence Runner**, turns the reader's own archive into level design:
 `GamePageSourceAdapter` extracts and deduplicates short phrases from kept pages,
 selects a stable set for each six-hour slot, and mixes them with a small pool of
-the Nothing's flattening phrases ("fine", "whatever", "nothing much", and the
+Disbelief's flattening phrases ("fine", "whatever", "nothing much", and the
 like). The page rises automatically once at least six usable archive phrases
 exist and can also be opened manually.
 
@@ -715,6 +718,14 @@ of these `tinyPatternCards`, an `adaptiveActions` menu, and a direct
 notice via `BookNoticeAdaptiveAction` (send the pattern to Pagewright, bind
 the Weekly Issue, or let the pattern rest) or answer with a
 `BookNoticeFeedbackChoice`, so noticing is not a one-way pronouncement.
+
+**The Thread Between** is an additional, higher-evidence Book Notices page. It
+does not replace the general notice. It quotes and narrates either a strong
+word-disjoint semantic pairing between two reader-authored pages or one
+continuity thread supported by three reader-authored pages on different days.
+The page records the exact evidence page IDs, excludes generated fiction and
+private body/fuel logs, and will not repeat the same set of pages after it has
+been kept. When the archive cannot support that standard, this page is silent.
 
 ### Constellations And Sealed Margins
 
@@ -1068,7 +1079,7 @@ variety works across all three layers.
 `StoryRecipeSceneMode` controls the prose contract: conversation favors speech,
 balanced scenes share weight between speech/observation/action, action scenes
 may move physically, and environmental scenes allow a place, object, weather,
-or the Nothing to act. This replaces the old universal rule that every scene
+or Disbelief to act. This replaces the old universal rule that every scene
 must be a mostly-dialogue interpersonal disagreement. The internal Slice of
 Life / Progress Arc / Surprise roles remain stable for mechanics, but visible
 choices may now be speech, action, exploration, protection, or exact noticing.
@@ -1417,7 +1428,7 @@ after being kept, preventing an invitation-to-spend feedback loop.
   **top-2 recently-touched** entities under 70 — never the whole cast.
 - **Settling (the sink).** Reader Glow above a soft ceiling cools overnight;
   untouched high-Glow entities (>70) and page sources (>60) cool toward floors.
-  The Nothing and its kin are excluded from both the tide and the cooling —
+  The Disbelief and its kin are excluded from both the tide and the cooling —
   antagonist Glow only moves through real events.
 - **A closed cast economy.** Gossip invest/attack makes the *actor spend* Belief
   (`castSpendDelta`, never below a floor), and **invest is conservative** — a
@@ -1587,10 +1598,10 @@ Spine into a real public-domain book — a controlled, page-at-a-time ritual tha
 - **Borrowed Rules.** Returning *with a souvenir* carries one of the book's rules
   home as a time-boxed `BorrowedRule` with a real, cross-system effect
   (`BorrowedRuleEffect`) — Holmes sharpens Book Notices, Dracula warms records,
-  *A Christmas Carol*/Secret Garden push the Nothing's grey back, Oz warms the
+  *A Christmas Carol*/Secret Garden push Disbelief's grey back, Oz warms the
   cast. Effects feed the same curator seams as the Almanac (`surfaceBoosts`,
   `greyShift`).
-- **Real stakes.** Leave a jump unstabilized and the daily tick lets the Nothing
+- **Real stakes.** Leave a jump unstabilized and the daily tick lets Disbelief
   gain a margin; if it overruns, the jump **collapses** — you lose the staked
   Belief and that book goes **cold** for a few days (skipped by selection until it
   warms back), mirroring the Fae-lapse pattern.
@@ -1658,7 +1669,7 @@ parallel economy:
   Goblin Market.
 - **Gifts** (`FaeGift`) - functional talismans the fae *fronts on credit*, each
   with a real effect (`FaeGiftEffect`): Reshelving (lifts a rested page kind back
-  to the front), Quieting (holds the Nothing's grey back a shade), Long Memory
+  to the front), Quieting (holds Disbelief's grey back a shade), Long Memory
   (pins a kept page to resurface), Calling Card (opens the Goblin Market), and
   Loose Page (a static, regenerating collectible).
 
@@ -1994,7 +2005,7 @@ doubles** Belief for festivals and Enchantments.
 
 The Wheel bends every system, all pure-local and distress-aware:
 
-- **The Nothing** — `Almanac.greyShift` feeds `NothingTide.greyLevel`: light
+- **The Disbelief** — `Almanac.greyShift` feeds `NothingTide.greyLevel`: light
   feasts (full moon, Litha) push the grey back; thinning-veil nights (Samhain,
   new moon) let it nearer.
 - **Curation atmosphere** — `Almanac.surfaceBoosts` leans the feed toward

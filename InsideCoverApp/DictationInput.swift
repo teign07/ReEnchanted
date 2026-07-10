@@ -125,6 +125,7 @@ private struct DictationInputModifier: ViewModifier {
     @Binding var text: String
     let alignment: Alignment
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model = DictationInputModel()
     @State private var baseText = ""
 
@@ -143,7 +144,7 @@ private struct DictationInputModifier: ViewModifier {
                 } label: {
                     Image(systemName: model.isListening ? "mic.fill" : "mic")
                         .font(.caption.weight(.bold))
-                        .symbolEffect(.pulse, isActive: model.isListening)
+                        .symbolEffect(.pulse, isActive: model.isListening && !reduceMotion)
                         .frame(width: 28, height: 28)
                         .foregroundStyle(model.isListening ? BookPalette.lampGold : BookPalette.ink.opacity(0.56))
                         .background(BookPalette.page.opacity(0.72), in: Circle())
@@ -152,7 +153,7 @@ private struct DictationInputModifier: ViewModifier {
                                 .stroke(model.isListening ? BookPalette.lampGold.opacity(0.72) : BookPalette.ink.opacity(0.14), lineWidth: 1)
                         }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress(scale: 0.9, playsHaptic: false))
                 .accessibilityLabel(model.isListening ? "Stop voice input" : "Start voice input")
                 .padding(6)
             }

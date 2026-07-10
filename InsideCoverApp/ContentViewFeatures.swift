@@ -12,7 +12,30 @@ import UIKit
 
 extension ContentView {
     var shouldPauseAmbientMotion: Bool {
-        localBrainTelemetry.isWorking || isPagewrightPresented
+        scenePhase != .active
+            || localBrainTelemetry.isWorking
+            || generation.isBraiding
+            || generation.isPreparingAutomaticIllumination
+            || generation.isPreparingStoryPage
+            || generation.isPreparingGossipPage
+            || generation.isPreparingFacultyResearchPage
+            || generation.isPreparingLetterPage
+            || generation.isPreparingBleedEdition
+            || selectedSurface != nil
+            || pactVerdictSurface != nil
+            || pactErrandSurface != nil
+            || isPagewrightPresented
+            || isPlainPagePresented
+            || isSourceSettingsPresented
+            || isBookShopPresented
+            || isStacksSearchPresented
+            || isAlmanacPresented
+            || isCustomCastSheetPresented
+            || isBraidingTablePresented
+            || isPactMapPresented
+            || isConnectionsPresented
+            || showStandingOrderPaywall
+            || isGlowMenuPresented
     }
 
     var pagewrightCandidatePages: [BookPage] {
@@ -3526,6 +3549,7 @@ struct PagewrightSheet: View {
     let onKeep: (PagewrightDraft, URL?, URL?) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var title = "A Page I Kept"
     @State private var note = ""
     @State private var format: PagewrightFormat = .scrapPage
@@ -3921,7 +3945,7 @@ struct PagewrightSheet: View {
             }
             .frame(maxWidth: .infinity, minHeight: 44)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress(playsHaptic: false))
         .foregroundStyle(isActive ? BookPalette.nightPanel : BookPalette.nightText)
         .background(isActive ? BookPalette.lampGold : BookPalette.nightText.opacity(0.055), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
@@ -3944,7 +3968,7 @@ struct PagewrightSheet: View {
             }
             .frame(maxWidth: .infinity, minHeight: 44)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress(playsHaptic: false))
         .foregroundStyle(BookPalette.nightText)
         .background(BookPalette.nightText.opacity(0.055), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
@@ -4772,6 +4796,7 @@ struct PagewrightSheet: View {
                     } else {
                         ForEach(canvasElements) { element in
                             canvasElement(element, canvasSize: canvasSize)
+                                .transition(canvasElementTransition)
                         }
                     }
 
@@ -4802,6 +4827,10 @@ struct PagewrightSheet: View {
                         transaction.animation = nil
                     }
                 }
+                .animation(
+                    (reduceMotion || isManipulatingElement) ? nil : .spring(response: 0.42, dampingFraction: 0.78),
+                    value: canvasElements
+                )
             }
             .aspectRatio(612.0 / 792.0, contentMode: .fit)
             .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .topLeading)
@@ -4873,10 +4902,18 @@ struct PagewrightSheet: View {
                 .font(.caption.weight(.black))
                 .frame(width: 28, height: 28)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress(scale: 0.9, playsHaptic: false))
         .foregroundStyle(symbol == "trash" ? Color.red.opacity(0.82) : BookPalette.nightText)
         .background(BookPalette.paper.opacity(0.72), in: Circle())
         .accessibilityLabel(label)
+    }
+
+    private var canvasElementTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        return .asymmetric(
+            insertion: .scale(scale: 0.78, anchor: .center).combined(with: .opacity),
+            removal: .scale(scale: 0.94, anchor: .center).combined(with: .opacity)
+        )
     }
 
     private var canvasHeader: some View {
@@ -5078,6 +5115,7 @@ struct PagewrightSheet: View {
                 .stroke(isActive ? BookPalette.lampGold.opacity(0.70) : BookPalette.ink.opacity(0.12), lineWidth: isActive ? 2 : 1)
         }
         .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
+        .shadow(color: BookPalette.lampGold.opacity(isActive && !isManipulatingElement ? 0.16 : 0), radius: 14, y: 5)
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .onTapGesture {
             BookFeedback.pressTick()
@@ -5187,7 +5225,8 @@ struct PagewrightSheet: View {
             }
             .shadow(color: .black.opacity(0.10), radius: 7, y: 3)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress(playsHaptic: false))
+        .bookCardHover()
         .onTapGesture(count: 2) {
             bringElementForward(element.id)
             BookFeedback.pressTick()
@@ -5596,7 +5635,8 @@ struct PagewrightSheet: View {
                     .stroke((isSelected ? BookPalette.lampGold : BookPalette.nightText).opacity(isSelected ? 0.34 : 0.10), lineWidth: 1)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress(playsHaptic: false))
+        .bookCardHover()
         .draggable(page.id)
         .accessibilityLabel("\(isSelected ? "Selected" : "Not selected") \(page.type.title)")
     }

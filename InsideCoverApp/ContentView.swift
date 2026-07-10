@@ -356,6 +356,7 @@ struct ContentView: View {
         : "This room cannot hear the nearby ley line yet."
     @State var braidingQuipIndex = 0
     @State var localBrainTelemetry = LocalBrainTelemetryState()
+    @State var localBrainProgress = LocalBrainProgressViewState()
     @State var isOpeningMovieVisible = true
     @State var activeGreeting: BookGreeting?
     @State var didShowGreetingThisLaunch = false
@@ -366,6 +367,7 @@ struct ContentView: View {
     @State var cachedContinuityDigest: LiteraryContinuityDigest = .empty
     @State var cachedMotifClusters: [BookMotifCluster] = []
     @State var continuityCacheSignature = ""
+    @State var bookPersistenceRevision: UInt64 = 0
     @State var isGlowMenuPresented = false
     @State var didRevealGlowPillInCurrentOnboarding = false
     @State var isGlowPillRevealing = false
@@ -515,7 +517,7 @@ struct ContentView: View {
         inputs.nearbyPlaces = nearbyPlaces
         inputs.resurfacingCandidates = resurfacedPages
         var quietDays = NothingTide.quietDays(in: days, today: today.id)
-        // A warm (active, not-cold) Quieting gift literally holds the Nothing back.
+        // A warm (active, not-cold) Quieting gift literally holds Disbelief back.
         if (vault.data.fae?.activeGifts.contains { $0.effect == .quieting }) == true {
             quietDays = max(0, quietDays - 2)
         }
@@ -778,11 +780,13 @@ struct ContentView: View {
                                 guard isWorking else { return }
                                 scrollToLocalBrainWorkShelf(scrollProxy)
                             }
-                            .onChange(of: localBrainTelemetry.currentGenerationPreview) { oldValue, newValue in
-                                guard localBrainTelemetry.isWorking,
-                                      oldValue?.nonEmpty == nil,
-                                      newValue?.nonEmpty != nil else { return }
-                                scrollToLocalBrainWorkShelf(scrollProxy)
+                            .background {
+                                LocalBrainPreviewStartObserver(
+                                    progress: localBrainProgress,
+                                    isWorking: localBrainTelemetry.isWorking
+                                ) {
+                                    scrollToLocalBrainWorkShelf(scrollProxy)
+                                }
                             }
                             .accessibilityHidden(isOpeningMovieVisible || isStoryOnboardingActive)
                         }
@@ -986,27 +990,38 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: .localBrainWorkDidChange)) { notification in
                 guard let snapshot = notification.object as? LocalBrainWorkSnapshot else { return }
                 if snapshot.isWorking {
+                    let isNewWork = !localBrainTelemetry.isWorking
+                        || localBrainTelemetry.currentLabel != (snapshot.label ?? "the Book")
                     _ = localBrainTelemetry.beginOrUpdateWork(
                         label: snapshot.label,
                         promptCharacters: snapshot.promptCharacters,
                         queuedCount: snapshot.queuedCount
                     )
+                    if isNewWork {
+                        localBrainProgress.reset()
+                    }
                 } else {
                     localBrainTelemetry.finishWork()
+                    localBrainProgress.reset()
                     radioManager.resumeAfterMemoryPressureIfNeeded()
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: .localBrainGenerationDidProgress)) { notification in
                 guard let snapshot = notification.object as? LocalBrainGenerationProgressSnapshot else { return }
                 guard localBrainTelemetry.isWorking else { return }
-                localBrainTelemetry.updateGenerationProgress(
-                    label: snapshot.label,
-                    text: snapshot.text,
-                    generatedCharacters: snapshot.generatedCharacters,
-                    promptTokens: snapshot.promptTokens,
-                    generatedTokens: snapshot.generatedTokens,
-                    tokensPerSecond: snapshot.tokensPerSecond
-                )
+                // A rejected overlapping request briefly publishes "busy".
+                // Restore the active task's real descriptor on its next progress
+                // snapshot without putting the growing preview back in this
+                // large value-state graph.
+                if !snapshot.label.isEmpty,
+                   snapshot.label != localBrainTelemetry.currentLabel {
+                    _ = localBrainTelemetry.beginOrUpdateWork(
+                        label: snapshot.label,
+                        promptCharacters: localBrainTelemetry.currentPromptCharacters,
+                        queuedCount: localBrainTelemetry.currentQueuedCount
+                    )
+                }
+                localBrainProgress.update(snapshot)
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
@@ -1544,6 +1559,7 @@ struct ContentView: View {
         if didCompleteStoryOnboarding {
             BookWhispers.refreshSchedule(enabled: bookWhispersEnabled, electives: electives, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisperToday, eventWhisper: worldEventWhisperToday)
             BookWhispers.refreshPromptWhispers(enabled: promptWhispersEnabled, day: today, inputs: sourceInputs)
+            BookWhispers.refreshAnchorDoorbells(enabled: promptWhispersEnabled, anchors: anchorLedger)
         }
         if bookCalendarEnabled {
             calendarEvents = await CalendarDoorway.upcomingEvents()
@@ -1823,8 +1839,12 @@ struct ContentView: View {
         // Slide the dismissed page away immediately — this is cheap, so the swipe
         // never waits on the curator.
         let nextPages = surfacedPages.filter { $0.id != surface.id }
-        withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) {
+        if shouldPauseAmbientMotion {
             surfacedPages = Array(nextPages.prefix(3))
+        } else {
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) {
+                surfacedPages = Array(nextPages.prefix(3))
+            }
         }
         recordServedSurfaces(surfacedPages, now: now)
 
@@ -1852,8 +1872,12 @@ struct ContentView: View {
             guard let replacement,
                   surfacedPages.count < 3,
                   !surfacedPages.contains(where: { $0.id == replacement.id }) else { return }
-            withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) {
+            if shouldPauseAmbientMotion {
                 surfacedPages.append(replacement)
+            } else {
+                withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) {
+                    surfacedPages.append(replacement)
+                }
             }
             recordServedSurfaces(surfacedPages, now: now)
         }
@@ -3503,6 +3527,7 @@ struct ContentView: View {
         }
 
         localBrainTelemetry.resetTransientWork()
+        localBrainProgress.reset()
         generation.isBraiding = false
         generation.braidingStartedAt = nil
         generation.isPreparingStoryPage = false
@@ -3515,12 +3540,11 @@ struct ContentView: View {
     @ViewBuilder
     var localBrainWorkShelf: some View {
         if localBrainTelemetry.isWorking {
-            LocalBrainWorkingStatusCard(
+            LiveLocalBrainWorkingStatusCard(
+                progress: localBrainProgress,
                 label: localBrainTelemetry.currentLabel,
                 startedAt: localBrainTelemetry.startedAt,
                 queuedCount: localBrainTelemetry.currentQueuedCount,
-                liveText: localBrainTelemetry.currentGenerationPreview,
-                progressLine: localBrainTelemetry.currentGenerationProgressLine,
                 presentation: .shelf
             )
             .transition(.opacity.combined(with: .move(edge: .top)))
@@ -3834,8 +3858,6 @@ struct ContentView: View {
                     ))
                 }
             }
-            .animation(shouldPauseAmbientMotion ? nil : .spring(response: 0.55, dampingFraction: 0.82), value: surfaces.map(\.id))
-
             if !statusMessage.isEmpty {
                 StatusBanner(
                     message: statusMessage,
@@ -4057,7 +4079,6 @@ struct ContentView: View {
                         )
                     }
                 }
-                .animation(shouldPauseAmbientMotion ? nil : .spring(response: 0.45, dampingFraction: 0.84), value: movements.map(\.id))
             }
         }
     }
@@ -4075,10 +4096,13 @@ struct ContentView: View {
 
     var openingVoiceContext: WorldChargeContext {
         let now = Date()
-        let inputs = sourceInputs
+        var quietDays = NothingTide.quietDays(in: days, today: today.id)
+        if (vault.data.fae?.activeGifts.contains { $0.effect == .quieting }) == true {
+            quietDays = max(0, quietDays - 2)
+        }
         let hemisphere = Hemisphere.from(latitude: lastAnchorReadingLatitude)
         let greyLevel = NothingTide.greyLevel(
-            quietDays: inputs.quietDays,
+            quietDays: quietDays,
             narrativeHeat: narrativeEvents.prefix(24).count,
             distressActive: DistressSignals.evaluate(day: today).isActive,
             celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: hemisphere) + (vault.data.nothingGreyOffset ?? 0)
@@ -4100,7 +4124,7 @@ struct ContentView: View {
             tunedStationTitle: tunedStationTitle,
             recentPageTypes: recentKeptPageTypes,
             hasBookOfYou: today.bookOfYou != nil,
-            quietDays: inputs.quietDays,
+            quietDays: quietDays,
             ascendantTalismanName: ascendantTalismanName,
             boundTalismanName: boundTalismanName,
             castActionLine: recentCastActionLine,
@@ -4187,7 +4211,6 @@ struct ContentView: View {
                         ))
                     }
                 }
-                .animation(shouldPauseAmbientMotion ? nil : .spring(response: 0.48, dampingFraction: 0.84), value: today.capturedPages.map(\.id))
             }
         }
     }
@@ -4757,12 +4780,11 @@ struct ContentView: View {
 
                         if localBrainTelemetry.isWorking,
                            localBrainTelemetry.currentLabel == "monthly-closing" {
-                            LocalBrainWorkingStatusCard(
+                            LiveLocalBrainWorkingStatusCard(
+                                progress: localBrainProgress,
                                 label: "monthly-closing",
                                 startedAt: localBrainTelemetry.startedAt,
                                 queuedCount: localBrainTelemetry.currentQueuedCount,
-                                liveText: localBrainTelemetry.currentGenerationPreview,
-                                progressLine: localBrainTelemetry.currentGenerationProgressLine,
                                 presentation: .page
                             )
                         }
@@ -5133,7 +5155,7 @@ struct ContentView: View {
         // their glow by one, visibly. Derived from the day's pages — no stored
         // counters.
         var rippleLine: String?
-        if page.origin == .userAuthored, !keptInput.isEmpty {
+        if page.origin == .userAuthored, !keptInput.isEmpty, !page.type.suppressesCastBeliefRipple {
             let touched = RelationshipFieldEngine.entityIDs(fromTags: page.tags)
             if let entityID = touched.first,
                !day.pages.contains(where: { $0.id != page.id && $0.tags.contains("entity:\(entityID)") }) {
@@ -5339,8 +5361,7 @@ struct ContentView: View {
             localBrainWorkLabel: localBrainTelemetry.currentLabel,
             localBrainWorkStartedAt: localBrainTelemetry.startedAt,
             localBrainQueuedCount: localBrainTelemetry.currentQueuedCount,
-            localBrainGenerationPreview: localBrainTelemetry.currentGenerationPreview,
-            localBrainProgressLine: localBrainTelemetry.currentGenerationProgressLine,
+            localBrainProgress: localBrainProgress,
             localBrainIsReady: modelReport.state == .ready,
             isInstallingLocalBrain: isInstallingModel,
             localBrainInstallMessage: installMessage,
@@ -6845,7 +6866,7 @@ struct ContentView: View {
         surfaceRefreshDate = Date()
     }
 
-    /// Once a day, an unstabilized Book Jump lets the Nothing gain a margin; if
+    /// Once a day, an unstabilized Book Jump lets Disbelief gain a margin; if
     /// it overruns, the jump collapses — you lose the staked Belief and the book
     /// goes cold. Also prunes expired Borrowed Rules.
     func tendBookJump(now: Date = Date()) {
@@ -6860,7 +6881,7 @@ struct ContentView: View {
                     beliefScore = max(0, beliefScore - result.lostBelief)
                 }
             }
-            statusMessage = "\(result.bookTitle) collapsed into the Nothing overnight. You slipped back empty-handed; the book is cold for a while."
+            statusMessage = "\(result.bookTitle) collapsed into Disbelief overnight. You slipped back empty-handed; the book is cold for a while."
             BookFeedback.nothingPressure(4)
             BookFeedback.play(.error)
             surfaceRefreshDate = now
@@ -8199,33 +8220,62 @@ struct ContentView: View {
     }
 
     func persist(day: BookDay, message: String) {
+        let previousDays = days
         let updatedDays = BookStore.upsert(day, in: days)
-        do {
-            let databaseDays = try BookDatabase.upsert(day, fallbackDays: updatedDays)
-            try BookStore.saveDays(databaseDays)
-            days = databaseDays
-            storeReport = BookStore.report(for: databaseDays)
-            databaseReport = BookDatabase.report(for: databaseDays)
-            refreshResurfacedPages()
-            statusMessage = message
-        } catch {
+        // Process-wide monotonic time keeps ordering valid even if SwiftUI
+        // recreates the root view while the shared writer actor survives.
+        let revision = max(
+            bookPersistenceRevision &+ 1,
+            DispatchTime.now().uptimeNanoseconds
+        )
+        bookPersistenceRevision = revision
+
+        // Reflect the keep immediately. The durable SwiftData transaction,
+        // full-archive JSON encode/write, and resurfacing query are serialized
+        // by BookPersistenceWriter away from MainActor.
+        days = updatedDays
+        statusMessage = message
+        // Mark the projection stale. The next desk rebuild computes it on the
+        // detached surface-builder executor; never project the whole archive on
+        // the UI actor at the end of a keep.
+        continuityCacheSignature = ""
+        rebuildSurfaceCache()
+
+        let backgroundTask = BookPersistenceBackgroundTask()
+        Task {
+            defer { backgroundTask.finish() }
             do {
-                try BookStore.saveDays(updatedDays)
-                days = updatedDays
-                storeReport = BookStore.report(for: updatedDays)
-                databaseReport = BookDatabase.report(for: updatedDays)
-                refreshResurfacedPages()
-                statusMessage = "\(message) The shelves stumbled, so the Book kept a backup copy."
+                guard let result = try await BookPersistenceWriter.shared.persist(
+                    revision: revision,
+                    day: day,
+                    fallbackDays: updatedDays
+                ) else { return }
+                guard result.revision == bookPersistenceRevision else { return }
+
+                days = result.days
+                storeReport = result.storeReport
+                databaseReport = result.databaseReport
+                resurfacedPages = result.resurfacedPages
+                statusMessage = result.usedFallbackStore
+                    ? "\(message) The shelves stumbled, so the Book kept a backup copy."
+                    : message
+
+                // The database can normalize or merge days. Rebuild from the
+                // durable result, then refresh the widget with matching shelves.
+                continuityCacheSignature = ""
+                rebuildSurfaceCache()
+                writeWidgetSnapshot()
             } catch {
-                storeReport = BookStore.report(for: days)
-                databaseReport = BookDatabase.report(for: days)
+                guard revision == bookPersistenceRevision else { return }
+                days = previousDays
+                storeReport = BookStore.report(for: previousDays)
+                databaseReport = BookDatabase.report(for: previousDays)
                 statusMessage = "The page would not settle yet: \(error.localizedDescription)"
+                continuityCacheSignature = ""
+                rebuildSurfaceCache()
+                writeWidgetSnapshot()
             }
         }
-        // The archive changed; refresh the continuity cache (signature-gated, so
-        // it only pays when the data actually moved).
-        refreshContinuityCache()
-        writeWidgetSnapshot()
     }
 
     func refreshResurfacedPages() {

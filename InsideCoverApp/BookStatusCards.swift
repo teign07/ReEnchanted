@@ -2384,6 +2384,50 @@ struct LocalBrainWorkingStatusCard: View {
     }
 }
 
+/// Observation boundary for live Gemma output. This deliberately forwards the
+/// exact same text and progress caption to `LocalBrainWorkingStatusCard`; its
+/// only job is to keep high-frequency progress invalidations inside this card.
+struct LiveLocalBrainWorkingStatusCard: View {
+    let progress: LocalBrainProgressViewState
+    let label: String
+    var quip: String? = nil
+    var startedAt: Date? = nil
+    var queuedCount = 0
+    var presentation: ScribeWorkPresentation = .page
+
+    var body: some View {
+        LocalBrainWorkingStatusCard(
+            label: label,
+            quip: quip,
+            startedAt: startedAt,
+            queuedCount: queuedCount,
+            liveText: progress.preview,
+            progressLine: progress.progressLine,
+            presentation: presentation
+        )
+    }
+}
+
+/// Preserves the shelf's existing one-time scroll when the first live preview
+/// arrives without making the entire home view observe every Gemma snapshot.
+struct LocalBrainPreviewStartObserver: View {
+    let progress: LocalBrainProgressViewState
+    let isWorking: Bool
+    let onPreviewStart: () -> Void
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onChange(of: progress.preview) { oldValue, newValue in
+                guard isWorking,
+                      oldValue?.nonEmpty == nil,
+                      newValue?.nonEmpty != nil else { return }
+                onPreviewStart()
+            }
+            .accessibilityHidden(true)
+    }
+}
+
 private struct GhostInkText: View {
     let text: String
     let reduceMotion: Bool
@@ -2776,6 +2820,8 @@ struct PactMapSheet: View {
     var pendingVerdict: SurfacePage? = nil
     var onRuleVerdict: (_ winnerTalismanID: String, _ loserTalismanID: String) -> Void = { _, _ in }
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pressedTerritoryID: String?
 
     private var boundChapterName: String? {
         boundTalismanID.flatMap { AcademyChapterRegistry.chapter(forTalismanID: $0)?.name }
@@ -2842,6 +2888,7 @@ struct PactMapSheet: View {
         let controller = pactWar.controller(of: territory.id)
         let controllerChapter = controller.flatMap { AcademyChapterRegistry.chapter(forTalismanID: $0) }
         let tier = pactWar.tier(of: territory.id)
+        let isPressing = pressedTerritoryID == territory.id
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(territory.name)
@@ -2853,6 +2900,7 @@ struct PactMapSheet: View {
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background((controller == nil ? BookPalette.ink : BookPalette.lampGold).opacity(0.14), in: Capsule())
                     .foregroundStyle(controller == nil ? BookPalette.ink.opacity(0.5) : BookPalette.lampGold)
+                    .scaleEffect(isPressing && !reduceMotion ? 1.08 : 1)
             }
             Text(territory.blurb)
                 .font(.caption)
@@ -2896,20 +2944,50 @@ struct PactMapSheet: View {
             }
             if boundTalismanID != nil {
                 Button {
-                    onPressClaim(territory.id)
+                    pressClaim(territory.id)
                 } label: {
-                    Label("Press your claim", systemImage: "hand.point.up.left")
+                    Label(isPressing ? "Claim taking ink…" : "Press your claim", systemImage: isPressing ? "seal.fill" : "hand.point.up.left")
                         .font(.caption.weight(.bold))
                 }
                 .buttonStyle(.bookPress())
                 .foregroundStyle(BookPalette.teal)
                 .padding(.top, 2)
+                .disabled(isPressing)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
-        .overlay { RoundedRectangle(cornerRadius: 8).stroke(BookPalette.ink.opacity(0.12), lineWidth: 1) }
+        .overlay { RoundedRectangle(cornerRadius: 8).stroke(isPressing ? BookPalette.lampGold.opacity(0.7) : BookPalette.ink.opacity(0.12), lineWidth: isPressing ? 1.6 : 1) }
+        .overlay(alignment: .topTrailing) {
+            if isPressing {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(BookPalette.lampGold)
+                    .padding(10)
+                    .transition(.scale.combined(with: .opacity))
+                    .accessibilityHidden(true)
+            }
+        }
+        .scaleEffect(isPressing && !reduceMotion ? 1.012 : 1)
+        .animation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.72), value: isPressing)
+    }
+
+    private func pressClaim(_ territoryID: String) {
+        guard pressedTerritoryID == nil else { return }
+        withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.28, dampingFraction: 0.68)) {
+            pressedTerritoryID = territoryID
+        }
+        let finish = {
+            onPressClaim(territoryID)
+            withAnimation(.easeOut(duration: 0.18)) {
+                pressedTerritoryID = nil
+            }
+        }
+        if reduceMotion {
+            finish()
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.24, execute: finish)
+        }
     }
 
     private func sectionTitle(_ text: String) -> some View {
@@ -3015,7 +3093,8 @@ struct PactVerdictOptions: View {
                     .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress(playsHaptic: false))
+        .bookCardHover()
     }
 }
 

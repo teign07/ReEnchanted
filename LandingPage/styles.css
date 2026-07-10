@@ -219,6 +219,7 @@ h2 {
   transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
 }
 .button:hover { transform: translateY(-2px); }
+.button:active { transform: translateY(0) scale(0.98); }
 .button.primary {
   color: #1a1208;
   background: linear-gradient(180deg, var(--gold-soft), var(--gold-deep));
@@ -886,6 +887,19 @@ h2 {
   transition: transform 160ms;
 }
 .header-cta:hover { transform: translateY(-1px); }
+.header-cta:active,
+.glow-command:active,
+.glow-spend button:active,
+.how-card:active,
+.mechanic:active,
+.system-card:active,
+.pagetype:active,
+.weave-card:active,
+.chapter-card:active,
+.pack-chip:active,
+.patreon-card:active {
+  transform: translateY(0) scale(0.985);
+}
 
 /* ───────────────────────── hero ───────────────────────── */
 .hero {

@@ -20,6 +20,7 @@ struct InsideCoverApp: App {
 
     init() {
         OvernightScribe.register()
+        WeatherBell.register()
         BookWhispers.configureForegroundPresentation()
     }
 
@@ -35,6 +36,7 @@ struct InsideCoverApp: App {
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {
                 OvernightScribe.scheduleNext()
+                WeatherBell.scheduleNext()
             }
         }
     }

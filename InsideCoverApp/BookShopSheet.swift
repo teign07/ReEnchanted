@@ -46,6 +46,7 @@ struct BookShopSheet: View {
     var onMakePrintReady: (PrintSpec) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var merchantName = ""
     @State private var offers: [BookShopOffer] = []
     @State private var isLoading = true
@@ -55,6 +56,7 @@ struct BookShopSheet: View {
     @State private var spentAttention = 0
     @State private var spentBelief = 0
     @State private var boughtWareIDs: Set<String> = []
+    @State private var bindingWareID: String?
     @State private var boundFreePackIDs: Set<String> = []
     @State private var haggleDiscounts: [String: Int] = [:]
     @State private var haggledWareIDs: Set<String> = []
@@ -123,14 +125,26 @@ struct BookShopSheet: View {
                         let visibleWares = stall.wares.filter { !boughtWareIDs.contains($0.id) }
                         if stall.open, !visibleWares.isEmpty {
                             shelfBlock(title: "The Goblin Market", subtitle: stall.windowLine, symbol: "moon.stars.fill", accent: BookPalette.lampGold) {
-                                ForEach(visibleWares) { wareCard($0) }
+                                ForEach(visibleWares) { ware in
+                                    wareCard(ware)
+                                        .transition(.asymmetric(
+                                            insertion: .opacity.combined(with: .move(edge: .bottom)),
+                                            removal: .opacity.combined(with: .scale(scale: 0.88))
+                                        ))
+                                }
                             }
                         }
 
                         let visibleHidden = stall.hidden.filter { !boughtWareIDs.contains($0.id) }
                         if !visibleHidden.isEmpty {
                             shelfBlock(title: "Under the Counter", subtitle: "The clerk glances around, then slides a tray from beneath the boards.", symbol: "tray.full.fill", accent: BookPalette.violet) {
-                                ForEach(visibleHidden) { wareCard($0, rare: true) }
+                                ForEach(visibleHidden) { ware in
+                                    wareCard(ware, rare: true)
+                                        .transition(.asymmetric(
+                                            insertion: .opacity.combined(with: .move(edge: .bottom)),
+                                            removal: .opacity.combined(with: .scale(scale: 0.88))
+                                        ))
+                                }
                             }
                         }
 
@@ -393,6 +407,7 @@ struct BookShopSheet: View {
             Text("\(value)")
                 .font(.system(.title3, design: .serif, weight: .bold))
                 .foregroundStyle(BookPalette.nightText)
+                .contentTransition(.numericText())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
@@ -960,6 +975,13 @@ struct BookShopSheet: View {
                 ZStack(alignment: .topTrailing) {
                     PhysicalBookCoverImage(edition: edition, spec: spec)
                         .frame(height: 210)
+                        .scaleEffect(isSelected && !reduceMotion ? 1.025 : 0.98)
+                        .rotation3DEffect(
+                            .degrees(isSelected && !reduceMotion ? -3 : 0),
+                            axis: (x: 0, y: 1, z: 0),
+                            perspective: 0.7
+                        )
+                        .animation(reduceMotion ? nil : .spring(response: 0.36, dampingFraction: 0.78), value: isSelected)
                     if isSelected {
                         Label("Selected", systemImage: "checkmark.seal.fill")
                             .font(.caption2.weight(.black))
@@ -996,7 +1018,8 @@ struct BookShopSheet: View {
                     .stroke(isSelected ? BookPalette.violet.opacity(0.72) : BookPalette.ink.opacity(0.12), lineWidth: isSelected ? 2 : 1)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bookPress(playsHaptic: false))
+        .bookCardHover()
         .accessibilityLabel("\(spec.name), \(isSelected ? "selected" : "not selected")")
     }
 
@@ -1360,7 +1383,9 @@ struct BookShopSheet: View {
 
     private func selectPhysicalBookVariant(_ index: Int) {
         guard selectedPrintVariantIndex != index else { return }
-        selectedPrintVariantIndex = index
+        withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.36, dampingFraction: 0.78)) {
+            selectedPrintVariantIndex = index
+        }
         physicalBookQuote = nil
         physicalBookQuoteMessage = nil
         selectedPhysicalBookShippingOptionID = nil
@@ -2174,9 +2199,11 @@ struct BookShopSheet: View {
 
     private func wareCard(_ ware: MarketWare, rare: Bool = false) -> some View {
         let basePrice = GoblinMarketEngine.price(ware, mood: stall.mood, goblinWarmth: goblinWarmth)
-        let price = max(1, basePrice - (haggleDiscounts[ware.id] ?? 0))
+        let discount = haggleDiscounts[ware.id] ?? 0
+        let price = max(1, basePrice - discount)
         let canAfford = ware.currency == .attention ? liveAttention >= price : liveBelief >= price
         let accent = rare ? BookPalette.violet : (ware.currency == .attention ? BookPalette.teal : BookPalette.lampGold)
+        let isBinding = bindingWareID == ware.id
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 10) {
                 ZStack {
@@ -2198,7 +2225,16 @@ struct BookShopSheet: View {
                         .foregroundStyle(accent.opacity(0.85))
                 }
                 Spacer()
-                priceTag("\(price)", label: ware.currency.label, tint: accent)
+                VStack(alignment: .trailing, spacing: 2) {
+                    if discount > 0 {
+                        Text("\(basePrice)")
+                            .font(.caption2.weight(.bold))
+                            .strikethrough()
+                            .foregroundStyle(BookPalette.ink.opacity(0.42))
+                            .transition(.opacity.combined(with: .scale(scale: 0.82)))
+                    }
+                    priceTag("\(price)", label: ware.currency.label, tint: accent)
+                }
             }
             Text("\u{201C}\(ware.clerkPitch)\u{201D}")
                 .font(.system(.caption, design: .serif).italic())
@@ -2214,14 +2250,12 @@ struct BookShopSheet: View {
                     BookFeedback.play(.error)
                     return
                 }
-                onBuyWare(ware)
-                if ware.currency == .attention { spentAttention += price } else { spentBelief += price }
-                boughtWareIDs.insert(ware.id)
-                clerkLine = "The clerk wraps \(ware.title) in waxed paper. \u{201C}Bound to you. Mind how you spend it.\u{201D}"
-                BookFeedback.play(.braidComplete)
+                bindWare(ware, price: price)
             } label: {
-                Label(canAfford ? "Spend \(price) \(ware.currency.label)" : "Need \(price) \(ware.currency.label)",
-                      systemImage: ware.currency == .attention ? "eye" : "sparkles")
+                Label(
+                    isBinding ? "Wrapping in waxed paper…" : (canAfford ? "Spend \(price) \(ware.currency.label)" : "Need \(price) \(ware.currency.label)"),
+                    systemImage: isBinding ? "seal.fill" : (ware.currency == .attention ? "eye" : "sparkles")
+                )
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
@@ -2229,12 +2263,15 @@ struct BookShopSheet: View {
             .buttonStyle(.borderedProminent)
             .tint(accent)
             .opacity(canAfford ? 1 : 0.55)
+            .disabled(isBinding || bindingWareID != nil)
 
             if goblinWarmth > 0, !haggledWareIDs.contains(ware.id) {
                 Button {
                     haggledWareIDs.insert(ware.id)
                     if let cut = onHaggle(ware), cut > 0 {
-                        haggleDiscounts[ware.id] = cut
+                        withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.3, dampingFraction: 0.78)) {
+                            haggleDiscounts[ware.id] = cut
+                        }
                         clerkLine = "The clerk sucks a tooth, then knocks \(cut) off \(ware.title). \u{201C}For you. Once.\u{201D}"
                         BookFeedback.play(.select)
                     } else {
@@ -2262,6 +2299,45 @@ struct BookShopSheet: View {
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(accent.opacity(rare ? 0.5 : 0.18), lineWidth: 1)
+        }
+        .overlay {
+            if isBinding {
+                Label("BOUND TO YOU", systemImage: "seal.fill")
+                    .font(.caption.weight(.black))
+                    .tracking(0.8)
+                    .foregroundStyle(BookPalette.ink)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(BookPalette.lampGold, in: Capsule())
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .scaleEffect(isBinding && !reduceMotion ? 0.96 : 1)
+        .opacity(isBinding && !reduceMotion ? 0.38 : 1)
+        .animation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.74), value: isBinding)
+    }
+
+    private func bindWare(_ ware: MarketWare, price: Int) {
+        guard bindingWareID == nil else { return }
+        withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.30, dampingFraction: 0.70)) {
+            bindingWareID = ware.id
+        }
+
+        let finishBinding = {
+            onBuyWare(ware)
+            withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .easeInOut(duration: 0.26)) {
+                if ware.currency == .attention { spentAttention += price } else { spentBelief += price }
+                boughtWareIDs.insert(ware.id)
+                bindingWareID = nil
+            }
+            clerkLine = "The clerk wraps \(ware.title) in waxed paper. \u{201C}Bound to you. Mind how you spend it.\u{201D}"
+            BookFeedback.play(.braidComplete)
+        }
+
+        if reduceMotion {
+            finishBinding()
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.34, execute: finishBinding)
         }
     }
 
@@ -3080,6 +3156,7 @@ struct StandingOrderSheet: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var page = 0
+    @State private var pageDirection = 1
     @State private var selectedTierID = "standing-order-annual"
     @State private var pricing: [String: StandingOrderTierPricing] = [:]
     @State private var isPurchasing = false
@@ -3117,13 +3194,15 @@ struct StandingOrderSheet: View {
                         default: termsPage
                         }
                     }
+                    .id(page)
                     .padding(.horizontal, 22)
                     .padding(.vertical, 18)
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+                    .transition(standingOrderPageTransition)
                 }
                 footer
             }
         }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: page)
         .task {
             let loaded = await StandingOrderPricing.load()
             if !loaded.isEmpty {
@@ -3183,7 +3262,10 @@ struct StandingOrderSheet: View {
             HStack(spacing: 10) {
                 if page > 0 {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.25)) { page -= 1 }
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            pageDirection = -1
+                            page -= 1
+                        }
                     } label: {
                         Image(systemName: "chevron.left")
                             .font(.body.weight(.black))
@@ -3195,7 +3277,10 @@ struct StandingOrderSheet: View {
 
                 if page < pageCount - 1 {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.25)) { page += 1 }
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            pageDirection = 1
+                            page += 1
+                        }
                         BookFeedback.play(.openPage)
                     } label: {
                         Text(page == pageCount - 2 ? "See the terms" : "Continue")
@@ -3225,6 +3310,16 @@ struct StandingOrderSheet: View {
             .padding(.horizontal, 22)
         }
         .padding(.bottom, 18)
+    }
+
+    private var standingOrderPageTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        let incoming: Edge = pageDirection >= 0 ? .trailing : .leading
+        let outgoing: Edge = pageDirection >= 0 ? .leading : .trailing
+        return .asymmetric(
+            insertion: .move(edge: incoming).combined(with: .opacity),
+            removal: .move(edge: outgoing).combined(with: .opacity)
+        )
     }
 
     // MARK: Page 1 — the free Book

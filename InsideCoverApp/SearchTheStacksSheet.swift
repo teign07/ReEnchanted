@@ -11,6 +11,7 @@ struct SearchTheStacksSheet: View {
     let onOpen: (StacksSearchResult) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var query = ""
     @State private var results: [StacksSearchResult] = []
     @State private var interpretedTerms: [String] = []
@@ -58,6 +59,23 @@ struct SearchTheStacksSheet: View {
                                     .font(.system(.caption, design: .serif).italic())
                                     .foregroundStyle(BookPalette.nightText.opacity(0.74))
                                     .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            if !interpretedTerms.isEmpty {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "text.book.closed")
+                                        .foregroundStyle(BookPalette.lampGold)
+                                    ForEach(interpretedTerms, id: \.self) { term in
+                                        Text(term)
+                                            .font(.caption2.weight(.bold))
+                                            .foregroundStyle(BookPalette.teal)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 5)
+                                            .background(BookPalette.teal.opacity(0.10), in: Capsule())
+                                            .transition(.opacity.combined(with: .move(edge: .leading)))
+                                    }
+                                }
+                                .accessibilityLabel("The Book indexed: \(interpretedTerms.joined(separator: ", "))")
                             }
 
                             if query.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -229,11 +247,14 @@ struct SearchTheStacksSheet: View {
                                 }
                             }
                             .buttonStyle(.bookPress())
+                            .bookCardHover()
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
                         }
                     }
                 }
             }
         }
+        .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.86), value: results.map(\.id))
     }
 
     private func interpretWithTheBook() async {
@@ -256,10 +277,15 @@ struct SearchTheStacksSheet: View {
             return
         }
         let terms = (raw["terms"] as? [String]) ?? []
-        interpretedTerms = terms
-        interpretationNote = JSONSalvage.string("note", in: raw)
-            ?? "The Book read it as: \(terms.joined(separator: ", "))"
-        results = await searchResults(for: query, extraTerms: terms)
+        withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.34, dampingFraction: 0.84)) {
+            interpretedTerms = terms
+            interpretationNote = JSONSalvage.string("note", in: raw)
+                ?? "The Book read it as: \(terms.joined(separator: ", "))"
+        }
+        let interpretedResults = await searchResults(for: query, extraTerms: terms)
+        withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.38, dampingFraction: 0.86)) {
+            results = interpretedResults
+        }
         BookFeedback.play(.sourceRefresh)
     }
 

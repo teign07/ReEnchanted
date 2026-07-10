@@ -333,7 +333,7 @@ const PAGES = [
   {
     kicker: "Belief and Glow",
     title: "Name the stubborn light.",
-    body: "At the far end of the aisle, a grey absence worries at the corner of a page. One word vanishes. Then another. Zara raises her compass and the erased letters return in wet black ink. \"That's the Nothing,\" she says. \"It's what happens when attention leaves and the world turns into wallpaper.\" She offers you her Belief - every book is a door - then nods to the blank line. \"Your turn. What matters enough that you want the Book to notice it?\"",
+    body: "At the far end of the aisle, a grey absence worries at the corner of a page. One word vanishes. Then another. Zara raises her compass and the erased letters return in wet black ink. \"That's Disbelief,\" she says. \"It's what happens when attention leaves and the world turns into wallpaper.\" She offers you her Belief - every book is a door - then nods to the blank line. \"Your turn. What matters enough that you want the Book to notice it?\"",
     source: "Onboarding · Belief",
     shot: "./assets/screens/belief-cast.jpg",
     braid: "A named belief warmed under the page, small at first and therefore serious.",
@@ -3601,7 +3601,7 @@ const STATIONS = [
       { id: "thornwave-news-nothing", category: "news",
         src: "./assets/audio/thornwave-wicker-news-grey.m4a",
         conditions: { timeOfDay: ["dusk", "night"] },
-        caption: "Tonight's reading off Today's Sky: the Nothing made a move at the edges. We held. We always hold - barely, on purpose, which is the only kind of holding worth anything. Believe something out loud. I dare you. That's not mockery. That's the assignment." },
+        caption: "Tonight's reading off Today's Sky: Disbelief made a move at the edges. We held. We always hold - barely, on purpose, which is the only kind of holding worth anything. Believe something out loud. I dare you. That's not mockery. That's the assignment." },
       { id: "thornwave-news-pact-dispatch", category: "news",
         src: "./assets/audio/thornwave-wicker-news-pact-dispatch.m4a",
         conditions: { timeOfDay: ["dusk", "night"] },
@@ -4943,13 +4943,13 @@ const LORE = {
   },
   "the-nothing": {
     kicker: "Name the force that makes everything less",
-    title: "The Nothing",
+    title: "The Disbelief",
     kind: "system",
     body: [
-      "Let me name the thing I'm set against. The Nothing isn't a monster with a speech to give. It's erasure - colours dulling, details going missing, stories flattening, rooms becoming merely rooms. It feeds on inattention and routine until your whole world reads like a summary of itself.",
-      "Feeling grey is its first weather. Every Compass Run, every Enchantment, is a small refusal: specific, sensory meaning made in the real world, where the Nothing can't follow.",
+      "Let me name the thing I'm set against. The Disbelief isn't a monster with a speech to give. It's erasure - colours dulling, details going missing, stories flattening, rooms becoming merely rooms. It feeds on inattention and routine until your whole world reads like a summary of itself.",
+      "Feeling grey is its first weather. Every Compass Run, every Enchantment, is a small refusal: specific, sensory meaning made in the real world, where Disbelief can't follow.",
     ],
-    tryThis: "Pick one thing the Nothing has flattened into ‘just a room, just a commute’ and make it specific and sensory again.",
+    tryThis: "Pick one thing Disbelief has flattened into ‘just a room, just a commute’ and make it specific and sensory again.",
   },
   "wonder-compass": {
     kicker: "Make a complete loop through wonder",

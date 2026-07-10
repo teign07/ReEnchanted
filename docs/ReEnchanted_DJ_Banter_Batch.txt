@@ -335,14 +335,14 @@ RadioBanter(
 ASSET: DJ_thornwave_weather_storm_grey_02
 --------------------------------------------------------------------------------
 Storm on the band, grey at the edges, and that delicious pressure right before
-something decides to happen. The Nothing loves weather like this. So do I. The
+something decides to happen. The Disbelief loves weather like this. So do I. The
 difference is I'm only here for the bassline.
 
 RadioBanter(
     id: "thornwave-weather-storm-grey-pressure",
     category: .news,
     assetName: "DJ_thornwave_weather_storm_grey_02",
-    caption: "Storm on the band, grey at the edges, that delicious pressure before something decides to happen. The Nothing loves weather like this. So do I — but I'm only here for the bassline.",
+    caption: "Storm on the band, grey at the edges, that delicious pressure before something decides to happen. The Disbelief loves weather like this. So do I — but I'm only here for the bassline.",
     conditions: RadioBanter.Conditions(
         timeOfDay: ["dusk", "night"],
         minGrey: 35,
@@ -410,7 +410,7 @@ RadioBanter(
 --------------------------------------------------------------------------------
 ASSET: DJ_thornwave_grey_high_pressure_01
 --------------------------------------------------------------------------------
-The grey's gone heavy. I can feel the Nothing leaning on the door, polite as
+The grey's gone heavy. I can feel Disbelief leaning on the door, polite as
 ever, asking to be let in for a moment. Here's the thing about that door,
 sweetheart: it only opens from your side. Keep the music up. Keep your hand
 off the latch.
@@ -419,7 +419,7 @@ RadioBanter(
     id: "thornwave-grey-high-keep-the-door",
     category: .news,
     assetName: "DJ_thornwave_grey_high_pressure_01",
-    caption: "The grey's gone heavy. The Nothing's leaning on the door, polite as ever. Here's the thing — it only opens from your side. Keep the music up. Hand off the latch.",
+    caption: "The grey's gone heavy. The Disbelief's leaning on the door, polite as ever. Here's the thing — it only opens from your side. Keep the music up. Hand off the latch.",
     conditions: RadioBanter.Conditions(
         minGrey: 55,
         maxGrey: 85
@@ -431,14 +431,14 @@ RadioBanter(
 ASSET: DJ_thornwave_pages_anchor_resist_01
 --------------------------------------------------------------------------------
 You've been dropping anchors lately. Naming things. Holding ground. Look at
-you, building a self the Nothing can't argue with. I'd be insulted if I
+you, building a self Disbelief can't argue with. I'd be insulted if I
 weren't quietly impressed. Don't tell anyone I said that.
 
 RadioBanter(
     id: "thornwave-pages-anchor-impressed",
     category: .gossip,
     assetName: "DJ_thornwave_pages_anchor_resist_01",
-    caption: "You've been dropping anchors. Naming things. Holding ground. Building a self the Nothing can't argue with. I'd be insulted if I weren't quietly impressed. Don't tell anyone.",
+    caption: "You've been dropping anchors. Naming things. Holding ground. Building a self Disbelief can't argue with. I'd be insulted if I weren't quietly impressed. Don't tell anyone.",
     conditions: RadioBanter.Conditions(
         pageTypes: [.anchor, .enchantment],
         minRecentPagesOfType: 1

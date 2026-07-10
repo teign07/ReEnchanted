@@ -147,4 +147,23 @@ final class BookGreetingTests: XCTestCase {
         XCTAssertLessThanOrEqual(voice.heroLine.components(separatedBy: ". ").count, 2)
         XCTAssertLessThanOrEqual(voice.edgeLine.components(separatedBy: ". ").count, 2)
     }
+
+    func testBookPreviewSentenceLimitKeepsDoctorNamesIntact() {
+        let preview = "Wicker Eddies invested 1 Belief in Dr. Selene Inkrest. The margins warmed."
+            .bookPreviewSentenceLimit(1)
+
+        XCTAssertEqual(preview, "Wicker Eddies invested 1 Belief in Dr. Selene Inkrest.")
+    }
+
+    func testOpeningVoiceKeepsDoctorNameInLoomLine() {
+        let voice = BookOpenVoiceComposer.compose(.init(
+            moonName: "New Moon",
+            hour: 9,
+            seed: 0,
+            relationshipLine: "Wicker Eddies invested 1 Belief in Dr. Selene Inkrest."
+        ))
+
+        XCTAssertTrue(voice.heroLine.contains("Dr. Selene Inkrest"))
+        XCTAssertFalse(voice.heroLine.hasSuffix("Dr."))
+    }
 }

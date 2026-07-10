@@ -4,7 +4,7 @@ No voiceover. Music (`fae-fi-to-the-adventure`) + game SFX carry it. These are t
 words that appear on screen, beat by beat. Voice: literary, warm, unhurried — matches the site.
 
 1. **(0–6s)** eyebrow: BOREDOM. ROUTINE. THE GREY.
-   `Life slips past, unread — and the Nothing creeps in.`
+   `Life slips past, unread — and Disbelief creeps in.`
 
 2. **(6–13s)** `Real Life,` **`ReEnchanted`**
    sub: A free, magical iPhone book that turns the day you actually lived into a faerie tale.

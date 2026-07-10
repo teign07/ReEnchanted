@@ -271,6 +271,35 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertNotEqual(chosen.category, .sponsor)
     }
 
+    func testUngatedBanterRunsDeepIntoCatalogBeforeRepeating() throws {
+        let station = try XCTUnwrap(RadioStationRegistry.station(id: "thornwave"))
+        let freelyEligible = station.resolvedBanters.filter { $0.conditions == nil && !$0.isBound }
+        var state = RadioPlaybackState(
+            activeStationID: station.id,
+            startedAt: Date(timeIntervalSince1970: 1_750_000_000)
+        )
+        let context = RadioWorldContext(timeOfDay: "day", grey: 0)
+        let eligible = station.resolvedBanters.filter {
+            context.satisfies($0.conditions)
+                && $0.placementFits(justFinishedTrackID: nil, upcomingTrackID: nil)
+        }
+        var heard = Set<String>()
+        var now = Date(timeIntervalSince1970: 1_750_000_000)
+
+        for _ in 0..<eligible.count {
+            let banter = try XCTUnwrap(RadioStationRegistry.nextBanter(
+                state: state,
+                context: context,
+                now: now
+            ))
+            XCTAssertTrue(heard.insert(banter.id).inserted, "banter repeated before the ungated bag was exhausted")
+            state.recordBanter(banter.id)
+            now = now.addingTimeInterval(901)
+        }
+
+        XCTAssertTrue(Set(freelyEligible.map(\.id)).isSubset(of: heard))
+    }
+
     func testAliveBanterCadenceIsVariableButNeverLeavesThreeSongsSilent() {
         let start = Date(timeIntervalSince1970: 1_750_000_000)
         let state = RadioPlaybackState(activeStationID: "thornwave", startedAt: start)

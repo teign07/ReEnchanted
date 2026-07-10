@@ -573,10 +573,10 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(WonderSparkRegistry.sparks.count, baseCount + WonderSparkRegistry.nocturneSparks.count)
     }
 
-    // MARK: The Nothing
+    // MARK: The Disbelief
 
     func testGreyLevelRespectsTheKindnessRules() {
-        XCTAssertEqual(NothingTide.greyLevel(quietDays: 5, narrativeHeat: 0, distressActive: true), 0, "distress silences the Nothing absolutely")
+        XCTAssertEqual(NothingTide.greyLevel(quietDays: 5, narrativeHeat: 0, distressActive: true), 0, "distress silences Disbelief absolutely")
         XCTAssertEqual(NothingTide.greyLevel(quietDays: 0, narrativeHeat: 0, distressActive: false), 0)
         XCTAssertEqual(NothingTide.greyLevel(quietDays: 1, narrativeHeat: 0, distressActive: false), 1)
         XCTAssertEqual(NothingTide.greyLevel(quietDays: 3, narrativeHeat: 0, distressActive: false), 2)
@@ -1366,6 +1366,13 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(PlayfulMissionRegistry.missions.contains { $0.id == "strange-technical-miracle" })
     }
 
+    func testSharedWonderMissionsJoinPlayfulMissionRegistry() {
+        XCTAssertGreaterThanOrEqual(PlayfulMissionRegistry.sharedWonderMissions.count, 10)
+        XCTAssertTrue(PlayfulMissionRegistry.missions.contains { $0.id == "shared-no-reply-glint" })
+        XCTAssertTrue(PlayfulMissionRegistry.missions.allSatisfy { !$0.prompt.isEmpty && !$0.proofPrompt.isEmpty })
+        XCTAssertTrue(PlayfulMissionRegistry.sharedWonderMissions.allSatisfy { $0.tags.contains("shared-wonder") })
+    }
+
     func testPlayfulMissionRegistryStillReturnsSenseMission() {
         let mission = PlayfulMissionRegistry.mission(
             for: BookDay.today(),
@@ -1394,6 +1401,22 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(mission.prompt.lowercased().contains("moon"))
     }
 
+    func testMoonMissionLookupSchedulesOnlyMoonNights() {
+        let calendar = utcCalendar
+        let start = date(2026, 7, 1, hour: 21, calendar: calendar)
+        let full = firstDate(after: start, where: { MoonPhaseCalendar.phase(on: $0).name == "Full Moon" }, calendar: calendar)
+        let quarter = firstDate(after: start, where: { MoonPhaseCalendar.phase(on: $0).name == "First Quarter" }, calendar: calendar)
+
+        let fullMission = PlayfulMissionRegistry.moonMission(on: full)
+        XCTAssertEqual(fullMission?.id, "moon-full-face")
+        XCTAssertTrue(fullMission?.tags.contains("natural-phenomenon") == true)
+        XCTAssertNil(PlayfulMissionRegistry.moonMission(on: quarter))
+
+        let waning = PlayfulMissionRegistry.moonMission(on: firstDate(after: start, where: { MoonPhaseCalendar.phase(on: $0).name == "Waning Gibbous" }, calendar: calendar))
+        XCTAssertEqual(waning?.id, "moon-waning-gibbous-shadow")
+        XCTAssertTrue(waning?.tags.contains("natural-phenomenon") == true)
+    }
+
     func testPlayfulMissionRegistryUsesStormWindErrandFromWeather() {
         var inputs = BookSourceInputs.empty
         inputs.weather = WeatherSourceSignal(
@@ -1420,16 +1443,30 @@ final class WorldSystemsTests: XCTestCase {
             LocalPlaceSignal(id: "harbor", name: "Belfast Harbor Walk", category: "harbor", distanceLabel: "0.4 km", locality: "Belfast")
         ]
         let now = MoonPhaseCalendar.nextNewMoon(after: date(2026, 7, 1, hour: 12, calendar: utcCalendar), calendar: utcCalendar)
+        let day = BookDay(id: "water-mission", date: now, pages: [])
+        var surfacedIDs = Set<String>()
+        for offset in 0..<4 {
+            let mission = PlayfulMissionRegistry.mission(
+                for: day,
+                inputs: inputs,
+                now: now.addingTimeInterval(TimeInterval(offset * 2 * 60 * 60))
+            )
+            XCTAssertTrue(mission.tags.contains("water"))
+            surfacedIDs.insert(mission.id)
+            inputs.surfaceHistory["playful-mission:\(mission.id)"] = SurfaceHistoryRecord(
+                lastShownAt: now.addingTimeInterval(TimeInterval(offset * 2 * 60 * 60)),
+                recentShowCount: 1
+            )
+        }
 
-        let mission = PlayfulMissionRegistry.mission(
-            for: BookDay(id: "water-mission", date: now, pages: []),
+        XCTAssertEqual(surfacedIDs.count, 4, "A persistent waterfront signal should surface each place-aware mission once.")
+
+        let nextMission = PlayfulMissionRegistry.mission(
+            for: day,
             inputs: inputs,
-            now: now
+            now: now.addingTimeInterval(8 * 60 * 60)
         )
-
-        XCTAssertEqual(mission.id, "water-flow-low-point")
-        XCTAssertTrue(mission.tags.contains("water"))
-        XCTAssertTrue(mission.prompt.lowercased().contains("water"))
+        XCTAssertFalse(nextMission.tags.contains("water"), "After the waterfront opener, the feed should return to the whole mission pool.")
     }
 
     func testStandaloneNoticeWonderCompassStartsWithHigherPageBelief() throws {
@@ -1446,6 +1483,8 @@ final class WorldSystemsTests: XCTestCase {
             $0.payload.metadata["compassStep"] == "notice"
         })
 
+        XCTAssertEqual(notice.sourceID, BookPageSourceRegistry.wonderCompassNoticeSourceID)
+        XCTAssertEqual(notice.source.title, "North = Notice")
         XCTAssertEqual(notice.payload.metadata["startingPageBelief"], "62")
         XCTAssertNil(notice.payload.metadata["readerBeliefReward"])
 
@@ -1470,6 +1509,10 @@ final class WorldSystemsTests: XCTestCase {
             $0.payload.metadata["playfulMissionID"]?.isEmpty == false
         })
 
+        XCTAssertEqual(mission.sourceID, BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID)
+        XCTAssertEqual(mission.source.title, "South = Sense")
+        let missionID = try XCTUnwrap(mission.payload.metadata["playfulMissionID"])
+        XCTAssertTrue(mission.curatorServedHistoryKeys.contains("playful-mission:\(missionID)"))
         XCTAssertEqual(mission.payload.metadata["startingPageBelief"], "62")
         XCTAssertNil(mission.payload.metadata["readerBeliefReward"])
 
@@ -1478,6 +1521,24 @@ final class WorldSystemsTests: XCTestCase {
         let narrativeBias = (BookPageSourceRegistry.narrativeWeight(for: source) - 20) / 4
         let adjusted = CuratorSurfacePreferences.none.adjustedScore(for: mission)
         XCTAssertEqual(adjusted, mission.score + narrativeBias + (62 - baseline) / 2)
+    }
+
+    func testCompassChildSourcesAreListedForPageBeliefWithoutEmbarkClone() throws {
+        let profiles = BookPageSourceRegistry.beliefProfiles()
+        let activeIDs = Set(BookPageSourceRegistry.activeSources.map(\.id))
+
+        let notice = try XCTUnwrap(profiles.first { $0.sourceID == BookPageSourceRegistry.wonderCompassNoticeSourceID })
+        let sense = try XCTUnwrap(profiles.first { $0.sourceID == BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID })
+        let souvenir = try XCTUnwrap(profiles.first { $0.sourceID == "one-sentence-souvenir" })
+
+        XCTAssertTrue(activeIDs.contains(BookPageSourceRegistry.wonderCompassNoticeSourceID))
+        XCTAssertTrue(activeIDs.contains(BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID))
+        XCTAssertEqual(notice.title, "North = Notice")
+        XCTAssertEqual(sense.title, "South = Sense")
+        XCTAssertEqual(notice.belief, 36)
+        XCTAssertEqual(sense.belief, 36)
+        XCTAssertEqual(souvenir.type, .souvenir)
+        XCTAssertFalse(activeIDs.contains("wonder-compass-embark"))
     }
 
     func testPennySentenceMasterySurfacesMultipleChapterNinePages() throws {
@@ -1833,9 +1894,12 @@ final class WorldSystemsTests: XCTestCase {
             SurfacePage(id: id, type: type, sourceID: nil, score: score, prompt: id, detail: "",
                         payload: BookPagePayload(headline: id, body: ""))
         }
+        var mood = CuratorMood.neutral
+        mood.keptPageCount = 30
         let ranked = BookCurator.rankedPages(
             from: [page("q1", .quip, score: 90), page("q2", .quip, score: 88), page("d1", .diary, score: 60)],
-            limit: 2
+            limit: 2,
+            mood: mood
         )
         XCTAssertEqual(Set(ranked.map(\.page.type)).count, 2, "two card slots should hold two kinds")
     }
@@ -2313,9 +2377,39 @@ final class WorldSystemsTests: XCTestCase {
             state: BeliefEconomyState()
         ))
 
-        XCTAssertEqual(result.readerDelta, -3)
+        XCTAssertEqual(result.readerDelta, -4)
         XCTAssertEqual(result.entityDeltas["zara-finch"], -1)
         XCTAssertEqual(result.pageDeltas[source.id], -2)
+        XCTAssertTrue(result.movements.contains { $0.note == "Excess Glow settled back into the paper overnight." })
+    }
+
+    func testBeliefOverflowFeedsRecentlyTouchedCast() {
+        let now = date(2026, 2, 3, hour: 9, calendar: utcCalendar)
+        let event = NarrativeEvent(
+            id: "overflow-touch-zara",
+            kind: .pageKept,
+            sourcePageType: .gossip,
+            sourcePageID: "overflow-page",
+            createdAt: now.addingTimeInterval(-3_600),
+            summary: "Zara was recently present.",
+            tags: ["entity:zara-finch"],
+            effect: NarrativeEventEffect(entityWeightDeltas: ["zara-finch": 1])
+        )
+        let result = BeliefEconomyEngine.dailyTick(BeliefEconomyDailyContext(
+            now: now,
+            days: [],
+            entities: NarrativePackRegistry.entities,
+            entityBelief: ["zara-finch": 40],
+            pageBelief: [:],
+            readerBelief: 91,
+            events: [event],
+            state: BeliefEconomyState()
+        ))
+
+        XCTAssertEqual(result.readerDelta, -4)
+        XCTAssertEqual(result.entityDeltas["zara-finch"], 3)
+        XCTAssertTrue(result.movements.contains { $0.note == "Unspent Glow overflowed — the paper cannot hold more than a life spends." })
+        XCTAssertTrue(result.movements.contains { $0.note == "Zara Finch caught your overflowing light." })
     }
 
     func testBeliefEconomyWarmsKeptSourceOncePerDay() {
@@ -2520,7 +2614,7 @@ final class WorldSystemsTests: XCTestCase {
             bindingDay(2, text: "I protected the day by naming the difficult thing instead of avoiding it."),
             bindingDay(3, text: "The page kept the conflict because smoothing it away would have made the story false."),
             bindingDay(4, text: "A thorn can be protection, not cruelty."),
-            bindingDay(5, text: "The Nothing loses ground when the sentence is interesting enough to stay.")
+            bindingDay(5, text: "The Disbelief loses ground when the sentence is interesting enough to stay.")
         ]
         let selfFacts = [
             SelfFact(
@@ -3623,7 +3717,7 @@ final class WorldSystemsTests: XCTestCase {
         let start = date(2026, 6, 10, hour: 21, calendar: utcCalendar)
         let later = date(2026, 6, 12, hour: 21, calendar: utcCalendar)
         let work = BookJumpEngine.publicDomainShelf[0]
-        // Already at the brink, untouched for a day -> the Nothing overruns it.
+        // Already at the brink, untouched for a day -> Disbelief overruns it.
         let state = BookJumpState(active: activeJumpFixture(work: work, depth: 3, degradation: 4, now: start))
         let result = BookJumpEngine.dailyDecay(state, now: later)
         XCTAssertTrue(result.collapsed)

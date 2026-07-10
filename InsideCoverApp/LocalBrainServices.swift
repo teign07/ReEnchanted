@@ -221,11 +221,19 @@ actor LocalBrainInferenceGate {
 
     private func enter(label: String, promptCharacters: Int) async throws {
         if isRunning {
-            postWorkState(isWorking: true, label: "busy", promptCharacters: 0, queuedCount: 0)
+            await postWorkStateImmediately(isWorking: true, label: "busy", promptCharacters: 0, queuedCount: 0)
             throw LocalBrainGateError.busy
         }
         isRunning = true
-        postWorkState(isWorking: true, label: label, promptCharacters: promptCharacters, queuedCount: 0)
+        // Do not race the model against the UI's resource pause. Posting on the
+        // main actor synchronously lets the home background stop its display
+        // clocks before Gemma claims the GPU.
+        await postWorkStateImmediately(
+            isWorking: true,
+            label: label,
+            promptCharacters: promptCharacters,
+            queuedCount: 0
+        )
     }
 
     private func leave() {
@@ -248,6 +256,25 @@ actor LocalBrainInferenceGate {
                 queuedCount: queuedCount
             )
         )
+    }
+
+    private nonisolated func postWorkStateImmediately(
+        isWorking: Bool,
+        label: String?,
+        promptCharacters: Int,
+        queuedCount: Int
+    ) async {
+        await MainActor.run {
+            NotificationCenter.default.post(
+                name: .localBrainWorkDidChange,
+                object: LocalBrainWorkSnapshot(
+                    isWorking: isWorking,
+                    label: label,
+                    promptCharacters: promptCharacters,
+                    queuedCount: queuedCount
+                )
+            )
+        }
     }
 
     private nonisolated func postOnMain(name: Notification.Name, object: Any?) {

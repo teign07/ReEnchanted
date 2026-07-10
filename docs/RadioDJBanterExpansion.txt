@@ -4,7 +4,7 @@ Lore · Cast gossip · Talismans · Classes · Clubs · Tips & Hints
 ========================================================================
 
 53 new in-character DJ breaks, written from the real Academy cast in
-Shared/NarrativeCore.swift and tied to the world (the Nothing/grey, Belief,
+Shared/NarrativeCore.swift and tied to the world (Disbelief/grey, Belief,
 the five Chapters, the Compass directions, the talismans, the classes and
 clubs, Wicker's crew, the Bleed). This file has two parts:
 
@@ -76,7 +76,7 @@ FAE-FI · 88.3 FM · DJ: Penny Blackletter
 [dryly] For the new readers, filed plainly: a Compass Run is four directions and one sentence. Notice to the North, Embark to the East, Sense to the South, Write to the West — and Rest at the Center, which isn't a direction at all but the ground the other four stand on. [warmly] You walk one small adventure, then bind a single true souvenir line at the end. That's it. That's the magic. [dryly] Embarrassingly repeatable.
 
 ### DJ_faefi_tip_belief_01      [news · when the grey is up / tip]
-[dryly] Grey's up at the edges this morning — the Nothing's been chewing on the unnoticed hours again. Here's the only counter-spell that's ever worked, and yes, I audited it: notice one true particular and write it down. [warmly] Belief planted, grey pushed back. One detail. That's the whole arithmetic of this place. [dryly] Plant one before lunch and prove me right. I do enjoy being right.
+[dryly] Grey's up at the edges this morning — Disbelief's been chewing on the unnoticed hours again. Here's the only counter-spell that's ever worked, and yes, I audited it: notice one true particular and write it down. [warmly] Belief planted, grey pushed back. One detail. That's the whole arithmetic of this place. [dryly] Plant one before lunch and prove me right. I do enjoy being right.
 
 ### DJ_faefi_club_compass_society_01      [gossip · after a recent Souvenir page]
 [warmly] Word from the Secret Garden of Prose: the Compass Society met again, Zara Finch holding it together by sheer attention, as ever. They read their one-sentence souvenirs aloud — and no one mocks a sentence in that room. [dryly] Apparently saying it out loud makes it more real. I resisted the theory on principle. [warmly] Then I tested it. Reader: it's real. If you've kept a souvenir, consider that your invitation.
@@ -171,7 +171,7 @@ THE MIDNIGHT BINDERY · 99.3 FM · DJ: Professor Vivian Villanelle
 [softly] The Compass Society read their souvenirs aloud in the Secret Garden tonight, and Zara Finch let no one mock a single sentence. [warmly] Sharing a souvenir makes it more real — I've taught that for years and it still lands in my chest every time. [precise] You kept one recently. Read it aloud, just once — to the lamp, if no one else is up. [softly] A sentence spoken is a sentence that holds.
 
 ### DJ_midnight_bindery_news_belief_01      [news · anytime]
-[measured] From the ledger tonight: Belief planted is up, and the grey, accordingly, is down. [precise] The arithmetic is embarrassingly simple, and nobody believes it until they bind one true line and feel it hold in the hand. [warmly] So bind one. The Nothing only takes what was never written down. Here's the music to do it under.
+[measured] From the ledger tonight: Belief planted is up, and the grey, accordingly, is down. [precise] The arithmetic is embarrassingly simple, and nobody believes it until they bind one true line and feel it hold in the hand. [warmly] So bind one. The Disbelief only takes what was never written down. Here's the music to do it under.
 
 ### DJ_midnight_bindery_news_festival_01      [news · festival window]
 [precise] The festival ends at moonrise, and I'd rather you didn't let it pass unwritten. [softly] One sentence. "The night I…" — and finish it true. Cross out the rest. [warmly] That's the whole craft. That's the whole rescue. The Bindery will be here, holding the thread, after this.
@@ -394,7 +394,7 @@ Two kinds of change below:
                 RadioBanter(
                     id: "faefi-tip-belief", category: .news,
                     assetName: "DJ_faefi_tip_belief_01",
-                    caption: "Grey's up at the edges this morning — the Nothing's been chewing on the unnoticed hours again. Here's the only counter-spell that's ever worked, and yes, I audited it: notice one true particular and write it down. Belief planted, grey pushed back. One detail. That's the whole arithmetic of this place. Plant one before lunch and prove me right. I do enjoy being right.",
+                    caption: "Grey's up at the edges this morning — Disbelief's been chewing on the unnoticed hours again. Here's the only counter-spell that's ever worked, and yes, I audited it: notice one true particular and write it down. Belief planted, grey pushed back. One detail. That's the whole arithmetic of this place. Plant one before lunch and prove me right. I do enjoy being right.",
                     conditions: RadioBanter.Conditions(minGrey: 30),
                     weight: 3
                 ),
@@ -642,7 +642,7 @@ Put a comma after that `]`, then paste this block before the `)`:
                         RadioBanter(
                             id: "midnight-bindery-news-belief", category: .news,
                             assetName: "DJ_midnight_bindery_news_belief_01",
-                            caption: "From the ledger tonight: Belief planted is up, and the grey, accordingly, is down. The arithmetic is embarrassingly simple, and nobody believes it until they bind one true line and feel it hold in the hand. So bind one. The Nothing only takes what was never written down. Here's the music to do it under.",
+                            caption: "From the ledger tonight: Belief planted is up, and the grey, accordingly, is down. The arithmetic is embarrassingly simple, and nobody believes it until they bind one true line and feel it hold in the hand. So bind one. The Disbelief only takes what was never written down. Here's the music to do it under.",
                             conditions: nil, weight: 3
                         ),
                         RadioBanter(

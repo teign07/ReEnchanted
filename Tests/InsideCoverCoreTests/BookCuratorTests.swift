@@ -57,12 +57,14 @@ final class BookCuratorTests: XCTestCase {
         )
         let fallback = rankedCandidate(.quip, score: 40)
         let preferences = CuratorSurfacePreferences(dismissedSurfaceIDs: run.curatorDeskExclusionKeys)
+        var mood = CuratorMood.neutral
+        mood.keptPageCount = 30
 
         let pages = BookCurator.rankedPages(
             from: [run, reference, fallback],
             limit: 2,
             preferences: preferences,
-            mood: .neutral,
+            mood: mood,
             now: localDate(hour: 21)
         ).map(\.page)
 
@@ -117,7 +119,7 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testEveryActiveSourceHasACuratorAdapter() {
-        let adapterSourceIDs = Set(BookPageSourceAdapters.active.map(\.source.id))
+        let adapterSourceIDs = Set(BookPageSourceAdapters.active.flatMap(\.servedSourceIDs))
         let activeSourceIDs = Set(BookPageSourceRegistry.activeSources.map(\.id))
 
         XCTAssertTrue(activeSourceIDs.isSubset(of: adapterSourceIDs))
@@ -262,7 +264,9 @@ final class BookCuratorTests: XCTestCase {
             rankedCandidate(.illustration, score: 55)
         ]
 
-        let pages = BookCurator.rankedPages(from: candidates, limit: 3, mood: .neutral, now: now).map(\.page)
+        var mood = CuratorMood.neutral
+        mood.keptPageCount = 30
+        let pages = BookCurator.rankedPages(from: candidates, limit: 3, mood: mood, now: now).map(\.page)
 
         XCTAssertEqual(pages.filter { $0.type == .lore }.count, 1)
         XCTAssertEqual(Set(pages.map(\.type)).count, pages.count)
@@ -294,7 +298,9 @@ final class BookCuratorTests: XCTestCase {
             rankedCandidate(.illustration, score: 55)
         ]
 
-        let pages = BookCurator.rankedPages(from: candidates, limit: 3, mood: .neutral, now: now).map(\.page)
+        var mood = CuratorMood.neutral
+        mood.keptPageCount = 30
+        let pages = BookCurator.rankedPages(from: candidates, limit: 3, mood: mood, now: now).map(\.page)
 
         XCTAssertEqual(pages.filter { $0.sourceID == "shared-preview-family" }.count, 1)
         XCTAssertEqual(pages.first?.id, "shared-family-wonder")
@@ -327,7 +333,9 @@ final class BookCuratorTests: XCTestCase {
             rankedCandidate(.quip, score: 39)
         ]
 
-        let pages = BookCurator.rankedPages(from: candidates, limit: 3, mood: .neutral, now: now).map(\.page)
+        var mood = CuratorMood.neutral
+        mood.keptPageCount = 30
+        let pages = BookCurator.rankedPages(from: candidates, limit: 3, mood: mood, now: now).map(\.page)
 
         XCTAssertEqual(pages.filter { $0.type.isCompositionPrompt }.count, 1)
         XCTAssertEqual(pages.first?.type, .diary)
@@ -1515,6 +1523,16 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(corePack.relationships.contains { $0.id == "inkrest-vellum-compare-charts" })
     }
 
+    func testCoreNarrativePackIncludesWonderCompassAsBeginningObject() throws {
+        let corePack = try XCTUnwrap(NarrativePackRegistry.enabledPacks.first { $0.id == NarrativePackRegistry.corePackID })
+        let compass = try XCTUnwrap(corePack.entities.first { $0.id == "wonder-compass" })
+
+        XCTAssertEqual(compass.name, "The Wonder Compass")
+        XCTAssertEqual(compass.kind, .object)
+        XCTAssertTrue(compass.tags.contains("beginning-cast"))
+        XCTAssertTrue(compass.tags.contains("wonder-compass"))
+    }
+
     func testCoreNPCsCarryUnwrittenInterests() throws {
         let corePack = try XCTUnwrap(NarrativePackRegistry.enabledPacks.first { $0.id == NarrativePackRegistry.corePackID })
         let characterEntities = corePack.entities.filter { $0.kind == .character }
@@ -1842,6 +1860,41 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertGreaterThan(event.effect.relationshipWeightDeltas["weather-bleeds-book"] ?? 0, 0)
     }
 
+    func testFuelLogDoesNotWarmVellumAsCastBelief() {
+        let page = BookPage(
+            id: "fuel-kept",
+            type: .fuel,
+            createdAt: localDate(hour: 12),
+            promptText: "Dr. Vellum's Plate Note",
+            userInput: "Coffee, toast, water.",
+            tags: ["fuel", "dr-vellum", "entity:dr-vellum"]
+        )
+
+        let event = NarrativeEventResolver.event(forKept: page)
+
+        XCTAssertNil(event.effect.entityWeightDeltas["dr-vellum"])
+        XCTAssertGreaterThan(event.effect.entityWeightDeltas["body-page"] ?? 0, 0)
+        XCTAssertGreaterThan(event.effect.threadWeightDeltas["body-learns-trust"] ?? 0, 0)
+        XCTAssertTrue(BookPageType.fuel.suppressesCastBeliefRipple)
+    }
+
+    func testInnerWeatherDoesNotWarmInkrestAsCastBelief() {
+        let page = BookPage(
+            id: "inner-weather-kept",
+            type: .mood,
+            createdAt: localDate(hour: 9),
+            promptText: "What's the weather like inside you?",
+            userInput: "Low cloud, but moving.",
+            tags: ["inner-weather", "dr-inkrest", "entity:dr-inkrest"]
+        )
+
+        let event = NarrativeEventResolver.event(forKept: page)
+
+        XCTAssertNil(event.effect.entityWeightDeltas["dr-inkrest"])
+        XCTAssertGreaterThan(event.effect.threadWeightDeltas["body-learns-trust"] ?? 0, 0)
+        XCTAssertTrue(BookPageType.mood.suppressesCastBeliefRipple)
+    }
+
     func testAcademyClassKeptWeightsProfessorSubjectAndLesson() {
         let page = BookPage(
             id: "glint-class-kept",
@@ -2105,6 +2158,22 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(pages.contains { $0.type == .bookOfYou })
     }
 
+    func testEveningBraidDoesNotEvictFirstReadingMilestone() {
+        let pages = BookCurator.surfacedPages(
+            for: dayAwaitingFirstReading(),
+            inputs: richInputs(),
+            now: localDate(hour: 21, minute: 31),
+            limit: 3
+        )
+
+        XCTAssertTrue(pages.contains { $0.payload.metadata["firstReading"] == "true" })
+        XCTAssertTrue(pages.contains { $0.type == .bookOfYou })
+        XCTAssertEqual(
+            pages.first(where: { $0.type == .bookOfYou })?.type.deskLane,
+            .fiction
+        )
+    }
+
     func testDistressBiasesGentleRestFirst() {
         let dayDate = localDate(year: 2026, month: 6, day: 1, hour: 0)
         let day = BookDay(
@@ -2254,6 +2323,24 @@ final class BookCuratorTests: XCTestCase {
                     tags: ["souvenir", "music"]
                 )
             ]
+        )
+    }
+
+    private func dayAwaitingFirstReading() -> BookDay {
+        let day = localDate(year: 2026, month: 6, day: 1, hour: 0)
+        return BookDay(
+            id: "2026-06-01",
+            date: day,
+            pages: (1...3).map { index in
+                BookPage(
+                    id: "first-reading-\(index)",
+                    type: .souvenir,
+                    createdAt: localDate(year: 2026, month: 6, day: 1, hour: 9 + index),
+                    promptText: "Catch one bright particular.",
+                    userInput: "A small true detail number \(index).",
+                    tags: ["souvenir"]
+                )
+            }
         )
     }
 

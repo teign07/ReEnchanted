@@ -8,8 +8,10 @@ struct AlmanacSheet: View {
     let onOpen: (BookPage) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var monthAnchor: Date
     @State private var selectedDay: Date?
+    @State private var monthDirection = 1
 
     private let calendar = Calendar.current
 
@@ -46,8 +48,12 @@ struct AlmanacSheet: View {
                         }
                         weekdayHeader
                         monthGrid
+                            .id(grid.monthStart)
+                            .transition(monthTransition)
                         if let day = selectedDay {
                             selectedDayList(for: day)
+                                .id(day)
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
                         } else {
                             Text("Tap a day with a mark to read what you kept then.")
                                 .font(.system(.caption, design: .serif).italic())
@@ -57,6 +63,8 @@ struct AlmanacSheet: View {
                     }
                     .padding(18)
                 }
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.26), value: monthAnchor)
+                .animation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.86), value: selectedDay)
             }
             .navigationTitle("The Almanac")
             .navigationBarTitleDisplayMode(.inline)
@@ -96,6 +104,7 @@ struct AlmanacSheet: View {
             }
             .disabled(!canGoBack)
             .opacity(canGoBack ? 1 : 0.3)
+            .buttonStyle(.bookPress(playsHaptic: false))
 
             Spacer()
             Text(monthTitle)
@@ -111,6 +120,7 @@ struct AlmanacSheet: View {
             }
             .disabled(!canGoForward)
             .opacity(canGoForward ? 1 : 0.3)
+            .buttonStyle(.bookPress(playsHaptic: false))
         }
         .foregroundStyle(BookPalette.lampGold)
     }
@@ -192,6 +202,16 @@ struct AlmanacSheet: View {
         }
     }
 
+    private var monthTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        let incoming: Edge = monthDirection >= 0 ? .trailing : .leading
+        let outgoing: Edge = monthDirection >= 0 ? .leading : .trailing
+        return .asymmetric(
+            insertion: .move(edge: incoming).combined(with: .opacity),
+            removal: .move(edge: outgoing).combined(with: .opacity)
+        )
+    }
+
     @ViewBuilder
     private func dayCell(_ cell: AlmanacModel.DayCell) -> some View {
         if let date = cell.date {
@@ -210,6 +230,7 @@ struct AlmanacSheet: View {
                     Circle()
                         .fill(cell.keptCount > 0 ? BookPalette.teal : Color.clear)
                         .frame(width: 5, height: 5)
+                        .scaleEffect(isSelected && !reduceMotion ? 1.65 : 1)
                 }
                 .frame(height: 40)
                 .frame(maxWidth: .infinity)
@@ -221,8 +242,14 @@ struct AlmanacSheet: View {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(isToday ? BookPalette.lampGold.opacity(0.7) : Color.clear, lineWidth: 1.5)
                 )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(BookPalette.lampGold.opacity(isSelected ? 0.72 : 0), lineWidth: 1.2)
+                        .scaleEffect(isSelected && !reduceMotion ? 1.05 : 1)
+                }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.bookPress(scale: 0.94, playsHaptic: false))
+            .bookCardHover()
             .disabled(cell.keptCount == 0)
         } else {
             Color.clear.frame(height: 40)
@@ -260,7 +287,8 @@ struct AlmanacSheet: View {
                             .fill(BookPalette.nightText.opacity(0.05))
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bookPress(playsHaptic: false))
+                .bookCardHover()
             }
         }
     }
@@ -274,6 +302,7 @@ struct AlmanacSheet: View {
     private func step(_ months: Int) {
         guard let next = calendar.date(byAdding: .month, value: months, to: grid.monthStart) else { return }
         withAnimation(.easeInOut(duration: 0.2)) {
+            monthDirection = months
             monthAnchor = next
             selectedDay = nil
         }

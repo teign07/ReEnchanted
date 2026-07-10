@@ -423,6 +423,7 @@ private struct MarginsAtlasGraphView: View {
     let variant: MarginsAtlasVariant
     let graph: NarrativeGraphData
     @Binding var selectedNodeID: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Pinch-to-zoom + pan over the graph. The layout is dense with many nodes,
     // so the reader needs to magnify into a region to separate overlapping
@@ -432,6 +433,7 @@ private struct MarginsAtlasGraphView: View {
     @State private var lastZoom: CGFloat = 1
     @State private var pan: CGSize = .zero
     @State private var lastPan: CGSize = .zero
+    @State private var traceProgress = 1.0
 
     private let minZoom: CGFloat = 1
     private let maxZoom: CGFloat = 4
@@ -481,6 +483,16 @@ private struct MarginsAtlasGraphView: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .contain)
+        .onChange(of: selectedNodeID) { _, selectedID in
+            guard !reduceMotion, selectedID != nil else {
+                traceProgress = 1
+                return
+            }
+            traceProgress = 0
+            withAnimation(.easeInOut(duration: 0.44)) {
+                traceProgress = 1
+            }
+        }
     }
 
     private func graphContent(positions: [String: CodablePoint], size: CGSize) -> some View {
@@ -494,7 +506,7 @@ private struct MarginsAtlasGraphView: View {
                     path.move(to: CGPoint(x: source.x, y: source.y))
                     path.addLine(to: CGPoint(x: target.x, y: target.y))
                     context.stroke(
-                        path,
+                        isLit && selectedNodeID != nil ? path.trimmedPath(from: 0, to: traceProgress) : path,
                         with: .color(edgeColor(edge).opacity(isLit ? 0.78 : 0.13)),
                         lineWidth: max(1.2, 1.4 + edge.strength * 5.8)
                     )
@@ -784,9 +796,10 @@ private struct MarginsAtlasFullScreenView: View {
 private struct RadioSignalMeter: View {
     let stationID: String
     let isPlaying: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 0.25, paused: !isPlaying)) { timeline in
+        TimelineView(.animation(minimumInterval: 0.25, paused: !isPlaying || reduceMotion)) { timeline in
             let tick = Int(timeline.date.timeIntervalSince1970 * 4)
             HStack(alignment: .center, spacing: 4) {
                 ForEach(0..<24, id: \.self) { index in
@@ -897,8 +910,7 @@ struct CapturePageSheet: View {
     let localBrainWorkLabel: String
     let localBrainWorkStartedAt: Date?
     let localBrainQueuedCount: Int
-    let localBrainGenerationPreview: String?
-    let localBrainProgressLine: String?
+    let localBrainProgress: LocalBrainProgressViewState
     /// Whether the private local mind (Gemma) is already installed. Drives the
     /// in-page "Download the private mind" control on pages that mention it.
     var localBrainIsReady: Bool = false
@@ -951,6 +963,8 @@ struct CapturePageSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedWeather = ""
+    @State private var isCommittingKeep = false
+    @State private var isTuckingPage = false
     @State private var centerGearOffset = 0
     @State private var text = ""
     @State private var letterReply = ""
@@ -1312,6 +1326,7 @@ struct CapturePageSheet: View {
             surface.type == .gossip ||
             surface.type == .note ||
             surface.type == .bookRemembered ||
+            surface.type == .bookPocket ||
             surface.type == .bookNotices ||
             surface.type == .theBleed ||
             surface.type == .letter ||
@@ -1483,6 +1498,7 @@ struct CapturePageSheet: View {
             !isBookJumpPage &&
             surface.type != .note &&
             surface.type != .bookRemembered &&
+            surface.type != .bookPocket &&
             !isPendingLetterPage
     }
 
@@ -1944,13 +1960,12 @@ struct CapturePageSheet: View {
         quip: String? = nil,
         presentation: ScribeWorkPresentation = .page
     ) -> some View {
-        LocalBrainWorkingStatusCard(
+        LiveLocalBrainWorkingStatusCard(
+            progress: localBrainProgress,
             label: label,
             quip: quip,
             startedAt: localBrainWorkStartedAt,
             queuedCount: localBrainQueuedCount,
-            liveText: localBrainGenerationPreview,
-            progressLine: localBrainProgressLine,
             presentation: presentation
         )
         .id(Self.localBrainStatusScrollID)
@@ -2247,40 +2262,57 @@ struct CapturePageSheet: View {
                         guard label != nil else { return }
                         scrollToLocalBrainStatus(scrollProxy)
                     }
-                    .onChange(of: localBrainGenerationPreview) { oldValue, newValue in
-                        guard isLocalBrainWorking,
-                              oldValue?.nonEmpty == nil,
-                              newValue?.nonEmpty != nil else { return }
-                        scrollToLocalBrainStatus(scrollProxy)
+                    .background {
+                        LocalBrainPreviewStartObserver(
+                            progress: localBrainProgress,
+                            isWorking: isLocalBrainWorking
+                        ) {
+                            scrollToLocalBrainStatus(scrollProxy)
+                        }
                     }
                 }
                 .scrollIndicators(.visible)
+
+                if isCommittingKeep {
+                    Label("KEPT", systemImage: "seal.fill")
+                        .font(.system(.headline, design: .serif, weight: .black))
+                        .tracking(1.4)
+                        .foregroundStyle(BookPalette.ink)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 12)
+                        .background(BookPalette.lampGold, in: Capsule())
+                        .overlay {
+                            Capsule().stroke(BookPalette.paper.opacity(0.88), lineWidth: 2)
+                        }
+                        .shadow(color: BookPalette.lampGold.opacity(0.48), radius: 18)
+                        .transition(.scale(scale: 0.55).combined(with: .opacity))
+                        .zIndex(20)
+                        .accessibilityLabel("Page kept")
+                }
+
+                if isTuckingPage {
+                    Color(red: 0.24, green: 0.06, blue: 0.08)
+                        .opacity(reduceMotion ? 0.22 : 0.68)
+                        .ignoresSafeArea()
+                        .transition(.opacity)
+                        .allowsHitTesting(false)
+                }
             }
+            .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.72), value: isCommittingKeep)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: isTuckingPage)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(isKeptReadbackPage ? "Close" : "Let it wait") {
                         BookFeedback.play(.dismissPage)
-                        dismiss()
+                        letPageWait()
                     }
                 }
                 if !isKeptReadbackPage && !isBookJumpActivePage && !isPendingNotePage {
                     ToolbarItem(placement: .confirmationAction) {
                         Button(keepPageButtonTitle) {
-                            if isCompassRunStartPage {
-                                Task { await generateAndSaveCompassRun() }
-                            } else if isCompassRunStepPage {
-                                keepCompassStepAndAdvance()
-                            } else {
-                                let input = preparedInput
-                                markIlluminatedDraftKept()
-                                onSave(effectiveProofSurface, input, preparedTags, keptExtraMedia)
-                                completeStoryMechanicIfNeeded(surface: effectiveProofSurface, outcome: input)
-                                completeFaeBargainIfNeeded()
-                                completeTwoReadingsIfNeeded()
-                                dismiss()
-                            }
+                            keepCurrentPage()
                         }
-                        .disabled(!canKeep || isGeneratingCompassRun)
+                        .disabled(!canKeep || isGeneratingCompassRun || isCommittingKeep)
                     }
                 }
             }
@@ -2411,6 +2443,51 @@ struct CapturePageSheet: View {
                 }
             }
             .keepsFocusedTextInputVisible()
+        }
+    }
+
+    private func keepCurrentPage() {
+        if isCompassRunStartPage {
+            Task { await generateAndSaveCompassRun() }
+        } else if isCompassRunStepPage {
+            keepCompassStepAndAdvance()
+        } else {
+            commitCurrentPage()
+        }
+    }
+
+    private func commitCurrentPage() {
+        guard !isCommittingKeep else { return }
+        withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.28, dampingFraction: 0.66)) {
+            isCommittingKeep = true
+        }
+
+        let finish = {
+            let input = preparedInput
+            markIlluminatedDraftKept()
+            onSave(effectiveProofSurface, input, preparedTags, keptExtraMedia)
+            completeStoryMechanicIfNeeded(surface: effectiveProofSurface, outcome: input)
+            completeFaeBargainIfNeeded()
+            completeTwoReadingsIfNeeded()
+            dismiss()
+        }
+        if reduceMotion {
+            finish()
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.24, execute: finish)
+        }
+    }
+
+    private func letPageWait() {
+        guard !isTuckingPage else { return }
+        withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .easeIn(duration: 0.18)) {
+            isTuckingPage = true
+        }
+        let finish = { dismiss() }
+        if reduceMotion {
+            finish()
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.16, execute: finish)
         }
     }
 
@@ -4207,7 +4284,7 @@ struct CapturePageSheet: View {
     }
 
     /// The reader steers an open jump: go deeper (more risk, richer return),
-    /// steady the page when the Nothing is loud, or find the Spine and come home.
+    /// steady the page when Disbelief is loud, or find the Spine and come home.
     @ViewBuilder
     private func bookJumpForkControls(depth: Int, degradation: Int) -> some View {
         let canDeepen = depth < BookJumpEngine.maxDepth
@@ -10760,7 +10837,7 @@ private struct SentenceRunnerResult: Equatable {
             switch self {
             case .brightRun: return "The words formed a bridge."
             case .mixedThread: return "The sentence held, with weather."
-            case .greyTouched: return "The Nothing got ink on the edge."
+            case .greyTouched: return "The Disbelief got ink on the edge."
             case .emptyHands: return "The page kept the attempt."
             }
         }
@@ -10772,7 +10849,7 @@ private struct SentenceRunnerResult: Equatable {
             case .mixedThread:
                 return "You caught live words and brushed the grey. The result is not failure; it is a map of where the sentence thinned."
             case .greyTouched:
-                return "The Nothing pressed vague language into the run, but one kept word can still hold a door open."
+                return "The Disbelief pressed vague language into the run, but one kept word can still hold a door open."
             case .emptyHands:
                 return "No bright phrase stayed caught this time. The Book keeps the attempt because attempts are also evidence."
             }
@@ -10878,7 +10955,7 @@ private enum SentenceRunnerRescue {
         return formatter
     }()
 
-    /// Each grey word the Nothing pressed into the run is flattened language; the
+    /// Each grey word Disbelief pressed into the run is flattened language; the
     /// Book restores it by pairing it with a concrete phrase the reader actually
     /// kept (and, when known, the exact page it came from). Deterministic.
     static func items(grey: [String], archive: [String], provenance: [String: SentenceRunnerPhraseSource]) -> [SentenceRunnerRescueItem] {
@@ -10900,7 +10977,7 @@ private enum SentenceRunnerRescue {
     static func lines(_ items: [SentenceRunnerRescueItem]) -> [String] {
         items.map { item in
             let from = item.source.map { " (from your \($0.label), \(dateFormatter.string(from: $0.date)))" } ?? ""
-            return "\(item.grey) — the Nothing flattened this. What you meant: \(item.restored)\(from)."
+            return "\(item.grey) — Disbelief flattened this. What you meant: \(item.restored)\(from)."
         }
     }
 }
@@ -10990,7 +11067,7 @@ private struct SentenceRunnerGameView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(BookPalette.lampGold)
 
-                Text("Bright phrases come from kept pages. Grey phrases are the Nothing trying to flatten the run. A grey touch is not failure; it is evidence.")
+                Text("Bright phrases come from kept pages. Grey phrases are Disbelief trying to flatten the run. A grey touch is not failure; it is evidence.")
                     .font(.caption)
                     .foregroundStyle(BookPalette.nightText.opacity(0.68))
                     .fixedSize(horizontal: false, vertical: true)
@@ -11659,8 +11736,8 @@ struct FakeSentenceRunnerProseWriter: SentenceRunnerProseWriting {
 enum SentenceRunnerPromptBuilder {
     static let instructions = """
     You are The Book inside ReEnchanted, writing up the result of a Game Page called The Sentence Runner.
-    The reader just played a small runner game whose obstacles are phrases pulled from their own kept pages (bright words) and the Nothing's vague filler (grey words).
-    Your real work is RE-ENCHANTMENT: the Nothing flattens real life into grey words like "fine" or "later"; you restore the concrete thing each grey word was hiding, using only the reader's own kept phrases as the source of that meaning.
+    The reader just played a small runner game whose obstacles are phrases pulled from their own kept pages (bright words) and Disbelief's vague filler (grey words).
+    Your real work is RE-ENCHANTMENT: Disbelief flattens real life into grey words like "fine" or "later"; you restore the concrete thing each grey word was hiding, using only the reader's own kept phrases as the source of that meaning.
     You are given the bright words they caught, the grey words that touched them, sample phrases from their archive, a deterministic rescue draft, and a deterministic prose draft. Rewrite both drafts into finished prose.
     Use ONLY the supplied caught words, grey words, and archive samples as material. Do not invent new events, characters, places, or facts.
     Do not mention games, scores, points, tokens, taps, code, prompts, or simulation machinery.
@@ -11951,7 +12028,7 @@ enum StoryPagePromptBuilder {
             case .action:
                 modeRule = "Physical action carries the scene and changes the situation; dialogue is optional."
             case .environmental:
-                modeRule = "The place, weather, objects, or the Nothing may act and cause consequences; keep the reader's possible response concrete."
+                modeRule = "The place, weather, objects, or Disbelief may act and cause consequences; keep the reader's possible response concrete."
             }
             let groundingRule = StoryFormRegistry.isWorldLedRecipe(id: blueprint.recipeID)
                 ? "Real-day atmosphere — let it tint light, weather, and hour only. Never quote, discuss, or explain the reader's pages or day; the world is running its own errand: \(blueprint.grounding.text)"

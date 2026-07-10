@@ -16,6 +16,7 @@ struct MonthlyEdition: Codable, Equatable {
     var foreword: String
     var sections: [MonthlyEditionSection]
     var continuity: LiteraryContinuityDigest
+    var howYouSee: HowYouSee.SeeingReceipt?
     /// The month's closing, in the Book's voice. The builder always fills this
     /// with the deterministic `BookForewordWriter.closing(...)`; the app may
     /// overwrite it with a Gemma-written conclusion before binding. Optional so
@@ -397,6 +398,10 @@ enum MonthlyEditionBuilder {
             ),
             sections: sections,
             continuity: continuity,
+            howYouSee: {
+                guard endDate >= generatedAt.addingTimeInterval(-30 * 86_400) else { return nil }
+                return HowYouSee.receipt(days: days, now: generatedAt)
+            }(),
             closing: BookForewordWriter.closing(
                 monthTitle: monthTitle(for: startDate, calendar: calendar),
                 pages: boundPages,

@@ -395,6 +395,12 @@ final class BookArchiveDatabase {
     private(set) var lastLoadSource: LoadSource = .fallbackJSON
     private(set) var lastError: String?
     private(set) var lastBackupURL: URL?
+    /// Creating a SwiftData `ModelContainer` opens and prepares the store. A
+    /// single keep can perform several related archive writes, so rebuilding the
+    /// container for every query serializes repeated store setup on the caller's
+    /// actor. Each database instance is actor-confined; reuse its container and
+    /// create lightweight contexts per operation instead.
+    private var modelContainer: ModelContainer?
 
     var backupDirectoryURL: URL {
         storeURL.deletingLastPathComponent().appendingPathComponent(Self.backupDirectoryName, isDirectory: true)
@@ -725,6 +731,10 @@ final class BookArchiveDatabase {
     }
 
     private func makeContext() throws -> ModelContext {
+        if let modelContainer {
+            return ModelContext(modelContainer)
+        }
+
         try FileManager.default.createDirectory(
             at: storeURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
@@ -749,6 +759,7 @@ final class BookArchiveDatabase {
             for: schema,
             configurations: [configuration]
         )
+        modelContainer = container
         return ModelContext(container)
     }
 

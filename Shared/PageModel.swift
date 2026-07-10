@@ -490,6 +490,10 @@ struct BookPageSource: Codable, Identifiable, Equatable {
 }
 
 enum BookPageSourceRegistry {
+    static let wonderCompassSourceID = "wonder-compass"
+    static let wonderCompassNoticeSourceID = "wonder-compass-notice"
+    static let wonderCompassPlayfulMissionSourceID = "wonder-compass-playful-mission"
+
     static let sources: [BookPageSource] = [
         BookPageSource(
             id: "the-inventory",
@@ -984,7 +988,7 @@ enum BookPageSourceRegistry {
             note: "One question at a time, so the Book learns with consent."
         ),
         BookPageSource(
-            id: "wonder-compass",
+            id: wonderCompassSourceID,
             type: .wonderCompass,
             title: "From the Wonder Compass Book",
             shortTitle: "Wonder Book",
@@ -994,6 +998,30 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "practice",
             note: "Gemma-chosen book passages."
+        ),
+        BookPageSource(
+            id: wonderCompassNoticeSourceID,
+            type: .wonderCompass,
+            title: "North = Notice",
+            shortTitle: "Notice",
+            symbolName: "sparkle.magnifyingglass",
+            origin: .userAuthored,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "common",
+            note: "A standalone I-wonder page for noticing one true detail."
+        ),
+        BookPageSource(
+            id: wonderCompassPlayfulMissionSourceID,
+            type: .wonderCompass,
+            title: "South = Sense",
+            shortTitle: "Sense",
+            symbolName: "hand.draw",
+            origin: .userAuthored,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "common",
+            note: "A playful sensory mission that turns the real world into proof."
         ),
         BookPageSource(
             id: "labyrinth-lore",
@@ -1161,7 +1189,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "per pack",
-            note: "Pages supplied by installed Page Packs — games, rituals, utilities, the Nothing, whatever fits the world."
+            note: "Pages supplied by installed Page Packs — games, rituals, utilities, Disbelief, whatever fits the world."
         ),
         BookPageSource(
             id: "word-negotiation",
@@ -1210,6 +1238,13 @@ enum BookPageSourceRegistry {
     }
 
     static func defaultBelief(for source: BookPageSource) -> Int {
+        switch source.id {
+        case wonderCompassNoticeSourceID, wonderCompassPlayfulMissionSourceID:
+            return 36
+        default:
+            break
+        }
+
         switch source.type {
         case .mood, .fuel:
             return 36

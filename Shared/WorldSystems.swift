@@ -43,7 +43,7 @@ struct RadioBanter: Codable, Equatable, Identifiable {
     struct Conditions: Codable, Equatable {
         /// Restrict to parts of the day: "dawn", "day", "dusk", "night".
         var timeOfDay: [String]?
-        /// Only when the Nothing's grey is at/above this 0–100 pressure.
+        /// Only when Disbelief's grey is at/above this 0–100 pressure.
         var minGrey: Int?
         /// Only when the grey is at/below this (bright-day lines).
         var maxGrey: Int?
@@ -247,7 +247,7 @@ struct RadioPageContext: Equatable {
 struct RadioWorldContext: Equatable {
     /// "dawn" | "day" | "dusk" | "night"
     var timeOfDay: String
-    /// The Nothing's grey pressure, 0–100.
+    /// The Disbelief's grey pressure, 0–100.
     var grey: Int
     var festivalActive: Bool
     /// Distinct days the active station has been heard.
@@ -438,9 +438,11 @@ struct RadioPlaybackState: Codable, Equatable {
     /// Optional so older saves continue to decode.
     var recentTrackIDs: [String]?
 
-    /// How many recent banters to remember. Kept small so fresh stations with
-    /// few clips don't starve.
-    static let banterHistoryLimit = 6
+    /// How many recent banters to remember. This is deliberately large enough
+    /// to hold a station's authored catalog: banter selection behaves like a
+    /// shuffled bag, so freely eligible clips are exhausted before one returns.
+    /// Context- and song-bound clips can still enter whenever their gate opens.
+    static let banterHistoryLimit = 256
 
     static let off = RadioPlaybackState()
 
@@ -864,7 +866,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-tip-belief", category: .news,
                     assetName: "DJ_faefi_tip_belief_01",
-                    caption: "Grey's up at the edges this morning - the Nothing's been chewing on the unnoticed hours again. Here's the only counter-spell that's ever worked, and yes, I audited it: notice one true particular and write it down. Belief planted, grey pushed back. One detail. That's the whole arithmetic of this place. Plant one before lunch and prove me right. I do enjoy being right.",
+                    caption: "Grey's up at the edges this morning - Disbelief's been chewing on the unnoticed hours again. Here's the only counter-spell that's ever worked, and yes, I audited it: notice one true particular and write it down. Belief planted, grey pushed back. One detail. That's the whole arithmetic of this place. Plant one before lunch and prove me right. I do enjoy being right.",
                     conditions: RadioBanter.Conditions(minGrey: 30),
                     weight: 3
                 ),
@@ -1619,7 +1621,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-news-nothing", category: .news,
                     assetName: "DJ_thornwave_news_01",
-                    caption: "Tonight's reading off Today's Sky: the Nothing made a move at the edges. We held. We always hold — barely, on purpose, which is the only kind of holding worth anything. Believe something out loud. I dare you. That's not mockery. That's the assignment.",
+                    caption: "Tonight's reading off Today's Sky: Disbelief made a move at the edges. We held. We always hold — barely, on purpose, which is the only kind of holding worth anything. Believe something out loud. I dare you. That's not mockery. That's the assignment.",
                     conditions: RadioBanter.Conditions(
                         timeOfDay: ["dusk", "night"],
                         minGrey: 35
@@ -1699,7 +1701,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-weather-storm-grey-pressure", category: .news,
                     assetName: "DJ_thornwave_weather_storm_grey_02",
-                    caption: "Storm on the band, grey at the edges, that delicious pressure before something decides to happen. The Nothing loves weather like this. So do I — but I'm only here for the bassline.",
+                    caption: "Storm on the band, grey at the edges, that delicious pressure before something decides to happen. The Disbelief loves weather like this. So do I — but I'm only here for the bassline.",
                     conditions: RadioBanter.Conditions(
                         timeOfDay: ["dusk", "night"],
                         minGrey: 35,
@@ -1738,7 +1740,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-grey-high-keep-the-door", category: .news,
                     assetName: "DJ_thornwave_grey_high_pressure_01",
-                    caption: "The grey's gone heavy. The Nothing's leaning on the door, polite as ever. Here's the thing — it only opens from your side. Keep the music up. Hand off the latch.",
+                    caption: "The grey's gone heavy. The Disbelief's leaning on the door, polite as ever. Here's the thing — it only opens from your side. Keep the music up. Hand off the latch.",
                     conditions: RadioBanter.Conditions(
                         minGrey: 55,
                         maxGrey: 85
@@ -1748,7 +1750,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-pages-anchor-impressed", category: .gossip,
                     assetName: "DJ_thornwave_pages_anchor_resist_01",
-                    caption: "You've been dropping anchors. Naming things. Holding ground. Building a self the Nothing can't argue with. I'd be insulted if I weren't quietly impressed. Don't tell anyone.",
+                    caption: "You've been dropping anchors. Naming things. Holding ground. Building a self Disbelief can't argue with. I'd be insulted if I weren't quietly impressed. Don't tell anyone.",
                     conditions: RadioBanter.Conditions(
                         pageTypes: [.anchor, .enchantment],
                         minRecentPagesOfType: 1
@@ -2285,7 +2287,7 @@ enum RadioStationRegistry {
         return id
     }
 
-    /// Held-station effect on the Nothing's tide: Thornwave lets the grey lean
+    /// Held-station effect on Disbelief's tide: Thornwave lets the grey lean
     /// nearer (a dark-fae bargain), Fae-Fi's brightness pushes it back. Always
     /// distress-safe because NothingTide forces grey to 0 under distress.
     static func greyShift(state: RadioPlaybackState, now: Date = Date()) -> Int {
@@ -2392,9 +2394,10 @@ enum RadioStationRegistry {
         return roll < probability
     }
 
-    /// Pick the next DJ break from the whole eligible catalog. Clip and category
-    /// cooldowns prevent loops; world state changes the weights; song-bound
-    /// transitions still land on the correct side. No category order exists.
+    /// Pick the next DJ break from the whole eligible catalog. The persisted
+    /// history turns the catalog into a randomly scored bag: eligible clips are
+    /// exhausted before a repeat, while category cooling, world state, and
+    /// song-bound placement keep the order from becoming a fixed pattern.
     static func nextBanter(
         state: RadioPlaybackState,
         context: RadioWorldContext,
@@ -2955,6 +2958,53 @@ enum AnchorRegistry {
         case 6...8: return "Gold Season"
         case 9...11: return "Stick Season"
         default: return "Deep Winter"
+        }
+    }
+}
+
+enum AnchorDoorbells {
+    struct Bell: Equatable {
+        var anchorID: String
+        var anchorName: String
+        var latitude: Double
+        var longitude: Double
+        var radiusMeters: Double
+        var title: String
+        var body: String
+        var keepPrompt: String
+        var tags: [String]
+    }
+
+    static let maxArmed = 4
+    static let rearmDays = 3
+
+    static func plan(anchors: [AnchorRecord], lastArmed: [String: Date], now: Date) -> [Bell] {
+        anchors.sorted {
+            if $0.visitCount == $1.visitCount {
+                if $0.belief == $1.belief { return $0.id < $1.id }
+                return $0.belief > $1.belief
+            }
+            return $0.visitCount > $1.visitCount
+        }
+        .filter { anchor in
+            guard let armed = lastArmed[anchor.id] else { return true }
+            return now.timeIntervalSince(armed) >= Double(rearmDays) * 86_400
+        }
+        .prefix(maxArmed)
+        .map { anchor in
+            let text = "\(anchor.name) \(anchor.kind.rawValue) \(anchor.playerWords)".lowercased()
+            let publicMissions = PlayfulMissionRegistry.coreMissions.filter { $0.tags.contains("public") }
+            let mission = PlayfulMissionRegistry.placeMission(matching: text)
+                ?? publicMissions[abs(anchor.id.stableHash) % publicMissions.count]
+            return Bell(
+                anchorID: anchor.id, anchorName: anchor.name,
+                latitude: anchor.latitude, longitude: anchor.longitude,
+                radiusMeters: max(anchor.radiusMeters, 150),
+                title: "The \(anchor.name) door is lit",
+                body: "You're near a page the Book keeps open. \(mission.prompt)",
+                keepPrompt: mission.proofPrompt,
+                tags: mission.tags + ["anchor:\(anchor.id)", "doorbell"]
+            )
         }
     }
 }
@@ -3582,7 +3632,7 @@ enum AcademyChapterRegistry {
         AcademyChapter(
             id: "duskthorn",
             name: "Duskthorn",
-            philosophy: "There is no story without conflict. The only cure for the Nothing is a story so interesting it refuses to be erased.",
+            philosophy: "There is no story without conflict. The only cure for Disbelief is a story so interesting it refuses to be erased.",
             founder: "Unrecorded. The Chapter does not appear in the sorting ledger.",
             traits: ["tension", "honesty", "necessary darkness", "narrative balance"],
             compassFlavor: "What are you avoiding looking at?",
@@ -4890,7 +4940,7 @@ enum FaeCourt: String, Codable, Equatable {
 /// bargain that fronted it is left unpaid.
 enum FaeGiftEffect: String, Codable, Equatable {
     case reshelving   // force-surfaces a chosen dormant page source for a day
-    case quieting     // lowers the Nothing's grey by one level for a day
+    case quieting     // lowers Disbelief's grey by one level for a day
     case longMemory   // pins a kept page to reliably resurface as Book Remembered
     case callingCard  // opens a Goblin Market window (consumable)
     case loosePage    // a collectible whose text regenerates each read
@@ -4910,7 +4960,7 @@ enum FaeGiftEffect: String, Codable, Equatable {
     var effectLine: String {
         switch self {
         case .reshelving: return "Pulls one resting kind of page back onto the shelf where you'll see it."
-        case .quieting: return "Holds the grey of the Nothing back by one shade for a day."
+        case .quieting: return "Holds the grey of Disbelief back by one shade for a day."
         case .longMemory: return "Keeps one kept page from being forgotten; the Book will return it."
         case .callingCard: return "Opens the Goblin Market when you spend it."
         case .loosePage: return "A page that never reads the same way twice."
@@ -5360,42 +5410,42 @@ enum FaeEconomy {
             openingGesture: "A Sentence Salamander curled against your hand and left a coal of borrowed warmth behind. The sentence down its spine is still glowing.",
             terms: "Bring me the warmest thing your hands touched today, and how long the warmth stayed after you let go.",
             giftName: "the borrowed coal",
-            giftDescription: "A held warmth that can keep the grey of the Nothing back for a day."
+            giftDescription: "A held warmth that can keep the grey of Disbelief back for a day."
         ),
         FaeBargainTemplate(
             faeKind: .sentenceSalamander,
             openingGesture: "A Sentence Salamander tasted the air near you and brightened. Something in your day was honest, and it could tell.",
             terms: "Find a moment that warmed the back of your neck for no reason you could name, and hand it to me whole.",
             giftName: "the ember of an hour",
-            giftDescription: "A small heat that holds the Nothing's grey back one shade for a day."
+            giftDescription: "A small heat that holds Disbelief's grey back one shade for a day."
         ),
         FaeBargainTemplate(
             faeKind: .sentenceSalamander,
             openingGesture: "A Sentence Salamander pressed a glowing full-stop into your palm. It did not explain. It simply ran warmer when you were near.",
             terms: "Somewhere today something will smell better than it had any right to — bring me that exact breath.",
             giftName: "the kept warmth",
-            giftDescription: "A banked coal that quiets the grey of the Nothing for a day."
+            giftDescription: "A banked coal that quiets the grey of Disbelief for a day."
         ),
         FaeBargainTemplate(
             faeKind: .sentenceSalamander,
             openingGesture: "A Sentence Salamander basked in a sunbeam only it could see, and left some of that heat on the page for you.",
             terms: "Find a patch of sun that had crossed a floor and tell me what it warmed along the way.",
             giftName: "the floor-sun coal",
-            giftDescription: "A stored brightness that holds back the Nothing's grey for a day."
+            giftDescription: "A stored brightness that holds back Disbelief's grey for a day."
         ),
         FaeBargainTemplate(
             faeKind: .sentenceSalamander,
             openingGesture: "A Sentence Salamander glowed at one sound in your day and went still at the rest. It is keeping the one it liked.",
             terms: "Bring me the sound of one laugh today that was far bigger than its joke.",
             giftName: "the laugh-coal",
-            giftDescription: "A warmth that can keep the grey of the Nothing back for a day."
+            giftDescription: "A warmth that can keep the grey of Disbelief back for a day."
         ),
         FaeBargainTemplate(
             faeKind: .sentenceSalamander,
             openingGesture: "A Sentence Salamander left the taste of warmth on the page — the first sip of something hot, captured before it cooled.",
             terms: "Bring me the first hot sip of something on a day that didn't deserve it, and how it landed.",
             giftName: "the first-sip ember",
-            giftDescription: "A held heat that holds the Nothing's grey back by a shade for a day."
+            giftDescription: "A held heat that holds Disbelief's grey back by a shade for a day."
         ),
 
         // MARK: Punctuation Pixie — rhythm and pause, the comma-place, the exclamation-thing
@@ -5840,7 +5890,7 @@ enum FaeMarketCatalog {
             id: "market-quieting-coal",
             faeKind: .sentenceSalamander,
             name: "a second borrowed coal",
-            descriptionText: "Holds the grey of the Nothing back by one shade for a day.",
+            descriptionText: "Holds the grey of Disbelief back by one shade for a day.",
             effect: .quieting,
             baseCost: 6
         ),
@@ -6012,7 +6062,7 @@ enum GoblinMarketEngine {
                    currency: .belief, basePrice: 8, good: .warmWord, rarity: 1),
         MarketWare(id: "belief-tallow-candle", title: "a tallow candle",
                    clerkPitch: "Burns slow and unfashionable. The dark keeps its distance from honest tallow.",
-                   contents: "Spends Belief to hold the Nothing's grey back a shade for a day.",
+                   contents: "Spends Belief to hold Disbelief's grey back a shade for a day.",
                    currency: .belief, basePrice: 10, good: .gift(.quieting, .goblin), rarity: 1),
         MarketWare(id: "belief-borrowed-comma", title: "a borrowed comma",
                    clerkPitch: "A small pause, lent at interest. Use it to bring a resting page back into the light.",
@@ -6032,7 +6082,7 @@ enum GoblinMarketEngine {
             id: "radio-sponsor-thistledown-pocket-sunshine",
             title: "Thistledown & Co. Pocket Sunshine",
             clerkPitch: "A coat-pocket sunbeam. Small print says it is not the weather, but the weather has been known to listen.",
-            contents: "Spends Belief to immediately push the Nothing's grey two shades back.",
+            contents: "Spends Belief to immediately push Disbelief's grey two shades back.",
             currency: .belief,
             basePrice: 9,
             good: .pocketSunshine,
@@ -6228,7 +6278,7 @@ enum GoblinMarginalia {
 // territory — measured in Control Belief, per talisman, per territory — across
 // two fronts: the Book's own shelves (kinds of pages) and the real-world
 // integrations the app touches. Pure local simulation; never a model call. It
-// goes quiet under distress, like the Nothing. See lore/chapter-pacts.md.
+// goes quiet under distress, like Disbelief. See lore/chapter-pacts.md.
 
 enum PactFront: String, Codable, Equatable {
     case shelf
@@ -7064,7 +7114,7 @@ extension PactWarEffects {
 // The Academy breathes with the real world. The Almanac knows, for a date and
 // hemisphere, which celebrations are alive: the eight pagan Sabbats, the Full
 // and New Moon esbats, and the year's meteor showers. Pure local astronomy and
-// date logic — never a model call. Celebrations bend Belief, the Nothing, the
+// date logic — never a model call. Celebrations bend Belief, Disbelief, the
 // Fae, and the Pact War, and the world works on the reader whether noticed or
 // not. See lore/seasonal-calendar.md.
 
@@ -7088,7 +7138,7 @@ struct Celebration: Identifiable, Equatable {
     let invitationTitle: String  // the special-event prompt heading
     let invitation: String       // what to notice / do
     let beliefBonus: Int
-    let greyShift: Int           // effect on the Nothing (- light, + thinning veil)
+    let greyShift: Int           // effect on Disbelief (- light, + thinning veil)
     let symbolName: String
     let accent: String           // palette hint: amber/green/gold/violet/candle/slate
     let priority: Int            // higher wins when several are active
@@ -7266,7 +7316,7 @@ enum Almanac {
         celebrations(on: date, hemisphere: hemisphere, calendar: calendar).first
     }
 
-    /// Combined effect of every active celebration on the Nothing's grey.
+    /// Combined effect of every active celebration on Disbelief's grey.
     static func greyShift(on date: Date = Date(), hemisphere: Hemisphere = .northern, calendar: Calendar = .current) -> Int {
         celebrations(on: date, hemisphere: hemisphere, calendar: calendar).reduce(0) { $0 + $1.greyShift }
     }
@@ -8095,23 +8145,11 @@ enum BeliefEconomyEngine {
         let calendar = Calendar.current
         let yesterday = calendar.date(byAdding: .day, value: -1, to: context.now) ?? context.now.addingTimeInterval(-86_400)
         let yesterdayID = BookDay.id(for: yesterday)
-        let keptYesterday = context.days.first { $0.id == yesterdayID }?.pages.count ?? 0
-        if keptYesterday > 0, context.readerBelief < 70 {
-            readerDelta += 1
-            movements.append(movement(.reader, id: "the-reader", name: "You", delta: 1, reason: .dailyTide, now: context.now, note: "Yesterday's kept pages left a small ember behind."))
-        } else if keptYesterday == 0, context.readerBelief < 35 {
-            readerDelta += 1
-            movements.append(movement(.reader, id: "the-reader", name: "You", delta: 1, reason: .dailyTide, now: context.now, note: "The Book set one match beside the margin."))
-        } else if context.readerBelief > readerSoftCeiling {
-            let delta = context.readerBelief >= 90 ? -3 : -1
-            readerDelta += delta
-            movements.append(movement(.reader, id: "the-reader", name: "You", delta: delta, reason: .highGlowSettled, now: context.now, note: "Excess Glow settled back into the paper overnight."))
-        }
-
+        let yesterdayPages = context.days.first { $0.id == yesterdayID }?.pages ?? []
+        let keptYesterday = yesterdayPages.count
         let recentPages = context.days.suffix(7).flatMap(\.pages)
         let recentSourceIDs = Set(recentPages.map(\.sourceID))
         let recentlyTouchedEntityIDs = touchedEntityIDs(events: context.events, since: context.now.addingTimeInterval(-14 * 86_400))
-
         let tideCandidates = context.entities
             .filter { entity in
                 recentlyTouchedEntityIDs.contains(entity.id)
@@ -8126,6 +8164,34 @@ enum BeliefEconomyEngine {
             }
             .prefix(2)
 
+        if keptYesterday > 0, context.readerBelief < 70 {
+            readerDelta += 1
+            let noticedOutward = yesterdayPages.contains {
+                $0.type.pointsOutward || !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            let note = noticedOutward ? "Your noticing fed the Glow." : "The Book banked a quiet ember."
+            movements.append(movement(.reader, id: "the-reader", name: "You", delta: 1, reason: .dailyTide, now: context.now, note: note))
+        } else if keptYesterday == 0, context.readerBelief < 35 {
+            readerDelta += 1
+            movements.append(movement(.reader, id: "the-reader", name: "You", delta: 1, reason: .dailyTide, now: context.now, note: "The Book set one match beside the margin."))
+        } else if context.readerBelief > readerSoftCeiling {
+            let delta: Int
+            switch context.readerBelief {
+            case 90...: delta = -4
+            case 82...: delta = -2
+            default: delta = -1
+            }
+            readerDelta += delta
+            if let catcher = tideCandidates.first {
+                let caught = min(abs(delta), 2)
+                entityDeltas[catcher.id, default: 0] += caught
+                movements.append(movement(.reader, id: "the-reader", name: "You", delta: delta, reason: .highGlowSettled, now: context.now, note: "Unspent Glow overflowed — the paper cannot hold more than a life spends."))
+                movements.append(movement(.entity, id: catcher.id, name: catcher.name, delta: caught, reason: .dailyTide, now: context.now, note: "\(catcher.name) caught your overflowing light."))
+            } else {
+                movements.append(movement(.reader, id: "the-reader", name: "You", delta: delta, reason: .highGlowSettled, now: context.now, note: "Excess Glow settled back into the paper overnight."))
+            }
+        }
+
         for entity in tideCandidates {
             entityDeltas[entity.id, default: 0] += 1
             movements.append(movement(.entity, id: entity.id, name: entity.name, delta: 1, reason: .dailyTide, now: context.now, note: "\(entity.name) caught a point of yesterday's attention."))
@@ -8134,7 +8200,7 @@ enum BeliefEconomyEngine {
         let settlingEntities = context.entities
             .filter { entity in
                 let adjusted = effectiveBelief(entity, offsets: context.entityBelief)
-                // The Nothing and its kin neither receive the tide nor cool on
+                // The Disbelief and its kin neither receive the tide nor cool on
                 // their own — antagonist Glow only moves through real events.
                 return adjusted > 70
                     && !recentlyTouchedEntityIDs.contains(entity.id)

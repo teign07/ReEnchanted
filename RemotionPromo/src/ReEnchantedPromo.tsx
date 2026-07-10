@@ -445,7 +445,7 @@ const Pill: React.FC<{children: React.ReactNode; x: number; y: number; delay?: n
 /*  Scenes                                                             */
 /* ------------------------------------------------------------------ */
 
-// Opens on the ache: routine, the grey, the Nothing — before the Book answers it.
+// Opens on the ache: routine, the grey, Disbelief — before the Book answers it.
 const SceneHook: React.FC = () => {
   const frame = useCurrentFrame();
   const eyeP = interpolate(frame, [8, 40], [0, 1], {...clamp, easing: ease});
@@ -479,7 +479,7 @@ const SceneHook: React.FC = () => {
             transform: `translateY(${interpolate(lineP, [0, 1], [40, 0])}px)`,
           }}
         >
-          Life slips past, unread —<br />and the Nothing creeps in.
+          Life slips past, unread —<br />and Disbelief creeps in.
         </div>
       </div>
     </AbsoluteFill>

@@ -146,9 +146,11 @@ final class FirstReadingTests: XCTestCase {
     func testFirstReadingMakesTheShelfOnACalmDesk() {
         var inputs = returningReaderInputs()
         // A reader who kept pages today has already opened today's Bleed and run
-        // their compass; those announcement/mission cards rest.
+        // their compass; those announcement/mission cards rest. The compass
+        // family fatigues under its unified variety key ("compass:wonder-compass"),
+        // which every compass page — run, notice, or Sense mission — now shares.
         inputs.surfaceHistory["source:the-bleed"] = SurfaceHistoryRecord(lastShownAt: date(2, hour: 8), recentShowCount: 1)
-        inputs.surfaceHistory["source:wonder-compass"] = SurfaceHistoryRecord(lastShownAt: date(2, hour: 8), recentShowCount: 1)
+        inputs.surfaceHistory["compass:wonder-compass"] = SurfaceHistoryRecord(lastShownAt: date(2, hour: 8), recentShowCount: 1)
         let today = BookDay(id: "2026-07-02", date: date(2), pages: [])
         let shelf = BookCurator.surfacedPages(for: today, inputs: inputs, now: date(2, hour: 21), limit: 3)
         XCTAssertTrue(

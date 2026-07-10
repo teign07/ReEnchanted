@@ -1120,7 +1120,7 @@ enum LocalModelManager {
         - Do not quote the source text verbatim. Render it freshly from knowledge.
         - Weave the reader's real-day anchor in as a physical object or detail that exists with them inside the scene.
         - One beat, not a chapter. Keep the way home (the Spine) faintly sensed.
-        - The Nothing is degradation — blankness, edges forgetting themselves, names going grey — not a monster to fight.
+        - The Disbelief is degradation — blankness, edges forgetting themselves, names going grey — not a monster to fight.
         - No headings, no lists, no assistant framing. Prose only.
         - Only START may describe falling through ink, crossing a page, landing, arriving, or first discovering the setting.
         - For ADVANCE or STABILIZE, do not recap the premise, reintroduce the book, redescribe arrival, or repeat the opening scene. Assume the reader remembers where they are.

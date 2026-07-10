@@ -1294,6 +1294,80 @@ enum TaughtReading {
     }
 }
 
+/// Receipts that the reader's own seeing is changing: an early plain sentence
+/// beside a recent vivid one, both quoted from the archive.
+enum HowYouSee {
+    struct SeeingReceipt: Codable, Equatable {
+        var earlierQuote: String
+        var earlierMonthName: String
+        var recentQuote: String
+        var earlierStrength: Int
+        var recentStrength: Int
+    }
+
+    static let minimumAuthoredPages = 40
+    static let minimumSpanDays = 60
+    static let seeingTypes: Set<BookPageType> = [.souvenir, .diary, .mood, .wonderCompass, .plainPage]
+
+    static func receipt(days: [BookDay], now: Date = Date()) -> SeeingReceipt? {
+        let engine = SentenceBuilderEngine()
+        let pages = days.flatMap(\.pages)
+            .filter {
+                seeingTypes.contains($0.type)
+                    && $0.origin == .userAuthored
+                    && $0.userInput.split(whereSeparator: \.isWhitespace).count >= 4
+            }
+            .sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+        guard pages.count >= minimumAuthoredPages,
+              let first = pages.first,
+              let last = pages.last,
+              last.createdAt.timeIntervalSince(first.createdAt) >= Double(minimumSpanDays) * 86_400 else { return nil }
+
+        let earlyEnd = first.createdAt.addingTimeInterval(30 * 86_400)
+        let recentStart = now.addingTimeInterval(-30 * 86_400)
+        let early = pages.filter { $0.createdAt <= earlyEnd }
+        let recent = pages.filter { $0.createdAt >= recentStart && $0.createdAt <= now }
+        guard !early.isEmpty, !recent.isEmpty else { return nil }
+
+        let earlyAnalyses = early.map { ($0, engine.analyze($0.userInput)) }
+        let recentAnalyses = recent.map { ($0, engine.analyze($0.userInput)) }
+        let earlyAverage = Double(earlyAnalyses.reduce(0) { $0 + $1.1.memoryStrength }) / Double(earlyAnalyses.count)
+        let recentAverage = Double(recentAnalyses.reduce(0) { $0 + $1.1.memoryStrength }) / Double(recentAnalyses.count)
+        let earlyVividShare = Double(earlyAnalyses.filter { $0.1.isVivid }.count) / Double(earlyAnalyses.count)
+        let recentVividShare = Double(recentAnalyses.filter { $0.1.isVivid }.count) / Double(recentAnalyses.count)
+        let vividImproved = earlyVividShare > 0
+            ? recentVividShare >= earlyVividShare * 2
+            : recentVividShare >= 0.25
+        guard recentAverage >= earlyAverage + 0.75 || vividImproved else { return nil }
+
+        let earlier = earlyAnalyses
+            .filter { $0.1.memoryStrength <= 1 }
+            .min { ($0.0.userInput.count, $0.0.createdAt, $0.0.id) < ($1.0.userInput.count, $1.0.createdAt, $1.0.id) }
+        let latest = recentAnalyses
+            .filter { $0.1.isVivid && $0.0.id != earlier?.0.id }
+            .max { ($0.1.memoryStrength, $0.0.createdAt, $0.0.id) < ($1.1.memoryStrength, $1.0.createdAt, $1.0.id) }
+        guard let earlier, let latest else { return nil }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "MMMM"
+        return SeeingReceipt(
+            earlierQuote: clipped(earlier.0.userInput.bookPreviewSentenceLimit(1)),
+            earlierMonthName: formatter.string(from: earlier.0.createdAt),
+            recentQuote: clipped(latest.0.userInput.bookPreviewSentenceLimit(1)),
+            earlierStrength: earlier.1.memoryStrength,
+            recentStrength: latest.1.memoryStrength
+        )
+    }
+
+    private static func clipped(_ text: String, limit: Int = 110) -> String {
+        guard text.count > limit else { return text }
+        let cut = text.prefix(limit)
+        let lastSpace = cut.lastIndex(of: " ") ?? cut.endIndex
+        return String(cut[..<lastSpace]) + "…"
+    }
+}
+
 enum BraidLearningLoop {
     static let missedMeTag = "braid-missed-me"
     static let lovedItTag = "braid-loved-it"

@@ -208,6 +208,9 @@ enum MonthlyEditionPDFWriter {
                 cursor: &cursor
             )
         }
+        if let receipt = edition.howYouSee {
+            drawHowYouSee(receipt, edition: edition, style: style, context: context, cursor: &cursor)
+        }
 
         // The month's conclusion, on its own composted leaf.
         let closing = edition.closing ?? BookForewordWriter.closing(
@@ -1314,6 +1317,24 @@ enum MonthlyEditionPDFWriter {
                 }
             }
         }
+    }
+
+    private static func drawHowYouSee(
+        _ receipt: HowYouSee.SeeingReceipt,
+        edition: MonthlyEdition,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        beginComposedPage(context, style: style, cursor: &cursor)
+        drawRunningHead(edition, style: style, cursor: cursor)
+        drawText("How You See", font: .serifFont(ofSize: 22, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 6)
+        drawAccentRule(style, cursor: &cursor)
+        drawText(receipt.earlierMonthName, font: .systemFont(ofSize: 9, weight: .bold), color: style.palette.accent, cursor: &cursor, spacingAfter: 4)
+        drawText("“\(receipt.earlierQuote)”", font: .serifItalicFont(ofSize: 14), color: style.palette.ink, cursor: &cursor, spacingAfter: 22)
+        drawText("Now", font: .systemFont(ofSize: 9, weight: .bold), color: style.palette.accent, cursor: &cursor, spacingAfter: 4)
+        drawText("“\(receipt.recentQuote)”", font: .serifItalicFont(ofSize: 14), color: style.palette.ink, cursor: &cursor, spacingAfter: 24)
+        drawText("Same reader. Closer eyes.", font: .serifFont(ofSize: 12, weight: .regular), color: style.palette.ink, cursor: &cursor, spacingAfter: 8)
     }
 
     private static func shouldShowMarginalia(in section: MonthlyEditionSection, itemIndex: Int) -> Bool {

@@ -86,7 +86,7 @@ enum BookKnowledgePromptBuilder {
         - ReEnchanted is a private, local-first living book. The reader keeps Pages; Pages become Today's Margins, the Book of You, memory, search, monthly/annual editions, Story Pages, letters, radio, cast relationships, and future suggestions.
         - The Wonder Compass is the real-world method inside the Book: Notice/North asks "I wonder"; Embark/East makes a plan with Destination, Delight, and Definition; Sense/South wakes up the body; Write/West keeps a One-Sentence Souvenir; Rest/return lets the loop close.
         - Belief is attention made usable. Glow can be given to pages, cast, places, and systems to invite more of them; keeping pages also brightens Glow.
-        - The Academy of Unlikely Arts is the in-world frame. Its chapters are Emberheart, Mossbloom, Tidecrest, Riddlewind, and Duskthorn. The Nothing is the flattening force of forgetting, cynicism, and autopilot.
+        - The Academy of Unlikely Arts is the in-world frame. Its chapters are Emberheart, Mossbloom, Tidecrest, Riddlewind, and Duskthorn. The Disbelief is the flattening force of forgetting, cynicism, and autopilot.
         - Always answer app, lore, cast, system, and Wonder Compass questions from this packet first. If the exact fact is not here, say what you know and keep the uncertainty gentle.
 
         RELEVANT TRAINING NOTES:
@@ -1808,6 +1808,20 @@ enum NarrativePackRegistry {
             tags: ["book", "private", "memory", "belief"]
         ),
         entity(
+            "wonder-compass",
+            "The Wonder Compass",
+            .object,
+            belief: 24,
+            weight: 22,
+            unwrittenInterest: "Real-world noticing, small expeditions, sensory attention, one-sentence souvenirs, and finding wonder inside ordinary days.",
+            traits: ["field-minded", "encouraging", "practical"],
+            quirks: ["points toward the nearest possible glint", "turns errands into tiny routes"],
+            faults: ["can make a tired day sound more walkable than it feels"],
+            beliefs: ["wonder returns when attention is given a direction"],
+            goals: ["guide the reader through Notice, Embark, Sense, Write, and Rest until the day becomes legible again"],
+            tags: ["object", "wonder-compass", "field-guide", "noticing", "compass-run", "ordinary-magic", "beginning-cast"]
+        ),
+        entity(
             "penny-blackletter",
             "Penny Blackletter",
             .character,
@@ -2348,7 +2362,7 @@ enum NarrativePackRegistry {
         ),
         thread(
             "nothing-thins-the-page",
-            "The Nothing Thins the Page",
+            "The Disbelief Thins the Page",
             .seed,
             belief: 7,
             weight: 10,
@@ -3281,7 +3295,6 @@ enum NarrativeEventResolver {
             relationshipDeltas["inkrest-tends-body", default: 0] += 2
         case .fuel:
             entityDeltas["body-page", default: 0] += 2
-            entityDeltas["dr-vellum", default: 0] += 2
             threadDeltas["body-learns-trust", default: 0] += 2
             relationshipDeltas["vellum-tends-body-page", default: 0] += 2
         case .supportGuild:
@@ -3806,7 +3819,7 @@ enum NarrativeEntityMemoryConsolidator {
     }
 }
 
-// MARK: - The Nothing
+// MARK: - The Disbelief
 //
 // The Labyrinth's antagonist: not a monster but a tide — apathy, the Rut,
 // the grey that takes unnoticed days. Doctrine, in order of importance:
@@ -3836,7 +3849,7 @@ enum NothingTide {
         if narrativeHeat >= 6, level > 0 {
             level -= 1
         }
-        // The Almanac bends the Nothing: light feasts (full moon, Litha) push it
+        // The Almanac bends Disbelief: light feasts (full moon, Litha) push it
         // back; thinning-veil nights (Samhain, new moon) let it nearer.
         level += celebrationGreyShift
         return max(0, min(3, level))
@@ -3860,9 +3873,9 @@ enum NothingTide {
     static func storySignal(forGreyLevel level: Int) -> String? {
         switch level {
         case 2:
-            return "The Nothing has been at the edges of these margins: somewhere in the scene, one ordinary detail has gone faintly grey and silent. Let a character notice it and quietly resist — by naming it precisely, out loud. The Nothing is never fought and never defeated; it is noticed back."
+            return "The Disbelief has been at the edges of these margins: somewhere in the scene, one ordinary detail has gone faintly grey and silent. Let a character notice it and quietly resist — by naming it precisely, out loud. The Disbelief is never fought and never defeated; it is noticed back."
         case 3:
-            return "The Nothing has reached the desk: in this scene, something small has already been erased — a name, a label, a familiar object's color — and the cast can feel the gap. Let them work around the missing thing with care, and let one character say what the cure is without preaching: attention. Keep it gentle; the grey is weather, not war."
+            return "The Disbelief has reached the desk: in this scene, something small has already been erased — a name, a label, a familiar object's color — and the cast can feel the gap. Let them work around the missing thing with care, and let one character say what the cure is without preaching: attention. Keep it gentle; the grey is weather, not war."
         default:
             return nil
         }

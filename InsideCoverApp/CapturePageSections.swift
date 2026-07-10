@@ -573,6 +573,7 @@ struct ElectiveFlyleafListView: View {
     let activeElectives: [UnwrittenElective]
     let onCompleteElective: (String, String, String?, String?) -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var electiveProofDrafts: [String: String] = [:]
     @State private var proofPhotoURLs: [String: String] = [:]
     @State private var proofMessages: [String: String] = [:]
@@ -674,7 +675,9 @@ struct ElectiveFlyleafListView: View {
                         let locationSummary = locationProofSummaries[elective.id]
                         guard !proof.isEmpty || photoURL != nil || locationSummary != nil else { return }
                         BookFeedback.play(.keepPage)
-                        completedElectiveIDs.insert(elective.id)
+                        withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.42, dampingFraction: 0.68)) {
+                            completedElectiveIDs.insert(elective.id)
+                        }
                         onCompleteElective(elective.id, proof, photoURL, locationSummary)
                     } label: {
                         Label(
@@ -696,8 +699,23 @@ struct ElectiveFlyleafListView: View {
                 .background(BookPalette.page.opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(BookPalette.teal.opacity(0.22), lineWidth: 1)
+                        .stroke(BookPalette.teal.opacity(completedElectiveIDs.contains(elective.id) ? 0.62 : 0.22), lineWidth: completedElectiveIDs.contains(elective.id) ? 1.6 : 1)
                 }
+                .overlay(alignment: .topTrailing) {
+                    if completedElectiveIDs.contains(elective.id) {
+                        Label("KEPT", systemImage: "checkmark.seal.fill")
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(BookPalette.teal)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(BookPalette.teal.opacity(0.12), in: Capsule())
+                            .padding(9)
+                            .transition(.scale(scale: 0.55).combined(with: .opacity))
+                            .accessibilityLabel("Elective completed and kept")
+                    }
+                }
+                .opacity(completedElectiveIDs.contains(elective.id) && !reduceMotion ? 0.82 : 1)
+                .scaleEffect(completedElectiveIDs.contains(elective.id) && !reduceMotion ? 0.985 : 1)
             }
         }
     }
