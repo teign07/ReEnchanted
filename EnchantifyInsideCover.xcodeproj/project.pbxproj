@@ -40,6 +40,7 @@
 		020000000000000000000209 /* LiteraryContinuity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000109 /* LiteraryContinuity.swift */; };
 		02000000000000000000020A /* MonthlyEdition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010A /* MonthlyEdition.swift */; };
 		02000000000000000000020F /* PhysicalBookOrders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010F /* PhysicalBookOrders.swift */; };
+		020000000000000000000210 /* QuillCompanion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000110 /* QuillCompanion.swift */; };
 		02000000000000000000020E /* EditionCurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010E /* EditionCurator.swift */; };
 		02000000000000000000020B /* Constellations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010B /* Constellations.swift */; };
 		02000000000000000000020C /* TheBleed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010C /* TheBleed.swift */; };
@@ -133,6 +134,7 @@
 		020000000000000000000109 /* LiteraryContinuity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteraryContinuity.swift; sourceTree = "<group>"; };
 		02000000000000000000010A /* MonthlyEdition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEdition.swift; sourceTree = "<group>"; };
 		02000000000000000000010F /* PhysicalBookOrders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalBookOrders.swift; sourceTree = "<group>"; };
+		020000000000000000000110 /* QuillCompanion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuillCompanion.swift; sourceTree = "<group>"; };
 		02000000000000000000010E /* EditionCurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionCurator.swift; sourceTree = "<group>"; };
 		02000000000000000000010B /* Constellations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constellations.swift; sourceTree = "<group>"; };
 		02000000000000000000010C /* TheBleed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheBleed.swift; sourceTree = "<group>"; };
@@ -252,6 +254,7 @@
 				02000000000000000000010C /* TheBleed.swift */,
 				02000000000000000000010A /* MonthlyEdition.swift */,
 				02000000000000000000010F /* PhysicalBookOrders.swift */,
+				020000000000000000000110 /* QuillCompanion.swift */,
 				02000000000000000000010E /* EditionCurator.swift */,
 				040000000000000000000106 /* ReEnchantedWidgetIntents.swift */,
 				040000000000000000000107 /* ReEnchantedSiriIntents.swift */,
@@ -456,6 +459,7 @@
 				02000000000000000000020C /* TheBleed.swift in Sources */,
 				02000000000000000000020A /* MonthlyEdition.swift in Sources */,
 				02000000000000000000020F /* PhysicalBookOrders.swift in Sources */,
+				020000000000000000000210 /* QuillCompanion.swift in Sources */,
 				02000000000000000000020E /* EditionCurator.swift in Sources */,
 				010000000000000000000004 /* InsideCoverStore.swift in Sources */,
 				010000000000000000000015 /* BookArchiveDatabase.swift in Sources */,

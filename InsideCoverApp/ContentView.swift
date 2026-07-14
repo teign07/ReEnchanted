@@ -490,6 +490,11 @@ struct ContentView: View {
     var sourceInputs: BookSourceInputs {
         var inputs = BookSourceInputs.from(insideCover: InsideCoverStore.load())
         inputs.days = days
+        inputs.magicMoment = vault.data.magicMoment ?? MagicMomentState()
+        inputs.bookObservations = vault.data.bookObservations ?? []
+        inputs.bookReadingBoundaries = vault.data.bookReadingBoundaries ?? []
+        inputs.overnightConnectionDrafts = vault.data.overnightConnectionDrafts ?? []
+        inputs.chosenQuill = vault.data.chosenQuill
         inputs.body = bodySignal
         if let weatherPageSignal {
             inputs.weather = weatherPageSignal
@@ -1025,6 +1030,7 @@ struct ContentView: View {
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
+                    enterMagicMomentSessionIfNeeded()
                     Task {
                         await reloadDaysFromArchive()
                         refreshOpeningVoice()
@@ -1544,6 +1550,7 @@ struct ContentView: View {
 
         didRunPostLaunchTasks = true
         AppMemoryLedger.record("app-launch-idle")
+        enterMagicMomentSessionIfNeeded()
         // Deferred out of hydration so they never run under the opening movie.
         runBeliefEconomyDailyTick()
         runCastAgencyTurnIfNeeded()
@@ -1554,6 +1561,18 @@ struct ContentView: View {
             generation.preparedStoryPageSurface = overnight
             surfaceRefreshDate = Date()
             statusMessage = "The Book wrote a Story Page while you slept."
+        }
+        let overnightConnections = OvernightScribe.adoptConnectionDrafts()
+        if !overnightConnections.isEmpty {
+            let existing = vault.data.overnightConnectionDrafts ?? []
+            let incomingKeys = Set(overnightConnections.map(\.observationKey))
+            vault.data.overnightConnectionDrafts = Array(
+                (existing.filter { !incomingKeys.contains($0.observationKey) } + overnightConnections)
+                    .sorted { $0.generatedAt < $1.generatedAt }
+                    .suffix(40)
+            )
+            vault.save()
+            surfaceRefreshDate = Date()
         }
         loadAnchorLedger()
         if didCompleteStoryOnboarding {
@@ -1789,6 +1808,9 @@ struct ContentView: View {
                 scorer: SemanticKeepEcho.keepTimeScorer,
                 now: request.now
             )
+            // Story Page grounding performs its embedding comparisons only in
+            // this detached build. Main-actor previews use the pure fallback.
+            inputs.semanticStoryGroundingEnabled = true
 
             let surfaces: [SurfacePage]
             let firstRun = FirstRunPageSequence.surfaces(
@@ -3404,27 +3426,67 @@ struct ContentView: View {
         )
     }
 
+    /// A foreground bounce is still one visit. A genuinely new visit warms a
+    /// variable-ratio surprise, so the Book can astonish every few sessions
+    /// without feeling like a three-day timer wearing a cape.
+    func enterMagicMomentSessionIfNeeded(now: Date = Date()) {
+        let previous = vault.data.magicMoment ?? MagicMomentState()
+        let updated = MagicMomentGovernor.enteringSession(previous, now: now)
+        guard updated != previous else { return }
+        vault.data.magicMoment = updated
+        vault.save()
+        surfaceRefreshDate = now
+    }
+
     func recordBookNoticeFeedback(surface: SurfacePage, choice: BookNoticeFeedbackChoice) -> String {
         let action: ReaderLearningAction
+        let observationStatus: BookObservationStatus
         let evidence: String
         let message: String
 
         switch choice {
         case .trueReading:
             action = .loved
+            observationStatus = .confirmed
             evidence = "Reader confirmed this Book Notices reading."
             message = "Marked true. The Book will trust this kind of noticing a little more."
         case .notQuite:
             action = .missed
+            observationStatus = .notQuite
             evidence = "Reader said this Book Notices reading was not quite right."
             message = "Marked not quite. The Book will soften that pattern before it speaks this way again."
         case .doNotReadThisWay:
             action = .dismissed
+            observationStatus = .doNotRead
             evidence = "Reader asked the Book not to read them this way."
             message = "Marked off-limits for now. The Book will step back from this reading."
         }
 
-        recordReaderLearning(surface: surface, action: action, evidence: evidence)
+        let now = Date()
+        recordReaderLearning(surface: surface, action: action, now: now, evidence: evidence, saveImmediately: false)
+        vault.data.bookObservations = BookObservationLedger.recording(
+            surface: surface,
+            status: observationStatus,
+            in: vault.data.bookObservations ?? [],
+            now: now
+        )
+        if observationStatus == .doNotRead,
+           let key = BookObservationLedger.key(for: surface),
+           !(vault.data.bookReadingBoundaries ?? []).contains(where: { $0.id == key }) {
+            vault.data.bookReadingBoundaries = Array(
+                ((vault.data.bookReadingBoundaries ?? []) + [BookReadingBoundary(id: key, createdAt: now)])
+                    .suffix(200)
+            )
+        }
+        if surface.payload.metadata["magicMoment"] == "true" {
+            let key = BookObservationLedger.key(for: surface) ?? surface.id
+            vault.data.magicMoment = MagicMomentGovernor.consuming(
+                vault.data.magicMoment ?? MagicMomentState(),
+                key: key,
+                now: now
+            )
+        }
+        vault.save()
         statusMessage = message
         surfaceRefreshDate = Date()
         return message
@@ -5031,6 +5093,7 @@ struct ContentView: View {
                     // the ripple and carry-out lines belong to the keep itself.
                     upgradedNote.rippleLine = note.rippleLine
                     upgradedNote.carryOutLine = note.carryOutLine
+                    upgradedNote.findingLine = note.findingLine
                     upgradedNote.braidThreadLine = note.braidThreadLine
                     presented = upgradedNote
                 }
@@ -5107,8 +5170,26 @@ struct ContentView: View {
 
     func savePage(surface: SurfacePage, input: String, tags: [String], extraMedia: [BookPageMediaAsset] = []) {
         BookFeedback.play(.keepPage)
-        keepInkBurstText = input.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
-            ?? surface.type.shortTitle
+        let keptAt = Date()
+        let keptMedia = surface.mediaAssets + extraMedia
+        let hiddenMagicFinding = HiddenMagicPractice.finding(
+            for: surface,
+            input: input,
+            media: keptMedia,
+            now: keptAt
+        )
+        var keptTags = tags
+        if let hiddenMagicFinding {
+            keptTags += [
+                "hidden-magic",
+                "hidden-magic-finding",
+                "hidden-magic-sense:\(hiddenMagicFinding.sense.rawValue)",
+                "hidden-magic-lens:\(hiddenMagicFinding.lensID)"
+            ]
+        }
+        keepInkBurstText = hiddenMagicFinding == nil
+            ? (input.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? surface.type.shortTitle)
+            : "YOU FOUND IT"
         keepInkBurstTrigger += 1
         tutorTouch("keep-page")
         isRetiringKeptSurface = true
@@ -5136,15 +5217,36 @@ struct ContentView: View {
         clearPreparedSurfaceIfNeeded(surface)
         let page = BookPage(
             type: surface.type,
+            createdAt: keptAt,
             promptText: surface.prompt,
             userInput: input,
             playerReply: surface.payload.metadata["playerReply"] ?? "",
-            tags: tags,
+            tags: keptTags,
             sourceID: surface.sourceID,
             origin: surface.origin,
             privacy: surface.privacy,
-            mediaAssets: surface.mediaAssets + extraMedia
+            mediaAssets: keptMedia,
+            hiddenMagicFinding: hiddenMagicFinding
         )
+        if let encodedQuill = surface.payload.metadata[QuillChoosing.metadataKey],
+           let data = encodedQuill.data(using: .utf8),
+           let chosen = try? JSONDecoder().decode(ChosenQuill.self, from: data) {
+            vault.data.chosenQuill = chosen
+            vault.save()
+            // The instrument that chose the reader joins the Cast for real:
+            // an entity the story engine can seat in scenes, warm with
+            // belief, and weave into the relationship field.
+            let member = chosen.castMember(now: keptAt)
+            if !customCastMembers.contains(where: { $0.id == member.id }) {
+                do {
+                    try BookDatabase.upsertCustomCastMember(member)
+                    customCastMembers = try BookDatabase.customCastMembers(limit: 200)
+                } catch {
+                    // Non-fatal: the quill still rides in the vault and keeps
+                    // its voice; only the Cast seat is missed.
+                }
+            }
+        }
         day.pages.append(page)
         applyWordNegotiationIfNeeded(surface: surface, page: page)
         recordNarrativeEvent(for: page)
@@ -5213,6 +5315,11 @@ struct ContentView: View {
             } else if let echo = KeepEcho.find(for: keptInput, pageID: page.id, in: days) {
                 keepNote = KeepEcho.note(from: echo)
                 semanticUpgradeEligible = true
+            } else if let quill = vault.data.chosenQuill,
+                      let quillNote = QuillChoosing.marginNote(quill: quill, for: keptInput, pageType: page.type, pageID: page.id) {
+                // The chosen quill takes roughly one margin in five for itself;
+                // the roll lives inside marginNote so the cast keeps the rest.
+                keepNote = quillNote
             } else {
                 keepNote = KeepMarginalia.note(
                     for: keptInput,
@@ -5233,6 +5340,7 @@ struct ContentView: View {
         if var note = keepNote {
             note.rippleLine = rippleLine
             note.carryOutLine = afterglowLine
+            note.findingLine = HiddenMagicPractice.receiptLine(for: page)
             let keptEarlierToday = day.capturedPages.filter { $0.id != page.id }.count
             note.braidThreadLine = KeepMarginalia.braidGatheringLine(keptEarlierToday: keptEarlierToday)
             keepArtifactQuote = quoteWorthKeeping(keptInput) ? keptInput : nil

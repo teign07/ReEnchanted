@@ -220,6 +220,166 @@ enum BeliefCombatResolver {
     }
 }
 
+/// The narrative shape of a Story Page Inkbones result. A throw never blocks
+/// the chosen turn from happening; it decides whether that turn lands cleanly,
+/// catches, costs something, or reaches the scene by a stranger route.
+enum StoryInkbonesBand: String, Codable, Equatable, CaseIterable {
+    case triumph
+    case favor
+    case hesitate
+    case cost
+    case sideways
+
+    static func resolve(roll: Int, threshold: Int) -> StoryInkbonesBand {
+        if roll <= 5 { return .triumph }
+        if roll >= 96 { return .cost }
+        if roll <= threshold { return .favor }
+        if roll <= threshold + 10 { return .hesitate }
+        return .sideways
+    }
+
+    var outcome: String {
+        switch self {
+        case .triumph: return "The Inkbones crack the margin open"
+        case .favor: return "The Inkbones favor the thread"
+        case .hesitate: return "The Inkbones hesitate"
+        case .cost: return "The Inkbones ask a cost"
+        case .sideways: return "The Inkbones turn sideways"
+        }
+    }
+
+    var texture: String {
+        switch self {
+        case .triumph: return "A rare bright fracture. The Story Page gets more permission than it asked for."
+        case .favor: return "Belief catches. The page can move with a little extra warmth."
+        case .hesitate: return "The thread holds, but the margin asks for a softer landing."
+        case .cost: return "The page turns, but something in the ink keeps score."
+        case .sideways: return "Not blocked. Not blessed. The answer arrives at an angle."
+        }
+    }
+
+    /// Binding prose direction for the result writer. Every band preserves the
+    /// committed landing while changing how that landing becomes true.
+    var narrativeDirective: String {
+        switch self {
+        case .triumph:
+            return "This is a rare bright fracture: the action succeeds beyond what was reached for. Grant the intent fully, then add one unexpected gift, opened door, or extra permission nobody asked for."
+        case .favor:
+            return "Clean success: the action lands as intended. Show the wanted change actually happening, warmly and concretely."
+        case .hesitate:
+            return "Success with friction: the action lands, but only just. Add a stumble, a delay, or a condition — someone hesitates, or something must be promised or said twice before it gives."
+        case .cost:
+            return "Success with a price: the action works, but something is visibly spent, broken, owed, or overheard. Name the cost inside the scene and let it hook a future beat."
+        case .sideways:
+            return "A sideways landing: the wanted change still arrives, but by an unexpected route — a different door, a different speaker, or a stranger answer than the one reached for."
+        }
+    }
+
+    /// A deterministic last beat for builds that cannot wake the local writer.
+    /// It is deliberately narrative rather than a success/failure label.
+    var fallbackClosingLine: String {
+        switch self {
+        case .triumph: return "And the Inkbones gave more than was asked: whatever this touched now stands wider open than anyone meant it to."
+        case .favor: return "The Inkbones favored it, and the thread takes the change cleanly."
+        case .hesitate: return "But the Inkbones hesitated, so it only just holds — one more careful word will be owed before this sits easy."
+        case .cost: return "But the Inkbones kept score: something in this scene is now spent or owed, and the margin will remember which."
+        case .sideways: return "The Inkbones turned it sideways on the way in, so the change arrived by a stranger door than the one that was knocked on."
+        }
+    }
+
+    fileprivate func isVisible(in prose: String) -> Bool {
+        let prose = prose.lowercased()
+        let signals: [String]
+        switch self {
+        case .triumph:
+            signals = ["extra", "more than", "beyond", "another door", "second door", "wider open", "unexpected gift"]
+        case .favor:
+            // The committed-landing validator already proves clean success.
+            return true
+        case .hesitate:
+            signals = ["hesitat", "only just", "again", "twice", "delay", "condition", "promise", "second attempt"]
+        case .cost:
+            signals = ["cost", "price", "spent", "broke", "broken", "owe", "owed", "debt", "overheard"]
+        case .sideways:
+            signals = ["sideways", "instead", "different door", "wrong door", "different speaker", "someone else", "unexpected route"]
+        }
+        return signals.contains { prose.contains($0) }
+    }
+}
+
+/// Structured mechanic evidence kept separately from the Story Page's prose.
+/// This prevents a raw roll summary from being mistaken for a finished result.
+struct StoryInkbonesResolution: Codable, Equatable {
+    var roll: Int
+    var threshold: Int
+    var band: StoryInkbonesBand
+
+    init(roll: Int, threshold: Int) {
+        let clampedRoll = min(100, max(1, roll))
+        let clampedThreshold = min(100, max(1, threshold))
+        self.roll = clampedRoll
+        self.threshold = clampedThreshold
+        self.band = StoryInkbonesBand.resolve(roll: clampedRoll, threshold: clampedThreshold)
+    }
+
+    var mechanicSummary: String {
+        "Belief roll: \(roll) against \(threshold). \(band.outcome)."
+    }
+
+    func narrativePromptSection(committedLanding: String?, effectLine: String) -> String {
+        let landing = committedLanding?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty
+            ?? effectLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        return """
+        INKBONES RESULT — already rolled and authoritative:
+        \(mechanicSummary)
+        The chosen turn still becomes true: \(landing.isEmpty ? "The selected action changes the scene in the way it promised." : landing)
+        Required narrative shape: \(band.narrativeDirective)
+        Dramatize that gift, friction, price, or sideways route inside the scene. Do not mention dice, rolls, thresholds, bands, mechanics, success, or failure in the finished prose.
+        """
+    }
+
+    func fallbackConsequence(
+        preparedResult: String,
+        committedLanding: String?,
+        effectLine: String
+    ) -> String {
+        var paragraphs: [String] = []
+        let prepared = preparedResult.trimmingCharacters(in: .whitespacesAndNewlines)
+        let landing = committedLanding?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let effect = effectLine.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !prepared.isEmpty {
+            paragraphs.append(prepared)
+        } else if !landing.isEmpty {
+            paragraphs.append(landing)
+        } else if !effect.isEmpty {
+            paragraphs.append(effect)
+        } else {
+            paragraphs.append("The chosen action changes the scene, and the new state holds.")
+        }
+        if !landing.isEmpty,
+           !paragraphs.joined(separator: " ").localizedCaseInsensitiveContains(landing) {
+            paragraphs.append(landing)
+        }
+        if !paragraphs.joined(separator: " ").localizedCaseInsensitiveContains(band.fallbackClosingLine) {
+            paragraphs.append(band.fallbackClosingLine)
+        }
+        return paragraphs.joined(separator: "\n\n")
+    }
+
+    /// Keeps good generated prose intact. If the writer honored the committed
+    /// landing but missed the roll's special shape, add the deterministic beat
+    /// rather than collapsing the whole answer back to mechanics.
+    func ensuringNarrativeBand(in prose: String) -> String {
+        let prose = prose.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !prose.isEmpty else { return band.fallbackClosingLine }
+        guard !band.isVisible(in: prose) else { return prose }
+        return prose + "\n\n" + band.fallbackClosingLine
+    }
+}
+
 enum BookJumpAction: String, Codable, Equatable, CaseIterable {
     case start
     case advance
@@ -382,7 +542,7 @@ enum BookJumpEngine {
     static let borrowedRuleDays = 4
     static let coldDays = 5
 
-    /// Going one beat deeper costs escalating Belief; Disbelief charges rent on depth.
+    /// Going one beat deeper costs escalating Belief; Routine charges rent on depth.
     static func advanceCost(depth: Int) -> Int { max(0, depth - 1) }
 
     /// Returning pays the base reward plus a bonus for how deep you dared, but
@@ -400,7 +560,7 @@ enum BookJumpEngine {
             gutenbergID: "11",
             world: "a bright impossible country where logic wears gloves and every rule has teeth",
             arrival: "You land beside a corridor of doors, with the sound of a rabbit-sized hurry somewhere ahead.",
-            nothing: "The Disbelief appears as blank labels, jokes without punchlines, and paths that forget where they were going.",
+            nothing: "The Rut of Routine appears as blank labels, jokes without punchlines, and paths that forget where they were going.",
             rules: ["Do not argue with dream-logic; answer it sideways.", "Size, time, and manners are unstable.", "The Spine hides where nonsense suddenly becomes exact."],
             resonances: ["curiosity", "small adventures", "confusion", "play"]
         ),
@@ -411,7 +571,7 @@ enum BookJumpEngine {
             gutenbergID: "55",
             world: "a road-colored country where homesickness, courage, tenderness, and cleverness keep putting on costumes",
             arrival: "You step onto yellow bricks still warm from a storm that has already decided it is part of the story.",
-            nothing: "The Disbelief comes as color draining from the road and companions forgetting what they were looking for.",
+            nothing: "The Rut of Routine comes as color draining from the road and companions forgetting what they were looking for.",
             rules: ["Travel works better with companions.", "What is missing may already be present.", "Follow the road, but do not mistake it for the whole map."],
             resonances: ["home", "companionship", "courage", "wonder"]
         ),
@@ -422,7 +582,7 @@ enum BookJumpEngine {
             gutenbergID: "1342",
             world: "a drawing-room labyrinth where weather, manners, money, and misread glances alter destinies",
             arrival: "You arrive just outside a lit room where every pause has already been noticed.",
-            nothing: "The Disbelief wears the face of certainty: first impressions hardening before anyone can revise them.",
+            nothing: "The Rut of Routine wears the face of certainty: first impressions hardening before anyone can revise them.",
             rules: ["Listen twice before concluding once.", "A room can be more dangerous than a road.", "The Spine hides in revised judgment."],
             resonances: ["attention", "misreading", "wit", "second chances"]
         ),
@@ -433,7 +593,7 @@ enum BookJumpEngine {
             gutenbergID: "84",
             world: "a cold, brilliant world of ambition, loneliness, lightning, and responsibility",
             arrival: "You wake under a high, pale sky with mountains watching like witnesses.",
-            nothing: "The Disbelief gathers wherever maker and made refuse to recognize one another.",
+            nothing: "The Rut of Routine gathers wherever maker and made refuse to recognize one another.",
             rules: ["Do not confuse creation with care.", "Loneliness distorts every corridor.", "The Spine hides near responsibility accepted too late."],
             resonances: ["responsibility", "loneliness", "making", "mercy"]
         ),
@@ -444,7 +604,7 @@ enum BookJumpEngine {
             gutenbergID: "345",
             world: "a world of letters, trains, thresholds, folk protections, and old hunger learning modern routes",
             arrival: "You enter at a threshold after sunset; every document nearby seems to know it may become evidence.",
-            nothing: "The Disbelief moves as invitation without consent and fog that edits the edges of memory.",
+            nothing: "The Rut of Routine moves as invitation without consent and fog that edits the edges of memory.",
             rules: ["Keep records; records keep you.", "Thresholds matter.", "The Spine hides in shared evidence."],
             resonances: ["boundaries", "letters", "protection", "night"]
         ),
@@ -455,7 +615,7 @@ enum BookJumpEngine {
             gutenbergID: "46",
             world: "a candlelit moral weather system where memory, present kindness, and possible futures argue by apparition",
             arrival: "You arrive in a room where the fire has an opinion and the clock sounds slightly haunted.",
-            nothing: "The Disbelief appears as a locked heart and a future no one speaks kindly of.",
+            nothing: "The Rut of Routine appears as a locked heart and a future no one speaks kindly of.",
             rules: ["Memory is a door, not a prison.", "Small mercies change the temperature.", "The Spine hides where a future can still turn."],
             resonances: ["mercy", "memory", "winter", "change"]
         ),
@@ -466,7 +626,7 @@ enum BookJumpEngine {
             gutenbergID: "1661",
             world: "a gaslit city of clues, habits, disguises, and rooms where one overlooked detail holds the hinge",
             arrival: "You arrive near a window with rain on it and a problem pretending to be ordinary.",
-            nothing: "The Disbelief hides in assumptions so tidy they stop the eye from looking again.",
+            nothing: "The Rut of Routine hides in assumptions so tidy they stop the eye from looking again.",
             rules: ["Observe before explaining.", "The small detail is often the loudest witness.", "The Spine hides in the fact that does not fit."],
             resonances: ["attention", "mystery", "patterns", "evidence"]
         ),
@@ -477,7 +637,7 @@ enum BookJumpEngine {
             gutenbergID: "113",
             world: "a walled, breathing place where neglected things remember how to grow",
             arrival: "You find a locked garden wall and the smell of earth deciding whether to trust you.",
-            nothing: "The Disbelief appears as neglect: rooms unaired, gates unopened, living things not spoken to.",
+            nothing: "The Rut of Routine appears as neglect: rooms unaired, gates unopened, living things not spoken to.",
             rules: ["Growth is quiet before it is visible.", "Tend what answers slowly.", "The Spine hides where a locked place becomes shared."],
             resonances: ["healing", "gardens", "friendship", "return"]
         ),
@@ -488,7 +648,7 @@ enum BookJumpEngine {
             gutenbergID: "120",
             world: "a salt-stung world of maps, bargains, mutiny, courage, and voices too charming to trust completely",
             arrival: "You arrive with the smell of tar and tide in the air and a map trying not to rustle.",
-            nothing: "The Disbelief comes as greed: every landmark flattened into what can be taken from it.",
+            nothing: "The Rut of Routine comes as greed: every landmark flattened into what can be taken from it.",
             rules: ["Maps reveal and conceal.", "Charm is not safety.", "The Spine hides where courage refuses the easy bargain."],
             resonances: ["adventure", "maps", "risk", "loyalty"]
         ),
@@ -499,7 +659,7 @@ enum BookJumpEngine {
             gutenbergID: "2701",
             world: "a vast salt scripture of obsession, labor, jokes, omens, and terrible whiteness",
             arrival: "You arrive with deck-planks underfoot and the sea rewriting every certainty in grey-green ink.",
-            nothing: "The Disbelief wears obsession: one symbol swollen until it erases the rest of the world.",
+            nothing: "The Rut of Routine wears obsession: one symbol swollen until it erases the rest of the world.",
             rules: ["Do not let one sign devour all others.", "Shipmates are context.", "The Spine hides in the thing you can still notice besides the whale."],
             resonances: ["water", "obsession", "work", "awe"]
         ),
@@ -510,7 +670,7 @@ enum BookJumpEngine {
             gutenbergID: "996",
             world: "a road of tilting certainties where imagination makes trouble and sometimes mercy",
             arrival: "You arrive on a road where dust, dignity, and bad interpretations are already traveling together.",
-            nothing: "The Disbelief appears when enchantment becomes a refusal to see what is really there.",
+            nothing: "The Rut of Routine appears when enchantment becomes a refusal to see what is really there.",
             rules: ["Imagination needs a witness.", "Names change what courage thinks it is doing.", "The Spine hides where wonder and reality agree to share a saddle."],
             resonances: ["imagination", "ordinary magic", "roads", "companionship"]
         ),
@@ -521,7 +681,7 @@ enum BookJumpEngine {
             gutenbergID: "1727",
             world: "a sea-road of longing, hospitality, monsters, cleverness, and home seen from too far away",
             arrival: "You arrive at the edge of a wine-dark crossing with a shore behind you and another refusing to come closer.",
-            nothing: "The Disbelief comes as forgetting: names, homes, oaths, and the shape of return.",
+            nothing: "The Rut of Routine comes as forgetting: names, homes, oaths, and the shape of return.",
             rules: ["Hospitality is magic with rules.", "Cleverness has a cost.", "The Spine hides where return becomes more than arrival."],
             resonances: ["homecoming", "travel", "cleverness", "sea"]
         )
@@ -641,7 +801,7 @@ enum BookJumpEngine {
     static func advance(_ state: BookJumpState, line: String, direction: String? = nil, now: Date = Date()) -> BookJumpState {
         guard var active = state.active else { return state }
         active.depth = min(maxDepth, active.depth + 1)
-        // The deeper you are, the more rent Disbelief charges per page.
+        // The deeper you are, the more rent Routine charges per page.
         active.degradation = min(4, active.degradation + (active.depth >= 2 ? 1 : 0))
         active.souvenirDue = active.depth >= 2
         active.lastDirection = direction
@@ -717,7 +877,7 @@ enum BookJumpEngine {
         return updated
     }
 
-    /// The Disbelief collapses an unstabilized jump: you slip back empty-handed,
+    /// The Rut of Routine collapses an unstabilized jump: you slip back empty-handed,
     /// lose the Belief you staked, and that book goes cold for a while.
     static func collapse(_ state: BookJumpState, now: Date = Date()) -> (state: BookJumpState, lostBelief: Int, bookTitle: String) {
         guard let active = state.active else { return (state, 0, "") }
@@ -731,7 +891,7 @@ enum BookJumpEngine {
             depth: active.depth,
             degradation: active.degradation,
             souvenir: "",
-            outcome: "The page dissolved into Disbelief; you slipped back with empty hands."
+            outcome: "The page dissolved into Routine; you slipped back with empty hands."
         )
         var updated = state
         updated.active = nil
@@ -741,7 +901,7 @@ enum BookJumpEngine {
         return (updated, lost, active.title)
     }
 
-    /// Overnight, an active jump left unstable lets Disbelief gain a margin.
+    /// Overnight, an active jump left unstable lets Routine gain a margin.
     /// If it overruns, the jump collapses. Returns the new state and any loss.
     static func dailyDecay(_ state: BookJumpState, now: Date = Date()) -> (state: BookJumpState, collapsed: Bool, lostBelief: Int, bookTitle: String) {
         guard let active = state.active else {
@@ -838,7 +998,7 @@ enum BookJumpEngine {
             gutenbergID: gutenbergID,
             world: "a book you named yourself — \(title) — whose weather the Book has not read but agrees to enter with you",
             arrival: "The Spine opens onto \(title). The Book steps in beside you, reading as it goes.",
-            nothing: "The Disbelief here is whatever this book most fears forgetting; name a true thing and it loses its grip.",
+            nothing: "The Rut of Routine here is whatever this book most fears forgetting; name a true thing and it loses its grip.",
             rules: ["Carry one true detail from real life as ballast.", "Let the book lead; you keep the way back.", "The Spine hides where the borrowed world and your real one rhyme."],
             resonances: resonances
         )
@@ -942,7 +1102,7 @@ enum BookJumpEngine {
             Intention: \(active.intention)
             Guide: \(active.guide)
 
-            Keeping this page moves one beat deeper. The Disbelief pressure is \(active.degradation)/4.
+            Keeping this page moves one beat deeper. The Rut of Routine pressure is \(active.degradation)/4.
             """
         case .stabilize:
             body = """
@@ -950,7 +1110,7 @@ enum BookJumpEngine {
 
             \(active.nothing)
 
-            Name one true real-world detail in the margin, then keep this page. The Book will use it as ballast and lower Disbelief pressure.
+            Name one true real-world detail in the margin, then keep this page. The Book will use it as ballast and lower Routine pressure.
             """
         case .return:
             body = """
@@ -1009,7 +1169,7 @@ enum BookJumpEngine {
         case .advance:
             return "\(active.title) is open and stable enough for one more beat."
         case .stabilize:
-            return "The Disbelief is blurring the page; the jump needs ballast."
+            return "The Rut of Routine is blurring the page; the jump needs ballast."
         case .return:
             return "The Spine is visible; the jump is ready to come home with a souvenir."
         }
@@ -1642,8 +1802,318 @@ enum StorySpark {
     }
 }
 
+/// Chooses the reader-authored keep that can do the most useful work inside the
+/// current Story Page, then chooses the strongest passage inside that keep.
+/// Embeddings supply relevance when the caller is already off-main; attention
+/// fingerprints, continuity evidence, specificity, and prose shape provide the
+/// deterministic fallback everywhere else.
+enum StoryPageGroundingSelector {
+    static let sourceTagPrefix = "story-grounding-source:"
+    static let usedTag = "story-grounding-used"
+    static let maximumAge: TimeInterval = 120 * 86_400
+    static let maximumCandidates = 80
+    static let maximumExcerptCharacters = 280
+    static let minimumSelectionScore = 16
+
+    struct Selection: Equatable {
+        var pageID: String
+        var pageType: BookPageType
+        var excerpt: String
+        var score: Int
+        var semanticSimilarity: Double?
+        var reason: String
+    }
+
+    private struct PassageScore {
+        var text: String
+        var score: Int
+        var semanticSimilarity: Double?
+        var lexicalOverlap: Int
+    }
+
+    static func storyQuery(
+        tags: Set<String>,
+        primaryThread: NarrativeStoryThread?,
+        entities: [NarrativeWorldEntity],
+        relationshipPressures: [String],
+        inputs: BookSourceInputs
+    ) -> String {
+        var pieces: [String] = []
+        if let primaryThread {
+            pieces += [primaryThread.title, primaryThread.summary]
+            pieces += primaryThread.tags
+        }
+        for entity in entities.prefix(4) {
+            pieces.append(entity.name)
+            pieces += entity.unwrittenInterest.map { [$0] } ?? []
+            pieces += Array(entity.goals.prefix(2))
+            pieces += Array(entity.traits.prefix(3))
+            pieces += Array(entity.tags.prefix(5))
+        }
+        pieces += Array(relationshipPressures.prefix(3))
+        pieces += Array(tags.sorted().prefix(18))
+        pieces += inputs.currentArc.map { [$0.title, $0.phase.rawValue] } ?? []
+        pieces += inputs.clusters
+            .sorted { $0.strength > $1.strength }
+            .prefix(3)
+            .flatMap { [$0.name, $0.line] + Array($0.motifs.prefix(5)) }
+        pieces += inputs.themes
+            .sorted { $0.strength > $1.strength }
+            .prefix(3)
+            .flatMap { [$0.name, $0.line] + Array($0.motifs.prefix(5)) }
+        pieces += inputs.continuity.strongestSignals.prefix(4).flatMap {
+            [$0.subjectName, $0.line] + Array($0.tags.prefix(4))
+        }
+        let query = pieces
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: ". ")
+        return String(query.prefix(1_600))
+    }
+
+    static func select(
+        pages: [BookPage],
+        query: String,
+        inputs: BookSourceInputs,
+        scorer: StacksSemanticScoring?,
+        now: Date = Date()
+    ) -> Selection? {
+        let usedSourceIDs = Set(pages.flatMap { page in
+            page.tags.compactMap { tag -> String? in
+                let lowered = tag.lowercased()
+                guard lowered.hasPrefix(sourceTagPrefix) else { return nil }
+                return String(lowered.dropFirst(sourceTagPrefix.count))
+            }
+        })
+        let deduplicated = Dictionary(pages.map { ($0.id, $0) }, uniquingKeysWith: { first, second in
+            first.createdAt >= second.createdAt ? first : second
+        }).values
+        let eligible = deduplicated
+            .filter { page in
+                let age = now.timeIntervalSince(page.createdAt)
+                return age >= 0
+                    && age <= maximumAge
+                    && page.type != .welcome
+                    && !page.tags.contains("first-door-origin")
+                    && !EditionCurator.defaultPrivateTypes.contains(page.type)
+                    && page.privacy != .publicReference
+                    && !usedSourceIDs.contains(page.id.lowercased())
+                    && readerGroundingText(for: page) != nil
+            }
+            .sorted { left, right in
+                let leftSignal = archiveSignalBoost(for: left, inputs: inputs)
+                let rightSignal = archiveSignalBoost(for: right, inputs: inputs)
+                if leftSignal != rightSignal { return leftSignal > rightSignal }
+                if left.createdAt != right.createdAt { return left.createdAt > right.createdAt }
+                return left.id < right.id
+            }
+            .prefix(maximumCandidates)
+
+        let queryWords = SemanticKeepEcho.contentWords(in: query)
+        var best: (page: BookPage, passage: PassageScore, total: Int)?
+        for page in eligible {
+            guard let raw = readerGroundingText(for: page) else { continue }
+            let passage = bestPassage(
+                in: raw,
+                page: page,
+                query: query,
+                queryWords: queryWords,
+                scorer: scorer
+            )
+            let ageDays = max(0, now.timeIntervalSince(page.createdAt) / 86_400)
+            let freshness = max(0, 8 - Int(ageDays / 14))
+            let total = passage.score
+                + archiveSignalBoost(for: page, inputs: inputs)
+                + pageTypeBoost(page.type)
+                + freshness
+            if let current = best {
+                if total > current.total
+                    || (total == current.total
+                        && (passage.semanticSimilarity ?? 0) > (current.passage.semanticSimilarity ?? 0))
+                    || (total == current.total
+                        && passage.semanticSimilarity == current.passage.semanticSimilarity
+                        && page.createdAt > current.page.createdAt) {
+                    best = (page, passage, total)
+                }
+            } else {
+                best = (page, passage, total)
+            }
+        }
+        guard let best, best.total >= minimumSelectionScore else { return nil }
+        let reason: String
+        if let similarity = best.passage.semanticSimilarity, similarity >= 0.28 {
+            reason = "semantic relevance \(Int((similarity * 100).rounded()))% plus passage specificity"
+        } else if best.passage.lexicalOverlap > 0 {
+            reason = "story-context overlap plus passage specificity"
+        } else {
+            reason = "passage specificity plus archive significance"
+        }
+        return Selection(
+            pageID: best.page.id,
+            pageType: best.page.type,
+            excerpt: clipped(best.passage.text, limit: maximumExcerptCharacters),
+            score: best.total,
+            semanticSimilarity: best.passage.semanticSimilarity,
+            reason: reason
+        )
+    }
+
+    private static func readerGroundingText(for page: BookPage) -> String? {
+        let reply = page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !reply.isEmpty { return reply }
+        guard page.origin == .userAuthored || page.origin == .imported else { return nil }
+        let input = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !input.isEmpty else { return nil }
+        return input
+    }
+
+    private static func bestPassage(
+        in text: String,
+        page: BookPage,
+        query: String,
+        queryWords: Set<String>,
+        scorer: StacksSemanticScoring?
+    ) -> PassageScore {
+        let candidates = passages(in: text)
+        let fingerprintWords = Set(page.resolvedAttentionFingerprint.patternTokens)
+        var best: PassageScore?
+        for passage in candidates {
+            let lowered = passage.lowercased()
+            let words = lowered.split { !$0.isLetter && !$0.isNumber }.map(String.init)
+            let contentWords = SemanticKeepEcho.contentWords(in: passage)
+            let lexicalOverlap = contentWords.intersection(queryWords).count
+            let fingerprintOverlap = contentWords.intersection(fingerprintWords).count
+            let similarity = scorer?.similarity(between: query, and: passage)
+            let semantic = similarity.map { Int((max(0, $0 - 0.12) * 72).rounded()) } ?? 0
+            var score = semantic + min(18, lexicalOverlap * 5) + min(10, fingerprintOverlap * 2)
+            score += StorySpark.score(passage) * 2
+            if (7...48).contains(words.count) { score += 8 }
+            if words.count >= 12 && words.count <= 34 { score += 4 }
+            if lowered.contains(" but ") || lowered.contains(" because ") || lowered.contains(" instead ") || lowered.contains(" until ") { score += 5 }
+            if lowered.contains(" i ") || lowered.hasPrefix("i ") || lowered.contains(" we ") { score += 3 }
+            let vividLongWords = Set(words.filter { $0.count >= 7 && !KeepMarginalia.stopWords.contains($0) }).count
+            score += min(6, vividLongWords)
+            if page.hiddenMagicFinding != nil { score += 4 }
+            if passage.contains("?") && !passage.contains(".") && !passage.contains("!") { score -= 6 }
+            if passage.filter({ $0 == ":" }).count >= 3 { score -= 8 }
+            if isThinOrGeneric(passage) { score -= 18 }
+            let candidate = PassageScore(
+                text: passage,
+                score: score,
+                semanticSimilarity: similarity,
+                lexicalOverlap: lexicalOverlap
+            )
+            if let current = best {
+                if candidate.score > current.score
+                    || (candidate.score == current.score && candidate.text.count < current.text.count) {
+                    best = candidate
+                }
+            } else {
+                best = candidate
+            }
+        }
+        return best ?? PassageScore(
+            text: clipped(text, limit: maximumExcerptCharacters),
+            score: 0,
+            semanticSimilarity: nil,
+            lexicalOverlap: 0
+        )
+    }
+
+    private static func passages(in raw: String) -> [String] {
+        let normalized = raw
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return [] }
+        var sentences: [String] = []
+        var buffer = ""
+        for character in normalized {
+            if character == "\n" {
+                if !buffer.isEmpty { buffer.append(" ") }
+                continue
+            }
+            buffer.append(character)
+            if ".!?".contains(character) {
+                let clean = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !clean.isEmpty { sentences.append(clean) }
+                buffer = ""
+            }
+        }
+        let tail = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !tail.isEmpty { sentences.append(tail) }
+        if sentences.isEmpty { sentences = [normalized] }
+
+        var candidates: [String] = sentences
+        if sentences.count > 1 {
+            for index in 0..<(sentences.count - 1) {
+                let pair = "\(sentences[index]) \(sentences[index + 1])"
+                if pair.count <= maximumExcerptCharacters {
+                    candidates.append(pair)
+                }
+            }
+        }
+        return candidates
+            .map { clipped($0, limit: maximumExcerptCharacters) }
+            .filter { !$0.isEmpty }
+            .uniquedPreservingStoryOrder()
+    }
+
+    private static func archiveSignalBoost(for page: BookPage, inputs: BookSourceInputs) -> Int {
+        var score = 0
+        if inputs.continuity.strongestSignals.prefix(8).contains(where: { $0.evidencePageIDs.contains(page.id) }) { score += 12 }
+        if inputs.clusters.prefix(6).contains(where: { $0.evidencePageIDs.contains(page.id) }) { score += 10 }
+        if inputs.themes.prefix(6).contains(where: { $0.evidencePageIDs.contains(page.id) }) { score += 8 }
+        let fingerprint = page.resolvedAttentionFingerprint
+        score += min(5, fingerprint.modalities.count * 2)
+        if page.hiddenMagicFinding != nil { score += 4 }
+        return score
+    }
+
+    private static func pageTypeBoost(_ type: BookPageType) -> Int {
+        switch type {
+        case .souvenir: return 8
+        case .illuminatedPhoto, .plainPage: return 7
+        case .diary, .wonderCompass, .location, .anchor: return 5
+        case .mood, .note, .letter, .bookRemembered: return 3
+        default: return 0
+        }
+    }
+
+    private static func isThinOrGeneric(_ text: String) -> Bool {
+        let normalized = text.lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        let generic = ["fine", "okay", "ok", "good", "bad", "it was fine", "it was okay", "nothing much", "same as usual"]
+        return generic.contains(normalized) || normalized.split(separator: " ").count < 4
+    }
+
+    private static func clipped(_ text: String, limit: Int) -> String {
+        let clean = text
+            .replacingOccurrences(of: "\n", with: " ")
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard clean.count > limit else { return clean }
+        let prefix = clean.prefix(limit)
+        let end = prefix.lastIndex(of: " ") ?? prefix.endIndex
+        return String(prefix[..<end]).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+    }
+}
+
+private extension Array where Element == String {
+    func uniquedPreservingStoryOrder() -> [String] {
+        var seen = Set<String>()
+        return filter { seen.insert($0.lowercased()).inserted }
+    }
+}
+
 enum StoryScenePacketBuilder {
-    static func packet(for day: BookDay, inputs: BookSourceInputs, now: Date = Date()) -> StoryScenePacket {
+    static func packet(
+        for day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date = Date(),
+        semanticScorer: StacksSemanticScoring? = nil
+    ) -> StoryScenePacket {
         let inputs = inputs.resolvingWorldEvents(for: day, now: now)
         let tags = contextTags(for: day, inputs: inputs, now: now)
         var selectedEntities = rankedEntities(tags: tags, inputs: inputs, limit: 3, slotKey: "\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 4))")
@@ -1711,7 +2181,24 @@ enum StoryScenePacketBuilder {
             seed: packetStableIndex(for: "\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 4))-story-talisman-options", count: 10_000)
         )
         let slot = SurfaceCadence.slotID(for: now, hours: 4)
-        let grounding = grounding(for: day, inputs: inputs, realSignals: realSignals, memories: selectedEntityMemories, now: now)
+        let groundingQuery = StoryPageGroundingSelector.storyQuery(
+            tags: tags,
+            primaryThread: primaryThread,
+            entities: selectedEntities,
+            relationshipPressures: relationships,
+            inputs: inputs
+        )
+        let groundingScorer = semanticScorer
+            ?? (inputs.semanticStoryGroundingEnabled ? SemanticKeepEcho.keepTimeScorer : nil)
+        let grounding = grounding(
+            for: day,
+            inputs: inputs,
+            realSignals: realSignals,
+            memories: selectedEntityMemories,
+            storyQuery: groundingQuery,
+            semanticScorer: groundingScorer,
+            now: now
+        )
         let recipePick = selectRecipe(
             tags: tags, entities: availableEntities(inputs: inputs), thread: primaryThread, grounding: grounding,
             hasNothingPressure: greyLevel > 0, inputs: inputs, day: day, slot: slot, now: now
@@ -1751,7 +2238,7 @@ enum StoryScenePacketBuilder {
                 : grounding
             return makeBlueprint(packID: picked.packID, recipe: picked.recipe, grounding: sceneGrounding,
                 entities: selectedEntities, thread: primaryThread, form: storyForm,
-                slotKey: "\(day.id)-\(slot)")
+                slotKey: "\(day.id)-\(slot)", quillName: inputs.chosenQuill?.displayName)
         }
         let turn = blueprint?.turn ?? turn(
             primaryCharacter: primaryEntity,
@@ -1821,6 +2308,8 @@ enum StoryScenePacketBuilder {
         inputs: BookSourceInputs,
         realSignals: [String],
         memories: [NarrativeEntityMemory],
+        storyQuery: String,
+        semanticScorer: StacksSemanticScoring?,
         now: Date
     ) -> StoryGrounding {
         if let spark = StorySpark.candidate(for: day, inputs: inputs, now: now) {
@@ -1831,24 +2320,21 @@ enum StoryScenePacketBuilder {
                 text: "Story Spark from One-Sentence Souvenir: \"\(sentence)\""
             )
         }
-        let kept = (day.capturedPages + inputs.days.flatMap(\.capturedPages))
-            .sorted { $0.createdAt > $1.createdAt }
-            .first {
-                now.timeIntervalSince($0.createdAt) <= 45 * 86_400
-                    // Welcome/Origin pages carry structured `Key: value` bodies,
-                    // not prose — grounding a story turn on one dumps the raw
-                    // metadata block into the character's motivation. Skip them.
-                    && $0.type != .welcome
-                    && !$0.tags.contains("first-door-origin")
-                    && (!$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !$0.promptText.isEmpty)
-            }
-        if let kept {
-            let raw = kept.userInput.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? kept.promptText
-            // Only the first line, then a two-sentence cap: a multi-line body can
-            // never run on into the grounding sentence even if one slips through.
-            let firstLine = raw.split(separator: "\n", omittingEmptySubsequences: true).first.map(String.init) ?? raw
-            return StoryGrounding(kind: .keptPage, sourceID: kept.id,
-                text: "A kept \(kept.type.shortTitle) page says: \(firstLine.bookPreviewSentenceLimit(2))")
+        let pages = day.capturedPages + inputs.days.flatMap(\.capturedPages)
+        if let selected = StoryPageGroundingSelector.select(
+            pages: pages,
+            query: storyQuery,
+            inputs: inputs,
+            scorer: semanticScorer,
+            now: now
+        ) {
+            return StoryGrounding(
+                kind: .keptPage,
+                sourceID: selected.pageID,
+                text: "A kept \(selected.pageType.shortTitle) page offers this passage: “\(selected.excerpt)”",
+                selectionReason: selected.reason,
+                semanticSimilarity: selected.semanticSimilarity
+            )
         }
         if let signal = realSignals.first(where: { $0.hasPrefix("Weather:") || $0.hasPrefix("Forecast:") || $0.hasPrefix("Body Page:") }) {
             return StoryGrounding(kind: .realSignal, sourceID: "real-signal", text: signal)
@@ -1903,6 +2389,7 @@ enum StoryScenePacketBuilder {
             if requirements.contains(.rivalryEdge) && !StoryFormRegistry.hasRivalryEdge(among: entities) { return false }
             if requirements.contains(.deepBond) && StoryFormRegistry.deepBondConfidant(among: entities, memories: inputs.narrative?.entityMemories ?? []) == nil { return false }
             if requirements.contains(.outwardWake) && !StoryFormRegistry.hasRecentOutwardKeep(days: inputs.days + [day], now: now) { return false }
+            if requirements.contains(.chosenQuill) && inputs.chosenQuill == nil { return false }
             if !recipe.requiredEntityIDs.allSatisfy({ id in entities.contains { $0.id == id } }) { return false }
             if !recipe.requiredEntityTags.allSatisfy({ tag in entities.contains { $0.tags.contains(tag) } }) { return false }
             for type in recipe.suppressedByPageTypes {
@@ -1944,7 +2431,7 @@ enum StoryScenePacketBuilder {
     private static func makeBlueprint(
         packID: String, recipe: StoryRecipe, grounding: StoryGrounding,
         entities: [NarrativeWorldEntity], thread: NarrativeStoryThread?, form: StoryForm,
-        slotKey: String
+        slotKey: String, quillName: String? = nil
     ) -> StorySceneBlueprint? {
         let cast = entities.filter { $0.kind == .character }
         let lead = cast.first ?? entities.first
@@ -1959,7 +2446,8 @@ enum StoryScenePacketBuilder {
             "companion": companion?.name ?? "the reader",
             "grounding": grounding.text,
             "thread": threadLabel,
-            "form": form.name
+            "form": form.name,
+            "quill": quillName ?? "your quill"
         ]
         func fill(_ template: String) -> String {
             values.reduce(template) { result, pair in result.replacingOccurrences(of: "{{\(pair.key)}}", with: pair.value) }
@@ -4014,7 +4502,7 @@ enum CharacterLetterPageGenerator {
             score: min(84, 54 + entity.belief / 4 + entity.narrativeWeight / 4),
             reason: "\(entity.name) has a carefully-worked letter gathering itself in the margins.",
             prompt: "A letter from \(entity.name)",
-            detail: "A little note, all looked-up and thought-through, about \(interest).",
+            detail: "A little note, all looked-up and thought-through, about \(interest.trimmingCharacters(in: CharacterSet(charactersIn: ". "))).",
             payload: BookPagePayload(
                 headline: "Letter from \(entity.name)",
                 body: body,
@@ -4917,8 +5405,31 @@ enum PlayfulMissionRegistry {
         } else {
             preferredTags = ["touch", "visual", "scent", "sound"]
         }
+        let attentionProfile = HiddenMagicAttentionProfile.make(days: inputs.days + [day])
+        let stretchSenses: [HiddenMagicSense] = [.sight, .sound, .touch, .scent, .taste, .body, .place, .people, .kindness, .time, .imagination]
+        if let stretch = attentionProfile.leastPracticed(in: stretchSenses, seed: "mission:\(day.id)") {
+            switch stretch {
+            case .sight: preferredTags.formUnion(["visual", "color", "light"])
+            case .sound: preferredTags.formUnion(["sound", "rhythm"])
+            case .touch: preferredTags.formUnion(["touch", "texture", "temperature"])
+            case .scent: preferredTags.formUnion(["scent", "weather"])
+            case .taste: preferredTags.formUnion(["taste", "fuel"])
+            case .body: preferredTags.formUnion(["body", "movement", "low-energy"])
+            case .weather: preferredTags.formUnion(["weather", "sky", "outside"])
+            case .place: preferredTags.formUnion(["place", "outside", "public"])
+            case .people: preferredTags.formUnion(["people", "connection"])
+            case .kindness: preferredTags.formUnion(["kindness", "shared-wonder"])
+            case .time: preferredTags.formUnion(["history", "old", "memory"])
+            case .imagination: preferredTags.formUnion(["imagination", "character", "strange"])
+            }
+        }
         if shadowVariant, ShadowWonder.state(inputs: inputs, now: now).isActive {
             preferredTags.formUnion(["shadow-wonder", "shadow", "night", "history", "threshold", "old"])
+        }
+        // A day whose pages already hold company leans the lens toward the
+        // people in it — noticing missions, never performance requests.
+        if containsAny(text, ["friend", "lunch with", "dinner with", "coffee with", "talked", "called", "visit", "party", "family", "together", "with my", "with her", "with him", "with them"]) {
+            preferredTags.formUnion(["people", "connection"])
         }
 
         return missionPool.sorted { left, right in
@@ -4931,7 +5442,23 @@ enum PlayfulMissionRegistry {
         }
     }
 
-    static let missions: [PlayfulMission] = coreMissions + attentionMissions + sharedWonderMissions + shadowMissions
+    static let missions: [PlayfulMission] = coreMissions + attentionMissions + sharedWonderMissions + peopleMissions + shadowMissions
+
+    /// The lens turned toward the people already in the reader's real days.
+    /// These aim attention at company, not performance: nobody is asked to do
+    /// anything for the reader, and all proof stays in the reader's own words.
+    /// (House law: the Book may be impressed by the reader's seeing of real
+    /// people; it never invents their words — see PeopleOfTheBook.)
+    static let peopleMissions: [PlayfulMission] = [
+        mission("people-hands", "The Hands Report", "The next time someone talks to you today, watch their hands instead of the air. Hands keep saying things after sentences end.", "Write what their hands were doing while they talked.", ["people", "connection", "visual", "public", "low-stakes"], allowsPhoto: false),
+        mission("people-refrain", "Catch The Refrain", "Everyone carries a phrase they reach for. Catch the exact words someone near you repeats — word for word, no paraphrase.", "Write the phrase exactly as they said it.", ["people", "connection", "sound", "public", "low-stakes"], allowsPhoto: false),
+        mission("people-laugh", "The True Laugh", "The next laugh you hear from someone you know: find one true comparison for the sound. Not 'nice.' The actual sound.", "Complete this: Their laugh sounded like...", ["people", "connection", "sound", "low-stakes"], allowsPhoto: false),
+        mission("people-noticing", "What They Notice", "Watch what someone near you pays attention to. What does their attention love that yours skips past?", "Write the thing their attention went to first.", ["people", "connection", "visual", "public", "low-stakes"], allowsPhoto: false),
+        mission("people-asked", "The Borrowed Eye", "Ask someone what they noticed today — anything at all. Then keep their answer like it was your own page.", "Write their answer in their words, and who lent it.", ["people", "connection", "kindness", "low-stakes"], allowsPhoto: false),
+        mission("people-craft", "Watch The Craft", "Watch someone do something they are good at — pouring, parking, chopping, explaining. Find the exact moment the skill shows.", "Write the moment their skill became visible.", ["people", "connection", "visual", "public"], allowsPhoto: false),
+        mission("people-voice", "Under The Words", "While someone talks to you, listen once to the voice instead of the words. What is the voice doing that the words are not?", "Write what the voice carried that the sentence didn't.", ["people", "connection", "sound", "low-stakes"], allowsPhoto: false),
+        mission("people-uncut", "The Uncut Detail", "If this person were a character, what detail would the author refuse to cut? Find it while they are in front of you.", "Write the detail the author would keep.", ["people", "connection", "visual", "character", "low-stakes"], allowsPhoto: false)
+    ]
 
     /// Tiny outward-facing acts of enchantment: optional, free, and designed to
     /// brighten someone else's ordinary day without asking them to perform back.
@@ -5541,6 +6068,7 @@ enum StoryRecipeRequirement: String, Codable, Equatable {
     case rivalryEdge
     case deepBond
     case outwardWake
+    case chosenQuill
 }
 
 enum StoryRecipeSceneMode: String, Codable, Equatable {
@@ -5562,6 +6090,8 @@ struct StoryGrounding: Codable, Equatable {
     var kind: StoryGroundingKind
     var sourceID: String
     var text: String
+    var selectionReason: String? = nil
+    var semanticSimilarity: Double? = nil
 }
 
 struct StoryRecipeTurnTemplate: Codable, Equatable {
@@ -5758,7 +6288,7 @@ enum StoryFormRegistry {
                 StoryForm(
                     id: "nocturne",
                     name: "The Nocturne",
-                    directorNote: "Night logic; Disbelief tests the edges.",
+                    directorNote: "Night logic; Routine tests the edges.",
                     beats: [
                         "Lamp: the scene begins in low light as one precise detail starts to fray at the edge of attention.",
                         "Ledger: after the chosen response, what was kept is written down and what was lost is admitted."
@@ -5769,7 +6299,7 @@ enum StoryFormRegistry {
                 StoryGenre(id: "cozy-mystery", name: "Cozy Mystery", lens: "Warm rooms, sharp questions. Tea is involved. Suspicion lands on objects, never cruelty on people.", moodTags: ["rain", "evening", "quiet", "tea"],
                     exemplar: "\"Someone has moved the marmalade,\" Mrs. Quill said, setting down her cup. \"Third shelf. It lives on the second.\" Outside, rain worked at the gutter. \"Maybe it wanted a view,\" you offered. She looked at you the way detectives look at footprints — delighted, and not fooled at all.",
                     palette: ["teapot", "marmalade jar", "third shelf", "rain at the gutter", "index card", "spectacles", "toast crumbs", "doorbell"]),
-                StoryGenre(id: "gentle-horror", name: "Gentle Horror", lens: "The hair-raising kept kind: wrongness in familiar things, dread that resolves into tenderness. The Disbelief's territory.", moodTags: ["night", "fog", "tired", "grey"],
+                StoryGenre(id: "gentle-horror", name: "Gentle Horror", lens: "The hair-raising kept kind: wrongness in familiar things, dread that resolves into tenderness. The Rut's territory.", moodTags: ["night", "fog", "tired", "grey"],
                     exemplar: "The coat hook held its coat wrong. Not fallen — arranged, one sleeve folded across itself like an arm keeping something warm. \"Who folded you?\" you asked. Nothing answered, but the radiator ticked twice, the way a house does when it wants you to stay in the lit rooms.",
                     palette: ["coat hook", "radiator tick", "unlit hallway", "torch with a loose battery", "wallpaper seam", "your own breath", "stairwell", "spilled salt"]),
                 StoryGenre(id: "screwball", name: "Screwball Comedy", lens: "Fast, fond, and slightly unhinged. Characters talk over each other. Objects misbehave with comic timing.", moodTags: ["bright", "morning", "energy"],
@@ -5804,7 +6334,7 @@ enum StoryFormRegistry {
                 StoryGenre(id: "trickster-duel", name: "Trickster's Duel", lens: "Social pressure with a grin. The threat is being made to feel foolish for caring. Wit is the weapon and the wound.", moodTags: ["clash", "mischief", "audience"],
                     exemplar: "\"Nice page,\" Wicker said, not reading it. \"Very brave, keeping the sad ones.\" He let the silence do his work, then flicked a paper pellet at the inkwell. \"Relax. If I wanted it, it'd be gone. I'm here because someone's lying to you, and it's embarrassingly not me.\"",
                     palette: ["forged marginal note", "paper pellet", "inkwell", "borrowed grin", "the Stacks ladder", "a stolen title", "a dare", "an audience of two"]),
-                StoryGenre(id: "grey-static", name: "Grey Static", lens: "The Disbelief edits, it does not attack: exact words go pale, lists become \"items\", days become \"fine\". Specificity is the counterspell.", moodTags: ["clash", "grey", "flattening"],
+                StoryGenre(id: "grey-static", name: "Grey Static", lens: "The Rut of Routine edits, it does not attack: exact words go pale, lists become \"items\", days become \"fine\". Specificity is the counterspell.", moodTags: ["clash", "grey", "flattening"],
                     exemplar: "The list was still on the door, but someone had corrected it. Where it once said \"the good cup, the loud clock, Tuesday's moth,\" it now said \"items.\" Mara read it twice. \"Who signs their work 'fine'?\" she asked. The hallway light seemed suddenly very reasonable, very beige.",
                     palette: ["the word \"fine\"", "a corrected list", "beige light", "a missing adjective", "blank margin", "a title gone \"Untitled\"", "the good cup", "static hum"]),
                 StoryGenre(id: "threshold-gothic", name: "Threshold Gothic", lens: "Borrowed rules and courteous danger: things that must ask permission, and the terrible weight of granting it. Invitation logic, old handwriting, the wrong side of the glass.", moodTags: ["clash", "threshold", "invitation"],
@@ -5817,7 +6347,7 @@ enum StoryFormRegistry {
 
     static let unquietFolioRecipes: [StoryRecipe] = [
         recipe("grey-edit", "The Grey Edit", weight: 14, requirements: [.keptPage], mode: .balanced,
-            premise: "The Disbelief has edited the kept page inside {{thread}}: the exact words of {{grounding}} have gone pale, corrected to \"fine.\"",
+            premise: "The Rut of Routine has edited the kept page inside {{thread}}: the exact words of {{grounding}} have gone pale, corrected to \"fine.\"",
             beats: ["Show the kept page with its specific words flattened to filler while {{lead}} names what is missing.", "After the chosen response, the true words return, partly return, or their first-stolen word is learned — and the grey's editing rule gets written down."],
             turn: turn(.factLearned, want: "to learn which exact word the grey took first from {{grounding}}", obstacle: "the flattened sentence reads as almost true, which is how it hides", statement: "By the end, at least one exact word has been restored or the grey's editing rule has been named.", slice: "One small true detail is read aloud and refuses to stay grey.", progress: "The restored word points at where the grey nests inside {{thread}}.", surprise: "The edit was practice: the grey is drafting toward a page that has not been written yet."),
             tags: ["clash", "grey", "nothing", "evidence", "words"], forms: ["small-mystery", "nocturne"], genres: ["grey-static", "gentle-horror"],
@@ -5922,11 +6452,11 @@ enum StoryFormRegistry {
             tags: ["wonder", "research", "objects"], forms: ["small-mystery", "threshold-crossing"], genres: ["field-naturalist", "cozy-mystery"],
             grounding: "Make the test safe, fictional, bounded, and based on observable features of the grounded detail.", tone: "Investigative and exact, with room for a small laugh.", choices: "Offer measuring, comparing, repeating, stopping, asking, or changing the test.", continuation: "Move to a new question created by the result; do not retest the same claim."),
         recipe("nothing-library-corner", "Nothing in the Library Corner", requirements: [.groundedSource, .nothingPressure], mode: .environmental,
-            premise: "In a library corner, Disbelief begins erasing one precise part of {{grounding}} while the reader is close enough to intervene.",
+            premise: "In a library corner, Routine begins erasing one precise part of {{grounding}} while the reader is close enough to intervene.",
             beats: ["Show the first exact absence and make the reader's available responses materially different.", "After the chosen response, leave one protected detail or admitted loss."],
-            turn: turn(.smallDecision, want: "to keep {{grounding}} from being flattened by Disbelief", obstacle: "the erasure advances whenever nobody names what is actually there", statement: "By the end, one exact part of {{grounding}} is protected, changed, or honestly lost.", slice: "The reader protects one modest detail and lets the rest wait.", progress: "The defense exposes how Disbelief is entering {{thread}}.", surprise: "What looked erased has moved somewhere unexpected instead."),
+            turn: turn(.smallDecision, want: "to keep {{grounding}} from being flattened by Routine", obstacle: "the erasure advances whenever nobody names what is actually there", statement: "By the end, one exact part of {{grounding}} is protected, changed, or honestly lost.", slice: "The reader protects one modest detail and lets the rest wait.", progress: "The defense exposes how Routine is entering {{thread}}.", surprise: "What looked erased has moved somewhere unexpected instead."),
             tags: ["grey", "night", "quiet"], forms: ["nocturne", "small-mystery"], genres: ["gentle-horror"],
-            grounding: "Name exactly what is greying or vanishing.", tone: "Eerie but humane; the environment is allowed to act.", choices: "Offer concrete ways to name, shelter, move, trade for, or release the threatened detail.", continuation: "The Disbelief may act again; advance the physical consequence rather than forcing dialogue."),
+            grounding: "Name exactly what is greying or vanishing.", tone: "Eerie but humane; the environment is allowed to act.", choices: "Offer concrete ways to name, shelter, move, trade for, or release the threatened detail.", continuation: "The Rut of Routine may act again; advance the physical consequence rather than forcing dialogue."),
         recipe("small-discovery", "Small Discovery", requirements: [.groundedSource], mode: .balanced,
             premise: "A small inconsistency in {{grounding}} becomes a clue inside {{thread}}.",
             beats: ["State the oddity plainly and test it with one action or question.", "After the chosen response, reveal a useful partial answer that alters what can happen next."],
@@ -6047,7 +6577,90 @@ enum StoryFormRegistry {
             grounding: "Season and hour may flavor the menu; nothing else from the real day enters the kitchen. The reader's pages are not ingredients.",
             tone: "Feast-day urgency with warm edges: knives quick, voices low, the ovens on the reader's side.",
             choices: "Offer the ambitious dish, the humble dish done perfectly, or spending precious minutes finding out who the guest is.",
-            continuation: "The guest's clue is canon now. Follow who was fed and what they owe the kitchen; never re-stage the same midnight.")
+            continuation: "The guest's clue is canon now. Follow who was fed and what they owe the kitchen; never re-stage the same midnight."),
+        // The tending register: forage, brew, mend, name, trade, observe,
+        // catalog. These are the nurture-shaped scenes — gathering small
+        // treasures, repairing worn things, marking the real season — where
+        // the win condition is care taken, never danger survived.
+        recipe("forage-day", "Forage Day in the Deep Stacks", weight: 14, requirements: [.character], mode: .action,
+            premise: "{{lead}} has declared it a forage day: basket, gloves, and a route through the Deep Stacks where the Labyrinth grows things no gardener planted.",
+            beats: ["Set out with the basket: name two or three concrete finds in passing — shelf-moss, ink-berries, a spine-snail — and let one small shiny thing start following the expedition.", "After the chosen response, the basket comes home with one true find, and what was gathered, released, or given leaves the Stacks visibly tended."],
+            turn: turn(.smallDecision, want: "to fill one basket with things the Stacks grew on their own", obstacle: "the best finds are shy, and picking wrongly offends the shelf that grew them", statement: "By the end, the basket holds one true find — gathered, traded, or deliberately left growing — and the shiny thing has made its choice.", slice: "The forage slows into kneeling and looking; one small find is enough.", progress: "What the basket carries home gives {{thread}} one usable ingredient.", surprise: "The shiny thing following the basket was doing its own foraging — for the reader."),
+            tags: ["world-led", "forage", "objects", "wonder", "adventure"], forms: ["quiet-epic", "threshold-crossing"], genres: ["field-naturalist", "pastoral"],
+            grounding: "Season and hour may set what is in fruit; nothing else from the real day enters the Stacks. The reader's pages are not on the foraging route.",
+            tone: "Goblin-hearted and unhurried: mud, moss, and small treasures taken seriously. Ugly things are allowed to be beautiful.",
+            choices: "Offer following the shiny thing, harvesting the practical find, or leaving the best find growing and marking the spot — three different baskets, not three speeds of caution.",
+            continuation: "The Stacks remember what was gathered and what was spared; a kept find may reappear as a small prop. Never re-run the same forage route."),
+        recipe("night-apothecary", "The Night Apothecary", weight: 12, requirements: [.groundedSource, .character], mode: .balanced,
+            premise: "The infirmary shelf is open late: something in {{thread}} needs a remedy steeped before morning, and the missing ingredient is hiding inside {{grounding}}.",
+            beats: ["Name the patient and the ailment in concrete terms — a homesick atlas, a lamp that has lost its nerve — and let the ingredients negotiate their way into the pot.", "After the chosen response, the remedy is served, split, or gently corrected, and the patient shows one honest sign of change."],
+            turn: turn(.handOff, want: "to steep one honest remedy before the lamps go out", obstacle: "the recipe's key ingredient has opinions about the dose", statement: "By the end, a remedy has been brewed strong, brewed gentle, or remade to fit what the patient actually needed.", slice: "The steeping slows the room; watching the color change is most of the cure.", progress: "What the remedy reveals about the patient moves {{thread}} one spoonful forward.", surprise: "The remedy was steeping for the brewer all along."),
+            tags: ["care", "night", "objects", "mission"], forms: ["quiet-epic", "visitation"], genres: ["pastoral", "cozy-mystery"],
+            grounding: "Turn the grounded detail into the active part of the fiction — an ingredient, a dosage clue, or the reason tonight is the night. Never explain what it meant in the reader's day.",
+            tone: "Hedge-witch practical: low lamps, honest measurements, zero shame. The cure is allowed to be tea.",
+            choices: "Offer the strong dose, the gentle dose done perfectly, or asking the patient what it actually needs — three real prescriptions with different aftermaths.",
+            continuation: "The patient's change is canon; follow what the cured thing does next. Never re-brew the same remedy for the same ailment."),
+        recipe("mending-basket", "The Mending Basket", weight: 12, requirements: [.groundedSource, .character], mode: .balanced,
+            premise: "{{lead}} sets the mending basket between you: one worn thing from {{thread}} needs repair tonight, and the damage has {{grounding}} worked into its weave.",
+            beats: ["Show the worn thing plainly — the tear, the bent feather, the cracked hinge — and let the first stitch reveal something hidden under the wear.", "After the chosen response, the mend holds — invisible, honored, or taught to keep itself — and what the wear was hiding is in the open."],
+            turn: turn(.realNoticing, want: "to mend one worn thing so it can go on being used", obstacle: "the damage is load-bearing; something true is woven into the fraying", statement: "By the end, the worn thing is mended — seamlessly, visibly, or by learning to hold itself — and what the wear concealed has been seen.", slice: "The mending becomes the evening; small stitches, long quiet.", progress: "What the repair uncovers gives {{thread}} one new thread to pull.", surprise: "The previous mender left a message in the stitches, waiting for the next pair of hands."),
+            tags: ["care", "objects", "memory", "quiet"], forms: ["small-mystery", "correspondence"], genres: ["pastoral", "kindly-ghost"],
+            grounding: "Make the grounded detail physically present in the damage or the repair — a stain shaped like it, a thread the same color, the reason this object wore out here. The wear tells the truth; the mend answers it.",
+            tone: "Kintsugi-hearted: repair as respect, never as erasure. The scar is allowed to be the best part.",
+            choices: "Offer the invisible mend, the visible mend that honors the break, or teaching the thing to hold itself — three philosophies of repair, each with a different keeper.",
+            continuation: "The mended thing stays mended and carries its story; it may pass through later scenes bearing the repair. Never tear it again for drama."),
+        recipe("naming-of-small-things", "The Naming of Small Things", weight: 12, requirements: [], mode: .environmental,
+            premise: "Something in the Labyrinth has gone too long without a name — and tonight it has stopped answering to \"that thing by the stairs,\" because unnamed is exactly how the Rut of Routine likes its meals.",
+            beats: ["Show the unnamed thing concretely, and the small grey fading at its edges that namelessness invites; the corridor is quietly holding auditions.", "After the chosen response, the name is conferred, tried aloud, or respectfully deferred — and the world writes it down where names are kept."],
+            turn: turn(.smallDecision, want: "to find the true name before the greyness finds the gap", obstacle: "the thing has been rejecting flattering names for years; it wants an honest one", statement: "By the end, the small thing has a name conferred, borrowed, or honestly postponed — and the grey has lost its foothold.", slice: "The naming stays little: one word tried quietly, and the thing leaning into it.", progress: "The new name becomes an address other stories can find; {{thread}} gains a place to knock.", surprise: "The thing already had a name once — and chooses to tell only the reader what it was."),
+            tags: ["world-led", "words", "wonder", "quiet", "naming"], forms: ["small-mystery", "correspondence"], genres: ["field-naturalist", "kindly-ghost"],
+            grounding: "Hour and weather may color the corridor; the unnamed thing belongs wholly to the world. The reader's pages stay closed.",
+            tone: "Ceremonial at whisper scale. A true name is exact, a little funny, and impossible to take back.",
+            choices: "Offer conferring the name that fits, asking the thing what it has overheard and liked, or deferring with a promise and a temporary nickname — three honest registers of christening.",
+            continuation: "The conferred name is permanent world-fact: later scenes use it without comment. Never rename the same thing or let it fade again.",
+            suppressedBy: [.wordNegotiation], suppressionHours: 48),
+        recipe("stall-night", "Stall Night at the Goblin Market", weight: 13, requirements: [.character], mode: .balanced,
+            premise: "The Goblin Market has set up overnight in a disused reading room — stalls of bottled hush and secondhand moonlight — and {{lead}} knows which aisle is safest, which is best, and that they are not the same aisle.",
+            beats: ["Walk the stalls with specifics: three vendors, three wares, one iron house rule — everything here is traded in kind, never bought.", "After the chosen response, one trade is made, declined, or improved upon, and the Market packs itself away leaving exactly one stall's worth of consequence."],
+            turn: turn(.handOff, want: "to come away from the Market with one fair trade", obstacle: "the best stall only accepts payment the trader has to name themselves", statement: "By the end, one trade has been struck, walked away from, or renegotiated into something better — and the Market remembers the reader's manners.", slice: "The browsing is the whole visit: touching nothing, wanting everything, leaving light.", progress: "What was traded for turns out to be exactly what {{thread}} was missing.", surprise: "One stallkeeper knows the reader already — the radio plays in the Market too, and their dedication was heard."),
+            tags: ["world-led", "market", "objects", "mischief", "threshold"], forms: ["threshold-crossing", "visitation"], genres: ["threshold-gothic", "cozy-mystery"],
+            grounding: "The hour sets the Market's candlelight and nothing more. The wares are the world's own; the reader's pages are not for sale.",
+            tone: "Courteous bazaar: velvet and vinegar. Every price is fair and none of them are money; danger wears good manners.",
+            choices: "Offer the practical stall, the beautiful stall, and the stall that trades in intangibles — three different transactions, never three ways to hesitate.",
+            continuation: "Trades hold on both sides: what was given stays given, and what was gained may resurface as a small prop. The Market never re-opens in the same room twice.",
+            suppressedBy: [.faeBargain], suppressionHours: 72),
+        recipe("small-observance", "The Small Observance", weight: 12, requirements: [], mode: .environmental,
+            premise: "The Labyrinth is preparing one of its small observances — the building marks the turning of the real season the way old houses do, and a part of the ceremony has been left, deliberately, for the reader to hold.",
+            beats: ["Show the preparations at kitchen scale — candles counted, a window unlatched for the ceremony's one guest, the almanac open on its stand — and name the seasonal edge being honored.", "After the chosen response, the observance is kept: modest, exact, and finished, with one part of it now traditionally the reader's."],
+            turn: turn(.realNoticing, want: "to keep the observance properly before the season's edge passes", obstacle: "the ceremony's instructions survive only as marginalia and one stubborn tradition nobody remembers the reason for", statement: "By the end, the observance has been kept — by the book, by feel, or by honest improvisation — and the season has been seen across its threshold.", slice: "The ceremony turns out to be mostly standing still at the right window at the right hour.", progress: "The kept observance earns {{thread}} the season's small favor.", surprise: "The observance is older than the building — and for one held breath the corridor remembers being outdoors."),
+            tags: ["world-led", "season", "weather", "quiet", "ritual"], forms: ["nocturne", "quiet-epic"], genres: ["pastoral", "field-naturalist"],
+            grounding: "Build the ceremony from the real season and hour supplied — first frost, longest light, the swifts leaving. The realer the edge, the better the magic. The reader's pages stay closed.",
+            tone: "Slow gold and candle-smoke: liturgy at household scale, warmth without solemnity. Marking time is the whole point.",
+            choices: "Offer keeping the tradition exactly, adapting it honestly to tonight, or taking the one role no one has volunteered for — three ways to hold a ceremony, not three ways to watch one.",
+            continuation: "The observance recurs only when the real season turns again; the reader's part in it is tradition now. Advance what the season's favor touched; never re-stage the same edge.",
+            cooldown: 96, suppressedBy: [.festival], suppressionHours: 72),
+        recipe("impossible-specimen", "The Impossible Specimen", weight: 12, requirements: [.character], mode: .balanced,
+            premise: "{{lead}} arrives balancing a specimen box that is visibly arguing with its own lid: something impossible has been found in the Labyrinth, and the registry has exactly one blank catalog card left.",
+            beats: ["Open the box carefully: the impossible thing gets concrete features, honest behavior, and grave bureaucratic respect — one card, so the entry must be right.", "After the chosen response, the specimen is filed, verified, or released with its card pinned open — and the registry is one impossible entry richer."],
+            turn: turn(.factLearned, want: "to catalog the impossible thing accurately before it catalogs itself as gone", obstacle: "every verified fact about it contradicts one other verified fact", statement: "By the end, the specimen has an entry — filed as itself, filed as a question, or released with its record honestly incomplete — and one true fact about it is established.", slice: "The cataloging slows into acquaintance; the specimen relaxes once it is being taken seriously.", progress: "The completed card gives {{thread}} an official fact to lean on.", surprise: "The specimen has been keeping its own record — and it has an entry on the reader."),
+            tags: ["world-led", "wonder", "creature", "evidence"], forms: ["small-mystery", "visitation"], genres: ["field-naturalist", "cozy-mystery"],
+            grounding: "Weather and hour may explain where the specimen was found; the reader's pages are not evidence. Documentation makes wonder kinder — that is the room's whole creed.",
+            tone: "Grave bureaucratic tenderness: stamps, folders, and complete seriousness about the unserious. Verification is a form of welcome.",
+            choices: "Offer verifying one testable claim, filing it as itself with the contradictions intact, or letting it dictate its own entry — three curatorial philosophies with different drawers.",
+            continuation: "The catalog entry is canon and citable; later scenes may pull the card. Never re-discover the specimen or lose the file."),
+        // The chosen quill's own scene: only offered once an instrument has
+        // chosen the reader in the Quillquarium, and staged so the quill's
+        // opposite-of-the-reader temperament does the dramatic work.
+        recipe("the-quill-disagrees", "The Quill Disagrees", weight: 12, requirements: [.chosenQuill], mode: .balanced,
+            premise: "Your quill, {{quill}}, has planted itself upright in the inkwell and refuses tonight's page as drafted: it has a better idea, and it is prepared to drip until heard.",
+            beats: ["Stage the disagreement concretely: what the page wants to say, what the quill keeps writing instead, and the one word it will not put down.", "After the chosen response, the page is finished — the reader's way, the quill's way, or a third way neither expected — and the quill's opinion of its writer updates by one honest notch."],
+            turn: turn(.relationshipShift, want: "tonight's page written the way {{quill}} believes the reader actually means it", obstacle: "the quill is, infuriatingly, not entirely wrong", statement: "By the end, the disputed page exists — compromised, conceded, or improved past both drafts — and writer and quill know each other one notch better.", slice: "The standoff mellows into practice strokes; the quill shows off, forgiven.", progress: "The finished page turns out to be a key that fits {{thread}}.", surprise: "The quill was not editing the page. It was protecting the reader from spending the good sentence on the wrong paragraph."),
+            tags: ["quill", "writing", "mischief", "care"], forms: ["visitation", "small-mystery"], genres: ["screwball", "cozy-mystery"],
+            grounding: "The quill's temperament is supplied — let its leanings drive the disagreement. Real-day details stay atmosphere; the dispute is about the writing, never the reader's private facts.",
+            tone: "Fond exasperation: the pen is a colleague with strong opinions and no salary. Nobody wins by force.",
+            choices: "Offer writing it the reader's way with the quill under protest, giving the quill one paragraph to prove its case, or setting both drafts side by side to see what the page itself prefers.",
+            continuation: "The quill remembers who yielded and why; its next appearance leans on that memory. Never re-run the same standoff.",
+            cooldown: 96)
     ]
 
     static func userPacks(fileManager: FileManager = .default) -> [StoryFormPack] {
@@ -6080,7 +6693,7 @@ enum StoryFormRegistry {
         return enabledPacks().flatMap(\.genres).filter { seen.insert($0.id).inserted }
     }
 
-    static let recipeTemplateTokens: Set<String> = ["lead", "companion", "grounding", "thread", "form"]
+    static let recipeTemplateTokens: Set<String> = ["lead", "companion", "grounding", "thread", "form", "quill"]
 
     static var recipesWithPackIDs: [(packID: String, recipe: StoryRecipe)] {
         var seen = Set<String>()

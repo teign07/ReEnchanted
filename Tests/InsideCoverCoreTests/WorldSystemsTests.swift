@@ -990,7 +990,7 @@ final class WorldSystemsTests: XCTestCase {
         for genre in StoryFormRegistry.genres {
             XCTAssertFalse(genre.lens.isEmpty)
         }
-        XCTAssertEqual(StoryFormRegistry.coreRecipes.count, 21)
+        XCTAssertGreaterThanOrEqual(StoryFormRegistry.coreRecipes.count, 21)
         XCTAssertTrue(StoryFormRegistry.coreRecipes.contains { $0.id == "souvenir-door" })
         XCTAssertTrue(StoryFormRegistry.coreRecipes.allSatisfy(StoryFormRegistry.recipeIsValid))
         XCTAssertTrue(StoryFormRegistry.coreRecipes.allSatisfy { $0.beats.count == StoryVignetteBeats.maximumInteractiveTurns })

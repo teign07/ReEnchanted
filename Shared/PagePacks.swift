@@ -1454,6 +1454,12 @@ struct ReEnchantedSaveFile: Codable {
     var nothingGreyOffset: Int? = nil
     var readerLearning: ReaderLearningModel? = nil
     var openWorldEventArchive: OpenWorldEventArchive? = nil
+    var magicMoment: MagicMomentState? = nil
+    var bookObservations: [BookObservationRecord]? = nil
+    var bookReadingBoundaries: [BookReadingBoundary]? = nil
+    var overnightConnectionDrafts: [OvernightConnectionDraft]? = nil
+    var chosenQuill: ChosenQuill? = nil
+    var people: PeopleLedger? = nil
     /// The full continuity digest at export time, so the wider Labyrinth
     /// (scene engine, NPC dialogue) can reference what the Book has noticed.
     var continuity: LiteraryContinuityDigest?
@@ -1625,6 +1631,12 @@ struct PlayerVaultData: Codable, Equatable {
     var bookNoticeEvidence: Int?
     var nothingGreyOffset: Int?
     var openWorldEventArchive: OpenWorldEventArchive? = nil
+    var magicMoment: MagicMomentState?
+    var bookObservations: [BookObservationRecord]?
+    var bookReadingBoundaries: [BookReadingBoundary]?
+    var overnightConnectionDrafts: [OvernightConnectionDraft]?
+    var chosenQuill: ChosenQuill?
+    var people: PeopleLedger?
     /// Gemma-authored taste notes earned when the reader marks a braid "missed
     /// me." Each is one short second-person nudge folded into future braid
     /// prompts as reader-taught guidance. Capped to the most recent few.

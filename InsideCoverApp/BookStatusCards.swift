@@ -1729,6 +1729,18 @@ struct KeepMarginNoteToast: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if let findingLine = note.findingLine {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("YOU FOUND IT", systemImage: "sparkles")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(BookPalette.lampGold)
+                    Text(findingLine)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.84))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.bottom, 2)
+            }
             HStack(alignment: .top, spacing: 10) {
                 Image(note.assetName)
                     .resizable()

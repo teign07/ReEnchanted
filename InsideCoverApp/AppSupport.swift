@@ -3407,10 +3407,21 @@ enum OvernightScribe {
         var surface: SurfacePage
     }
 
+    private struct ConnectionDrafts: Codable {
+        var generatedAt: Date
+        var drafts: [OvernightConnectionDraft]
+    }
+
     static var draftURL: URL {
         let base = InsideCoverStore.containerURL
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("OvernightStoryPage.json")
+    }
+
+    static var connectionDraftsURL: URL {
+        let base = InsideCoverStore.containerURL
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return base.appendingPathComponent("OvernightConnections.json")
     }
 
     static func register() {
@@ -3460,10 +3471,11 @@ enum OvernightScribe {
         #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
         guard LocalModelManager.report().state == .ready else { return false }
 
-        let draft: SurfacePage = await MainActor.run {
+        let prepared: (story: SurfacePage, connections: [OvernightConnectionCandidate]) = await MainActor.run {
             let days = BookDatabase.loadDays(migratingFrom: BookStore.loadDays())
             let day = BookStore.today(from: days)
             var inputs = BookSourceInputs.from(insideCover: InsideCoverStore.load())
+            inputs.days = days
             inputs.selfFacts = (try? BookDatabase.selfFacts()) ?? []
             let events = (try? BookDatabase.narrativeEvents(limit: 160)) ?? []
             let memories = (try? BookDatabase.entityMemories(limit: 240)) ?? []
@@ -3472,26 +3484,72 @@ enum OvernightScribe {
                 memories: memories,
                 beliefWeight: nil
             )
-            return NarrativeOSPageSourceAdapter.draftCandidate(for: day, inputs: inputs, now: now)
+            let vault = PlayerVault.shared.data
+            inputs.bookObservations = vault.bookObservations ?? []
+            inputs.bookReadingBoundaries = vault.bookReadingBoundaries ?? []
+            inputs.overnightConnectionDrafts = vault.overnightConnectionDrafts ?? []
+            inputs.chosenQuill = vault.chosenQuill
+            return (
+                NarrativeOSPageSourceAdapter.draftCandidate(for: day, inputs: inputs, now: now),
+                OvernightConnectionReview.candidates(for: day, inputs: inputs, now: now)
+            )
         }
 
         await LocalBrainInferenceGate.shared.setBackgroundAllowance(true)
         defer {
             Task { await LocalBrainInferenceGate.shared.setBackgroundAllowance(false) }
         }
+        var wroteSomething = false
         do {
-            let prose = try await MLXStoryPageWriter().write(surface: draft)
-            let prepared = draft.preparedStoryPageCopy(
+            let prose = try await MLXStoryPageWriter().write(surface: prepared.story)
+            let story = prepared.story.preparedStoryPageCopy(
                 prose: prose,
                 slotID: SurfaceCadence.slotID(for: now, hours: 4)
             )
-            let data = try JSONEncoder().encode(Draft(generatedAt: now, surface: prepared))
+            let data = try JSONEncoder().encode(Draft(generatedAt: now, surface: story))
             try data.write(to: draftURL, options: [.atomic])
-            return true
+            wroteSomething = true
         } catch {
             appLog.error("Overnight scribe failed: \(error.localizedDescription, privacy: .public)")
-            return false
         }
+
+        if !prepared.connections.isEmpty,
+           let packet = try? JSONEncoder().encode(prepared.connections),
+           let candidateJSON = String(data: packet, encoding: .utf8) {
+            do {
+                let response = try await MLXLocalTextGenerator.run(
+                    prompt: """
+                    Review only these frozen, deterministic connection candidates:
+                    \(candidateJSON)
+
+                    Return strict JSON with this exact shape:
+                    {"connections":[{"candidateID":"exact supplied id","confidence":70,"headline":"short","interpretation":"at least eight words, grounded only in supplied evidence","question":"one curious question?"}]}
+                    Omit weak candidates. Never add an ID or fact. Never diagnose the reader.
+                    """,
+                    instructions: "You are the Book's careful night reader. You may phrase an evidence-backed connection more beautifully, but you may not discover beyond the supplied candidates. Return strict JSON only.",
+                    maxTokens: 620,
+                    label: "overnight-connections",
+                    tags: ["overnight", "connections", "hidden-magic"],
+                    temperature: 0.42,
+                    topP: 0.82,
+                    presentation: .readingRoom,
+                    publishesProgress: false
+                )
+                let drafts = OvernightConnectionReview.drafts(
+                    from: response,
+                    candidates: prepared.connections,
+                    now: now
+                )
+                if !drafts.isEmpty {
+                    let data = try JSONEncoder().encode(ConnectionDrafts(generatedAt: now, drafts: drafts))
+                    try data.write(to: connectionDraftsURL, options: [.atomic])
+                    wroteSomething = true
+                }
+            } catch {
+                appLog.error("Overnight connection review failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        return wroteSomething
         #else
         return false
         #endif
@@ -3508,6 +3566,17 @@ enum OvernightScribe {
             return nil
         }
         return draft.surface
+    }
+
+    /// Adopts the night reader's grounded connection drafts. The file is
+    /// consumed even when stale so yesterday's surprise cannot masquerade as
+    /// a fresh noticing after its evidence has moved on.
+    static func adoptConnectionDrafts(now: Date = Date()) -> [OvernightConnectionDraft] {
+        guard let data = try? Data(contentsOf: connectionDraftsURL) else { return [] }
+        try? FileManager.default.removeItem(at: connectionDraftsURL)
+        guard let bundle = try? JSONDecoder().decode(ConnectionDrafts.self, from: data),
+              now.timeIntervalSince(bundle.generatedAt) < freshnessWindow else { return [] }
+        return bundle.drafts
     }
 }
 

@@ -995,6 +995,14 @@ enum BookReferenceCatalog {
             tags: ["classes", "locations", "rooms", "story", "quillquarium", "book-burrow", "dormitory"]
         ),
         ReferenceSnippet(
+            id: "labyrinth-lore-instruments",
+            sourceID: "labyrinth-lore",
+            title: "The Instrument Law: Pens, Not Wands",
+            prompt: "Ask your pen before you ask the spell.",
+            body: "There are no wands at the Academy, and there never have been. Magic here is written, not waved: a spell is a sentence that means it, and the instrument that inks it does half the work. Every member of the Cast carries a writing implement — a quill, a dip pen, a pencil stub sharpened with a knife — and each implement has opinions of its own about what it is asked to write. A pen can refuse a lazy spell, improve a timid one, or add a flourish nobody ordered. This is why the Quillquarium matters: an instrument cannot merely be picked up, it has to choose, and it chooses the writer it can usefully disagree with. The Headmistress's legendary inkwell is kept in her office for safekeeping. Officially.",
+            tags: ["canon", "instruments", "pens", "quills", "magic", "quillquarium", "school"]
+        ),
+        ReferenceSnippet(
             id: "labyrinth-lore-classes",
             sourceID: "labyrinth-lore",
             title: "The Compass Core Classes",

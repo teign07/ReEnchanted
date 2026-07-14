@@ -11,6 +11,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case weather
     case location
     case quip
+    case quotes
+    case affirmations
     case aboutYou
     case wonderCompass
     case lore
@@ -104,6 +106,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Location Page"
         case .quip:
             return "Quip Page"
+        case .quotes:
+            return "A Quote to Keep"
+        case .affirmations:
+            return "The Book Believes"
         case .aboutYou:
             return "About You"
         case .wonderCompass:
@@ -219,6 +225,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Place"
         case .quip:
             return "Quip"
+        case .quotes:
+            return "Quote"
+        case .affirmations:
+            return "Believing"
         case .aboutYou:
             return "You"
         case .wonderCompass:
@@ -334,6 +344,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "map"
         case .quip:
             return "sparkles"
+        case .quotes:
+            return "quote.bubble"
+        case .affirmations:
+            return "heart.text.square"
         case .aboutYou:
             return "person.text.rectangle"
         case .wonderCompass:
@@ -976,6 +990,30 @@ enum BookPageSourceRegistry {
             note: "Odd facts and small perspective sparks."
         ),
         BookPageSource(
+            id: "quotes-page",
+            type: .quotes,
+            title: "A Quote to Keep",
+            shortTitle: "Quote",
+            symbolName: "quote.bubble",
+            origin: .imported,
+            privacy: .publicReference,
+            isActive: true,
+            cadence: "a few times a day",
+            note: "Lines from poets, scientists, and quiet noticers on wonder, attention, and this one precious life."
+        ),
+        BookPageSource(
+            id: "affirmations-page",
+            type: .affirmations,
+            title: "The Book Believes",
+            shortTitle: "Believing",
+            symbolName: "heart.text.square",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "mornings, mostly",
+            note: "Small believings in the Book's own voice. Some ask for a countersigned agreement — an 'I will,' kept."
+        ),
+        BookPageSource(
             id: "about-you",
             type: .aboutYou,
             title: "About You",
@@ -1189,7 +1227,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "per pack",
-            note: "Pages supplied by installed Page Packs — games, rituals, utilities, Disbelief, whatever fits the world."
+            note: "Pages supplied by installed Page Packs — games, rituals, utilities, Routine, whatever fits the world."
         ),
         BookPageSource(
             id: "word-negotiation",
@@ -1282,6 +1320,10 @@ enum BookPageSourceRegistry {
             return 28
         case .calendar:
             return 26
+        case .quotes:
+            return 26
+        case .affirmations:
+            return 28
         case .quip, .location, .patreon:
             return 18
         case .plainPage:
@@ -1330,6 +1372,10 @@ enum BookPageSourceRegistry {
         case .gamePage:
             return 26
         case .calendar:
+            return 22
+        case .quotes:
+            return 20
+        case .affirmations:
             return 22
         case .quip, .location, .patreon:
             return 14
@@ -1411,6 +1457,362 @@ struct BookPageMediaAsset: Codable, Identifiable, Equatable {
     }
 }
 
+// MARK: - Earned-reading memory
+
+enum BookObservationStatus: String, Codable, Equatable {
+    case asked
+    case confirmed
+    case notQuite
+    case doNotRead
+}
+
+struct BookObservationRecord: Codable, Identifiable, Equatable {
+    var id: String
+    var kind: String
+    var status: BookObservationStatus
+    var evidencePageIDs: [String]
+    var firstPresentedAt: Date
+    var updatedAt: Date
+}
+
+/// A hard, exact boundary. Unlike ordinary feedback this prevents the same
+/// reading key from being proposed again until the reader explicitly changes
+/// it; broad guesses about adjacent subjects remain possible.
+struct BookReadingBoundary: Codable, Identifiable, Equatable {
+    var id: String
+    var createdAt: Date
+}
+
+/// A variable-ratio governor for the Book's larger surprises. Sessions warm
+/// the possibility rather than scheduling a reveal on a calendar.
+struct MagicMomentState: Codable, Equatable {
+    var sessionCount: Int = 0
+    var sessionsSinceMoment: Int = 0
+    var isArmed: Bool = false
+    var lastSessionAt: Date?
+    var lastMomentAt: Date?
+    var lastMomentKey: String?
+}
+
+enum MagicMomentGovernor {
+    static let meaningfulSessionGap: TimeInterval = 20 * 60
+
+    static func enteringSession(
+        _ state: MagicMomentState,
+        now: Date = Date(),
+        roll: Int = Int.random(in: 0...99)
+    ) -> MagicMomentState {
+        var updated = state
+        if let last = state.lastSessionAt,
+           now.timeIntervalSince(last) < meaningfulSessionGap {
+            return updated
+        }
+        updated.lastSessionAt = now
+        updated.sessionCount += 1
+        updated.sessionsSinceMoment += 1
+        guard !updated.isArmed else { return updated }
+        let chance: Int
+        switch updated.sessionsSinceMoment {
+        case ..<2: chance = 0
+        case 2: chance = 18
+        case 3: chance = 45
+        case 4: chance = 72
+        default: chance = 100
+        }
+        updated.isArmed = roll < chance
+        return updated
+    }
+
+    static func consuming(
+        _ state: MagicMomentState,
+        key: String,
+        now: Date = Date()
+    ) -> MagicMomentState {
+        var updated = state
+        updated.isArmed = false
+        updated.sessionsSinceMoment = 0
+        updated.lastMomentAt = now
+        updated.lastMomentKey = key
+        return updated
+    }
+}
+
+struct OvernightConnectionCandidate: Codable, Identifiable, Equatable {
+    var id: String
+    var observationKey: String
+    var kind: String
+    var deterministicFinding: String
+    var evidencePageIDs: [String]
+    var evidenceCards: String
+}
+
+struct OvernightConnectionDraft: Codable, Equatable {
+    var observationKey: String
+    var candidateID: String
+    var evidenceSignature: String
+    var kind: String
+    var headline: String
+    var interpretation: String
+    var question: String
+    var confidence: Int
+    var evidencePageIDs: [String]
+    var evidenceCards: String
+    var generatedAt: Date
+}
+
+/// A deliberately coarse snapshot of the real-world context in which a page
+/// was kept. It travels with the page so later observations compare the
+/// weather/body/calendar that was true *then*, never whatever happens to be
+/// current when the archive is reread.
+///
+/// The snapshot contains no coordinates, place names, calendar titles, or raw
+/// Health data. It is private page context, not a second activity log.
+struct BookPageContextSnapshot: Codable, Equatable {
+    var timeZoneIdentifier: String
+    var utcOffsetSeconds: Int
+    var dayPart: String
+    var weatherTags: [String]
+    var bodyScore: Int?
+    var calendarEventCount: Int?
+    var nearbyAnchorID: String?
+
+    init(
+        at date: Date = Date(),
+        calendar: Calendar = .current,
+        weatherTags: [String] = [],
+        bodyScore: Int? = nil,
+        calendarEventCount: Int? = nil,
+        nearbyAnchorID: String? = nil
+    ) {
+        let timeZone = calendar.timeZone
+        self.timeZoneIdentifier = timeZone.identifier
+        self.utcOffsetSeconds = timeZone.secondsFromGMT(for: date)
+        self.dayPart = Self.dayPart(for: date, calendar: calendar)
+        self.weatherTags = Array(Set(weatherTags.map(Self.normalizedWeatherTag).filter { !$0.isEmpty })).sorted()
+        self.bodyScore = bodyScore.map { min(100, max(0, $0)) }
+        self.calendarEventCount = calendarEventCount.map { max(0, $0) }
+        self.nearbyAnchorID = nearbyAnchorID?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case timeZoneIdentifier
+        case utcOffsetSeconds
+        case dayPart
+        case weatherTags
+        case bodyScore
+        case calendarEventCount
+        case nearbyAnchorID
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        timeZoneIdentifier = try container.decodeIfPresent(String.self, forKey: .timeZoneIdentifier) ?? TimeZone.current.identifier
+        utcOffsetSeconds = try container.decodeIfPresent(Int.self, forKey: .utcOffsetSeconds) ?? 0
+        dayPart = try container.decodeIfPresent(String.self, forKey: .dayPart) ?? "unknown"
+        weatherTags = try container.decodeIfPresent([String].self, forKey: .weatherTags) ?? []
+        bodyScore = try container.decodeIfPresent(Int.self, forKey: .bodyScore)
+        calendarEventCount = try container.decodeIfPresent(Int.self, forKey: .calendarEventCount)
+        nearbyAnchorID = try container.decodeIfPresent(String.self, forKey: .nearbyAnchorID)
+    }
+
+    private static func dayPart(for date: Date, calendar: Calendar) -> String {
+        switch calendar.component(.hour, from: date) {
+        case 5...11: return "morning"
+        case 12...16: return "afternoon"
+        case 17...20: return "evening"
+        default: return "night"
+        }
+    }
+
+    private static func normalizedWeatherTag(_ tag: String) -> String {
+        tag.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+}
+
+/// The part of attention a real-world Page asks the reader to borrow. These
+/// are deliberately broader than the five senses: place, people, kindness,
+/// time, and imagination are ways of directing perception too.
+enum HiddenMagicSense: String, Codable, CaseIterable, Equatable {
+    case sight
+    case sound
+    case touch
+    case scent
+    case taste
+    case body
+    case weather
+    case place
+    case people
+    case kindness
+    case time
+    case imagination
+
+    var title: String {
+        switch self {
+        case .sight: return "Sight"
+        case .sound: return "Sound"
+        case .touch: return "Touch"
+        case .scent: return "Scent"
+        case .taste: return "Taste"
+        case .body: return "Body"
+        case .weather: return "Weather"
+        case .place: return "Place"
+        case .people: return "People"
+        case .kindness: return "Kindness"
+        case .time: return "Time"
+        case .imagination: return "Imagination"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .sight: return "eye"
+        case .sound: return "ear"
+        case .touch: return "hand.raised"
+        case .scent: return "wind"
+        case .taste: return "mouth"
+        case .body: return "figure.mind.and.body"
+        case .weather: return "cloud.sun"
+        case .place: return "mappin.and.ellipse"
+        case .people: return "person.2"
+        case .kindness: return "hands.sparkles"
+        case .time: return "clock"
+        case .imagination: return "sparkles"
+        }
+    }
+}
+
+enum HiddenMagicExpressionMode: String, Codable, CaseIterable, Equatable {
+    case words
+    case photograph
+    case voice
+}
+
+/// A small real-world instruction carried by any outward-facing Page. The
+/// Page keeps its own type, prose, and mechanics; this is only the common
+/// grammar that lets the app guide action and recognize proof consistently.
+struct HiddenMagicLens: Codable, Equatable {
+    var id: String
+    var sense: HiddenMagicSense
+    var voice: String
+    var action: String
+    var proofPrompt: String
+    var durationSeconds: Int
+    var expressionModes: [HiddenMagicExpressionMode]
+}
+
+/// Durable proof that a reader used a lens in the real world. The page itself
+/// remains the source of truth for the sentence, photograph, or recording; the
+/// finding stores only the practice context needed to develop future lenses.
+struct HiddenMagicFinding: Codable, Equatable {
+    var lensID: String
+    var sense: HiddenMagicSense
+    var action: String
+    var proofPrompt: String
+    var expressionModes: [HiddenMagicExpressionMode]
+    var foundAt: Date
+}
+
+/// A compact, private vocabulary of what a kept page actually contained and
+/// the conditions under which it was kept. It lets the continuity layer notice
+/// across prose, photographs, voice attachments, and real-world context without
+/// retaining a second copy of the source media or exporting an embedding.
+struct AttentionFingerprint: Codable, Equatable {
+    var subjectTokens: [String]
+    var visualTokens: [String]
+    var voiceTokens: [String]
+    var contextTokens: [String]
+    var modalities: [String]
+
+    var patternTokens: [String] {
+        Array(Set(subjectTokens + visualTokens + voiceTokens + contextTokens)).sorted()
+    }
+
+    var patternText: String { patternTokens.joined(separator: " ") }
+
+    static func make(from page: BookPage) -> AttentionFingerprint {
+        var subjectText = "\(page.userInput) \(page.playerReply) \(page.tags.joined(separator: " "))"
+        var visualText = ""
+        var voiceText = ""
+        var modalities = Set<String>()
+
+        for asset in page.mediaAssets {
+            let metadataText = asset.metadata
+                .filter { key, _ in
+                    let lowered = key.lowercased()
+                    return !lowered.contains("path") && !lowered.contains("identifier")
+                }
+                .map(\.value)
+                .joined(separator: " ")
+            switch asset.kind {
+            case .bundledImage, .renderedImageFile, .photoLibraryAsset:
+                modalities.insert("photo")
+                visualText += " \(asset.caption) \(metadataText)"
+            case .audioFile:
+                modalities.insert("voice")
+                voiceText += " \(asset.caption) \(metadataText)"
+            }
+        }
+
+        if page.userInput.nonEmpty != nil || page.playerReply.nonEmpty != nil {
+            modalities.insert("words")
+        }
+        if page.type == .location || page.type == .anchor { modalities.insert("place") }
+        if page.type == .weather { modalities.insert("weather") }
+
+        var contextTokens: [String] = []
+        if let context = page.context {
+            contextTokens += context.weatherTags.map { "weather-\($0)" }
+            if context.dayPart != "unknown" { contextTokens.append("hour-\(context.dayPart)") }
+            if let score = context.bodyScore {
+                if score <= 40 { contextTokens.append("body-low") }
+                if score >= 70 { contextTokens.append("body-high") }
+            }
+            if let count = context.calendarEventCount {
+                if count == 0 { contextTokens.append("tempo-open") }
+                if count >= 3 { contextTokens.append("tempo-crowded") }
+            }
+            if let anchor = context.nearbyAnchorID {
+                contextTokens.append("anchor-\(normalized(anchor))")
+            }
+        }
+
+        // Prompt text is intentionally excluded. A generated prompt is what the
+        // Book asked, not evidence of what the reader noticed.
+        subjectText += page.origin == .userAuthored ? "" : " \(page.promptText)"
+        return AttentionFingerprint(
+            subjectTokens: tokens(in: subjectText),
+            visualTokens: tokens(in: visualText),
+            voiceTokens: tokens(in: voiceText),
+            contextTokens: Array(Set(contextTokens)).sorted(),
+            modalities: modalities.sorted()
+        )
+    }
+
+    private static let stopWords: Set<String> = [
+        "about", "after", "again", "because", "book", "could", "from", "have",
+        "into", "kept", "page", "pages", "photo", "that", "their", "there",
+        "these", "they", "this", "today", "voice", "were", "what", "when",
+        "where", "which", "with", "would", "your"
+    ]
+
+    private static func tokens(in text: String) -> [String] {
+        Array(Set(text
+            .lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .map(normalized)
+            .filter { $0.count >= 4 && !stopWords.contains($0) && !$0.contains(where: \.isNumber) }
+        )).sorted()
+    }
+
+    private static func normalized(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "-")
+            .replacingOccurrences(of: " ", with: "-")
+    }
+}
+
 struct BookPage: Codable, Identifiable, Equatable {
     var id: String
     var type: BookPageType
@@ -1425,6 +1827,17 @@ struct BookPage: Codable, Identifiable, Equatable {
     var privacy: BookPagePrivacy
     var promptVersion: String?
     var mediaAssets: [BookPageMediaAsset]
+    var context: BookPageContextSnapshot?
+    var attentionFingerprint: AttentionFingerprint?
+    var hiddenMagicFinding: HiddenMagicFinding?
+    /// Present when this archive page is a fully-bound weekly issue. Optional
+    /// keeps older archives source-compatible and avoids flattening a whole
+    /// magazine into tags that cannot reconstruct its reader.
+    var weeklyIssueArtifact: KeptWeeklyIssueArtifact?
+    /// Present when this archive page is a fully-bound monthly edition. Optional
+    /// for the same reasons as `weeklyIssueArtifact` — older archives decode
+    /// without it, and a whole edition can't be flattened into tags.
+    var monthlyEditionArtifact: KeptMonthlyEditionArtifact?
 
     init(
         id: String = UUID().uuidString,
@@ -1439,7 +1852,12 @@ struct BookPage: Codable, Identifiable, Equatable {
         origin: BookPageOrigin? = nil,
         privacy: BookPagePrivacy = .privateLocal,
         promptVersion: String? = nil,
-        mediaAssets: [BookPageMediaAsset] = []
+        mediaAssets: [BookPageMediaAsset] = [],
+        context: BookPageContextSnapshot? = nil,
+        attentionFingerprint: AttentionFingerprint? = nil,
+        hiddenMagicFinding: HiddenMagicFinding? = nil,
+        weeklyIssueArtifact: KeptWeeklyIssueArtifact? = nil,
+        monthlyEditionArtifact: KeptMonthlyEditionArtifact? = nil
     ) {
         self.id = id
         self.type = type
@@ -1454,6 +1872,11 @@ struct BookPage: Codable, Identifiable, Equatable {
         self.privacy = privacy
         self.promptVersion = promptVersion
         self.mediaAssets = mediaAssets
+        self.context = context
+        self.attentionFingerprint = attentionFingerprint
+        self.hiddenMagicFinding = hiddenMagicFinding
+        self.weeklyIssueArtifact = weeklyIssueArtifact
+        self.monthlyEditionArtifact = monthlyEditionArtifact
     }
 
     enum CodingKeys: String, CodingKey {
@@ -1470,6 +1893,11 @@ struct BookPage: Codable, Identifiable, Equatable {
         case privacy
         case promptVersion
         case mediaAssets
+        case context
+        case attentionFingerprint
+        case hiddenMagicFinding
+        case weeklyIssueArtifact
+        case monthlyEditionArtifact
     }
 
     init(from decoder: Decoder) throws {
@@ -1487,6 +1915,125 @@ struct BookPage: Codable, Identifiable, Equatable {
         privacy = try container.decodeIfPresent(BookPagePrivacy.self, forKey: .privacy) ?? .privateLocal
         promptVersion = try container.decodeIfPresent(String.self, forKey: .promptVersion)
         mediaAssets = try container.decodeIfPresent([BookPageMediaAsset].self, forKey: .mediaAssets) ?? []
+        context = try container.decodeIfPresent(BookPageContextSnapshot.self, forKey: .context)
+        attentionFingerprint = try container.decodeIfPresent(AttentionFingerprint.self, forKey: .attentionFingerprint)
+        hiddenMagicFinding = try container.decodeIfPresent(HiddenMagicFinding.self, forKey: .hiddenMagicFinding)
+        weeklyIssueArtifact = try container.decodeIfPresent(KeptWeeklyIssueArtifact.self, forKey: .weeklyIssueArtifact)
+        monthlyEditionArtifact = try container.decodeIfPresent(KeptMonthlyEditionArtifact.self, forKey: .monthlyEditionArtifact)
+    }
+}
+
+extension BookPage {
+    var resolvedAttentionFingerprint: AttentionFingerprint {
+        attentionFingerprint ?? AttentionFingerprint.make(from: self)
+    }
+
+    /// The meaningful text archive previews should begin with. A kept letter's
+    /// full prose remains untouched in `userInput`; only this derived preview
+    /// skips its salutation when a body follows. Quote pages use a split storage
+    /// shape, so their quotation and attribution are reunited here as well.
+    var archivePreviewText: String? {
+        let prompt = promptText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let input = userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let reply = playerReply.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if type == .quotes {
+            let attribution = input.isEmpty ? reply : input
+            let parts = [prompt, attribution].filter { !$0.isEmpty }
+            return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
+        }
+
+        // A letter's prose can live in `promptText` on older/onboarding pages;
+        // `playerReply` is the reader's response and is only a last resort.
+        let candidates = type == .letter ? [input, prompt, reply] : [input, reply, prompt]
+        guard let storedText = candidates.first(where: { !$0.isEmpty }) else {
+            return nil
+        }
+        guard type == .letter else { return storedText }
+        return Self.letterTextDroppingLeadingSalutation(storedText)
+    }
+
+    /// The text Pagewright should place on a new scrap before the reader edits
+    /// its pull quote.
+    var pagewrightDefaultScrapText: String? {
+        archivePreviewText
+    }
+
+    private static func letterTextDroppingLeadingSalutation(_ text: String) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return text }
+
+        let firstLineEnd = normalized.firstIndex(of: "\n") ?? normalized.endIndex
+        let firstLine = String(normalized[..<firstLineEnd])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let laterText = firstLineEnd == normalized.endIndex
+            ? ""
+            : String(normalized[normalized.index(after: firstLineEnd)...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // This also handles compact legacy letters such as
+        // "Dear friend, I found ..." where the body begins on the same line.
+        let explicitGreeting = #"^(?:dear(?:est)?|hello|hi|hey|my dear),?\s+[^,\n:!—–]{1,48}[,:!—–]\s*"#
+        if let greetingRange = firstLine.range(
+            of: explicitGreeting,
+            options: [.regularExpression, .caseInsensitive]
+        ) {
+            let inlineBody = String(firstLine[greetingRange.upperBound...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let body = [inlineBody, laterText]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n\n")
+            if !body.isEmpty { return body }
+        }
+
+        guard isStandaloneLetterGreeting(firstLine), !laterText.isEmpty else {
+            return normalized
+        }
+        return laterText
+    }
+
+    private static func isStandaloneLetterGreeting(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 80 else { return false }
+
+        let lowercased = trimmed.lowercased()
+        let explicitOpenings = ["dearest", "dear", "hello", "hi", "hey", "my dear"]
+        if explicitOpenings.contains(where: { opening in
+            lowercased == opening
+                || lowercased.hasPrefix("\(opening) ")
+                || lowercased.hasPrefix("\(opening),")
+                || lowercased.hasPrefix("\(opening):")
+        }) {
+            return true
+        }
+
+        // Some generated letters use only the reader's saved name as the
+        // greeting, preserving its casing exactly (including "bj"). Accept a
+        // short, name-shaped isolated line, but not sentence punctuation or a
+        // sentence-length opening.
+        let greetingPunctuation = CharacterSet(charactersIn: ",:.!—–")
+        let finalIsPunctuation = trimmed.unicodeScalars.last.map(greetingPunctuation.contains) == true
+        let name = (finalIsPunctuation ? String(trimmed.dropLast()) : trimmed)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty,
+              name.rangeOfCharacter(from: CharacterSet(charactersIn: ",:;!?—–")) == nil else {
+            return false
+        }
+        let words = name.split(whereSeparator: \Character.isWhitespace)
+        let letterCount = name.unicodeScalars.filter(CharacterSet.letters.contains).count
+        guard (1...4).contains(words.count), letterCount >= 2 else { return false }
+        if trimmed.last == ".", words.count > 1 { return false }
+        let allowedNamePunctuation = CharacterSet(charactersIn: "'’.-")
+        return words.allSatisfy { word in
+            word.unicodeScalars.allSatisfy {
+                CharacterSet.letters.contains($0)
+                    || CharacterSet.nonBaseCharacters.contains($0)
+                    || allowedNamePunctuation.contains($0)
+            }
+        }
     }
 }
 

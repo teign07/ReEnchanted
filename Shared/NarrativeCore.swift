@@ -2251,7 +2251,10 @@ enum NarrativePackRegistry {
             traits: ["aerial", "ink-bright", "mischievously selective"],
             quirks: ["pens school overhead like fish", "predatory quills circle weak sentences until they sharpen"],
             faults: ["can turn writing into spectacle unless one chosen pen matters"],
-            beliefs: ["the right instrument can choose the hand as much as the hand chooses the instrument"],
+            beliefs: [
+                "the right instrument can choose the hand as much as the hand chooses the instrument",
+                "magic is written, never waved — the Academy has no wands, only opinionated pens"
+            ],
             goals: ["give writing, choice, and voice Story Pages a lively room with real motion"],
             tags: ["location", "quillquarium", "writing", "ink", "pens", "school", "riddlewind", "story-setting"]
         ),
@@ -3555,7 +3558,7 @@ enum NarrativeEventResolver {
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 1
             createdHint = "A ruled word enters the reader's Lexicon and can bend future sentences."
-        case .location, .lore, .patreon, .bookOfYou, .packPage, .calendar, .helpTips, .welcome, .bindery, .plainPage:
+        case .location, .lore, .patreon, .quotes, .affirmations, .bookOfYou, .packPage, .calendar, .helpTips, .welcome, .bindery, .plainPage:
             break
         }
 

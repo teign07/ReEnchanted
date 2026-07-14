@@ -12,6 +12,11 @@ enum EmergentPageMaturity {
 
 struct BookSourceInputs: Equatable {
     var days: [BookDay] = []
+    var magicMoment: MagicMomentState = MagicMomentState()
+    var bookObservations: [BookObservationRecord] = []
+    var bookReadingBoundaries: [BookReadingBoundary] = []
+    var overnightConnectionDrafts: [OvernightConnectionDraft] = []
+    var chosenQuill: ChosenQuill?
     var body: BodySourceSignal?
     var weather: WeatherSourceSignal?
     var enchantedWeather: EnchantedWeatherSignal?
@@ -67,6 +72,11 @@ struct BookSourceInputs: Equatable {
     /// off-main beside the continuity digest (NLEmbedding is not free). Nil on
     /// the synchronous fallback path; the Notices page simply omits the beat.
     var semanticNoticePairing: SemanticNoticePairing? = nil
+    /// Enables sentence-embedding relevance when a Story Page chooses one of the
+    /// reader's keeps as its crux. Surface builds set this only on their detached
+    /// executor; synchronous previews still receive the same selective lexical,
+    /// fingerprint, theme, and passage-salience fallback without main-thread ML.
+    var semanticStoryGroundingEnabled = false
     /// History keys of first-run steps the reader engaged with (opened or
     /// deliberately swiped away). The first-run script advances on these, not
     /// on served-history, so a card can't be skipped by merely flashing past.
@@ -159,6 +169,160 @@ struct BookSourceInputs: Equatable {
             }
         }
         return nil
+    }
+}
+
+// MARK: - Overnight connection review
+
+enum OvernightConnectionReview {
+    private struct Response: Decodable {
+        var connections: [Connection]
+    }
+
+    private struct Connection: Decodable {
+        var candidateID: String
+        var confidence: Int
+        var headline: String
+        var interpretation: String
+        var question: String
+    }
+
+    static func candidates(
+        for day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date = Date()
+    ) -> [OvernightConnectionCandidate] {
+        let surfaces = BookNoticesPageSourceAdapter().candidates(
+            for: day,
+            context: .make(for: day),
+            inputs: inputs,
+            now: now
+        )
+        return surfaces.compactMap { surface in
+            let metadata = surface.payload.metadata
+            guard metadata["connectionNarrative"] == "true" || metadata["hiddenMagicWayOfSeeing"] == "true" else { return nil }
+            let evidence = BookObservationLedger.evidencePageIDs(for: surface)
+            guard evidence.count >= 2,
+                  let observationKey = BookObservationLedger.key(for: surface) else { return nil }
+            return OvernightConnectionCandidate(
+                id: metadata["connectionID"]?.nonEmpty ?? surface.id,
+                observationKey: observationKey,
+                kind: metadata["connectionKind"]?.nonEmpty ?? BookObservationLedger.kind(for: surface),
+                deterministicFinding: surface.detail.nonEmpty ?? surface.payload.body,
+                evidencePageIDs: evidence,
+                evidenceCards: metadata["tinyPatternCards"] ?? ""
+            )
+        }
+    }
+
+    static func evidenceSignature(for candidates: [OvernightConnectionCandidate]) -> String {
+        let material = candidates
+            .sorted { $0.id < $1.id }
+            .map { candidate in
+                [candidate.id, candidate.observationKey, candidate.kind,
+                 candidate.evidencePageIDs.joined(separator: ","), candidate.evidenceCards]
+                    .joined(separator: "|")
+            }
+            .joined(separator: "\n")
+        let hash = material.utf8.reduce(UInt64(14_695_981_039_346_656_037)) {
+            ($0 ^ UInt64($1)) &* 1_099_511_628_211
+        }
+        return String(hash, radix: 16)
+    }
+
+    static func drafts(
+        from response: String,
+        candidates: [OvernightConnectionCandidate],
+        now: Date = Date()
+    ) -> [OvernightConnectionDraft] {
+        guard let data = response.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode(Response.self, from: data) else { return [] }
+        let byID = Dictionary(uniqueKeysWithValues: candidates.map { ($0.id, $0) })
+        let signature = evidenceSignature(for: candidates)
+        let forbidden = ["diagnosis", "diagnose", "trauma", "attachment style", "anxious", "depressed", "disorder"]
+        return decoded.connections.compactMap { reading in
+            guard let candidate = byID[reading.candidateID],
+                  (70...100).contains(reading.confidence),
+                  reading.headline.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil,
+                  reading.interpretation.split(separator: " ").count >= 8,
+                  reading.question.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("?") else { return nil }
+            let claim = "\(reading.headline) \(reading.interpretation) \(reading.question)".lowercased()
+            guard !forbidden.contains(where: claim.contains) else { return nil }
+            return OvernightConnectionDraft(
+                observationKey: candidate.observationKey,
+                candidateID: candidate.id,
+                evidenceSignature: signature,
+                kind: candidate.kind,
+                headline: reading.headline.trimmingCharacters(in: .whitespacesAndNewlines),
+                interpretation: reading.interpretation.trimmingCharacters(in: .whitespacesAndNewlines),
+                question: reading.question.trimmingCharacters(in: .whitespacesAndNewlines),
+                confidence: reading.confidence,
+                evidencePageIDs: candidate.evidencePageIDs,
+                evidenceCards: candidate.evidenceCards,
+                generatedAt: now
+            )
+        }
+    }
+
+    static func surfaces(
+        for day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date = Date()
+    ) -> [SurfacePage] {
+        let pageIDs = Set((inputs.days + [day]).flatMap(\.pages).map(\.id))
+        return inputs.overnightConnectionDrafts.compactMap { draft in
+            guard draft.confidence >= 70,
+                  draft.evidencePageIDs.count >= 2,
+                  draft.evidencePageIDs.allSatisfy(pageIDs.contains),
+                  !inputs.bookReadingBoundaries.contains(where: { $0.id == draft.observationKey }),
+                  !inputs.bookObservations.contains(where: { $0.id == draft.observationKey }) else { return nil }
+            let body = """
+            I put these pages beside one another overnight.
+
+            \(draft.interpretation)
+
+            \(draft.question)
+
+            This is a reading, not a verdict. The source pages are below, and you may correct me.
+            """
+            return SurfacePage(
+                id: "overnight-connection-\(draft.candidateID)-\(day.id)",
+                type: .bookNotices,
+                sourceID: BookPageSourceRegistry.source(for: .bookNotices).id,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                score: 91,
+                reason: "The night reader found an evidence-backed connection between kept pages.",
+                prompt: "The Book left a page tucked in overnight.",
+                detail: draft.interpretation,
+                payload: BookPagePayload(
+                    headline: draft.headline,
+                    body: body,
+                    metadata: [
+                        "source": BookPageSourceRegistry.source(for: .bookNotices).id,
+                        "overnightConnection": "true",
+                        "connectionNarrative": "true",
+                        "connectionKind": draft.kind,
+                        "connectionID": draft.candidateID,
+                        "observationKey": draft.observationKey,
+                        "magicMomentEligible": "true",
+                        "evidencePageIDs": draft.evidencePageIDs.joined(separator: ","),
+                        "tinyPatternCards": draft.evidenceCards,
+                        "feedbackPrompt": "Did the Book read this right?",
+                        "tags": "book-notices,overnight-connection,local-memory"
+                    ]
+                )
+            )
+        }
+    }
+}
+
+struct OvernightConnectionPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .bookNotices)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard !context.distress.isActive else { return [] }
+        return OvernightConnectionReview.surfaces(for: day, inputs: inputs, now: now)
     }
 }
 
@@ -1773,6 +1937,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         pages += namingSurfaces(for: day, inputs: inputs, now: now)
         pages += wagerSurfaces(for: day, inputs: inputs, now: now)
         pages += learningSurfaces(for: day, inputs: inputs, now: now)
+        pages += hiddenMagicWaysOfSeeingSurfaces(for: day, inputs: inputs, now: now)
         pages += howYouSeeSurfaces(for: day, inputs: inputs, now: now)
         pages += connectionNarrativeSurfaces(for: day, inputs: inputs, now: now)
         pages += noticeSurfaces(for: day, inputs: inputs, now: now)
@@ -1809,6 +1974,53 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
                     now: now
                 )]
             }
+        }
+
+        for connection in ContextWeave.connections(days: allDays) {
+            guard !spoken.contains(connection.id) else { continue }
+            let evidence = connection.evidencePageIDs.compactMap { pagesByID[$0] }
+            guard evidence.count >= 2 else { continue }
+            let cards = evidence.map { page in
+                NoticePatternCard(
+                    title: Self.connectionDateFormatter.string(from: page.createdAt),
+                    text: Self.connectionExcerpt(from: page),
+                    symbol: connection.kind == .manner ? "text.line.first.and.arrowtriangle.forward" : "bookmark"
+                )
+            }
+            let body = """
+            I found a relationship between the conditions around these pages and the way the ink arrived.
+
+            \(connection.line)
+
+            I am showing the source pages because I am noticing, not diagnosing. If the comparison is wrong, say so; a careful Book must be correctable.
+            """
+            return [SurfacePage(
+                id: "\(source.id)-\(connection.id)-\(day.id)",
+                type: .bookNotices,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                score: 90,
+                reason: "Several kept pages changed together with their recorded real-world context.",
+                prompt: "The Book noticed the world leaning on the ink.",
+                detail: connection.line,
+                payload: BookPagePayload(
+                    headline: "The Weather Around the Words",
+                    body: body,
+                    metadata: [
+                        "source": source.id,
+                        "connectionNarrative": "true",
+                        "connectionKind": "context",
+                        "connectionID": connection.id,
+                        "observationKey": "connection:\(connection.id)",
+                        "magicMomentEligible": "true",
+                        "evidencePageIDs": connection.evidencePageIDs.joined(separator: ","),
+                        "tinyPatternCards": Self.encodeNoticePatternCards(cards),
+                        "feedbackPrompt": "Did the Book read this right?",
+                        "tags": "book-notices,connection-narrative,context-connection,\(Self.connectionSpokeTagPrefix)\(connection.id),local-memory"
+                    ]
+                )
+            )]
         }
 
         for signal in inputs.continuity.strongestSignals where signal.kind == .pattern && signal.strength >= 62 {
@@ -1985,6 +2197,66 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         formatter.dateFormat = "MMMM d"
         return formatter
     }()
+
+    /// Findings are allowed to become an opinion only after the reader has
+    /// supplied repeat evidence on separate days. The Page asks for
+    /// confirmation; it never turns a practice history into a diagnosis.
+    private func hiddenMagicWaysOfSeeingSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard !didNoticeToday(day) else { return [] }
+        let allDays = inputs.days + [day]
+        let profile = HiddenMagicAttentionProfile.make(days: allDays)
+        guard let reading = profile.wayOfSeeing else { return [] }
+        let observationID = reading.observationKey
+        guard !Self.spokenSignalIDs(days: allDays, within: 90, now: now).contains(observationID) else { return [] }
+
+        let evidence: [BookPage] = reading.evidencePages
+        let cards: [NoticePatternCard] = evidence.map { page in
+            NoticePatternCard(
+                title: Self.connectionDateFormatter.string(from: page.createdAt),
+                text: Self.connectionExcerpt(from: page),
+                symbol: reading.sense.symbolName
+            )
+        }
+        let body = """
+        I have been wondering about a way you see.
+
+        \(reading.claim)
+
+        I am not guessing from a profile. I am looking at things you actually went out and found, including the pages below.
+
+        \(reading.question)
+        """
+        return [SurfacePage(
+            id: "\(source.id)-\(observationID)-\(day.id)",
+            type: .bookNotices,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: 89,
+            reason: "Several real-world findings suggest a confirmable way of seeing.",
+            prompt: "The Book has been wondering about the way you see.",
+            detail: reading.claim,
+            payload: BookPagePayload(
+                headline: reading.title,
+                body: body,
+                metadata: [
+                    "source": source.id,
+                    "howYouSee": "true",
+                    "hiddenMagicWayOfSeeing": "true",
+                    "hiddenMagicSense": reading.sense.rawValue,
+                    "connectionNarrative": "true",
+                    "connectionKind": "ways-of-seeing",
+                    "connectionID": observationID,
+                    "observationKey": observationID,
+                    "magicMomentEligible": "true",
+                    "evidencePageIDs": evidence.map { $0.id }.joined(separator: ","),
+                    "tinyPatternCards": Self.encodeNoticePatternCards(cards),
+                    "feedbackPrompt": "Did the Book read this right?",
+                    "tags": "book-notices,how-you-see,hidden-magic-way-of-seeing,spoke:\(observationID),local-memory"
+                ]
+            )
+        )]
+    }
 
     private func howYouSeeSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard !didNoticeToday(day) else { return [] }
@@ -5303,11 +5575,14 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
             "storyRecipeGroundingKind": packet.blueprint?.grounding.kind.rawValue ?? "",
             "storyRecipeGroundingSourceID": packet.blueprint?.grounding.sourceID ?? "",
             "storyRecipeGrounding": packet.blueprint?.grounding.text ?? "",
+            "storyGroundingSelectionReason": packet.blueprint?.grounding.selectionReason ?? "",
+            "storyGroundingSemanticSimilarity": packet.blueprint?.grounding.semanticSimilarity.map { String(format: "%.3f", $0) } ?? "",
             "storyRecipeBeats": packet.blueprint?.beats.joined(separator: "\n") ?? "",
             "storyRecipeGroundingDirective": packet.blueprint?.groundingDirective ?? "",
             "storyRecipeToneDirective": packet.blueprint?.toneDirective ?? "",
             "storyRecipeChoiceDirective": packet.blueprint?.choiceDirective ?? "",
             "storyRecipeContinuationDirective": packet.blueprint?.continuationDirective ?? "",
+            "storyQuillDirective": inputs.chosenQuill.map(QuillChoosing.storyDirective(for:)) ?? "",
             "selectedThreadIDs": selectedThreadIDs,
             "selectedRelationships": selectedRelationships,
             "entityMemories": selectedEntityMemories,
@@ -5318,6 +5593,15 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
             "uses": "characters, locations, belief, relationship graph, story threads",
             "cadence": "four-hour simulation"
         ]
+        if let grounding = packet.blueprint?.grounding, grounding.kind == .keptPage {
+            metadata["tags"] = [
+                metadata["tags"],
+                StoryPageGroundingSelector.usedTag,
+                "\(StoryPageGroundingSelector.sourceTagPrefix)\(grounding.sourceID)"
+            ]
+            .compactMap { $0?.nonEmpty }
+            .joined(separator: ",")
+        }
         if packet.blueprint?.recipeID == "souvenir-door",
            let grounding = packet.blueprint?.grounding {
             let sparkSentence = grounding.text
@@ -8005,6 +8289,88 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+struct QuotePageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .quotes)
+
+    private static let lines: [(quote: String, author: String)] = [
+        ("The universe is full of magical things patiently waiting for our wits to grow sharper.", "Eden Phillpotts"),
+        ("To see a World in a Grain of Sand and a Heaven in a Wild Flower.", "William Blake"),
+        ("The question is not what you look at, but what you see.", "Henry David Thoreau"),
+        ("There are always flowers for those who want to see them.", "Henri Matisse"),
+        ("Adopt the pace of nature: her secret is patience.", "Ralph Waldo Emerson"),
+        ("Nothing is worth more than this day.", "Johann Wolfgang von Goethe")
+    ]
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive else { return [] }
+        let slot = SurfaceCadence.slotID(for: now, hours: 4)
+        let index = abs("quote:\(day.id):\(slot)".stableHash) % Self.lines.count
+        let line = Self.lines[index]
+        return [SurfacePage(
+            id: "\(source.id)-\(day.id)-\(slot)",
+            type: .quotes,
+            sourceID: source.id,
+            intent: .importReference,
+            renderStyle: .loreLetter,
+            score: context.distress.isActive ? 48 : 61,
+            reason: "A borrowed line can sharpen the eye without telling the reader what to feel.",
+            prompt: "A line to keep, if it catches.",
+            detail: "\(line.quote) — \(line.author)",
+            payload: BookPagePayload(
+                headline: "A Quote to Keep",
+                body: "“\(line.quote)”\n\n— \(line.author)",
+                metadata: [
+                    "source": source.id,
+                    "quoteAuthor": line.author,
+                    "tags": "quote,attention,wonder"
+                ]
+            )
+        )]
+    }
+}
+
+struct AffirmationPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .affirmations)
+
+    private static let beliefs = [
+        "Your attention is not small. It changes the room it enters.",
+        "You do not have to earn wonder before you notice it.",
+        "The ordinary is allowed to be enough, and still be enchanted.",
+        "You are permitted to keep the detail everyone else walked past.",
+        "A quiet day can still contain a door.",
+        "What you notice is part of how the world becomes yours.",
+        "You may trust the small bright thing before you can explain it.",
+        "There is no wrong size for a life worth paying attention to."
+    ]
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive else { return [] }
+        let slot = SurfaceCadence.slotID(for: now, hours: 6)
+        let index = abs("belief:\(day.id):\(slot)".stableHash) % Self.beliefs.count
+        let belief = Self.beliefs[index]
+        return [SurfacePage(
+            id: "\(source.id)-\(day.id)-\(slot)",
+            type: .affirmations,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: context.distress.isActive ? 67 : 58,
+            reason: "The Book occasionally places a small, answerable belief in its own margin.",
+            prompt: "The Book believes this. You may countersign it—or amend the ink.",
+            detail: belief,
+            payload: BookPagePayload(
+                headline: "The Book Believes",
+                body: belief,
+                metadata: [
+                    "source": source.id,
+                    "writerPlaceholder": "I will… / I disagree because…",
+                    "tags": "affirmation,book-believes,attention"
+                ]
+            )
+        )]
+    }
+}
+
 enum BookPageSourceAdapters {
     static let active: [BookPageSourceAdapter] = [
         InventoryPageSourceAdapter(),
@@ -8020,7 +8386,9 @@ enum BookPageSourceAdapters {
         BookConnectionsPageSourceAdapter(),
         FirstReadingPageSourceAdapter(),
         BookAsksPageSourceAdapter(),
+        OvernightConnectionPageSourceAdapter(),
         BookNoticesPageSourceAdapter(),
+        QuillChoosingPageSourceAdapter(),
         BookPocketPageSourceAdapter(),
         TheBleedPageSourceAdapter(),
         AskTheBookPageSourceAdapter(),
@@ -8057,6 +8425,8 @@ enum BookPageSourceAdapters {
         WordNegotiationPageSourceAdapter(),
         PackPageSourceAdapter(),
         CalendarPageSourceAdapter(),
+        QuotePageSourceAdapter(),
+        AffirmationPageSourceAdapter(),
         QuipPageSourceAdapter(),
         AboutYouPageSourceAdapter(),
         WonderCompassPageSourceAdapter(),

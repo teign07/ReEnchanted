@@ -392,8 +392,10 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .reflect
         case .calendar:
             return .reflect
-        case .wonderCompass, .lore, .patreon, .illustration, .quip, .helpTips, .welcome, .marginsAtlas, .bindery:
+        case .wonderCompass, .lore, .patreon, .illustration, .quip, .quotes, .helpTips, .welcome, .marginsAtlas, .bindery:
             return .importReference
+        case .affirmations:
+            return .reflect
         case .enchantment:
             return .capture
         case .illuminatedPhoto, .bookRemembered, .bookPocket:
@@ -416,6 +418,27 @@ struct SurfacePage: Identifiable, Equatable, Codable {
 }
 
 extension SurfacePage {
+    func withMetadata(_ additions: [String: String]) -> SurfacePage {
+        var metadata = payload.metadata
+        metadata.merge(additions) { _, new in new }
+        return SurfacePage(
+            id: id,
+            type: type,
+            sourceID: sourceID,
+            intent: intent,
+            renderStyle: renderStyle,
+            score: score,
+            reason: reason,
+            prompt: prompt,
+            detail: detail,
+            payload: BookPagePayload(
+                headline: payload.headline,
+                body: payload.body,
+                metadata: metadata
+            )
+        )
+    }
+
     func withReaderLexiconLanguageLaw(_ lexicon: ReaderLexicon) -> SurfacePage {
         let section = lexicon.languageLawSection().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !section.isEmpty else { return self }
@@ -493,6 +516,379 @@ extension SurfacePage {
                 metadata: metadata
             )
         )
+    }
+}
+
+// MARK: - Hidden magic practice
+
+struct HiddenMagicAttentionProfile: Equatable {
+    var findingPages: [BookPage]
+    var countsBySense: [HiddenMagicSense: Int]
+    var distinctDayCount: Int
+
+    static func make(days: [BookDay], calendar: Calendar = .current) -> HiddenMagicAttentionProfile {
+        let pages = days
+            .flatMap(\.capturedPages)
+            .filter { $0.hiddenMagicFinding != nil }
+            .sorted { $0.createdAt < $1.createdAt }
+        var counts: [HiddenMagicSense: Int] = [:]
+        for page in pages {
+            if let sense = page.hiddenMagicFinding?.sense {
+                counts[sense, default: 0] += 1
+            }
+        }
+        let dayIDs = Set(pages.map { BookDay.id(for: $0.createdAt, calendar: calendar) })
+        return HiddenMagicAttentionProfile(
+            findingPages: pages,
+            countsBySense: counts,
+            distinctDayCount: dayIDs.count
+        )
+    }
+
+    func count(for sense: HiddenMagicSense) -> Int {
+        countsBySense[sense, default: 0]
+    }
+
+    var dominantSense: HiddenMagicSense? {
+        countsBySense.max { left, right in
+            if left.value == right.value { return left.key.rawValue > right.key.rawValue }
+            return left.value < right.value
+        }?.key
+    }
+
+    /// A gentle stretch, never a corrective verdict: among the senses the
+    /// current Page knows how to teach, prefer the one the archive has practiced
+    /// least. Stable tie-breaking prevents refresh jitter.
+    func leastPracticed(in senses: [HiddenMagicSense], seed: String) -> HiddenMagicSense? {
+        senses.min { left, right in
+            let leftCount = count(for: left)
+            let rightCount = count(for: right)
+            if leftCount == rightCount {
+                return abs("\(seed):\(left.rawValue)".stableHash) < abs("\(seed):\(right.rawValue)".stableHash)
+            }
+            return leftCount < rightCount
+        }
+    }
+
+    var wayOfSeeing: HiddenMagicWayOfSeeing? {
+        guard findingPages.count >= 4,
+              distinctDayCount >= 2,
+              let sense = dominantSense else { return nil }
+        let count = count(for: sense)
+        guard count >= 2 else { return nil }
+        let tier = count >= 8 ? 3 : (count >= 5 ? 2 : 1)
+        let evidence = findingPages
+            .filter { $0.hiddenMagicFinding?.sense == sense }
+            .suffix(3)
+        guard evidence.count >= 2 else { return nil }
+        let language: (title: String, claim: String, question: String)
+        switch sense {
+        case .sight:
+            language = ("The Eye for Small Light", "You keep finding meaning in color, edges, reflections, shadows, and small arrangements before you explain the scene.", "Does sight really lead the way when hidden magic finds you?")
+        case .sound:
+            language = ("The Ear Under the Room", "You keep hearing the quiet layer beneath the obvious one: hums, refrains, rhythms, and sounds other people might leave in the background.", "Is listening one of the ways you make an ordinary place come alive?")
+        case .touch:
+            language = ("The Hand That Checks", "Texture, temperature, weight, and physical borders keep becoming evidence in your pages.", "Do you understand a moment more fully once your hands have met it?")
+        case .scent:
+            language = ("The Weather in the Air", "You keep using scent as a doorway into weather, place, food, and memory.", "Does scent open a place for you before words do?")
+        case .taste:
+            language = ("The Patient First Bite", "You keep finding time, travel, and detail inside ordinary food and drink.", "Is taste becoming one of your quickest routes back into the present?")
+        case .body:
+            language = ("The Body's Marginalia", "You keep noticing the body's small reports before turning them into scores or explanations.", "Does your body often notice the day before the rest of the Book does?")
+        case .weather:
+            language = ("The Reader of Weather", "Weather keeps becoming more than forecast in your pages: it changes light, sound, air, thresholds, and the shape of attention.", "Does weather genuinely change what becomes visible to you?")
+        case .place:
+            language = ("The Private Landmark", "You keep identifying the small clue that makes one place itself and nowhere else.", "Do places become memorable for you through their overlooked details?")
+        case .people:
+            language = ("The Borrowed Eye", "You keep noticing hands, voices, skills, refrains, and the things another person's attention chooses first.", "Is other people's way of noticing part of what makes the world larger for you?")
+        case .kindness:
+            language = ("The Evidence of Care", "You keep finding—or leaving—small signs that somebody made an ordinary passage easier for somebody else.", "Is quiet care one of the forms hidden magic takes most often in your life?")
+        case .time:
+            language = ("The Keeper of Traces", "You keep reading wear, repair, age, change, and leftovers as evidence that time passed through a thing.", "Do traces of time reliably catch your attention?")
+        case .imagination:
+            language = ("The Second Life of Things", "Ordinary objects keep suggesting voices, roles, motives, and secret jobs when you look at them.", "Does imagination help you see more of what is really there, rather than less?")
+        }
+        return HiddenMagicWayOfSeeing(
+            sense: sense,
+            tier: tier,
+            title: language.title,
+            claim: language.claim,
+            question: language.question,
+            evidencePages: Array(evidence)
+        )
+    }
+}
+
+struct HiddenMagicWayOfSeeing: Equatable {
+    var sense: HiddenMagicSense
+    var tier: Int
+    var title: String
+    var claim: String
+    var question: String
+    var evidencePages: [BookPage]
+
+    var observationKey: String {
+        "ways-of-seeing:\(sense.rawValue):tier-\(tier)"
+    }
+}
+
+enum HiddenMagicPractice {
+    private struct Variant {
+        var sense: HiddenMagicSense
+        var voice: String
+        var action: String
+        var proof: String
+        var duration: Int = 60
+        var modes: [HiddenMagicExpressionMode] = [.words, .photograph, .voice]
+    }
+
+    static func lens(from metadata: [String: String]) -> HiddenMagicLens? {
+        guard metadata["hiddenMagicLens"] == "true",
+              let id = metadata["hiddenMagicLensID"]?.nonEmpty,
+              let senseRaw = metadata["hiddenMagicSense"],
+              let sense = HiddenMagicSense(rawValue: senseRaw),
+              let action = metadata["hiddenMagicAction"]?.nonEmpty,
+              let proof = metadata["hiddenMagicProofPrompt"]?.nonEmpty else {
+            return nil
+        }
+        let modes = metadata["hiddenMagicExpressionModes", default: "words,photograph,voice"]
+            .split(separator: ",")
+            .compactMap { HiddenMagicExpressionMode(rawValue: String($0)) }
+        return HiddenMagicLens(
+            id: id,
+            sense: sense,
+            voice: metadata["hiddenMagicVoice"]?.nonEmpty ?? "The Book lends you a lens",
+            action: action,
+            proofPrompt: proof,
+            durationSeconds: Int(metadata["hiddenMagicDurationSeconds"] ?? "60") ?? 60,
+            expressionModes: modes.isEmpty ? [.words] : modes
+        )
+    }
+
+    static func lens(for surface: SurfacePage) -> HiddenMagicLens? {
+        lens(from: surface.payload.metadata)
+    }
+
+    static func decorating(
+        _ surface: SurfacePage,
+        days: [BookDay],
+        now: Date = Date()
+    ) -> SurfacePage {
+        guard surface.payload.metadata["keptPage"] != "true" else { return surface }
+        if lens(for: surface) != nil { return surface }
+        let profile = HiddenMagicAttentionProfile.make(days: days)
+        guard let lens = proposedLens(for: surface, profile: profile, now: now) else { return surface }
+        return surface.withMetadata(metadata(for: lens))
+    }
+
+    static func markingTaken(_ surface: SurfacePage) -> SurfacePage {
+        guard lens(for: surface) != nil else { return surface }
+        return surface.withMetadata(["hiddenMagicLensTaken": "true"])
+    }
+
+    static func finding(
+        for surface: SurfacePage,
+        input: String,
+        media: [BookPageMediaAsset],
+        now: Date = Date()
+    ) -> HiddenMagicFinding? {
+        guard let lens = lens(for: surface),
+              surface.payload.metadata["hiddenMagicLensTaken"] == "true" else {
+            return nil
+        }
+        let hasWords = input.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil
+        let hasPhoto = media.contains { asset in
+            switch asset.kind {
+            case .bundledImage, .renderedImageFile, .photoLibraryAsset: return true
+            case .audioFile: return false
+            }
+        }
+        let hasVoice = media.contains { $0.kind == .audioFile }
+        guard hasWords || hasPhoto || hasVoice else { return nil }
+        var used: [HiddenMagicExpressionMode] = []
+        if hasWords { used.append(.words) }
+        if hasPhoto { used.append(.photograph) }
+        if hasVoice { used.append(.voice) }
+        return HiddenMagicFinding(
+            lensID: lens.id,
+            sense: lens.sense,
+            action: lens.action,
+            proofPrompt: lens.proofPrompt,
+            expressionModes: used,
+            foundAt: now
+        )
+    }
+
+    static func receiptLine(for page: BookPage) -> String? {
+        guard let finding = page.hiddenMagicFinding else { return nil }
+        let proof = page.archivePreviewText?.bookPreviewSentenceLimit(1).nonEmpty
+        if let proof {
+            return "You found it through \(finding.sense.title.lowercased()): \(proof)"
+        }
+        if finding.expressionModes.contains(.photograph) {
+            return "You found it through \(finding.sense.title.lowercased()) and kept the photograph as proof."
+        }
+        if finding.expressionModes.contains(.voice) {
+            return "You found it through \(finding.sense.title.lowercased()) and kept it in your own voice."
+        }
+        return "You found it."
+    }
+
+    private static func metadata(for lens: HiddenMagicLens) -> [String: String] {
+        [
+            "hiddenMagicLens": "true",
+            "hiddenMagicLensID": lens.id,
+            "hiddenMagicSense": lens.sense.rawValue,
+            "hiddenMagicVoice": lens.voice,
+            "hiddenMagicAction": lens.action,
+            "hiddenMagicProofPrompt": lens.proofPrompt,
+            "hiddenMagicDurationSeconds": String(lens.durationSeconds),
+            "hiddenMagicExpressionModes": lens.expressionModes.map(\.rawValue).joined(separator: ",")
+        ]
+    }
+
+    private static func proposedLens(
+        for surface: SurfacePage,
+        profile: HiddenMagicAttentionProfile,
+        now: Date
+    ) -> HiddenMagicLens? {
+        if surface.type == .wonderCompass,
+           surface.payload.metadata["playfulMissionID"] != nil {
+            let sense = inferredSense(from: surface.payload.metadata["tags", default: ""])
+            let modes: [HiddenMagicExpressionMode] = surface.payload.metadata["proofKind"] == "sentence-or-photo"
+                ? [.words, .photograph, .voice]
+                : [.words, .voice]
+            return HiddenMagicLens(
+                id: "compass:\(surface.payload.metadata["playfulMissionID"] ?? surface.id)",
+                sense: sense,
+                voice: "South lends you a lens",
+                action: surface.payload.metadata["mission"]?.nonEmpty ?? surface.detail,
+                proofPrompt: surface.payload.metadata["souvenirPrompt"]?.nonEmpty ?? "Keep one exact thing you found.",
+                durationSeconds: 180,
+                expressionModes: modes
+            )
+        }
+
+        let variants = variants(for: surface)
+        guard !variants.isEmpty,
+              let sense = profile.leastPracticed(in: variants.map(\.sense), seed: surface.id),
+              let selected = variants.first(where: { $0.sense == sense }) else {
+            return nil
+        }
+        return HiddenMagicLens(
+            id: "\(surface.type.rawValue):\(selected.sense.rawValue):\(abs(surface.sourceID.stableHash))",
+            sense: selected.sense,
+            voice: selected.voice,
+            action: selected.action,
+            proofPrompt: selected.proof,
+            durationSeconds: selected.duration,
+            expressionModes: selected.modes
+        )
+    }
+
+    private static func inferredSense(from tags: String) -> HiddenMagicSense {
+        let tags = tags.lowercased()
+        if tags.contains("people") || tags.contains("connection") { return .people }
+        if tags.contains("kindness") || tags.contains("shared-wonder") { return .kindness }
+        if tags.contains("sound") { return .sound }
+        if tags.contains("scent") { return .scent }
+        if tags.contains("taste") || tags.contains("fuel") { return .taste }
+        if tags.contains("touch") || tags.contains("texture") { return .touch }
+        if tags.contains("body") { return .body }
+        if tags.contains("weather") || tags.contains("moon") || tags.contains("sky") { return .weather }
+        if tags.contains("place") || tags.contains("outside") { return .place }
+        if tags.contains("history") || tags.contains("old") { return .time }
+        if tags.contains("imagination") || tags.contains("character") { return .imagination }
+        return .sight
+    }
+
+    private static func variants(for surface: SurfacePage) -> [Variant] {
+        switch surface.type {
+        case .souvenir:
+            return [
+                Variant(sense: .sight, voice: "The Souvenir page looks up", action: "Look away from the Book. Find the smallest visible detail from today that would disappear in a summary.", proof: "Keep the detail in one sentence, photograph, or spoken line."),
+                Variant(sense: .sound, voice: "The Souvenir page listens", action: "Be still until one sound from this exact moment separates itself from the background.", proof: "Keep the sound in your own words or voice."),
+                Variant(sense: .time, voice: "The Souvenir page catches the day", action: "Find one ordinary thing near you that proves this particular day happened.", proof: "Keep what it proves before the day smooths over it.")
+            ]
+        case .diary:
+            return [
+                Variant(sense: .place, voice: "The diary opens a window", action: "Look at the room around you. Find one thing the events of today changed, moved, emptied, or left behind.", proof: "Begin with the changed thing, not a summary of the day."),
+                Variant(sense: .sound, voice: "The diary lowers its voice", action: "Listen for the sound underneath your account of today: the machine, person, animal, or weather that was actually there.", proof: "Let that sound open the first true line."),
+                Variant(sense: .touch, voice: "The diary asks for evidence", action: "Touch one safe object that traveled through today with you.", proof: "Keep what its surface remembers better than a timeline would.")
+            ]
+        case .mood:
+            return [
+                Variant(sense: .body, voice: "Inner Weather checks the instrument", action: "Take one unforced breath. Find the most specific place your mood has reached the body.", proof: "Name the place and the physical clue, without explaining it away.", modes: [.words, .voice]),
+                Variant(sense: .weather, voice: "Inner Weather looks outside", action: "Find one piece of outer weather, light, or atmosphere that harmonizes with—or contradicts—your inner weather.", proof: "Keep the exact agreement or disagreement."),
+                Variant(sense: .sight, voice: "Inner Weather borrows a color", action: "Look for the color in the room that feels closest to the present mood.", proof: "Keep the real color and where it was hiding.")
+            ]
+        case .body:
+            return [
+                Variant(sense: .body, voice: "The Body page listens before measuring", action: "Pause for one breath and find the body's clearest signal that is not a number.", proof: "Keep the signal in plain physical language.", modes: [.words, .voice]),
+                Variant(sense: .touch, voice: "The Body page finds the border", action: "Notice the exact place your body meets a chair, floor, shoe, sleeve, or patch of air.", proof: "Keep the most specific border you found.", modes: [.words, .voice]),
+                Variant(sense: .sound, voice: "The Body page listens inward", action: "Find one body sound or rhythm: breath, swallow, pulse, fabric, footfall.", proof: "Keep the rhythm without judging it.", modes: [.words, .voice])
+            ]
+        case .fuel:
+            return [
+                Variant(sense: .taste, voice: "The Fuel page slows one bite", action: "Give the next safe bite or sip five full seconds of attention before swallowing.", proof: "Keep three things that were actually in the taste.", modes: [.words, .voice]),
+                Variant(sense: .scent, voice: "The Fuel page reads the air", action: "Smell the food or drink before tasting it. Make one prediction.", proof: "Keep the prediction and what the taste changed.", modes: [.words, .voice]),
+                Variant(sense: .time, voice: "The Fuel page credits the journey", action: "Find the ingredient that took longest to grow, age, ferment, travel, or become ready.", proof: "Keep the ingredient and the time hidden inside it.")
+            ]
+        case .weather:
+            return [
+                Variant(sense: .weather, voice: "The Weather page opens the door", action: "Go to the nearest safe threshold and compare the air or light on its two sides.", proof: "Keep the first difference the forecast did not say."),
+                Variant(sense: .sound, voice: "The Weather page listens past the forecast", action: "Find the smallest sound today's weather is making against a surface.", proof: "Keep the quiet weather-sound.", modes: [.words, .voice]),
+                Variant(sense: .scent, voice: "The Weather page tests the air", action: "At a safe door or window, notice what the air smells like before naming the weather.", proof: "Keep the scent in concrete words.", modes: [.words, .voice])
+            ]
+        case .todaysSky:
+            return [
+                Variant(sense: .sight, voice: "Today's Sky asks for the real sky", action: "If it is safe and available, look at the actual sky until one color, edge, or depth contradicts the word 'sky.'", proof: "Keep the specific sky you saw."),
+                Variant(sense: .weather, voice: "Today's Sky lowers to the horizon", action: "Find where the sky is touching a roof, tree, glass, hill, or artificial light.", proof: "Keep what happened at the edge."),
+                Variant(sense: .time, voice: "Today's Sky keeps the hour", action: "Look for one clue in the light that tells the hour without a clock.", proof: "Keep the clue and the hour it suggested.")
+            ]
+        case .location:
+            return [
+                Variant(sense: .place, voice: "The Place page reads the ground", action: "Find one clue this place could not belong everywhere: a wear mark, local sound, material, sign, slope, or habit.", proof: "Keep the clue that makes here different from anywhere."),
+                Variant(sense: .sound, voice: "The Place page closes its eyes", action: "Listen for the sound that gives this place away before sight does.", proof: "Keep the place's identifying sound.", modes: [.words, .voice]),
+                Variant(sense: .sight, voice: "The Place page finds the overlooked landmark", action: "Find the smallest feature you could use to recognize this place on a future return.", proof: "Keep your private landmark.")
+            ]
+        case .anchor:
+            let rule = surface.payload.metadata["anchorLocalRule"]?.nonEmpty
+            return [
+                Variant(sense: .place, voice: "The Outer Stacks open here", action: rule.map { "Enter this place by its own rule: \($0)" } ?? "Cross into this place slowly enough to notice what changes at its threshold.", proof: "Keep the clue that made this place become a room."),
+                Variant(sense: .time, voice: "The Anchor remembers between visits", action: "Find one thing here that has changed since the last time—or one thing that has stubbornly refused to.", proof: "Keep the change or the refusal."),
+                Variant(sense: .sight, voice: "The Anchor checks its edges", action: "Find the visible edge where this place seems to begin.", proof: "Keep the threshold you would draw on a secret map.")
+            ]
+        case .pactErrand:
+            return [Variant(
+                sense: inferredSense(from: surface.payload.metadata["tags", default: ""]),
+                voice: "The errand crosses the binding",
+                action: surface.detail.nonEmpty ?? surface.payload.body,
+                proof: surface.payload.metadata["placeholder"]?.nonEmpty ?? "Keep the smallest observable result, including if nothing happened.",
+                duration: 180,
+                modes: [.words, .photograph, .voice]
+            )]
+        case .rest:
+            return [
+                Variant(sense: .touch, voice: "Rest notices what is holding you", action: "Let the nearest chair, bed, wall, floor, or patch of ground do all the holding for thirty seconds.", proof: "Keep one place it held you, or let the page remain quiet.", duration: 30, modes: [.words, .voice]),
+                Variant(sense: .sound, voice: "Rest listens without hunting", action: "For thirty seconds, let sounds arrive without deciding which matters most.", proof: "Keep the last sound you remember, or leave the margin empty.", duration: 30, modes: [.words, .voice]),
+                Variant(sense: .body, voice: "Rest gives the body the last word", action: "Stop adjusting for thirty seconds and notice what settles by itself.", proof: "Keep the settling only if a true line arrived.", duration: 30, modes: [.words, .voice])
+            ]
+        case .enchantment:
+            return [
+                Variant(sense: .sight, voice: "The Enchantment chooses a real subject", action: "Choose an ordinary subject you would normally pass without photographing. Give it the whole frame.", proof: "The photograph is proof; add one true line only if it wants one.", modes: [.photograph, .words, .voice]),
+                Variant(sense: .imagination, voice: "The Enchantment asks what else is here", action: "Choose one ordinary subject and look until it begins suggesting a role, voice, mood, or secret job.", proof: "Keep the image and the first interpretation that surprised you.", modes: [.photograph, .words, .voice]),
+                Variant(sense: .place, voice: "The Enchantment frames the background", action: "Photograph an ordinary subject together with the place that changes its meaning.", proof: "Keep the relationship between subject and place.", modes: [.photograph, .words, .voice])
+            ]
+        default:
+            return []
+        }
+    }
+}
+
+extension SurfacePage {
+    var hiddenMagicLens: HiddenMagicLens? {
+        HiddenMagicPractice.lens(for: self)
     }
 }
 
@@ -1011,9 +1407,22 @@ enum BookCurator {
         preferences: CuratorSurfacePreferences = .none
     ) -> [SurfacePage] {
         let inputs = inputs.resolvingWorldEvents(for: day, now: now)
-        let candidates = BookPageSourceAdapters.active.flatMap { adapter in
+        let rawCandidates = BookPageSourceAdapters.active.flatMap { adapter in
             adapter.candidates(for: day, context: context, inputs: inputs, now: now)
-        }.map { WorldEventEffects.framed($0, events: inputs.activeWorldEvents) }
+        }
+        .map { WorldEventEffects.framed($0, events: inputs.activeWorldEvents) }
+        .map { HiddenMagicPractice.decorating($0, days: inputs.days + [day], now: now) }
+        let readableCandidates = rawCandidates.filter {
+            BookObservationLedger.allows(
+                $0,
+                observations: inputs.bookObservations,
+                boundaries: inputs.bookReadingBoundaries
+            )
+        }
+        let candidates = MagicMomentGovernor.promotingEarnedReveal(
+            in: readableCandidates,
+            state: inputs.magicMoment
+        )
         let mood = CuratorMood.make(inputs: inputs, distressActive: context.distress.isActive, now: now)
         var picked = rankedPages(
             from: candidates,
@@ -1157,6 +1566,14 @@ enum BookCurator {
         // three-slot home desk. Wider introspection queries keep plain ranking.
         let laneBalanced = limit == 3
         if laneBalanced {
+            // A reader who has deliberately poured Belief into a source has
+            // asked to see it. Honor the strongest such request before lane
+            // coverage, just as the pre-lane curator did.
+            if let invested = deduped.first(where: {
+                (preferences.pageBeliefProfiles[$0.sourceID]?.belief ?? 0) >= 80 && canAdd($0)
+            }) {
+                add(invested)
+            }
             for page in deduped where page.isDeskMilestone && canAdd(page) { add(page) }
             for lane in DeskLane.allCases {
                 guard picked.count < limit else { break }
@@ -1189,35 +1606,462 @@ enum BookCurator {
         }
     }
 
-    /// Anti-jitter for the desk. The curator's rank is time-sensitive, so an
-    /// idle rebuild with the same logical set of cards can still swap two
-    /// near-tied entries — which the desk's spring animations render as
-    /// visible bouncing. Cards are matched by `deskSlotKey` rather than raw
-    /// id because adapters rotate cadence slots and timestamps through their
-    /// ids. When the logical membership is unchanged, keep the previous
-    /// order; when a returning card's content is also unchanged, keep the
-    /// exact card already on screen so an id-only rotation never replays the
-    /// insert transition. Any real change (a card entered or left) falls
-    /// through to the curator's fresh order untouched.
+    /// The desk's stability contract: cards the reader is looking at stay
+    /// where they are. Only the reader removes a card (keeping it or swiping
+    /// it away), and only that slot refills — a background rebuild never
+    /// reorders, evicts, or wholesale-replaces the shown desk. This matters
+    /// because dozens of state changes bump `surfaceRefreshDate` (foregrounding,
+    /// archive reloads, belief ticks, pack changes…), the curator's rank is
+    /// time-sensitive, and adapters rotate cadence slots through their ids —
+    /// so a naive rebuild reshuffles the desk constantly.
+    ///
+    /// A rebuild may still:
+    ///   - refresh a shown card's content in place when the same logical slot
+    ///     (`deskSlotKey`) comes back with changed content, and
+    ///   - fill genuinely empty desk slots from the fresh curation order.
     static func stabilizedDeskOrder(
         previous: [SurfacePage],
-        rebuilt: [SurfacePage]
+        rebuilt: [SurfacePage],
+        limit: Int = 3
     ) -> [SurfacePage] {
+        guard !previous.isEmpty else { return Array(rebuilt.prefix(limit)) }
+
         let previousKeys = previous.map(\.deskSlotKey)
+        // Duplicate slot keys (possible on paths that bypass the curator,
+        // like the first-run sequence) make in-place matching ambiguous. A
+        // fresh rebuild is safer than guessing which duplicate should stay.
+        guard Set(previousKeys).count == previousKeys.count else { return Array(rebuilt.prefix(limit)) }
+
+        // An armed magic moment is the one deliberate exception to desk
+        // stability. It should feel like a page the Book tucked in, not a
+        // candidate waiting invisibly behind three familiar cards. Never
+        // interrupt another milestone or evict the evening braid; when an
+        // ordinary slot is available, let the earned reveal arrive on top.
+        if limit > 0,
+           let magic = rebuilt.first(where: { $0.payload.metadata["magicMoment"] == "true" }),
+           !previous.contains(where: { shown in
+               shown.id == magic.id
+                   || (shown.payload.metadata["observationKey"]?.nonEmpty != nil
+                       && shown.payload.metadata["observationKey"] == magic.payload.metadata["observationKey"])
+           }),
+           !previous.contains(where: { $0.payload.metadata["firstReading"] == "true" }) {
+            var survivors = previous
+            let conflictingIndex = survivors.lastIndex(where: {
+                !$0.curatorDeskExclusionKeys.isDisjoint(with: magic.curatorDeskExclusionKeys)
+            })
+            let victimIndex = conflictingIndex ?? (survivors.count >= limit
+                ? injectionVictimIndex(in: survivors, preferringLane: magic.type.deskLane)
+                : nil)
+
+            if let victimIndex,
+               !survivors[victimIndex].isDeskMilestone,
+               survivors[victimIndex].type != .bookOfYou {
+                survivors.remove(at: victimIndex)
+                var desk = [magic]
+                var occupiedSlots: Set<String> = [magic.deskSlotKey]
+                var occupiedKeys = Set(magic.curatorDeskExclusionKeys)
+                for candidate in survivors + rebuilt where desk.count < limit {
+                    guard !occupiedSlots.contains(candidate.deskSlotKey),
+                          candidate.curatorDeskExclusionKeys.isDisjoint(with: occupiedKeys)
+                    else { continue }
+                    desk.append(candidate)
+                    occupiedSlots.insert(candidate.deskSlotKey)
+                    occupiedKeys.formUnion(candidate.curatorDeskExclusionKeys)
+                }
+                return desk
+            } else if survivors.count < limit {
+                return Array(([magic] + survivors).prefix(limit))
+            }
+        }
+
+        // Stability applies while the same logical cards are being refreshed.
+        // A real membership change means a card was kept, dismissed, unlocked,
+        // or became ineligible, so the fresh desk is authoritative.
         let rebuiltKeys = rebuilt.map(\.deskSlotKey)
-        // Duplicate slot keys would make the matching ambiguous. The desk's
-        // structural rules prevent them, but paths that bypass the curator
-        // (the first-run sequence) could not — prefer the fresh order over
-        // guessing.
-        guard Set(previousKeys).count == previousKeys.count,
-              Set(rebuiltKeys).count == rebuiltKeys.count,
-              Set(previousKeys) == Set(rebuiltKeys)
-        else { return rebuilt }
-        let rebuiltByKey = Dictionary(uniqueKeysWithValues: zip(rebuiltKeys, rebuilt))
-        return zip(previous, previousKeys).map { shown, key in
-            guard let fresh = rebuiltByKey[key] else { return shown }
+        guard Set(previousKeys) == Set(rebuiltKeys),
+              Set(rebuiltKeys).count == rebuiltKeys.count else {
+            return Array(rebuilt.prefix(limit))
+        }
+
+        let rebuiltByKey = Dictionary(
+            rebuilt.map { ($0.deskSlotKey, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var desk = previous.map { shown -> SurfacePage in
+            guard let fresh = rebuiltByKey[shown.deskSlotKey] else { return shown }
             return fresh.contentMatches(shown) ? shown : fresh
         }
+
+        // Fill only genuinely empty slots; shown cards keep their places.
+        var occupiedSlots = Set(desk.map(\.deskSlotKey))
+        var occupiedKeys = Set(desk.flatMap(\.curatorDeskExclusionKeys))
+        for candidate in rebuilt where desk.count < limit {
+            guard !occupiedSlots.contains(candidate.deskSlotKey),
+                  candidate.curatorDeskExclusionKeys.isDisjoint(with: occupiedKeys)
+            else { continue }
+            desk.append(candidate)
+            occupiedSlots.insert(candidate.deskSlotKey)
+            occupiedKeys.formUnion(candidate.curatorDeskExclusionKeys)
+        }
+        return desk
+    }
+
+    struct DeskRetirementResolution {
+        var pages: [SurfacePage]
+        var replacementIDByRetiringID: [String: String]
+    }
+
+    /// Restores an explicitly dismissed card without sacrificing a survivor if
+    /// the original replacement is no longer identifiable. When a refill has
+    /// merely appended a new card after a no-candidate retirement, insertion at
+    /// the saved slot followed by truncation preserves the original desk order.
+    static func restoringRetiredDeskSlot(
+        current: [SurfacePage],
+        surface: SurfacePage,
+        replacementID: String?,
+        preferredIndex: Int?,
+        limit: Int = 3
+    ) -> [SurfacePage] {
+        guard limit > 0 else { return [] }
+        var restored = Array(current.prefix(limit))
+        guard !restored.contains(where: { $0.id == surface.id }) else { return restored }
+
+        if let replacementID,
+           let replacementIndex = restored.firstIndex(where: { $0.id == replacementID }) {
+            restored[replacementIndex] = surface
+        } else {
+            let fallbackIndex = restored.count < limit ? restored.count : 0
+            let insertionIndex = min(max(0, preferredIndex ?? fallbackIndex), restored.count)
+            restored.insert(surface, at: insertionIndex)
+        }
+        return Array(restored.prefix(limit))
+    }
+
+    /// Resolves one or more already-hidden desk slots without ever publishing an
+    /// intermediate short desk. Surviving cards keep their order; each outgoing
+    /// card is replaced at its own position by the first non-conflicting rebuilt
+    /// candidate. A slot is removed only in this final resolution when no valid
+    /// replacement exists.
+    static func resolvingRetiredDeskSlots(
+        previous: [SurfacePage],
+        retiringIDs: Set<String>,
+        rebuilt: [SurfacePage],
+        additionallyBlockedKeys: Set<String> = [],
+        limit: Int = 3
+    ) -> DeskRetirementResolution {
+        let shown = Array(previous.prefix(limit))
+        let shownIDs = Set(shown.map(\.id))
+        let activeRetiringIDs = retiringIDs.intersection(shownIDs)
+        guard !activeRetiringIDs.isEmpty else {
+            return DeskRetirementResolution(
+                pages: shown,
+                replacementIDByRetiringID: [:]
+            )
+        }
+
+        let survivors = shown.filter { !activeRetiringIDs.contains($0.id) }
+        var occupiedKeys = Set(survivors.flatMap(\.curatorDeskExclusionKeys))
+        var usedCandidateIDs = Set(survivors.map(\.id))
+        var replacementIDByRetiringID: [String: String] = [:]
+        var resolved: [SurfacePage] = []
+
+        for page in shown {
+            guard activeRetiringIDs.contains(page.id) else {
+                resolved.append(page)
+                continue
+            }
+
+            guard let replacement = rebuilt.first(where: { candidate in
+                !usedCandidateIDs.contains(candidate.id)
+                    && candidate.curatorDeskExclusionKeys.isDisjoint(with: occupiedKeys)
+                    && candidate.curatorDeskExclusionKeys.isDisjoint(with: additionallyBlockedKeys)
+            }) else {
+                continue
+            }
+
+            resolved.append(replacement)
+            replacementIDByRetiringID[page.id] = replacement.id
+            usedCandidateIDs.insert(replacement.id)
+            occupiedKeys.formUnion(replacement.curatorDeskExclusionKeys)
+        }
+
+        return DeskRetirementResolution(
+            pages: Array(resolved.prefix(limit)),
+            replacementIDByRetiringID: replacementIDByRetiringID
+        )
+    }
+}
+
+// MARK: - Earned readings
+
+enum ContextWeave {
+    enum Tone: String, Equatable { case bright, heavy }
+    enum Kind: String, Equatable { case manner, subject }
+
+    struct Connection: Identifiable, Equatable {
+        var id: String
+        var kind: Kind
+        var facetID: String
+        var line: String
+        var evidencePageIDs: [String]
+        var inHits: Int
+        var outHits: Int
+    }
+
+    static let brightInkWords: Set<String> = [
+        "alive", "delight", "delighted", "glad", "grateful", "happy", "hopeful",
+        "joy", "joyful", "laughed", "laughing", "playful", "relieved", "wonderful"
+    ]
+    static let heavyInkWords: Set<String> = [
+        "afraid", "brittle", "dread", "empty", "exhausted", "grief", "heavy",
+        "hopeless", "lonely", "lost", "sad", "tired", "weary", "worried"
+    ]
+
+    static func tone(of text: String) -> Tone? {
+        let words = Set(text.lowercased().split { !$0.isLetter }.map(String.init))
+        let bright = words.intersection(brightInkWords).count
+        let heavy = words.intersection(heavyInkWords).count
+        guard bright != heavy else { return nil }
+        return bright > heavy ? .bright : .heavy
+    }
+
+    static func connections(days: [BookDay], calendar: Calendar = .current) -> [Connection] {
+        let pages = days.flatMap(\.capturedPages).filter { $0.origin == .userAuthored }
+        var result: [Connection] = []
+
+        let weatherPages = pages.filter { $0.context != nil && !($0.context?.weatherTags.isEmpty ?? true) }
+        let weatherTags = Set(weatherPages.flatMap { $0.context?.weatherTags ?? [] })
+        for tag in weatherTags.sorted() {
+            let inside = weatherPages.filter { $0.context?.weatherTags.contains(tag) == true }
+            let outside = weatherPages.filter { $0.context?.weatherTags.contains(tag) == false }
+            guard inside.count >= 5, outside.count >= 5,
+                  Set(inside.map { BookDay.id(for: $0.createdAt) }).count >= 4 else { continue }
+            for target in [Tone.heavy, .bright] {
+                let inHits = inside.filter { tone(of: $0.userInput) == target }
+                let outHits = outside.filter { tone(of: $0.userInput) == target }
+                guard inHits.count >= 4,
+                      Double(inHits.count) / Double(inside.count) >= 0.6,
+                      Double(outHits.count) / Double(outside.count) <= 0.25 else { continue }
+                let manner = target == .heavy ? "heavier ink" : "brighter ink"
+                result.append(Connection(
+                    id: "context-weather:\(tag)-\(target.rawValue)-ink",
+                    kind: .manner,
+                    facetID: "weather:\(tag)",
+                    line: "Across \(numberWord(inHits.count)) kept pages, your sentences carried \(manner) while it was \(weatherPhrase(tag)). The comparison pages did not carry the same pattern.",
+                    evidencePageIDs: Array(inHits.prefix(3).map(\.id)),
+                    inHits: inHits.count,
+                    outHits: outHits.count
+                ))
+            }
+        }
+
+        let afterDark = pages.filter { isAfterDark($0.createdAt, calendar: calendar) }
+        let daytime = pages.filter { !isAfterDark($0.createdAt, calendar: calendar) }
+        if afterDark.count >= 5, daytime.count >= 5 {
+            let nightQuestions = afterDark.filter { $0.userInput.contains("?") }
+            let dayQuestions = daytime.filter { $0.userInput.contains("?") }
+            if nightQuestions.count >= 4,
+               Double(nightQuestions.count) / Double(afterDark.count) >= 0.6,
+               Double(dayQuestions.count) / Double(daytime.count) <= 0.25 {
+                result.append(Connection(
+                    id: "context-hour:night-asking",
+                    kind: .manner,
+                    facetID: "hour:night",
+                    line: "Your pages ask more questions after dark: \(numberWord(nightQuestions.count)) separate pages carried a question, while the daytime pages mostly declared.",
+                    evidencePageIDs: Array(nightQuestions.prefix(3).map(\.id)),
+                    inHits: nightQuestions.count,
+                    outHits: dayQuestions.count
+                ))
+            }
+        }
+
+        let weekend = pages.filter { calendar.isDateInWeekend($0.createdAt) }
+        let weekday = pages.filter { !calendar.isDateInWeekend($0.createdAt) }
+        if weekend.count >= 4, weekday.count >= 5 {
+            let candidates = tokenCounts(in: weekend)
+                .filter { $0.value >= 3 }
+                .sorted { ($0.value, $1.key) > ($1.value, $0.key) }
+            for (token, count) in candidates.prefix(3) {
+                let weekdayHits = weekday.filter { subjectTokens(in: $0.userInput).contains(token) }
+                guard weekdayHits.isEmpty else { continue }
+                let evidence = weekend.filter { subjectTokens(in: $0.userInput).contains(token) }
+                result.append(Connection(
+                    id: "context-week:weekend-subject-\(token)",
+                    kind: .subject,
+                    facetID: "week:weekend",
+                    line: "\(token.capitalized) has appeared on weekends in \(numberWord(count)) pages and never in the weekday comparison pages.",
+                    evidencePageIDs: Array(evidence.prefix(3).map(\.id)),
+                    inHits: count,
+                    outHits: 0
+                ))
+            }
+        }
+        return result
+    }
+
+    private static func isAfterDark(_ date: Date, calendar: Calendar) -> Bool {
+        let hour = calendar.component(.hour, from: date)
+        return hour >= 20 || hour < 5
+    }
+
+    private static func weatherPhrase(_ tag: String) -> String {
+        switch tag { case "rain": return "raining"; default: return tag }
+    }
+
+    private static func numberWord(_ value: Int) -> String {
+        [0: "zero", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
+         6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"][value] ?? String(value)
+    }
+
+    private static let subjectStopWords: Set<String> = [
+        "about", "after", "again", "before", "could", "every", "from", "house",
+        "kept", "letters", "their", "there", "these", "thing", "today", "while",
+        "window", "with", "would"
+    ]
+
+    private static func subjectTokens(in text: String) -> Set<String> {
+        Set(text.lowercased().split { !$0.isLetter }.map(String.init)
+            .filter { $0.count >= 5 && !subjectStopWords.contains($0) })
+    }
+
+    private static func tokenCounts(in pages: [BookPage]) -> [String: Int] {
+        pages.reduce(into: [:]) { counts, page in
+            for token in subjectTokens(in: page.userInput) { counts[token, default: 0] += 1 }
+        }
+    }
+}
+
+enum BookObservationLedger {
+    static func key(for surface: SurfacePage) -> String? {
+        let metadata = surface.payload.metadata
+        if let explicit = metadata["observationKey"]?.nonEmpty { return explicit }
+        if let id = metadata["connectionID"]?.nonEmpty { return "connection:\(id)" }
+        if metadata["howYouSee"] == "true" { return "how-you-see" }
+        if let id = metadata["personSlug"]?.nonEmpty {
+            if metadata["personQuietDays"] != nil { return "person-return:\(id):\(metadata["personQuietDays"] ?? "0")" }
+            return "person:\(id)"
+        }
+        if let pageID = metadata["rememberedPageID"]?.nonEmpty {
+            let reason = metadata["rhymeReason"]?.nonEmpty ?? surface.reason
+            return "remembered:\(pageID):\(abs(reason.stableHash))"
+        }
+        if let id = metadata["strongestSignalID"]?.nonEmpty { return "notice:\(id)" }
+        return nil
+    }
+
+    static func kind(for surface: SurfacePage) -> String {
+        let metadata = surface.payload.metadata
+        if surface.type == .bookRemembered { return "remembered" }
+        if metadata["howYouSee"] == "true" { return "how-you-see" }
+        if let kind = metadata["connectionKind"]?.nonEmpty { return kind }
+        if metadata["personSlug"] != nil { return "person" }
+        return "notice"
+    }
+
+    static func evidencePageIDs(for surface: SurfacePage) -> [String] {
+        surface.payload.metadata["evidencePageIDs"]?
+            .split(separator: ",")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
+    }
+
+    static func allows(
+        _ surface: SurfacePage,
+        observations: [BookObservationRecord],
+        boundaries: [BookReadingBoundary]
+    ) -> Bool {
+        guard let key = key(for: surface) else { return true }
+        if boundaries.contains(where: { $0.id == key }) { return false }
+        return !observations.contains(where: { $0.id == key })
+    }
+
+    static func recording(
+        surface: SurfacePage,
+        status: BookObservationStatus,
+        in records: [BookObservationRecord],
+        now: Date = Date()
+    ) -> [BookObservationRecord] {
+        guard let key = key(for: surface) else { return records }
+        var updated = records
+        if let index = updated.firstIndex(where: { $0.id == key }) {
+            updated[index].status = status
+            updated[index].updatedAt = now
+        } else {
+            updated.append(BookObservationRecord(
+                id: key,
+                kind: kind(for: surface),
+                status: status,
+                evidencePageIDs: evidencePageIDs(for: surface),
+                firstPresentedAt: now,
+                updatedAt: now
+            ))
+        }
+        return Array(updated.sorted { $0.updatedAt < $1.updatedAt }.suffix(200))
+    }
+}
+
+extension MagicMomentGovernor {
+    /// Promotes one evidence-backed reading into a protected desk milestone.
+    /// The evidence quality supplies most of the weight; a stable per-session
+    /// jitter changes which good candidate wins when several are ready.
+    static func promotingEarnedReveal(
+        in candidates: [SurfacePage],
+        state: MagicMomentState
+    ) -> [SurfacePage] {
+        guard state.isArmed,
+              !candidates.contains(where: { $0.payload.metadata["firstReading"] == "true" }) else {
+            return candidates
+        }
+        let eligible = candidates.filter { page in
+            guard page.payload.metadata["firstReading"] != "true" else { return false }
+            return page.payload.metadata["magicMomentEligible"] == "true"
+                || page.type == .bookRemembered
+                || page.payload.metadata["connectionNarrative"] == "true"
+                || page.payload.metadata["howYouSee"] == "true"
+        }
+        guard let selected = eligible.max(by: { revealValue($0, state: state) < revealValue($1, state: state) }) else {
+            return candidates
+        }
+        let promoted = selected.promotedMagicMoment()
+        return candidates.map { $0.id == selected.id ? promoted : $0 }
+    }
+
+    private static func revealValue(_ page: SurfacePage, state: MagicMomentState) -> Int {
+        let metadata = page.payload.metadata
+        let base: Int
+        if metadata["howYouSee"] == "true" { base = 100 }
+        else if metadata["connectionKind"] == "semantic" { base = 98 }
+        else if metadata["connectionKind"] == "recurrence" { base = 94 }
+        else if metadata["connectionKind"] == "context" { base = 92 }
+        else if page.type == .bookRemembered { base = 86 }
+        else if metadata["personQuietDays"] != nil { base = 82 }
+        else { base = 76 }
+        let key = BookObservationLedger.key(for: page) ?? page.id
+        let jitter = abs("magic:\(state.sessionCount):\(key)".stableHash) % 25
+        return base + jitter
+    }
+}
+
+private extension SurfacePage {
+    func promotedMagicMoment() -> SurfacePage {
+        var metadata = payload.metadata
+        metadata["magicMoment"] = "true"
+        metadata["milestone"] = "true"
+        if metadata["observationKey"] == nil {
+            metadata["observationKey"] = BookObservationLedger.key(for: self)
+        }
+        return SurfacePage(
+            id: id,
+            type: type,
+            sourceID: sourceID,
+            intent: intent,
+            renderStyle: renderStyle,
+            score: max(94, score),
+            reason: reason,
+            prompt: prompt,
+            detail: detail,
+            payload: BookPagePayload(headline: payload.headline, body: payload.body, metadata: metadata)
+        )
     }
 }
 
@@ -1681,6 +2525,7 @@ extension SurfacePage {
         if let id = payload.metadata["quipID"]?.nonEmpty { return "quip:\(id)" }
         if let id = payload.metadata["assetName"]?.nonEmpty { return "plate:\(id)" }
         if let id = payload.metadata["packArchetypeID"]?.nonEmpty { return "pack:\(id)" }
+        if let id = payload.metadata["constellationID"]?.nonEmpty { return "constellation:\(id)" }
         if payload.metadata["chapterPrimer"] == "true",
            let stage = payload.metadata["primerStage"]?.nonEmpty {
             return "chapter-primer:\(stage)"
@@ -1802,7 +2647,8 @@ extension BookPageType {
         switch self {
         // Outward — the reader attends to the actual world / their own day.
         case .wonderCompass, .diary, .mood, .souvenir, .body, .fuel,
-             .todaysSky, .location, .anchor, .pactErrand, .rest, .plainPage:
+             .weather, .todaysSky, .location, .anchor, .pactErrand,
+             .rest, .enchantment, .plainPage:
             return .outward
         // Fiction — the Academy world performs, corresponds, or contends.
         case .narrativeOS, .letter, .gossip, .facultyResearch, .supportGuild,
@@ -1903,13 +2749,14 @@ enum CuratorTimeAffinity {
             switch type {
             case .weather: return 5
             case .body, .mood: return 4
+            case .affirmations: return 3
             case .fuel, .wonderCompass: return 2
             case .narrativeOS, .bookFae, .marginsAtlas, .bookConnections, .bookRemembered, .gossip, .bookJump: return -3
             default: return 0
             }
         case 11..<17:
             switch type {
-            case .quip, .wonderCompass: return 3
+            case .quip, .quotes, .wonderCompass: return 3
             case .illustration, .aboutYou, .elective: return 2
             case .bookOfYou: return -3
             default: return 0
@@ -2184,6 +3031,12 @@ struct CuratorMood {
         // The Almanac leans the feast's themes forward.
         delta += almanacBoosts[page.type] ?? 0
         delta += wonderCompassFocusBoost(for: page)
+        if page.hiddenMagicLens != nil {
+            // The outward lane is the delivery spine for real-world noticing.
+            // This is a modest preference inside that lane, not a fourth desk
+            // slot and not a new Page family.
+            delta += 6
+        }
         delta += WonderTitleRegistry.scoreBoost(for: page, title: earnedWonderTitle)
 
         // Narrative heat: a field full of fresh events favors story-bearing
@@ -2199,9 +3052,9 @@ struct CuratorMood {
             delta += 4
         }
 
-        // The Disbelief's tide: when the grey is up, its pages step forward
+        // The Rut's tide: when the grey is up, its pages step forward
         // and material-gathering pages get a small lantern. At grey zero
-        // Disbelief pages stay in the deep stacks — reward by absence.
+        // Routine pages stay in the deep stacks — reward by absence.
         if greyLevel >= 1 {
             if page.payload.metadata["packArchetypeID"] == "the-nothing-stirs" || page.payload.metadata["packArchetypeID"] == "grey-margin" {
                 delta += 6 + greyLevel * 4

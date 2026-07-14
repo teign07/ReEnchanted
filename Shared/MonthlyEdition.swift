@@ -1,5 +1,8 @@
 import Foundation
 
+typealias KeptWeeklyIssueArtifact = WeeklyIssue
+typealias KeptMonthlyEditionArtifact = MonthlyEdition
+
 struct MonthlyEdition: Codable, Equatable {
     var title: String
     var subtitle: String
@@ -22,6 +25,9 @@ struct MonthlyEdition: Codable, Equatable {
     /// overwrite it with a Gemma-written conclusion before binding. Optional so
     /// older saved editions still decode.
     var closing: String?
+    /// One continuous local-brain story made from the month's daily bindings.
+    /// Optional so older bound editions remain readable.
+    var bindingStory: String? = nil
 
     /// "The Book of You - bj - Chapter 3 - June"
     var chapterHeading: String {
@@ -1384,7 +1390,7 @@ enum PrintGeometry {
 /// days after. Deterministic and local; the same week always makes the same
 /// issue. Anchored to the reader's own start (their first kept page), so Issue
 /// No. 1 is always the reader's first seven days — not a partial calendar week.
-struct WeeklyIssue: Equatable {
+struct WeeklyIssue: Codable, Equatable {
     /// The reader's Nth week since their first kept page (1-indexed, forever).
     var number: Int
     var startDate: Date
@@ -1396,11 +1402,43 @@ struct WeeklyIssue: Equatable {
     /// A few strongest lines lifted from the week, most vivid first.
     var highlights: [String]
     var setAsideLine: String?
+    /// The exact kept pages are retained for the optional binding-of-bindings
+    /// story. Private log pages are never copied into its prompt.
+    var pages: [BookPage] = []
+    var bindingStory: String? = nil
     /// Kept Pagewright/Scrapbook pages in this issue's window.
     var scrapbookCount: Int = 0
     var scrapbookTitles: [String] = []
 
     var isFirstIssue: Bool { number == 1 }
+
+    static func == (lhs: WeeklyIssue, rhs: WeeklyIssue) -> Bool {
+        lhs.number == rhs.number
+            && lhs.startDate == rhs.startDate
+            && lhs.endDate == rhs.endDate
+            && lhs.dateRange == rhs.dateRange
+            && lhs.keptCount == rhs.keptCount
+            && lhs.highlights == rhs.highlights
+            && lhs.setAsideLine == rhs.setAsideLine
+            && semanticallyEqual(lhs.pages, rhs.pages)
+            && lhs.bindingStory == rhs.bindingStory
+            && lhs.scrapbookCount == rhs.scrapbookCount
+            && lhs.scrapbookTitles == rhs.scrapbookTitles
+    }
+
+    /// UUIDs identify archive records, not the literary contents of an issue.
+    /// Two independently rebuilt issues from identical pages are therefore the
+    /// same issue even if test/import fixtures minted fresh record IDs.
+    private static func semanticallyEqual(_ lhs: [BookPage], _ rhs: [BookPage]) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        return zip(lhs, rhs).allSatisfy { left, right in
+            var left = left
+            var right = right
+            left.id = ""
+            right.id = ""
+            return left == right
+        }
+    }
 
     /// One issue's window, and how many days after it closes it stays fresh on
     /// the shelf — a magazine you didn't grab in a few days has moved on. Day
@@ -1444,6 +1482,7 @@ struct WeeklyIssue: Equatable {
             keptCount: weekPages.count,
             highlights: highlights(from: curated.pages),
             setAsideLine: curated.setAsideLine,
+            pages: curated.pages,
             scrapbookCount: scrapbookPages.count,
             scrapbookTitles: scrapbookPages.prefix(3).map { page in
                 page.promptText.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Scrapbook Page"
@@ -1491,6 +1530,82 @@ struct WeeklyIssue: Equatable {
             return "\(startMonth) \(dayOf(start))\u{2013}\(dayOf(end))"
         }
         return "\(startMonth) \(dayOf(start)) \u{2013} \(endMonth) \(dayOf(end))"
+    }
+}
+
+struct BindingStoryPromptSpec: Equatable {
+    var sourceID: String
+    var prompt: String
+    var maxTokens: Int
+}
+
+/// Builds a bounded prompt for Gemma to turn already-bound daily Book of You
+/// pages into one larger story. It never passes raw support logs or unrelated
+/// pages into the model.
+enum BindingStoryPromptBuilder {
+    static func weekly(for issue: WeeklyIssue, calendar: Calendar = .current) -> BindingStoryPromptSpec? {
+        let braids = issue.pages.filter { $0.type == .bookOfYou }.sorted { $0.createdAt < $1.createdAt }
+        guard !braids.isEmpty else { return nil }
+        let leaves = braids.map { page in
+            bindingLeaf(date: page.createdAt, title: bindingTitle(page.userInput, fallback: page.promptText), body: page.userInput, calendar: calendar, limit: 900)
+        }.joined(separator: "\n\n")
+        return BindingStoryPromptSpec(
+            sourceID: "weekly-binding-story",
+            prompt: prompt(frame: "week", leaves: leaves),
+            maxTokens: 700
+        )
+    }
+
+    static func monthly(for edition: MonthlyEdition, calendar: Calendar = .current) -> BindingStoryPromptSpec? {
+        guard let section = edition.sections.first(where: { $0.id == "daily-braids" }) else { return nil }
+        let items = section.items
+            .filter { $0.pageType == .bookOfYou }
+            .sorted { ($0.date ?? .distantPast) < ($1.date ?? .distantPast) }
+        guard !items.isEmpty else { return nil }
+        let leaves = items.map { item in
+            bindingLeaf(date: item.date ?? edition.startDate, title: item.title, body: item.body, calendar: calendar, limit: 260)
+        }.joined(separator: "\n\n")
+        return BindingStoryPromptSpec(
+            sourceID: "monthly-binding-story",
+            prompt: prompt(frame: "month", leaves: leaves),
+            maxTokens: 1_100
+        )
+    }
+
+    private static func prompt(frame: String, leaves: String) -> String {
+        """
+        You are the private local writer inside the reader's Book. Write a binding of bindings: turn the following daily Book of You pages from this \(frame) into one continuous story.
+
+        Requirements:
+        - preserve the real sequence and the reader's exact meaningful details;
+        - do not produce a day-by-day recap;
+        - find movement, recurrence, contrast, and consequence across the whole span;
+        - Do not invent events, feelings, motives, diagnoses, or facts not present in the source bindings;
+        - write in intimate literary prose, grounded and specific, without explaining the method;
+        - end with an opening rather than a moral.
+
+        DAILY BINDINGS, IN CHRONOLOGICAL ORDER:
+        \(leaves)
+        """
+    }
+
+    private static func bindingLeaf(date: Date, title: String, body: String, calendar: Calendar, limit: Int) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        let dateText = formatter.string(from: date)
+        let flattened = body.replacingOccurrences(of: "\n", with: " ")
+            .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        let clipped = flattened.count <= limit ? flattened : String(flattened.prefix(limit)) + "…"
+        return "[\(dateText)] \(title)\n\(clipped)"
+    }
+
+    private static func bindingTitle(_ body: String, fallback: String) -> String {
+        body.split(separator: "\n").map(String.init)
+            .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            ?? fallback
     }
 }
 

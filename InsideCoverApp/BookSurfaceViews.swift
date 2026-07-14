@@ -5277,7 +5277,7 @@ struct PageVisualStyle {
                 cornerMarginaliaOpacity: 0.34,
                 watermarkOpacity: 0.13
             )
-        case .quip:
+        case .quip, .quotes:
             return PageVisualStyle(
                 accent: Color(red: 0.70, green: 0.33, blue: 0.18),
                 symbolColor: Color(red: 0.70, green: 0.33, blue: 0.18),
@@ -5292,7 +5292,7 @@ struct PageVisualStyle {
                 sideMarginaliaWidth: 54,
                 watermarkOpacity: 0.16
             )
-        case .aboutYou:
+        case .aboutYou, .affirmations:
             return PageVisualStyle(
                 accent: Color(red: 0.55, green: 0.28, blue: 0.39),
                 symbolColor: Color(red: 0.55, green: 0.28, blue: 0.39),
@@ -9143,12 +9143,12 @@ struct OnboardingFlowView: View {
 	                    .foregroundStyle(BookPalette.ink.opacity(0.48))
             }
 
-            Text("Something in this room wants to be noticed before you go.")
+            Text("There is hidden magic in this room. Find one piece before you go.")
                 .font(.system(.title3, design: .serif).weight(.semibold))
                 .foregroundStyle(BookPalette.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Look around for one real detail: a color, a sound, a shadow, the weight of your phone, the weather through the window. If it feels worth keeping, choose Keep and write one sentence. If not, choose Let it wait. Both are correct.")
+            Text("The Book lends the lens; the seeing is yours. Look away for thirty seconds and find one real detail: a color, a sound, a shadow, the weight of your phone, the weather through the window. Bring back one true sentence—or let the page wait. Both are correct.")
                 .font(.system(.callout, design: .serif))
                 .foregroundStyle(BookPalette.ink.opacity(0.76))
                 .fixedSize(horizontal: false, vertical: true)

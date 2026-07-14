@@ -633,15 +633,25 @@ extension ContentView {
         }) else { return }
 
         let source = BookPageSourceRegistry.source(for: .souvenir)
+        let now = Date()
         let page = BookPage(
             type: .souvenir,
-            promptText: "What was the first true sentence you kept?",
+            createdAt: now,
+            promptText: "What did you notice before it disappeared into the ordinary?",
             userInput: trimmed,
-            tags: ["souvenir", "first-page", "first-run-souvenir", "onboarding", "onboarding-first-souvenir"],
+            tags: ["souvenir", "first-page", "first-run-souvenir", "onboarding", "onboarding-first-souvenir", "hidden-magic", "hidden-magic-finding", "hidden-magic-sense:sight"],
             sourceID: source.id,
             origin: source.origin,
             privacy: source.privacy,
-            promptVersion: "first-door-v1"
+            promptVersion: "first-door-v2",
+            hiddenMagicFinding: HiddenMagicFinding(
+                lensID: "first-door",
+                sense: .sight,
+                action: "Find one real detail before it disappears into the ordinary.",
+                proofPrompt: "Keep one true sentence.",
+                expressionModes: [.words],
+                foundAt: now
+            )
         )
         day.pages.append(page)
         recordNarrativeEvent(for: page)
@@ -994,6 +1004,12 @@ extension ContentView {
             nothingGreyOffset: vault.data.nothingGreyOffset,
             readerLearning: vault.data.readerLearning,
             openWorldEventArchive: vault.data.openWorldEventArchive,
+            magicMoment: vault.data.magicMoment,
+            bookObservations: vault.data.bookObservations,
+            bookReadingBoundaries: vault.data.bookReadingBoundaries,
+            overnightConnectionDrafts: vault.data.overnightConnectionDrafts,
+            chosenQuill: vault.data.chosenQuill,
+            people: vault.data.people,
             continuity: continuity,
             firstRunEngaged: vault.data.firstRunEngaged
         )
@@ -1949,6 +1965,38 @@ extension ContentView {
             if let importedArchive = save.openWorldEventArchive,
                vault.data.openWorldEventArchive == nil {
                 vault.data.openWorldEventArchive = importedArchive
+            }
+            if vault.data.magicMoment == nil {
+                vault.data.magicMoment = save.magicMoment
+            }
+            if let importedObservations = save.bookObservations {
+                var merged = Dictionary(uniqueKeysWithValues: (vault.data.bookObservations ?? []).map { ($0.id, $0) })
+                for observation in importedObservations
+                    where observation.updatedAt > (merged[observation.id]?.updatedAt ?? .distantPast) {
+                    merged[observation.id] = observation
+                }
+                vault.data.bookObservations = merged.values.sorted { $0.updatedAt < $1.updatedAt }
+            }
+            if let importedBoundaries = save.bookReadingBoundaries {
+                var merged = Dictionary(uniqueKeysWithValues: (vault.data.bookReadingBoundaries ?? []).map { ($0.id, $0) })
+                for boundary in importedBoundaries where merged[boundary.id] == nil {
+                    merged[boundary.id] = boundary
+                }
+                vault.data.bookReadingBoundaries = merged.values.sorted { $0.createdAt < $1.createdAt }
+            }
+            if let importedDrafts = save.overnightConnectionDrafts {
+                var merged = Dictionary(uniqueKeysWithValues: (vault.data.overnightConnectionDrafts ?? []).map { ($0.observationKey, $0) })
+                for draft in importedDrafts
+                    where draft.generatedAt > (merged[draft.observationKey]?.generatedAt ?? .distantPast) {
+                    merged[draft.observationKey] = draft
+                }
+                vault.data.overnightConnectionDrafts = merged.values.sorted { $0.generatedAt < $1.generatedAt }
+            }
+            if vault.data.chosenQuill == nil {
+                vault.data.chosenQuill = save.chosenQuill
+            }
+            if vault.data.people == nil {
+                vault.data.people = save.people
             }
             if let importedEngaged = save.firstRunEngaged {
                 let current = Set(vault.data.firstRunEngaged ?? [])

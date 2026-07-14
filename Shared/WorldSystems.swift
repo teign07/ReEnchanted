@@ -8378,6 +8378,235 @@ struct CastAgencyMovement: Codable, Equatable, Identifiable {
     }
 }
 
+// MARK: - People of the Book
+
+struct PersonThread: Codable, Identifiable, Equatable {
+    var id: String
+    var name: String
+    var introducedDay: String
+    var readerWords: String
+    var firstMentionDay: String
+    var lastMentionDay: String
+    var mentionPageCount: Int
+    var resting: Bool = false
+    var restDay: String? = nil
+    var castMemberID: String? = nil
+    var invitedDay: String? = nil
+}
+
+struct PeopleLedger: Codable, Equatable {
+    var threads: [PersonThread] = []
+    var restingNames: [String] = []
+}
+
+enum PeopleOfTheBook {
+    struct PersonSuggestion: Equatable {
+        var name: String
+        var slug: String
+        var mentionPageCount: Int
+        var distinctDayCount: Int
+        var firstMentionDay: String
+        var lastMentionDay: String
+        var sampleQuote: String
+        var evidencePageIDs: [String]
+    }
+
+    struct QuietSignal: Equatable {
+        enum Kind: Equatable { case goneQuiet, returned }
+        var kind: Kind
+        var personID: String
+        var personName: String
+        var quietDays: Int
+        var evidencePageIDs: [String]
+    }
+
+    struct PreMeetingCharge: Equatable {
+        var eventID: String
+        var personName: String
+        var personSlug: String
+        var fireAt: Date
+        var title: String
+        var body: String
+        var tags: [String]
+    }
+
+    static func suggestions(
+        days: [BookDay],
+        ledger: PeopleLedger,
+        excludedNames: Set<String> = [],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [PersonSuggestion] {
+        let pages = days.flatMap(\.capturedPages).filter { $0.origin == .userAuthored }
+        let known = Set(ledger.threads.map { slug($0.name) } + ledger.restingNames.map(slug))
+        let excluded = Set(excludedNames.flatMap { name in
+            let pieces = name.split(whereSeparator: { !$0.isLetter }).map { slug(String($0)) }
+            return [slug(name)] + pieces
+        })
+        let reserved: Set<String> = [
+            "book", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+            "january", "february", "march", "april", "may", "june", "july", "august", "september",
+            "october", "november", "december", "today", "tomorrow"
+        ]
+        var evidence: [String: [BookPage]] = [:]
+        var display: [String: String] = [:]
+        var lowercaseTokens = Set<String>()
+        for page in pages {
+            let words = page.userInput.split { !$0.isLetter }.map(String.init)
+            for word in words where word == word.lowercased() { lowercaseTokens.insert(slug(word)) }
+            for name in midSentenceCapitalizedWords(in: page.userInput) {
+                let key = slug(name)
+                guard !known.contains(key), !excluded.contains(key), !reserved.contains(key), !lowercaseTokens.contains(key) else { continue }
+                if evidence[key]?.contains(where: { $0.id == page.id }) != true { evidence[key, default: []].append(page) }
+                display[key] = name
+            }
+        }
+        return evidence.compactMap { key, pages -> PersonSuggestion? in
+            guard !lowercaseTokens.contains(key), pages.count >= 4 else { return nil }
+            let sorted = pages.sorted { $0.createdAt < $1.createdAt }
+            let dayIDs = Set(sorted.map { BookDay.id(for: $0.createdAt, calendar: calendar) })
+            guard dayIDs.count >= 4,
+                  let first = sorted.first,
+                  let last = sorted.last,
+                  calendar.dateComponents([.day], from: first.createdAt, to: last.createdAt).day ?? 0 >= 10 else { return nil }
+            return PersonSuggestion(
+                name: display[key] ?? key.capitalized,
+                slug: key,
+                mentionPageCount: pages.count,
+                distinctDayCount: dayIDs.count,
+                firstMentionDay: BookDay.id(for: first.createdAt, calendar: calendar),
+                lastMentionDay: BookDay.id(for: last.createdAt, calendar: calendar),
+                sampleQuote: last.userInput,
+                evidencePageIDs: Array(sorted.suffix(3).map(\.id))
+            )
+        }.sorted { ($0.mentionPageCount, $1.slug) > ($1.mentionPageCount, $0.slug) }
+    }
+
+    static func confirmed(_ suggestion: PersonSuggestion, onDay day: String, readerWords: String) -> PersonThread {
+        PersonThread(
+            id: "person:\(suggestion.slug)",
+            name: suggestion.name,
+            introducedDay: day,
+            readerWords: readerWords,
+            firstMentionDay: suggestion.firstMentionDay,
+            lastMentionDay: suggestion.lastMentionDay,
+            mentionPageCount: suggestion.mentionPageCount
+        )
+    }
+
+    static func rested(_ thread: PersonThread, onDay day: String) -> PersonThread {
+        var copy = thread
+        copy.resting = true
+        copy.restDay = day
+        return copy
+    }
+
+    static func invitedIntoStory(_ thread: PersonThread, castMemberID: String, onDay day: String) -> PersonThread {
+        var copy = thread
+        copy.castMemberID = castMemberID
+        copy.invitedDay = day
+        return copy
+    }
+
+    static func quietSignals(
+        ledger: PeopleLedger,
+        days: [BookDay],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [QuietSignal] {
+        let pages = days.flatMap(\.capturedPages)
+        return ledger.threads.compactMap { thread in
+            guard !thread.resting else { return nil }
+            let matches = pages
+                .filter { containsWholeWord(thread.name, in: $0.userInput) }
+                .sorted { $0.createdAt < $1.createdAt }
+            guard matches.count >= 4, let last = matches.last else { return nil }
+            if matches.count >= 2 {
+                let previous = matches[matches.count - 2]
+                let gap = calendar.dateComponents([.day], from: previous.createdAt, to: last.createdAt).day ?? 0
+                let sinceReturn = calendar.dateComponents([.day], from: last.createdAt, to: now).day ?? 0
+                if gap >= 30, sinceReturn <= 14 {
+                    return QuietSignal(kind: .returned, personID: thread.id, personName: thread.name,
+                                       quietDays: gap, evidencePageIDs: [previous.id, last.id])
+                }
+            }
+            let quiet = calendar.dateComponents([.day], from: last.createdAt, to: now).day ?? 0
+            guard (30...180).contains(quiet) else { return nil }
+            return QuietSignal(kind: .goneQuiet, personID: thread.id, personName: thread.name,
+                               quietDays: quiet, evidencePageIDs: Array(matches.suffix(3).map(\.id)))
+        }
+    }
+
+    static func preMeetingCharges(
+        ledger: PeopleLedger,
+        events: [CalendarEventSignal],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [PreMeetingCharge] {
+        events.sorted { $0.startsAt < $1.startsAt }.compactMap { event in
+            let interval = event.startsAt.timeIntervalSince(now)
+            guard !event.isAllDay, interval >= 60 * 60, interval <= 24 * 60 * 60,
+                  let thread = ledger.threads.first(where: { !$0.resting && containsWholeWord($0.name, in: event.title) }) else { return nil }
+            let label = timeLabel(for: event.startsAt, calendar: calendar)
+            let personSlug = slug(thread.name)
+            return PreMeetingCharge(
+                eventID: event.id,
+                personName: thread.name,
+                personSlug: personSlug,
+                fireAt: event.startsAt.addingTimeInterval(-60 * 60),
+                title: "You see \(thread.name) at \(label)",
+                body: "A mission, if you want it: notice one thing \(thread.name) notices before you do.",
+                tags: ["person-charge", "person:\(personSlug)", "people", "connection"]
+            )
+        }.prefix(2).map { $0 }
+    }
+
+    static func timeLabel(for date: Date, calendar: Calendar = .current) -> String {
+        let hour24 = calendar.component(.hour, from: date)
+        let minute = calendar.component(.minute, from: date)
+        let hour = hour24 % 12 == 0 ? 12 : hour24 % 12
+        return minute == 0 ? String(hour) : String(format: "%d:%02d", hour, minute)
+    }
+
+    private static func slug(_ value: String) -> String {
+        value.lowercased().split { !$0.isLetter && !$0.isNumber }.joined(separator: "-")
+    }
+
+    private static func containsWholeWord(_ word: String, in text: String) -> Bool {
+        let target = slug(word)
+        return text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init).contains(target)
+    }
+
+    private static func midSentenceCapitalizedWords(in text: String) -> [String] {
+        var results: [String] = []
+        var current = ""
+        var previousSignificant: Character?
+        var wordStartsSentence = true
+        func finish() {
+            guard !current.isEmpty else { return }
+            if !wordStartsSentence,
+               current.count >= 3,
+               current.first?.isUppercase == true,
+               current.dropFirst().allSatisfy(\.isLowercase) {
+                results.append(current)
+            }
+            current = ""
+        }
+        for character in text {
+            if character.isLetter {
+                if current.isEmpty { wordStartsSentence = previousSignificant == nil || ".!?".contains(previousSignificant!) }
+                current.append(character)
+            } else {
+                finish()
+                if !character.isWhitespace { previousSignificant = character }
+            }
+            if character.isLetter { previousSignificant = character }
+        }
+        finish()
+        return results
+    }
+}
+
 /// The instant margin reply a cast member leaves when the reader keeps a page.
 /// Deterministic: the page ID seeds voice and line, so the same keep always
 /// earns the same note (and tests can pin it).
@@ -8389,6 +8618,7 @@ enum KeepMarginalia {
         var line: String
         var rippleLine: String? = nil
         var carryOutLine: String? = nil
+        var findingLine: String? = nil
         /// A quiet daytime cue that today's keeps are gathering toward tonight's
         /// braid — anticipation for the Book of You, not a progress meter.
         var braidThreadLine: String? = nil

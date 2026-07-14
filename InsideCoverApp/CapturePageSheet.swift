@@ -1096,11 +1096,19 @@ struct CapturePageSheet: View {
     @StateObject private var keptVoiceRecorder = KeptVoiceRecorder()
     @State private var keptVoiceAsset: BookPageMediaAsset?
     @State private var keptVoiceMessage: String?
+    @State private var hasTakenHiddenMagicLens = false
 
     /// Extra media the reader attached to this page — a pressed photograph, a
     /// kept voice recording — to travel into the archive with it.
     private var keptExtraMedia: [BookPageMediaAsset] {
         [pressedPhotoAsset, keptVoiceAsset].compactMap { $0 }
+    }
+
+    private var hiddenMagicLens: HiddenMagicLens? { surface.hiddenMagicLens }
+
+    private var hasHiddenMagicEvidence: Bool {
+        !preparedInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            proofPhotoURL != nil || pressedPhotoAsset != nil || keptVoiceAsset != nil
     }
     #if canImport(UIKit)
     @State private var isCameraPresented = false
@@ -1488,6 +1496,7 @@ struct CapturePageSheet: View {
 
     private var showsGenericMarginNoteEditor: Bool {
         !isScrapbookReadbackPage &&
+            !(isCompassRunStepPage && currentCompassStep != .write) &&
             !surface.isStoryPlayablePage &&
             surface.type != .askTheBook &&
             surface.type != .calendar &&
@@ -1758,21 +1767,33 @@ struct CapturePageSheet: View {
     }
 
     private var effectiveProofSurface: SurfacePage {
+        var result: SurfacePage
         if surface.type == .wonderCompass, let proofPhotoURL {
-            return surfaceWithProofImage(
+            result = surfaceWithProofImage(
                 url: proofPhotoURL,
                 caption: surface.payload.metadata["playfulMissionTitle"] ?? surface.payload.headline
             )
-        }
+        } else {
         #if canImport(UIKit)
-        if isCameraFirstIlluminatedPage,
-           currentEnchantmentSurface == nil,
-           currentIlluminatedSurface == nil,
-           let pendingCameraPhotoURL {
-            return surfaceWithProofImage(url: pendingCameraPhotoURL, caption: surface.payload.headline)
-        }
+            if isCameraFirstIlluminatedPage,
+               currentEnchantmentSurface == nil,
+               currentIlluminatedSurface == nil,
+               let pendingCameraPhotoURL {
+                result = surfaceWithProofImage(url: pendingCameraPhotoURL, caption: surface.payload.headline)
+            } else {
+                result = effectiveSurface
+            }
+        #else
+            result = effectiveSurface
         #endif
-        return effectiveSurface
+        }
+        if hiddenMagicLens != nil, hasTakenHiddenMagicLens || hasHiddenMagicEvidence {
+            let lensMetadata = surface.payload.metadata.filter { $0.key.hasPrefix("hiddenMagic") }
+            var additions = lensMetadata
+            additions["hiddenMagicLensTaken"] = "true"
+            result = result.withMetadata(additions)
+        }
+        return result
     }
 
     private func surfaceWithProofImage(url: URL, caption: String) -> SurfacePage {
@@ -2623,6 +2644,10 @@ struct CapturePageSheet: View {
 
             if surface.type != .note {
                 pageShareControl
+            }
+
+            if hiddenMagicLens != nil {
+                hiddenMagicLensCard
             }
 
             if isLocalBrainWorking, sheetHasLocalBrainActions, localPageOwnedScribeLabel == nil {
@@ -7668,10 +7693,10 @@ struct CapturePageSheet: View {
     private func marginNoteEditor(minHeight: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             LivingTextEditor(
-                title: "Margin note",
-                placeholder: surface.type == .rest
+                title: hiddenMagicLens == nil ? "Margin note" : "What you found",
+                placeholder: hiddenMagicLens?.proofPrompt ?? (surface.type == .rest
                     ? "One true line, if one arrived in the quiet. Or leave it blank — that's rest too."
-                    : "Add one true thing the Book should keep.",
+                    : "Add one true thing the Book should keep."),
                 text: $text,
                 minHeight: minHeight,
                 builderPack: SentenceBuilderPackRegistry.composedCore(readerLexicon: readerLexicon, shadowWonderActive: isShadowWonderActive)
@@ -7681,9 +7706,79 @@ struct CapturePageSheet: View {
                     bookNoticesBar
                 }
                 pressedPhotoBar
-                keptVoiceBar
+            }
+            keptVoiceBar
+        }
+    }
+
+    @ViewBuilder
+    private var hiddenMagicLensCard: some View {
+        if let lens = hiddenMagicLens {
+            VStack(alignment: .leading, spacing: 11) {
+                HStack(spacing: 8) {
+                    Image(systemName: lens.sense.symbolName)
+                    Text("A \(lens.sense.title) Lens")
+                    Spacer(minLength: 8)
+                    Text("about \(lens.durationSeconds) sec")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.55))
+                }
+                .font(.caption.weight(.black))
+                .foregroundStyle(BookPalette.teal)
+
+                Text(lens.voice)
+                    .font(.system(.body, design: .serif).italic())
+                    .foregroundStyle(BookPalette.ink.opacity(0.78))
+
+                Text(lens.action)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if hasTakenHiddenMagicLens {
+                    Label("The Book will wait. Look away from the screen.", systemImage: "eye")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.lampGold)
+                    Text(lens.proofPrompt)
+                        .font(.caption)
+                        .foregroundStyle(BookPalette.ink.opacity(0.68))
+                    Text("Bring it back as \(hiddenMagicExpressionLine(lens.expressionModes)).")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.52))
+                } else {
+                    Button {
+                        withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
+                            hasTakenHiddenMagicLens = true
+                        }
+                        BookFeedback.play(.openPage)
+                    } label: {
+                        Label("Take this lens", systemImage: "sparkles")
+                            .font(.subheadline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(BookPalette.teal)
+                }
+            }
+            .padding(14)
+            .background(BookPalette.page.opacity(0.78), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(BookPalette.lampGold.opacity(0.32), lineWidth: 1)
             }
         }
+    }
+
+    private func hiddenMagicExpressionLine(_ modes: [HiddenMagicExpressionMode]) -> String {
+        let labels = modes.map { mode in
+            switch mode {
+            case .words: return "words"
+            case .photograph: return "a photograph"
+            case .voice: return "your voice"
+            }
+        }
+        if labels.count <= 1 { return labels.first ?? "one small proof" }
+        return labels.dropLast().joined(separator: ", ") + ", or " + labels.last!
     }
 
     @ViewBuilder
@@ -9331,8 +9426,14 @@ struct CapturePageSheet: View {
         if allowsCompassPhotoProof, proofPhotoURL != nil {
             return true
         }
+        if hiddenMagicLens != nil, hasHiddenMagicEvidence {
+            return true
+        }
         if isLocalBrainIssuePage {
             return false
+        }
+        if isCompassRunStepPage, currentCompassStep != .write {
+            return true
         }
         if currentCompassStep == .write {
             return !preparedInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -9373,10 +9474,7 @@ struct CapturePageSheet: View {
 
     private var shouldSaveCurrentCompassStep: Bool {
         guard let currentCompassStep else { return false }
-        if currentCompassStep == .write {
-            return !currentCompassNote.isEmpty
-        }
-        return !currentCompassNote.isEmpty
+        return currentCompassStep == .write && !currentCompassNote.isEmpty
     }
 
     private func nextCompassSurfaceAfterKeepingCurrentStep() -> SurfacePage? {
@@ -11928,7 +12026,7 @@ enum StoryPageResultPromptBuilder {
         \(context.selectedChoice.effectLine)
 
         RECENT THREAD MEMORY:
-        \(prior.isEmpty ? "No prior turns." : prior)\(context.draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
+        \(prior.isEmpty ? "No prior turns." : prior)\(context.draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(context.draft.surface.payload.metadata["storyQuillDirective"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
 
         REQUIREMENTS:
         - Return only the result prose.
@@ -12096,6 +12194,8 @@ enum StoryPagePromptBuilder {
         return """
         Write one ReEnchanted Story Page.
 
+        World rule: magic here is written, never waved. Cast members work spells through pens, quills, and pencils — there are no wands — and every writing implement has opinions of its own about what it is asked to write.
+
         THREAD:
         \(draft.thread)
 
@@ -12109,7 +12209,7 @@ enum StoryPagePromptBuilder {
         \(setting)
 
         REAL MATERIAL:
-        \(signals)\(pressures)\(memories)\(talismanMoves)\(faeDirective)\(RadioAtmosphere.promptSection(nowPlaying))\(draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
+        \(signals)\(pressures)\(memories)\(talismanMoves)\(faeDirective)\(RadioAtmosphere.promptSection(nowPlaying))\(draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(draft.surface.payload.metadata["storyQuillDirective"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
         \(continuation)\(mechanicPlan)
 
         OUTPUT FORMAT, EXACTLY:

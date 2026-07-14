@@ -43,7 +43,8 @@ let package = Package(
                 "StacksSearch.swift",
                 "AlmanacModel.swift",
                 "PressedPhotograph.swift",
-                "PlainInkExport.swift"
+                "PlainInkExport.swift",
+                "QuillCompanion.swift"
             ]
         ),
         .testTarget(

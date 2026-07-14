@@ -1719,6 +1719,10 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "the Support Guild comparing charts" : "the Support Guild connecting \(clipped)"
         case .quip:
             return clipped.isEmpty ? "a quip lighting a match" : "a quip insisting \(clipped)"
+        case .quotes:
+            return clipped.isEmpty ? "a borrowed line asking to be kept" : "a kept quotation carrying \(clipped)"
+        case .affirmations:
+            return clipped.isEmpty ? "the Book placing a small belief in the margin" : "the Book believing \(clipped)"
         case .aboutYou:
             return clipped.isEmpty ? "one fact about the keeper" : "the keeper answering \(clipped)"
         case .bookOfYou:

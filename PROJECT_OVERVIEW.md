@@ -705,6 +705,34 @@ I have noticed...
 It should feel like a living book forming opinions about the reader's story,
 not like analytics.
 
+**Hidden magic is an outward practice, not one special page.** The outward
+desk lane is the delivery mechanism. Weather, Souvenir, Diary, Mood, Body,
+Fuel, Location, Anchor, Enchantment, Center Page, Pact Errand, and Wonder
+Compass keep their own identities and voices, but can each carry a short
+`HiddenMagicLens`: something concrete to notice away from the screen, a brief
+duration, and a fitting way to bring back proof (words, photograph, or voice).
+Keeping real proof creates a structured `HiddenMagicFinding`; the margin says
+**YOU FOUND IT**, and later lenses stretch toward less-practiced senses rather
+than repeating one noticing habit.
+
+Those findings accumulate into an explainable attention profile. Book Notices
+can ask whether a recurring way of seeing is true, always carrying its exact
+source-page receipts. Context connections (weather and manner, time and
+questioning, weekend-only subjects) follow the same evidence rule and say
+explicitly that the Book is noticing, not diagnosing. Reader feedback is
+durable: true/not-quite readings teach the observation ledger, while “do not
+read me this way” creates a hard boundary for that exact claim.
+
+The larger surprises use a variable session rhythm rather than a weekly timer.
+A meaningful foreground session warms the `MagicMomentGovernor`; a grounded
+reading may arrive from the second session onward and is guaranteed by the
+fifth if no earlier roll fires. Once armed it waits until a worthy reading
+exists, and is consumed only after the reader responds. The overnight local
+Gemma pass also reviews frozen deterministic connection candidates. It may
+phrase them more beautifully, but cannot add evidence, IDs, diagnoses, or
+unsupported discoveries; accepted drafts still surface as ordinary Book
+Notices pages, preserving Page variety instead of creating a magic-only feed.
+
 The same page type also carries the rarer continuity moments: constellation
 namings, sealed wagers, and opened seals (see Constellations And Sealed
 Margins below).
@@ -2165,6 +2193,16 @@ Talismans, and the core Labyrinth rooms have bundled art.
 Characters are not just names in prompts. The app treats them as structured
 world entities with enough internal shape to stay consistent across letters,
 gossip, story scenes, illustrations, search, memory, Belief, and page curation.
+
+> **Canon — the Instrument Law:** there are no wands in ReEnchanted. Magic is
+> written, never waved: cast members work their spells through pens, quills,
+> and pencils, and every writing implement has opinions of its own about what
+> it is asked to write. The Quillquarium exists because instruments choose
+> their writers (see the `labyrinth-lore-instruments` snippet, the story-page
+> "World rule" line, and the Chosen Quill system in
+> `Shared/QuillCompanion.swift` — the reader's own instrument, minted as the
+> observed opposite of their hand, joins the Cast when its choosing page is
+> kept).
 
 The central type is `NarrativeWorldEntity`. It represents characters, objects,
 locations, threads, classrooms, talismans, real-world anchors, and motifs.
