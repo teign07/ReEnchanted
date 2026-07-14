@@ -72,11 +72,12 @@ struct BookSourceInputs: Equatable {
     /// off-main beside the continuity digest (NLEmbedding is not free). Nil on
     /// the synchronous fallback path; the Notices page simply omits the beat.
     var semanticNoticePairing: SemanticNoticePairing? = nil
-    /// Enables sentence-embedding relevance when a Story Page chooses one of the
-    /// reader's keeps as its crux. Surface builds set this only on their detached
-    /// executor; synchronous previews still receive the same selective lexical,
-    /// fingerprint, theme, and passage-salience fallback without main-thread ML.
-    var semanticStoryGroundingEnabled = false
+    /// Enables sentence-embedding relevance when a generated surface chooses a
+    /// meaningful passage from the reader's keeps. Surface builds set this only
+    /// on their detached executor; synchronous previews still receive the same
+    /// lexical, fingerprint, archive, and passage-salience fallback without
+    /// main-thread ML.
+    var semanticPassageSelectionEnabled = false
     /// History keys of first-run steps the reader engaged with (opened or
     /// deliberately swiped away). The first-run script advances on these, not
     /// on served-history, so a card can't be skipped by merely flashing past.
@@ -5596,8 +5597,10 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
         if let grounding = packet.blueprint?.grounding, grounding.kind == .keptPage {
             metadata["tags"] = [
                 metadata["tags"],
-                StoryPageGroundingSelector.usedTag,
-                "\(StoryPageGroundingSelector.sourceTagPrefix)\(grounding.sourceID)"
+                MeaningfulPassageSelector.storyUsedTag,
+                "\(MeaningfulPassageSelector.legacyStorySourceTagPrefix)\(grounding.sourceID)",
+                "\(MeaningfulPassageSelector.sourceTagPrefix)\(grounding.sourceID)",
+                "meaningful-source-use:story"
             ]
             .compactMap { $0?.nonEmpty }
             .joined(separator: ",")

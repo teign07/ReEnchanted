@@ -28,6 +28,9 @@ struct MonthlyEdition: Codable, Equatable {
     /// One continuous local-brain story made from the month's daily bindings.
     /// Optional so older bound editions remain readable.
     var bindingStory: String? = nil
+    /// A small, diverse set of reader-authored passages selected from anywhere
+    /// inside the month's eligible keeps. Optional for older saved editions.
+    var passageCompass: [MeaningfulPassageSelector.Selection]? = nil
 
     /// "The Book of You - bj - Chapter 3 - June"
     var chapterHeading: String {
@@ -331,6 +334,25 @@ enum MonthlyEditionBuilder {
         // only the strongest of the daily logs, and tells us what it set aside.
         let curated = EditionCurator.curate(pages, now: generatedAt)
         let boundPages = curated.pages
+        var passageInputs = BookSourceInputs.empty
+        passageInputs.days = monthDays
+        passageInputs.continuity = continuity
+        passageInputs.themes = theme.map { [$0] } ?? []
+        let passageCompass = MeaningfulPassageSelector.rankedSelections(
+            pages: boundPages,
+            query: MeaningfulPassageSelector.periodQuery(
+                pages: boundPages,
+                framing: [theme?.name ?? "", theme?.line ?? "", continuity.strongestSignals.prefix(5).map(\.line).joined(separator: " ")]
+            ),
+            inputs: passageInputs,
+            scorer: nil,
+            limit: 6,
+            maximumAge: 45 * 86_400,
+            minimumScore: 14,
+            honorPriorUse: false,
+            diversifyPageTypes: true,
+            now: generatedAt
+        )
         let privateWeatherSection = includePrivateWeatherSummary
             ? fuelAndInnerWeatherSection(from: pages, calendar: calendar)
             : MonthlyEditionSection(id: "fuel-and-inner-weather", title: "Fuel & Inner Weather", note: "", items: [])
@@ -416,7 +438,8 @@ enum MonthlyEditionBuilder {
                 constellations: constellations,
                 theme: theme,
                 calendar: calendar
-            )
+            ),
+            passageCompass: passageCompass
         )
     }
 
@@ -1406,6 +1429,9 @@ struct WeeklyIssue: Codable, Equatable {
     /// story. Private log pages are never copied into its prompt.
     var pages: [BookPage] = []
     var bindingStory: String? = nil
+    /// Reader-authored passages selected from anywhere inside the week's
+    /// eligible keeps, used to focus highlights and the binding story.
+    var passageCompass: [MeaningfulPassageSelector.Selection]? = nil
     /// Kept Pagewright/Scrapbook pages in this issue's window.
     var scrapbookCount: Int = 0
     var scrapbookTitles: [String] = []
@@ -1422,6 +1448,7 @@ struct WeeklyIssue: Codable, Equatable {
             && lhs.setAsideLine == rhs.setAsideLine
             && semanticallyEqual(lhs.pages, rhs.pages)
             && lhs.bindingStory == rhs.bindingStory
+            && semanticallyEqual(lhs.passageCompass, rhs.passageCompass)
             && lhs.scrapbookCount == rhs.scrapbookCount
             && lhs.scrapbookTitles == rhs.scrapbookTitles
     }
@@ -1437,6 +1464,22 @@ struct WeeklyIssue: Codable, Equatable {
             left.id = ""
             right.id = ""
             return left == right
+        }
+    }
+
+    private static func semanticallyEqual(
+        _ lhs: [MeaningfulPassageSelector.Selection]?,
+        _ rhs: [MeaningfulPassageSelector.Selection]?
+    ) -> Bool {
+        let lhs = lhs ?? []
+        let rhs = rhs ?? []
+        guard lhs.count == rhs.count else { return false }
+        return zip(lhs, rhs).allSatisfy { left, right in
+            left.pageType == right.pageType
+                && left.excerpt == right.excerpt
+                && left.score == right.score
+                && left.semanticSimilarity == right.semanticSimilarity
+                && left.reason == right.reason
         }
     }
 
@@ -1473,6 +1516,31 @@ struct WeeklyIssue: Codable, Equatable {
         let curated = EditionCurator.curate(weekPages, now: now)
         guard curated.keptCount >= minimumIssuePages else { return nil }
         let scrapbookPages = curated.pages.filter(EditionCurator.isScrapbookPage)
+        let dailyBraids = allDays
+            .flatMap(\.pages)
+            .filter { $0.type == .bookOfYou && $0.createdAt >= start && $0.createdAt < end }
+        let issuePages = Dictionary(
+            (curated.pages + dailyBraids).map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        ).values.sorted { left, right in
+            if left.createdAt == right.createdAt { return left.id < right.id }
+            return left.createdAt < right.createdAt
+        }
+        let passageCompass = MeaningfulPassageSelector.rankedSelections(
+            pages: issuePages,
+            query: MeaningfulPassageSelector.periodQuery(
+                pages: curated.pages,
+                framing: ["week \(number)", rangeString(start: start, end: lastDay, calendar: calendar)]
+            ),
+            inputs: .empty,
+            scorer: nil,
+            limit: 4,
+            maximumAge: 14 * 86_400,
+            minimumScore: 14,
+            honorPriorUse: false,
+            diversifyPageTypes: true,
+            now: now
+        )
 
         return WeeklyIssue(
             number: number,
@@ -1480,9 +1548,10 @@ struct WeeklyIssue: Codable, Equatable {
             endDate: end,
             dateRange: rangeString(start: start, end: lastDay, calendar: calendar),
             keptCount: weekPages.count,
-            highlights: highlights(from: curated.pages),
+            highlights: passageCompass.isEmpty ? highlights(from: curated.pages) : passageCompass.prefix(maximumHighlights).map(\.excerpt),
             setAsideLine: curated.setAsideLine,
-            pages: curated.pages,
+            pages: issuePages,
+            passageCompass: passageCompass,
             scrapbookCount: scrapbookPages.count,
             scrapbookTitles: scrapbookPages.prefix(3).map { page in
                 page.promptText.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Scrapbook Page"
@@ -1551,7 +1620,7 @@ enum BindingStoryPromptBuilder {
         }.joined(separator: "\n\n")
         return BindingStoryPromptSpec(
             sourceID: "weekly-binding-story",
-            prompt: prompt(frame: "week", leaves: leaves),
+            prompt: prompt(frame: "week", leaves: leaves, passageCompass: issue.passageCompass ?? []),
             maxTokens: 700
         )
     }
@@ -1567,13 +1636,38 @@ enum BindingStoryPromptBuilder {
         }.joined(separator: "\n\n")
         return BindingStoryPromptSpec(
             sourceID: "monthly-binding-story",
-            prompt: prompt(frame: "month", leaves: leaves),
+            prompt: prompt(frame: "month", leaves: leaves, passageCompass: edition.passageCompass ?? []),
             maxTokens: 1_100
         )
     }
 
-    private static func prompt(frame: String, leaves: String) -> String {
-        """
+    private static func prompt(
+        frame: String,
+        leaves: String,
+        passageCompass: [MeaningfulPassageSelector.Selection]
+    ) -> String {
+        let compassSection: String
+        if passageCompass.isEmpty {
+            compassSection = ""
+        } else {
+            let lines = passageCompass.prefix(frame == "week" ? 4 : 6).enumerated().map { index, passage in
+                let excerpt = passage.excerpt.count <= 190 ? passage.excerpt : String(passage.excerpt.prefix(190)) + "…"
+                return "\(index + 1). \(passage.pageType.shortTitle): “\(excerpt)”"
+            }.joined(separator: "\n")
+            compassSection = """
+
+
+            READER-AUTHORED PASSAGE COMPASS:
+            \(lines)
+
+            COMPASS RULE:
+            - These passages were selected from meaningful parts of eligible keeps across the whole \(frame), not merely from page openings.
+            - Let at least one passage become a hinge, image, or consequence in the continuous story. Use the others only when they genuinely connect.
+            - The chronological daily bindings still govern sequence and fact. The compass chooses emphasis; it does not authorize invention or require every passage.
+            - Quote at most one short phrase. Never mention selection, scoring, embeddings, or an archive.
+            """
+        }
+        return """
         You are the private local writer inside the reader's Book. Write a binding of bindings: turn the following daily Book of You pages from this \(frame) into one continuous story.
 
         Requirements:
@@ -1582,7 +1676,7 @@ enum BindingStoryPromptBuilder {
         - find movement, recurrence, contrast, and consequence across the whole span;
         - Do not invent events, feelings, motives, diagnoses, or facts not present in the source bindings;
         - write in intimate literary prose, grounded and specific, without explaining the method;
-        - end with an opening rather than a moral.
+        - end with an opening rather than a moral.\(compassSection)
 
         DAILY BINDINGS, IN CHRONOLOGICAL ORDER:
         \(leaves)

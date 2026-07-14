@@ -47,7 +47,7 @@ final class StoryPageGroundingSelectorTests: XCTestCase {
         )
         let scorer = StoryGroundingTestScorer(matches: ["apologized to mara": 0.86])
 
-        let selection = try XCTUnwrap(StoryPageGroundingSelector.select(
+        let selection = try XCTUnwrap(MeaningfulPassageSelector.select(
             pages: [newest, relevant],
             query: "friendship repair apology trust after an argument",
             inputs: .empty,
@@ -68,7 +68,7 @@ final class StoryPageGroundingSelectorTests: XCTestCase {
         )
         let scorer = StoryGroundingTestScorer(matches: ["porch light": 0.91])
 
-        let selection = try XCTUnwrap(StoryPageGroundingSelector.select(
+        let selection = try XCTUnwrap(MeaningfulPassageSelector.select(
             pages: [kept],
             query: "homecoming safety welcome and small acts of care",
             inputs: .empty,
@@ -88,7 +88,7 @@ final class StoryPageGroundingSelectorTests: XCTestCase {
             daysAgo: 18
         )
 
-        let selection = try XCTUnwrap(StoryPageGroundingSelector.select(
+        let selection = try XCTUnwrap(MeaningfulPassageSelector.select(
             pages: [thin, vivid],
             query: "an ordinary object becomes evidence",
             inputs: .empty,
@@ -103,7 +103,7 @@ final class StoryPageGroundingSelectorTests: XCTestCase {
     func testSelectorLeavesOnlyThinGenericKeepsAlone() {
         let thin = page("thin", text: "It was fine.", daysAgo: 0.1)
 
-        let selection = StoryPageGroundingSelector.select(
+        let selection = MeaningfulPassageSelector.select(
             pages: [thin],
             query: "friendship repair and trust",
             inputs: .empty,
@@ -138,7 +138,7 @@ final class StoryPageGroundingSelectorTests: XCTestCase {
             daysAgo: 1,
             type: .narrativeOS,
             origin: .simulated,
-            tags: ["\(StoryPageGroundingSelector.sourceTagPrefix)used-source"]
+            tags: ["\(MeaningfulPassageSelector.sourceTagPrefix)used-source"]
         )
         let eligible = page(
             "eligible",
@@ -152,7 +152,7 @@ final class StoryPageGroundingSelectorTests: XCTestCase {
             "library card": 0.70
         ])
 
-        let selection = try XCTUnwrap(StoryPageGroundingSelector.select(
+        let selection = try XCTUnwrap(MeaningfulPassageSelector.select(
             pages: [body, generated, alreadyUsed, storyUsingIt, eligible],
             query: "an object becomes evidence",
             inputs: .empty,

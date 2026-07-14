@@ -1810,7 +1810,7 @@ struct ContentView: View {
             )
             // Story Page grounding performs its embedding comparisons only in
             // this detached build. Main-actor previews use the pure fallback.
-            inputs.semanticStoryGroundingEnabled = true
+            inputs.semanticPassageSelectionEnabled = true
 
             let surfaces: [SurfacePage]
             let firstRun = FirstRunPageSequence.surfaces(

@@ -1807,21 +1807,41 @@ enum StorySpark {
 /// Embeddings supply relevance when the caller is already off-main; attention
 /// fingerprints, continuity evidence, specificity, and prose shape provide the
 /// deterministic fallback everywhere else.
-enum StoryPageGroundingSelector {
-    static let sourceTagPrefix = "story-grounding-source:"
-    static let usedTag = "story-grounding-used"
+enum MeaningfulPassageSelector {
+    static let sourceTagPrefix = "meaningful-source:"
+    static let legacyStorySourceTagPrefix = "story-grounding-source:"
+    static let storyUsedTag = "story-grounding-used"
     static let maximumAge: TimeInterval = 120 * 86_400
     static let maximumCandidates = 80
     static let maximumExcerptCharacters = 280
     static let minimumSelectionScore = 16
 
-    struct Selection: Equatable {
+    struct Selection: Codable, Equatable {
         var pageID: String
         var pageType: BookPageType
         var excerpt: String
         var score: Int
         var semanticSimilarity: Double?
         var reason: String
+    }
+
+    static func periodQuery(pages: [BookPage], framing: [String] = []) -> String {
+        var tokenCounts: [String: Int] = [:]
+        for page in pages {
+            let tokens = Set(
+                page.tags.map { $0.lowercased() }
+                    + page.resolvedAttentionFingerprint.patternTokens.map { $0.lowercased() }
+                    + SemanticKeepEcho.contentWords(in: page.promptText)
+            )
+            for token in tokens where token.count >= 3 {
+                tokenCounts[token, default: 0] += 1
+            }
+        }
+        let recurring = tokenCounts.sorted { left, right in
+            if left.value == right.value { return left.key < right.key }
+            return left.value > right.value
+        }.prefix(32).map(\.key)
+        return (framing + recurring).filter { !$0.isEmpty }.joined(separator: ". ")
     }
 
     private struct PassageScore {
@@ -1876,15 +1896,47 @@ enum StoryPageGroundingSelector {
         query: String,
         inputs: BookSourceInputs,
         scorer: StacksSemanticScoring?,
+        maximumAge: TimeInterval = MeaningfulPassageSelector.maximumAge,
+        minimumScore: Int = MeaningfulPassageSelector.minimumSelectionScore,
         now: Date = Date()
     ) -> Selection? {
-        let usedSourceIDs = Set(pages.flatMap { page in
+        rankedSelections(
+            pages: pages,
+            query: query,
+            inputs: inputs,
+            scorer: scorer,
+            limit: 1,
+            maximumAge: maximumAge,
+            minimumScore: minimumScore,
+            now: now
+        ).first
+    }
+
+    static func rankedSelections(
+        pages: [BookPage],
+        query: String,
+        inputs: BookSourceInputs,
+        scorer: StacksSemanticScoring?,
+        limit: Int,
+        maximumAge: TimeInterval = MeaningfulPassageSelector.maximumAge,
+        minimumScore: Int = MeaningfulPassageSelector.minimumSelectionScore,
+        honorPriorUse: Bool = true,
+        diversifyPageTypes: Bool = false,
+        now: Date = Date()
+    ) -> [Selection] {
+        guard limit > 0 else { return [] }
+        let usedSourceIDs = honorPriorUse ? Set(pages.flatMap { page in
             page.tags.compactMap { tag -> String? in
                 let lowered = tag.lowercased()
-                guard lowered.hasPrefix(sourceTagPrefix) else { return nil }
-                return String(lowered.dropFirst(sourceTagPrefix.count))
+                if lowered.hasPrefix(sourceTagPrefix) {
+                    return String(lowered.dropFirst(sourceTagPrefix.count))
+                }
+                if lowered.hasPrefix(legacyStorySourceTagPrefix) {
+                    return String(lowered.dropFirst(legacyStorySourceTagPrefix.count))
+                }
+                return nil
             }
-        })
+        }) : []
         let deduplicated = Dictionary(pages.map { ($0.id, $0) }, uniquingKeysWith: { first, second in
             first.createdAt >= second.createdAt ? first : second
         }).values
@@ -1910,7 +1962,7 @@ enum StoryPageGroundingSelector {
             .prefix(maximumCandidates)
 
         let queryWords = SemanticKeepEcho.contentWords(in: query)
-        var best: (page: BookPage, passage: PassageScore, total: Int)?
+        var ranked: [(page: BookPage, passage: PassageScore, total: Int)] = []
         for page in eligible {
             guard let raw = readerGroundingText(for: page) else { continue }
             let passage = bestPassage(
@@ -1926,36 +1978,58 @@ enum StoryPageGroundingSelector {
                 + archiveSignalBoost(for: page, inputs: inputs)
                 + pageTypeBoost(page.type)
                 + freshness
-            if let current = best {
-                if total > current.total
-                    || (total == current.total
-                        && (passage.semanticSimilarity ?? 0) > (current.passage.semanticSimilarity ?? 0))
-                    || (total == current.total
-                        && passage.semanticSimilarity == current.passage.semanticSimilarity
-                        && page.createdAt > current.page.createdAt) {
-                    best = (page, passage, total)
-                }
-            } else {
-                best = (page, passage, total)
+            guard total >= minimumScore else { continue }
+            ranked.append((page, passage, total))
+        }
+        ranked.sort { left, right in
+            if left.total != right.total { return left.total > right.total }
+            if left.passage.semanticSimilarity != right.passage.semanticSimilarity {
+                return (left.passage.semanticSimilarity ?? 0) > (right.passage.semanticSimilarity ?? 0)
             }
+            if left.page.createdAt != right.page.createdAt { return left.page.createdAt > right.page.createdAt }
+            return left.page.id < right.page.id
         }
-        guard let best, best.total >= minimumSelectionScore else { return nil }
-        let reason: String
-        if let similarity = best.passage.semanticSimilarity, similarity >= 0.28 {
-            reason = "semantic relevance \(Int((similarity * 100).rounded()))% plus passage specificity"
-        } else if best.passage.lexicalOverlap > 0 {
-            reason = "story-context overlap plus passage specificity"
-        } else {
-            reason = "passage specificity plus archive significance"
+
+        var remaining = ranked
+        var selected: [(page: BookPage, passage: PassageScore, total: Int)] = []
+        var selectedTypes = Set<BookPageType>()
+        while selected.count < limit, !remaining.isEmpty {
+            let pickIndex: Int
+            if diversifyPageTypes,
+               let diverseIndex = remaining.indices.max(by: { left, right in
+                   let leftScore = remaining[left].total - (selectedTypes.contains(remaining[left].page.type) ? 5 : 0)
+                   let rightScore = remaining[right].total - (selectedTypes.contains(remaining[right].page.type) ? 5 : 0)
+                   return leftScore < rightScore
+               }) {
+                pickIndex = diverseIndex
+            } else {
+                pickIndex = remaining.startIndex
+            }
+            let picked = remaining.remove(at: pickIndex)
+            selected.append(picked)
+            selectedTypes.insert(picked.page.type)
         }
-        return Selection(
-            pageID: best.page.id,
-            pageType: best.page.type,
-            excerpt: clipped(best.passage.text, limit: maximumExcerptCharacters),
-            score: best.total,
-            semanticSimilarity: best.passage.semanticSimilarity,
-            reason: reason
-        )
+
+        return selected.map { candidate in
+            Selection(
+                pageID: candidate.page.id,
+                pageType: candidate.page.type,
+                excerpt: clipped(candidate.passage.text, limit: maximumExcerptCharacters),
+                score: candidate.total,
+                semanticSimilarity: candidate.passage.semanticSimilarity,
+                reason: selectionReason(for: candidate.passage)
+            )
+        }
+    }
+
+    private static func selectionReason(for passage: PassageScore) -> String {
+        if let similarity = passage.semanticSimilarity, similarity >= 0.28 {
+            return "semantic relevance \(Int((similarity * 100).rounded()))% plus passage specificity"
+        }
+        if passage.lexicalOverlap > 0 {
+            return "context overlap plus passage specificity"
+        }
+        return "passage specificity plus archive significance"
     }
 
     private static func readerGroundingText(for page: BookPage) -> String? {
@@ -2181,7 +2255,7 @@ enum StoryScenePacketBuilder {
             seed: packetStableIndex(for: "\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 4))-story-talisman-options", count: 10_000)
         )
         let slot = SurfaceCadence.slotID(for: now, hours: 4)
-        let groundingQuery = StoryPageGroundingSelector.storyQuery(
+        let groundingQuery = MeaningfulPassageSelector.storyQuery(
             tags: tags,
             primaryThread: primaryThread,
             entities: selectedEntities,
@@ -2189,7 +2263,7 @@ enum StoryScenePacketBuilder {
             inputs: inputs
         )
         let groundingScorer = semanticScorer
-            ?? (inputs.semanticStoryGroundingEnabled ? SemanticKeepEcho.keepTimeScorer : nil)
+            ?? (inputs.semanticPassageSelectionEnabled ? SemanticKeepEcho.keepTimeScorer : nil)
         let grounding = grounding(
             for: day,
             inputs: inputs,
@@ -2321,7 +2395,7 @@ enum StoryScenePacketBuilder {
             )
         }
         let pages = day.capturedPages + inputs.days.flatMap(\.capturedPages)
-        if let selected = StoryPageGroundingSelector.select(
+        if let selected = MeaningfulPassageSelector.select(
             pages: pages,
             query: storyQuery,
             inputs: inputs,
@@ -4224,11 +4298,23 @@ enum SupportGuildProseParser {
 }
 
 enum StudentNotePageGenerator {
-    static func draftCandidate(for day: BookDay, inputs: BookSourceInputs, now: Date = Date()) -> SurfacePage? {
+    static func draftCandidate(
+        for day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date = Date(),
+        semanticScorer: StacksSemanticScoring? = nil
+    ) -> SurfacePage? {
         let inputs = inputs.resolvingWorldEvents(for: day, now: now)
         let source = BookPageSourceRegistry.source(for: .note)
         guard let entity = selectedEntity(for: day, inputs: inputs, now: now) else { return nil }
-        return draftCandidate(for: entity, source: source, day: day, inputs: inputs, now: now)
+        return draftCandidate(
+            for: entity,
+            source: source,
+            day: day,
+            inputs: inputs,
+            now: now,
+            semanticScorer: semanticScorer
+        )
     }
 
     static func draftCandidate(
@@ -4236,14 +4322,14 @@ enum StudentNotePageGenerator {
         source: BookPageSource,
         day: BookDay,
         inputs: BookSourceInputs,
-        now: Date
+        now: Date,
+        semanticScorer: StacksSemanticScoring? = nil
     ) -> SurfacePage {
         let slot = SurfaceCadence.slotID(for: now, hours: 3)
         let playerName = CharacterLetterPageGenerator.preferredPlayerName(inputs: inputs)
         let voice = CharacterLetterPageGenerator.voiceProfile(for: entity)
         let weatherLine = inputs.weather?.phrase.nonEmpty ?? inputs.enchantedWeather?.summary.nonEmpty ?? "No weather signal is available."
         let worldEventLine = inputs.activeWorldEvents.map(\.title).joined(separator: ", ").nonEmpty ?? "No active world event."
-        let recentPageLines = day.pages.suffix(5).map { "- \($0.type.shortTitle): \($0.userInput.bookPreviewSentenceLimit(1))" }.joined(separator: "\n")
         let memories = inputs.narrative?.entityMemories
             .filter { $0.entityID == entity.id }
             .prefix(4)
@@ -4256,6 +4342,34 @@ enum StudentNotePageGenerator {
         let timeLine = timeOfDayLine(now: now)
         let classLine = classLine(inputs: inputs, day: day)
         let noteKind = noteKind(for: entity, inputs: inputs, day: day, now: now)
+        let passageQuery = notePassageQuery(
+            entity: entity,
+            noteKind: noteKind,
+            deliveryContext: "\(timeLine). \(classLine)",
+            memories: memories,
+            priorReply: replyMemory,
+            inputs: inputs
+        )
+        let scorer = semanticScorer
+            ?? (inputs.semanticPassageSelectionEnabled ? SemanticKeepEcho.keepTimeScorer : nil)
+        let selectedPassage = MeaningfulPassageSelector.select(
+            pages: (inputs.days + [day]).flatMap(\.capturedPages),
+            query: passageQuery,
+            inputs: inputs,
+            scorer: scorer,
+            maximumAge: 45 * 86_400,
+            minimumScore: 18,
+            now: now
+        )
+        let passageSection = selectedPassage.map {
+            """
+            Selected reader passage (the note's concrete hinge):
+            - From a \($0.pageType.shortTitle) page: “\($0.excerpt)”
+            - Selection basis: \($0.reason)
+
+            Use the detail only if it sounds natural in this sender's quick hand. Quote at most one short phrase. Never say you searched, ranked, analyzed, or opened an archive.
+            """
+        } ?? "No reader passage strongly fits this note. Do not force a callback."
         let body = """
         Sender: \(entity.name)
         Address the player as: \(playerName)
@@ -4267,8 +4381,8 @@ enum StudentNotePageGenerator {
         Writing voice:
         \(voice.promptDescription)
 
-        Recent kept pages:
-        \(recentPageLines.isEmpty ? "No kept pages yet today." : recentPageLines)
+        Meaningful kept-page context:
+        \(passageSection)
 
         Sender memories:
         \(memories.isEmpty ? "No explicit memory packet for this sender." : memories)
@@ -4278,6 +4392,13 @@ enum StudentNotePageGenerator {
 
         Write one quick in-world note slipped to the player. Keep it brief enough to fit on folded paper. It may ask a question, warn, tease, invite, apologize, pass gossip, or hand over one small saved-up noticing that wants no reply. Do not format as a formal letter. Do not claim the player completed actions not in the packet.
         """
+        var tags = ["note", "student-note", "reply", "sender:\(entity.id)"] + Array(entity.tags.prefix(4))
+        if let selectedPassage {
+            tags += [
+                "\(MeaningfulPassageSelector.sourceTagPrefix)\(selectedPassage.pageID)",
+                "meaningful-source-use:note"
+            ]
+        }
         var metadata = [
             "source": source.id,
             "senderID": entity.id,
@@ -4290,8 +4411,15 @@ enum StudentNotePageGenerator {
             "writingVoice": voice.promptDescription,
             "slotID": slot,
             "placeholder": "\(entity.name) just slipped you a note.",
-            "tags": "note,student-note,reply,sender:\(entity.id),\(entity.tags.prefix(4).joined(separator: ","))"
+            "tags": tags.joined(separator: ",")
         ]
+        if let selectedPassage {
+            metadata["meaningfulSourcePageID"] = selectedPassage.pageID
+            metadata["meaningfulSourcePageType"] = selectedPassage.pageType.rawValue
+            metadata["meaningfulSourcePassage"] = selectedPassage.excerpt
+            metadata["meaningfulSourceReason"] = selectedPassage.reason
+            metadata["meaningfulSourceSemanticSimilarity"] = selectedPassage.semanticSimilarity.map { String($0) } ?? ""
+        }
         if let asset = CharacterPortrait.bundledAssetName(forName: entity.name) {
             metadata["assetName"] = asset
         }
@@ -4323,6 +4451,30 @@ enum StudentNotePageGenerator {
             .replacingOccurrences(of: "\n", with: " ")
             .prefix(160)
         return "\(senderName) remembers a note passed back by the reader: \"\(excerpt)...\""
+    }
+
+    private static func notePassageQuery(
+        entity: NarrativeWorldEntity,
+        noteKind: String,
+        deliveryContext: String,
+        memories: String,
+        priorReply: String?,
+        inputs: BookSourceInputs
+    ) -> String {
+        var pieces = [
+            entity.name,
+            noteKind,
+            deliveryContext,
+            entity.beliefs.prefix(2).joined(separator: " "),
+            entity.traits.prefix(4).joined(separator: " "),
+            entity.tags.prefix(6).joined(separator: " "),
+            memories,
+            priorReply ?? ""
+        ]
+        pieces += inputs.currentArc.map { [$0.title, $0.phase.rawValue] } ?? []
+        pieces += inputs.activeWorldEvents.prefix(2).map { "\($0.title) \($0.packet.logline)" }
+        pieces += inputs.continuity.strongestSignals.prefix(3).map(\.line)
+        return pieces.filter { !$0.isEmpty }.joined(separator: ". ")
     }
 
     private static func selectedEntity(for day: BookDay, inputs: BookSourceInputs, now: Date) -> NarrativeWorldEntity? {
@@ -4393,11 +4545,23 @@ enum StudentNotePageGenerator {
 }
 
 enum CharacterLetterPageGenerator {
-    static func draftCandidate(for day: BookDay, inputs: BookSourceInputs, now: Date = Date()) -> SurfacePage? {
+    static func draftCandidate(
+        for day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date = Date(),
+        semanticScorer: StacksSemanticScoring? = nil
+    ) -> SurfacePage? {
         let inputs = inputs.resolvingWorldEvents(for: day, now: now)
         let source = BookPageSourceRegistry.source(for: .letter)
         guard let entity = selectedEntity(for: day, inputs: inputs, now: now) else { return nil }
-        return draftCandidate(for: entity, source: source, day: day, inputs: inputs, now: now)
+        return draftCandidate(
+            for: entity,
+            source: source,
+            day: day,
+            inputs: inputs,
+            now: now,
+            semanticScorer: semanticScorer
+        )
     }
 
     static func draftCandidate(
@@ -4405,7 +4569,8 @@ enum CharacterLetterPageGenerator {
         source: BookPageSource,
         day: BookDay,
         inputs: BookSourceInputs,
-        now: Date
+        now: Date,
+        semanticScorer: StacksSemanticScoring? = nil
     ) -> SurfacePage {
         let slot = SurfaceCadence.slotID(for: now, hours: 12)
         let interest = entity.unwrittenInterest?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
@@ -4415,7 +4580,6 @@ enum CharacterLetterPageGenerator {
         let homeContext = homeContextLine(inputs: inputs, day: day)
         let playerName = preferredPlayerName(inputs: inputs)
         let voice = voiceProfile(for: entity)
-        let memoryPacket = memoryPacket(for: entity, day: day, inputs: inputs)
         let talismanMoves = ChapterTalismanBeliefMoves.moves(
             for: [entity],
             seed: stableIndex(for: "\(day.id)-\(slot)-\(entity.id)-letter-talisman", count: 10_000)
@@ -4433,6 +4597,26 @@ enum CharacterLetterPageGenerator {
             inputs: inputs,
             allowInCurrentLetter: !isFirstLetterFromSender
         )
+        let passageQuery = letterPassageQuery(
+            entity: entity,
+            interest: interest,
+            occasion: occasion,
+            crossLetter: crossLetter,
+            relationshipWeather: relationshipWeather,
+            inputs: inputs
+        )
+        let scorer = semanticScorer
+            ?? (inputs.semanticPassageSelectionEnabled ? SemanticKeepEcho.keepTimeScorer : nil)
+        let selectedPassage = isFirstLetterFromSender ? nil : MeaningfulPassageSelector.select(
+            pages: (inputs.days + [day]).flatMap(\.capturedPages),
+            query: passageQuery,
+            inputs: inputs,
+            scorer: scorer,
+            maximumAge: 180 * 86_400,
+            minimumScore: 18,
+            now: now
+        )
+        let memoryPacket = memoryPacket(for: entity, inputs: inputs, selectedPassage: selectedPassage)
         let eventPacket = inputs.activeWorldEvents.influencePacket
         let letterEventInstruction = inputs.activeWorldEvents
             .map { $0.packet.letterInstruction }
@@ -4468,6 +4652,13 @@ enum CharacterLetterPageGenerator {
 
         Write a real letter to the player. If this is the first letter from this sender, make it an introduction letter first: the sender should name their relation to the margins, reveal their voice through one or two concrete self-details, and offer a small reason the player might want to hear from them again. Do not assume prior intimacy. If a letter occasion is given, it is the reason this letter exists - open from it and let it carry the letter, gently and without diagnosing. Offscreen relationship weather is optional ambience: mention at most one line, in passing, only if it fits the letter's natural voice; do not turn it into the main plot or invent a full argument. Use live web research if clippings are supplied. If no clippings are supplied, fall back to the model's own general knowledge without pretending it browsed.
         """
+        var tags = ["letter", "letters", "research", "sender:\(entity.id)"] + Array(entity.tags.prefix(4))
+        if let selectedPassage {
+            tags += [
+                "\(MeaningfulPassageSelector.sourceTagPrefix)\(selectedPassage.pageID)",
+                "meaningful-source-use:letter"
+            ]
+        }
         var metadata = [
             "source": source.id,
             "senderID": entity.id,
@@ -4485,8 +4676,15 @@ enum CharacterLetterPageGenerator {
             "chapterTalismanDeltas": talismanDeltaTokens,
             "slotID": slot,
             "placeholder": "A researched letter is being written through the Margin-Glass.",
-            "tags": "letter,letters,research,sender:\(entity.id),\(entity.tags.prefix(4).joined(separator: ","))"
+            "tags": tags.joined(separator: ",")
         ]
+        if let selectedPassage {
+            metadata["meaningfulSourcePageID"] = selectedPassage.pageID
+            metadata["meaningfulSourcePageType"] = selectedPassage.pageType.rawValue
+            metadata["meaningfulSourcePassage"] = selectedPassage.excerpt
+            metadata["meaningfulSourceReason"] = selectedPassage.reason
+            metadata["meaningfulSourceSemanticSimilarity"] = selectedPassage.semanticSimilarity.map { String($0) } ?? ""
+        }
         if !eventPacket.isEmpty {
             metadata["worldEventPacket"] = eventPacket
             metadata["worldEventLetterInstruction"] = letterEventInstruction
@@ -4736,17 +4934,27 @@ enum CharacterLetterPageGenerator {
             .contains { $0.type == .letter && $0.tags.contains("sender:\(entity.id)") }
     }
 
-    private static func memoryPacket(for entity: NarrativeWorldEntity, day: BookDay, inputs: BookSourceInputs) -> String {
-        let pages = day.pages.suffix(6).map { "- \($0.promptText): \($0.userInput.bookPreviewSentenceLimit(1))" }.joined(separator: "\n")
+    private static func memoryPacket(
+        for entity: NarrativeWorldEntity,
+        inputs: BookSourceInputs,
+        selectedPassage: MeaningfulPassageSelector.Selection?
+    ) -> String {
         let memories = inputs.narrative?.entityMemories
             .filter { $0.entityID == entity.id }
             .prefix(4)
             .map { "- \($0.summary)" }
             .joined(separator: "\n") ?? ""
         let continuity = continuityPacket(for: entity, inputs: inputs)
+        let passage = selectedPassage.map {
+            """
+            - From a \($0.pageType.shortTitle) page: “\($0.excerpt)”
+            - Selection basis: \($0.reason)
+            - Let this be the letter's concrete hinge only if it belongs in this sender's voice. Quote at most one short phrase. Never say you searched, ranked, analyzed, or opened an archive.
+            """
+        } ?? "No reader passage strongly fits this letter. Do not force a callback."
         return """
-        Recent pages:
-        \(pages.isEmpty ? "No kept pages yet today." : pages)
+        Selected reader passage:
+        \(passage)
 
         Entity memories:
         \(memories.isEmpty ? "No explicit memory packet for this sender." : memories)
@@ -4754,6 +4962,36 @@ enum CharacterLetterPageGenerator {
         What the Book has begun to notice:
         \(continuity.isEmpty ? "No stable literary pattern has been offered to this sender." : continuity)
         """
+    }
+
+    private static func letterPassageQuery(
+        entity: NarrativeWorldEntity,
+        interest: String,
+        occasion: String?,
+        crossLetter: String?,
+        relationshipWeather: [String],
+        inputs: BookSourceInputs
+    ) -> String {
+        var pieces = [
+            entity.name,
+            interest,
+            entity.beliefs.prefix(3).joined(separator: " "),
+            entity.traits.prefix(4).joined(separator: " "),
+            entity.goals.prefix(3).joined(separator: " "),
+            entity.tags.prefix(7).joined(separator: " "),
+            occasion ?? "",
+            crossLetter ?? "",
+            relationshipWeather.joined(separator: " ")
+        ]
+        pieces += inputs.narrative?.entityMemories
+            .filter { $0.entityID == entity.id }
+            .prefix(4)
+            .map(\.summary) ?? []
+        pieces += inputs.currentArc.map { [$0.title, $0.phase.rawValue] } ?? []
+        pieces += inputs.continuity.strongestSignals.prefix(4).map(\.line)
+        pieces += inputs.themes.sorted { $0.strength > $1.strength }.prefix(2).flatMap { [$0.name, $0.line] }
+        pieces += inputs.clusters.sorted { $0.strength > $1.strength }.prefix(2).flatMap { [$0.name, $0.line] }
+        return pieces.filter { !$0.isEmpty }.joined(separator: ". ")
     }
 
     private static func continuityPacket(for entity: NarrativeWorldEntity, inputs: BookSourceInputs) -> String {

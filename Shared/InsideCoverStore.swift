@@ -1225,6 +1225,7 @@ enum LocalModelManager {
         activeWorldEvents: [ResolvedWorldEvent] = [],
         readerLexicon: ReaderLexicon = ReaderLexicon(),
         readerLearning: ReaderLearningModel = ReaderLearningModel(),
+        semanticScorer: StacksSemanticScoring? = nil,
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> BraidContext {
@@ -1238,6 +1239,7 @@ enum LocalModelManager {
             activeWorldEvents: activeWorldEvents,
             readerLexicon: readerLexicon,
             readerLearning: readerLearning,
+            semanticScorer: semanticScorer,
             now: now,
             calendar: calendar
         )

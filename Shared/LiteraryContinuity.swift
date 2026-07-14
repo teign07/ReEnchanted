@@ -47,6 +47,7 @@ enum BraidPromptBuilder {
         var memoryDigest: BindingMemoryDigest = .empty
         var semanticEchoSourceIDs: [String] = []
         var semanticEchoLines: [String] = []
+        var meaningfulSpinePassages: [MeaningfulPassageSelector.Selection] = []
         var souvenirAnchor: SouvenirAnchor?
 
         static let empty = Context()
@@ -71,6 +72,7 @@ enum BraidPromptBuilder {
         activeWorldEvents: [ResolvedWorldEvent] = [],
         readerLexicon: ReaderLexicon = ReaderLexicon(),
         readerLearning: ReaderLearningModel = ReaderLearningModel(),
+        semanticScorer: StacksSemanticScoring? = nil,
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> Context {
@@ -95,6 +97,29 @@ enum BraidPromptBuilder {
         // Reader-taught Gemma notes sort ahead of the deterministic heuristics:
         // the reader said this braid missed, and the Book listened.
         let merged = BraidLearningGuidance(signals: BraidLearningLoop.readerTaughtSignals(from: learnedNotes) + learned.signals)
+        var passageInputs = BookSourceInputs.empty
+        passageInputs.days = days
+        passageInputs.themes = themes
+        let spineQuery = ([
+            theme?.name ?? "",
+            theme?.line ?? "",
+            chapter?.name ?? "",
+            chapter?.philosophy ?? ""
+        ] + day.capturedPages.flatMap { page in
+            [page.promptText, page.tags.joined(separator: " "), page.resolvedAttentionFingerprint.patternTokens.joined(separator: " ")]
+        } + semanticEchoes.lines).filter { !$0.isEmpty }.joined(separator: ". ")
+        let meaningfulSpinePassages = MeaningfulPassageSelector.rankedSelections(
+            pages: day.capturedPages,
+            query: spineQuery,
+            inputs: passageInputs,
+            scorer: semanticScorer,
+            limit: 3,
+            maximumAge: 3 * 86_400,
+            minimumScore: 14,
+            honorPriorUse: false,
+            diversifyPageTypes: true,
+            now: now
+        )
 
         return Context(
             recentBraids: recentBraids,
@@ -108,6 +133,7 @@ enum BraidPromptBuilder {
             memoryDigest: memoryDigest,
             semanticEchoSourceIDs: semanticEchoes.sourceIDs,
             semanticEchoLines: semanticEchoes.lines,
+            meaningfulSpinePassages: meaningfulSpinePassages,
             souvenirAnchor: souvenirAnchor(in: day)
         )
     }
@@ -245,6 +271,7 @@ enum BraidPromptBuilder {
     static func prompt(for day: BookDay, context: Context) -> String {
         let evidence = evidenceLines(for: day).joined(separator: "\n\n")
         let souvenirSection = souvenirSpineSection(for: day, context: context)
+        let meaningfulSpineSection = meaningfulSpineSection(context: context)
         let continuity: String
         if context.recentBraids.isEmpty {
             continuity = ""
@@ -424,7 +451,7 @@ enum BraidPromptBuilder {
         - One-Sentence Souvenirs remain the strongest single spine candidates, because they are the reader choosing one true line.
         - A fiction page where the reader made a real decision - a chosen Story Page path, a paid bargain, an answered parley - is reader-endorsed: it may carry the spine when the day's truest turn happened there.
         - When the shelves disagree about facts, the lived shelf wins. The fiction may color the real; it may never overwrite it.
-        \(souvenirSection)
+        \(souvenirSection)\(meaningfulSpineSection)
 
         VOICE:
         \(BookVoice.animism)
@@ -477,6 +504,25 @@ enum BraidPromptBuilder {
         - This sentence, or the concrete thing inside it, must be visible in the braid's opening, must affect the "Until" turn or the thing that changes, and must return transformed in "The Book kept the page:".
         - Do not paste the full sentence back. Carry its image, object, action, or pressure through the braid so the reader can feel the Book read it.
         - If fiction pages are vivid, braid them around this sentence rather than away from it.
+        """
+    }
+
+    private static func meaningfulSpineSection(context: Context) -> String {
+        guard !context.meaningfulSpinePassages.isEmpty else { return "" }
+        let passages = context.meaningfulSpinePassages.enumerated().map { index, selection in
+            "\(index + 1). \(selection.pageType.shortTitle): “\(selection.excerpt)” (\(selection.reason))"
+        }.joined(separator: "\n")
+        return """
+
+
+        MEANINGFUL PASSAGE COMPASS:
+        \(passages)
+
+        PASSAGE-COMPASS RULE:
+        - These are the day's most relevant, specific reader-authored passages, selected from inside the keeps rather than from their openings.
+        - Choose one as the braid's main hinge unless the required Souvenir Spine is stronger; the others may support it, but do not force them all into the prose.
+        - The complete kept-page evidence below still governs the facts and the day's clock. This compass chooses emphasis; it does not erase the other pages.
+        - Quote at most one short phrase and never mention selection, scoring, embeddings, or an archive.
         """
     }
 

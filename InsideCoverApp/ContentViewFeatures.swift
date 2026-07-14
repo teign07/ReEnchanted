@@ -1541,6 +1541,17 @@ extension ContentView {
 
     @MainActor
     private func gemmaWeeklyIssueEditorialNote(for issue: WeeklyIssue) async -> String? {
+        if let spec = BindingStoryPromptBuilder.weekly(for: issue),
+           let raw = await LocalBrainProse.write(
+               prompt: spec.prompt,
+               instructions: BraidInstructions.bookOfYou,
+               maxTokens: spec.maxTokens,
+               sourceID: spec.sourceID,
+               tags: ["edition", "weekly-issue", "binding-story", "gemma"]
+           ) {
+            let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !cleaned.isEmpty { return cleaned }
+        }
         let highlights = issue.highlights.isEmpty
             ? "- No highlight lines were available."
             : issue.highlights.map { "- \($0)" }.joined(separator: "\n")
@@ -1592,23 +1603,64 @@ extension ContentView {
         var bound = edition
         async let foreword = gemmaMonthlyForeword(for: edition)
         async let closing = gemmaMonthlyClosing(for: edition)
+        async let bindingStory = gemmaMonthlyBindingStory(for: edition)
         if let gemma = await foreword {
             bound.foreword = gemma
         }
         if let gemma = await closing {
             bound.closing = gemma
         }
+        if let story = await bindingStory {
+            bound.bindingStory = story
+            let storyItem = MonthlyEditionItem(
+                id: "monthly-binding-story",
+                kind: .continuity,
+                title: "The Month, Braided",
+                body: story,
+                date: edition.endDate,
+                pageType: .bookOfYou,
+                sourceID: "monthly-binding-story",
+                mediaAssets: [],
+                tags: ["monthly-binding-story", "binding-of-bindings"]
+            )
+            bound.sections.removeAll { $0.id == "monthly-binding-story" }
+            let storySection = MonthlyEditionSection(
+                id: "monthly-binding-story",
+                title: "The Month, Braided",
+                note: "A continuous story drawn from the month's nightly Book of You pages and its most meaningful eligible keeps.",
+                items: [storyItem]
+            )
+            let insertionIndex = bound.sections.firstIndex { $0.id == "daily-braids" } ?? bound.sections.endIndex
+            bound.sections.insert(storySection, at: insertionIndex)
+        }
         return bound
     }
 
-    private func monthlyBindingPromptMaterial(for edition: MonthlyEdition) -> (themeLine: String, signals: String, named: String, memorySpine: String) {
+    @MainActor
+    private func gemmaMonthlyBindingStory(for edition: MonthlyEdition) async -> String? {
+        guard let spec = BindingStoryPromptBuilder.monthly(for: edition) else { return nil }
+        guard let raw = await LocalBrainProse.write(
+            prompt: spec.prompt,
+            instructions: BraidInstructions.bookOfYou,
+            maxTokens: spec.maxTokens,
+            sourceID: spec.sourceID,
+            tags: ["edition", "monthly", "binding-story", "gemma"]
+        ) else { return nil }
+        let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
+    private func monthlyBindingPromptMaterial(for edition: MonthlyEdition) -> (themeLine: String, signals: String, named: String, memorySpine: String, passageCompass: String) {
         let themeLine = edition.theme.map { "The month's theme was \u{201C}\($0.name)\u{201D}: \($0.line)" } ?? "No settled monthly theme was named."
         let signals = edition.continuity.strongestSignals.prefix(4).map(\.line).joined(separator: " ")
         let named = (edition.constellations.filter(\.isNamed).prefix(3).map(\.displayName)).joined(separator: ", ")
         let memorySpine = edition.memorySpinePromptLines.isEmpty
             ? "No nightly braid residue was available."
             : edition.memorySpinePromptLines.map { "- \($0)" }.joined(separator: "\n")
-        return (themeLine, signals, named.isEmpty ? "none yet" : named, memorySpine)
+        let passageCompass = (edition.passageCompass ?? []).isEmpty
+            ? "No reader-authored passage cleared the relevance threshold."
+            : (edition.passageCompass ?? []).prefix(6).map { "- \($0.pageType.shortTitle): “\($0.excerpt)”" }.joined(separator: "\n")
+        return (themeLine, signals, named.isEmpty ? "none yet" : named, memorySpine, passageCompass)
     }
 
     /// The on-device brain writes the monthly foreword. The deterministic
@@ -1624,6 +1676,8 @@ extension ContentView {
         Named threads: \(material.named)
         Book Memory Spine from nightly braids:
         \(material.memorySpine)
+        Selected reader-authored passages from meaningful parts of eligible keeps:
+        \(material.passageCompass)
         Write 2 to 4 short paragraphs. Be specific to the supplied material. Do not invent events. End on the line "- The Book".
         """
         guard let raw = await LocalBrainProse.write(
@@ -1651,6 +1705,8 @@ extension ContentView {
         Named threads still alight: \(material.named)
         Book Memory Spine from nightly braids:
         \(material.memorySpine)
+        Selected reader-authored passages from meaningful parts of eligible keeps:
+        \(material.passageCompass)
         Two or three short paragraphs. End on the line "- The Book". Do not invent events; only reflect what is given.
         """
         guard let raw = await LocalBrainProse.write(

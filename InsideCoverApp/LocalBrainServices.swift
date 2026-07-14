@@ -314,7 +314,8 @@ struct MLXBookBraider: Braider {
                 ),
                 activeWorldEvents: activeWorldEvents,
                 readerLexicon: PlayerVault.shared.data.readerLexicon ?? ReaderLexicon(),
-                readerLearning: PlayerVault.shared.data.readerLearning ?? ReaderLearningModel()
+                readerLearning: PlayerVault.shared.data.readerLearning ?? ReaderLearningModel(),
+                semanticScorer: SemanticKeepEcho.keepTimeScorer
             )
         case .task:
             context = .empty
@@ -3116,17 +3117,23 @@ struct StudentNoteWriter {
         let player = surface.payload.metadata["playerName"]?.nonEmpty ?? "you"
         let kind = surface.payload.metadata["noteKind"] ?? "question"
         let context = surface.payload.metadata["deliveryContext"] ?? "Between classes."
+        let passage = surface.payload.metadata["meaningfulSourcePassage"]?
+            .bookPreviewSentenceLimit(1)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty
+            .map { String($0.prefix(110)) }
+        let hinge = passage.map { "That bit about “\($0)” would not leave me alone." }
         switch kind {
         case "warning":
-            return "\(player),\n\nDo not answer the next obvious question too quickly. \(context) made it sound simple, which is exactly when it starts lying.\n\n-\(sender)"
+            return "\(player),\n\n\(hinge.map { "\($0) " } ?? "")Do not answer the next obvious question too quickly. \(context) made it sound simple, which is exactly when it starts lying.\n\n-\(sender)"
         case "gossip":
-            return "I heard your name in the corridor and then everyone pretended the noticeboard was fascinating.\n\nFind me after class?\n\n-\(sender)"
+            return "\(hinge.map { "\($0)\n\n" } ?? "")I heard your name in the corridor and then everyone pretended the noticeboard was fascinating.\n\nFind me after class?\n\n-\(sender)"
         case "invitation":
-            return "\(player),\n\nIf you are free later, walk the long way past the shelves. I found something too odd to inspect alone.\n\n-\(sender)"
+            return "\(player),\n\n\(hinge.map { "\($0) " } ?? "")If you are free later, walk the long way past the shelves. I found something too odd to inspect alone.\n\n-\(sender)"
         case "tease":
-            return "You looked like you were winning an argument with your own notebook.\n\nFor the record, I think the notebook started it.\n\n-\(sender)"
+            return "\(hinge.map { "\($0)\n\n" } ?? "")You looked like you were winning an argument with your own notebook.\n\nFor the record, I think the notebook started it.\n\n-\(sender)"
         default:
-            return "\(player),\n\nQuick question, before the room changes its mind: did you notice the same thing I did?\n\n-\(sender)"
+            return "\(player),\n\n\(hinge.map { "\($0) " } ?? "")Quick question, before the room changes its mind: did you notice the same thing I did?\n\n-\(sender)"
         }
     }
 }
@@ -3197,6 +3204,11 @@ struct CharacterLetterWriter {
         let interest = surface.payload.metadata["unwrittenInterest"] ?? "ordinary wonder"
         let home = surface.payload.metadata["homeContext"] ?? "your home"
         let clippings = surface.payload.metadata["letterResearchClippings"]?.nonEmpty
+        let passage = surface.payload.metadata["meaningfulSourcePassage"]?
+            .bookPreviewSentenceLimit(1)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty
+            .map { String($0.prefix(150)) }
         let researchLine = clippings.map { "I found this in the public stacks:\n\($0)" }
             ?? "The public stacks did not answer in time, so I am leaning on what I already know."
         if surface.payload.metadata["letterRelationshipStage"] == "introduction" {
@@ -3213,10 +3225,15 @@ struct CharacterLetterWriter {
             \(sender)
             """
         }
+        let passageParagraph = passage.map {
+            "There was one line of yours I could not leave alone: “\($0)” It put weather on the question instead of answering it for me."
+        } ?? ""
         return """
         Dear \(playerName),
 
         I went looking for \(interest), especially where it brushes against \(home). \(researchLine)
+
+        \(passageParagraph)
 
         What interested me was not the grand theory, but the way a subject changes when it has to pass through a real doorway. A fact becomes different when it has weather on it, errands near it, and one person deciding whether to notice.
 
