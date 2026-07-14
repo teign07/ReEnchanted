@@ -120,6 +120,12 @@ protocol StacksSemanticScoring {
 
 #if canImport(NaturalLanguage)
 struct NaturalLanguageStacksEmbeddingScorer: StacksSemanticScoring {
+    /// CoreNLP's sentence embedding can share mutable native state even across
+    /// separate `NLEmbedding` wrappers. Surface refreshes may overlap, so all
+    /// distance calls must cross one process-wide gate. Without it, concurrent
+    /// calls can crash inside `CoreNLP::ContextualWordEmbedding`.
+    private static let distanceLock = NSLock()
+
     let language: NLLanguage
     let modelID: String
     private let embedding: NLEmbedding
@@ -135,7 +141,9 @@ struct NaturalLanguageStacksEmbeddingScorer: StacksSemanticScoring {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedDocument = document.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty, !trimmedDocument.isEmpty else { return nil }
+        Self.distanceLock.lock()
         let distance = embedding.distance(between: trimmedQuery, and: trimmedDocument)
+        Self.distanceLock.unlock()
         guard distance.isFinite else { return nil }
         return max(0, min(1, 1 - distance))
     }
