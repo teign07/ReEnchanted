@@ -714,7 +714,7 @@ struct BraidPageDetails: Equatable {
             return HeaderContext(
                 timeLabel: formatter.string(from: page.createdAt),
                 locationLabel: locationLabel(from: inputs),
-                weatherWord: weatherWord(from: inputs),
+                weatherWord: weatherWord(from: inputs, day: day),
                 moonPhaseName: MoonPhaseCalendar.phase(on: page.createdAt).name,
                 fuelLabel: fuelLabel(from: inputs, day: day),
                 innerWeatherLabel: innerWeatherLabel(from: inputs, day: day)
@@ -722,24 +722,25 @@ struct BraidPageDetails: Equatable {
         }
 
         private static func locationLabel(from inputs: BookSourceInputs) -> String {
+            if let currentLocationLabel = inputs.currentLocationLabel?.nonEmpty {
+                return currentLocationLabel
+            }
             if let anchorName = inputs.nearbyAnchor?.anchor.name.nonEmpty {
                 return anchorName
             }
-            if let place = inputs.nearbyPlaces.first {
-                if let locality = place.locality.nonEmpty {
-                    return "\(place.name), \(locality)"
-                }
-                return place.name
-            }
-            return "Location unknown"
+            return "Current place"
         }
 
-        private static func weatherWord(from inputs: BookSourceInputs) -> String {
+        private static func weatherWord(from inputs: BookSourceInputs, day: BookDay) -> String {
             if let selector = inputs.enchantedWeather?.selector.nonEmpty {
                 return selector
             }
             guard let phrase = inputs.weather?.phrase.nonEmpty else {
-                return "weather unknown"
+                return day.capturedPages
+                    .sorted(by: { $0.createdAt > $1.createdAt })
+                    .compactMap(\.context)
+                    .flatMap(\.weatherTags)
+                    .first?.nonEmpty ?? "not recorded"
             }
             let lowered = phrase.lowercased()
             let candidates = [
@@ -750,7 +751,7 @@ struct BraidPageDetails: Equatable {
             return candidates.first(where: { lowered.contains($0) }) ?? phrase
                 .split { !$0.isLetter }
                 .first
-                .map { String($0).lowercased() } ?? "weather unknown"
+                .map { String($0).lowercased() } ?? "not recorded"
         }
 
         private static func fuelLabel(from inputs: BookSourceInputs, day: BookDay) -> String {
@@ -2347,7 +2348,7 @@ enum LiteraryContinuityProjector {
     ) -> [LiteraryContinuitySignal] {
         var buckets: [String: [BookPage]] = [:]
         for page in pages {
-            let text = "\(page.promptText) \(page.userInput) \(page.tags.joined(separator: " "))"
+            let text = page.resolvedAttentionFingerprint.patternText
             for word in meaningfulWords(in: text) {
                 buckets[word, default: []].append(page)
             }
@@ -2392,14 +2393,14 @@ enum LiteraryContinuityProjector {
         guard olderPages.count >= 3 else { return [] }
         var buckets: [String: [BookPage]] = [:]
         for page in olderPages {
-            let text = "\(page.promptText) \(page.userInput) \(page.tags.joined(separator: " "))"
+            let text = page.resolvedAttentionFingerprint.patternText
             for word in meaningfulWords(in: text) {
                 buckets[word, default: []].append(page)
             }
         }
         let recentText = pages
             .filter { $0.createdAt >= historyCutoff }
-            .map { "\($0.promptText) \($0.userInput) \($0.tags.joined(separator: " "))" }
+            .map { $0.resolvedAttentionFingerprint.patternText }
             .joined(separator: " ")
         let recentWords = meaningfulWords(in: recentText)
         return buckets.compactMap { word, matches in
@@ -2568,6 +2569,470 @@ enum LiteraryContinuityProjector {
     }
 }
 
+// MARK: - Context Weave
+//
+// The general relationship finder. It lays the reader's own prose beside the
+// coarse context each page carried home in its BookPageContextSnapshot —
+// weather, hour, weekend, body, busy-ness, familiar place — and speaks only
+// when a writing habit keeps choosing one condition over the others. Every
+// comparison is two-sided (rainy pages against dry ones, never rainy pages
+// against nothing), reads only the context that was true when the page was
+// kept, and is phrased as an observation the reader may overrule.
+
+/// One discovered relationship between how (or what) the reader writes and a
+/// condition the pages were kept under.
+struct ContextConnection: Identifiable, Equatable {
+    enum Kind: String, Equatable {
+        /// A writing manner (tone, hedging, length, questions) that leans
+        /// into one condition.
+        case manner
+        /// A recurring subject word that only ever appears under one
+        /// condition.
+        case subject
+    }
+
+    /// Stable across days, but includes an evidence bucket so a connection
+    /// may honestly speak again once it has gathered meaningfully more pages.
+    var id: String
+    var kind: Kind
+    var facetID: String
+    var headline: String
+    var line: String
+    var evidencePageIDs: [String]
+    var strength: Int
+    var inHits: Int
+    var inCount: Int
+    var outHits: Int
+    var outCount: Int
+}
+
+enum ContextWeave {
+    // MARK: Tone lexicons
+
+    /// Weather and hour words are deliberately absent from both lexicons:
+    /// "the bright sun" on a clear day or "dark" after nightfall would let a
+    /// facet predict itself and the connection would be circular, not read.
+    static let brightInkWords: Set<String> = [
+        "glad", "happy", "happiness", "laugh", "laughed", "laughing", "laughter",
+        "love", "loved", "lovely", "sweet", "joy", "joyful", "delight", "delighted",
+        "fun", "funny", "smile", "smiled", "smiling", "grin", "grinning",
+        "grateful", "gratitude", "thankful", "calm", "peaceful", "gentle",
+        "cozy", "snug", "proud", "excited", "alive", "wonderful", "beautiful",
+        "kind", "hopeful", "hope", "singing", "sang", "dancing", "danced"
+    ]
+
+    static let heavyInkWords: Set<String> = [
+        "sad", "sadness", "sadder", "tired", "exhausted", "weary", "heavy",
+        "heavier", "alone", "lonely", "loneliness", "hurt", "hurts", "hurting",
+        "ache", "aches", "aching", "cried", "cry", "crying", "tears", "worry",
+        "worried", "worrying", "anxious", "anxiety", "afraid", "fear", "fearful",
+        "scared", "empty", "hollow", "lost", "angry", "anger", "frustrated",
+        "frustrating", "grief", "grieving", "mourning", "numb", "dread",
+        "sore", "sick", "awful", "terrible", "dreading", "overwhelmed"
+    ]
+
+    enum InkTone: String, Equatable {
+        case bright
+        case heavy
+    }
+
+    /// The page's dominant emotional register, or nil when the ink is
+    /// neutral or evenly mixed. Strict majority only — the Book never breaks
+    /// a tie on the reader's behalf.
+    static func tone(of text: String) -> InkTone? {
+        var bright = 0
+        var heavy = 0
+        for word in tokens(in: text) {
+            if brightInkWords.contains(word) { bright += 1 }
+            if heavyInkWords.contains(word) { heavy += 1 }
+        }
+        guard bright != heavy else { return nil }
+        return bright > heavy ? .bright : .heavy
+    }
+
+    // MARK: Measures — how a page is written
+
+    enum Measure: String, CaseIterable {
+        case heavyInk = "heavy-ink"
+        case brightInk = "bright-ink"
+        case hedged
+        case asking
+        case longform
+        case brisk
+
+        /// "\(spelled(n)) of them …" — the clause that reports the in-facet hits.
+        var hitPhrase: String {
+            switch self {
+            case .heavyInk: return "lean on the heavier words"
+            case .brightInk: return "reach for the brighter words"
+            case .hedged: return "hedge — maybe, perhaps, I think"
+            case .asking: return "end up asking questions"
+            case .longform: return "run long, taking the air"
+            case .brisk: return "stay brisk, a few quick strokes"
+            }
+        }
+
+        /// The sentence that opens the observation.
+        func hook(inPhrase: String) -> String {
+            switch self {
+            case .heavyInk: return "The ink runs heavier \(inPhrase)."
+            case .brightInk: return "The ink runs brighter \(inPhrase)."
+            case .hedged: return "The maybes gather \(inPhrase)."
+            case .asking: return "Your questions arrive \(inPhrase)."
+            case .longform: return "The sentences stretch out \(inPhrase)."
+            case .brisk: return "The sentences shorten their stride \(inPhrase)."
+            }
+        }
+    }
+
+    static func matches(_ measure: Measure, page: BookPage, medianWords: Int) -> Bool {
+        switch measure {
+        case .heavyInk: return tone(of: page.userInput) == .heavy
+        case .brightInk: return tone(of: page.userInput) == .bright
+        case .hedged: return hedgeCount(in: page.userInput) >= 1
+        case .asking: return page.userInput.contains("?")
+        case .longform: return wordCount(of: page.userInput) >= max(30, medianWords * 17 / 10)
+        case .brisk: return wordCount(of: page.userInput) <= max(6, medianWords / 2)
+        }
+    }
+
+    // MARK: Facets — the conditions a page was kept under
+
+    struct Facet: Equatable {
+        var id: String
+        var family: String
+        var inPhrase: String
+        var outPhrase: String
+    }
+
+    /// Families whose membership every page can claim; the rest require the
+    /// page to carry a context snapshot recording that dimension. A page may
+    /// belong to a family without matching any facet in it (a mild-weather
+    /// page still counts as "not rainy") — that is what keeps the out-group
+    /// honest.
+    static func families(for page: BookPage) -> Set<String> {
+        var out: Set<String> = ["hour", "week"]
+        guard let context = page.context else { return out }
+        if !context.weatherTags.isEmpty { out.insert("weather") }
+        if context.bodyScore != nil { out.insert("body") }
+        if context.calendarEventCount != nil { out.insert("tempo") }
+        out.insert("place")
+        return out
+    }
+
+    static func facetIDs(for page: BookPage, calendar: Calendar) -> Set<String> {
+        var out: Set<String> = []
+        let dayPart: String
+        if let stored = page.context?.dayPart,
+           ["morning", "afternoon", "evening", "night"].contains(stored) {
+            dayPart = stored
+        } else {
+            dayPart = LiteraryContinuityProjector.dayBand(for: page.createdAt, calendar: calendar)
+        }
+        out.insert("hour:\(dayPart)")
+        out.insert(calendar.isDateInWeekend(page.createdAt) ? "week:weekend" : "week:weekday")
+        if let context = page.context {
+            for tag in context.weatherTags {
+                out.insert("weather:\(tag)")
+            }
+            if let score = context.bodyScore {
+                if score <= 40 { out.insert("body:low") }
+                if score >= 70 { out.insert("body:high") }
+            }
+            if let events = context.calendarEventCount {
+                if events >= 3 { out.insert("tempo:crowded") }
+                if events == 0 { out.insert("tempo:open") }
+            }
+            if let anchor = context.nearbyAnchorID {
+                out.insert("place:\(anchor)")
+            }
+        }
+        return out
+    }
+
+    static func facet(for facetID: String) -> Facet {
+        let family = String(facetID.prefix(while: { $0 != ":" }))
+        let value = String(facetID.dropFirst(family.count + 1))
+        switch facetID {
+        case "hour:morning":
+            return Facet(id: facetID, family: family, inPhrase: "in the morning hours", outPhrase: "at other hours")
+        case "hour:afternoon":
+            return Facet(id: facetID, family: family, inPhrase: "in the afternoon", outPhrase: "at other hours")
+        case "hour:evening":
+            return Facet(id: facetID, family: family, inPhrase: "in the evening", outPhrase: "at other hours")
+        case "hour:night":
+            return Facet(id: facetID, family: family, inPhrase: "after dark", outPhrase: "in daylight")
+        case "week:weekend":
+            return Facet(id: facetID, family: family, inPhrase: "on weekends", outPhrase: "on weekdays")
+        case "week:weekday":
+            return Facet(id: facetID, family: family, inPhrase: "on weekdays", outPhrase: "on weekends")
+        case "weather:rain":
+            return Facet(id: facetID, family: family, inPhrase: "while it was raining", outPhrase: "under other skies")
+        case "weather:storm":
+            return Facet(id: facetID, family: family, inPhrase: "while a storm was about", outPhrase: "under calmer skies")
+        case "weather:snow":
+            return Facet(id: facetID, family: family, inPhrase: "while snow was down", outPhrase: "under other skies")
+        case "weather:fog":
+            return Facet(id: facetID, family: family, inPhrase: "in fog", outPhrase: "under clearer skies")
+        case "weather:wind":
+            return Facet(id: facetID, family: family, inPhrase: "on windy days", outPhrase: "on stiller days")
+        case "weather:cloud":
+            return Facet(id: facetID, family: family, inPhrase: "under a clouded sky", outPhrase: "under other skies")
+        case "weather:bright":
+            return Facet(id: facetID, family: family, inPhrase: "under a bright sky", outPhrase: "under other skies")
+        case "weather:hot":
+            return Facet(id: facetID, family: family, inPhrase: "on hot days", outPhrase: "on cooler days")
+        case "weather:cold":
+            return Facet(id: facetID, family: family, inPhrase: "on cold days", outPhrase: "on milder days")
+        case "body:low":
+            return Facet(id: facetID, family: family, inPhrase: "on days the body arrived tired", outPhrase: "on livelier days")
+        case "body:high":
+            return Facet(id: facetID, family: family, inPhrase: "on days the body arrived lively", outPhrase: "on quieter-bodied days")
+        case "tempo:crowded":
+            return Facet(id: facetID, family: family, inPhrase: "on your crowded days", outPhrase: "on days with more room")
+        case "tempo:open":
+            return Facet(id: facetID, family: family, inPhrase: "on days the calendar stood open", outPhrase: "on busier days")
+        default:
+            if family == "place" {
+                return Facet(id: facetID, family: family, inPhrase: "within reach of the same familiar place", outPhrase: "elsewhere")
+            }
+            return Facet(id: facetID, family: family, inPhrase: "while the weather leaned \(value)", outPhrase: "otherwise")
+        }
+    }
+
+    static func headline(forFamily family: String) -> String {
+        switch family {
+        case "weather": return "The Weather in Your Ink"
+        case "hour": return "The Hours in Your Ink"
+        case "week": return "The Shape of Your Weeks"
+        case "body": return "The Body in the Margins"
+        case "tempo": return "The Crowded Days"
+        case "place": return "A Familiar Doorstep"
+        default: return "The Thread Between"
+        }
+    }
+
+    // MARK: Evidence thresholds
+
+    /// Pages kept under the condition, and distinct days among them.
+    static let minimumInPages = 4
+    static let minimumInDays = 3
+    /// Pages kept under the *other* conditions of the same family — no
+    /// one-sided claims.
+    static let minimumOutPages = 4
+    /// The habit must hold on most in-condition pages and clearly not hold
+    /// elsewhere.
+    static let minimumInRate = 0.5
+    static let minimumRateGap = 0.3
+    static let minimumLift = 2.0
+    static let minimumHits = 3
+
+    // MARK: The finder
+
+    static func connections(
+        days: [BookDay],
+        calendar: Calendar = .current
+    ) -> [ContextConnection] {
+        let prose = LiteraryContinuityProjector.mannerProse(
+            in: uniquePages(days.flatMap(\.capturedPages))
+        )
+        guard prose.count >= 10 else { return [] }
+        let medianWords = median(prose.map { wordCount(of: $0.userInput) })
+
+        var familyMembers: [String: [BookPage]] = [:]
+        var facetMembers: [String: [BookPage]] = [:]
+        for page in prose {
+            for family in families(for: page) {
+                familyMembers[family, default: []].append(page)
+            }
+            for facetID in facetIDs(for: page, calendar: calendar) {
+                facetMembers[facetID, default: []].append(page)
+            }
+        }
+
+        var out: [ContextConnection] = []
+        for (facetID, inPages) in facetMembers {
+            let facet = facet(for: facetID)
+            guard let family = familyMembers[facet.family] else { continue }
+            let inIDs = Set(inPages.map(\.id))
+            let outPages = family.filter { !inIDs.contains($0.id) }
+            guard inPages.count >= minimumInPages,
+                  distinctDayCount(of: inPages, calendar: calendar) >= minimumInDays,
+                  outPages.count >= minimumOutPages else { continue }
+
+            for measure in Measure.allCases {
+                if let connection = mannerConnection(
+                    measure: measure,
+                    facet: facet,
+                    inPages: inPages,
+                    outPages: outPages,
+                    medianWords: medianWords
+                ) {
+                    out.append(connection)
+                }
+            }
+            out += subjectConnections(
+                facet: facet,
+                inPages: inPages,
+                outPages: outPages,
+                familyCount: family.count,
+                calendar: calendar
+            )
+        }
+        return out.sorted { left, right in
+            if left.strength != right.strength { return left.strength > right.strength }
+            return left.id < right.id
+        }
+    }
+
+    private static func mannerConnection(
+        measure: Measure,
+        facet: Facet,
+        inPages: [BookPage],
+        outPages: [BookPage],
+        medianWords: Int
+    ) -> ContextConnection? {
+        let inHitPages = inPages.filter { matches(measure, page: $0, medianWords: medianWords) }
+        let outHits = outPages.filter { matches(measure, page: $0, medianWords: medianWords) }.count
+        let inRate = Double(inHitPages.count) / Double(inPages.count)
+        let outRate = Double(outHits) / Double(outPages.count)
+        guard inHitPages.count >= minimumHits,
+              inRate >= minimumInRate,
+              inRate - outRate >= minimumRateGap,
+              inRate >= outRate * minimumLift else { return nil }
+
+        let line = """
+        \(measure.hook(inPhrase: facet.inPhrase)) Of the \(spelled(inPages.count)) pages you kept \(facet.inPhrase), \(spelled(inHitPages.count)) \(measure.hitPhrase). \(facet.outPhrase.sentenceCapitalized), \(spelled(outHits)) of \(spelled(outPages.count)) do.
+        """
+        let evidence = inHitPages
+            .sorted { $0.createdAt > $1.createdAt }
+            .prefix(4)
+            .sorted { $0.createdAt < $1.createdAt }
+        let gap = inRate - outRate
+        let strength = min(84, 50 + Int((gap * 40).rounded()) + min(10, inHitPages.count))
+        return ContextConnection(
+            id: "context-\(facet.id)-\(measure.rawValue)-e\(min(inHitPages.count, 30) / 6)",
+            kind: .manner,
+            facetID: facet.id,
+            headline: headline(forFamily: facet.family),
+            line: line,
+            evidencePageIDs: evidence.map(\.id),
+            strength: strength,
+            inHits: inHitPages.count,
+            inCount: inPages.count,
+            outHits: outHits,
+            outCount: outPages.count
+        )
+    }
+
+    /// A subject word that has only ever appeared under this condition:
+    /// "the harbor only visits these pages while it is raining." Hour facets
+    /// are skipped — hourbound subjects are already the manner system's job.
+    private static func subjectConnections(
+        facet: Facet,
+        inPages: [BookPage],
+        outPages: [BookPage],
+        familyCount: Int,
+        calendar: Calendar
+    ) -> [ContextConnection] {
+        guard facet.family != "hour" else { return [] }
+        // The family must genuinely spread across the condition, or "only
+        // ever here" is trivially true of everything.
+        guard Double(outPages.count) / Double(familyCount) >= 0.4 else { return [] }
+
+        var inWordPages: [String: [BookPage]] = [:]
+        for page in inPages {
+            for word in page.resolvedAttentionFingerprint.subjectTokens + page.resolvedAttentionFingerprint.visualTokens {
+                inWordPages[word, default: []].append(page)
+            }
+        }
+        var outWords: Set<String> = []
+        for page in outPages {
+            outWords.formUnion(page.resolvedAttentionFingerprint.subjectTokens)
+            outWords.formUnion(page.resolvedAttentionFingerprint.visualTokens)
+        }
+
+        var out: [ContextConnection] = []
+        for (word, pages) in inWordPages {
+            let unique = uniquePages(pages)
+            guard unique.count >= minimumHits,
+                  distinctDayCount(of: unique, calendar: calendar) >= minimumInDays,
+                  !outWords.contains(word),
+                  let penalty = LiteraryContinuityProjector.ubiquityPenalty(
+                      pageHits: unique.count,
+                      totalPages: familyCount
+                  ),
+                  penalty <= 8 else { continue }
+
+            let sorted = unique.sorted { $0.createdAt < $1.createdAt }
+            out.append(ContextConnection(
+                id: "context-\(facet.id)-subject-\(word)-e\(min(unique.count, 30) / 6)",
+                kind: .subject,
+                facetID: facet.id,
+                headline: headline(forFamily: facet.family),
+                line: "\(word.capitalized) has only ever stepped into these pages \(facet.inPhrase) — \(spelled(unique.count)) times now, never \(facet.outPhrase).",
+                evidencePageIDs: sorted.suffix(4).map(\.id),
+                strength: min(78, 48 + 5 * min(unique.count, 5) - penalty),
+                inHits: unique.count,
+                inCount: inPages.count,
+                outHits: 0,
+                outCount: outPages.count
+            ))
+        }
+        return out
+    }
+
+    // MARK: Small helpers
+
+    private static func tokens(in text: String) -> [String] {
+        text.lowercased().split { !$0.isLetter }.map(String.init)
+    }
+
+    private static func wordCount(of text: String) -> Int {
+        text.split { !$0.isLetter && !$0.isNumber }.count
+    }
+
+    private static func hedgeCount(in text: String) -> Int {
+        let normalized = " \(text.lowercased().replacingOccurrences(of: "[^a-z]+", with: " ", options: .regularExpression)) "
+        return LiteraryContinuityProjector.mannerHedgeTerms.reduce(0) { sum, term in
+            sum + normalized.components(separatedBy: " \(term) ").count - 1
+        }
+    }
+
+    private static func median(_ values: [Int]) -> Int {
+        guard !values.isEmpty else { return 0 }
+        let sorted = values.sorted()
+        return sorted[sorted.count / 2]
+    }
+
+    private static func distinctDayCount(of pages: [BookPage], calendar: Calendar) -> Int {
+        Set(pages.map { BookDay.id(for: $0.createdAt, calendar: calendar) }).count
+    }
+
+    private static func uniquePages(_ pages: [BookPage]) -> [BookPage] {
+        var seen: Set<String> = []
+        return pages.filter { page in
+            if seen.contains(page.id) { return false }
+            seen.insert(page.id)
+            return true
+        }
+    }
+
+    private static func spelled(_ n: Int) -> String {
+        let words = ["zero", "one", "two", "three", "four", "five", "six", "seven",
+                     "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen",
+                     "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"]
+        return (0...20).contains(n) ? words[n] : "\(n)"
+    }
+}
+
+private extension String {
+    var sentenceCapitalized: String {
+        guard let first = first else { return self }
+        return String(first).uppercased() + dropFirst()
+    }
+}
+
 // MARK: - Themes
 //
 // A theme is the month's weather system: two or three motifs that kept
@@ -2729,7 +3194,7 @@ enum BookThemeEngine {
         var evidence: [String: [String]] = [:]
 
         for page in pages {
-            let text = "\(page.promptText) \(page.userInput) \(page.tags.joined(separator: " "))"
+            let text = page.resolvedAttentionFingerprint.patternText
             for word in LiteraryContinuityProjector.meaningfulWords(in: text) where !themeStop.contains(word) {
                 weights[word, default: 0] += 2
                 if evidence[word, default: []].count < 8, !evidence[word, default: []].contains(page.id) {

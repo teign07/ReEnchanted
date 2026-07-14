@@ -68,6 +68,41 @@ final class RutSelfKnowledgeTests: XCTestCase {
         XCTAssertEqual(second.id, "rut-depth")
     }
 
+    func testFirstInterestFollowsOnboardingNameWithoutWaitingBehindRutSequence() throws {
+        let now = Date(timeIntervalSince1970: 1_783_484_800)
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+        let name = SelfFact(
+            id: "onboarding:name",
+            questionID: "name",
+            question: "What should the Book call you?",
+            answer: "Avery",
+            bookTranslation: "The Book may call you Avery.",
+            sensitivity: .identity,
+            usePermission: .privateContext,
+            tags: ["name", "identity"],
+            createdAt: now,
+            updatedAt: now
+        )
+
+        let next = try XCTUnwrap(
+            SelfKnowledgePackRegistry.nextQuestion(knownFacts: [name], day: day, now: now)
+        )
+
+        XCTAssertEqual(next.id, "interest-01")
+
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = [name]
+        let pages = AboutYouPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now.addingTimeInterval(60)
+        )
+        let interestPage = try XCTUnwrap(pages.first { $0.payload.metadata["questionID"] == "interest-01" })
+        XCTAssertEqual(interestPage.score, 91)
+        XCTAssertTrue(interestPage.reason.contains("The Bleed"))
+    }
+
     func testEarnedLabelNeedsRecognitionAndReceipts() throws {
         let now = Date(timeIntervalSince1970: 1_783_484_800)
         let today = BookDay(id: BookDay.id(for: now), date: now, pages: [])

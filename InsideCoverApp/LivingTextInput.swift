@@ -1,11 +1,17 @@
 import SwiftUI
 
+private enum SentenceCustomChipTarget: Equatable {
+    case move(tokenID: Int)
+    case starter(slotID: String)
+}
+
 struct LivingTextEditor: View {
     let title: String
     let placeholder: String
     @Binding var text: String
     var minHeight: CGFloat
     var builderPack: SentenceBuilderPack = .core
+    var builderContext: SentenceBuilderContext = .empty
 
     @State private var isBuilderOpen = false
     @State private var selectedTokenID: Int?
@@ -15,9 +21,14 @@ struct LivingTextEditor: View {
     @State private var starterDraft: SentenceStarterDraft?
     @State private var selectedStarterSlotID: String?
     @State private var starterSeed = 0
+    @State private var recentlyShownMoveWords: Set<String> = []
+    @State private var recentlyShownStarterWords: [String: Set<String>] = [:]
+    @State private var recentlyChosenWords: Set<String> = []
+    @State private var customChipTarget: SentenceCustomChipTarget?
+    @State private var customChipText = ""
 
     private var engine: SentenceBuilderEngine {
-        SentenceBuilderEngine(pack: builderPack)
+        SentenceBuilderEngine(pack: builderPack, context: builderContext)
     }
 
     private var analysis: SentenceBuilderAnalysis {
@@ -43,10 +54,15 @@ struct LivingTextEditor: View {
 
     private var builderStatusText: String {
         if analysis.isVivid {
-            return "Strong sentence"
+            switch builderContext.intent {
+            case .letterReply: return "Strong reply"
+            case .missionProof: return "Evidence kept"
+            case .reflection: return "Thought landed"
+            case .souvenir, .marginNote: return "Strong sentence"
+            }
         }
         if analysis.canStandAsComplete {
-            return "Enough to keep"
+            return builderContext.intent == .letterReply ? "Enough to send" : "Enough to keep"
         }
         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return "Start with one real thing"
@@ -104,6 +120,11 @@ struct LivingTextEditor: View {
             // Drop a stale selection if its word changed out from under us.
             if let id = selectedTokenID, !scaffold.tokens.contains(where: { $0.id == id }) {
                 selectedTokenID = nil
+            }
+            if case let .move(tokenID) = customChipTarget,
+               !scaffold.tokens.contains(where: { $0.id == tokenID }) {
+                customChipTarget = nil
+                customChipText = ""
             }
             handleTransmutation()
         }
@@ -237,11 +258,11 @@ struct LivingTextEditor: View {
             starterComposer(draft: starterDraft)
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                Text(builderPack.replayPrompt)
+                Text(engine.replayPrompt)
                     .font(.callout.weight(.bold))
                     .foregroundStyle(BookPalette.ink.opacity(0.86))
                     .fixedSize(horizontal: false, vertical: true)
-                Text(builderPack.replayHelper)
+                Text(engine.replayHelper)
                     .font(.caption)
                     .foregroundStyle(BookPalette.ink.opacity(0.58))
                     .fixedSize(horizontal: false, vertical: true)
@@ -284,8 +305,9 @@ struct LivingTextEditor: View {
             starterSlotTabs(draft: draft)
 
             if let slot = selectedStarterSlot(in: draft) {
+                let options = starterOptions(for: slot, in: draft)
                 FlowLayout(spacing: 6, lineSpacing: 6) {
-                    ForEach(engine.options(for: slot, in: draft), id: \.self) { option in
+                    ForEach(options, id: \.self) { option in
                         Button {
                             chooseStarterOption(option, slot: slot)
                         } label: {
@@ -303,13 +325,42 @@ struct LivingTextEditor: View {
                         .foregroundStyle(starterOptionTint(option, slot: slot, draft: draft))
                     }
                 }
+
+                HStack(spacing: 12) {
+                    if hasMoreStarterOptions(for: slot, in: draft) {
+                        Button {
+                            showMoreStarterOptions(options, for: slot)
+                        } label: {
+                            Label("More words", systemImage: "arrow.triangle.2.circlepath")
+                                .font(.caption2.weight(.bold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(BookPalette.teal)
+                        .accessibilityLabel("Show more words for \(slot.title)")
+                    }
+
+                    Button {
+                        openCustomChip(.starter(slotID: slot.id))
+                    } label: {
+                        Label("Use my word…", systemImage: "pencil")
+                            .font(.caption2.weight(.bold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+                }
+
+                if customChipTarget == .starter(slotID: slot.id) {
+                    customWordEditor(placeholder: customWordPlaceholder(for: slot.kind)) {
+                        submitCustomStarterWord(for: slot)
+                    }
+                }
             }
 
             HStack(spacing: 8) {
                 Button {
                     nextStarter()
                 } label: {
-                    Label("Another", systemImage: "arrow.triangle.2.circlepath")
+                    Label("New sentence", systemImage: "arrow.triangle.2.circlepath")
                         .font(.caption.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
@@ -381,9 +432,28 @@ struct LivingTextEditor: View {
         return draft.template.slots.first
     }
 
+    private func starterOptions(for slot: SentenceStarterSlot, in draft: SentenceStarterDraft) -> [String] {
+        let avoided = recentlyChosenWords.union(recentlyShownStarterWords[slot.id] ?? [])
+        return engine.options(for: slot, in: draft, avoiding: avoided)
+    }
+
+    private func hasMoreStarterOptions(for slot: SentenceStarterSlot, in draft: SentenceStarterDraft) -> Bool {
+        engine.options(for: slot, in: draft, limit: 256).count > 8
+    }
+
+    private func showMoreStarterOptions(_ visibleOptions: [String], for slot: SentenceStarterSlot) {
+        var shown = recentlyShownStarterWords[slot.id] ?? []
+        shown.formUnion(visibleOptions.map { $0.lowercased() })
+        recentlyShownStarterWords[slot.id] = shown
+        customChipTarget = nil
+        customChipText = ""
+        BookFeedback.play(.tap)
+    }
+
     private func chooseStarterOption(_ option: String, slot: SentenceStarterSlot) {
         guard let draft = starterDraft else { return }
         starterDraft = engine.selecting(option, for: slot, in: draft)
+        recentlyChosenWords.insert(option.lowercased())
         BookFeedback.play(.tap)
     }
 
@@ -431,6 +501,8 @@ struct LivingTextEditor: View {
             Button {
                 withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
                     selectedTokenID = (selectedTokenID == token.id) ? nil : token.id
+                    customChipTarget = nil
+                    customChipText = ""
                 }
                 BookFeedback.play(.tap)
             } label: {
@@ -460,7 +532,9 @@ struct LivingTextEditor: View {
     }
 
     private func moveRow(for token: ScaffoldToken) -> some View {
-        let moves = engine.moves(for: token, in: scaffold)
+        let avoided = recentlyChosenWords.union(recentlyShownMoveWords)
+        let moves = engine.moves(for: token, in: scaffold, avoiding: avoided)
+        let hasMore = engine.moves(for: token, in: scaffold, limit: 256).count > 8
         return VStack(alignment: .leading, spacing: 8) {
             Text(moveHint(for: token))
                 .font(.caption2)
@@ -487,7 +561,139 @@ struct LivingTextEditor: View {
                     .accessibilityLabel("Change \(token.word) to \(move.word)")
                 }
             }
+
+            HStack(spacing: 12) {
+                if hasMore {
+                    Button {
+                        showMoreMoves(moves)
+                    } label: {
+                        Label("More", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.caption2.weight(.bold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(BookPalette.teal)
+                    .accessibilityLabel("Show more replacement words")
+                }
+
+                Button {
+                    openCustomChip(.move(tokenID: token.id))
+                } label: {
+                    Label("Use my word…", systemImage: "pencil")
+                        .font(.caption2.weight(.bold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.ink.opacity(0.62))
+            }
+
+            if customChipTarget == .move(tokenID: token.id) {
+                customWordEditor(placeholder: customWordPlaceholder(for: token.role)) {
+                    submitCustomMoveWord(for: token)
+                }
+            }
         }
+    }
+
+    private func customWordEditor(placeholder: String, onUse: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            TextField(placeholder, text: $customChipText)
+                .font(.caption)
+                .textInputAutocapitalization(.never)
+                .submitLabel(.done)
+                .onSubmit(onUse)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(BookPalette.page.opacity(0.72), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(BookPalette.teal.opacity(0.24), lineWidth: 1)
+                }
+
+            Button("Use", action: onUse)
+                .font(.caption.weight(.bold))
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.teal)
+                .disabled(cleanedCustomChipText.isEmpty)
+
+            Button {
+                customChipTarget = nil
+                customChipText = ""
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(BookPalette.ink.opacity(0.44))
+            .accessibilityLabel("Cancel custom word")
+        }
+    }
+
+    private func openCustomChip(_ target: SentenceCustomChipTarget) {
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.88)) {
+            customChipTarget = target
+            customChipText = ""
+        }
+        BookFeedback.play(.tap)
+    }
+
+    private var cleanedCustomChipText: String {
+        let singleLine = customChipText
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+        return String(singleLine.prefix(48))
+    }
+
+    private func customWordPlaceholder(for role: SentenceRole) -> String {
+        switch role {
+        case .thing: return "Your noun…"
+        case .sense, .misty, .smoke: return "Your physical detail…"
+        case .motion: return "Your verb…"
+        case .crossing: return "Your crossed sense…"
+        case .plain: return "Your word…"
+        }
+    }
+
+    private func customWordPlaceholder(for kind: SentenceStarterSlotKind) -> String {
+        switch kind {
+        case .anchor: return "Your noun…"
+        case .sense: return "Your physical detail…"
+        case .motion: return "Your verb…"
+        case .crossing: return "Your crossed sense…"
+        }
+    }
+
+    private func showMoreMoves(_ visibleMoves: [SentenceMove]) {
+        recentlyShownMoveWords.formUnion(visibleMoves.map { $0.word.lowercased() })
+        customChipTarget = nil
+        customChipText = ""
+        BookFeedback.play(.tap)
+    }
+
+    private func submitCustomMoveWord(for token: ScaffoldToken) {
+        let word = cleanedCustomChipText
+        guard !word.isEmpty else { return }
+        let group: String
+        switch token.role {
+        case .misty, .smoke: group = "ground"
+        case .thing: group = "thing"
+        case .sense: group = "sense"
+        case .motion: group = "motion"
+        case .crossing: group = "cross"
+        case .plain: group = "custom"
+        }
+        recentlyChosenWords.insert(word.lowercased())
+        customChipTarget = nil
+        customChipText = ""
+        apply(SentenceMove(id: "custom-\(word.lowercased())", label: word, word: word, group: group), to: token)
+    }
+
+    private func submitCustomStarterWord(for slot: SentenceStarterSlot) {
+        let word = cleanedCustomChipText
+        guard !word.isEmpty, let draft = starterDraft else { return }
+        starterDraft = engine.selecting(word, for: slot, in: draft)
+        recentlyChosenWords.insert(word.lowercased())
+        customChipTarget = nil
+        customChipText = ""
+        BookFeedback.play(.select)
     }
 
     private var coachLine: some View {
@@ -515,7 +721,8 @@ struct LivingTextEditor: View {
     }
 
     private func apply(_ move: SentenceMove, to token: ScaffoldToken) {
-        let updated = scaffold.replacing(tokenID: token.id, with: move.word, using: builderPack)
+        let updated = scaffold.replacing(tokenID: token.id, with: move.word, using: engine.resolvedPack)
+        recentlyChosenWords.insert(move.word.lowercased())
         text = updated.rendered
         BookFeedback.play(.select)
         // Keep the same slot selected so the user can keep transmuting it.
@@ -525,15 +732,18 @@ struct LivingTextEditor: View {
     }
 
     private func moveHint(for token: ScaffoldToken) -> String {
+        let base: String
         switch token.role {
-        case .misty: return "'\(token.word)' may be true — give it a body."
-        case .smoke: return "Let the magic arrive through matter, not the word '\(token.word)'."
-        case .thing: return "Swap the witness. Which real thing remembers it best?"
-        case .sense: return "Sharpen the sense — or let one borrow from another."
-        case .motion: return "Pick the verb that makes it feel alive."
-        case .crossing: return "Cross the wires a different way."
-        case .plain: return ""
+        case .misty: base = "'\(token.word)' may be true — give it a body."
+        case .smoke: base = "Let the magic arrive through matter, not the word '\(token.word)'."
+        case .thing: base = "Swap the witness. Which real thing remembers it best?"
+        case .sense: base = "Sharpen the sense — or let one borrow from another."
+        case .motion: base = "Pick the verb that makes it feel alive."
+        case .crossing: base = "Cross the wires a different way."
+        case .plain: base = ""
         }
+        guard let contextNote = engine.contextNote(for: token) else { return base }
+        return "\(base) \(contextNote)"
     }
 
     private func roleColor(_ role: SentenceRole) -> Color {

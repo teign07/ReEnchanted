@@ -1464,6 +1464,8 @@ enum BookObservationStatus: String, Codable, Equatable {
     case confirmed
     case notQuite
     case doNotRead
+    case questioned
+    case forbidden
 }
 
 struct BookObservationRecord: Codable, Identifiable, Equatable {

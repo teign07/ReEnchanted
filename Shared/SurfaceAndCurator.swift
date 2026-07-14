@@ -1628,9 +1628,9 @@ enum BookCurator {
 
         let previousKeys = previous.map(\.deskSlotKey)
         // Duplicate slot keys (possible on paths that bypass the curator,
-        // like the first-run sequence) make in-place matching ambiguous. A
-        // fresh rebuild is safer than guessing which duplicate should stay.
-        guard Set(previousKeys).count == previousKeys.count else { return Array(rebuilt.prefix(limit)) }
+        // like the first-run sequence) make in-place matching ambiguous —
+        // hold the shown desk untouched rather than guess.
+        guard Set(previousKeys).count == previousKeys.count else { return previous }
 
         // An armed magic moment is the one deliberate exception to desk
         // stability. It should feel like a page the Book tucked in, not a
@@ -1672,15 +1672,6 @@ enum BookCurator {
             } else if survivors.count < limit {
                 return Array(([magic] + survivors).prefix(limit))
             }
-        }
-
-        // Stability applies while the same logical cards are being refreshed.
-        // A real membership change means a card was kept, dismissed, unlocked,
-        // or became ineligible, so the fresh desk is authoritative.
-        let rebuiltKeys = rebuilt.map(\.deskSlotKey)
-        guard Set(previousKeys) == Set(rebuiltKeys),
-              Set(rebuiltKeys).count == rebuiltKeys.count else {
-            return Array(rebuilt.prefix(limit))
         }
 
         let rebuiltByKey = Dictionary(
@@ -1793,143 +1784,6 @@ enum BookCurator {
 }
 
 // MARK: - Earned readings
-
-enum ContextWeave {
-    enum Tone: String, Equatable { case bright, heavy }
-    enum Kind: String, Equatable { case manner, subject }
-
-    struct Connection: Identifiable, Equatable {
-        var id: String
-        var kind: Kind
-        var facetID: String
-        var line: String
-        var evidencePageIDs: [String]
-        var inHits: Int
-        var outHits: Int
-    }
-
-    static let brightInkWords: Set<String> = [
-        "alive", "delight", "delighted", "glad", "grateful", "happy", "hopeful",
-        "joy", "joyful", "laughed", "laughing", "playful", "relieved", "wonderful"
-    ]
-    static let heavyInkWords: Set<String> = [
-        "afraid", "brittle", "dread", "empty", "exhausted", "grief", "heavy",
-        "hopeless", "lonely", "lost", "sad", "tired", "weary", "worried"
-    ]
-
-    static func tone(of text: String) -> Tone? {
-        let words = Set(text.lowercased().split { !$0.isLetter }.map(String.init))
-        let bright = words.intersection(brightInkWords).count
-        let heavy = words.intersection(heavyInkWords).count
-        guard bright != heavy else { return nil }
-        return bright > heavy ? .bright : .heavy
-    }
-
-    static func connections(days: [BookDay], calendar: Calendar = .current) -> [Connection] {
-        let pages = days.flatMap(\.capturedPages).filter { $0.origin == .userAuthored }
-        var result: [Connection] = []
-
-        let weatherPages = pages.filter { $0.context != nil && !($0.context?.weatherTags.isEmpty ?? true) }
-        let weatherTags = Set(weatherPages.flatMap { $0.context?.weatherTags ?? [] })
-        for tag in weatherTags.sorted() {
-            let inside = weatherPages.filter { $0.context?.weatherTags.contains(tag) == true }
-            let outside = weatherPages.filter { $0.context?.weatherTags.contains(tag) == false }
-            guard inside.count >= 5, outside.count >= 5,
-                  Set(inside.map { BookDay.id(for: $0.createdAt) }).count >= 4 else { continue }
-            for target in [Tone.heavy, .bright] {
-                let inHits = inside.filter { tone(of: $0.userInput) == target }
-                let outHits = outside.filter { tone(of: $0.userInput) == target }
-                guard inHits.count >= 4,
-                      Double(inHits.count) / Double(inside.count) >= 0.6,
-                      Double(outHits.count) / Double(outside.count) <= 0.25 else { continue }
-                let manner = target == .heavy ? "heavier ink" : "brighter ink"
-                result.append(Connection(
-                    id: "context-weather:\(tag)-\(target.rawValue)-ink",
-                    kind: .manner,
-                    facetID: "weather:\(tag)",
-                    line: "Across \(numberWord(inHits.count)) kept pages, your sentences carried \(manner) while it was \(weatherPhrase(tag)). The comparison pages did not carry the same pattern.",
-                    evidencePageIDs: Array(inHits.prefix(3).map(\.id)),
-                    inHits: inHits.count,
-                    outHits: outHits.count
-                ))
-            }
-        }
-
-        let afterDark = pages.filter { isAfterDark($0.createdAt, calendar: calendar) }
-        let daytime = pages.filter { !isAfterDark($0.createdAt, calendar: calendar) }
-        if afterDark.count >= 5, daytime.count >= 5 {
-            let nightQuestions = afterDark.filter { $0.userInput.contains("?") }
-            let dayQuestions = daytime.filter { $0.userInput.contains("?") }
-            if nightQuestions.count >= 4,
-               Double(nightQuestions.count) / Double(afterDark.count) >= 0.6,
-               Double(dayQuestions.count) / Double(daytime.count) <= 0.25 {
-                result.append(Connection(
-                    id: "context-hour:night-asking",
-                    kind: .manner,
-                    facetID: "hour:night",
-                    line: "Your pages ask more questions after dark: \(numberWord(nightQuestions.count)) separate pages carried a question, while the daytime pages mostly declared.",
-                    evidencePageIDs: Array(nightQuestions.prefix(3).map(\.id)),
-                    inHits: nightQuestions.count,
-                    outHits: dayQuestions.count
-                ))
-            }
-        }
-
-        let weekend = pages.filter { calendar.isDateInWeekend($0.createdAt) }
-        let weekday = pages.filter { !calendar.isDateInWeekend($0.createdAt) }
-        if weekend.count >= 4, weekday.count >= 5 {
-            let candidates = tokenCounts(in: weekend)
-                .filter { $0.value >= 3 }
-                .sorted { ($0.value, $1.key) > ($1.value, $0.key) }
-            for (token, count) in candidates.prefix(3) {
-                let weekdayHits = weekday.filter { subjectTokens(in: $0.userInput).contains(token) }
-                guard weekdayHits.isEmpty else { continue }
-                let evidence = weekend.filter { subjectTokens(in: $0.userInput).contains(token) }
-                result.append(Connection(
-                    id: "context-week:weekend-subject-\(token)",
-                    kind: .subject,
-                    facetID: "week:weekend",
-                    line: "\(token.capitalized) has appeared on weekends in \(numberWord(count)) pages and never in the weekday comparison pages.",
-                    evidencePageIDs: Array(evidence.prefix(3).map(\.id)),
-                    inHits: count,
-                    outHits: 0
-                ))
-            }
-        }
-        return result
-    }
-
-    private static func isAfterDark(_ date: Date, calendar: Calendar) -> Bool {
-        let hour = calendar.component(.hour, from: date)
-        return hour >= 20 || hour < 5
-    }
-
-    private static func weatherPhrase(_ tag: String) -> String {
-        switch tag { case "rain": return "raining"; default: return tag }
-    }
-
-    private static func numberWord(_ value: Int) -> String {
-        [0: "zero", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
-         6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"][value] ?? String(value)
-    }
-
-    private static let subjectStopWords: Set<String> = [
-        "about", "after", "again", "before", "could", "every", "from", "house",
-        "kept", "letters", "their", "there", "these", "thing", "today", "while",
-        "window", "with", "would"
-    ]
-
-    private static func subjectTokens(in text: String) -> Set<String> {
-        Set(text.lowercased().split { !$0.isLetter }.map(String.init)
-            .filter { $0.count >= 5 && !subjectStopWords.contains($0) })
-    }
-
-    private static func tokenCounts(in pages: [BookPage]) -> [String: Int] {
-        pages.reduce(into: [:]) { counts, page in
-            for token in subjectTokens(in: page.userInput) { counts[token, default: 0] += 1 }
-        }
-    }
-}
 
 enum BookObservationLedger {
     static func key(for surface: SurfacePage) -> String? {

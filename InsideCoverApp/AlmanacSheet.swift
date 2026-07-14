@@ -5,6 +5,9 @@ import SwiftUI
 /// Read-only; tapping a kept page hands it back to the Book to open.
 struct AlmanacSheet: View {
     let days: [BookDay]
+    let isEmbedded: Bool
+    let selectedPageID: String?
+    let onNavigationChange: (Date, Date?) -> Void
     let onOpen: (BookPage) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -15,13 +18,29 @@ struct AlmanacSheet: View {
 
     private let calendar = Calendar.current
 
-    init(days: [BookDay], onOpen: @escaping (BookPage) -> Void) {
+    init(
+        days: [BookDay],
+        isEmbedded: Bool = false,
+        selectedPageID: String? = nil,
+        initialMonthAnchor: Date? = nil,
+        initialSelectedDay: Date? = nil,
+        onNavigationChange: @escaping (Date, Date?) -> Void = { _, _ in },
+        onOpen: @escaping (BookPage) -> Void
+    ) {
         self.days = days
+        self.isEmbedded = isEmbedded
+        self.selectedPageID = selectedPageID
+        self.onNavigationChange = onNavigationChange
         self.onOpen = onOpen
         // Open on the most recent month that holds anything, else this month.
         let cal = Calendar.current
         let latest = AlmanacModel.bounds(days: days, calendar: cal)?.latest
-        _monthAnchor = State(initialValue: latest ?? AlmanacModel.firstOfMonth(for: Date(), calendar: cal))
+        _monthAnchor = State(
+            initialValue: initialMonthAnchor
+                ?? latest
+                ?? AlmanacModel.firstOfMonth(for: Date(), calendar: cal)
+        )
+        _selectedDay = State(initialValue: initialSelectedDay)
     }
 
     private var grid: AlmanacModel.MonthGrid {
@@ -36,10 +55,20 @@ struct AlmanacSheet: View {
         AlmanacModel.bounds(days: days, calendar: calendar)
     }
 
+    @ViewBuilder
     var body: some View {
-        NavigationStack {
-            ZStack {
-                BookBackground()
+        if isEmbedded {
+            almanacRoot
+        } else {
+            NavigationStack {
+                almanacRoot
+            }
+        }
+    }
+
+    private var almanacRoot: some View {
+        ZStack {
+                BookBackground(isQuiet: isEmbedded, showsAmbientLetters: !isEmbedded)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         monthHeader
@@ -65,15 +94,22 @@ struct AlmanacSheet: View {
                 }
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.26), value: monthAnchor)
                 .animation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.86), value: selectedDay)
-            }
-            .navigationTitle("The Almanac")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+        }
+        .navigationTitle("The Almanac")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !isEmbedded {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Close") { dismiss() }
                         .foregroundStyle(BookPalette.lampGold)
                 }
             }
+        }
+        .onChange(of: monthAnchor) { _, month in
+            onNavigationChange(month, selectedDay)
+        }
+        .onChange(of: selectedDay) { _, day in
+            onNavigationChange(monthAnchor, day)
         }
     }
 
@@ -251,8 +287,12 @@ struct AlmanacSheet: View {
             .buttonStyle(.bookPress(scale: 0.94, playsHaptic: false))
             .bookCardHover()
             .disabled(cell.keptCount == 0)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(dayAccessibilityLabel(date: date, keptCount: cell.keptCount, isToday: isToday, isSelected: isSelected))
+            .accessibilityHint(cell.keptCount > 0 ? "Shows pages kept on this day" : "No kept pages on this day")
         } else {
             Color.clear.frame(height: 40)
+                .accessibilityHidden(true)
         }
     }
 
@@ -267,7 +307,9 @@ struct AlmanacSheet: View {
                 .foregroundStyle(BookPalette.nightText)
                 .padding(.top, 6)
             ForEach(pages) { page in
+                let isSelected = isEmbedded && selectedPageID == page.id
                 Button {
+                    BookFeedback.play(.openPage)
                     onOpen(page)
                 } label: {
                     VStack(alignment: .leading, spacing: 3) {
@@ -284,19 +326,51 @@ struct AlmanacSheet: View {
                     .padding(12)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(BookPalette.nightText.opacity(0.05))
+                            .fill(
+                                isSelected
+                                    ? BookPalette.lampGold.opacity(0.18)
+                                    : BookPalette.nightText.opacity(0.05)
+                            )
                     )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(
+                                isSelected ? BookPalette.lampGold.opacity(0.72) : Color.clear,
+                                lineWidth: 1.5
+                            )
+                    }
                 }
                 .buttonStyle(.bookPress(playsHaptic: false))
                 .bookCardHover()
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .accessibilityHint("Opens on the reading stand")
+                .contextMenu {
+                    Button {
+                        BookFeedback.play(.openPage)
+                        onOpen(page)
+                    } label: {
+                        Label("Open on Reading Stand", systemImage: "book.pages")
+                    }
+                }
             }
         }
     }
 
+    private func dayAccessibilityLabel(
+        date: Date,
+        keptCount: Int,
+        isToday: Bool,
+        isSelected: Bool
+    ) -> String {
+        let formatted = date.formatted(.dateTime.weekday(.wide).month(.wide).day().year())
+        let pages = keptCount == 1 ? "1 kept page" : "\(keptCount) kept pages"
+        return [formatted, pages, isToday ? "today" : nil, isSelected ? "selected" : nil]
+            .compactMap { $0 }
+            .joined(separator: ", ")
+    }
+
     private func firstLine(of page: BookPage) -> String {
-        let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        let body = text.isEmpty ? page.promptText : text
-        return body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? page.type.title : body
+        page.archivePreviewText ?? page.type.title
     }
 
     private func step(_ months: Int) {

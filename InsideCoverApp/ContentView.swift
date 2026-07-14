@@ -145,9 +145,66 @@ private struct CastAgencyMovementRow: View {
     }
 }
 
+/// A page that has already been kept or dismissed but remains mounted long
+/// enough to reserve its exact desk slot while the curator prepares the next
+/// page. The mounted card is hidden and inert; the retirement reconciler swaps
+/// every pending slot in one non-animated publication.
+private struct PendingSurfaceRetirement {
+    var surface: SurfacePage
+}
+
+/// The persistent places that become first-class destinations in the iPad
+/// edition. The iPhone keeps its existing stack-and-sheet flow; iPad gives the
+/// same Book a stable spine so these rooms do not have to masquerade as modals.
+private enum BookPadDestination: String, CaseIterable, Identifiable {
+    case today
+    case stacks
+    case almanac
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .today: return "Today"
+        case .stacks: return "Search the Stacks"
+        case .almanac: return "The Almanac"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .today: return "sparkles.rectangle.stack"
+        case .stacks: return "sparkle.magnifyingglass"
+        case .almanac: return "calendar.badge.clock"
+        }
+    }
+
+    var keyboardNumber: KeyEquivalent {
+        switch self {
+        case .today: return "1"
+        case .stacks: return "2"
+        case .almanac: return "3"
+        }
+    }
+
+    var keyboardLabel: String {
+        switch self {
+        case .today: return "⌘1"
+        case .stacks: return "⌘2"
+        case .almanac: return "⌘3"
+        }
+    }
+}
+
+private enum BookPadOverviewAnchor: String {
+    case archive
+    case colophon
+}
+
 struct ContentView: View {
     @Environment(\.scenePhase) var scenePhase
     @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #if canImport(StoreKit)
     @Environment(\.requestReview) var requestReview
     #endif
@@ -211,6 +268,9 @@ struct ContentView: View {
     @State var surfaceRefreshDate = Date()
     @State var suppressNextSurfaceRefresh = false
     @State var isRetiringKeptSurface = false
+    @State private var pendingSurfaceRetirements: [String: PendingSurfaceRetirement] = [:]
+    @State private var surfaceRetirementRevision: UInt64 = 0
+    @State private var arrivingSurfaceIDs: Set<String> = []
     @State private var keepInkBurstTrigger = 0
     @State private var keepInkBurstText = "KEPT"
     @State private var keepMarginNote: KeepMarginalia.Note?
@@ -224,6 +284,9 @@ struct ContentView: View {
     @State private var isShowingKeepArtifactCard = false
     @State var undoSurface: SurfacePage?
     @State var undoDayID: String?
+    @State private var undoSurfaceSlotIndex: Int?
+    @State private var undoSurfaceReplacementID: String?
+    @State private var undoSurfaceDismissalKeys: Set<String> = []
     @State var undoRemovedPage: BookPage?
     @State var undoRemovedPageDayID: String?
     @State var userPhotoIlluminationFallbackAllowed = false
@@ -248,6 +311,7 @@ struct ContentView: View {
     }
     @AppStorage("dismissedSurfaceLedgerV2") var dismissedSurfaceLedgerV2 = "{}"
     @AppStorage("pocketLedger") var pocketLedgerData = "{}"
+    @AppStorage("chosenQuill") var chosenQuillData = ""
     @AppStorage("sourcePreferenceLedger") var sourcePreferenceLedger = "{}"
     @AppStorage("illuminatedPhotoHistory") var illuminatedPhotoHistoryData = "{}"
     @AppStorage("lastAutomaticBodySourceRefreshSlot") var lastAutomaticBodySourceRefreshSlot = ""
@@ -321,6 +385,15 @@ struct ContentView: View {
     @State var preparedMonthlyEditionURL: URL?
     @State var preparedWeeklyIssuePDFURL: URL?
     @State var preparedWeeklyIssueCardURL: URL?
+    /// Drives the in-app weekly issue reader sheet; nil when closed.
+    @State var weeklyIssueReader: WeeklyIssueReader?
+    /// Drives the in-app monthly edition reader sheet; nil when closed.
+    @State var monthlyEditionReader: MonthlyEditionReader?
+    /// The last-built reader, kept so re-opening the same issue skips Gemma.
+    @State var cachedWeeklyIssueReader: WeeklyIssueReader?
+    /// Non-nil while a weekly issue is being bound (waiting on Gemma + PDF write);
+    /// drives the binding progress overlay so the wait is visible on every path.
+    @State var weeklyIssueBindingNote: String?
     @State var preparedPagewrightPDFURL: URL?
     @State var preparedPagewrightPNGURL: URL?
     @State var preparedAnnualEditionURL: URL?
@@ -339,6 +412,7 @@ struct ContentView: View {
     @State var isSaveImporterPresented = false
     @State var isConnectionsPresented = false
     @State var activeTutorNote: MarginTutorNote?
+    @AppStorage("isOpeningShelfExpanded") var isOpeningShelfExpanded = true
     @AppStorage("isTodaysMarginsExpanded") var isTodaysMarginsExpanded = false
     @AppStorage("isCastLedgerExpanded") var isCastLedgerExpanded = true
     @AppStorage("isReturnedStacksExpanded") var isReturnedStacksExpanded = false
@@ -358,6 +432,11 @@ struct ContentView: View {
     @State var localBrainTelemetry = LocalBrainTelemetryState()
     @State var localBrainProgress = LocalBrainProgressViewState()
     @State var isOpeningMovieVisible = true
+    @State var didReachOpeningHold = false
+    @State var didPrepareLaunchDesk = false
+    @State var isSettlingLaunchDesk = false
+    @State var isLaunchPresentationReady = false
+    @State var isLaunchAmbientMotionPaused = true
     @State var activeGreeting: BookGreeting?
     @State var didShowGreetingThisLaunch = false
     // Cached literary-continuity digest + motif clusters. Recomputing these over
@@ -373,10 +452,22 @@ struct ContentView: View {
     @State var isGlowPillRevealing = false
     @State var isStacksSearchPresented = false
     @State var isAlmanacPresented = false
+    @State private var padDestination: BookPadDestination = .today
+    @State private var padColumnVisibility: NavigationSplitViewVisibility = .all
+    @State private var padSearchFocusRequest = 0
+    @State private var padSelectedSurfaceByDestination: [BookPadDestination: SurfacePage] = [:]
+    @State private var padSelectedStacksResultID: String?
+    @State private var padSelectedAlmanacPageID: String?
+    @State private var padStacksQuery = ""
+    @State private var padAlmanacMonthAnchor: Date?
+    @State private var padAlmanacSelectedDay: Date?
+    @State private var padOverviewAnchor: BookPadOverviewAnchor?
+    @State private var padOverviewScrollRequest = 0
     @State var isBookShopPresented = false
     @State var isPagewrightPresented = false
     @State var currentStall: GoblinStall?
     @State var isPactMapPresented = false
+    @State var isPeopleOfTheBookPresented = false
     @State var isLocationSealChoicesPresented = false
     @State var isInputChoicesPresented = false
     @State var isPlainPagePresented = false
@@ -496,8 +587,8 @@ struct ContentView: View {
         inputs.overnightConnectionDrafts = vault.data.overnightConnectionDrafts ?? []
         inputs.chosenQuill = vault.data.chosenQuill
         inputs.body = bodySignal
-        if let weatherPageSignal {
-            inputs.weather = weatherPageSignal
+        if let currentWeather = weatherPageSignal ?? weatherSignal {
+            inputs.weather = currentWeather
         }
         inputs.enchantedWeather = enchantedWeather
         inputs.anchors = anchorLedger
@@ -517,12 +608,14 @@ struct ContentView: View {
         inputs.learnedBraidNotes = vault.data.learnedBraidNotes ?? []
         inputs.readerBeliefScore = beliefScore
         inputs.pocket = decodedPocketLedger()
+        inputs.chosenQuill = decodedChosenQuill()
+        inputs.people = vault.data.people ?? PeopleLedger()
         inputs.calendarEvents = calendarEvents
         inputs.calendarIntegrationEnabled = bookCalendarEnabled
         inputs.nearbyPlaces = nearbyPlaces
         inputs.resurfacingCandidates = resurfacedPages
         var quietDays = NothingTide.quietDays(in: days, today: today.id)
-        // A warm (active, not-cold) Quieting gift literally holds Disbelief back.
+        // A warm (active, not-cold) Quieting gift literally holds Routine back.
         if (vault.data.fae?.activeGifts.contains { $0.effect == .quieting }) == true {
             quietDays = max(0, quietDays - 2)
         }
@@ -534,6 +627,10 @@ struct ContentView: View {
         inputs.storySettingAffinities = vault.data.storySettingAffinities ?? [:]
         inputs.storySceneBiases = vault.data.storySceneBiases ?? [:]
         inputs.bookNoticeEvidence = vault.data.bookNoticeEvidence ?? 0
+        inputs.magicMoment = vault.data.magicMoment ?? MagicMomentState()
+        inputs.bookObservations = vault.data.bookObservations ?? []
+        inputs.bookReadingBoundaries = vault.data.bookReadingBoundaries ?? []
+        inputs.overnightConnectionDrafts = vault.data.overnightConnectionDrafts ?? []
         inputs.currentArc = vault.data.currentArc
         inputs.recentNarrativeEvents = narrativeEvents
         // Read the cached digest/clusters (refreshed on data change), not a fresh
@@ -756,44 +853,15 @@ struct ContentView: View {
                     // ambient ticking never competes with launch work.
                     BookBackground(isQuiet: shouldPauseAmbientMotion || isOpeningMovieVisible)
 
-                    // The opening movie is fully opaque, so this whole shelf
-                    // stack is invisible behind it. Building it mid-movie is a
-                    // heavy layout pass that stalls the animation on the main
-                    // actor — wait until the movie clears, then lay it out.
-                    if didHydrateLaunchState && !isOpeningMovieVisible {
-                        ScrollViewReader { scrollProxy in
-                            ScrollView {
-                                VStack(alignment: .leading, spacing: 26) {
-                                    AnyView(topBanner)
-                                    AnyView(hero)
-                                    AnyView(localBrainWorkShelf)
-                                        .id(Self.localBrainWorkShelfScrollID)
-                                    AnyView(surfaceShelf)
-                                    AnyView(marginaliaSealsRow)
-                                    AnyView(castLedgerShelf)
-                                    AnyView(todayFragments)
-                                    AnyView(resurfacedShelf)
-                                    AnyView(archiveShelf)
-                                    AnyView(sourceControlsShelf)
-                                }
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 18)
-                                .frame(maxWidth: 920)
-                                .frame(maxWidth: .infinity)
-                            }
-                            .onChange(of: localBrainTelemetry.isWorking) { _, isWorking in
-                                guard isWorking else { return }
-                                scrollToLocalBrainWorkShelf(scrollProxy)
-                            }
-                            .background {
-                                LocalBrainPreviewStartObserver(
-                                    progress: localBrainProgress,
-                                    isWorking: localBrainTelemetry.isWorking
-                                ) {
-                                    scrollToLocalBrainWorkShelf(scrollProxy)
-                                }
-                            }
+                    // The book flourish settles into an opaque hold before we
+                    // mount this desk. That lets its first layout happen out of
+                    // sight, and the final page turn only begins after the first
+                    // home frame is ready underneath it.
+                    if didPrepareLaunchDesk {
+                        preparedBookWorkspace
                             .accessibilityHidden(isOpeningMovieVisible || isStoryOnboardingActive)
+                        .task {
+                            await settleLaunchDeskAfterMountIfNeeded()
                         }
                     }
                 }
@@ -841,16 +909,19 @@ struct ContentView: View {
                 }
 
                 if isOpeningMovieVisible {
-                    OpeningMovieView {
-                        Task {
-                            withAnimation(.easeInOut(duration: 0.28)) {
-                                isOpeningMovieVisible = false
-                            }
-                            presentReturningGreetingIfNeeded()
+                    OpeningBookLoadingView(
+                        isReadyToReveal: isLaunchPresentationReady,
+                        onReachedHold: {
+                            didReachOpeningHold = true
+                        },
+                        onFinished: {
+                            finishOpeningMovie()
                         }
-                    }
+                    )
                     .task {
                         await hydrateLaunchStateIfNeeded()
+                        await waitForOpeningHold()
+                        await prepareLaunchDeskIfNeeded()
                     }
                     .transition(.opacity)
                     .zIndex(20)
@@ -861,6 +932,12 @@ struct ContentView: View {
                         withAnimation(.easeOut(duration: 0.4)) { self.activeGreeting = nil }
                     }
                     .zIndex(19)
+                }
+
+                if let weeklyIssueBindingNote {
+                    WeeklyIssueBindingOverlay(note: weeklyIssueBindingNote)
+                        .zIndex(30)
+                        .transition(.opacity)
                 }
 
                 if isGlowMenuPresented && canOpenGlowMenu {
@@ -946,9 +1023,615 @@ struct ContentView: View {
         }
     }
 
+    private var usesPadWorkspace: Bool {
+        #if canImport(UIKit)
+        UIDevice.current.userInterfaceIdiom == .pad && horizontalSizeClass == .regular
+        #else
+        false
+        #endif
+    }
+
+    @ViewBuilder
+    private var preparedBookWorkspace: some View {
+        if usesPadWorkspace {
+            iPadWorkspace
+        } else {
+            compactDeskWorkspace
+        }
+    }
+
+    /// The existing phone desk is intentionally kept intact. It also becomes
+    /// the narrow Stage Manager/Split View fallback when the iPad window no
+    /// longer has enough horizontal room for real columns.
+    private var compactDeskWorkspace: some View {
+        ScrollViewReader { scrollProxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 26) {
+                    AnyView(openingShelf)
+                    AnyView(surfaceShelf)
+                    AnyView(marginaliaSealsRow)
+                    AnyView(castLedgerShelf)
+                    AnyView(todayFragments)
+                    AnyView(resurfacedShelf)
+                    AnyView(archiveShelf)
+                    AnyView(sourceControlsShelf)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 18)
+                .frame(maxWidth: 920)
+                .frame(maxWidth: .infinity)
+            }
+            .onChange(of: localBrainTelemetry.isWorking) { _, isWorking in
+                guard isWorking else { return }
+                scrollToLocalBrainWorkShelf(scrollProxy)
+            }
+            .background {
+                LocalBrainPreviewStartObserver(
+                    progress: localBrainProgress,
+                    isWorking: localBrainTelemetry.isWorking
+                ) {
+                    scrollToLocalBrainWorkShelf(scrollProxy)
+                }
+            }
+        }
+    }
+
+    private var iPadWorkspace: some View {
+        NavigationSplitView(columnVisibility: $padColumnVisibility) {
+            padSidebar
+                .navigationSplitViewColumnWidth(min: 210, ideal: 245, max: 285)
+        } content: {
+            padWorkspaceContent
+                .navigationSplitViewColumnWidth(min: 330, ideal: 410, max: 500)
+        } detail: {
+            padWorkspaceDetail
+                .toolbar {
+                    ToolbarItem(placement: .secondaryAction) {
+                        padCommandMenu
+                    }
+                }
+        }
+        .navigationSplitViewStyle(.balanced)
+        .onChange(of: selectedSurface?.id) { _, _ in
+            padSelectedSurfaceByDestination[padDestination] = selectedSurface
+        }
+    }
+
+    private var padSidebar: some View {
+        List {
+            padSidebarBookplate
+                .listRowInsets(EdgeInsets(top: 12, leading: 14, bottom: 16, trailing: 14))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+
+            Section {
+                ForEach(BookPadDestination.allCases) { destination in
+                    padSidebarDestinationButton(destination)
+                }
+            } header: {
+                Text("Book").sectionRuneLabel()
+            }
+
+            Section {
+                Button {
+                    BookFeedback.play(.openPage)
+                    isConnectionsPresented = true
+                } label: {
+                    Label("Connections", systemImage: "point.3.connected.trianglepath.dotted")
+                }
+
+                Button {
+                    BookFeedback.play(.openPage)
+                    isPeopleOfTheBookPresented = true
+                } label: {
+                    Label("People", systemImage: "person.2")
+                }
+
+                Button {
+                    BookFeedback.play(.openPage)
+                    isPactMapPresented = true
+                } label: {
+                    Label("Pact Map", systemImage: "map")
+                }
+            } header: {
+                Text("World").sectionRuneLabel()
+            }
+
+            Section {
+                Button {
+                    BookFeedback.play(.openPage)
+                    isPagewrightPresented = true
+                } label: {
+                    Label("Scrapbook Studio", systemImage: "scissors")
+                }
+
+                Button {
+                    isBookOfYouShelfExpanded = true
+                    showPadOverview(.archive)
+                } label: {
+                    Label("Book of You", systemImage: "books.vertical")
+                }
+            } header: {
+                Text("Make & Bind").sectionRuneLabel()
+            }
+
+            Section {
+                Button {
+                    BookFeedback.play(.openPage)
+                    currentStall = buildGoblinStall()
+                    isBookShopPresented = true
+                } label: {
+                    Label("Bookshop", systemImage: "storefront")
+                }
+
+                Button {
+                    isQuietMechanicsExpanded = true
+                    showPadOverview(.colophon)
+                } label: {
+                    Label("Colophon", systemImage: "gearshape.2")
+                }
+            } header: {
+                Text("Services").sectionRuneLabel()
+            }
+
+        }
+        .foregroundStyle(BookPalette.nightText.opacity(0.82))
+        .buttonStyle(.plain)
+        .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        .background(BookPalette.nightPanel.opacity(0.98))
+        .tint(BookPalette.lampGold)
+        .navigationTitle("The Book")
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            padQuickPageButton
+        }
+    }
+
+    private var padSidebarBookplate: some View {
+        let moon = MoonPhaseCalendar.phase()
+        let keptCount = days.lazy.flatMap(\.pages).count
+        let glow = BeliefLexicon.glowName(for: beliefScore)
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 11) {
+                Image(systemName: moon.symbolName)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(BookPalette.nightPanel)
+                    .frame(width: 40, height: 40)
+                    .background(BookPalette.lampGold, in: Circle())
+                    .shadow(color: BookPalette.lampGold.opacity(0.28), radius: 10)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("ReEnchanted")
+                        .font(.system(.headline, design: .serif, weight: .bold))
+                        .foregroundStyle(BookPalette.nightText)
+                    Text(Date().formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.58))
+                        .lineLimit(1)
+                }
+            }
+
+            HStack(spacing: 8) {
+                Label(glow, systemImage: "sparkles")
+                Spacer(minLength: 4)
+                Label("\(keptCount)", systemImage: "book.pages")
+            }
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(BookPalette.lampGold.opacity(0.9))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(BookPalette.lampGold.opacity(0.10), in: Capsule())
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("ReEnchanted. \(moon.name). Glow: \(glow). \(keptCount) kept pages.")
+    }
+
+    private func padSidebarDestinationButton(_ destination: BookPadDestination) -> some View {
+        let isSelected = padDestination == destination
+
+        return Button {
+            BookFeedback.play(.select)
+            selectPadDestination(destination)
+        } label: {
+            HStack(spacing: 10) {
+                Label(destination.title, systemImage: destination.symbolName)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(destination.keyboardLabel)
+                    .font(.caption2.monospaced().weight(.semibold))
+                    .foregroundStyle(BookPalette.nightText.opacity(isSelected ? 0.72 : 0.38))
+            }
+            .contentShape(Rectangle())
+        }
+        .foregroundStyle(isSelected ? BookPalette.lampGold : BookPalette.nightText.opacity(0.82))
+        .listRowBackground(isSelected ? BookPalette.lampGold.opacity(0.14) : Color.clear)
+        .hoverEffect(.highlight)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityHint("Keyboard shortcut \(destination.keyboardLabel)")
+    }
+
+    private var padQuickPageButton: some View {
+        Button {
+            presentPlainPage()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "square.and.pencil")
+                    .font(.headline)
+                Text("New Plain Page")
+                    .font(.subheadline.weight(.bold))
+                Spacer()
+                Text("⌘N")
+                    .font(.caption2.monospaced().weight(.bold))
+                    .opacity(0.7)
+            }
+            .foregroundStyle(BookPalette.nightPanel)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(BookPalette.lampGold, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .shadow(color: .black.opacity(0.22), radius: 12, y: 5)
+        }
+        .buttonStyle(.bookPress())
+        .bookCardHover()
+        .padding(12)
+        .background(BookPalette.nightPanel.opacity(0.96))
+        .accessibilityHint("Keyboard shortcut Command N")
+    }
+
+    @ViewBuilder
+    private var padWorkspaceContent: some View {
+        switch padDestination {
+        case .today:
+            padTodayColumn
+        case .stacks:
+            SearchTheStacksSheet(
+                dataset: stacksSearchDataset,
+                datasetRevision: bookPersistenceRevision,
+                isLocalBrainWorking: localBrainTelemetry.isWorking,
+                localBrainWorkLabel: localBrainTelemetry.currentLabel,
+                localBrainWorkStartedAt: localBrainTelemetry.startedAt,
+                isEmbedded: true,
+                focusRequest: padSearchFocusRequest,
+                selectedResultID: padSelectedStacksResultID,
+                initialQuery: padStacksQuery,
+                onQueryChange: { padStacksQuery = $0 },
+                onOpen: { result in
+                    padSelectedStacksResultID = result.id
+                    openSearchResult(result)
+                }
+            )
+        case .almanac:
+            AlmanacSheet(
+                days: days,
+                isEmbedded: true,
+                selectedPageID: padSelectedAlmanacPageID,
+                initialMonthAnchor: padAlmanacMonthAnchor,
+                initialSelectedDay: padAlmanacSelectedDay,
+                onNavigationChange: { month, day in
+                    padAlmanacMonthAnchor = month
+                    padAlmanacSelectedDay = day
+                },
+                onOpen: { page in
+                    padSelectedAlmanacPageID = page.id
+                    openKeptPage(page)
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var padWorkspaceDetail: some View {
+        Group {
+            if let selectedSurface {
+                captureSheet(
+                    for: selectedSurface,
+                    isEmbedded: true,
+                    onDismissRequest: closePadDetail
+                )
+                .id(selectedSurface.id)
+            } else {
+                switch padDestination {
+                case .today:
+                    padTodayOverview
+                case .stacks:
+                    padWorkspacePlaceholder(
+                        title: "The reading stand is ready",
+                        message: "Search the Stacks or choose a result. The index will stay open while the page arrives here.",
+                        systemImage: "book.pages"
+                    )
+                case .almanac:
+                    padWorkspacePlaceholder(
+                        title: "Choose a lit day",
+                        message: "Select a marked date, then choose a kept page. The calendar will remain open beside it.",
+                        systemImage: "calendar"
+                    )
+                }
+            }
+        }
+        .navigationTitle(padDetailTitle)
+        .navigationBarTitleDisplayMode(.inline)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(BookPalette.lampGold.opacity(0.12))
+                .frame(width: 1)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private var padDetailTitle: String {
+        if let selectedSurface {
+            return selectedSurface.prompt
+        }
+        switch padDestination {
+        case .today: return "The Open Desk"
+        case .stacks: return "Reading Stand"
+        case .almanac: return "Almanac Reading Stand"
+        }
+    }
+
+    private func closePadDetail() {
+        selectedSurface = nil
+        switch padDestination {
+        case .today:
+            break
+        case .stacks:
+            padSelectedStacksResultID = nil
+        case .almanac:
+            padSelectedAlmanacPageID = nil
+        }
+    }
+
+    private func selectPadDestination(_ destination: BookPadDestination) {
+        guard destination != padDestination else { return }
+        padSelectedSurfaceByDestination[padDestination] = selectedSurface
+        padDestination = destination
+        selectedSurface = padSelectedSurfaceByDestination[destination]
+    }
+
+    private var padTodayColumn: some View {
+        ScrollViewReader { scrollProxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 20) {
+                    padTodayPulse
+                    AnyView(localBrainWorkShelf)
+                        .id(Self.localBrainWorkShelfScrollID)
+                    AnyView(surfaceShelf)
+                }
+                .padding(20)
+                .frame(maxWidth: 560)
+                .frame(maxWidth: .infinity)
+            }
+            .onChange(of: localBrainTelemetry.isWorking) { _, isWorking in
+                guard isWorking else { return }
+                scrollToLocalBrainWorkShelf(scrollProxy)
+            }
+            .background {
+                LocalBrainPreviewStartObserver(
+                    progress: localBrainProgress,
+                    isWorking: localBrainTelemetry.isWorking
+                ) {
+                    scrollToLocalBrainWorkShelf(scrollProxy)
+                }
+            }
+            .navigationTitle("Today")
+        }
+    }
+
+    private var padTodayPulse: some View {
+        let moon = MoonPhaseCalendar.phase()
+
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(Date().formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                        .font(.caption.weight(.black))
+                        .tracking(0.6)
+                        .foregroundStyle(BookPalette.teal)
+                    Text("The Book is awake")
+                        .font(.system(.title2, design: .serif, weight: .bold))
+                        .foregroundStyle(BookPalette.nightText)
+                }
+
+                Spacer()
+
+                Image(systemName: moon.symbolName)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(BookPalette.lampGold)
+                    .frame(width: 42, height: 42)
+                    .background(BookPalette.lampGold.opacity(0.12), in: Circle())
+                    .accessibilityLabel(moon.name)
+            }
+
+            Text(openingVoice.heroLine)
+                .font(.system(.callout, design: .serif, weight: .semibold))
+                .foregroundStyle(BookPalette.nightText.opacity(0.76))
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 8) {
+                padPulseBadge(
+                    title: "\(surfaces.count) rising",
+                    systemImage: "sparkles.rectangle.stack",
+                    accent: BookPalette.lampGold
+                )
+                padPulseBadge(
+                    title: "\(today.capturedPages.count) kept today",
+                    systemImage: "tray.full",
+                    accent: BookPalette.teal
+                )
+            }
+        }
+        .padding(16)
+        .background(BookPalette.nightPanel.opacity(0.62), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.18), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func padPulseBadge(title: String, systemImage: String, accent: Color) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(accent)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(accent.opacity(0.10), in: Capsule())
+    }
+
+    private var padTodayOverview: some View {
+        ScrollViewReader { scrollProxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 20) {
+                    AnyView(topBanner)
+                    AnyView(hero)
+
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 310), spacing: 20, alignment: .top)],
+                        alignment: .leading,
+                        spacing: 20
+                    ) {
+                        AnyView(marginaliaSealsRow)
+                        AnyView(castLedgerShelf)
+                        AnyView(todayFragments)
+                        AnyView(resurfacedShelf)
+                    }
+
+                    AnyView(archiveShelf)
+                        .id(BookPadOverviewAnchor.archive.rawValue)
+                    AnyView(sourceControlsShelf)
+                        .id(BookPadOverviewAnchor.colophon.rawValue)
+                }
+                .padding(24)
+                .frame(maxWidth: 760)
+                .frame(maxWidth: .infinity, alignment: .top)
+            }
+            .task(id: padOverviewScrollRequest) {
+                guard let anchor = padOverviewAnchor else { return }
+                await Task.yield()
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.32)) {
+                    scrollProxy.scrollTo(anchor.rawValue, anchor: .top)
+                }
+            }
+        }
+        .background(BookBackground(isQuiet: true, showsAmbientLetters: false))
+        .navigationTitle("The Open Desk")
+    }
+
+    private func showPadOverview(_ anchor: BookPadOverviewAnchor) {
+        selectPadDestination(.today)
+        padSelectedSurfaceByDestination[.today] = nil
+        selectedSurface = nil
+        padOverviewAnchor = anchor
+        padOverviewScrollRequest &+= 1
+    }
+
+    private func padWorkspacePlaceholder(
+        title: String,
+        message: String,
+        systemImage: String
+    ) -> some View {
+        ZStack {
+            BookBackground(isQuiet: true, showsAmbientLetters: false)
+
+            VStack(spacing: 22) {
+                ZStack {
+                    Circle()
+                        .fill(BookPalette.lampGold.opacity(0.14))
+                        .frame(width: 92, height: 92)
+                    Image(systemName: systemImage)
+                        .font(.system(size: 34, weight: .semibold))
+                        .foregroundStyle(BookPalette.lampGold)
+                    MarginaliaImage(name: "MarginaliaFeather", width: 58, opacity: 0.26)
+                        .rotationEffect(.degrees(-15))
+                        .offset(x: 54, y: 36)
+                        .accessibilityHidden(true)
+                }
+
+                VStack(spacing: 8) {
+                    Text(title)
+                        .font(.system(.title2, design: .serif, weight: .bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(message)
+                        .font(.system(.callout, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.68))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                HStack(spacing: 10) {
+                    Button {
+                        if padDestination == .stacks {
+                            padSearchFocusRequest &+= 1
+                        } else {
+                            selectPadDestination(.today)
+                        }
+                    } label: {
+                        Label(
+                            padDestination == .stacks ? "Focus Search" : "Return to Today",
+                            systemImage: padDestination == .stacks ? "magnifyingglass" : "sparkles.rectangle.stack"
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(BookPalette.teal)
+
+                    Button {
+                        presentPlainPage()
+                    } label: {
+                        Label("New Page", systemImage: "square.and.pencil")
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(BookPalette.gold)
+                }
+            }
+            .padding(30)
+            .frame(maxWidth: 480)
+            .parchmentSurface(accent: BookPalette.lampGold.opacity(0.72), isActive: false)
+            .padding(36)
+            .accessibilityElement(children: .contain)
+        }
+    }
+
+    private var padCommandMenu: some View {
+        Menu {
+            ForEach(BookPadDestination.allCases) { destination in
+                Button {
+                    selectPadDestination(destination)
+                } label: {
+                    Label(destination.title, systemImage: destination.symbolName)
+                }
+                .keyboardShortcut(destination.keyboardNumber, modifiers: .command)
+            }
+
+            Divider()
+
+            Button {
+                selectPadDestination(.stacks)
+                padSearchFocusRequest &+= 1
+            } label: {
+                Label("Find in the Stacks", systemImage: "magnifyingglass")
+            }
+            .keyboardShortcut("f", modifiers: .command)
+
+            Button {
+                presentPlainPage()
+            } label: {
+                Label("New Plain Page", systemImage: "square.and.pencil")
+            }
+            .keyboardShortcut("n", modifiers: .command)
+        } label: {
+            Label("Book Commands", systemImage: "keyboard")
+        }
+    }
+
     var body: some View {
-        NavigationStack {
-            presentationRoot
+        Group {
+            if usesPadWorkspace {
+                presentationRoot
+            } else {
+                NavigationStack {
+                    presentationRoot
+                }
+            }
         }
         .keepsFocusedTextInputVisible()
     }
@@ -957,8 +1640,9 @@ struct ContentView: View {
     // chromeRoot → presentationRoot → body — so each is type-checked as its own
     // small expression. Keep it this way: a single inlined chain of this many
     // modifiers sits right at the Swift type-checker's complexity ceiling.
-    private var chromeRoot: some View {
-        rootStack
+    private var chromeLaunchRoot: AnyView {
+        AnyView(
+            rootStack
             .navigationTitle("ReEnchanted")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar((isGlowMenuPresented || isOpeningMovieVisible || (isStoryOnboardingActive && !didRevealGlowPillInCurrentOnboarding)) ? .hidden : .visible, for: .navigationBar)
@@ -984,6 +1668,12 @@ struct ContentView: View {
                     }
                 }
             }
+        )
+    }
+
+    private var chromeBrainRoot: AnyView {
+        AnyView(
+            chromeLaunchRoot
             .onReceive(NotificationCenter.default.publisher(for: .localBrainDidWake)) { _ in
                 localBrainTelemetry.wake()
                 AppMemoryLedger.record("reading-room-enter")
@@ -1033,6 +1723,7 @@ struct ContentView: View {
                     enterMagicMomentSessionIfNeeded()
                     Task {
                         await reloadDaysFromArchive()
+                        recordMagicMomentSessionIfNeeded()
                         refreshOpeningVoice()
                         BookWhispers.refreshPromptWhispers(enabled: promptWhispersEnabled, day: today, inputs: sourceInputs)
                         handlePendingRadioWidgetCommand()
@@ -1045,6 +1736,12 @@ struct ContentView: View {
                 writeWidgetSnapshot()
                 resetTransientWorkStateForBackgrounding()
             }
+        )
+    }
+
+    private var chromeRoot: AnyView {
+        AnyView(
+            chromeBrainRoot
             .onReceive(NotificationCenter.default.publisher(for: .promptWhisperKept)) { _ in
                 Task {
                     await reloadDaysFromArchive()
@@ -1069,11 +1766,13 @@ struct ContentView: View {
                 writeWidgetSnapshot()
             }
             .onChange(of: isOpeningMovieVisible) { _, visible in
-                // The movie has cleared — build the desk that was deferred so its
-                // continuity projection never competed with the intro animation.
                 guard !visible, didHydrateLaunchState else { return }
-                rebuildSurfaceCache()
-                writeWidgetSnapshot()
+                // Normal launches prepared the initial cache under the opaque
+                // hold. Keep this fallback for previews or a future alternate
+                // entry path that dismisses the movie without that preparation.
+                if !didPrepareLaunchDesk {
+                    rebuildSurfaceCache()
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: .reEnchantedWidgetDeepLinkReceived)) { _ in
                 handlePendingWidgetDeepLink()
@@ -1096,10 +1795,33 @@ struct ContentView: View {
             .onChange(of: isQuietMechanicsExpanded) { _, expanded in
                 if expanded { tutorTouch("colophon") }
             }
+        )
     }
 
-    private var presentationRoot: some View {
-        chromeRoot
+    private var selectedSurfacePresentation: Binding<SurfacePage?> {
+        Binding(
+            get: { usesPadWorkspace ? nil : selectedSurface },
+            set: { selectedSurface = $0 }
+        )
+    }
+
+    private var stacksSheetPresentation: Binding<Bool> {
+        Binding(
+            get: { !usesPadWorkspace && isStacksSearchPresented },
+            set: { isStacksSearchPresented = $0 }
+        )
+    }
+
+    private var almanacSheetPresentation: Binding<Bool> {
+        Binding(
+            get: { !usesPadWorkspace && isAlmanacPresented },
+            set: { isAlmanacPresented = $0 }
+        )
+    }
+
+    private var presentationReadingRoot: AnyView {
+        AnyView(
+            chromeRoot
             .sheet(item: $pactVerdictSurface) { surface in
                 PactVerdictSheet(surface: surface) { winner, loser in
                     rulePactVerdict(
@@ -1121,9 +1843,34 @@ struct ContentView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
-            .sheet(item: $selectedSurface) { surface in
+            .sheet(item: selectedSurfacePresentation) { surface in
                 captureSheet(for: surface)
             }
+            .sheet(item: $weeklyIssueReader) { reader in
+                WeeklyIssueReaderSheet(reader: reader, brainReady: LocalModelManager.report().isReady) {
+                    // Re-bind: drop the cached copy and rebuild from scratch,
+                    // asking the Book to rewrite it if the local brain is ready.
+                    // Give the reader sheet time to leave before the progress
+                    // overlay and replacement reader arrive.
+                    cachedWeeklyIssueReader = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                        exportWeeklyIssuePDF(forceRebind: true)
+                    }
+                }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
+            .sheet(item: $monthlyEditionReader) { reader in
+                MonthlyEditionReaderSheet(reader: reader)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+        )
+    }
+
+    private var presentationInputRoot: AnyView {
+        AnyView(
+            presentationReadingRoot
             .confirmationDialog(
                 "Location",
                 isPresented: $isLocationSealChoicesPresented,
@@ -1185,6 +1932,12 @@ struct ContentView: View {
                     importSaveFile(from: url)
                 }
             }
+        )
+    }
+
+    private var presentationMakingRoot: AnyView {
+        AnyView(
+            presentationInputRoot
             .sheet(isPresented: $isBookShopPresented) { bookShopSheet }
             .fullScreenCover(isPresented: $isPagewrightPresented) {
                 PagewrightSheet(
@@ -1231,8 +1984,15 @@ struct ContentView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
+        )
+    }
+
+    private var presentationRoot: AnyView {
+        AnyView(
+            presentationMakingRoot
             .sheet(isPresented: $isPactMapPresented) { pactMapSheet }
-            .sheet(isPresented: $isStacksSearchPresented) {
+            .sheet(isPresented: $isPeopleOfTheBookPresented) { peopleOfTheBookSheet }
+            .sheet(isPresented: stacksSheetPresentation) {
                 SearchTheStacksSheet(
                     dataset: stacksSearchDataset,
                     isLocalBrainWorking: localBrainTelemetry.isWorking,
@@ -1246,7 +2006,7 @@ struct ContentView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
-            .sheet(isPresented: $isAlmanacPresented) {
+            .sheet(isPresented: almanacSheetPresentation) {
                 AlmanacSheet(days: days) { page in
                     isAlmanacPresented = false
                     openKeptPage(page)
@@ -1273,6 +2033,7 @@ struct ContentView: View {
                 .presentationDragIndicator(.visible)
             }
             .toolbar { mainToolbar }
+        )
         }
 
     private var bookShopSheet: some View {
@@ -1338,15 +2099,29 @@ struct ContentView: View {
         .presentationDragIndicator(.visible)
     }
 
+    private var peopleOfTheBookSheet: some View {
+        PeopleOfTheBookSheet(
+            ledger: vault.data.people ?? PeopleLedger(),
+            castMemberIDs: Set(customCastMembers.map(\.id)),
+            now: Date(),
+            onWriteIntoStory: { slug in statusMessage = writeThreadIntoStory(slug: slug) },
+            onUpdateWords: { slug, words in updatePersonWords(slug: slug, words: words) },
+            onRest: { slug in restPersonThread(slug: slug) },
+            onWake: { slug in wakePersonThread(slug: slug) },
+            onIntroduce: { name, words in statusMessage = introducePerson(name: name, words: words) },
+            onWakeDeclinedName: { slug in wakeDeclinedName(slug: slug) }
+        )
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
     @ToolbarContentBuilder
     private var mainToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            if !isStoryOnboardingActive {
+            if !isStoryOnboardingActive && !usesPadWorkspace {
                 HStack(spacing: 14) {
                     Button {
-                        BookFeedback.play(.openPage)
-                        tutorTouch("search-stacks")
-                        isStacksSearchPresented = true
+                        presentStacks()
                     } label: {
                         Image(systemName: "sparkle.magnifyingglass")
                             .font(.subheadline.weight(.bold))
@@ -1355,8 +2130,7 @@ struct ContentView: View {
                     .accessibilityLabel("Search the Stacks")
 
                     Button {
-                        BookFeedback.play(.openPage)
-                        isAlmanacPresented = true
+                        presentAlmanac()
                     } label: {
                         Image(systemName: "calendar.badge.clock")
                             .font(.subheadline.weight(.bold))
@@ -1385,6 +2159,32 @@ struct ContentView: View {
                 ))
             }
         }
+    }
+
+    private func presentStacks() {
+        BookFeedback.play(.openPage)
+        tutorTouch("search-stacks")
+        if usesPadWorkspace {
+            selectPadDestination(.stacks)
+            padSearchFocusRequest &+= 1
+        } else {
+            isStacksSearchPresented = true
+        }
+    }
+
+    private func presentAlmanac() {
+        BookFeedback.play(.openPage)
+        if usesPadWorkspace {
+            selectPadDestination(.almanac)
+        } else {
+            isAlmanacPresented = true
+        }
+    }
+
+    private func presentPlainPage() {
+        BookFeedback.play(.openPage)
+        plainPageAutoRecord = false
+        isPlainPagePresented = true
     }
 
     @MainActor
@@ -1488,11 +2288,98 @@ struct ContentView: View {
         modelReport = payload.modelReport
         didHydrateLaunchState = true
         // The daily ticks and the whole-archive continuity projection are heavy
-        // and only feed the home desk — which stays hidden behind the opening
-        // movie. Running them here freezes the animation on its first frame, so
-        // they wait for the movie to clear: the ticks run in
-        // runPostLaunchTasksIfNeeded, the projection in the surface rebuild that
-        // onChange(isOpeningMovieVisible) kicks once the desk is actually shown.
+        // and only feed the home desk. The closed cover first reaches its cheap,
+        // opaque hold; initial curation then runs off-main and the desk mounts
+        // underneath it. Daily ticks still wait until after the reveal.
+    }
+
+    @MainActor
+    func waitForOpeningHold() async {
+        while !didReachOpeningHold && !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+    }
+
+    /// Builds the first real desk while the opening is sitting on its opaque
+    /// hold frame. Archive projection and curation stay off-main; publishing the
+    /// small result is animation-free so no cards slide around behind the cover.
+    @MainActor
+    func prepareLaunchDeskIfNeeded() async {
+        guard isOpeningMovieVisible,
+              didHydrateLaunchState,
+              didReachOpeningHold,
+              !didPrepareLaunchDesk else { return }
+
+        surfaceBuildToken &+= 1
+        let token = surfaceBuildToken
+        let now = surfaceRefreshDate
+        let request = makeSurfaceBuildRequest(now: now)
+        let result = await ContentView.computeSurfaceBuild(request)
+
+        guard !Task.isCancelled,
+              isOpeningMovieVisible,
+              token == surfaceBuildToken else { return }
+
+        if result.didRecomputeDigest {
+            continuityCacheSignature = result.signature
+            cachedContinuityDigest = result.digest
+            cachedMotifClusters = result.clusters
+        }
+
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            surfacedPages = result.surfaces
+            didPrepareLaunchDesk = true
+        }
+    }
+
+    /// `onAppear` precedes the first committed frame. Yield once, allow a short
+    /// layout settle, then arm the final page turn. Any mount hitch therefore
+    /// lands on a deliberately still hold frame rather than in the reveal.
+    @MainActor
+    func settleLaunchDeskAfterMountIfNeeded() async {
+        guard isOpeningMovieVisible,
+              didPrepareLaunchDesk,
+              !isLaunchPresentationReady,
+              !isSettlingLaunchDesk else { return }
+
+        isSettlingLaunchDesk = true
+        defer { isSettlingLaunchDesk = false }
+
+        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
+
+        guard !Task.isCancelled,
+              isOpeningMovieVisible,
+              didPrepareLaunchDesk else { return }
+        isLaunchPresentationReady = true
+    }
+
+    @MainActor
+    func finishOpeningMovie() {
+        guard isOpeningMovieVisible, isLaunchPresentationReady else { return }
+
+        withAnimation(.easeInOut(duration: 0.28)) {
+            isOpeningMovieVisible = false
+        }
+
+        // Greeting composition and first-use feedback can both initialize work
+        // on the main actor. Keep them comfortably beyond the reveal instead of
+        // making the last page-turn frame pay for them.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(360))
+            guard !isOpeningMovieVisible else { return }
+            presentReturningGreetingIfNeeded()
+
+            try? await Task.sleep(for: .milliseconds(160))
+            isLaunchAmbientMotionPaused = false
+
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !isOpeningMovieVisible else { return }
+            BookFeedback.play(.openPage)
+        }
     }
 
     @MainActor
@@ -1540,13 +2427,14 @@ struct ContentView: View {
     func runPostLaunchTasksIfNeeded() async {
         guard !didRunPostLaunchTasks else { return }
         await waitForLaunchStateHydration()
-        // The opening movie animates on the main actor, so any launch chore
-        // running underneath it shows up as a stalled first frame. Hold every
-        // follow-up task until the movie has played out (or been tapped away).
+        // The opening book animates on the main actor, so any launch chore
+        // running underneath it shows up as a stalled frame. Hold every
+        // noncritical follow-up until the prepared desk has been revealed.
         await waitForOpeningMovieToFinish()
         guard !Task.isCancelled, !didRunPostLaunchTasks else { return }
-        // Let the home screen paint its first frame before the chores below.
-        try? await Task.sleep(for: .milliseconds(120))
+        // Leave the final fade and returning greeting a clean runway before the
+        // remaining launch chores begin.
+        try? await Task.sleep(for: .milliseconds(900))
 
         didRunPostLaunchTasks = true
         AppMemoryLedger.record("app-launch-idle")
@@ -1583,6 +2471,13 @@ struct ContentView: View {
         if bookCalendarEnabled {
             calendarEvents = await CalendarDoorway.upcomingEvents()
             surfaceRefreshDate = Date()
+        }
+        if didCompleteStoryOnboarding {
+            BookWhispers.refreshPersonCharges(
+                enabled: promptWhispersEnabled,
+                ledger: vault.data.people ?? PeopleLedger(),
+                events: calendarEvents
+            )
         }
         PackEntitlements.ownedPackIDs = Set(vault.data.ownedPacks ?? [])
         tendArc()
@@ -1694,13 +2589,17 @@ struct ContentView: View {
             surfacedPages = []
             return
         }
-        // The desk is hidden behind the opening movie, so skip the continuity
-        // projection + curator build this would run; onChange(isOpeningMovieVisible)
-        // kicks it once, the moment the movie clears.
+        // The launch coordinator owns the first build under the opaque opening
+        // hold. Ordinary refreshes stay out until the movie has cleared.
         guard !isOpeningMovieVisible else { return }
         guard !isRetiringKeptSurface else {
             return
         }
+        // A retirement build owns the desk until it can replace every hidden
+        // outgoing slot atomically. Letting an ordinary rebuild publish while a
+        // slot is pending can change the outgoing card's identity and strand an
+        // invisible placeholder.
+        guard pendingSurfaceRetirements.isEmpty else { return }
 
         // Snapshot the inputs on the main actor (cheap value copies), then run the
         // whole-archive continuity projection + curation OFF the main thread so the
@@ -1721,12 +2620,11 @@ struct ContentView: View {
                 cachedMotifClusters = result.clusters
             }
             let previousTopID = surfacedPages.first?.id
-            // Stabilize the desk: the curator's rank is time-sensitive (mood /
-            // time-affinity boosts move with `now`) and adapters rotate cadence
-            // slots through their ids, so an idle rebuild can reshuffle cards
-            // the reader is already looking at — which the section springs
-            // animate as visible bouncing. Matching by logical slot keeps shown
-            // cards in place; see BookCurator.stabilizedDeskOrder.
+            // Stabilize the desk: shown cards stay put no matter what bumped
+            // surfaceRefreshDate — only the reader's own keep/swipe removes a
+            // card (replaceDismissedSurfaceInCache refills that one slot). The
+            // rebuild here only refreshes a shown card's content in place and
+            // fills empty slots; see BookCurator.stabilizedDeskOrder.
             surfacedPages = BookCurator.stabilizedDeskOrder(
                 previous: surfacedPages,
                 rebuilt: result.surfaces
@@ -1853,56 +2751,150 @@ struct ContentView: View {
 
     @MainActor
     func replaceDismissedSurfaceInCache(_ surface: SurfacePage, now: Date) {
-        // Supersede any in-flight async build so a stale result can't clobber
-        // this dismissal.
-        surfaceBuildToken &+= 1
-        let token = surfaceBuildToken
-
-        // Slide the dismissed page away immediately — this is cheap, so the swipe
-        // never waits on the curator.
-        let nextPages = surfacedPages.filter { $0.id != surface.id }
-        if shouldPauseAmbientMotion {
-            surfacedPages = Array(nextPages.prefix(3))
-        } else {
-            withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) {
-                surfacedPages = Array(nextPages.prefix(3))
-            }
+        guard pendingSurfaceRetirements[surface.id] == nil,
+              surfacedPages.contains(where: { $0.id == surface.id }) else {
+            return
         }
-        recordServedSurfaces(surfacedPages, now: now)
 
-        // A gap to fill? Curate the replacement OFF the main thread and slide it in
-        // when ready, so the desk refills without a hitch.
-        guard nextPages.count < 3 else { return }
-        let retainedIDs = Set(nextPages.map(\.id))
-        var occupiedKeys = surface.curatorDeskExclusionKeys
-        nextPages.forEach { occupiedKeys.formUnion($0.curatorDeskExclusionKeys) }
+        // Supersede any ordinary build captured before the keep/dismissal. A
+        // separate retirement revision owns pending slots so later refreshes
+        // cannot strand one by cancelling its only replacement task.
+        surfaceBuildToken &+= 1
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            pendingSurfaceRetirements[surface.id] = PendingSurfaceRetirement(surface: surface)
+        }
+
+        scheduleSurfaceRetirementReconciliation(now: now)
+    }
+
+    /// Rebuilds against every currently pending retirement, then replaces all
+    /// outgoing slots in one publication. A second quick swipe restarts this
+    /// batch with both holes, so two independent tasks can never choose the same
+    /// replacement or leave the older slot hidden forever.
+    @MainActor
+    private func scheduleSurfaceRetirementReconciliation(now: Date) {
+        guard !pendingSurfaceRetirements.isEmpty else { return }
+
+        surfaceRetirementRevision &+= 1
+        let revision = surfaceRetirementRevision
+        let cacheToken = surfaceBuildToken
         let request = makeSurfaceBuildRequest(now: now)
 
         Task {
             let result = await ContentView.computeSurfaceBuild(request)
-            guard token == surfaceBuildToken else { return }
-            if result.didRecomputeDigest {
+            guard revision == surfaceRetirementRevision else { return }
+
+            // A retirement result is still useful for its candidate pages after
+            // an unrelated cache build, but only the latest ordinary token may
+            // publish continuity-cache metadata.
+            if cacheToken == surfaceBuildToken, result.didRecomputeDigest {
                 continuityCacheSignature = result.signature
                 cachedContinuityDigest = result.digest
                 cachedMotifClusters = result.clusters
             }
-            let replacement = result.surfaces.first { candidate in
-                candidate.id != surface.id
-                    && !retainedIDs.contains(candidate.id)
-                    && candidate.curatorDeskExclusionKeys.isDisjoint(with: occupiedKeys)
-            }
-            guard let replacement,
-                  surfacedPages.count < 3,
-                  !surfacedPages.contains(where: { $0.id == replacement.id }) else { return }
-            if shouldPauseAmbientMotion {
-                surfacedPages.append(replacement)
-            } else {
-                withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) {
-                    surfacedPages.append(replacement)
+
+            let pending = pendingSurfaceRetirements
+            let pendingIDs = Set(pending.keys)
+            let blockedOutgoingKeys = Set(
+                pending.values.flatMap { $0.surface.curatorDeskExclusionKeys }
+            )
+            let preferences = CuratorSurfacePreferences(
+                dismissedSurfaceIDs: dismissedSurfaceIDs(for: today.id, now: now),
+                disabledSourceIDs: disabledSourceIDs(),
+                pageBeliefProfiles: Dictionary(
+                    uniqueKeysWithValues: pageBeliefProfiles.map { ($0.sourceID, $0) }
+                ),
+                readerLearning: vault.data.readerLearning ?? ReaderLearningModel()
+            )
+            let candidates = result.surfaces.filter { preferences.allows($0) }
+            let resolution = BookCurator.resolvingRetiredDeskSlots(
+                previous: surfacedPages,
+                retiringIDs: pendingIDs,
+                rebuilt: candidates,
+                additionallyBlockedKeys: blockedOutgoingKeys,
+                limit: 3
+            )
+            let arrivingIDs = Set(resolution.replacementIDByRetiringID.values)
+
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                arrivingSurfaceIDs.formUnion(arrivingIDs)
+                surfacedPages = resolution.pages
+                if let undoID = undoSurface?.id,
+                   pendingIDs.contains(undoID) {
+                    undoSurfaceReplacementID = resolution.replacementIDByRetiringID[undoID]
                 }
+                pendingSurfaceRetirements.removeAll()
             }
             recordServedSurfaces(surfacedPages, now: now)
+
+            // Arrival is a card-local, layout-neutral slide. Drop the marker
+            // after it has had time to play so this set never grows without
+            // bound across a long reading session.
+            if !arrivingIDs.isEmpty {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(1.1))
+                    var cleanupTransaction = Transaction(animation: nil)
+                    cleanupTransaction.disablesAnimations = true
+                    withTransaction(cleanupTransaction) {
+                        arrivingSurfaceIDs.subtract(arrivingIDs)
+                    }
+                }
+            }
         }
+    }
+
+    /// Cancels a still-pending retirement (normally an Undo). If other quick
+    /// dismissals are still pending, restart one batch for the remaining holes.
+    @MainActor
+    private func cancelPendingSurfaceRetirement(surfaceID: String, now: Date) {
+        guard pendingSurfaceRetirements[surfaceID] != nil else { return }
+
+        surfaceRetirementRevision &+= 1
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            pendingSurfaceRetirements[surfaceID] = nil
+        }
+        if !pendingSurfaceRetirements.isEmpty {
+            scheduleSurfaceRetirementReconciliation(now: now)
+        }
+    }
+
+    /// The strengthened desk stabilizer deliberately preserves a full desk, so
+    /// Undo must restore the original slot directly rather than merely asking a
+    /// later curator rebuild to rediscover it.
+    @MainActor
+    private func restoreUndoneSurfaceOnDesk(
+        _ surface: SurfacePage,
+        replacing replacementID: String?,
+        preferredIndex: Int?
+    ) {
+        let restored = BookCurator.restoringRetiredDeskSlot(
+            current: surfacedPages,
+            surface: surface,
+            replacementID: replacementID,
+            preferredIndex: preferredIndex,
+            limit: 3
+        )
+        guard restored.map(\.id) != surfacedPages.map(\.id) else { return }
+
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            surfacedPages = restored
+        }
+    }
+
+    private func clearSurfaceUndoContext() {
+        undoSurface = nil
+        undoDayID = nil
+        undoSurfaceSlotIndex = nil
+        undoSurfaceReplacementID = nil
+        undoSurfaceDismissalKeys = []
     }
 
     /// Recompute the continuity digest + motif clusters over the whole archive,
@@ -2122,6 +3114,9 @@ struct ContentView: View {
         case .bindWeeklyIssue:
             exportWeeklyIssuePDF()
             closeGlowMenu()
+        case .rebindWeeklyIssue:
+            exportWeeklyIssuePDF(forceRebind: true)
+            closeGlowMenu()
         case .bindMonthlyEdition:
             exportMonthlyEdition()
             closeGlowMenu()
@@ -2140,6 +3135,9 @@ struct ContentView: View {
             closeGlowMenu()
         case .openPactMap:
             isPactMapPresented = true
+            closeGlowMenu()
+        case .openPeopleOfTheBook:
+            isPeopleOfTheBookPresented = true
             closeGlowMenu()
         case let .openBookSection(sectionID):
             selectedSurface = readingSurface(forWonderCompassSectionID: sectionID)
@@ -2340,7 +3338,10 @@ struct ContentView: View {
         }
     }
 
-    func saveCustomCastMember(_ draft: CustomCastMemberDraft) {
+    /// Returns the new member's id on success (nil if the save failed), so
+    /// callers like the person-thread crossing can link back to it.
+    @discardableResult
+    func saveCustomCastMember(_ draft: CustomCastMemberDraft) -> String? {
         let now = Date()
         let id = "user-cast-\(slug(for: draft.name))-\(UUID().uuidString.prefix(8))"
         let imageAsset = saveCustomCastImage(data: draft.imageData, entityID: id, name: draft.name)
@@ -2381,8 +3382,10 @@ struct ContentView: View {
             surfaceRefreshDate = Date()
             rebuildSurfaceCache()
             closeGlowMenu()
+            return member.id
         } catch {
             statusMessage = "The new Cast Member would not settle yet: \(error.localizedDescription)"
+            return nil
         }
     }
 
@@ -2571,18 +3574,20 @@ struct ContentView: View {
 
     func freshCameraFirstSurface() -> SurfacePage {
         let base = freshManualSurface(for: .illuminatedPhoto)
-        var metadata = base.payload.metadata
-        metadata["cameraFirst"] = "true"
-        metadata["source"] = "camera-seal"
-        metadata["surfaceLabel"] = "Camera"
-        metadata["symbol"] = "camera.fill"
-        metadata["tags"] = "camera-seal,manual-photo,illuminated-photo"
+        let metadata = [
+            "cameraFirst": "true",
+            "source": "camera-seal",
+            "surfaceLabel": "Camera",
+            "symbol": "camera.fill",
+            "tags": "camera-seal,manual-photo",
+            "privacy": "private local capture"
+        ]
         return SurfacePage(
             id: "camera-seal-\(today.id)-\(Int(Date().timeIntervalSince1970))",
-            type: base.type,
+            type: .illuminatedPhoto,
             sourceID: "camera-seal",
-            intent: base.intent,
-            renderStyle: base.renderStyle,
+            intent: .capture,
+            renderStyle: .illuminatedPhoto,
             score: base.score,
             reason: "A photo taken now can become an illuminated page or an Enchantment.",
             prompt: "Camera Page",
@@ -2727,13 +3732,13 @@ struct ContentView: View {
         case .openArchive:
             selectedSurface = freshManualSurface(for: .inventory)
             isReturnedStacksExpanded = true
-            isStacksSearchPresented = true
+            presentStacks()
             statusMessage = "The Stacks are open."
 
         case .openPage:
             selectedSurface = freshManualSurface(for: .inventory)
             isReturnedStacksExpanded = true
-            isStacksSearchPresented = true
+            presentStacks()
             let pageName = command.text?.trimmingCharacters(in: .whitespacesAndNewlines)
             if let pageName, !pageName.isEmpty {
                 statusMessage = "The Stacks are open near \(pageName)."
@@ -3450,16 +4455,38 @@ struct ContentView: View {
             observationStatus = .confirmed
             evidence = "Reader confirmed this Book Notices reading."
             message = "Marked true. The Book will trust this kind of noticing a little more."
+            vault.data.bookObservations = BookObservationLedger.recording(
+                surface: surface,
+                status: .confirmed,
+                in: vault.data.bookObservations ?? []
+            )
         case .notQuite:
             action = .missed
             observationStatus = .notQuite
             evidence = "Reader said this Book Notices reading was not quite right."
-            message = "Marked not quite. The Book will soften that pattern before it speaks this way again."
+            message = "Marked not quite. This exact reading will not return; new evidence may ask a better question."
+            vault.data.bookObservations = BookObservationLedger.recording(
+                surface: surface,
+                status: .questioned,
+                in: vault.data.bookObservations ?? []
+            )
         case .doNotReadThisWay:
             action = .dismissed
             observationStatus = .doNotRead
             evidence = "Reader asked the Book not to read them this way."
-            message = "Marked off-limits for now. The Book will step back from this reading."
+            message = "Marked off-limits. The Book will not bring this reading back."
+            vault.data.bookObservations = BookObservationLedger.recording(
+                surface: surface,
+                status: .forbidden,
+                in: vault.data.bookObservations ?? []
+            )
+            if let key = BookObservationLedger.key(for: surface) {
+                var boundaries = vault.data.bookReadingBoundaries ?? []
+                if !boundaries.contains(where: { $0.id == key }) {
+                    boundaries.append(BookReadingBoundary(id: key, createdAt: Date()))
+                    vault.data.bookReadingBoundaries = Array(boundaries.suffix(200))
+                }
+            }
         }
 
         let now = Date()
@@ -3512,7 +4539,209 @@ struct ContentView: View {
                 : "Binding this week."
         case .letPatternRest:
             return recordBookNoticeFeedback(surface: surface, choice: .doNotReadThisWay)
+        case .openPersonThread:
+            switch confirmPersonThread(from: surface) {
+            case .missing:
+                return "The Book reached for the name, but the page had let it go."
+            case .already(let name):
+                return "A thread for \(name) is already in the Book's keeping."
+            case .opened(let name):
+                recordReaderLearning(surface: surface, action: .loved, evidence: "Reader opened a thread for a recurring name.")
+                return "A thread for \(name) is open. I will keep their pages the way I keep your places. If you ever want them in the story too, that door is yours."
+            }
+        case .writePersonIntoStory:
+            // The crossing: make sure the witness thread exists (the real
+            // pages keep accruing to it), then mint the linked cast member.
+            if case .missing = confirmPersonThread(from: surface) {
+                return "The Book reached for the name, but the page had let it go."
+            }
+            let slug = surface.payload.metadata["personSlug"] ?? ""
+            let message = writeThreadIntoStory(slug: slug)
+            recordReaderLearning(surface: surface, action: .loved, evidence: "Reader wrote a recurring name into the story.")
+            return message
+        case .letPersonRest:
+            let slug = surface.payload.metadata["personSlug"] ?? ""
+            guard !slug.isEmpty else {
+                return "The Book reached for the name, but the page had let it go."
+            }
+            var ledger = vault.data.people ?? PeopleLedger()
+            if !ledger.restingNames.contains(slug) {
+                ledger.restingNames.append(slug)
+            }
+            vault.data.people = ledger
+            vault.save()
+            return "The name can rest. I will not ask about it again — unless you bring it to me yourself."
+        case .restPersonThread:
+            let slug = surface.payload.metadata["personSlug"] ?? ""
+            var ledger = vault.data.people ?? PeopleLedger()
+            guard let index = ledger.threads.firstIndex(where: { $0.id == "person:\(slug)" }) else {
+                return "That thread had already slipped from the Book's keeping."
+            }
+            ledger.threads[index] = PeopleOfTheBook.rested(ledger.threads[index], onDay: today.id)
+            vault.data.people = ledger
+            vault.save()
+            return "The thread is resting. I will keep its pages gently, and say no more."
         }
+    }
+
+    private enum PersonThreadConfirmation {
+        case missing
+        case already(String)
+        case opened(String)
+    }
+
+    /// Opens the witness thread a suggestion notice describes, if it is not
+    /// already kept. Shared by "open a thread" and the story crossing.
+    private func confirmPersonThread(from surface: SurfacePage) -> PersonThreadConfirmation {
+        let name = surface.payload.metadata["personName"] ?? ""
+        let slug = surface.payload.metadata["personSlug"] ?? ""
+        guard !name.isEmpty, !slug.isEmpty else { return .missing }
+        var ledger = vault.data.people ?? PeopleLedger()
+        if ledger.thread(slug: slug) != nil { return .already(name) }
+        let suggestion = PeopleOfTheBook.PersonSuggestion(
+            name: name,
+            slug: slug,
+            mentionPageCount: Int(surface.payload.metadata["personMentions"] ?? "") ?? 0,
+            distinctDayCount: Int(surface.payload.metadata["personDays"] ?? "") ?? 0,
+            firstDayID: surface.payload.metadata["personFirstDay"] ?? today.id,
+            lastDayID: surface.payload.metadata["personLastDay"] ?? today.id,
+            evidencePageIDs: (surface.payload.metadata["evidencePageIDs"] ?? "")
+                .split(separator: ",").map(String.init),
+            sampleQuote: ""
+        )
+        ledger.restingNames.removeAll { $0 == slug }
+        ledger.threads.append(PeopleOfTheBook.confirmed(suggestion, onDay: today.id))
+        vault.data.people = ledger
+        vault.save()
+        return .opened(name)
+    }
+
+    // MARK: - People of the Book — thread-centric actions (the flyleaf)
+    //
+    // The suggestion notice and the People flyleaf both act on threads by
+    // slug, so the crossing / rest / wake / introduce logic lives here once.
+
+    /// The crossing by slug: mint (or reuse) the linked cast member so a real
+    /// person walks the halls. The witness thread is untouched otherwise.
+    @discardableResult
+    func writeThreadIntoStory(slug: String) -> String {
+        var ledger = vault.data.people ?? PeopleLedger()
+        guard let index = ledger.threads.firstIndex(where: { $0.id == "person:\(slug)" }) else {
+            return "The thread slipped before the ink dried — try again."
+        }
+        let thread = ledger.threads[index]
+        if let existing = thread.castMemberID,
+           customCastMembers.contains(where: { $0.id == existing }) {
+            return "\(thread.name) already walks the halls."
+        }
+        let who = thread.readerWords.trimmingCharacters(in: .whitespacesAndNewlines)
+        let description = who.isEmpty
+            ? "Drawn from the reader's kept pages about \(thread.name). The story may imagine them from here; the kept pages remain the reader's record of the real one."
+            : "\(who) Drawn from the reader's kept pages about \(thread.name); the story may imagine them from here, while the kept pages remain the reader's record of the real one."
+        let draft = CustomCastMemberDraft(
+            name: thread.name,
+            kind: .character,
+            meaning: who.isEmpty ? "A real person from the reader's days, written into the story by the reader's own hand." : who,
+            description: description,
+            traits: [],
+            beliefs: [],
+            goals: [],
+            tags: ["people-of-the-book", "real-person", "reader-invited"],
+            imageData: nil,
+            startingGlow: 30
+        )
+        guard let castID = saveCustomCastMember(draft) else {
+            return "The Cast page would not take the name yet — try again in a moment."
+        }
+        ledger.threads[index] = PeopleOfTheBook.invitedIntoStory(thread, castMemberID: castID, onDay: today.id)
+        vault.data.people = ledger
+        vault.save()
+        surfaceRefreshDate = Date()
+        return "\(thread.name) steps into the story — the halls will learn their name. Your thread still keeps the real pages, in your own words."
+    }
+
+    /// The reader's own line about who a person is (`readerWords`), which also
+    /// colors the cast member if they are later written into the story.
+    func updatePersonWords(slug: String, words: String) {
+        var ledger = vault.data.people ?? PeopleLedger()
+        guard let index = ledger.threads.firstIndex(where: { $0.id == "person:\(slug)" }) else { return }
+        ledger.threads[index].readerWords = words.trimmingCharacters(in: .whitespacesAndNewlines)
+        vault.data.people = ledger
+        vault.save()
+    }
+
+    func restPersonThread(slug: String) {
+        var ledger = vault.data.people ?? PeopleLedger()
+        guard let index = ledger.threads.firstIndex(where: { $0.id == "person:\(slug)" }) else { return }
+        ledger.threads[index] = PeopleOfTheBook.rested(ledger.threads[index], onDay: today.id)
+        vault.data.people = ledger
+        vault.save()
+        surfaceRefreshDate = Date()
+    }
+
+    /// Wake a resting thread: the Book resumes noticing it (and may remark on
+    /// its quiets and returns again).
+    func wakePersonThread(slug: String) {
+        var ledger = vault.data.people ?? PeopleLedger()
+        guard let index = ledger.threads.firstIndex(where: { $0.id == "person:\(slug)" }) else { return }
+        ledger.threads[index].resting = false
+        ledger.threads[index].restDay = nil
+        vault.data.people = ledger
+        vault.save()
+        surfaceRefreshDate = Date()
+    }
+
+    /// The reader introduces someone the Book has not suggested — the
+    /// deliberate front door. Reuses any pages already naming them so the
+    /// thread starts with honest history.
+    @discardableResult
+    func introducePerson(name: String, words: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        let slug = PeopleOfTheBook.slug(for: trimmed)
+        guard !slug.isEmpty else { return "" }
+        var ledger = vault.data.people ?? PeopleLedger()
+        if let index = ledger.threads.firstIndex(where: { $0.id == "person:\(slug)" }) {
+            // Already known — just update who they are and wake if resting.
+            if !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                ledger.threads[index].readerWords = words.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            ledger.threads[index].resting = false
+            vault.data.people = ledger
+            vault.save()
+            return "\(trimmed) is already in your book."
+        }
+        // Count any existing mentions so the thread starts honest.
+        let probe = PersonThread(
+            id: "person:\(slug)", name: trimmed, introducedDay: today.id,
+            readerWords: "", firstMentionDay: today.id, lastMentionDay: today.id, mentionPageCount: 0
+        )
+        let mentions = PeopleOfTheBook.mentions(of: probe, in: days)
+        let mentionDayIDs = mentions.pageDates.map { BookDay.id(for: $0) }
+        let thread = PersonThread(
+            id: "person:\(slug)",
+            name: trimmed,
+            introducedDay: today.id,
+            readerWords: words.trimmingCharacters(in: .whitespacesAndNewlines),
+            firstMentionDay: mentionDayIDs.first ?? today.id,
+            lastMentionDay: mentionDayIDs.last ?? today.id,
+            mentionPageCount: mentions.pageDates.count
+        )
+        ledger.restingNames.removeAll { $0 == slug }
+        ledger.threads.append(thread)
+        vault.data.people = ledger
+        vault.save()
+        surfaceRefreshDate = Date()
+        return "\(trimmed) is in your book now. I will keep their pages — and if you want them in the story, that door is yours."
+    }
+
+    /// Un-decline a name the reader had let rest, so the Book may suggest it
+    /// again on new evidence.
+    func wakeDeclinedName(slug: String) {
+        var ledger = vault.data.people ?? PeopleLedger()
+        ledger.restingNames.removeAll { $0 == slug }
+        vault.data.people = ledger
+        vault.save()
     }
 
     func updateBraidFeedback(pageID: String, tagsToAdd: Set<String>, message: String?) -> String {
@@ -3627,6 +4856,11 @@ struct ContentView: View {
     }
 
     private func scrollToLocalBrainWorkShelf(_ scrollProxy: ScrollViewProxy) {
+        if !isOpeningShelfExpanded {
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                isOpeningShelfExpanded = true
+            }
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             withAnimation(.easeInOut(duration: 0.28)) {
                 scrollProxy.scrollTo(Self.localBrainWorkShelfScrollID, anchor: .top)
@@ -3793,7 +5027,10 @@ struct ContentView: View {
                         .font(.system(.callout, design: .serif, weight: .semibold))
                         .foregroundStyle(BookPalette.nightText.opacity(0.78))
                         .lineSpacing(2)
-                        .lineLimit(3)
+                        // These updates are authored to be read in full. Let the
+                        // card grow with the copy instead of replacing its ending
+                        // with an ellipsis on narrower phone widths.
+                        .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: 280, alignment: .leading)
                         .padding(.top, 10)
@@ -3853,6 +5090,21 @@ struct ContentView: View {
         }
     }
 
+    var openingShelf: some View {
+        foldedShelf(
+            title: "ReEnchanted",
+            accent: BookPalette.lampGold,
+            isExpanded: $isOpeningShelfExpanded
+        ) {
+            VStack(alignment: .leading, spacing: 20) {
+                topBanner
+                hero
+                localBrainWorkShelf
+                    .id(Self.localBrainWorkShelfScrollID)
+            }
+        }
+    }
+
     var surfaceShelf: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -3873,46 +5125,43 @@ struct ContentView: View {
                 )
             }
 
-            LazyVStack(spacing: 12) {
+            // There are at most three cards. Keeping them eagerly mounted makes
+            // the pending retirement slot a reliable layout placeholder and
+            // avoids lazy-stack measurement corrections during a swap.
+            VStack(spacing: 12) {
                 ForEach(surfaces) { surface in
-                    SwipeDismissSurfaceCard(surface: surface, isBusy: workBlockingState.surfaceBusyIndicator(for: surface.type)) {
-                        BookFeedback.play(surface.type == .bookOfYou ? .tap : .openPage)
-                        switch SurfaceActionRouter(workState: workBlockingState).decision(
-                            for: surface.type,
-                            readiness: SurfaceReadinessState(surface: surface)
-                        ) {
-                        case .blocked(let message):
-                            BookFeedback.play(.error)
-                            statusMessage = message
-                        case .braid:
-                            Task { await braidToday(openWhenComplete: true) }
-                        case .open:
-                            if isMemoryPageLocked(surface.type) {
-                                showMemoryPageLockedMessage(for: surface.type)
-                                return
-                            }
-                            markFirstRunEngaged(surface)
-                            if SurfaceReadinessState(surface: surface).needsLocalBrainToOpen {
-                                Task { await generateAndOpenSurface(surface) }
-                            } else if surface.type == .bookConnections {
-                                isConnectionsPresented = true
-                            } else if surface.type == .pactVerdict {
-                                pactVerdictSurface = surface
-                            } else if surface.type == .pactErrand {
-                                pactErrandSurface = surface
-                            } else if surface.payload.metadata["opensBookShop"] == "true" {
-                                currentStall = buildGoblinStall()
-                                isBookShopPresented = true
-                            } else if surface.payload.metadata["requiresCalendarPermission"] == "true" {
-                                Task { await openCalendarDoorway(from: surface) }
-                            } else if surface.type == .faeBargain {
-                                openFaeBargainSurface(surface)
-                            } else {
-                                selectedSurface = surface
-                            }
-                        }
+                    SwipeDismissSurfaceCard(
+                        surface: surface,
+                        isBusy: workBlockingState.surfaceBusyIndicator(for: surface.type),
+                        isRetiring: pendingSurfaceRetirements[surface.id] != nil,
+                        animatesArrival: arrivingSurfaceIDs.contains(surface.id)
+                    ) {
+                        openDeskSurface(surface)
                     } onDismiss: {
                         dismissSurface(surface)
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(
+                                usesPadWorkspace && padDestination == .today && selectedSurface?.id == surface.id
+                                    ? BookPalette.lampGold.opacity(0.78)
+                                    : Color.clear,
+                                lineWidth: 2
+                            )
+                            .allowsHitTesting(false)
+                    }
+                    .contextMenu {
+                        Button {
+                            openDeskSurface(surface)
+                        } label: {
+                            Label("Open on Reading Stand", systemImage: "book.pages")
+                        }
+
+                        Button {
+                            dismissSurface(surface)
+                        } label: {
+                            Label("Let This Page Wait", systemImage: "arrow.uturn.backward")
+                        }
                     }
                     .transition(.asymmetric(
                         insertion: .move(edge: .top).combined(with: .opacity),
@@ -3926,6 +5175,45 @@ struct ContentView: View {
                     actionTitle: statusActionTitle,
                     action: statusAction
                 )
+            }
+        }
+    }
+
+    private func openDeskSurface(_ surface: SurfacePage) {
+        BookFeedback.play(surface.type == .bookOfYou ? .tap : .openPage)
+        switch SurfaceActionRouter(workState: workBlockingState).decision(
+            for: surface.type,
+            readiness: SurfaceReadinessState(surface: surface)
+        ) {
+        case .blocked(let message):
+            BookFeedback.play(.error)
+            statusMessage = message
+        case .braid:
+            Task { await braidToday(openWhenComplete: true) }
+        case .open:
+            if isMemoryPageLocked(surface.type) {
+                showMemoryPageLockedMessage(for: surface.type)
+                return
+            }
+            recordMagicMomentInteraction(surface, status: .asked)
+            markFirstRunEngaged(surface)
+            if SurfaceReadinessState(surface: surface).needsLocalBrainToOpen {
+                Task { await generateAndOpenSurface(surface) }
+            } else if surface.type == .bookConnections {
+                isConnectionsPresented = true
+            } else if surface.type == .pactVerdict {
+                pactVerdictSurface = surface
+            } else if surface.type == .pactErrand {
+                pactErrandSurface = surface
+            } else if surface.payload.metadata["opensBookShop"] == "true" {
+                currentStall = buildGoblinStall()
+                isBookShopPresented = true
+            } else if surface.payload.metadata["requiresCalendarPermission"] == "true" {
+                Task { await openCalendarDoorway(from: surface) }
+            } else if surface.type == .faeBargain {
+                openFaeBargainSurface(surface)
+            } else {
+                selectedSurface = surface
             }
         }
     }
@@ -4306,21 +5594,50 @@ struct ContentView: View {
             .flatMap(\.pages)
             .filter { $0.type == .bookOfYou }
             .sorted { $0.createdAt > $1.createdAt }
+        let keptIssuePages = days
+            .flatMap(\.pages)
+            .filter { $0.weeklyIssueArtifact != nil }
+            .sorted { $0.createdAt > $1.createdAt }
+        let keptMonthlyPages = days
+            .flatMap(\.pages)
+            .filter { $0.monthlyEditionArtifact != nil }
+            .sorted { $0.createdAt > $1.createdAt }
+        let status = ([
+            "\(keptPages.count) daily",
+            keptIssuePages.isEmpty ? nil : "\(keptIssuePages.count) weekly",
+            keptMonthlyPages.isEmpty ? nil : "\(keptMonthlyPages.count) monthly"
+        ] as [String?])
+            .compactMap { $0 }
+            .joined(separator: " · ")
 
         return foldedShelf(
             title: "The Book of You",
-            status: "\(keptPages.count)",
+            status: status,
             accent: BookPalette.teal,
             isExpanded: $isBookOfYouShelfExpanded
         ) {
-            if keptPages.isEmpty {
-                EmptyBookCard(
-                    title: "The shelf is waiting",
-                    message: "When the first braid dries, it will live here."
-                )
-            } else {
+            VStack(alignment: .leading, spacing: 10) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
+                        // Weekly issues and monthly editions appear here only once
+                        // bound; tapping opens the kept copy, never re-binds. New
+                        // bindings are made from the Bindery, not this shelf.
+                        ForEach(keptIssuePages) { page in
+                            if let artifact = page.weeklyIssueArtifact {
+                                WeeklyIssueArchiveCard(artifact: artifact) {
+                                    openKeptWeeklyIssue(page)
+                                }
+                            }
+                        }
+
+                        ForEach(keptMonthlyPages) { page in
+                            if let artifact = page.monthlyEditionArtifact {
+                                MonthlyEditionArchiveCard(artifact: artifact) {
+                                    openKeptMonthlyEdition(page)
+                                }
+                            }
+                        }
+
                         ForEach(keptPages.prefix(8)) { page in
                             ArchiveCard(page: page) {
                                 openKeptPage(page)
@@ -4328,6 +5645,13 @@ struct ContentView: View {
                         }
                     }
                     .padding(.bottom, 2)
+                }
+
+                if keptPages.isEmpty && keptIssuePages.isEmpty && keptMonthlyPages.isEmpty {
+                    Text("When the first nightly braid dries, its daily binding will join the issue and monthly braid here.")
+                        .font(.caption)
+                        .foregroundStyle(BookPalette.nightText.opacity(0.58))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -4543,7 +5867,7 @@ struct ContentView: View {
                             Text("Calendar Doorway")
                                 .font(.caption.weight(.bold))
                                 .foregroundStyle(BookPalette.nightText.opacity(0.86))
-                            Text("The Book reads the day's hinges and folds a corner before each one. Events stay on this phone.")
+                            Text("The Book reads the day's hinges and folds a corner before each one. Events stay on this device.")
                                 .font(.caption2)
                                 .foregroundStyle(BookPalette.nightText.opacity(0.58))
                                 .fixedSize(horizontal: false, vertical: true)
@@ -4761,29 +6085,17 @@ struct ContentView: View {
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(BookPalette.nightText.opacity(0.62))
                             Spacer()
-                            if let preparedWeeklyIssueCardURL {
-                                ShareLink(item: preparedWeeklyIssueCardURL) {
-                                    Label("Share weekly card", systemImage: "square.and.arrow.up")
-                                        .font(.caption.weight(.bold))
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .tint(BookPalette.teal)
-                            } else if let preparedWeeklyIssuePDFURL {
-                                ShareLink(item: preparedWeeklyIssuePDFURL) {
-                                    Label("Share weekly PDF", systemImage: "doc.richtext")
-                                        .font(.caption.weight(.bold))
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .tint(BookPalette.teal)
-                            } else if currentWeeklyIssue != nil {
+                            if currentWeeklyIssue != nil {
+                                // Read-first: binding opens the issue in-app, where
+                                // the card and full-PDF shares live.
                                 Button {
                                     BookFeedback.play(.sourceRefresh)
                                     exportWeeklyIssuePDF()
                                 } label: {
-                                    Label("Bind weekly issue", systemImage: "doc.richtext")
+                                    Label(preparedWeeklyIssuePDFURL != nil ? "Read the issue" : "Bind & read", systemImage: "book")
                                         .font(.caption.weight(.bold))
                                 }
-                                .buttonStyle(.bordered)
+                                .buttonStyle(.borderedProminent)
                                 .tint(BookPalette.teal)
                             } else {
                                 Text("No closed issue yet")
@@ -5091,6 +6403,7 @@ struct ContentView: View {
                 if var upgradedNote = upgraded {
                     // The deeper recognition replaces the voice, not the moment:
                     // the ripple and carry-out lines belong to the keep itself.
+                    upgradedNote.findingLine = note.findingLine
                     upgradedNote.rippleLine = note.rippleLine
                     upgradedNote.carryOutLine = note.carryOutLine
                     upgradedNote.findingLine = note.findingLine
@@ -5186,6 +6499,8 @@ struct ContentView: View {
                 "hidden-magic-sense:\(hiddenMagicFinding.sense.rawValue)",
                 "hidden-magic-lens:\(hiddenMagicFinding.lensID)"
             ]
+            keptTags += hiddenMagicFinding.expressionModes.map { "hidden-magic-proof:\($0.rawValue)" }
+            keptTags = Array(Set(keptTags)).sorted()
         }
         keepInkBurstText = hiddenMagicFinding == nil
             ? (input.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? surface.type.shortTitle)
@@ -5338,6 +6653,7 @@ struct ContentView: View {
             keepNote = KeepMarginalia.floorNote(for: keptInput, pageType: page.type, pageID: page.id)
         }
         if var note = keepNote {
+            note.findingLine = HiddenMagicPractice.receiptLine(for: page)
             note.rippleLine = rippleLine
             note.carryOutLine = afterglowLine
             note.findingLine = HiddenMagicPractice.receiptLine(for: page)
@@ -5372,6 +6688,7 @@ struct ContentView: View {
         applyGossipRelationshipMoves(from: surface)
         applyGossipPageBeliefMoves(from: surface)
         saveSelfFactIfNeeded(surface: surface, answer: input)
+        adoptChosenQuillIfNeeded(surface: surface)
         saveFacultyEntryIfNeeded(surface: surface, page: page, answer: input, tags: tags, dayID: day.id)
         recordReaderLearning(surface: surface, action: .kept, evidence: keptInput, saveImmediately: false)
         awardBelief(for: surface)
@@ -5418,12 +6735,24 @@ struct ContentView: View {
     func keepPlainPage(text: String, media: [BookPageMediaAsset]) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !media.isEmpty else { return }
+        let hasPhoto = media.contains { asset in
+            switch asset.kind {
+            case .bundledImage, .renderedImageFile, .photoLibraryAsset:
+                return true
+            case .audioFile:
+                return false
+            }
+        }
+        var tags = ["plain", "unsorted", "private"]
+        if hasPhoto {
+            tags.append(contentsOf: ["photo", "plain-photo", "unedited-photo"])
+        }
         BookFeedback.play(.keepPage)
         let page = BookPage(
             type: .plainPage,
-            promptText: "",
+            promptText: trimmed.isEmpty && hasPhoto ? "Original photograph" : "",
             userInput: trimmed,
-            tags: ["plain", "unsorted", "private"],
+            tags: tags,
             sourceID: "plain-page",
             origin: .userAuthored,
             privacy: .privateLocal,
@@ -5461,7 +6790,11 @@ struct ContentView: View {
     /// the Swift type-checker's complexity ceiling, where adding even one argument
     /// (`readerLexicon`) tipped it into "unable to type-check in reasonable time".
     @ViewBuilder
-    private func captureSheet(for surface: SurfacePage) -> some View {
+    private func captureSheet(
+        for surface: SurfacePage,
+        isEmbedded: Bool = false,
+        onDismissRequest: (() -> Void)? = nil
+    ) -> some View {
         CapturePageSheet(
             surface: surface,
             day: today,
@@ -5562,9 +6895,14 @@ struct ContentView: View {
             onBookNoticeAdaptiveAction: { notice, action in
                 handleBookNoticeAdaptiveAction(surface: notice, action: action)
             },
+            onKeepPlainPhoto: { asset in
+                keepPlainPage(text: "", media: [asset])
+            },
             weatherSignal: weatherPageSignal,
             readerLexicon: activeReaderLexicon,
-            isShadowWonderActive: ShadowWonder.state(inputs: sourceInputs, now: Date()).isActive
+            isShadowWonderActive: ShadowWonder.state(inputs: sourceInputs, now: Date()).isActive,
+            isEmbedded: isEmbedded,
+            onDismissRequest: onDismissRequest
         ) { savedSurface, input, tags, extraMedia in
             savePage(surface: savedSurface, input: input, tags: tags, extraMedia: extraMedia)
         }
@@ -6013,6 +7351,7 @@ struct ContentView: View {
     func presentReturningGreetingIfNeeded() {
         guard didCompleteStoryOnboarding, !didShowGreetingThisLaunch else { return }
         didShowGreetingThisLaunch = true
+        recordMagicMomentSessionIfNeeded()
 
         let inputs = sourceInputs
         let context = BookGreetingContext(
@@ -6033,6 +7372,49 @@ struct ContentView: View {
             guard !Task.isCancelled, activeGreeting == greeting else { return }
             withAnimation(.easeOut(duration: 0.5)) { activeGreeting = nil }
         }
+    }
+
+    /// Records a real sitting, not a foreground bounce. The random draw is
+    /// immediately persisted, so reopening the same session or rebuilding the
+    /// desk cannot pull the lever twice.
+    func recordMagicMomentSessionIfNeeded(now: Date = Date()) {
+        guard didCompleteStoryOnboarding else { return }
+        let current = vault.data.magicMoment ?? MagicMomentState()
+        let updated = MagicMomentGovernor.enteringSession(
+            current,
+            now: now,
+            roll: Int.random(in: 0..<100)
+        )
+        guard updated != current else { return }
+        vault.data.magicMoment = updated
+        vault.save()
+        surfaceRefreshDate = now
+    }
+
+    /// Opening or deliberately passing an earned reveal counts as receiving
+    /// the moment. It also records the exact evidence-scoped reading so the
+    /// Book never repeats the conversation as though it were new.
+    func recordMagicMomentInteraction(
+        _ surface: SurfacePage,
+        status: BookObservationStatus,
+        now: Date = Date()
+    ) {
+        guard BookObservationLedger.key(for: surface) != nil else { return }
+        vault.data.bookObservations = BookObservationLedger.recording(
+            surface: surface,
+            status: status,
+            in: vault.data.bookObservations ?? [],
+            now: now
+        )
+        if surface.payload.metadata["magicMoment"] == "true" {
+            let key = BookObservationLedger.key(for: surface) ?? surface.id
+            vault.data.magicMoment = MagicMomentGovernor.consuming(
+                vault.data.magicMoment ?? MagicMomentState(),
+                key: key,
+                now: now
+            )
+        }
+        vault.save()
     }
 
     func greetingRememberedFactLines() -> [String] {
@@ -6058,7 +7440,7 @@ struct ContentView: View {
             .sorted { $0.createdAt > $1.createdAt }
         var seen = Set<String>()
         return pages.compactMap { page in
-            let line = (page.userInput.nonEmpty ?? page.promptText.nonEmpty)?
+            let line = page.archivePreviewText?
                 .bookPreviewSentenceLimit(1)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard let line, seen.insert(line).inserted else { return nil }
@@ -6940,9 +8322,10 @@ struct ContentView: View {
         guard delta != 0 else { return }
         let newScore = min(100, max(0, beliefScore + delta))
         guard newScore != beliefScore else { return }
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
-            beliefScore = newScore
-        }
+        // The badge owns its score-change pop locally. Publishing this through a
+        // root animation transaction can also animate a new hero line (and its
+        // height) when Belief crosses a voice threshold, shifting every shelf.
+        beliefScore = newScore
     }
 
     /// The open shelf: turn any title the reader names into an improvised Book
@@ -6974,7 +8357,7 @@ struct ContentView: View {
         surfaceRefreshDate = Date()
     }
 
-    /// Once a day, an unstabilized Book Jump lets Disbelief gain a margin; if
+    /// Once a day, an unstabilized Book Jump lets Routine gain a margin; if
     /// it overruns, the jump collapses — you lose the staked Belief and the book
     /// goes cold. Also prunes expired Borrowed Rules.
     func tendBookJump(now: Date = Date()) {
@@ -6989,7 +8372,7 @@ struct ContentView: View {
                     beliefScore = max(0, beliefScore - result.lostBelief)
                 }
             }
-            statusMessage = "\(result.bookTitle) collapsed into Disbelief overnight. You slipped back empty-handed; the book is cold for a while."
+            statusMessage = "\(result.bookTitle) collapsed into Routine overnight. You slipped back empty-handed; the book is cold for a while."
             BookFeedback.nothingPressure(4)
             BookFeedback.play(.error)
             surfaceRefreshDate = now
@@ -7226,9 +8609,17 @@ struct ContentView: View {
         }
 
         let returnSurface = storyMechanicReturnSurface(from: completedSurface, outcome: outcome)
-        statusMessage = "The Story Page is folding the \(completedSurface.prompt) result back into the thread..."
+        let returnsToAcademy = returnSurface.type == .academyClass
+        statusMessage = returnsToAcademy
+            ? "The Academy is opening the door for a fieldwork debrief..."
+            : "The Story Page is folding the \(completedSurface.prompt) result back into the thread..."
 
         do {
+            if returnsToAcademy {
+                selectedSurface = await academyClassSurfaceWithProse(from: returnSurface)
+                statusMessage = "The class has received the practice and moved one beat forward."
+                return
+            }
             let prose: StoryPageProse
             #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
             prose = try await MLXStoryPageWriter().write(surface: returnSurface)
@@ -7243,16 +8634,19 @@ struct ContentView: View {
             statusMessage = "The mechanic result has become the next Story Page."
         } catch {
             selectedSurface = localBrainIssueSurface(
-                type: .narrativeOS,
-                title: "Story Page",
-                action: "fold the mechanic result back into the story"
+                type: returnsToAcademy ? .academyClass : .narrativeOS,
+                title: returnsToAcademy ? "Academy Return" : "Story Page",
+                action: returnsToAcademy ? "return the fieldwork to the class" : "fold the mechanic result back into the story"
             )
-            statusMessage = "The Story Page could not fold the mechanic result yet."
+            statusMessage = returnsToAcademy
+                ? "The class could not receive the fieldwork yet."
+                : "The Story Page could not fold the mechanic result yet."
         }
     }
 
     func storyMechanicReturnSurface(from completedSurface: SurfacePage, outcome: String) -> SurfacePage {
         let metadata = completedSurface.payload.metadata
+        let returnsToAcademy = metadata["academyActivityReturn"] == "true"
         let mechanic = metadata["storyMechanicKind"] ?? "story-mechanic"
         let thread = metadata["storyThread"] ?? "Ordinary Magic"
         let choiceTitle = metadata["storyChoiceTitle"] ?? completedSurface.prompt
@@ -7269,14 +8663,14 @@ struct ContentView: View {
         else if lowered.contains("failure") { outcomeTier = "complication" }
         else if lowered.contains("success") { outcomeTier = "costly-success" }
         else { outcomeTier = "unresolved" }
-        let source = BookPageSourceRegistry.source(for: .narrativeOS)
+        let source = BookPageSourceRegistry.source(for: returnsToAcademy ? .academyClass : .narrativeOS)
         let continuation = """
-        A Story Page choice asked for \(mechanic).
+        \(returnsToAcademy ? "An Academy session assigned a field practice." : "A Story Page choice asked for \(mechanic).")
 
-        Previous scene:
+        Previous \(returnsToAcademy ? "classroom scene" : "scene"):
         \(priorScene)
 
-        Chosen story action:
+        Chosen \(returnsToAcademy ? "Academy practice" : "story action"):
         \(choiceTitle) — \(choicePrompt)
 
         Intended movement:
@@ -7288,34 +8682,60 @@ struct ContentView: View {
         Player-kept result:
         \(outcomeText)
 
-        Continue the thread from the real completed mechanic. Do not claim any extra real-world action beyond this result.
+        \(returnsToAcademy ? "Continue the same lesson one beat later. Let the leader receive the evidence, answer it specifically, and give the class a new small social or conceptual turn. Do not restart the lesson or claim any extra real-world action beyond this result." : "Continue the thread from the real completed mechanic. Do not claim any extra real-world action beyond this result.")
         """
 
+        var returnMetadata: [String: String] = [
+            "source": source.id,
+            "selectedThreads": thread,
+            "selectedEntities": returnsToAcademy ? (metadata["academyReturn_sessionLeaderEntityID"] ?? "the-book") : "the-book",
+            "realSignals": "A completed \(mechanic) page is feeding back into the \(returnsToAcademy ? "Academy session" : "story").",
+            "relationshipPressures": returnsToAcademy
+                ? "The leader and room must receive the reader's fieldwork before offering the next choice."
+                : "The Story Page must honor the mechanic result before offering the next choice.",
+            "storyContinuationContext": continuation,
+            "storyRecipePackID": recipePackID,
+            "storyRecipeID": recipeID,
+            "storyMechanicOutcomeTier": outcomeTier,
+            "tags": returnsToAcademy
+                ? "academy-return,academy-activity,academy-activity:\(metadata["academyActivityID"] ?? "practice"),story-mechanic-return"
+                : "story-mechanic-return,story-mechanic,story-mechanic:\(mechanic),\(mechanic)"
+        ]
+        if returnsToAcademy {
+            for key in [
+                "sessionID", "sessionKind", "sessionName", "sessionLeader", "sessionLeaderEntityID", "sessionRoom",
+                "sessionCompanions", "sessionTeaches", "sessionStyle", "sessionSubjectThreadID", "lessonModuleID",
+                "lessonTitle", "lessonRealSubject", "lessonConcept", "lessonLectureBeats", "lessonDemonstration",
+                "lessonInteractionPrompt", "lessonRealWorldPractice", "sessionBlock"
+            ] {
+                if let value = metadata["academyReturn_\(key)"]?.nonEmpty {
+                    returnMetadata[key] = value
+                }
+            }
+            returnMetadata["academyLessonPage"] = "true"
+            returnMetadata["academyActivityID"] = metadata["academyActivityID"] ?? ""
+            returnMetadata["academyActivityTitle"] = metadata["academyActivityTitle"] ?? "Field practice"
+            returnMetadata["academyActivityOutcome"] = outcomeText
+        }
+
         return SurfacePage(
-            id: "story-mechanic-return-\(completedSurface.id)-\(Int(Date().timeIntervalSince1970))",
-            type: .narrativeOS,
+            id: "\(returnsToAcademy ? "academy" : "story")-mechanic-return-\(completedSurface.id)-\(Int(Date().timeIntervalSince1970))",
+            type: returnsToAcademy ? .academyClass : .narrativeOS,
             sourceID: source.id,
             intent: .reflect,
             renderStyle: .promptCard,
             score: max(completedSurface.score, 74),
-            reason: "A completed mechanic is ready to become the next Story Page beat.",
-            prompt: "Story Page Return",
-            detail: "The thread continues from \(completedSurface.prompt).",
+            reason: returnsToAcademy
+                ? "The completed field practice is ready for the class to receive."
+                : "A completed mechanic is ready to become the next Story Page beat.",
+            prompt: returnsToAcademy ? "Return to \(metadata["academyReturn_sessionName"] ?? "the Academy")" : "Story Page Return",
+            detail: returnsToAcademy
+                ? "Bring the result back to \(metadata["academyReturn_sessionLeader"] ?? "the room")."
+                : "The thread continues from \(completedSurface.prompt).",
             payload: BookPagePayload(
-                headline: "Story Page Return",
+                headline: returnsToAcademy ? "Fieldwork Return" : "Story Page Return",
                 body: continuation.bookPreviewSentenceLimit(2),
-                metadata: [
-                    "source": source.id,
-                    "selectedThreads": thread,
-                    "selectedEntities": "the-book",
-                    "realSignals": "A completed \(mechanic) page is feeding back into the story.",
-                    "relationshipPressures": "The Story Page must honor the mechanic result before offering the next choice.",
-                    "storyContinuationContext": continuation,
-                    "storyRecipePackID": recipePackID,
-                    "storyRecipeID": recipeID,
-                    "storyMechanicOutcomeTier": outcomeTier,
-                    "tags": "story-mechanic-return,story-mechanic,story-mechanic:\(mechanic),\(mechanic)"
-                ]
+                metadata: returnMetadata
             )
         )
     }
@@ -7904,8 +9324,7 @@ struct ContentView: View {
     }
 
     func retireKeptSurfaceFromRising(_ surface: SurfacePage) {
-        undoSurface = nil
-        undoDayID = nil
+        clearSurfaceUndoContext()
         let now = Date()
         var ledger = decodedDismissalLedger()
         dismissSurfaceFamily(surface, in: &ledger, at: now)
@@ -7983,8 +9402,7 @@ struct ContentView: View {
         let removedPage = day.pages.remove(at: index)
         undoRemovedPage = removedPage
         undoRemovedPageDayID = day.id
-        undoSurface = nil
-        undoDayID = nil
+        clearSurfaceUndoContext()
         persist(day: day, message: "The \(removedPage.type.shortTitle.lowercased()) page left Today's Margins.")
     }
 
@@ -8021,6 +9439,7 @@ struct ContentView: View {
     func dismissSurface(_ surface: SurfacePage) {
         tutorTouch("dismiss-surface")
         markFirstRunEngaged(surface)
+        recordMagicMomentInteraction(surface, status: .questioned)
         BookFeedback.play(.dismissPage)
         if surface.payload.metadata["purchaseThankYou"] == "true" {
             purchaseThankYouSurface = nil
@@ -8045,6 +9464,9 @@ struct ContentView: View {
             dismissedSurfaceLedgerV2 = encodedDismissalLedger(ledger)
             undoSurface = surface
             undoDayID = today.id
+            undoSurfaceSlotIndex = surfacedPages.firstIndex(where: { $0.id == surface.id })
+            undoSurfaceReplacementID = nil
+            undoSurfaceDismissalKeys = [surface.id]
             statusMessage = "The braid nudge steps back for a while."
             recordReaderLearning(surface: surface, action: .dismissed, now: now)
             replaceDismissedSurfaceInCache(surface, now: now)
@@ -8069,6 +9491,9 @@ struct ContentView: View {
         }
         undoSurface = surface
         undoDayID = today.id
+        undoSurfaceSlotIndex = surfacedPages.firstIndex(where: { $0.id == surface.id })
+        undoSurfaceReplacementID = nil
+        undoSurfaceDismissalKeys = surface.curatorDeskExclusionKeys
         statusMessage = "The \(surface.type.shortTitle.lowercased()) page slipped back into the stacks for a while."
         // Once in a rarer while, the page leaves a parting whisper behind. Live
         // randomness keeps it a genuine surprise; "Call it back" still shows.
@@ -8095,12 +9520,41 @@ struct ContentView: View {
 
         BookFeedback.play(.undo)
         var ledger = decodedDismissalLedger()
-        ledger.restore(surfaceID: surface.id, dayID: dayID)
+        let keysToRestore = undoSurfaceDismissalKeys.isEmpty
+            ? Set([surface.id])
+            : undoSurfaceDismissalKeys
+        for key in keysToRestore {
+            ledger.restore(surfaceID: key, dayID: dayID)
+        }
         dismissedSurfaceLedgerV2 = encodedDismissalLedger(ledger)
-        undoSurface = nil
-        undoDayID = nil
-        surfaceRefreshDate = Date()
-        statusMessage = "The \(surface.type.shortTitle.lowercased()) page found its way back."
+        let now = Date()
+        if dayID == today.id {
+            cancelPendingSurfaceRetirement(surfaceID: surface.id, now: now)
+            restoreUndoneSurfaceOnDesk(
+                surface,
+                replacing: undoSurfaceReplacementID,
+                preferredIndex: undoSurfaceSlotIndex
+            )
+        } else if pendingSurfaceRetirements[surface.id] != nil {
+            // A stale undo action must never put yesterday's card onto today's
+            // desk. Retire its old placeholder and restart any other pending
+            // replacements against the current day instead.
+            surfaceRetirementRevision &+= 1
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                pendingSurfaceRetirements[surface.id] = nil
+                surfacedPages.removeAll { $0.id == surface.id }
+            }
+            if !pendingSurfaceRetirements.isEmpty {
+                scheduleSurfaceRetirementReconciliation(now: now)
+            }
+        }
+        clearSurfaceUndoContext()
+        surfaceRefreshDate = now
+        statusMessage = dayID == today.id
+            ? "The \(surface.type.shortTitle.lowercased()) page found its way back."
+            : "That page returned to yesterday's stacks. Today's desk stayed where it belongs."
     }
 
     /// The braid card's stable surface id (it omits an explicit id, so it falls
@@ -8146,6 +9600,23 @@ struct ContentView: View {
             return PocketLedger()
         }
         return ledger
+    }
+
+    func decodedChosenQuill() -> ChosenQuill? {
+        guard let data = chosenQuillData.data(using: .utf8), !chosenQuillData.isEmpty else { return nil }
+        return try? JSONDecoder().decode(ChosenQuill.self, from: data)
+    }
+
+    /// Keeping the Quillquarium's choosing page accepts the instrument: the
+    /// minted quill rides in the page's metadata and is persisted here, from
+    /// which point it tints story prompts and takes the occasional margin.
+    func adoptChosenQuillIfNeeded(surface: SurfacePage) {
+        guard decodedChosenQuill() == nil,
+              let quillJSON = surface.payload.metadata[QuillChoosing.metadataKey]?.nonEmpty else { return }
+        chosenQuillData = quillJSON
+        if let quillName = surface.payload.metadata["quillName"]?.nonEmpty {
+            statusMessage = "\(quillName) has taken its post in the spine."
+        }
     }
 
     func encodedPocketLedger(_ ledger: PocketLedger) -> String {
@@ -8233,6 +9704,31 @@ struct ContentView: View {
         }
 
         do {
+            var braidInputs = sourceInputs
+            // A POI scout list is useful for quests, but it is not evidence of
+            // where the reader is standing. Before each nightly braid, use one
+            // fresh GPS reading (when the reader has already opened that
+            // doorway) to recognize Home/a saved place and fetch local weather.
+            braidInputs.nearbyAnchor = nil
+            if didGrantLocationContextAccess,
+               let liveContext = try? await NightlyBraidContextReader.request(anchors: anchorLedger) {
+                braidInputs.currentLocationLabel = liveContext.locationLabel
+                braidInputs.nearbyAnchor = liveContext.anchorProximity
+                lastAnchorReadingLatitude = liveContext.latitude
+                lastAnchorReadingLongitude = liveContext.longitude
+                nearbyAnchor = liveContext.anchorProximity
+                if let currentWeather = liveContext.weather {
+                    braidInputs.weather = currentWeather
+                    braidInputs.enchantedWeather = nil
+                    weatherSignal = currentWeather
+                    weatherPageSignal = currentWeather
+                    enchantedWeather = nil
+                    didRequestWeatherLocation = true
+                }
+            }
+            let resolvedWorldEvents = braidInputs
+                .resolvingWorldEvents(for: braidDay, now: Date())
+                .activeWorldEvents
             let braidContext = LocalModelManager.braidContext(
                 for: braidDay,
                 days: days,
@@ -8242,14 +9738,14 @@ struct ContentView: View {
                 nowPlaying: RadioStationRegistry.atmosphereLine(
                     state: vault.data.radio ?? .off,
                     unlockedPackIDs: Set(vault.data.ownedPacks ?? []),
-                    worldEvents: sourceInputs.resolvingWorldEvents(for: braidDay, now: Date()).activeWorldEvents
+                    worldEvents: resolvedWorldEvents
                 ),
-                activeWorldEvents: sourceInputs.resolvingWorldEvents(for: braidDay, now: Date()).activeWorldEvents,
+                activeWorldEvents: resolvedWorldEvents,
                 readerLexicon: vault.data.readerLexicon ?? ReaderLexicon(),
                 readerLearning: vault.data.readerLearning ?? ReaderLearningModel()
             )
             var braid = try await braider.braid(day: braidDay, context: braidContext)
-            let headerContext = BraidPageDetails.HeaderContext.make(for: braid, day: braidDay, inputs: sourceInputs)
+            let headerContext = BraidPageDetails.HeaderContext.make(for: braid, day: braidDay, inputs: braidInputs)
             braid = BraidPageDetails.annotated(braid, context: braidContext, headerContext: headerContext)
             braid = BraidPageDetails.withPromiseEcho(braid, line: BraidEmber.keptPromiseLine(for: braidDay))
             braid.mediaAssets = braidDay.capturedPages.flatMap(\.mediaAssets)
@@ -8257,7 +9753,7 @@ struct ContentView: View {
             if braid.tags.contains("local-model-missing") {
                 persist(day: day, message: "The Book kept today's page in its fallback hand. The local brain is still waking.")
             } else if braid.tags.contains("mlx-hook") {
-                persist(day: day, message: "The model doorway answered. On the phone, the braid will be local.")
+                persist(day: day, message: "The model doorway answered. On your device, the braid will be local.")
             } else {
                 persist(day: day, message: "The ink dried. Today's Book of You page is kept.")
             }
@@ -8327,7 +9823,56 @@ struct ContentView: View {
         await braidToday()
     }
 
-    func persist(day: BookDay, message: String) {
+    /// Captures only coarse, already-authorized context. This deliberately
+    /// leaves out coordinates, calendar titles, and raw Health metrics; later
+    /// connection-finding needs "rain / busy / lower body signal," not a second
+    /// surveillance record.
+    func pageContextSnapshot(at date: Date) -> BookPageContextSnapshot {
+        let calendar = Calendar.current
+        let weather = weatherPageSignal ?? weatherSignal ?? BookSourceInputs.from(insideCover: InsideCoverStore.load()).weather
+        let weatherTags = RadioPageContext.weatherTags(
+            weather: weather,
+            enchanted: enchantedWeather
+        )
+        let start = calendar.startOfDay(for: date)
+        let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400)
+        let eventCount = bookCalendarEnabled
+            ? calendarEvents.filter { event in
+                let eventEnd = event.endsAt ?? event.startsAt
+                return event.startsAt < end && eventEnd >= start
+            }.count
+            : nil
+        let anchorID = nearbyAnchor.flatMap { proximity in
+            proximity.isInsideRadius ? proximity.anchor.id : nil
+        }
+        return BookPageContextSnapshot(
+            at: date,
+            calendar: calendar,
+            weatherTags: Array(weatherTags),
+            bodyScore: bodySignal?.isAvailable == true ? bodySignal?.score : nil,
+            calendarEventCount: eventCount,
+            nearbyAnchorID: anchorID
+        )
+    }
+
+    func persist(day incomingDay: BookDay, message: String) {
+        var day = incomingDay
+        let alreadyStoredPageIDs = Set(days.flatMap(\.pages).map(\.id))
+        let now = Date()
+        let snapshot = pageContextSnapshot(at: now)
+        for index in day.pages.indices {
+            guard !alreadyStoredPageIDs.contains(day.pages[index].id),
+                  abs(day.pages[index].createdAt.timeIntervalSince(now)) <= 10 * 60 else {
+                continue
+            }
+            if day.pages[index].context == nil {
+                day.pages[index].context = snapshot
+            }
+            if day.pages[index].attentionFingerprint == nil {
+                day.pages[index].attentionFingerprint = AttentionFingerprint.make(from: day.pages[index])
+            }
+        }
+
         let previousDays = days
         let updatedDays = BookStore.upsert(day, in: days)
         // Process-wide monotonic time keeps ordering valid even if SwiftUI
@@ -8392,7 +9937,7 @@ struct ContentView: View {
 
     func writeWidgetSnapshot() {
         // Hold the encode + App Group write until the opening movie clears; it is
-        // re-run the moment the desk appears and on every later surface refresh.
+        // run from the post-reveal launch pass and on every later surface refresh.
         guard didHydrateLaunchState, !isOpeningMovieVisible else { return }
         ReEnchantedWidgetSnapshotWriter.write(
             today: today,
@@ -8549,8 +10094,7 @@ struct ContentView: View {
         let now = Date()
         surfaceRefreshDate = now
         if let surface {
-            undoSurface = nil
-            undoDayID = nil
+            clearSurfaceUndoContext()
             replaceDismissedSurfaceInCache(surface, now: now)
         }
         statusMessage = events.isEmpty

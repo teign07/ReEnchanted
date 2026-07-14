@@ -83,7 +83,10 @@ enum ConstellationKeeper {
     static let namingStrengthFloor = 70
     static let watchedSightings = 3
     static let namedSightings = 5
-    static let namedMinimumAgeDays = 14
+    /// Five sighting days are the real evidence bar; the age floor only keeps
+    /// a naming from landing in one hot burst. A week is enough spread — an
+    /// engaged first-week reader should get to watch the Book name a thread.
+    static let namedMinimumAgeDays = 7
     static let wovenSightings = 9
     static let fadeAfterQuietDays = 28
     static let evidenceCap = 16
@@ -457,6 +460,13 @@ enum SealedMarginEngine {
     static let subjectCooldownDays = 45
     static let patternWindowDays = 14
     static let absenceWindowDays = 21
+    /// The Book's first-ever wager runs on a faster clock: a slightly lower
+    /// evidence bar and a shorter window, so a new reader meets the sealed
+    /// margin — and watches it open — inside the first two weeks instead of
+    /// the second month. Only the one first bet gets this; everything after
+    /// it uses the patient constants above.
+    static let firstWagerPatternThreshold = 60
+    static let firstWagerWindowDays = 7
 
     /// Mints new sealed wagers from strong signals. Returns only the new
     /// wagers; the caller appends them to the durable ledger.
@@ -480,19 +490,23 @@ enum SealedMarginEngine {
         })
 
         var minted: [BookWager] = []
+        var firstWagerAvailable = existing.isEmpty
         for signal in digest.strongestSignals {
             guard sealedCount + minted.count < maximumSealed else { break }
             guard !blockedSubjects.contains(signal.subjectID) else { continue }
             guard !minted.contains(where: { $0.subjectID == signal.subjectID }) else { continue }
+            let patternFloor = firstWagerAvailable ? firstWagerPatternThreshold : patternThreshold
             switch signal.kind {
-            case .pattern where signal.strength >= patternThreshold && signal.strength <= patternSureThingCeiling:
-                let opensAt = calendar.date(byAdding: .day, value: patternWindowDays, to: now) ?? now
+            case .pattern where signal.strength >= patternFloor && signal.strength <= patternSureThingCeiling:
+                let windowDays = firstWagerAvailable ? firstWagerWindowDays : patternWindowDays
+                firstWagerAvailable = false
+                let opensAt = calendar.date(byAdding: .day, value: windowDays, to: now) ?? now
                 minted.append(BookWager(
                     id: "wager-\(signal.id)-\(BookDay.id(for: now, calendar: calendar))",
                     subjectID: signal.subjectID,
                     subjectName: signal.subjectName,
                     kind: .pattern,
-                    prediction: "\(signal.subjectName) will return to a kept page within \(patternWindowDays) days. Patterns this warm rarely cool on their own.",
+                    prediction: "\(signal.subjectName) will return to a kept page within \(windowDays) days. Patterns this warm rarely cool on their own.",
                     sealedAt: now,
                     opensAt: opensAt,
                     status: .sealed,

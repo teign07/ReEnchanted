@@ -43,7 +43,7 @@ struct RadioBanter: Codable, Equatable, Identifiable {
     struct Conditions: Codable, Equatable {
         /// Restrict to parts of the day: "dawn", "day", "dusk", "night".
         var timeOfDay: [String]?
-        /// Only when Disbelief's grey is at/above this 0–100 pressure.
+        /// Only when Routine's grey is at/above this 0–100 pressure.
         var minGrey: Int?
         /// Only when the grey is at/below this (bright-day lines).
         var maxGrey: Int?
@@ -247,7 +247,7 @@ struct RadioPageContext: Equatable {
 struct RadioWorldContext: Equatable {
     /// "dawn" | "day" | "dusk" | "night"
     var timeOfDay: String
-    /// The Disbelief's grey pressure, 0–100.
+    /// The Rut's grey pressure, 0–100.
     var grey: Int
     var festivalActive: Bool
     /// Distinct days the active station has been heard.
@@ -866,7 +866,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-tip-belief", category: .news,
                     assetName: "DJ_faefi_tip_belief_01",
-                    caption: "Grey's up at the edges this morning - Disbelief's been chewing on the unnoticed hours again. Here's the only counter-spell that's ever worked, and yes, I audited it: notice one true particular and write it down. Belief planted, grey pushed back. One detail. That's the whole arithmetic of this place. Plant one before lunch and prove me right. I do enjoy being right.",
+                    caption: "Grey's up at the edges this morning - Routine's been chewing on the unnoticed hours again. Here's the only counter-spell that's ever worked, and yes, I audited it: notice one true particular and write it down. Belief planted, grey pushed back. One detail. That's the whole arithmetic of this place. Plant one before lunch and prove me right. I do enjoy being right.",
                     conditions: RadioBanter.Conditions(minGrey: 30),
                     weight: 3
                 ),
@@ -956,6 +956,81 @@ enum RadioStationRegistry {
                     caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 10 of the July 7 batch.",
                     conditions: nil,
                     weight: 3
+                ),
+                // Unscheduled Penny breaks imported from the July 11
+                // ElevenLabs batch. These are ordinary, ungated Fae-Fi
+                // breaks and join the same random rotation as the prior set.
+                RadioBanter(
+                    id: "faefi-penny-banter-11", category: .stationID,
+                    assetName: "DJ_faefi_penny_banter_11",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 11.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-12", category: .gossip,
+                    assetName: "DJ_faefi_penny_banter_12",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 12.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-13", category: .news,
+                    assetName: "DJ_faefi_penny_banter_13",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 13.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-14", category: .network,
+                    assetName: "DJ_faefi_penny_banter_14",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 14.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-15", category: .gossip,
+                    assetName: "DJ_faefi_penny_banter_15",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 15.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-16", category: .news,
+                    assetName: "DJ_faefi_penny_banter_16",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 16.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-17", category: .stationID,
+                    assetName: "DJ_faefi_penny_banter_17",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 17.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-18", category: .gossip,
+                    assetName: "DJ_faefi_penny_banter_18",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 18.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-19", category: .news,
+                    assetName: "DJ_faefi_penny_banter_19",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 19.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-20", category: .network,
+                    assetName: "DJ_faefi_penny_banter_20",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 20.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-21", category: .gossip,
+                    assetName: "DJ_faefi_penny_banter_21",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 21.",
+                    conditions: nil, weight: 3
+                ),
+                RadioBanter(
+                    id: "faefi-penny-banter-22", category: .news,
+                    assetName: "DJ_faefi_penny_banter_22",
+                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 22.",
+                    conditions: nil, weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-psa-timetable", category: .news,
@@ -1415,6 +1490,27 @@ enum RadioStationRegistry {
                     conditions: nil,
                     weight: 3
                 ),
+                // Unscheduled Professor Euphony breaks imported from the July
+                // 11 ElevenLabs batch. All are ordinary, ungated Mothlight
+                // breaks and belong to the normal random DJ rotation.
+                RadioBanter(id: "mothlight-euphony-banter-13", category: .stationID, assetName: "DJ_mothlight_euphony_banter_13", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 13.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-14", category: .gossip, assetName: "DJ_mothlight_euphony_banter_14", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 14.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-15", category: .news, assetName: "DJ_mothlight_euphony_banter_15", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 15.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-16", category: .network, assetName: "DJ_mothlight_euphony_banter_16", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 16.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-17", category: .stationID, assetName: "DJ_mothlight_euphony_banter_17", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 17.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-18", category: .gossip, assetName: "DJ_mothlight_euphony_banter_18", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 18.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-19", category: .news, assetName: "DJ_mothlight_euphony_banter_19", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 19.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-20", category: .network, assetName: "DJ_mothlight_euphony_banter_20", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 20.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-21", category: .stationID, assetName: "DJ_mothlight_euphony_banter_21", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 21.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-22", category: .gossip, assetName: "DJ_mothlight_euphony_banter_22", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 22.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-23", category: .news, assetName: "DJ_mothlight_euphony_banter_23", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 23.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-24", category: .network, assetName: "DJ_mothlight_euphony_banter_24", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 24.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-25", category: .stationID, assetName: "DJ_mothlight_euphony_banter_25", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 25.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-26", category: .gossip, assetName: "DJ_mothlight_euphony_banter_26", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 26.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-27", category: .news, assetName: "DJ_mothlight_euphony_banter_27", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 27.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-28", category: .network, assetName: "DJ_mothlight_euphony_banter_28", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 28.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-29", category: .stationID, assetName: "DJ_mothlight_euphony_banter_29", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 29.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-30", category: .gossip, assetName: "DJ_mothlight_euphony_banter_30", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 30.", conditions: nil, weight: 3),
                 RadioBanter(
                     id: "mothlight-psa-samhain", category: .news,
                     assetName: "DJ_mothlight_psa_samhain_01",
@@ -1621,7 +1717,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-news-nothing", category: .news,
                     assetName: "DJ_thornwave_news_01",
-                    caption: "Tonight's reading off Today's Sky: Disbelief made a move at the edges. We held. We always hold — barely, on purpose, which is the only kind of holding worth anything. Believe something out loud. I dare you. That's not mockery. That's the assignment.",
+                    caption: "Tonight's reading off Today's Sky: Routine made a move at the edges. We held. We always hold — barely, on purpose, which is the only kind of holding worth anything. Believe something out loud. I dare you. That's not mockery. That's the assignment.",
                     conditions: RadioBanter.Conditions(
                         timeOfDay: ["dusk", "night"],
                         minGrey: 35
@@ -1701,7 +1797,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-weather-storm-grey-pressure", category: .news,
                     assetName: "DJ_thornwave_weather_storm_grey_02",
-                    caption: "Storm on the band, grey at the edges, that delicious pressure before something decides to happen. The Disbelief loves weather like this. So do I — but I'm only here for the bassline.",
+                    caption: "Storm on the band, grey at the edges, that delicious pressure before something decides to happen. The Rut of Routine loves weather like this. So do I — but I'm only here for the bassline.",
                     conditions: RadioBanter.Conditions(
                         timeOfDay: ["dusk", "night"],
                         minGrey: 35,
@@ -1740,7 +1836,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-grey-high-keep-the-door", category: .news,
                     assetName: "DJ_thornwave_grey_high_pressure_01",
-                    caption: "The grey's gone heavy. The Disbelief's leaning on the door, polite as ever. Here's the thing — it only opens from your side. Keep the music up. Hand off the latch.",
+                    caption: "The grey's gone heavy. The Rut's leaning on the door, polite as ever. Here's the thing — it only opens from your side. Keep the music up. Hand off the latch.",
                     conditions: RadioBanter.Conditions(
                         minGrey: 55,
                         maxGrey: 85
@@ -1750,7 +1846,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-pages-anchor-impressed", category: .gossip,
                     assetName: "DJ_thornwave_pages_anchor_resist_01",
-                    caption: "You've been dropping anchors. Naming things. Holding ground. Building a self Disbelief can't argue with. I'd be insulted if I weren't quietly impressed. Don't tell anyone.",
+                    caption: "You've been dropping anchors. Naming things. Holding ground. Building a self Routine can't argue with. I'd be insulted if I weren't quietly impressed. Don't tell anyone.",
                     conditions: RadioBanter.Conditions(
                         pageTypes: [.anchor, .enchantment],
                         minRecentPagesOfType: 1
@@ -1942,6 +2038,29 @@ enum RadioStationRegistry {
                     conditions: nil,
                     weight: 3
                 ),
+                // Unscheduled Wicker breaks imported from the July 11 batch.
+                // These are ordinary, ungated Thornwave breaks.
+                RadioBanter(id: "thornwave-wicker-banter-19", category: .stationID, assetName: "DJ_thornwave_wicker_banter_19", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 19.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-20", category: .gossip, assetName: "DJ_thornwave_wicker_banter_20", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 20.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-21", category: .news, assetName: "DJ_thornwave_wicker_banter_21", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 21.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-22", category: .network, assetName: "DJ_thornwave_wicker_banter_22", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 22.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-23", category: .stationID, assetName: "DJ_thornwave_wicker_banter_23", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 23.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-24", category: .gossip, assetName: "DJ_thornwave_wicker_banter_24", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 24.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-25", category: .news, assetName: "DJ_thornwave_wicker_banter_25", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 25.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-26", category: .network, assetName: "DJ_thornwave_wicker_banter_26", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 26.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-27", category: .stationID, assetName: "DJ_thornwave_wicker_banter_27", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 27.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-28", category: .gossip, assetName: "DJ_thornwave_wicker_banter_28", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 28.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-29", category: .news, assetName: "DJ_thornwave_wicker_banter_29", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 29.", conditions: nil, weight: 3),
+                // Unscheduled Wicker breaks imported from the later July 11
+                // batch. These are ordinary, ungated Thornwave breaks.
+                RadioBanter(id: "thornwave-wicker-banter-30", category: .network, assetName: "DJ_thornwave_wicker_banter_30", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 30.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-31", category: .stationID, assetName: "DJ_thornwave_wicker_banter_31", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 31.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-32", category: .gossip, assetName: "DJ_thornwave_wicker_banter_32", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 32.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-33", category: .news, assetName: "DJ_thornwave_wicker_banter_33", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 33.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-34", category: .network, assetName: "DJ_thornwave_wicker_banter_34", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 34.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-35", category: .stationID, assetName: "DJ_thornwave_wicker_banter_35", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 35.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-36", category: .gossip, assetName: "DJ_thornwave_wicker_banter_36", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 36.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-37", category: .news, assetName: "DJ_thornwave_wicker_banter_37", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 37.", conditions: nil, weight: 3),
                 RadioBanter(
                     id: "thornwave-psa-clubs-night", category: .news,
                     assetName: "DJ_thornwave_psa_clubs_night_01",
@@ -2287,7 +2406,7 @@ enum RadioStationRegistry {
         return id
     }
 
-    /// Held-station effect on Disbelief's tide: Thornwave lets the grey lean
+    /// Held-station effect on Routine's tide: Thornwave lets the grey lean
     /// nearer (a dark-fae bargain), Fae-Fi's brightness pushes it back. Always
     /// distress-safe because NothingTide forces grey to 0 under distress.
     static func greyShift(state: RadioPlaybackState, now: Date = Date()) -> Int {
@@ -3084,6 +3203,168 @@ struct AcademyLessonModule: Equatable {
     var realWorldPractice: String
 }
 
+/// The hands-on portion of an Academy meeting.  Lessons keep their teaching
+/// shape, but each session can now hand the reader one practice that belongs
+/// to that room rather than a generic story choice.
+struct AcademyActivity: Equatable {
+    enum Kind: String, Equatable, Hashable {
+        case compassRun
+        case evidenceLog
+        case thresholdPlan
+        case sensoryScore
+        case sentenceWorkshop
+        case restCheckIn
+        case enchantmentCasting
+        case landingProtocol
+        case souvenirCircle
+        case marginalNote
+        case workshopNote
+        case doorProtocol
+    }
+
+    struct Field: Equatable, Identifiable {
+        var id: String
+        var label: String
+        var placeholder: String
+    }
+
+    var id: String
+    var sessionID: String
+    var kind: Kind
+    var title: String
+    var invitation: String
+    var actionTitle: String
+    var fields: [Field]
+
+    var isCompassRun: Bool { kind == .compassRun }
+}
+
+/// Registry rather than prompt-only copy: this gives every class and club a
+/// durable interaction contract, and makes a completed practice able to return
+/// to the session which assigned it.
+enum AcademyActivityRegistry {
+    static let activities: [String: AcademyActivity] = [
+        "art-of-the-glint": AcademyActivity(
+            id: "glint-evidence-log", sessionID: "art-of-the-glint", kind: .evidenceLog,
+            title: "The Glint Ledger",
+            invitation: "Boggle wants evidence before enchantment. Give one ordinary thing three exact facts.",
+            actionTitle: "Bring the evidence back",
+            fields: [
+                .init(id: "fact-one", label: "First fact", placeholder: "A visible, audible, or tangible detail"),
+                .init(id: "fact-two", label: "Second fact", placeholder: "Another fact, not an interpretation"),
+                .init(id: "fact-three", label: "Third fact", placeholder: "The oddest exact detail")
+            ]
+        ),
+        "wayfinding-kineticism": AcademyActivity(
+            id: "wayfinding-threshold-plan", sessionID: "wayfinding-kineticism", kind: .thresholdPlan,
+            title: "Mark a Threshold",
+            invitation: "Momort only accepts routes with a return. Make one small crossing specific enough to finish.",
+            actionTitle: "Mark this crossing",
+            fields: [
+                .init(id: "threshold", label: "The threshold", placeholder: "The door, corner, or first small move"),
+                .init(id: "destination", label: "Where it leads", placeholder: "A humane destination"),
+                .init(id: "return", label: "How you return", placeholder: "The clear way back")
+            ]
+        ),
+        "synesthetic-resonance": AcademyActivity(
+            id: "resonance-sensory-score", sessionID: "synesthetic-resonance", kind: .sensoryScore,
+            title: "Score the Room",
+            invitation: "Euphony asks for the body of a moment before its explanation.",
+            actionTitle: "Let the room answer",
+            fields: [
+                .init(id: "sound", label: "One sound", placeholder: "What you can actually hear"),
+                .init(id: "color", label: "Its color", placeholder: "A color that fits the evidence"),
+                .init(id: "body", label: "One body sensation", placeholder: "Temperature, pressure, breath, posture")
+            ]
+        ),
+        "ink-binding": AcademyActivity(
+            id: "ink-binding-workshop", sessionID: "ink-binding", kind: .sentenceWorkshop,
+            title: "The Souvenir Workshop",
+            invitation: "Villanelle asks for one true sentence, then one word brave enough to become more exact.",
+            actionTitle: "Submit the revision",
+            fields: [
+                .init(id: "sentence", label: "The sentence", placeholder: "One real moment, held without explaining it"),
+                .init(id: "revision", label: "The word you revised", placeholder: "Old word → truer word")
+            ]
+        ),
+        "quiet-hours": AcademyActivity(
+            id: "quiet-hours-check-in", sessionID: "quiet-hours", kind: .restCheckIn,
+            title: "A Small Stop",
+            invitation: "Set the page down for a minute if you can. Stonebrook only asks what the pause protected.",
+            actionTitle: "Return from the pause",
+            fields: [.init(id: "clarity", label: "What became clearer?", placeholder: "A sentence is enough")]
+        ),
+        "basic-enchantments": AcademyActivity(
+            id: "basic-enchantments-spellbook", sessionID: "basic-enchantments", kind: .enchantmentCasting,
+            title: "Open the Spellbook",
+            invitation: "Wispwood has brought all fourteen ordinary Enchantments. Choose the one whose form helps you attend to a real subject, then cast it with a photograph.",
+            actionTitle: "Choose an Enchantment", fields: []
+        ),
+        "book-jumping": AcademyActivity(
+            id: "book-jumping-landing-protocol", sessionID: "book-jumping", kind: .landingProtocol,
+            title: "Set the Bookmark",
+            invitation: "Permancer will not open a page until the landing and exit are both visible.",
+            actionTitle: "Set the protocol",
+            fields: [
+                .init(id: "door", label: "The door", placeholder: "What you are entering"),
+                .init(id: "weather", label: "Its narrative weather", placeholder: "The mood or genre pressure"),
+                .init(id: "exit", label: "The exit", placeholder: "Your return point")
+            ]
+        ),
+        "compass-running": AcademyActivity(
+            id: "compass-running-field-loop", sessionID: "compass-running", kind: .compassRun,
+            title: "Take the Field Gate",
+            invitation: "Stonebrook has laid out a complete Compass Run: North, East, South, West, then Center. Choose constraints, go only as far as is kind, and bring back one true sentence.",
+            actionTitle: "Begin the Compass Run", fields: []
+        ),
+        "compass-society": AcademyActivity(
+            id: "compass-society-circle", sessionID: "compass-society", kind: .souvenirCircle,
+            title: "The Souvenir Circle",
+            invitation: "The circle receives evidence, not performance. Offer a sentence and the question a kind listener could ask it.",
+            actionTitle: "Read to the circle",
+            fields: [
+                .init(id: "souvenir", label: "Your souvenir sentence", placeholder: "One small true observation"),
+                .init(id: "question", label: "A listener's question", placeholder: "A question about one concrete detail")
+            ]
+        ),
+        "marginalia-guild": AcademyActivity(
+            id: "marginalia-future-note", sessionID: "marginalia-guild", kind: .marginalNote,
+            title: "Write to a Future Reader",
+            invitation: "Put a small honest note beside a line worth keeping. Cleverness may attend, but it is not required.",
+            actionTitle: "Leave the note",
+            fields: [
+                .init(id: "line", label: "The line or image", placeholder: "Copy or describe what you are answering"),
+                .init(id: "note", label: "Your marginal note", placeholder: "A future reader could answer this")
+            ]
+        ),
+        "inkwright-society": AcademyActivity(
+            id: "inkwright-workshop-note", sessionID: "inkwright-society", kind: .workshopNote,
+            title: "Find the Living Line",
+            invitation: "The circle wants one line that is alive and one question that helps it grow.",
+            actionTitle: "Offer the workshop note",
+            fields: [
+                .init(id: "line", label: "The living line", placeholder: "A line from your own writing or today"),
+                .init(id: "question", label: "The growing question", placeholder: "Describe the effect before prescribing a fix")
+            ]
+        ),
+        "book-jumpers": AcademyActivity(
+            id: "book-jumpers-door-protocol", sessionID: "book-jumpers", kind: .doorProtocol,
+            title: "Argue About the Door",
+            invitation: "The club needs one shared definition of door, landing, and return before anybody jumps.",
+            actionTitle: "Put it to the group",
+            fields: [
+                .init(id: "door", label: "What counts as the door?", placeholder: "The exact threshold"),
+                .init(id: "landing", label: "Where do you land?", placeholder: "The first safe beat inside"),
+                .init(id: "return", label: "What brings you back?", placeholder: "The return shadow")
+            ]
+        )
+    ]
+
+    static func activity(for sessionID: String) -> AcademyActivity? {
+        activities[sessionID]
+    }
+}
+
 /// Builds a committed Turn for a Class or Club page. The change is social and
 /// rides ALONGSIDE the lesson, never replacing it: classes stay quiet and keep
 /// teaching their concept, while clubs (no curriculum to protect) lean into the
@@ -3632,7 +3913,7 @@ enum AcademyChapterRegistry {
         AcademyChapter(
             id: "duskthorn",
             name: "Duskthorn",
-            philosophy: "There is no story without conflict. The only cure for Disbelief is a story so interesting it refuses to be erased.",
+            philosophy: "There is no story without conflict. The only cure for Routine is a story so interesting it refuses to be erased.",
             founder: "Unrecorded. The Chapter does not appear in the sorting ledger.",
             traits: ["tension", "honesty", "necessary darkness", "narrative balance"],
             compassFlavor: "What are you avoiding looking at?",
@@ -4316,7 +4597,10 @@ struct ElectiveOfferDraft: Equatable {
 enum ElectiveOfferFallback {
     static func offer(surface: SurfacePage) -> ElectiveOfferDraft {
         let sender = surface.payload.metadata["senderName"] ?? "A character"
-        let interest = surface.payload.metadata["senderInterest"] ?? "the ordinary magic of where you live"
+        // The stored interest carries its own trailing period; these sentences
+        // add their own punctuation, so strip it to avoid a double period.
+        let interest = (surface.payload.metadata["senderInterest"]?.nonEmpty ?? "the ordinary magic of where you live")
+            .trimmingCharacters(in: CharacterSet(charactersIn: ". "))
         if let firstPlace = surface.payload.metadata["nearbyPlaces"]?
             .split(separator: "\n").first.map(String.init),
            let placeName = firstPlace.split(separator: "(").first?.trimmingCharacters(in: .whitespaces),
@@ -4940,7 +5224,7 @@ enum FaeCourt: String, Codable, Equatable {
 /// bargain that fronted it is left unpaid.
 enum FaeGiftEffect: String, Codable, Equatable {
     case reshelving   // force-surfaces a chosen dormant page source for a day
-    case quieting     // lowers Disbelief's grey by one level for a day
+    case quieting     // lowers Routine's grey by one level for a day
     case longMemory   // pins a kept page to reliably resurface as Book Remembered
     case callingCard  // opens a Goblin Market window (consumable)
     case loosePage    // a collectible whose text regenerates each read
@@ -4960,7 +5244,7 @@ enum FaeGiftEffect: String, Codable, Equatable {
     var effectLine: String {
         switch self {
         case .reshelving: return "Pulls one resting kind of page back onto the shelf where you'll see it."
-        case .quieting: return "Holds the grey of Disbelief back by one shade for a day."
+        case .quieting: return "Holds the grey of Routine back by one shade for a day."
         case .longMemory: return "Keeps one kept page from being forgotten; the Book will return it."
         case .callingCard: return "Opens the Goblin Market when you spend it."
         case .loosePage: return "A page that never reads the same way twice."
@@ -5410,42 +5694,42 @@ enum FaeEconomy {
             openingGesture: "A Sentence Salamander curled against your hand and left a coal of borrowed warmth behind. The sentence down its spine is still glowing.",
             terms: "Bring me the warmest thing your hands touched today, and how long the warmth stayed after you let go.",
             giftName: "the borrowed coal",
-            giftDescription: "A held warmth that can keep the grey of Disbelief back for a day."
+            giftDescription: "A held warmth that can keep the grey of Routine back for a day."
         ),
         FaeBargainTemplate(
             faeKind: .sentenceSalamander,
             openingGesture: "A Sentence Salamander tasted the air near you and brightened. Something in your day was honest, and it could tell.",
             terms: "Find a moment that warmed the back of your neck for no reason you could name, and hand it to me whole.",
             giftName: "the ember of an hour",
-            giftDescription: "A small heat that holds Disbelief's grey back one shade for a day."
+            giftDescription: "A small heat that holds Routine's grey back one shade for a day."
         ),
         FaeBargainTemplate(
             faeKind: .sentenceSalamander,
             openingGesture: "A Sentence Salamander pressed a glowing full-stop into your palm. It did not explain. It simply ran warmer when you were near.",
             terms: "Somewhere today something will smell better than it had any right to — bring me that exact breath.",
             giftName: "the kept warmth",
-            giftDescription: "A banked coal that quiets the grey of Disbelief for a day."
+            giftDescription: "A banked coal that quiets the grey of Routine for a day."
         ),
         FaeBargainTemplate(
             faeKind: .sentenceSalamander,
             openingGesture: "A Sentence Salamander basked in a sunbeam only it could see, and left some of that heat on the page for you.",
             terms: "Find a patch of sun that had crossed a floor and tell me what it warmed along the way.",
             giftName: "the floor-sun coal",
-            giftDescription: "A stored brightness that holds back Disbelief's grey for a day."
+            giftDescription: "A stored brightness that holds back Routine's grey for a day."
         ),
         FaeBargainTemplate(
             faeKind: .sentenceSalamander,
             openingGesture: "A Sentence Salamander glowed at one sound in your day and went still at the rest. It is keeping the one it liked.",
             terms: "Bring me the sound of one laugh today that was far bigger than its joke.",
             giftName: "the laugh-coal",
-            giftDescription: "A warmth that can keep the grey of Disbelief back for a day."
+            giftDescription: "A warmth that can keep the grey of Routine back for a day."
         ),
         FaeBargainTemplate(
             faeKind: .sentenceSalamander,
             openingGesture: "A Sentence Salamander left the taste of warmth on the page — the first sip of something hot, captured before it cooled.",
             terms: "Bring me the first hot sip of something on a day that didn't deserve it, and how it landed.",
             giftName: "the first-sip ember",
-            giftDescription: "A held heat that holds Disbelief's grey back by a shade for a day."
+            giftDescription: "A held heat that holds Routine's grey back by a shade for a day."
         ),
 
         // MARK: Punctuation Pixie — rhythm and pause, the comma-place, the exclamation-thing
@@ -5890,7 +6174,7 @@ enum FaeMarketCatalog {
             id: "market-quieting-coal",
             faeKind: .sentenceSalamander,
             name: "a second borrowed coal",
-            descriptionText: "Holds the grey of Disbelief back by one shade for a day.",
+            descriptionText: "Holds the grey of Routine back by one shade for a day.",
             effect: .quieting,
             baseCost: 6
         ),
@@ -6062,7 +6346,7 @@ enum GoblinMarketEngine {
                    currency: .belief, basePrice: 8, good: .warmWord, rarity: 1),
         MarketWare(id: "belief-tallow-candle", title: "a tallow candle",
                    clerkPitch: "Burns slow and unfashionable. The dark keeps its distance from honest tallow.",
-                   contents: "Spends Belief to hold Disbelief's grey back a shade for a day.",
+                   contents: "Spends Belief to hold Routine's grey back a shade for a day.",
                    currency: .belief, basePrice: 10, good: .gift(.quieting, .goblin), rarity: 1),
         MarketWare(id: "belief-borrowed-comma", title: "a borrowed comma",
                    clerkPitch: "A small pause, lent at interest. Use it to bring a resting page back into the light.",
@@ -6082,7 +6366,7 @@ enum GoblinMarketEngine {
             id: "radio-sponsor-thistledown-pocket-sunshine",
             title: "Thistledown & Co. Pocket Sunshine",
             clerkPitch: "A coat-pocket sunbeam. Small print says it is not the weather, but the weather has been known to listen.",
-            contents: "Spends Belief to immediately push Disbelief's grey two shades back.",
+            contents: "Spends Belief to immediately push Routine's grey two shades back.",
             currency: .belief,
             basePrice: 9,
             good: .pocketSunshine,
@@ -6278,7 +6562,7 @@ enum GoblinMarginalia {
 // territory — measured in Control Belief, per talisman, per territory — across
 // two fronts: the Book's own shelves (kinds of pages) and the real-world
 // integrations the app touches. Pure local simulation; never a model call. It
-// goes quiet under distress, like Disbelief. See lore/chapter-pacts.md.
+// goes quiet under distress, like Routine. See lore/chapter-pacts.md.
 
 enum PactFront: String, Codable, Equatable {
     case shelf
@@ -7114,7 +7398,7 @@ extension PactWarEffects {
 // The Academy breathes with the real world. The Almanac knows, for a date and
 // hemisphere, which celebrations are alive: the eight pagan Sabbats, the Full
 // and New Moon esbats, and the year's meteor showers. Pure local astronomy and
-// date logic — never a model call. Celebrations bend Belief, Disbelief, the
+// date logic — never a model call. Celebrations bend Belief, Routine, the
 // Fae, and the Pact War, and the world works on the reader whether noticed or
 // not. See lore/seasonal-calendar.md.
 
@@ -7138,7 +7422,7 @@ struct Celebration: Identifiable, Equatable {
     let invitationTitle: String  // the special-event prompt heading
     let invitation: String       // what to notice / do
     let beliefBonus: Int
-    let greyShift: Int           // effect on Disbelief (- light, + thinning veil)
+    let greyShift: Int           // effect on Routine (- light, + thinning veil)
     let symbolName: String
     let accent: String           // palette hint: amber/green/gold/violet/candle/slate
     let priority: Int            // higher wins when several are active
@@ -7316,7 +7600,7 @@ enum Almanac {
         celebrations(on: date, hemisphere: hemisphere, calendar: calendar).first
     }
 
-    /// Combined effect of every active celebration on Disbelief's grey.
+    /// Combined effect of every active celebration on Routine's grey.
     static func greyShift(on date: Date = Date(), hemisphere: Hemisphere = .northern, calendar: Calendar = .current) -> Int {
         celebrations(on: date, hemisphere: hemisphere, calendar: calendar).reduce(0) { $0 + $1.greyShift }
     }
@@ -8200,7 +8484,7 @@ enum BeliefEconomyEngine {
         let settlingEntities = context.entities
             .filter { entity in
                 let adjusted = effectiveBelief(entity, offsets: context.entityBelief)
-                // The Disbelief and its kin neither receive the tide nor cool on
+                // The Rut of Routine and its kin neither receive the tide nor cool on
                 // their own — antagonist Glow only moves through real events.
                 return adjusted > 70
                     && !recentlyTouchedEntityIDs.contains(entity.id)
@@ -8378,235 +8662,6 @@ struct CastAgencyMovement: Codable, Equatable, Identifiable {
     }
 }
 
-// MARK: - People of the Book
-
-struct PersonThread: Codable, Identifiable, Equatable {
-    var id: String
-    var name: String
-    var introducedDay: String
-    var readerWords: String
-    var firstMentionDay: String
-    var lastMentionDay: String
-    var mentionPageCount: Int
-    var resting: Bool = false
-    var restDay: String? = nil
-    var castMemberID: String? = nil
-    var invitedDay: String? = nil
-}
-
-struct PeopleLedger: Codable, Equatable {
-    var threads: [PersonThread] = []
-    var restingNames: [String] = []
-}
-
-enum PeopleOfTheBook {
-    struct PersonSuggestion: Equatable {
-        var name: String
-        var slug: String
-        var mentionPageCount: Int
-        var distinctDayCount: Int
-        var firstMentionDay: String
-        var lastMentionDay: String
-        var sampleQuote: String
-        var evidencePageIDs: [String]
-    }
-
-    struct QuietSignal: Equatable {
-        enum Kind: Equatable { case goneQuiet, returned }
-        var kind: Kind
-        var personID: String
-        var personName: String
-        var quietDays: Int
-        var evidencePageIDs: [String]
-    }
-
-    struct PreMeetingCharge: Equatable {
-        var eventID: String
-        var personName: String
-        var personSlug: String
-        var fireAt: Date
-        var title: String
-        var body: String
-        var tags: [String]
-    }
-
-    static func suggestions(
-        days: [BookDay],
-        ledger: PeopleLedger,
-        excludedNames: Set<String> = [],
-        now: Date = Date(),
-        calendar: Calendar = .current
-    ) -> [PersonSuggestion] {
-        let pages = days.flatMap(\.capturedPages).filter { $0.origin == .userAuthored }
-        let known = Set(ledger.threads.map { slug($0.name) } + ledger.restingNames.map(slug))
-        let excluded = Set(excludedNames.flatMap { name in
-            let pieces = name.split(whereSeparator: { !$0.isLetter }).map { slug(String($0)) }
-            return [slug(name)] + pieces
-        })
-        let reserved: Set<String> = [
-            "book", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-            "january", "february", "march", "april", "may", "june", "july", "august", "september",
-            "october", "november", "december", "today", "tomorrow"
-        ]
-        var evidence: [String: [BookPage]] = [:]
-        var display: [String: String] = [:]
-        var lowercaseTokens = Set<String>()
-        for page in pages {
-            let words = page.userInput.split { !$0.isLetter }.map(String.init)
-            for word in words where word == word.lowercased() { lowercaseTokens.insert(slug(word)) }
-            for name in midSentenceCapitalizedWords(in: page.userInput) {
-                let key = slug(name)
-                guard !known.contains(key), !excluded.contains(key), !reserved.contains(key), !lowercaseTokens.contains(key) else { continue }
-                if evidence[key]?.contains(where: { $0.id == page.id }) != true { evidence[key, default: []].append(page) }
-                display[key] = name
-            }
-        }
-        return evidence.compactMap { key, pages -> PersonSuggestion? in
-            guard !lowercaseTokens.contains(key), pages.count >= 4 else { return nil }
-            let sorted = pages.sorted { $0.createdAt < $1.createdAt }
-            let dayIDs = Set(sorted.map { BookDay.id(for: $0.createdAt, calendar: calendar) })
-            guard dayIDs.count >= 4,
-                  let first = sorted.first,
-                  let last = sorted.last,
-                  calendar.dateComponents([.day], from: first.createdAt, to: last.createdAt).day ?? 0 >= 10 else { return nil }
-            return PersonSuggestion(
-                name: display[key] ?? key.capitalized,
-                slug: key,
-                mentionPageCount: pages.count,
-                distinctDayCount: dayIDs.count,
-                firstMentionDay: BookDay.id(for: first.createdAt, calendar: calendar),
-                lastMentionDay: BookDay.id(for: last.createdAt, calendar: calendar),
-                sampleQuote: last.userInput,
-                evidencePageIDs: Array(sorted.suffix(3).map(\.id))
-            )
-        }.sorted { ($0.mentionPageCount, $1.slug) > ($1.mentionPageCount, $0.slug) }
-    }
-
-    static func confirmed(_ suggestion: PersonSuggestion, onDay day: String, readerWords: String) -> PersonThread {
-        PersonThread(
-            id: "person:\(suggestion.slug)",
-            name: suggestion.name,
-            introducedDay: day,
-            readerWords: readerWords,
-            firstMentionDay: suggestion.firstMentionDay,
-            lastMentionDay: suggestion.lastMentionDay,
-            mentionPageCount: suggestion.mentionPageCount
-        )
-    }
-
-    static func rested(_ thread: PersonThread, onDay day: String) -> PersonThread {
-        var copy = thread
-        copy.resting = true
-        copy.restDay = day
-        return copy
-    }
-
-    static func invitedIntoStory(_ thread: PersonThread, castMemberID: String, onDay day: String) -> PersonThread {
-        var copy = thread
-        copy.castMemberID = castMemberID
-        copy.invitedDay = day
-        return copy
-    }
-
-    static func quietSignals(
-        ledger: PeopleLedger,
-        days: [BookDay],
-        now: Date = Date(),
-        calendar: Calendar = .current
-    ) -> [QuietSignal] {
-        let pages = days.flatMap(\.capturedPages)
-        return ledger.threads.compactMap { thread in
-            guard !thread.resting else { return nil }
-            let matches = pages
-                .filter { containsWholeWord(thread.name, in: $0.userInput) }
-                .sorted { $0.createdAt < $1.createdAt }
-            guard matches.count >= 4, let last = matches.last else { return nil }
-            if matches.count >= 2 {
-                let previous = matches[matches.count - 2]
-                let gap = calendar.dateComponents([.day], from: previous.createdAt, to: last.createdAt).day ?? 0
-                let sinceReturn = calendar.dateComponents([.day], from: last.createdAt, to: now).day ?? 0
-                if gap >= 30, sinceReturn <= 14 {
-                    return QuietSignal(kind: .returned, personID: thread.id, personName: thread.name,
-                                       quietDays: gap, evidencePageIDs: [previous.id, last.id])
-                }
-            }
-            let quiet = calendar.dateComponents([.day], from: last.createdAt, to: now).day ?? 0
-            guard (30...180).contains(quiet) else { return nil }
-            return QuietSignal(kind: .goneQuiet, personID: thread.id, personName: thread.name,
-                               quietDays: quiet, evidencePageIDs: Array(matches.suffix(3).map(\.id)))
-        }
-    }
-
-    static func preMeetingCharges(
-        ledger: PeopleLedger,
-        events: [CalendarEventSignal],
-        now: Date = Date(),
-        calendar: Calendar = .current
-    ) -> [PreMeetingCharge] {
-        events.sorted { $0.startsAt < $1.startsAt }.compactMap { event in
-            let interval = event.startsAt.timeIntervalSince(now)
-            guard !event.isAllDay, interval >= 60 * 60, interval <= 24 * 60 * 60,
-                  let thread = ledger.threads.first(where: { !$0.resting && containsWholeWord($0.name, in: event.title) }) else { return nil }
-            let label = timeLabel(for: event.startsAt, calendar: calendar)
-            let personSlug = slug(thread.name)
-            return PreMeetingCharge(
-                eventID: event.id,
-                personName: thread.name,
-                personSlug: personSlug,
-                fireAt: event.startsAt.addingTimeInterval(-60 * 60),
-                title: "You see \(thread.name) at \(label)",
-                body: "A mission, if you want it: notice one thing \(thread.name) notices before you do.",
-                tags: ["person-charge", "person:\(personSlug)", "people", "connection"]
-            )
-        }.prefix(2).map { $0 }
-    }
-
-    static func timeLabel(for date: Date, calendar: Calendar = .current) -> String {
-        let hour24 = calendar.component(.hour, from: date)
-        let minute = calendar.component(.minute, from: date)
-        let hour = hour24 % 12 == 0 ? 12 : hour24 % 12
-        return minute == 0 ? String(hour) : String(format: "%d:%02d", hour, minute)
-    }
-
-    private static func slug(_ value: String) -> String {
-        value.lowercased().split { !$0.isLetter && !$0.isNumber }.joined(separator: "-")
-    }
-
-    private static func containsWholeWord(_ word: String, in text: String) -> Bool {
-        let target = slug(word)
-        return text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init).contains(target)
-    }
-
-    private static func midSentenceCapitalizedWords(in text: String) -> [String] {
-        var results: [String] = []
-        var current = ""
-        var previousSignificant: Character?
-        var wordStartsSentence = true
-        func finish() {
-            guard !current.isEmpty else { return }
-            if !wordStartsSentence,
-               current.count >= 3,
-               current.first?.isUppercase == true,
-               current.dropFirst().allSatisfy(\.isLowercase) {
-                results.append(current)
-            }
-            current = ""
-        }
-        for character in text {
-            if character.isLetter {
-                if current.isEmpty { wordStartsSentence = previousSignificant == nil || ".!?".contains(previousSignificant!) }
-                current.append(character)
-            } else {
-                finish()
-                if !character.isWhitespace { previousSignificant = character }
-            }
-            if character.isLetter { previousSignificant = character }
-        }
-        finish()
-        return results
-    }
-}
-
 /// The instant margin reply a cast member leaves when the reader keeps a page.
 /// Deterministic: the page ID seeds voice and line, so the same keep always
 /// earns the same note (and tests can pin it).
@@ -8616,9 +8671,11 @@ enum KeepMarginalia {
         var castName: String
         var assetName: String
         var line: String
+        /// A reader-authored real-world finding outranks the ordinary keep
+        /// mechanics. The cast may still answer in its own voice underneath.
+        var findingLine: String? = nil
         var rippleLine: String? = nil
         var carryOutLine: String? = nil
-        var findingLine: String? = nil
         /// A quiet daytime cue that today's keeps are gathering toward tonight's
         /// braid — anticipation for the Book of You, not a progress meter.
         var braidThreadLine: String? = nil
@@ -9146,5 +9203,505 @@ enum BeliefRipple {
             return "\(entityName)\u{2019}s glow brightened."
         }
         return "\(entityName)\u{2019}s glow stirred."
+    }
+}
+
+// MARK: - The People of the Book
+//
+// The register for real people in the reader's life. It is a separate ledger
+// from the Cast because the two start under different house rules — but the
+// border between them belongs to the reader, not the Book:
+//
+//   THE READER'S HAND. By default the Book is a witness: it quotes what the
+//   reader kept, notices patterns, marks absences and returns, and points
+//   attention toward a person — without inventing their words. But this is
+//   the reader's book, and blending reality and fiction is the whole game.
+//   The reader may at any time write a real person INTO the story: the
+//   thread mints a linked custom cast member, and from then on that figure
+//   walks the halls like any other cast — letters, story pages, gossip, the
+//   lot. The Book never makes that crossing on its own; the reader's hand
+//   opens the door, one person at a time.
+//
+// A thread opens only by the reader's explicit confirmation — the Book may
+// suggest ("this name keeps arriving in your own hand"), but it never opens a
+// thread on its own, and a declined name rests permanently unless the reader
+// changes their mind.
+
+/// One real person the reader has confirmed into the Book's keeping.
+struct PersonThread: Identifiable, Codable, Equatable {
+    var id: String                 // "person:<slug>"
+    var name: String               // written exactly as the reader writes it
+    var introducedDay: String      // BookDay id ("yyyy-MM-dd")
+    var readerWords: String        // the reader's own line about who this is
+    var firstMentionDay: String
+    var lastMentionDay: String
+    var mentionPageCount: Int
+    var resting: Bool = false
+    var restDay: String?           // when the reader pressed the thread to rest
+    /// Set when the reader writes this person into the story: the id of the
+    /// linked custom cast member. The crossing is always the reader's act.
+    var castMemberID: String?
+    var invitedDay: String?        // when the reader opened that door
+}
+
+/// The reader's people ledger: confirmed threads plus names the reader has
+/// asked the Book to stop suggesting. Lives in the vault beside anchors.
+struct PeopleLedger: Codable, Equatable {
+    var threads: [PersonThread] = []
+    /// Slugs of suggested names the reader declined. Permanent quiet: the
+    /// Book never re-suggests a rested name; only the reader may reopen it.
+    var restingNames: [String] = []
+
+    func thread(slug: String) -> PersonThread? {
+        threads.first { $0.id == "person:\(slug)" }
+    }
+
+    func isKnown(slug: String) -> Bool {
+        thread(slug: slug) != nil || restingNames.contains(slug)
+    }
+}
+
+enum PeopleOfTheBook {
+    // MARK: Thresholds
+    //
+    // Two-sided honesty, same house style as ContextWeave: the Book only
+    // speaks when the evidence spans real pages and real days, and it stays
+    // silent otherwise.
+
+    /// Mid-sentence mentions on distinct pages before a name may be suggested.
+    static let minimumMentionPages = 4
+    /// The mentions must fall on at least this many distinct days.
+    static let minimumDistinctDays = 3
+    /// And span at least this many days first-to-last — a name from one
+    /// intense weekend is a story, not yet a thread.
+    static let minimumSpanDays = 10
+    /// How long a spoken (kept) suggestion rests before the Book may ask
+    /// again with grown evidence.
+    static let suggestionRestDays = 60
+    /// A confirmed thread quiet this long earns a gentle absence notice.
+    static let quietThresholdDays = 35
+    /// Beyond this, the Book stops remarking — old silence belongs to the
+    /// reader, not the margins.
+    static let quietCeilingDays = 240
+    /// A mention this recent, after a long quiet, reads as a return.
+    static let returnWindowDays = 7
+    /// Rest windows for the absence and return notices themselves.
+    static let quietNoticeRestDays = 90
+    static let returnNoticeRestDays = 45
+
+    /// The page kinds whose prose counts as the reader's own hand — the same
+    /// authored set How You See trusts.
+    static let proseTypes: Set<BookPageType> = [.diary, .souvenir, .mood, .wonderCompass, .plainPage]
+
+    /// Words that are capitalized in ordinary English (or in this app's own
+    /// lexicon) without being anyone's name. Cast names, custom cast, and the
+    /// reader's own name arrive via `excludedNames` from the caller.
+    static let commonCapitalizedWords: Set<String> = [
+        // Self-reference and contractions.
+        "i", "i'm", "i'll", "i've", "i'd",
+        // Calendar.
+        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+        "january", "february", "march", "april", "may", "june", "july",
+        "august", "september", "october", "november", "december",
+        "christmas", "easter", "thanksgiving", "halloween", "hanukkah", "ramadan",
+        "new", "year", "eve",
+        // The app's own capitalized vocabulary, which readers borrow.
+        "book", "academy", "belief", "glow", "nothing", "routine", "labyrinth",
+        "stacks", "bleed", "radio", "almanac", "compass", "chapter", "chapters",
+        "fae", "goblin", "market", "bindery", "pocket", "margin", "margins",
+        "pact", "talisman", "gemma", "wonder", "sky", "notices", "remembered",
+        // Frequent mid-sentence capitals that are not people.
+        "god", "ok", "okay", "internet", "youtube", "google", "netflix",
+        "instagram", "tiktok", "amazon", "target", "costco", "ikea", "zoom",
+        "covid", "tv", "gps", "ai", "usa", "america", "american", "english",
+        "north", "south", "east", "west", "street", "avenue", "park", "dr", "mr",
+        "mrs", "ms", "st"
+    ]
+
+    static func slug(for name: String) -> String {
+        name.lowercased()
+            .map { $0.isLetter || $0.isNumber ? $0 : "-" }
+            .reduce(into: "") { result, char in
+                if char == "-" && result.hasSuffix("-") { return }
+                result.append(char)
+            }
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+    }
+
+    // MARK: Suggestion — "this name keeps arriving in your own hand"
+
+    struct PersonSuggestion: Equatable {
+        var name: String
+        var slug: String
+        var mentionPageCount: Int
+        var distinctDayCount: Int
+        var firstDayID: String
+        var lastDayID: String
+        var evidencePageIDs: [String]
+        /// One sentence of the reader's own, containing the name — the same
+        /// quoted-evidence pattern the other notices use.
+        var sampleQuote: String
+    }
+
+    /// Names that keep arriving mid-sentence in the reader's own prose, with
+    /// enough pages, days, and span behind them to be worth asking about.
+    /// Deterministic; silent when the archive cannot meet the standard.
+    static func suggestions(
+        days: [BookDay],
+        ledger: PeopleLedger,
+        excludedNames: Set<String>,
+        now: Date
+    ) -> [PersonSuggestion] {
+        var excluded = commonCapitalizedWords
+        for name in excludedNames {
+            excluded.insert(name.lowercased())
+            for part in name.split(separator: " ") {
+                excluded.insert(part.lowercased())
+            }
+        }
+
+        struct Sighting {
+            var pageID: String
+            var dayID: String
+            var date: Date
+            var sentence: String
+        }
+
+        var sightings: [String: [Sighting]] = [:]
+        var lowercaseCounts: [String: Int] = [:]
+
+        for page in authoredPages(in: days) {
+            let dayID = BookDay.id(for: page.createdAt)
+            for sentence in sentences(in: page.userInput) {
+                let words = tokens(in: sentence)
+                for (index, word) in words.enumerated() {
+                    let lowered = word.lowercased()
+                    if word == lowered {
+                        lowercaseCounts[lowered, default: 0] += 1
+                        continue
+                    }
+                    // Only mid-sentence capitals count as name evidence; a
+                    // sentence-opening capital proves nothing.
+                    guard index > 0, isNameShaped(word), !excluded.contains(lowered) else { continue }
+                    sightings[word, default: []].append(
+                        Sighting(pageID: page.id, dayID: dayID, date: page.createdAt, sentence: sentence)
+                    )
+                }
+            }
+        }
+
+        var results: [PersonSuggestion] = []
+        for (name, seen) in sightings {
+            let candidateSlug = slug(for: name)
+            guard !candidateSlug.isEmpty, !ledger.isKnown(slug: candidateSlug) else { continue }
+            // A word the reader also writes lowercased as often is a common
+            // noun wearing a capital, not a person.
+            if lowercaseCounts[name.lowercased(), default: 0] >= seen.count { continue }
+
+            var byPage: [String: Sighting] = [:]
+            for sighting in seen where byPage[sighting.pageID] == nil {
+                byPage[sighting.pageID] = sighting
+            }
+            let pageSightings = byPage.values.sorted { $0.date < $1.date }
+            let distinctDays = Set(pageSightings.map(\.dayID))
+            guard pageSightings.count >= minimumMentionPages,
+                  distinctDays.count >= minimumDistinctDays,
+                  let first = pageSightings.first,
+                  let last = pageSightings.last,
+                  last.date.timeIntervalSince(first.date) >= TimeInterval(minimumSpanDays) * 86_400
+            else { continue }
+
+            let quote = pageSightings
+                .map(\.sentence)
+                .sorted { ($0.count, $0) < ($1.count, $1) }
+                .first ?? ""
+            results.append(
+                PersonSuggestion(
+                    name: name,
+                    slug: candidateSlug,
+                    mentionPageCount: pageSightings.count,
+                    distinctDayCount: distinctDays.count,
+                    firstDayID: first.dayID,
+                    lastDayID: last.dayID,
+                    evidencePageIDs: pageSightings.suffix(6).map(\.pageID),
+                    sampleQuote: clipped(quote)
+                )
+            )
+        }
+
+        return results.sorted {
+            if $0.mentionPageCount != $1.mentionPageCount {
+                return $0.mentionPageCount > $1.mentionPageCount
+            }
+            return $0.name < $1.name
+        }
+        .prefix(3)
+        .map { $0 }
+    }
+
+    /// The thread a confirming reader opens from a suggestion. `readerWords`
+    /// may be empty at first; the reader can add who this is later.
+    static func confirmed(_ suggestion: PersonSuggestion, onDay dayID: String, readerWords: String = "") -> PersonThread {
+        PersonThread(
+            id: "person:\(suggestion.slug)",
+            name: suggestion.name,
+            introducedDay: dayID,
+            readerWords: readerWords,
+            firstMentionDay: suggestion.firstDayID,
+            lastMentionDay: suggestion.lastDayID,
+            mentionPageCount: suggestion.mentionPageCount
+        )
+    }
+
+    // MARK: Mentions of a confirmed thread
+
+    struct MentionRecord: Equatable {
+        var pageDates: [Date]      // ascending, one per mentioning page
+        var lastDayID: String?
+    }
+
+    /// Where a confirmed name appears in the reader's own prose. Once a
+    /// thread is open, sentence-opening mentions count too — the standard of
+    /// proof belongs to the suggestion, not to the keeping.
+    static func mentions(of thread: PersonThread, in days: [BookDay]) -> MentionRecord {
+        var dates: [Date] = []
+        var lastDay: String?
+        for page in authoredPages(in: days) {
+            guard containsWholeWord(thread.name, in: page.userInput) else { continue }
+            dates.append(page.createdAt)
+        }
+        dates.sort()
+        if let last = dates.last {
+            lastDay = BookDay.id(for: last)
+        }
+        return MentionRecord(pageDates: dates, lastDayID: lastDay)
+    }
+
+    // MARK: Quiet and return
+
+    struct PersonQuietSignal: Equatable {
+        enum Kind: String {
+            case goneQuiet
+            case returned
+        }
+
+        var thread: PersonThread
+        var kind: Kind
+        var quietDays: Int
+        var lastMentionDayID: String
+    }
+
+    /// Threads gone quiet, or freshly returned after a long quiet. Only
+    /// threads with real history speak; resting threads never do. The signal
+    /// is an observation for the notices page — never a prescription.
+    static func quietSignals(ledger: PeopleLedger, days: [BookDay], now: Date) -> [PersonQuietSignal] {
+        var signals: [PersonQuietSignal] = []
+        for thread in ledger.threads where !thread.resting {
+            let record = mentions(of: thread, in: days)
+            let mentionDays = Set(record.pageDates.map { BookDay.id(for: $0) })
+            guard record.pageDates.count >= minimumMentionPages,
+                  mentionDays.count >= minimumDistinctDays,
+                  let lastDate = record.pageDates.last,
+                  let lastDayID = record.lastDayID
+            else { continue }
+
+            let quietDays = Int(now.timeIntervalSince(lastDate) / 86_400)
+            if quietDays >= quietThresholdDays && quietDays <= quietCeilingDays {
+                signals.append(
+                    PersonQuietSignal(thread: thread, kind: .goneQuiet, quietDays: quietDays, lastMentionDayID: lastDayID)
+                )
+            } else if quietDays <= returnWindowDays, record.pageDates.count >= 2 {
+                let previous = record.pageDates[record.pageDates.count - 2]
+                let gapDays = Int(lastDate.timeIntervalSince(previous) / 86_400)
+                if gapDays >= quietThresholdDays {
+                    signals.append(
+                        PersonQuietSignal(thread: thread, kind: .returned, quietDays: gapDays, lastMentionDayID: lastDayID)
+                    )
+                }
+            }
+        }
+        return signals.sorted { $0.thread.name < $1.thread.name }
+    }
+
+    /// The rest ritual: the reader presses a thread to rest and the Book
+    /// keeps it gently — no more suggestions, no more absence remarks.
+    static func rested(_ thread: PersonThread, onDay dayID: String) -> PersonThread {
+        var updated = thread
+        updated.resting = true
+        updated.restDay = dayID
+        return updated
+    }
+
+    /// The crossing: the reader writes this person into the story. The
+    /// witness thread stays (real pages keep accruing to it); the linked
+    /// cast member carries the fictional life from here on.
+    static func invitedIntoStory(_ thread: PersonThread, castMemberID: String, onDay dayID: String) -> PersonThread {
+        var updated = thread
+        updated.castMemberID = castMemberID
+        updated.invitedDay = dayID
+        return updated
+    }
+
+    // MARK: Text helpers
+
+    private static func authoredPages(in days: [BookDay]) -> [BookPage] {
+        days.flatMap(\.capturedPages).filter { page in
+            proseTypes.contains(page.type)
+                && page.origin == .userAuthored
+                && !page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    private static func sentences(in text: String) -> [String] {
+        text.split(whereSeparator: { ".!?\n".contains($0) })
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    private static func tokens(in sentence: String) -> [String] {
+        sentence.split(whereSeparator: { !($0.isLetter || $0 == "'" || $0 == "\u{2019}") })
+            .map(String.init)
+            .filter { !$0.isEmpty }
+    }
+
+    /// Name-shaped: a leading capital, a lowercase body, letters only, and at
+    /// least three characters. "SAM" (shouting), "iPhone", and initialisms
+    /// all fail on purpose.
+    private static func isNameShaped(_ word: String) -> Bool {
+        guard word.count >= 3, let first = word.first, first.isUppercase else { return false }
+        let body = word.dropFirst().replacingOccurrences(of: "'", with: "").replacingOccurrences(of: "\u{2019}", with: "")
+        guard !body.isEmpty else { return false }
+        return body.allSatisfy { $0.isLetter && $0.isLowercase }
+    }
+
+    private static func containsWholeWord(_ word: String, in text: String) -> Bool {
+        var start = text.startIndex
+        while let range = text.range(of: word, range: start..<text.endIndex) {
+            let beforeOK = range.lowerBound == text.startIndex
+                || !text[text.index(before: range.lowerBound)].isLetter
+            let afterOK = range.upperBound == text.endIndex
+                || !text[range.upperBound].isLetter
+            if beforeOK && afterOK { return true }
+            start = range.upperBound
+        }
+        return false
+    }
+
+    private static func clipped(_ text: String, limit: Int = 110) -> String {
+        guard text.count > limit else { return text }
+        let cut = text.prefix(limit)
+        if let lastSpace = cut.lastIndex(of: " ") {
+            return String(cut[..<lastSpace]) + "\u{2026}"
+        }
+        return String(cut) + "\u{2026}"
+    }
+}
+
+// MARK: - The Pre-Meeting Charge
+//
+// The Book hands the reader an attention assignment shortly before they see
+// someone whose thread it keeps. It reads only what it already has: the
+// reader's confirmed People and the calendar titles the Calendar Door
+// already supplies. A charge is an invitation to notice — never a task, and
+// never armed for a name the reader has not confirmed.
+
+extension PeopleOfTheBook {
+    struct PersonCharge: Equatable {
+        var eventID: String
+        var personName: String
+        var personSlug: String
+        var fireAt: Date
+        var title: String
+        var body: String
+        var keepPrompt: String
+        var tags: [String]
+    }
+
+    /// How long before the meeting the charge arrives.
+    static let chargeLeadSeconds: TimeInterval = 3600
+    /// The furthest ahead a charge may be armed on one refresh.
+    static let chargeHorizonSeconds: TimeInterval = 36 * 3600
+    /// At most this many charges armed at once.
+    static let maxArmedCharges = 2
+
+    /// The attention assignments a charge can carry. Deterministic per
+    /// event+person, so a rescheduled refresh re-arms the same words.
+    static let chargePrompts: [(id: String, prompt: String, proof: String)] = [
+        ("charge-changed", "Notice one thing about them that has changed since you last looked.", "Write the thing that changed."),
+        ("charge-refrain", "Catch one exact phrase they say, word for word — the one they always reach for.", "Write the phrase exactly as they said it."),
+        ("charge-hands", "Watch what their hands do while they talk. Hands finish different sentences.", "Write what their hands said."),
+        ("charge-borrowed-eye", "Ask what they noticed today, and keep the answer like it was your own page.", "Write their answer, in their words."),
+        ("charge-uncut", "Find the one detail about them the author would refuse to cut.", "Write the detail worth keeping."),
+        ("charge-voice", "Listen once to their voice instead of the words. What is it carrying today?", "Write what the voice carried.")
+    ]
+
+    /// Charges for upcoming calendar events whose titles name a confirmed,
+    /// non-resting thread. Pure — the app layer only converts these into
+    /// scheduled whispers.
+    static func preMeetingCharges(
+        ledger: PeopleLedger,
+        events: [CalendarEventSignal],
+        now: Date,
+        calendar: Calendar = .current
+    ) -> [PersonCharge] {
+        let active = ledger.threads.filter { !$0.resting }
+        guard !active.isEmpty else { return [] }
+
+        var charges: [PersonCharge] = []
+        let upcoming = events
+            .filter { !$0.isAllDay }
+            .filter { $0.startsAt.timeIntervalSince(now) > 20 * 60 }
+            .filter { $0.startsAt.timeIntervalSince(now) <= chargeHorizonSeconds }
+            .sorted { $0.startsAt < $1.startsAt }
+
+        for event in upcoming {
+            guard charges.count < maxArmedCharges else { break }
+            guard let thread = active.first(where: {
+                containsWholeWordInsensitive($0.name, in: event.title)
+            }) else { continue }
+            let fireAt = max(now.addingTimeInterval(60), event.startsAt.addingTimeInterval(-chargeLeadSeconds))
+            guard fireAt < event.startsAt else { continue }
+
+            let threadSlug = Self.slug(for: thread.name)
+            let seed = abs("\(event.id)-\(thread.id)-person-charge".stableHash)
+            let assignment = chargePrompts[seed % chargePrompts.count]
+            charges.append(
+                PersonCharge(
+                    eventID: event.id,
+                    personName: thread.name,
+                    personSlug: threadSlug,
+                    fireAt: fireAt,
+                    title: "You see \(thread.name) at \(timeLabel(for: event.startsAt, calendar: calendar))",
+                    body: "A mission, if you want it: \(assignment.prompt)",
+                    keepPrompt: assignment.proof,
+                    tags: ["people", "connection", "person-charge", assignment.id, "person:\(threadSlug)"]
+                )
+            )
+        }
+        return charges
+    }
+
+    static func timeLabel(for date: Date, calendar: Calendar = .current) -> String {
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        let hour24 = components.hour ?? 0
+        let minute = components.minute ?? 0
+        var hour12 = hour24 % 12
+        if hour12 == 0 { hour12 = 12 }
+        return minute == 0 ? "\(hour12)" : String(format: "%d:%02d", hour12, minute)
+    }
+
+    private static func containsWholeWordInsensitive(_ word: String, in text: String) -> Bool {
+        let lowered = text.lowercased()
+        let needle = word.lowercased()
+        var start = lowered.startIndex
+        while let range = lowered.range(of: needle, range: start..<lowered.endIndex) {
+            let beforeOK = range.lowerBound == lowered.startIndex
+                || !lowered[lowered.index(before: range.lowerBound)].isLetter
+            let afterOK = range.upperBound == lowered.endIndex
+                || !lowered[range.upperBound].isLetter
+            if beforeOK && afterOK { return true }
+            start = range.upperBound
+        }
+        return false
     }
 }

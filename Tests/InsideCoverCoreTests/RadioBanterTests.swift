@@ -44,7 +44,7 @@ final class RadioBanterTests: XCTestCase {
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
 
-        for index in 1...10 {
+        for index in 1...22 {
             let suffix = String(format: "%02d", index)
             let banter = try XCTUnwrap(station.banters?.first { $0.id == "faefi-penny-banter-\(suffix)" })
 
@@ -92,7 +92,7 @@ final class RadioBanterTests: XCTestCase {
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
 
-        for index in 1...12 {
+        for index in 1...30 {
             let suffix = String(format: "%02d", index)
             let banter = try XCTUnwrap(station.banters?.first { $0.id == "mothlight-euphony-banter-\(suffix)" })
 
@@ -155,7 +155,7 @@ final class RadioBanterTests: XCTestCase {
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
 
-        for index in 1...18 {
+        for index in 1...37 {
             let suffix = String(format: "%02d", index)
             let banter = try XCTUnwrap(station.banters?.first { $0.id == "thornwave-wicker-banter-\(suffix)" })
 

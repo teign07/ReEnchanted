@@ -573,10 +573,10 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(WonderSparkRegistry.sparks.count, baseCount + WonderSparkRegistry.nocturneSparks.count)
     }
 
-    // MARK: The Disbelief
+    // MARK: The Rut of Routine
 
     func testGreyLevelRespectsTheKindnessRules() {
-        XCTAssertEqual(NothingTide.greyLevel(quietDays: 5, narrativeHeat: 0, distressActive: true), 0, "distress silences Disbelief absolutely")
+        XCTAssertEqual(NothingTide.greyLevel(quietDays: 5, narrativeHeat: 0, distressActive: true), 0, "distress silences Routine absolutely")
         XCTAssertEqual(NothingTide.greyLevel(quietDays: 0, narrativeHeat: 0, distressActive: false), 0)
         XCTAssertEqual(NothingTide.greyLevel(quietDays: 1, narrativeHeat: 0, distressActive: false), 1)
         XCTAssertEqual(NothingTide.greyLevel(quietDays: 3, narrativeHeat: 0, distressActive: false), 2)
@@ -992,6 +992,8 @@ final class WorldSystemsTests: XCTestCase {
         }
         XCTAssertGreaterThanOrEqual(StoryFormRegistry.coreRecipes.count, 21)
         XCTAssertTrue(StoryFormRegistry.coreRecipes.contains { $0.id == "souvenir-door" })
+        XCTAssertTrue(StoryFormRegistry.coreRecipes.contains { $0.id == "forage-day" })
+        XCTAssertTrue(StoryFormRegistry.coreRecipes.contains { $0.id == "the-quill-disagrees" })
         XCTAssertTrue(StoryFormRegistry.coreRecipes.allSatisfy(StoryFormRegistry.recipeIsValid))
         XCTAssertTrue(StoryFormRegistry.coreRecipes.allSatisfy { $0.beats.count == StoryVignetteBeats.maximumInteractiveTurns })
         XCTAssertFalse(StoryFormRegistry.coreRecipes.contains { recipe in
@@ -2614,7 +2616,7 @@ final class WorldSystemsTests: XCTestCase {
             bindingDay(2, text: "I protected the day by naming the difficult thing instead of avoiding it."),
             bindingDay(3, text: "The page kept the conflict because smoothing it away would have made the story false."),
             bindingDay(4, text: "A thorn can be protection, not cruelty."),
-            bindingDay(5, text: "The Disbelief loses ground when the sentence is interesting enough to stay.")
+            bindingDay(5, text: "The Rut of Routine loses ground when the sentence is interesting enough to stay.")
         ]
         let selfFacts = [
             SelfFact(
@@ -3717,7 +3719,7 @@ final class WorldSystemsTests: XCTestCase {
         let start = date(2026, 6, 10, hour: 21, calendar: utcCalendar)
         let later = date(2026, 6, 12, hour: 21, calendar: utcCalendar)
         let work = BookJumpEngine.publicDomainShelf[0]
-        // Already at the brink, untouched for a day -> Disbelief overruns it.
+        // Already at the brink, untouched for a day -> Routine overruns it.
         let state = BookJumpState(active: activeJumpFixture(work: work, depth: 3, degradation: 4, now: start))
         let result = BookJumpEngine.dailyDecay(state, now: later)
         XCTAssertTrue(result.collapsed)
@@ -3802,5 +3804,45 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(RadioStationRegistry.heldSurfaceBoosts(state: heldRadio(stationID: "mothlight-beats", days: 4, calendar: cal)), [.bookRemembered: 8])
         XCTAssertTrue(RadioStationRegistry.heldSurfaceBoosts(state: heldRadio(stationID: "mothlight-beats", days: 3, calendar: cal)).isEmpty)
         XCTAssertTrue(RadioStationRegistry.heldSurfaceBoosts(state: heldRadio(stationID: "thornwave", days: 4, calendar: cal)).isEmpty)
+    }
+
+    func testEveryScheduledSessionHasItsOwnInteractiveAcademyActivity() {
+        let sessions = Array(AcademyScheduleRegistry.classes.values) + AcademyScheduleRegistry.clubs.values
+        var activityIDs = Set<String>()
+        var activityKinds = Set<AcademyActivity.Kind>()
+
+        for session in sessions {
+            let activity = AcademyActivityRegistry.activity(for: session.id)
+            XCTAssertNotNil(activity, "missing Academy activity for \(session.id)")
+            XCTAssertEqual(activity?.sessionID, session.id)
+            XCTAssertFalse(activity?.title.isEmpty ?? true)
+            XCTAssertFalse(activity?.invitation.isEmpty ?? true)
+            XCTAssertTrue(activityIDs.insert(activity?.id ?? "").inserted, "activities should not be reskins")
+            XCTAssertTrue(activityKinds.insert(activity?.kind ?? .evidenceLog).inserted, "each session needs a distinct practice shape")
+        }
+    }
+
+    func testCompassRunningUsesTheFullCompassRunActivity() throws {
+        let activity = try XCTUnwrap(AcademyActivityRegistry.activity(for: "compass-running"))
+
+        XCTAssertEqual(activity.kind, .compassRun)
+        XCTAssertTrue(activity.isCompassRun)
+        XCTAssertTrue(activity.fields.isEmpty)
+    }
+
+    func testArtOfTheGlintStartsWithThreeSeparateObservableFacts() throws {
+        let activity = try XCTUnwrap(AcademyActivityRegistry.activity(for: "art-of-the-glint"))
+
+        XCTAssertEqual(activity.kind, .evidenceLog)
+        XCTAssertEqual(activity.fields.map(\.id), ["fact-one", "fact-two", "fact-three"])
+        XCTAssertTrue(activity.invitation.contains("evidence before enchantment"))
+    }
+
+    func testBasicEnchantmentsLaunchesTheExistingFourteenSpellCatalog() throws {
+        let activity = try XCTUnwrap(AcademyActivityRegistry.activity(for: "basic-enchantments"))
+
+        XCTAssertEqual(activity.kind, .enchantmentCasting)
+        XCTAssertTrue(activity.fields.isEmpty)
+        XCTAssertEqual(StoryEnchantmentCatalog.spells.count, 14)
     }
 }

@@ -226,8 +226,9 @@ final class BraidPromptContextTests: XCTestCase {
         )
         var inputs = BookSourceInputs.empty
         inputs.weather = WeatherSourceSignal(phrase: "Current: Rain, 61F", source: "test")
+        inputs.currentLocationLabel = "Home"
         inputs.nearbyPlaces = [
-            LocalPlaceSignal(id: "harbor", name: "Harbor Walk", category: "park", distanceLabel: "nearby", locality: "Portland")
+            LocalPlaceSignal(id: "books", name: "Left Bank Books", category: "bookstore", distanceLabel: "nearby", locality: "Belfast")
         ]
         inputs.facultyEntries = [
             FacultyEntry(
@@ -252,18 +253,51 @@ final class BraidPromptContextTests: XCTestCase {
         let annotated = BraidPageDetails.annotated(page, context: .empty, headerContext: header)
         let details = BraidPageDetails.details(for: annotated)
 
-        XCTAssertTrue(annotated.userInput.hasPrefix("Tags: Time 8:30 PM · Location Harbor Walk, Portland · Weather rain · Moon"))
+        XCTAssertTrue(annotated.userInput.hasPrefix("Tags: Time 8:30 PM · Location Home · Weather rain · Moon"))
         XCTAssertTrue(annotated.userInput.contains("Fuel ≈ 410 kcal · P 22g · C 31g · F 19g"))
         XCTAssertTrue(annotated.userInput.contains("Inner weather Static and rain."))
         XCTAssertFalse(annotated.userInput.contains("eggs and toast"))
         XCTAssertEqual(details.title, "Rain At The Window")
-        XCTAssertTrue(details.body.hasPrefix("Tags: Time 8:30 PM · Location Harbor Walk, Portland · Weather rain · Moon"))
+        XCTAssertTrue(details.body.hasPrefix("Tags: Time 8:30 PM · Location Home · Weather rain · Moon"))
         XCTAssertTrue(annotated.tags.contains("braid-time:8:30 PM"))
-        XCTAssertTrue(annotated.tags.contains("braid-location:Harbor Walk, Portland"))
+        XCTAssertTrue(annotated.tags.contains("braid-location:Home"))
         XCTAssertTrue(annotated.tags.contains("braid-weather:rain"))
         XCTAssertTrue(annotated.tags.contains { $0.hasPrefix("braid-moon:") })
         XCTAssertTrue(annotated.tags.contains("braid-fuel:≈ 410 kcal · P 22g · C 31g · F 19g"))
         XCTAssertTrue(annotated.tags.contains("braid-inner-weather:Static and rain."))
+    }
+
+    func testBraidHeaderNeverTreatsNearbyDiscoveryPlaceAsCurrentLocation() {
+        let day = BookDay(
+            id: "2026-06-16",
+            date: date("2026-06-16T12:00:00Z"),
+            pages: [
+                BookPage(
+                    type: .souvenir,
+                    createdAt: date("2026-06-16T18:00:00Z"),
+                    promptText: "One true thing",
+                    userInput: "The window was open.",
+                    context: BookPageContextSnapshot(weatherTags: ["cloud"])
+                )
+            ]
+        )
+        let page = BookPage(
+            type: .bookOfYou,
+            createdAt: date("2026-06-16T20:30:00Z"),
+            promptText: "Book of You",
+            userInput: "Window\n\nYou left it open."
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.nearbyPlaces = [
+            LocalPlaceSignal(id: "books", name: "Left Bank Books", category: "bookstore", distanceLabel: "nearby", locality: "Belfast")
+        ]
+
+        let header = BraidPageDetails.HeaderContext.make(for: page, day: day, inputs: inputs)
+
+        XCTAssertEqual(header.locationLabel, "Current place")
+        XCTAssertEqual(header.weatherWord, "cloud")
+        XCTAssertFalse(header.displayLine.localizedCaseInsensitiveContains("unknown"))
+        XCTAssertFalse(header.displayLine.contains("Left Bank Books"))
     }
 
     func testBraidContextFindsThemeAndAscendantChapter() {

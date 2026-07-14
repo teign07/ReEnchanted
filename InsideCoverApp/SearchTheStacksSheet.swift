@@ -5,9 +5,15 @@ import SwiftUI
 /// into search terms.
 struct SearchTheStacksSheet: View {
     let dataset: StacksSearchDataset
+    var datasetRevision: UInt64 = 0
     let isLocalBrainWorking: Bool
     let localBrainWorkLabel: String
     let localBrainWorkStartedAt: Date?
+    var isEmbedded = false
+    var focusRequest = 0
+    var selectedResultID: String?
+    var initialQuery = ""
+    var onQueryChange: (String) -> Void = { _ in }
     let onOpen: (StacksSearchResult) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -17,6 +23,8 @@ struct SearchTheStacksSheet: View {
     @State private var interpretedTerms: [String] = []
     @State private var interpretationNote = ""
     @State private var isInterpreting = false
+    @State private var service: StacksSearchService?
+    @State private var serviceRevision: UInt64?
     @FocusState private var searchFocused: Bool
 
     private let exampleQueries = [
@@ -28,10 +36,24 @@ struct SearchTheStacksSheet: View {
     ]
     private static let localBrainStatusScrollID = "stacks-local-brain-status"
 
+    private var searchTaskID: String {
+        "\(datasetRevision):\(query)"
+    }
+
+    @ViewBuilder
     var body: some View {
-        NavigationStack {
-            ZStack {
-                BookBackground()
+        if isEmbedded {
+            searchRoot
+        } else {
+            NavigationStack {
+                searchRoot
+            }
+        }
+    }
+
+    private var searchRoot: some View {
+        ZStack {
+                BookBackground(isQuiet: isEmbedded, showsAmbientLetters: !isEmbedded)
 
                 ScrollViewReader { scrollProxy in
                     ScrollView {
@@ -101,10 +123,11 @@ struct SearchTheStacksSheet: View {
                         scrollToLocalBrainStatus(scrollProxy)
                     }
                 }
-            }
-            .navigationTitle("Search the Stacks")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+        }
+        .navigationTitle("Search the Stacks")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !isEmbedded {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") {
                         BookFeedback.play(.dismissPage)
@@ -112,27 +135,44 @@ struct SearchTheStacksSheet: View {
                     }
                 }
             }
-            .task(id: query) {
-                try? await Task.sleep(for: .milliseconds(220))
-                guard !Task.isCancelled else { return }
-                let searchQuery = query
-                guard !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                    results = []
-                    return
-                }
-                if interpretedTerms.isEmpty == false {
-                    interpretedTerms = []
-                    interpretationNote = ""
-                }
-                let found = await searchResults(for: searchQuery)
-                guard !Task.isCancelled else { return }
-                results = found
+        }
+        .task(id: searchTaskID) {
+            try? await Task.sleep(for: .milliseconds(220))
+            guard !Task.isCancelled else { return }
+            let searchQuery = query
+            guard !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                results = []
+                return
             }
-            .onAppear {
+            if interpretedTerms.isEmpty == false {
+                interpretedTerms = []
+                interpretationNote = ""
+            }
+            let clerk = searchService()
+            // Lexical matches land first so typing feels alive; the
+            // embedding pass refines them a beat later.
+            let quick = await clerk.lexicalResults(for: searchQuery)
+            guard !Task.isCancelled else { return }
+            results = quick
+            let deep = await clerk.hybridResults(for: searchQuery)
+            guard !Task.isCancelled else { return }
+            results = deep
+        }
+        .onAppear {
+            if isEmbedded && query.isEmpty && !initialQuery.isEmpty {
+                query = initialQuery
+            }
+            if !isEmbedded || focusRequest > 0 {
                 searchFocused = true
             }
-            .keepsFocusedTextInputVisible()
         }
+        .onChange(of: query) { _, newQuery in
+            onQueryChange(newQuery)
+        }
+        .onChange(of: focusRequest) { _, _ in
+            searchFocused = true
+        }
+        .keepsFocusedTextInputVisible()
     }
 
     private func scrollToLocalBrainStatus(_ scrollProxy: ScrollViewProxy) {
@@ -155,6 +195,19 @@ struct SearchTheStacksSheet: View {
                     .lineLimit(1...2)
                     .focused($searchFocused)
                     .submitLabel(.search)
+                    // A vertical-axis TextField never fires onSubmit — the
+                    // Search key inserts a newline instead. Catch it here:
+                    // scrub the newline and treat a trailing one as "search"
+                    // (put the keyboard away; results are already live).
+                    .onChange(of: query) { _, newValue in
+                        guard newValue.contains(where: \.isNewline) else { return }
+                        let submitted = newValue.last?.isNewline == true
+                        query = String(newValue.map { $0.isNewline ? " " : $0 })
+                            .trimmingCharacters(in: .whitespaces)
+                        if submitted {
+                            searchFocused = false
+                        }
+                    }
                     .dictationInput(text: $query)
                 if !query.isEmpty {
                     Button {
@@ -209,6 +262,18 @@ struct SearchTheStacksSheet: View {
     private var resultsList: some View {
         let grouped = Dictionary(grouping: results, by: \.kind)
         return VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("\(results.count) match\(results.count == 1 ? "" : "es")")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.64))
+                Spacer()
+                if isEmbedded {
+                    Text("Open beside the index")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(BookPalette.teal)
+                }
+            }
+
             ForEach(StacksSearchResult.Kind.allCases, id: \.rawValue) { kind in
                 if let items = grouped[kind], !items.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
@@ -216,6 +281,7 @@ struct SearchTheStacksSheet: View {
                             .font(.caption.weight(.black))
                             .foregroundStyle(BookPalette.lampGold.opacity(0.9))
                         ForEach(items) { result in
+                            let isSelected = isEmbedded && selectedResultID == result.id
                             Button {
                                 BookFeedback.play(.openPage)
                                 onOpen(result)
@@ -240,14 +306,34 @@ struct SearchTheStacksSheet: View {
                                 }
                                 .padding(11)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(BookPalette.page.opacity(0.92), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .background(
+                                    isSelected
+                                        ? BookPalette.lampGold.opacity(0.96)
+                                        : BookPalette.page.opacity(0.92),
+                                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                )
                                 .overlay {
                                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .stroke(BookPalette.ink.opacity(0.1), lineWidth: 1)
+                                        .stroke(
+                                            isSelected
+                                                ? BookPalette.teal.opacity(0.72)
+                                                : BookPalette.ink.opacity(0.1),
+                                            lineWidth: isSelected ? 2 : 1
+                                        )
                                 }
                             }
                             .buttonStyle(.bookPress())
                             .bookCardHover()
+                            .accessibilityAddTraits(isSelected ? .isSelected : [])
+                            .accessibilityHint("Opens on the reading stand")
+                            .contextMenu {
+                                Button {
+                                    BookFeedback.play(.openPage)
+                                    onOpen(result)
+                                } label: {
+                                    Label("Open on Reading Stand", systemImage: "book.pages")
+                                }
+                            }
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
                         }
                     }
@@ -282,18 +368,21 @@ struct SearchTheStacksSheet: View {
             interpretationNote = JSONSalvage.string("note", in: raw)
                 ?? "The Book read it as: \(terms.joined(separator: ", "))"
         }
-        let interpretedResults = await searchResults(for: query, extraTerms: terms)
+        let interpretedResults = await searchService().hybridResults(for: query, extraTerms: terms)
         withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.38, dampingFraction: 0.86)) {
             results = interpretedResults
         }
         BookFeedback.play(.sourceRefresh)
     }
 
-    private func searchResults(for query: String, extraTerms: [String] = []) async -> [StacksSearchResult] {
-        let snapshot = dataset
-        return await Task.detached(priority: .userInitiated) {
-            StacksSearchEngine.hybridSearch(query, in: snapshot, extraTerms: extraTerms)
-        }.value
+    /// One clerk per presentation of the sheet, created on first use so the
+    /// sheet's init stays free of any search machinery.
+    private func searchService() -> StacksSearchService {
+        if let service, serviceRevision == datasetRevision { return service }
+        let created = StacksSearchService(dataset: dataset)
+        service = created
+        serviceRevision = datasetRevision
+        return created
     }
 }
 
@@ -303,7 +392,7 @@ private struct FlowLayoutChips: View {
     let onTap: (String) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        FlowLayout(spacing: 8, lineSpacing: 8) {
             ForEach(items, id: \.self) { item in
                 Button {
                     onTap(item)

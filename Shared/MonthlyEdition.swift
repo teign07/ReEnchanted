@@ -1,8 +1,5 @@
 import Foundation
 
-typealias KeptWeeklyIssueArtifact = WeeklyIssue
-typealias KeptMonthlyEditionArtifact = MonthlyEdition
-
 struct MonthlyEdition: Codable, Equatable {
     var title: String
     var subtitle: String
@@ -20,14 +17,16 @@ struct MonthlyEdition: Codable, Equatable {
     var sections: [MonthlyEditionSection]
     var continuity: LiteraryContinuityDigest
     var howYouSee: HowYouSee.SeeingReceipt?
+    /// Gemma's chronological re-reading of the nightly Book of You pages: the
+    /// month's daily bindings sewn into one continuous "binding of bindings."
+    /// Optional so deterministic/offline bindings and older archives still
+    /// decode without it.
+    var bindingStory: String? = nil
     /// The month's closing, in the Book's voice. The builder always fills this
     /// with the deterministic `BookForewordWriter.closing(...)`; the app may
     /// overwrite it with a Gemma-written conclusion before binding. Optional so
     /// older saved editions still decode.
     var closing: String?
-    /// One continuous local-brain story made from the month's daily bindings.
-    /// Optional so older bound editions remain readable.
-    var bindingStory: String? = nil
     /// A small, diverse set of reader-authored passages selected from anywhere
     /// inside the month's eligible keeps. Optional for older saved editions.
     var passageCompass: [MeaningfulPassageSelector.Selection]? = nil
@@ -1435,7 +1434,6 @@ struct WeeklyIssue: Codable, Equatable {
     /// Kept Pagewright/Scrapbook pages in this issue's window.
     var scrapbookCount: Int = 0
     var scrapbookTitles: [String] = []
-
     var isFirstIssue: Bool { number == 1 }
 
     static func == (lhs: WeeklyIssue, rhs: WeeklyIssue) -> Bool {
@@ -1703,7 +1701,7 @@ enum BindingStoryPromptBuilder {
     }
 }
 
-struct WeeklyIssueShareCard: Equatable {
+struct WeeklyIssueShareCard: Codable, Equatable {
     var issueNumber: Int
     var dateRange: String
     var keptCount: Int
@@ -1713,6 +1711,9 @@ struct WeeklyIssueShareCard: Equatable {
     var stats: [String]
     var closingLine: String
     var titleName: String?
+    /// One line for the issue's back page: what the Book is watching for next
+    /// week. Deterministic per issue, so a rebind teases the same thing.
+    var nextIssueTease: String = ""
 
     static func make(issue: WeeklyIssue, selfFacts: [SelfFact] = []) -> WeeklyIssueShareCard {
         let wonderTitle = WonderTitleRegistry.earnedTitle(from: selfFacts)
@@ -1755,8 +1756,29 @@ struct WeeklyIssueShareCard: Equatable {
             motifLine: motifLine,
             stats: stats,
             closingLine: "You kept the week from disappearing.",
-            titleName: wonderTitle?.name
+            titleName: wonderTitle?.name,
+            nextIssueTease: nextIssueTease(issueNumber: issue.number, motifs: motifs)
         )
+    }
+
+    /// The back-page tease: turns the issue's ending into anticipation for the
+    /// next one. Leans on the week's refrain when there is one, so the tease
+    /// feels watched rather than generic.
+    private static func nextIssueTease(issueNumber: Int, motifs: [String]) -> String {
+        if let motif = motifs.first {
+            let watched = [
+                "Next week: whether \(motif) returns.",
+                "Issue No. \(issueNumber + 1) is already listening for \(motif).",
+                "A ribbon was left at \(motif), in case next week picks it back up."
+            ]
+            return watched[ConstellationKeeper.stableIndex(for: "weekly-tease-\(issueNumber)", count: watched.count)]
+        }
+        let open = [
+            "Issue No. \(issueNumber + 1) is already gathering.",
+            "Next week arrives blank, which is another word for promising.",
+            "The next seven pages are still uncut."
+        ]
+        return open[ConstellationKeeper.stableIndex(for: "weekly-tease-\(issueNumber)", count: open.count)]
     }
 
     private static func publicMotifs(from highlights: [String]) -> [String] {
@@ -1785,5 +1807,41 @@ struct WeeklyIssueShareCard: Equatable {
             }
             .prefix(3)
             .map(\.key)
+    }
+}
+
+/// The durable form of a weekly binding. The issue's prose and layout inputs
+/// stay with its archive page while the rendered files live in Application
+/// Support, so a kept issue can be reopened after launch or after its brief
+/// home-screen freshness window has passed.
+struct KeptWeeklyIssueArtifact: Codable, Equatable {
+    var issue: WeeklyIssue
+    var card: WeeklyIssueShareCard
+    var readerName: String
+    var editorialNote: String?
+    var closingNote: String?
+    var cardPath: String
+    var pdfPath: String
+    var keptAt: Date
+}
+
+/// The durable form of a monthly binding. The whole edition stays with its
+/// archive page so the reader can reopen it after launch, and the rendered PDF
+/// lives in Application Support; if iOS clears that file the stored edition is
+/// enough to press it again without rebuilding the month. `monthKey` ("yyyy-MM")
+/// gives each bound month a stable identity so re-binding replaces its card
+/// rather than stacking duplicates on the Book of You shelf.
+struct KeptMonthlyEditionArtifact: Codable, Equatable {
+    var edition: MonthlyEdition
+    var monthKey: String
+    var pdfPath: String
+    var keptAt: Date
+
+    /// "June 2026" — the month name the edition carries, stamped with the year
+    /// its start date falls in so cards and readers can tell chapters apart.
+    var monthLabel: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy"
+        return "\(edition.monthName) \(formatter.string(from: edition.startDate))"
     }
 }

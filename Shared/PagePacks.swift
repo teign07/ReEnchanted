@@ -535,11 +535,11 @@ enum PageArchetypePackRegistry {
             archetypes: [
                 PageArchetype(
                     id: "the-nothing-stirs",
-                    title: "The Disbelief Stirs",
+                    title: "The Rut of Routine Stirs",
                     headline: "A Grey Page",
                     detail: "Something got quietly rubbed out, and the Book wants to write it back.",
-                    reason: "At night, Disbelief sneaks around the edges of your kept days.",
-                    bodyTemplate: "Late {timeOfDay}, under a {moon}. Somewhere in today's margins, one small detail has gone grey and silent — Disbelief has been chewing at it. Open this page and the Book will try to write it back before it fades.",
+                    reason: "At night, Routine sneaks around the edges of your kept days.",
+                    bodyTemplate: "Late {timeOfDay}, under a {moon}. Somewhere in today's margins, one small detail has gone grey and silent — Routine has been chewing at it. Open this page and the Book will try to write it back before it fades.",
                     score: 48,
                     cadenceHours: 24,
                     activeHours: [21, 22, 23],
@@ -547,8 +547,8 @@ enum PageArchetypePackRegistry {
                     symbolName: "circle.dotted",
                     tags: ["nothing", "night", "fourth-wall"],
                     generation: PageArchetype.GenerationSpec(
-                        instructions: "You are the Book inside ReEnchanted, writing against Disbelief — the grey, silent force that erases unnoticed details. Quiet, a little eerie, finally warm. \(BookVoice.animismLine) Prose only.",
-                        promptTemplate: "The player's day so far: {lastKeptPage}. The weather: {weather}. {moonLine} Write 2 short paragraphs: first, name one small, plausible detail of such a day that Disbelief has almost erased (be specific but invent nothing impossible); second, write it back into the margins so it is kept. End with one sentence addressed directly to {playerName}: something true about why noticing matters tonight.",
+                        instructions: "You are the Book inside ReEnchanted, writing against Routine — the grey, silent force that erases unnoticed details. Quiet, a little eerie, finally warm. \(BookVoice.animismLine) Prose only.",
+                        promptTemplate: "The player's day so far: {lastKeptPage}. The weather: {weather}. {moonLine} Write 2 short paragraphs: first, name one small, plausible detail of such a day that Routine has almost erased (be specific but invent nothing impossible); second, write it back into the margins so it is kept. End with one sentence addressed directly to {playerName}: something true about why noticing matters tonight.",
                         maxTokens: 300
                     )
                 ),
@@ -557,8 +557,8 @@ enum PageArchetypePackRegistry {
                     title: "The Grey Margin",
                     headline: "Almost Taken",
                     detail: "Quiet days let the grey sneak in. One little sentence holds it back.",
-                    reason: "The margins have been quiet, and Disbelief always notices quiet.",
-                    bodyTemplate: "The margins have been quiet for a little while — no shame in that; days do what days do. But Disbelief collects unnoticed time, and something from the quiet days has started going grey. Write one sentence about anything true from the last few days — a meal, a sound, a small errand — and it stays in the Book for good.",
+                    reason: "The margins have been quiet, and Routine always notices quiet.",
+                    bodyTemplate: "The margins have been quiet for a little while — no shame in that; days do what days do. But Routine collects unnoticed time, and something from the quiet days has started going grey. Write one sentence about anything true from the last few days — a meal, a sound, a small errand — and it stays in the Book for good.",
                     score: 50,
                     cadenceHours: 12,
                     renderStyleRaw: "loreLetter",
@@ -648,7 +648,7 @@ enum PageArchetypePackRegistry {
     /// rulings tilted the Treaty. Each surfaces in the event's `afterimage` phase
     /// once the Treaty has settled (3+ rebellion rulings), and is keepable so it
     /// binds into the September edition. Secession also foreshadows the Thorned
-    /// Bargain (the crack Disbelief comes through in February).
+    /// Bargain (the crack Routine comes through in February).
     static let dictionaryRebellionAftermath: [PageArchetype] = [
         PageArchetype(
             id: "dictionary-rebellion-picket-line",
@@ -965,7 +965,7 @@ enum PageArchetypePackRegistry {
             category: .theme, phase: "afterimage",
             recall: "It scatters itself thin across a hundred small demands again.",
             pardonTitle: "Let it cost", pardonSense: "the rarest currency, and the only one that buys wonder", pardonCategory: .theme,
-            adoptTitle: "Make it yours", adoptSense: "the thing you give that Disbelief can never fake",
+            adoptTitle: "Make it yours", adoptSense: "the thing you give that Routine can never fake",
             freed: "It refuses to be spent on anything that did not ask honestly."
         ),
         rebellionWord(
@@ -1149,7 +1149,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "seal-body",
             title: "The Body Seal",
-            text: "This seal asks your phone how the body is carrying today. The numbers stay private on the device — the Book just translates them into weather it can write with."
+            text: "This seal asks your device how the body is carrying today. The numbers stay private on the device — the Book just translates them into weather it can write with."
         ),
         MarginTutorNote(
             id: "seal-weather",
@@ -1451,12 +1451,12 @@ struct ReEnchantedSaveFile: Codable {
     var storySettingAffinities: [String: Int]? = nil
     var storySceneBiases: [String: Int]? = nil
     var bookNoticeEvidence: Int? = nil
-    var nothingGreyOffset: Int? = nil
-    var readerLearning: ReaderLearningModel? = nil
-    var openWorldEventArchive: OpenWorldEventArchive? = nil
     var magicMoment: MagicMomentState? = nil
     var bookObservations: [BookObservationRecord]? = nil
     var bookReadingBoundaries: [BookReadingBoundary]? = nil
+    var nothingGreyOffset: Int? = nil
+    var readerLearning: ReaderLearningModel? = nil
+    var openWorldEventArchive: OpenWorldEventArchive? = nil
     var overnightConnectionDrafts: [OvernightConnectionDraft]? = nil
     var chosenQuill: ChosenQuill? = nil
     var people: PeopleLedger? = nil
@@ -1597,6 +1597,7 @@ enum JSONSalvage {
 /// The single versioned container for everything the player has tuned or
 /// earned outside the page archive: anchors, favors, Belief offsets, and
 /// tutor progress. One file, one schema version, one migration story.
+
 struct PlayerVaultData: Codable, Equatable {
     static let currentVersion = 2
 
@@ -1629,12 +1630,12 @@ struct PlayerVaultData: Codable, Equatable {
     var storySettingAffinities: [String: Int]?
     var storySceneBiases: [String: Int]?
     var bookNoticeEvidence: Int?
-    var nothingGreyOffset: Int?
-    var openWorldEventArchive: OpenWorldEventArchive? = nil
     var magicMoment: MagicMomentState?
     var bookObservations: [BookObservationRecord]?
     var bookReadingBoundaries: [BookReadingBoundary]?
     var overnightConnectionDrafts: [OvernightConnectionDraft]?
+    var nothingGreyOffset: Int?
+    var openWorldEventArchive: OpenWorldEventArchive? = nil
     var chosenQuill: ChosenQuill?
     var people: PeopleLedger?
     /// Gemma-authored taste notes earned when the reader marks a braid "missed

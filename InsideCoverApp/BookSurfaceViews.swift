@@ -785,7 +785,7 @@ private func evidenceButtons(_ pages: [BookPage], accent: Color, onOpenPage: @es
                     HStack(spacing: 8) {
                         Image(systemName: "doc.text.magnifyingglass")
                             .foregroundStyle(accent)
-                        Text(page.userInput.nonEmpty ?? page.promptText)
+                        Text(page.archivePreviewText ?? page.type.title)
                             .font(.caption)
                             .foregroundStyle(BookPalette.nightText.opacity(0.76))
                             .lineLimit(2)
@@ -808,7 +808,7 @@ private struct BookEvidenceMiniCard: View {
             Text(page.type.shortTitle)
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(BookPalette.teal)
-            Text(page.userInput.nonEmpty ?? page.promptText)
+            Text(page.archivePreviewText ?? page.type.title)
                 .font(.caption)
                 .foregroundStyle(BookPalette.nightText.opacity(0.82))
                 .lineLimit(4)
@@ -2698,12 +2698,9 @@ struct SurfaceCard: View {
         guard isReadingCard, !hidesMissionFromPreview else { return nil }
         let body = surface.payload.body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return nil }
-        let preview: String
-        if surface.type == .wonderCompass || surface.type == .narrativeOS || surface.type == .marginsAtlas || surface.type == .bookConnections || surface.type == .bookRemembered || surface.type == .bookNotices || surface.type == .theBleed || surface.type == .radio || surface.type == .gossip || surface.type == .facultyResearch || surface.type == .supportGuild || surface.payload.metadata["illustrationKind"] == "cast" {
-            preview = body.bookPreviewSentenceLimit(2)
-        } else {
-            preview = body
-        }
+        // Always cut on a complete sentence so the shelf can show the whole
+        // preview instead of trailing off mid-word behind an ellipsis.
+        let preview = body.bookPreviewSentenceLimit(previewSentenceLimit)
         // Some cards (e.g. Playful Missions) store the prompt as both `detail`
         // and the head of `body`; without this the same paragraph prints twice.
         if preview == surface.detail.trimmingCharacters(in: .whitespacesAndNewlines) {
@@ -2741,22 +2738,19 @@ struct SurfaceCard: View {
         .accessibilityLabel("Shadow Wonder variant")
     }
 
-    private var previewLineLimit: Int {
+    /// How many whole sentences of the body the shelf preview shows. The dense,
+    /// frequently-surfaced types stay tight at two; everything else gets three
+    /// so a short note can finish its thought. Bounding by sentences (not lines)
+    /// means the card ends cleanly instead of trailing off mid-word.
+    private var previewSentenceLimit: Int {
+        if surface.payload.metadata["illustrationKind"] == "cast" { return 2 }
         switch surface.type {
-        case .wonderCompass:
-            return 3
-        case .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .theBleed, .radio:
-            return 4
-        case .gossip:
-            return 4
-        case .facultyResearch:
-            return 4
-        case .supportGuild:
-            return 4
-        case .illustration, .illuminatedPhoto:
-            return 4
+        case .wonderCompass, .narrativeOS, .marginsAtlas, .bookConnections,
+             .bookRemembered, .bookNotices, .theBleed, .radio, .gossip,
+             .facultyResearch, .supportGuild:
+            return 2
         default:
-            return 5
+            return 3
         }
     }
 
@@ -2769,9 +2763,9 @@ struct SurfaceCard: View {
                     .frame(width: 28, alignment: .leading)
 
                 Text(surfaceLabel.uppercased())
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(visualStyle.accent.opacity(0.82))
-                    .padding(.top, 3)
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(visualStyle.accent)
+                    .padding(.top, 2)
 
                 if isShadowWonderVariant {
                     shadowWonderChip
@@ -2782,20 +2776,20 @@ struct SurfaceCard: View {
             .padding(.trailing, 38)
 
             Text(surface.prompt)
-                .font(.system(.title3, design: .serif, weight: .semibold))
+                .font(.system(.title2, design: .serif, weight: .semibold))
                 .foregroundStyle(BookPalette.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.trailing, 26)
 
             if hidesMissionFromPreview {
                 Text("A small, low-stakes invitation is waiting inside.")
-                    .font(.footnote)
-                    .foregroundStyle(BookPalette.ink.opacity(0.66))
+                    .font(.callout)
+                    .foregroundStyle(BookPalette.ink.opacity(0.84))
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text(surface.detail)
-                    .font(.footnote)
-                    .foregroundStyle(BookPalette.ink.opacity(0.66))
+                    .font(.callout)
+                    .foregroundStyle(BookPalette.ink.opacity(0.84))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -2819,24 +2813,22 @@ struct SurfaceCard: View {
 
             if let previewText {
                 Text(previewText)
-                    .font(.system(.callout, design: .serif))
-                    .foregroundStyle(BookPalette.ink.opacity(0.82))
-                    .lineSpacing(3)
-                    .lineLimit(previewLineLimit)
+                    .font(.system(.body, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.94))
+                    .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
             }
 
             Text(surface.reason)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(BookPalette.ink.opacity(0.6))
-                .lineLimit(isReadingCard ? 1 : 2)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(BookPalette.ink.opacity(0.76))
                 .fixedSize(horizontal: false, vertical: true)
 
             if let privacyNote {
                 Label(privacyNote, systemImage: "lock.shield")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(visualStyle.accent.opacity(0.86))
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(visualStyle.accent)
                     .lineLimit(2)
             }
 
@@ -2844,10 +2836,10 @@ struct SurfaceCard: View {
 
             HStack {
                 Text(isBusy ? "Taking ink..." : "Open the page")
-                    .font(.caption.weight(.bold))
+                    .font(.footnote.weight(.bold))
                 Spacer()
                 Image(systemName: isBusy ? "circle.dotted" : "arrow.up.right")
-                    .font(.caption.weight(.bold))
+                    .font(.footnote.weight(.bold))
                     .offset(
                         x: (reduceMotion || isBusy || !idle) ? 0 : 3,
                         y: (reduceMotion || isBusy || !idle) ? 0 : -3
@@ -2952,12 +2944,15 @@ struct SurfaceCard: View {
 struct SwipeDismissSurfaceCard: View {
     let surface: SurfacePage
     let isBusy: Bool
+    let isRetiring: Bool
+    let animatesArrival: Bool
     let onOpen: () -> Void
     let onDismiss: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dragOffset: CGFloat = 0
     @State private var isTucking = false
+    @State private var hasArrived = false
 
     private let dismissThreshold: CGFloat = 96
     private let horizontalDragRatio: CGFloat = 1.6
@@ -2979,44 +2974,74 @@ struct SwipeDismissSurfaceCard: View {
         return isTucking ? base + 6 : base
     }
 
-    var body: some View {
-        ZStack(alignment: .trailing) {
-            marginReveal
+    private var arrivalIsVisible: Bool {
+        reduceMotion || !animatesArrival || hasArrived
+    }
 
-            Button {
-                onOpen()
-            } label: {
-                SurfaceCard(surface: surface, isBusy: isBusy)
-            }
-            .buttonStyle(.bookPress())
-            .bookCardHover()
-            .scaleEffect(reduceMotion ? 1 : (isTucking ? 0.9 : 1 - dragProgress * 0.03), anchor: .bottomLeading)
-            .rotationEffect(.degrees(-tiltDegrees), anchor: .bottomLeading)
-            .offset(x: dragOffset)
-            .overlay(alignment: .topTrailing) {
+    var body: some View {
+        ZStack {
+            ZStack(alignment: .trailing) {
+                marginReveal
+
                 Button {
-                    onDismiss()
+                    onOpen()
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(BookPalette.ink.opacity(0.42))
-                        .padding(12)
+                    SurfaceCard(surface: surface, isBusy: isBusy)
                 }
                 .buttonStyle(.bookPress())
-                .accessibilityLabel("Let \(surface.payload.metadata["surfaceLabel"]?.nonEmpty ?? surface.type.title) pass for now")
+                .bookCardHover()
+                .scaleEffect(reduceMotion ? 1 : (isTucking ? 0.9 : 1 - dragProgress * 0.03), anchor: .bottomLeading)
+                .rotationEffect(.degrees(-tiltDegrees), anchor: .bottomLeading)
+                .offset(x: dragOffset)
+                .overlay(alignment: .topTrailing) {
+                    Button {
+                        performDismissal()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(BookPalette.ink.opacity(0.42))
+                            .padding(12)
+                    }
+                    .buttonStyle(.bookPress())
+                    .accessibilityLabel("Let \(surface.payload.metadata["surfaceLabel"]?.nonEmpty ?? surface.type.title) pass for now")
+                }
+                .overlay(alignment: .trailing) {
+                    SwipeDismissHandle()
+                        .padding(.trailing, 2)
+                        .gesture(
+                            DragGesture(minimumDistance: 26)
+                                .onChanged(handleDragChanged)
+                                .onEnded(handleDragEnded)
+                        )
+                }
             }
-            .overlay(alignment: .trailing) {
-                SwipeDismissHandle()
-                    .padding(.trailing, 2)
-                    .gesture(
-                        DragGesture(minimumDistance: 26)
-                            .onChanged(handleDragChanged)
-                            .onEnded(handleDragEnded)
-                    )
+            .opacity(isRetiring ? 0 : (arrivalIsVisible ? 1 : 0))
+            .offset(x: arrivalIsVisible ? 0 : 44)
+            .scaleEffect(reduceMotion || arrivalIsVisible ? 1 : 0.975, anchor: .trailing)
+            .accessibilityHidden(isRetiring)
+
+            if isRetiring || (animatesArrival && !hasArrived && !reduceMotion) {
+                SurfaceRetirementPlaceholder(surface: surface)
+                    .transition(.opacity)
             }
         }
-        .accessibilityHint("Tap to open. Use the small right-edge tab or close button to let this page pass.")
+        // The real card remains mounted underneath the placeholder, preserving
+        // its exact variable-height slot. The outgoing and incoming motion uses
+        // offset/opacity only, so none of it can animate the surrounding shelves.
+        .allowsHitTesting(!isRetiring)
+        .accessibilityHint(isRetiring
+            ? "The Book is choosing another page."
+            : "Tap to open. Use the small right-edge tab or close button to let this page pass."
+        )
+        .onAppear {
+            guard animatesArrival, !reduceMotion else { return }
+            DispatchQueue.main.async {
+                withAnimation(.spring(response: 0.52, dampingFraction: 0.82)) {
+                    hasArrived = true
+                }
+            }
+        }
     }
 
     /// The oxblood margin that the page slips into — with a wax seal that
@@ -3073,16 +3098,7 @@ struct SwipeDismissSurfaceCard: View {
 
         let shouldDismiss = value.translation.width < -dismissThreshold || value.predictedEndTranslation.width < -dismissThreshold * 1.4
         if shouldDismiss {
-            BookFeedback.play(.dismissPage)
-            withAnimation(.easeIn(duration: 0.26)) {
-                dragOffset = -520
-                isTucking = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-                onDismiss()
-                dragOffset = 0
-                isTucking = false
-            }
+            performDismissal()
         } else {
             withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
                 dragOffset = 0
@@ -3094,6 +3110,106 @@ struct SwipeDismissSurfaceCard: View {
         let horizontal = abs(value.translation.width)
         let vertical = abs(value.translation.height)
         return value.translation.width < 0 && horizontal > vertical * horizontalDragRatio
+    }
+
+    private func performDismissal() {
+        guard !isTucking, !isRetiring else { return }
+        BookFeedback.play(.dismissPage)
+        if reduceMotion {
+            onDismiss()
+            return
+        }
+        withAnimation(.easeIn(duration: 0.26)) {
+            dragOffset = -520
+            isTucking = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            onDismiss()
+            dragOffset = 0
+            isTucking = false
+        }
+    }
+}
+
+private struct SurfaceRetirementPlaceholder: View {
+    let surface: SurfacePage
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var breathing = false
+
+    private var visualStyle: PageVisualStyle {
+        PageVisualStyle.style(for: surface.type)
+    }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            visualStyle.paperTop.opacity(0.92),
+                            visualStyle.paperMiddle.opacity(0.96),
+                            visualStyle.paperBottom.opacity(0.90)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [.clear, Color.white.opacity(0.32), .clear],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .scaleEffect(x: 0.42, y: 1.25)
+                .offset(x: reduceMotion ? 0 : (breathing ? 190 : -190))
+                .blendMode(.screen)
+
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(visualStyle.accent.opacity(breathing && !reduceMotion ? 0.22 : 0.12))
+                        .frame(width: 46, height: 46)
+                    Image(systemName: "books.vertical.fill")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(visualStyle.accent)
+                        .rotationEffect(.degrees(breathing && !reduceMotion ? -3 : 3))
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("The stacks are choosing...")
+                        .font(.system(.headline, design: .serif, weight: .semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.82))
+                    Text("Another page is finding this place on the desk.")
+                        .font(.system(.footnote, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.58))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(18)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(visualStyle.accent.opacity(breathing && !reduceMotion ? 0.44 : 0.24), lineWidth: 1.2)
+        }
+        .shadow(color: visualStyle.accent.opacity(breathing && !reduceMotion ? 0.20 : 0.08), radius: 12, y: 5)
+        .animation(
+            reduceMotion ? nil : .easeInOut(duration: 1.45).repeatForever(autoreverses: true),
+            value: breathing
+        )
+        .onAppear {
+            guard !reduceMotion else { return }
+            breathing = true
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("The Book is choosing another page")
     }
 }
 
@@ -3252,13 +3368,15 @@ private struct SwipeDismissHandle: View {
                 .fill(BookPalette.paper.opacity(0.18))
         )
         .offset(x: (reduceMotion || !hinting) ? 0 : -3)
+        .animation(
+            reduceMotion ? nil : .easeInOut(duration: 1.4).repeatForever(autoreverses: true),
+            value: hinting
+        )
         .contentShape(Rectangle())
         .accessibilityHidden(true)
         .onAppear {
             guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
-                hinting = true
-            }
+            hinting = true
         }
     }
 }
@@ -3704,7 +3822,7 @@ struct FragmentRow: View {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             return note?.nonEmpty ?? "A kept scrapbook page. Tap to preview the plate."
         }
-        return text.isEmpty ? page.promptText : text
+        return page.archivePreviewText ?? page.type.title
     }
 
     private func handleDragChanged(_ value: DragGesture.Value) {
@@ -3768,7 +3886,7 @@ struct ResurfacedPageRow: View {
                     .foregroundStyle(BookPalette.ink.opacity(0.48))
             }
 
-            Text(page.userInput)
+            Text(page.archivePreviewText ?? page.type.title)
                 .font(.system(.callout, design: .serif, weight: .semibold))
                 .lineSpacing(3)
                 .foregroundStyle(BookPalette.ink.opacity(0.78))
@@ -4035,6 +4153,169 @@ struct ArchiveCard: View {
     }
 }
 
+/// The larger rhythms of the Book of You live on the same shelf as its nightly
+/// pages. A quiet disabled card lets the reader see what is gathering before a
+/// week or month has enough ink to bind.
+struct BookOfYouBindingCard: View {
+    let eyebrow: String
+    let title: String
+    let detail: String
+    let systemImage: String
+    let isReady: Bool
+    let readyLabel: String
+    let onOpen: () -> Void
+
+    var body: some View {
+        Button {
+            BookFeedback.play(.openPage)
+            onOpen()
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(eyebrow)
+                        .font(.caption2.weight(.black))
+                        .tracking(0.7)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 4)
+
+                    Image(systemName: systemImage)
+                        .font(.caption.weight(.bold))
+                }
+                .foregroundStyle(BookPalette.teal)
+
+                Text(title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink)
+                    .lineLimit(2)
+
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundStyle(BookPalette.ink.opacity(0.72))
+                    .lineLimit(3)
+
+                Spacer(minLength: 0)
+
+                Text(isReady ? readyLabel : "Gathering")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(isReady ? BookPalette.teal : BookPalette.ink.opacity(0.42))
+            }
+            .padding(14)
+            .frame(width: 240, height: 170, alignment: .topLeading)
+            .parchmentSurface(accent: isReady ? BookPalette.teal : BookPalette.gold.opacity(0.55), isActive: isReady)
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.bookPress())
+        .disabled(!isReady)
+        .opacity(isReady ? 1 : 0.72)
+        .accessibilityLabel("\(title). \(detail)")
+        .accessibilityHint(isReady ? readyLabel : "This binding is still gathering pages.")
+        .bookCardHover()
+    }
+}
+
+struct WeeklyIssueArchiveCard: View {
+    let artifact: KeptWeeklyIssueArtifact
+    let onOpen: () -> Void
+
+    var body: some View {
+        Button {
+            onOpen()
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("ISSUE NO. \(artifact.issue.number)")
+                        .font(.caption2.weight(.black))
+                        .tracking(0.7)
+                    Spacer(minLength: 4)
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.caption.weight(.bold))
+                }
+                .foregroundStyle(BookPalette.teal)
+
+                Text("Weekly Issue")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink)
+
+                Text(artifact.card.title)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.78))
+                    .lineLimit(2)
+
+                Text("\(artifact.issue.dateRange) · \(artifact.issue.keptCount) \(artifact.issue.keptCount == 1 ? "page" : "pages")")
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.ink.opacity(0.58))
+                    .lineLimit(2)
+
+                Spacer(minLength: 0)
+
+                Text("Kept · Read issue")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(BookPalette.teal)
+            }
+            .padding(14)
+            .frame(width: 240, height: 170, alignment: .topLeading)
+            .parchmentSurface(accent: BookPalette.teal, isActive: false)
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.bookPress())
+        .accessibilityLabel("Kept Weekly Issue No. \(artifact.issue.number), \(artifact.issue.dateRange)")
+        .accessibilityHint("Opens the saved weekly issue.")
+        .bookCardHover()
+    }
+}
+
+struct MonthlyEditionArchiveCard: View {
+    let artifact: KeptMonthlyEditionArtifact
+    let onOpen: () -> Void
+
+    var body: some View {
+        Button {
+            onOpen()
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("CHAPTER \(artifact.edition.chapterNumber)")
+                        .font(.caption2.weight(.black))
+                        .tracking(0.7)
+                    Spacer(minLength: 4)
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.caption.weight(.bold))
+                }
+                .foregroundStyle(BookPalette.lampGold)
+
+                Text("Monthly Edition")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink)
+
+                Text(artifact.monthLabel)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.78))
+                    .lineLimit(2)
+
+                Text("\(artifact.edition.pageCount) \(artifact.edition.pageCount == 1 ? "page" : "pages") · \(artifact.edition.dayCount) \(artifact.edition.dayCount == 1 ? "day" : "days")")
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.ink.opacity(0.58))
+                    .lineLimit(2)
+
+                Spacer(minLength: 0)
+
+                Text("Kept · Read edition")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold)
+            }
+            .padding(14)
+            .frame(width: 240, height: 170, alignment: .topLeading)
+            .parchmentSurface(accent: BookPalette.lampGold, isActive: false)
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.bookPress())
+        .accessibilityLabel("Kept Monthly Edition, \(artifact.monthLabel)")
+        .accessibilityHint("Opens the saved monthly edition.")
+        .bookCardHover()
+    }
+}
+
 struct EmptyBookCard: View {
     let title: String
     let message: String
@@ -4232,135 +4513,447 @@ private final class StallTolerantClock {
     }
 }
 
-struct OpeningMovieView: View {
+/// The same physical book carries onboarding and everyday launch. The wrappers
+/// own their timing; this view owns the cover, hinge, lit inner page, and sparks
+/// so the two transitions cannot quietly drift into different visual languages.
+private struct FallingBookArtwork: View {
+    let width: CGFloat
+    let height: CGFloat
+    let coverTitleLines: [String]
+    let insideTitle: String
+    let titleWrite: Double
+    let open: Double
+    let idleTime: TimeInterval
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let leatherTop = Color(red: 0.09, green: 0.10, blue: 0.19)
+    private static let leatherMid = Color(red: 0.06, green: 0.07, blue: 0.14)
+    private static let leatherLow = Color(red: 0.03, green: 0.04, blue: 0.09)
+
+    var body: some View {
+        ZStack {
+            pageBlock
+            innerPage
+            frontCover
+        }
+        .frame(width: width, height: height)
+    }
+
+    private var pageBlock: some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [BookPalette.page, BookPalette.paper, BookPalette.parchmentEdge],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay(alignment: .trailing) {
+                VStack(spacing: 2.2) {
+                    ForEach(0..<18, id: \.self) { index in
+                        Rectangle()
+                            .fill(BookPalette.ink.opacity(index.isMultiple(of: 4) ? 0.10 : 0.045))
+                            .frame(height: 0.65)
+                    }
+                }
+                .padding(.vertical, 10)
+                .frame(width: 6)
+            }
+            .frame(width: width, height: height)
+            .offset(x: 5, y: 4)
+            .shadow(color: .black.opacity(0.32), radius: 7, x: 5, y: 7)
+    }
+
+    private var innerPage: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [BookPalette.page, BookPalette.paper, BookPalette.page],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            Image("ParchmentTexture")
+                .resizable()
+                .scaledToFill()
+                .opacity(0.5)
+                .blendMode(.multiply)
+
+            RadialGradient(
+                colors: [BookPalette.lampGold.opacity(0.6 * open), .clear],
+                center: .init(x: 0.14, y: 0.5),
+                startRadius: 0,
+                endRadius: width * (0.5 + open)
+            )
+
+            VStack(spacing: 10) {
+                Image(systemName: "sparkle")
+                    .font(.system(size: 22, weight: .black))
+                    .foregroundStyle(BookPalette.lampGold)
+                    .shadow(color: BookPalette.lampGold.opacity(0.6), radius: 10)
+                Text(insideTitle)
+                    .font(.system(size: 15, weight: .semibold, design: .serif))
+                    .foregroundStyle(BookPalette.gold.opacity(0.8))
+                    .tracking(1.4)
+            }
+            .opacity(openingProgress(open, from: 0.45, to: 1.0))
+
+            Canvas(opaque: false, colorMode: .linear, rendersAsynchronously: true) { context, _ in
+                for index in 0..<12 {
+                    let seed = Double(index) * 0.83
+                    let rise = open * (0.8 + 0.4 * ((sin(seed) + 1) / 2))
+                    let center = CGPoint(
+                        x: width * (0.12 + 0.5 * CGFloat((sin(seed * 1.7) + 1) / 2)),
+                        y: height * (0.9 - 0.7 * CGFloat(rise))
+                    )
+                    let color = BookPalette.lampGold.opacity(0.5 * open)
+
+                    if index.isMultiple(of: 3) {
+                        var sparkle = Path()
+                        sparkle.move(to: CGPoint(x: center.x - 4, y: center.y))
+                        sparkle.addLine(to: CGPoint(x: center.x + 4, y: center.y))
+                        sparkle.move(to: CGPoint(x: center.x, y: center.y - 4))
+                        sparkle.addLine(to: CGPoint(x: center.x, y: center.y + 4))
+                        context.stroke(sparkle, with: .color(color), lineWidth: 1.2)
+                    } else {
+                        context.fill(
+                            Path(ellipseIn: CGRect(x: center.x - 2, y: center.y - 2, width: 4, height: 4)),
+                            with: .color(color)
+                        )
+                    }
+                }
+            }
+        }
+        .frame(width: width, height: height)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.parchmentEdge.opacity(0.4), lineWidth: 1)
+        }
+    }
+
+    private var frontCover: some View {
+        let faceOpacity = 1 - openingProgress(open, from: 0.32, to: 0.6)
+        let idlePulse = reduceMotion ? 0 : (sin(idleTime * 1.75) + 1) / 2
+        let shimmerProgress = reduceMotion
+            ? 0.5
+            : (idleTime.truncatingRemainder(dividingBy: 4.6) + 4.6).truncatingRemainder(dividingBy: 4.6) / 4.6
+        return ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Self.leatherTop, Self.leatherMid, Self.leatherLow],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            Image("EnchantedBookCoverPlate")
+                .resizable()
+                .scaledToFill()
+                .frame(width: width, height: height)
+                .clipped()
+                .saturation(0.92)
+                .contrast(1.04)
+
+            RadialGradient(
+                colors: [
+                    Self.leatherMid.opacity(0.04),
+                    Self.leatherLow.opacity(0.18),
+                    Self.leatherLow.opacity(0.48)
+                ],
+                center: .center,
+                startRadius: width * 0.12,
+                endRadius: width * 0.78
+            )
+
+            LinearGradient(
+                colors: [
+                    .clear,
+                    BookPalette.lampGold.opacity(0.02),
+                    BookPalette.nightText.opacity(0.32),
+                    BookPalette.lampGold.opacity(0.08),
+                    .clear
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: width * 0.27, height: height * 1.25)
+            .rotationEffect(.degrees(12))
+            .offset(x: -width * 0.82 + width * 1.64 * CGFloat(shimmerProgress))
+            .blendMode(.screen)
+            .opacity(faceOpacity)
+
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.42 + 0.12 * idlePulse), lineWidth: 1.25)
+                .padding(12)
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .stroke(BookPalette.gold.opacity(0.22 + 0.10 * idlePulse), lineWidth: 0.85)
+                .padding(18)
+
+            VStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 26, weight: .black))
+                    .foregroundStyle(BookPalette.lampGold)
+                    .shadow(
+                        color: BookPalette.lampGold.opacity(0.46 + 0.24 * idlePulse),
+                        radius: CGFloat(8 + 4 * idlePulse)
+                    )
+                    .scaleEffect(CGFloat(reduceMotion ? 1 : 0.96 + 0.07 * idlePulse))
+                    .padding(.bottom, 6)
+                    .opacity(faceOpacity)
+
+                ForEach(coverTitleLines.indices, id: \.self) { index in
+                    WrittenGoldText(
+                        coverTitleLines[index],
+                        font: .system(size: min(width * 0.13, 30), weight: .semibold, design: .serif),
+                        progress: titleWrite
+                    )
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .allowsTightening(true)
+                    .frame(maxWidth: max(1, width - 48))
+                }
+
+                Rectangle()
+                    .fill(BookPalette.lampGold.opacity(0.5))
+                    .frame(width: width * 0.34, height: 1.4)
+                    .padding(.top, 6)
+                    .opacity(faceOpacity)
+            }
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 24)
+            .opacity(max(faceOpacity, titleWrite < 1 ? 1 : faceOpacity))
+        }
+        .frame(width: width, height: height)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .rotation3DEffect(
+            .degrees((reduceMotion ? -8 : -158) * open),
+            axis: (x: 0, y: 1, z: 0),
+            anchor: .leading,
+            perspective: 0.55
+        )
+        .opacity(reduceMotion ? 1 - openingProgress(open, from: 0.08, to: 0.9) : 1)
+    }
+}
+
+private struct LaunchOpeningBookPhase: Equatable {
+    var leadIn: Double
+    var reveal: Double
+    var appear: Double
+    var titleWrite: Double
+    var open: Double
+    var rush: Double
+    var flood: Double
+    var idleTime: TimeInterval
+}
+
+private struct LaunchOpeningBookFrame: View {
+    let phase: LaunchOpeningBookPhase
+    let showsLoadingCue: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            let bookW = min(size.width * 0.60, 264)
+            let bookH = bookW * 1.34
+            let idleStrength = reduceMotion ? 0 : (1 - phase.open)
+            let idleBob = sin(phase.idleTime * 1.25) * 3.5 * idleStrength
+            let idleSway = sin(phase.idleTime * 0.72) * 0.65 * idleStrength
+            let idleBreath = (sin(phase.idleTime * 1.05) + 1) * 0.006 * idleStrength
+            let appearanceScale = CGFloat(0.88 + 0.12 * phase.appear)
+            let revealScale = CGFloat(0.34 * phase.rush)
+            let bookScale = appearanceScale + revealScale + CGFloat(idleBreath)
+            let bookOffset = -size.height * CGFloat(0.04 * phase.rush) + CGFloat(idleBob)
+
+            ZStack {
+                BookBackground(isQuiet: true, showsAmbientLetters: false)
+                    .overlay {
+                        Rectangle()
+                            .fill(BookPalette.nightPanel.opacity(0.34))
+                    }
+
+                AmbientLetterField(
+                    isPaused: reduceMotion,
+                    externallyDrivenTime: phase.idleTime
+                )
+                .opacity(0.90 * (1 - openingProgress(phase.flood, from: 0.48, to: 0.92)))
+                .blendMode(.plusLighter)
+                .allowsHitTesting(false)
+
+                FallingBookArtwork(
+                    width: bookW,
+                    height: bookH,
+                    coverTitleLines: ["ReEnchanted"],
+                    insideTitle: "The Book Remembers",
+                    titleWrite: phase.titleWrite,
+                    open: phase.open,
+                    idleTime: phase.idleTime
+                )
+                .scaleEffect(bookScale)
+                .rotationEffect(.degrees(idleSway))
+                .offset(y: bookOffset)
+                .opacity(phase.appear * (1 - openingProgress(phase.flood, from: 0.82, to: 1)))
+                .shadow(
+                    color: BookPalette.lampGold.opacity(0.18 + 0.08 * idleBreath + 0.34 * phase.open),
+                    radius: CGFloat(23 + 80 * idleBreath + 24 * phase.open),
+                    y: CGFloat(18 - 10 * phase.open + idleBob * 0.3)
+                )
+
+                RadialGradient(
+                    colors: [
+                        BookPalette.nightText.opacity(0.98 * phase.flood),
+                        BookPalette.lampGold.opacity(0.82 * phase.flood),
+                        BookPalette.gold.opacity(0.38 * phase.flood),
+                        .clear
+                    ],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: max(size.width, size.height) * CGFloat(0.18 + 0.82 * phase.flood)
+                )
+                .blendMode(.screen)
+                .allowsHitTesting(false)
+
+                Rectangle()
+                    .fill(BookPalette.page)
+                    .opacity(openingProgress(phase.flood, from: 0.72, to: 1))
+                    .allowsHitTesting(false)
+
+                if showsLoadingCue {
+                    VStack {
+                        Spacer()
+                        Label("Opening your book…", systemImage: "book.closed")
+                            .font(.system(.caption, design: .serif, weight: .semibold))
+                            .textCase(.uppercase)
+                            .kerning(1.1)
+                            .foregroundStyle(BookPalette.nightText.opacity(0.66))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 9)
+                            .background(BookPalette.nightPanel.opacity(0.52), in: Capsule())
+                            .overlay {
+                                Capsule()
+                                    .stroke(BookPalette.lampGold.opacity(0.18), lineWidth: 1)
+                            }
+                            .padding(.bottom, max(24, proxy.safeAreaInsets.bottom + 16))
+                    }
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+                }
+            }
+        }
+    }
+}
+
+struct OpeningBookLoadingView: View {
+    let isReadyToReveal: Bool
+    let onReachedHold: () -> Void
     let onFinished: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var clock = StallTolerantClock()
+    @State private var didReachHold = false
+    @State private var skipToHold = false
+    @State private var revealStartElapsed: TimeInterval?
     @State private var didFinish = false
 
-    private var duration: TimeInterval {
-        reduceMotion ? 2.2 : 6.2
+    private var leadInDuration: TimeInterval {
+        reduceMotion ? 0.35 : 1.45
+    }
+
+    private var revealDuration: TimeInterval {
+        reduceMotion ? 0.35 : 0.85
+    }
+
+    private var isTimelinePaused: Bool {
+        didFinish
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: reduceMotion ? 1 / 12 : 1 / 24)) { timeline in
-            let elapsed = clock.tick(timeline.date, maxDelta: 1 / 8)
-            let progress = min(max(elapsed / duration, 0), 1)
-
-            GeometryReader { proxy in
-                let size = proxy.size
-                let fairy = fairyPosition(progress: progress, size: size)
-                let wipe = openingProgress(progress, from: 0.82, to: 1.0)
-
-                ZStack {
-                    BookBackground()
-                        .overlay {
-                            Rectangle()
-                                .fill(BookPalette.nightPanel.opacity(0.34))
-                        }
-
-                    VStack(spacing: 18) {
-                        Spacer(minLength: size.height * 0.20)
-
-                        WrittenGoldText(
-                            "Real Life...",
-                            font: .system(size: min(size.width * 0.12, 48), weight: .medium, design: .serif),
-                            progress: openingProgress(progress, from: 0.08, to: reduceMotion ? 0.18 : 0.34)
-                        )
-                        .frame(maxWidth: .infinity, alignment: .center)
-
-                        WrittenGoldText(
-                            "ReEnchanted",
-                            font: .system(size: min(size.width * 0.132, 54), weight: .semibold, design: .serif),
-                            progress: openingProgress(progress, from: reduceMotion ? 0.20 : 0.32, to: reduceMotion ? 0.42 : 0.60)
-                        )
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                        .frame(maxWidth: max(1, size.width - 54), alignment: .center)
-                        .shadow(color: BookPalette.lampGold.opacity(0.22), radius: 18, x: 0, y: 6)
-
-                        WrittenGoldText(
-                            "By The Doobaleedoos",
-                            font: .system(size: min(size.width * 0.060, 24), weight: .semibold, design: .serif),
-                            progress: openingProgress(progress, from: reduceMotion ? 0.42 : 0.58, to: reduceMotion ? 0.58 : 0.74)
-                        )
-                        .kerning(1.2)
-                        .textCase(.uppercase)
-
-                        Spacer()
-                    }
-                    .padding(.horizontal, 30)
-                    .padding(.bottom, max(28, proxy.safeAreaInsets.bottom + 20))
-                    .opacity(1 - wipe * 0.75)
-
-                    FairyScribe()
-                        .frame(width: 38, height: 38)
-                        .position(fairy)
-                        .opacity(progress < 0.95 ? 1 : 1 - openingProgress(progress, from: 0.95, to: 1.0))
-                        .accessibilityHidden(true)
-
-                    SparkleTrail(progress: progress, fairyPosition: fairy)
-                        .allowsHitTesting(false)
-
-                    PageTurnWipe(progress: wipe)
-                        .allowsHitTesting(false)
-                }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    finish()
-                }
-                .onChange(of: progress) { _, newValue in
-                    guard newValue >= 1 else { return }
-                    finish()
-                }
+        TimelineView(.animation(paused: isTimelinePaused)) { timeline in
+            let phase = phase(at: timeline.date)
+            LaunchOpeningBookFrame(
+                phase: phase,
+                showsLoadingCue: didReachHold && revealStartElapsed == nil
+            )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                fastForwardToHold()
+            }
+            .onChange(of: phase.leadIn) { _, newValue in
+                guard newValue >= 1 else { return }
+                reachHold()
+            }
+            .onChange(of: isReadyToReveal) { _, ready in
+                guard ready else { return }
+                beginRevealIfPossible()
+            }
+            .onChange(of: phase.reveal) { _, newValue in
+                guard newValue >= 1 else { return }
+                finish()
             }
         }
         .ignoresSafeArea()
-        .onAppear {
-            BookFeedback.play(.openPage)
-        }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Opening animation. Real Life, ReEnchanted. By The Doobaleedoos.")
+        .accessibilityLabel(didReachHold
+            ? "The ReEnchanted book is ready to open. Loading your pages."
+            : "A closed ReEnchanted book is appearing."
+        )
+        .accessibilityHint("Double-tap to skip the cover flourish. The book opens when your pages are ready.")
         .accessibilityAddTraits(.isButton)
+    }
+
+    private func phase(at date: Date) -> LaunchOpeningBookPhase {
+        let elapsed = clock.tick(date, maxDelta: 1.0 / 12.0)
+        let leadIn = skipToHold ? 1.0 : min(max(elapsed / leadInDuration, 0), 1)
+        let reveal: Double
+        if let revealStartElapsed {
+            reveal = min(max((elapsed - revealStartElapsed) / revealDuration, 0), 1)
+        } else {
+            reveal = 0
+        }
+
+        return LaunchOpeningBookPhase(
+            leadIn: leadIn,
+            reveal: reveal,
+            appear: openingProgress(leadIn, from: 0, to: reduceMotion ? 0.35 : 0.48),
+            titleWrite: openingProgress(leadIn, from: 0.18, to: reduceMotion ? 0.7 : 0.9),
+            open: openingProgress(reveal, from: 0, to: reduceMotion ? 0.72 : 0.82),
+            rush: reduceMotion ? 0 : openingProgress(reveal, from: 0.28, to: 1),
+            flood: openingProgress(reveal, from: reduceMotion ? 0.45 : 0.52, to: 1),
+            idleTime: reduceMotion ? 0 : elapsed
+        )
+    }
+
+    private func fastForwardToHold() {
+        guard !didReachHold, !didFinish else { return }
+        skipToHold = true
+        reachHold()
+    }
+
+    private func reachHold() {
+        guard !didReachHold, !didFinish else { return }
+        didReachHold = true
+        onReachedHold()
+        beginRevealIfPossible()
+    }
+
+    private func beginRevealIfPossible() {
+        guard didReachHold,
+              isReadyToReveal,
+              revealStartElapsed == nil,
+              !didFinish else { return }
+        revealStartElapsed = clock.elapsed
     }
 
     private func finish() {
         guard !didFinish else { return }
         didFinish = true
-        BookFeedback.play(.braidComplete)
         onFinished()
-    }
-
-    private func fairyPosition(progress: Double, size: CGSize) -> CGPoint {
-        let settled = CGPoint(x: size.width * 0.74, y: size.height * 0.38)
-        if reduceMotion {
-            return settled
-        }
-
-        let points = [
-            CGPoint(x: size.width * 0.18, y: size.height * 0.30),
-            CGPoint(x: size.width * 0.76, y: size.height * 0.30),
-            CGPoint(x: size.width * 0.18, y: size.height * 0.43),
-            CGPoint(x: size.width * 0.80, y: size.height * 0.43),
-            CGPoint(x: size.width * 0.30, y: size.height * 0.51),
-            CGPoint(x: size.width * 0.70, y: size.height * 0.51),
-            settled
-        ]
-
-        let routeProgress = openingProgress(progress, from: 0.04, to: 0.80)
-        let scaled = routeProgress * Double(points.count - 1)
-        let index = min(Int(scaled), points.count - 2)
-        let local = scaled - Double(index)
-        let eased = smoothstep(local)
-        let start = points[index]
-        let end = points[index + 1]
-        let bob = CGFloat(sin(progress * .pi * 18) * 4)
-
-        return CGPoint(
-            x: start.x + (end.x - start.x) * eased,
-            y: start.y + (end.y - start.y) * eased + bob
-        )
     }
 }
 
@@ -4377,12 +4970,8 @@ struct LabyrinthCoverOpeningView: View {
 
     private var duration: TimeInterval { reduceMotion ? 1.6 : 2.9 }
 
-    private static let leatherTop = Color(red: 0.09, green: 0.10, blue: 0.19)
-    private static let leatherMid = Color(red: 0.06, green: 0.07, blue: 0.14)
-    private static let leatherLow = Color(red: 0.03, green: 0.04, blue: 0.09)
-
     var body: some View {
-        TimelineView(.animation(minimumInterval: reduceMotion ? 1.0 / 12 : 1.0 / 30)) { timeline in
+        TimelineView(.animation) { timeline in
             let elapsed = clock.tick(timeline.date, maxDelta: 1.0 / 8)
             let progress = min(max(elapsed / duration, 0), 1)
 
@@ -4397,14 +4986,18 @@ struct LabyrinthCoverOpeningView: View {
                 let bookH = bookW * 1.34
 
                 ZStack {
-                    BookBackground()
+                    BookBackground(isQuiet: true)
                         .overlay { Rectangle().fill(BookPalette.nightPanel.opacity(0.55)) }
 
-                    ZStack {
-                        innerPage(width: bookW, height: bookH, open: open)
-                        frontCover(width: bookW, height: bookH, titleWrite: titleWrite, open: open)
-                    }
-                    .frame(width: bookW, height: bookH)
+                    FallingBookArtwork(
+                        width: bookW,
+                        height: bookH,
+                        coverTitleLines: ["The Labyrinth", "of Stories"],
+                        insideTitle: "The Unwritten",
+                        titleWrite: titleWrite,
+                        open: open,
+                        idleTime: reduceMotion ? 0 : elapsed
+                    )
                     .scaleEffect(0.9 + 0.1 * appear)
                     .opacity(appear)
                     .shadow(color: .black.opacity(0.42 * appear), radius: 26, x: 0, y: 20)
@@ -4438,131 +5031,6 @@ struct LabyrinthCoverOpeningView: View {
         didFinish = true
         BookFeedback.play(.openPage)
         onFinished()
-    }
-
-    /// The page revealed as the cover swings back: warm lamplight blooming from
-    /// the gutter, a gilded ornament, and sparks rising as the reader falls in.
-    private func innerPage(width: CGFloat, height: CGFloat, open: Double) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [BookPalette.page, BookPalette.paper, BookPalette.page],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-
-            Image("ParchmentTexture")
-                .resizable()
-                .scaledToFill()
-                .opacity(0.5)
-                .blendMode(.multiply)
-
-            RadialGradient(
-                colors: [BookPalette.lampGold.opacity(0.6 * open), .clear],
-                center: .init(x: 0.14, y: 0.5),
-                startRadius: 0,
-                endRadius: width * (0.5 + open)
-            )
-
-            VStack(spacing: 10) {
-                Image(systemName: "sparkle")
-                    .font(.system(size: 22, weight: .black))
-                    .foregroundStyle(BookPalette.lampGold)
-                    .shadow(color: BookPalette.lampGold.opacity(0.6), radius: 10)
-                Text("The Unwritten")
-                    .font(.system(size: 15, weight: .semibold, design: .serif))
-                    .foregroundStyle(BookPalette.gold.opacity(0.8))
-                    .tracking(1.4)
-            }
-            .opacity(openingProgress(open, from: 0.45, to: 1.0))
-
-            ForEach(0..<12, id: \.self) { index in
-                let seed = Double(index) * 0.83
-                let rise = open * (0.8 + 0.4 * ((sin(seed) + 1) / 2))
-                Image(systemName: index.isMultiple(of: 3) ? "sparkle" : "circle.fill")
-                    .font(.system(size: index.isMultiple(of: 3) ? 9 : 4, weight: .black))
-                    .foregroundStyle(BookPalette.lampGold.opacity(0.5 * open))
-                    .position(
-                        x: width * (0.12 + 0.5 * CGFloat((sin(seed * 1.7) + 1) / 2)),
-                        y: height * (0.9 - 0.7 * CGFloat(rise))
-                    )
-            }
-        }
-        .frame(width: width, height: height)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(BookPalette.parchmentEdge.opacity(0.4), lineWidth: 1)
-        }
-    }
-
-    /// The front board of the book, which swings open around its spine edge.
-    /// The title and ornament fade as the board turns past the reader so no
-    /// mirrored lettering shows on the back of the board.
-    private func frontCover(width: CGFloat, height: CGFloat, titleWrite: Double, open: Double) -> some View {
-        let faceOpacity = 1 - openingProgress(open, from: 0.32, to: 0.6)
-        return ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Self.leatherTop, Self.leatherMid, Self.leatherLow],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay(alignment: .leading) {
-                    Rectangle()
-                        .fill(BookPalette.lampGold.opacity(0.12))
-                        .frame(width: 10)
-                        .blur(radius: 4)
-                }
-
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.7), lineWidth: 1.5)
-                .padding(12)
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .stroke(BookPalette.gold.opacity(0.4), lineWidth: 1)
-                .padding(18)
-
-            VStack(spacing: 8) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 26, weight: .black))
-                    .foregroundStyle(BookPalette.lampGold)
-                    .shadow(color: BookPalette.lampGold.opacity(0.5), radius: 8)
-                    .padding(.bottom, 6)
-                    .opacity(faceOpacity)
-
-                WrittenGoldText(
-                    "The Labyrinth",
-                    font: .system(size: min(width * 0.13, 30), weight: .semibold, design: .serif),
-                    progress: titleWrite
-                )
-                WrittenGoldText(
-                    "of Stories",
-                    font: .system(size: min(width * 0.13, 30), weight: .semibold, design: .serif),
-                    progress: titleWrite
-                )
-
-                Rectangle()
-                    .fill(BookPalette.lampGold.opacity(0.5))
-                    .frame(width: width * 0.34, height: 1.4)
-                    .padding(.top, 6)
-                    .opacity(faceOpacity)
-            }
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 24)
-            .opacity(max(faceOpacity, titleWrite < 1 ? 1 : faceOpacity))
-        }
-        .frame(width: width, height: height)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .rotation3DEffect(
-            .degrees(-158 * open),
-            axis: (x: 0, y: 1, z: 0),
-            anchor: .leading,
-            perspective: 0.55
-        )
     }
 }
 
@@ -4673,22 +5141,37 @@ struct SparkleTrail: View {
     let fairyPosition: CGPoint
 
     var body: some View {
-        ZStack {
-            ForEach(0..<24, id: \.self) { index in
+        Canvas(opaque: false, colorMode: .linear, rendersAsynchronously: true) { context, _ in
+            for index in 0..<24 {
                 let age = Double(index) / 24
                 let opacity = max(0, 0.68 - age * 0.58) * (1 - openingProgress(progress, from: 0.82, to: 0.98))
                 let angle = Double(index) * 1.37 + progress * 10
                 let radius = CGFloat(6 + index * 2)
+                let center = CGPoint(
+                    x: fairyPosition.x - CGFloat(cos(angle)) * radius - CGFloat(index),
+                    y: fairyPosition.y - CGFloat(sin(angle)) * radius + CGFloat(index) * 0.7
+                )
+                let size: CGFloat = index.isMultiple(of: 3) ? 4.5 : 2.5
+                let color = index.isMultiple(of: 4) ? BookPalette.nightText : BookPalette.lampGold
 
-                Image(systemName: index % 3 == 0 ? "sparkle" : "plus")
-                    .font(.system(size: index % 3 == 0 ? 9 : 5, weight: .bold))
-                    .foregroundStyle((index % 4 == 0 ? BookPalette.nightText : BookPalette.lampGold).opacity(opacity))
-                    .position(
-                        x: fairyPosition.x - CGFloat(cos(angle)) * radius - CGFloat(index),
-                        y: fairyPosition.y - CGFloat(sin(angle)) * radius + CGFloat(index) * 0.7
-                    )
+                context.stroke(
+                    sparklePath(center: center, radius: size),
+                    with: .color(color.opacity(opacity)),
+                    lineWidth: index.isMultiple(of: 3) ? 1.25 : 0.9
+                )
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .blendMode(.plusLighter)
+    }
+
+    private func sparklePath(center: CGPoint, radius: CGFloat) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: center.x - radius, y: center.y))
+        path.addLine(to: CGPoint(x: center.x + radius, y: center.y))
+        path.move(to: CGPoint(x: center.x, y: center.y - radius))
+        path.addLine(to: CGPoint(x: center.x, y: center.y + radius))
+        return path
     }
 }
 
@@ -4739,6 +5222,7 @@ struct PageTurnWipe: View {
 
 struct BookBackground: View {
     var isQuiet = false
+    var showsAmbientLetters = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -4776,9 +5260,11 @@ struct BookBackground: View {
             }
         }
         .overlay {
-            AmbientLetterField(isPaused: isQuiet)
-                .blendMode(.plusLighter)
-                .allowsHitTesting(false)
+            if showsAmbientLetters {
+                AmbientLetterField(isPaused: isQuiet)
+                    .blendMode(.plusLighter)
+                    .allowsHitTesting(false)
+            }
         }
         .overlay(alignment: .bottomLeading) {
             MarginaliaImage(name: "MarginaliaLavender", width: 130, opacity: 0.11)
@@ -5815,11 +6301,13 @@ private struct MoonwriteParchmentGlow: View {
                     .blendMode(.screen)
             }
         }
+        .animation(
+            reduceMotion ? nil : .easeInOut(duration: 2.8).repeatForever(autoreverses: true),
+            value: pulse
+        )
         .onAppear {
             guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 2.8).repeatForever(autoreverses: true)) {
-                pulse = true
-            }
+            pulse = true
         }
     }
 }
@@ -5996,11 +6484,22 @@ private struct StarSpeckle: Shape {
 
 private struct AmbientLetterField: View {
     let isPaused: Bool
+    var externallyDrivenTime: TimeInterval? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        if reduceMotion || isPaused {
+        if let externallyDrivenTime, !reduceMotion, !isPaused {
+            Canvas(opaque: false, colorMode: .linear, rendersAsynchronously: true) { context, size in
+                AmbientLetterFieldRenderer.draw(
+                    in: context,
+                    size: size,
+                    time: externallyDrivenTime,
+                    reduceMotion: false
+                )
+            }
+            .opacity(0.78)
+        } else if reduceMotion || isPaused {
             Canvas { context, size in
                 AmbientLetterFieldRenderer.draw(in: context, size: size, time: 0, reduceMotion: true)
             }
@@ -6504,6 +7003,8 @@ struct OnboardingFlowView: View {
     let onFinished: (Result) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @FocusState private var isOnboardingFieldFocused: Bool
     // Persisted so a player who closes mid-onboarding reopens on the same page
     // instead of restarting. Reset to 0 when onboarding finishes (see `advance`
@@ -6737,122 +7238,7 @@ struct OnboardingFlowView: View {
                 }
 
             GeometryReader { proxy in
-                let isPortrait = proxy.size.height >= proxy.size.width
-                let headerInset: CGFloat = 14
-                // Let the reading card claim most of the height instead of a tight
-                // fixed cap, and ride just below the top of the page. Reserves room
-                // for the step dots and spacers; adapts to small devices.
-                let scrollMaxHeight: CGFloat = isPortrait
-                    ? min(640, max(420, proxy.size.height - 116))
-                    : min(540, max(360, proxy.size.height - 120))
-
-                VStack(spacing: 0) {
-                    Spacer(minLength: isPortrait ? 12 : 18)
-
-                    VStack(spacing: 0) {
-                        if isOnboardingHeaderVisible {
-                            onboardingHeader
-                                .padding(.horizontal, headerInset)
-                                .padding(.top, headerInset)
-                                .padding(.bottom, 10)
-                                .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
-                        }
-
-                        ScrollViewReader { scrollProxy in
-                            ScrollView {
-                                VStack(alignment: .leading, spacing: 18) {
-                                    Color.clear
-                                        .frame(height: 0)
-                                        .id("onboarding-page-top")
-
-                                    if step == 0 {
-                                        openingMiniPill
-                                    } else {
-                                        stagePill
-                                    }
-                                    stepContent
-                                        .transition(.asymmetric(
-                                            insertion: .opacity.combined(with: .move(edge: .trailing)),
-                                            removal: .opacity.combined(with: .move(edge: .leading))
-                                        ))
-                                        .id(step == 0 ? "opening-\(openingMiniStep)" : "step-\(step)")
-                                        .modifier(OnboardingGhostInModifier())
-                                }
-                                .padding(.horizontal, 22)
-                                .padding(.bottom, 74)
-                            }
-                            .onChange(of: step) { _, _ in
-                                scheduleOnboardingHeaderFade()
-                                DispatchQueue.main.async {
-                                    withAnimation(reduceMotion ? .none : .easeOut(duration: 0.18)) {
-                                        scrollProxy.scrollTo("onboarding-page-top", anchor: .top)
-                                    }
-                                }
-                                notifyGlowUnlockedIfNeeded()
-                            }
-                            .onChange(of: openingMiniStep) { _, _ in
-                                guard step == 0 else { return }
-                                scheduleOnboardingHeaderFade()
-                                scheduleOpeningOvertureTitleFadeIfNeeded()
-                                DispatchQueue.main.async {
-                                    withAnimation(reduceMotion ? .none : .easeOut(duration: 0.18)) {
-                                        scrollProxy.scrollTo(openingMiniScrollTargetID, anchor: .top)
-                                    }
-                                }
-                            }
-                            .onChange(of: belief) { _, _ in
-                                notifyGlowUnlockedIfNeeded()
-                            }
-                            .onChange(of: wickerThrowID) { _, _ in
-                                guard wickerOutcome != nil else { return }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                                    withAnimation(reduceMotion ? .none : .easeOut(duration: 0.34)) {
-                                        scrollProxy.scrollTo("onboarding-wicker-inkbones", anchor: .center)
-                                    }
-                                }
-                            }
-                            .scrollDismissesKeyboard(.interactively)
-                        }
-                    }
-	                    .frame(maxHeight: scrollMaxHeight)
-	                    .background {
-	                        ZStack {
-	                            Image("ParchmentTexture")
-	                                .resizable()
-	                                .scaledToFill()
-	                                .opacity(0.9)
-	                            BookPalette.page.opacity(0.6)
-	                            LinearGradient(
-	                                colors: [
-	                                    BookPalette.lampGold.opacity(shimmer ? 0.16 : 0.05),
-	                                    .clear,
-	                                    BookPalette.teal.opacity(shimmer ? 0.08 : 0.03)
-	                                ],
-	                                startPoint: .topLeading,
-	                                endPoint: .bottomTrailing
-	                            )
-	                        }
-	                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-	                    }
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(BookPalette.lampGold.opacity(shimmer ? 0.62 : 0.34), lineWidth: 1)
-                    }
-                    .rotation3DEffect(.degrees(reduceMotion ? 0 : (pageTilt ? 0.8 : -0.8)), axis: (x: 0, y: 1, z: 0))
-                    .padding(.top, isPortrait ? 8 : 12)
-                    .padding(.horizontal, 22)
-                    .shadow(color: BookPalette.lampGold.opacity(shimmer ? 0.18 : 0.08), radius: 22, x: 0, y: 8)
-                    .shadow(color: .black.opacity(0.32), radius: 12, x: 0, y: 18)
-                    .zIndex(0)
-
-                    if step > 0 {
-                        stepDots
-                            .padding(.top, isPortrait ? 18 : 16)
-                    }
-
-                    Spacer(minLength: 30)
-                }
-                .frame(width: proxy.size.width, height: proxy.size.height)
+                onboardingLayout(in: proxy.size)
             }
 
             if showResumePrompt {
@@ -6937,6 +7323,356 @@ struct OnboardingFlowView: View {
             openingOvertureTitleFadeTask?.cancel()
             openingOvertureTitleFadeTask = nil
         }
+    }
+
+    private var isPadOnboardingDevice: Bool {
+        #if canImport(UIKit)
+        UIDevice.current.userInterfaceIdiom == .pad
+        #else
+        false
+        #endif
+    }
+
+    @ViewBuilder
+    private func onboardingLayout(in size: CGSize) -> some View {
+        if isPadOnboardingDevice {
+            iPadOnboardingLayout(in: size)
+        } else {
+            compactOnboardingLayout(in: size)
+        }
+    }
+
+    /// The phone composition remains the original short reading card. Keeping
+    /// it in its own branch also preserves the current iPhone landscape and
+    /// keyboard behavior byte-for-byte while iPad receives a real stage.
+    private func compactOnboardingLayout(in size: CGSize) -> some View {
+        let isPortrait = size.height >= size.width
+        let headerInset: CGFloat = 14
+        let scrollMaxHeight: CGFloat = isPortrait
+            ? min(640, max(420, size.height - 116))
+            : min(540, max(360, size.height - 120))
+
+        return VStack(spacing: 0) {
+            Spacer(minLength: isPortrait ? 12 : 18)
+
+            VStack(spacing: 0) {
+                if isOnboardingHeaderVisible {
+                    onboardingHeader
+                        .padding(.horizontal, headerInset)
+                        .padding(.top, headerInset)
+                        .padding(.bottom, 10)
+                        .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
+                }
+
+                onboardingPageScroll(
+                    horizontalPadding: 22,
+                    readingMaxWidth: nil,
+                    showsInlineChrome: true,
+                    keepsOpeningTopVisible: false
+                )
+            }
+            .frame(maxHeight: scrollMaxHeight)
+            .background { onboardingParchmentBackground(cornerRadius: 14) }
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(BookPalette.lampGold.opacity(shimmer ? 0.62 : 0.34), lineWidth: 1)
+            }
+            .rotation3DEffect(
+                .degrees(reduceMotion ? 0 : (pageTilt ? 0.8 : -0.8)),
+                axis: (x: 0, y: 1, z: 0)
+            )
+            .padding(.top, isPortrait ? 8 : 12)
+            .padding(.horizontal, 22)
+            .shadow(color: BookPalette.lampGold.opacity(shimmer ? 0.18 : 0.08), radius: 22, x: 0, y: 8)
+            .shadow(color: .black.opacity(0.32), radius: 12, x: 0, y: 18)
+
+            if step > 0 {
+                stepDots
+                    .padding(.top, isPortrait ? 18 : 16)
+            }
+
+            Spacer(minLength: 30)
+        }
+        .frame(width: size.width, height: size.height)
+    }
+
+    /// Regular-width iPad becomes a folio in roomy landscape windows. In
+    /// portrait, Split View, accessibility text sizes, and smaller iPads the
+    /// same reading page simply occupies the full stage without a side rail.
+    private func iPadOnboardingLayout(in size: CGSize) -> some View {
+        let showsFolioRail = size.width >= 980
+            && size.width > size.height
+            && horizontalSizeClass == .regular
+            && !dynamicTypeSize.isAccessibilitySize
+        let railWidth: CGFloat = showsFolioRail
+            ? min(330, max(286, size.width * 0.27))
+            : 0
+        let outerHorizontalPadding: CGFloat = showsFolioRail ? 24 : 16
+        let folioSpacing: CGFloat = showsFolioRail ? 22 : 0
+        let stageHeight = max(0, size.height - 32)
+
+        return HStack(spacing: folioSpacing) {
+            onboardingFolioRail(width: railWidth)
+                .frame(width: railWidth, height: stageHeight)
+                .opacity(showsFolioRail ? 1 : 0)
+                .clipped()
+                .allowsHitTesting(showsFolioRail)
+                .accessibilityHidden(!showsFolioRail)
+
+            iPadOnboardingReadingPage(showsFolioRail: showsFolioRail)
+                .frame(maxWidth: showsFolioRail ? 780 : 840)
+                .frame(height: stageHeight)
+        }
+        .frame(maxWidth: showsFolioRail ? 1_180 : 840, maxHeight: stageHeight)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, outerHorizontalPadding)
+        .padding(.vertical, 16)
+    }
+
+    private func iPadOnboardingReadingPage(showsFolioRail: Bool) -> some View {
+        VStack(spacing: 0) {
+            if !showsFolioRail {
+                onboardingHeader
+                    .padding(.horizontal, 18)
+                    .padding(.top, 18)
+                    .padding(.bottom, 10)
+            }
+
+            onboardingPageScroll(
+                horizontalPadding: showsFolioRail ? 34 : 30,
+                readingMaxWidth: 720,
+                showsInlineChrome: !showsFolioRail,
+                keepsOpeningTopVisible: !showsFolioRail
+            )
+            .id(showsFolioRail ? "onboarding-folio-scroll" : "onboarding-portrait-scroll")
+
+            if !showsFolioRail, step > 0 {
+                stepDots
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background { onboardingParchmentBackground(cornerRadius: 18) }
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(shimmer ? 0.62 : 0.34), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .shadow(color: BookPalette.lampGold.opacity(shimmer ? 0.16 : 0.06), radius: 28, x: 0, y: 8)
+        .shadow(color: .black.opacity(0.36), radius: 20, x: 0, y: 18)
+    }
+
+    private func onboardingFolioRail(width: CGFloat) -> some View {
+        ZStack {
+            BookPalette.nightPanel
+
+            Image("LabyrinthLocationStacks")
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .opacity(0.22)
+                .overlay {
+                    LinearGradient(
+                        colors: [
+                            BookPalette.nightPanel.opacity(0.18),
+                            BookPalette.nightPanel.opacity(0.82),
+                            BookPalette.nightPanel
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+                .clipped()
+
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 12) {
+                    Image(systemName: onboardingSymbol)
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(BookPalette.nightPanel)
+                        .frame(width: 48, height: 48)
+                        .background(BookPalette.lampGold, in: Circle())
+                        .shadow(color: BookPalette.lampGold.opacity(0.34), radius: 12)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("THE FIRST DOOR")
+                            .font(.caption2.weight(.black))
+                            .tracking(1.4)
+                            .foregroundStyle(BookPalette.lampGold.opacity(0.78))
+                        Text(step == 0 ? "Opening the Book" : "Step \(step) of \(stepCount - 1)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(step == 0 ? openingMiniStageName : onboardingStageName)
+                        .font(.system(.title2, design: .serif, weight: .bold))
+                        .foregroundStyle(BookPalette.lampGold)
+                    Text(onboardingHeaderLine)
+                        .font(.system(.body, design: .serif, weight: .semibold))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.82))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                ProgressView(value: onboardingProgress)
+                    .tint(BookPalette.lampGold)
+
+                if step > 0 {
+                    stepDots
+                }
+
+                Spacer(minLength: 20)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("A living first edition", systemImage: "book.closed")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.teal)
+                    Text("Your answers stay on this device and become the first handwriting in the Book.")
+                        .font(.system(.caption, design: .serif))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.64))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if step < stepCount - 1 {
+                    Button {
+                        finishWithDefaults()
+                    } label: {
+                        Label("Skip Onboarding", systemImage: "forward.end")
+                            .font(.subheadline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(BookPalette.lampGold)
+                    .accessibilityLabel("Skip onboarding")
+                }
+            }
+            .frame(width: max(0, width - 48), alignment: .leading)
+            .frame(maxHeight: .infinity, alignment: .topLeading)
+            .padding(24)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.26), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.34), radius: 18, y: 12)
+    }
+
+    private var onboardingProgress: Double {
+        if step == 0 {
+            return Double(openingMiniStep + 1) / 4.0 / Double(stepCount)
+        }
+        return Double(step) / Double(stepCount - 1)
+    }
+
+    private func onboardingParchmentBackground(cornerRadius: CGFloat) -> some View {
+        ZStack {
+            Image("ParchmentTexture")
+                .resizable()
+                .scaledToFill()
+                .opacity(0.9)
+            BookPalette.page.opacity(0.6)
+            LinearGradient(
+                colors: [
+                    BookPalette.lampGold.opacity(shimmer ? 0.16 : 0.05),
+                    .clear,
+                    BookPalette.teal.opacity(shimmer ? 0.08 : 0.03)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+
+    private func onboardingPageScroll(
+        horizontalPadding: CGFloat,
+        readingMaxWidth: CGFloat?,
+        showsInlineChrome: Bool,
+        keepsOpeningTopVisible: Bool
+    ) -> some View {
+        ScrollViewReader { scrollProxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Color.clear
+                        .frame(height: 1)
+                        .id("onboarding-page-top")
+
+                    if showsInlineChrome {
+                        if step == 0 {
+                            openingMiniPill
+                        } else {
+                            stagePill
+                        }
+                    } else {
+                        onboardingFolioReadingPill
+                    }
+
+                    stepContent
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .trailing)),
+                            removal: .opacity.combined(with: .move(edge: .leading))
+                        ))
+                        .id(step == 0 ? "opening-\(openingMiniStep)" : "step-\(step)")
+                        .modifier(OnboardingGhostInModifier())
+                }
+                .padding(.horizontal, horizontalPadding)
+                .padding(.bottom, 74)
+                .frame(maxWidth: readingMaxWidth ?? .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity)
+            }
+            .defaultScrollAnchor(.top)
+            .onChange(of: step) { _, _ in
+                scheduleOnboardingHeaderFade()
+                DispatchQueue.main.async {
+                    withAnimation(reduceMotion ? .none : .easeOut(duration: 0.18)) {
+                        scrollProxy.scrollTo("onboarding-page-top", anchor: .top)
+                    }
+                }
+                notifyGlowUnlockedIfNeeded()
+            }
+            .onChange(of: openingMiniStep) { _, _ in
+                guard step == 0 else { return }
+                scheduleOnboardingHeaderFade()
+                scheduleOpeningOvertureTitleFadeIfNeeded()
+                DispatchQueue.main.async {
+                    if keepsOpeningTopVisible {
+                        scrollProxy.scrollTo("onboarding-page-top", anchor: .top)
+                    } else {
+                        withAnimation(reduceMotion ? .none : .easeOut(duration: 0.18)) {
+                            scrollProxy.scrollTo(openingMiniScrollTargetID, anchor: .top)
+                        }
+                    }
+                }
+            }
+            .onChange(of: belief) { _, _ in
+                notifyGlowUnlockedIfNeeded()
+            }
+            .onChange(of: wickerThrowID) { _, _ in
+                guard wickerOutcome != nil else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    withAnimation(reduceMotion ? .none : .easeOut(duration: 0.34)) {
+                        scrollProxy.scrollTo("onboarding-wicker-inkbones", anchor: .center)
+                    }
+                }
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+    }
+
+    private var onboardingFolioReadingPill: some View {
+        Label(
+            step == 0 ? openingMiniStageName : onboardingStageName,
+            systemImage: step == 0 ? openingMiniSymbol : onboardingSymbol
+        )
+        .font(.subheadline.weight(.bold))
+        .foregroundStyle(BookPalette.teal)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 7)
+        .background(BookPalette.paper.opacity(0.48), in: Capsule())
+        .accessibilityAddTraits(.isHeader)
     }
 
     private struct OnboardingCastMember: Identifiable {
@@ -7325,7 +8061,7 @@ struct OnboardingFlowView: View {
 
             "Zara Finch," she says. "And before anyone gives you a brochure, you should know what we fight here."
 
-            "We call it Disbelief. In books, it eats pages blank. In your world, it wears better disguises: boredom, routine, burnout, loneliness, days that feel too long while the years go too fast. The terrible little feeling that your life's happening, but not quite to you."
+            "We call it Routine. In books, it eats pages blank. In your world, it wears better disguises: boredom, routine, burnout, loneliness, days that feel too long while the years go too fast. The terrible little feeling that your life's happening, but not quite to you."
             """)
 
             if rehearsalChoice == .keep {
@@ -7345,7 +8081,7 @@ struct OnboardingFlowView: View {
 
             "You're not lazy. You're not boring. Your brain's doing what brains do: saving energy, predicting familiar days, and skipping details it thinks it already knows."
 
-            "The Academy fights that here. You fight it there. ReEnchanted gives you small, repeatable ways to notice your life before Disbelief turns it into wallpaper."
+            "The Academy fights that here. You fight it there. ReEnchanted gives you small, repeatable ways to notice your life before Routine turns it into wallpaper."
             """)
 
             continueButton("See your chapter")
@@ -7427,7 +8163,7 @@ struct OnboardingFlowView: View {
 
             At the far end of the aisle, a grey absence worries at the corner of a page. A word vanishes. Then another.
 
-            "The Disbelief," Zara says. "It isn't a villain. It's what remains when Belief leaves: pages eaten blank here; burnout, routine, and a world reduced to wallpaper in the Unwritten."
+            "The Rut of Routine," Zara says. "It isn't a villain. It's what remains when Belief leaves: pages eaten blank here; burnout, routine, and a world reduced to wallpaper in the Unwritten."
 
             She raises her compass. The erased word returns in wet black ink. "Belief makes the magic happen. Not certainty. Attention. Care. The stubborn decision that something matters enough to become real again."
 
@@ -7513,7 +8249,7 @@ struct OnboardingFlowView: View {
 
             Nothing opens. No floor drops away. No music swells. The banners simply lean toward the newest person in the room.
 
-            "They're trying to decide what kind of attention you have," Zara says. "Every Chapter thinks it knows how to fight Disbelief. Every Chapter is partly right, which is why the argument has lasted this long."
+            "They're trying to decide what kind of attention you have," Zara says. "Every Chapter thinks it knows how to fight Routine. Every Chapter is partly right, which is why the argument has lasted this long."
 
             Zara steadies your elbow. "You won't Bind today. The Chapters will watch what you keep, and later the Binding will recognize where your Belief has actually been living."
 
@@ -7596,7 +8332,7 @@ struct OnboardingFlowView: View {
 
             When you have energy or interest, some will send letters across the binding. Some ask for evidence from your unreachable world. Some disagree about what your pages mean. They remember what you tell them, form opinions, and change their minds.
 
-            Your real life matters here because it isn't flavor text. A true action in the Unwritten carries more weight than something merely narrated inside the Book. It's how you help the Academy resist Disbelief — and how the Academy helps you notice your world before it disappears into routine.
+            Your real life matters here because it isn't flavor text. A true action in the Unwritten carries more weight than something merely narrated inside the Book. It's how you help the Academy resist Routine — and how the Academy helps you notice your world before it disappears into routine.
             """)
             onboardingBenefitCard(
                 symbol: "person.2.wave.2",
@@ -7749,7 +8485,7 @@ struct OnboardingFlowView: View {
         guard step > 0 else { return "First Page" }
         switch step - 1 {
         case 0: return "Arrival"
-        case 1: return "The Disbelief"
+        case 1: return "The Rut of Routine"
         case 2: return "The Unwritten"
         case 3: return "Guide"
         case 4: return "Name"
@@ -7893,12 +8629,14 @@ struct OnboardingFlowView: View {
     /// the Book, and sees a loose page slip out before the Book itself opens.
     private var onboardingOpeningOverture: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if isOpeningOvertureTitleVisible {
+            if isOpeningOvertureTitleVisible || isPadOnboardingDevice {
                 Text("You open the app.")
                     .font(.system(size: 28, weight: .semibold, design: .serif))
                     .foregroundStyle(BookPalette.ink)
                     .shadow(color: BookPalette.lampGold.opacity(0.18), radius: 8, x: 0, y: 2)
                     .fixedSize(horizontal: false, vertical: true)
+                    .opacity(isOpeningOvertureTitleVisible ? 1 : 0)
+                    .accessibilityHidden(!isOpeningOvertureTitleVisible)
                     .modifier(OnboardingGhostInModifier(delay: 0.04))
                     .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
             }
@@ -7981,6 +8719,7 @@ struct OnboardingFlowView: View {
                 .scaleEffect(scale, anchor: .topLeading)
         }
         .aspectRatio(BookOfYouShareCard.renderSize.width / BookOfYouShareCard.renderSize.height, contentMode: .fit)
+        .frame(maxWidth: isPadOnboardingDevice ? 620 : .infinity)
         .frame(maxWidth: .infinity)
         .overlay {
             LivingInkBurst(
@@ -9361,7 +10100,7 @@ struct OnboardingFlowView: View {
     }
 
     private func onboardingChoiceList(choices: [OnboardingChoice], selection: Binding<String>) -> some View {
-        VStack(spacing: 8) {
+        LazyVGrid(columns: onboardingChoiceColumns, alignment: .leading, spacing: 10) {
             ForEach(choices) { choice in
                 let selected = selection.wrappedValue == choice.id
                 Button {
@@ -9401,6 +10140,13 @@ struct OnboardingFlowView: View {
                 .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
+    }
+
+    private var onboardingChoiceColumns: [GridItem] {
+        if isPadOnboardingDevice {
+            return [GridItem(.adaptive(minimum: 260), spacing: 10, alignment: .top)]
+        }
+        return [GridItem(.flexible())]
     }
 
     private var onboardingWickerChoice: some View {
@@ -10626,7 +11372,7 @@ struct OnboardingFlowView: View {
 
         A grey bite appears at the edge of the blank paper. Zara puts your first true sentence over it, and the damage stops.
 
-        She taps the cover once. "That's the work. Re-enchant the Unwritten before Disbelief convinces you it was ordinary. Off you go."
+        She taps the cover once. "That's the work. Re-enchant the Unwritten before Routine convinces you it was ordinary. Off you go."
         """
     }
 

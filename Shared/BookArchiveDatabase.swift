@@ -29,6 +29,7 @@ final class StoredArchivePage {
     var privacyRawValue: String
     var promptVersion: String?
     var mediaAssetsData: Data?
+    var contextData: Data?
     var day: StoredArchiveDay?
 
     init(page: BookPage) {
@@ -45,12 +46,15 @@ final class StoredArchivePage {
         privacyRawValue = page.privacy.rawValue
         promptVersion = page.promptVersion
         mediaAssetsData = try? JSONEncoder().encode(page.mediaAssets)
+        contextData = page.context.flatMap { try? JSONEncoder().encode($0) }
     }
 
     var bookPage: BookPage {
         let decodedTags = (try? JSONDecoder().decode([String].self, from: tagsData)) ?? []
         let decodedMediaAssets = mediaAssetsData
             .flatMap { try? JSONDecoder().decode([BookPageMediaAsset].self, from: $0) } ?? []
+        let decodedContext = contextData
+            .flatMap { try? JSONDecoder().decode(BookPageContextSnapshot.self, from: $0) }
         let type = BookPageType.legacyCompatible(rawValue: typeRawValue) ?? .souvenir
         return BookPage(
             id: id,
@@ -65,7 +69,8 @@ final class StoredArchivePage {
             origin: BookPageOrigin(rawValue: originRawValue),
             privacy: BookPagePrivacy(rawValue: privacyRawValue) ?? .privateLocal,
             promptVersion: promptVersion,
-            mediaAssets: decodedMediaAssets
+            mediaAssets: decodedMediaAssets,
+            context: decodedContext
         )
     }
 }
@@ -371,7 +376,7 @@ final class StoredFacultyEntry {
 /// the @MainActor `BookDatabase` wrapper; background readers (Siri queries,
 /// braid context) open their own short-lived instance instead.
 final class BookArchiveDatabase {
-    static let schemaVersion = 5
+    static let schemaVersion = 6
     static let backupDirectoryName = "BookArchiveBackups"
 
     enum LoadSource: String, Equatable {

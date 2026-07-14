@@ -735,12 +735,14 @@ enum GlowMenuAction {
     case openBookSection(String)
     case openPagewright
     case bindWeeklyIssue
+    case rebindWeeklyIssue
     case bindMonthlyEdition
     case bindAnnualEdition
     case exportPlainInk
     case exportSealedCopy
     case openBookShop
     case openPactMap
+    case openPeopleOfTheBook
 }
 
 private enum GlowMenuSection: String, CaseIterable, Identifiable {
@@ -1223,16 +1225,7 @@ struct GlowCommandMenu: View {
                 onSelectAction(.openPagewright)
             }
 
-            binderyExportButton(
-                preparedURL: preparedWeeklyIssueCardURL ?? preparedWeeklyIssuePDFURL,
-                shareTitle: preparedWeeklyIssueCardURL == nil ? "Share Weekly Issue" : "Share Weekly Wrap",
-                bindTitle: "Bind Weekly Wrap",
-                detail: preparedWeeklyIssueCardURL == nil ? "A small issue from the most recent closed week." : "A social card from the most recent closed week.",
-                systemImage: "newspaper",
-                compact: compact,
-                canBind: canBindWeeklyIssue,
-                bindAction: .bindWeeklyIssue
-            )
+            weeklyIssueBinderyActions(compact: compact)
 
             binderyExportButton(
                 preparedURL: preparedMonthlyEditionURL,
@@ -1285,6 +1278,57 @@ struct GlowCommandMenu: View {
                 compact: compact
             ) {
                 onSelectAction(.openBookShop)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func weeklyIssueBinderyActions(compact: Bool) -> some View {
+        let hasBoundIssue = preparedWeeklyIssuePDFURL != nil || preparedWeeklyIssueCardURL != nil
+
+        menuButton(
+            title: hasBoundIssue ? "Read Weekly Issue" : "Bind Weekly Issue",
+            detail: canBindWeeklyIssue
+                ? (hasBoundIssue
+                    ? "Open the issue itself; sharing lives beside the reading copy."
+                    : "Wait for the Book to finish writing, then open the issue in-app.")
+                : "Not enough kept pages are ready for this binding yet.",
+            systemImage: hasBoundIssue ? "book" : "newspaper",
+            compact: compact,
+            isDisabled: !canBindWeeklyIssue
+        ) {
+            onSelectAction(.bindWeeklyIssue)
+        }
+
+        if hasBoundIssue {
+            menuButton(
+                title: "Re-bind Weekly Issue",
+                detail: "Write and bind the week again before replacing the reading copy.",
+                systemImage: "arrow.triangle.2.circlepath",
+                compact: compact,
+                isDisabled: !canBindWeeklyIssue
+            ) {
+                onSelectAction(.rebindWeeklyIssue)
+            }
+
+            if let preparedWeeklyIssuePDFURL {
+                shareMenuButton(
+                    title: "Share Weekly Issue PDF",
+                    detail: "Share the complete reading edition.",
+                    systemImage: "doc.richtext",
+                    url: preparedWeeklyIssuePDFURL,
+                    compact: compact
+                )
+            }
+
+            if let preparedWeeklyIssueCardURL {
+                shareMenuButton(
+                    title: "Share Weekly Social Card",
+                    detail: "Share the compact illustrated wrap.",
+                    systemImage: "photo",
+                    url: preparedWeeklyIssueCardURL,
+                    compact: compact
+                )
             }
         }
     }
@@ -1374,6 +1418,15 @@ struct GlowCommandMenu: View {
 
     private func beliefSubmenu(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            menuButton(
+                title: "The People of the Book",
+                detail: "Real people from your days: who they are, when they went quiet, and — if you choose — into the story.",
+                systemImage: "person.2.wave.2",
+                compact: compact
+            ) {
+                onSelectAction(.openPeopleOfTheBook)
+            }
+
             Picker("Belief action", selection: $beliefMode) {
                 Text("Give Belief").tag(GlowBeliefMode.give)
                 Text("Take Belief").tag(GlowBeliefMode.take)
@@ -2167,7 +2220,7 @@ struct LocalBrainWorkingStatusCard: View {
                 scribePortrait
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("WRITING PRIVATELY ON THIS IPHONE")
+                    Text("WRITING PRIVATELY ON THIS DEVICE")
                         .font(.caption2.weight(.black))
                         .tracking(0.7)
                         .foregroundStyle(descriptor.accent)
@@ -2224,7 +2277,7 @@ struct LocalBrainWorkingStatusCard: View {
         .padding(isCompact ? 12 : 16)
         .parchmentSurface(accent: descriptor.accent, isActive: true)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(descriptor.scribe). \(descriptor.title). Writing privately on this iPhone.")
+        .accessibilityLabel("\(descriptor.scribe). \(descriptor.title). Writing privately on this device.")
     }
 
     private func liveInkPreview(_ text: String) -> some View {
@@ -2700,7 +2753,7 @@ struct ModelStatusCard: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Label(mlxRuntimeLinked ? "the model shelf is reachable" : "the model shelf is missing", systemImage: "cpu")
-                Label("this device: \(report.deviceSummary)", systemImage: "iphone")
+                Label("this device: \(report.deviceSummary)", systemImage: "lock.shield")
                 Label("the Book chose: \(report.preferredModelID)", systemImage: "sparkles")
                 Label("small fallback: \(report.fallbackModelID)", systemImage: "arrow.triangle.2.circlepath")
                 Link(destination: URL(string: report.preferredModelSource) ?? URL(string: "https://huggingface.co/mlx-community")!) {
@@ -3023,6 +3076,280 @@ struct PactMapSheet: View {
         case .none:
             return "\(territory.name) is quiet."
         }
+    }
+}
+
+// MARK: - The People of the Book (the flyleaf)
+
+/// The reader's register of real people. The Book witnesses by default; from
+/// here the reader can add who someone is, wake or rest a thread, introduce
+/// someone the Book has not suggested, or write a person into the story
+/// (which mints a linked Cast member). The crossing is always the reader's.
+struct PeopleOfTheBookSheet: View {
+    let ledger: PeopleLedger
+    let castMemberIDs: Set<String>
+    var now: Date = Date()
+    var onWriteIntoStory: (String) -> Void = { _ in }        // slug
+    var onUpdateWords: (String, String) -> Void = { _, _ in } // slug, words
+    var onRest: (String) -> Void = { _ in }                   // slug
+    var onWake: (String) -> Void = { _ in }                   // slug
+    var onIntroduce: (String, String) -> Void = { _, _ in }   // name, words
+    var onWakeDeclinedName: (String) -> Void = { _ in }       // slug
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var introduceName = ""
+    @State private var introduceWords = ""
+    @State private var editingSlug: String?
+    @State private var editingWords = ""
+
+    private var activeThreads: [PersonThread] {
+        ledger.threads.filter { !$0.resting }.sorted { $0.name < $1.name }
+    }
+    private var restingThreads: [PersonThread] {
+        ledger.threads.filter { $0.resting }.sorted { $0.name < $1.name }
+    }
+    private func isInStory(_ thread: PersonThread) -> Bool {
+        if let id = thread.castMemberID { return castMemberIDs.contains(id) }
+        return false
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("These are the real people who keep arriving in your pages. By default I only witness them — I keep what you wrote, and never put words in their mouths. Where the real ends and the story begins is yours to draw.")
+                        .font(.system(.callout, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    introduceCard
+
+                    if !activeThreads.isEmpty {
+                        sectionTitle("In Your Book")
+                        ForEach(activeThreads) { threadCard($0) }
+                    }
+
+                    if !restingThreads.isEmpty {
+                        sectionTitle("Resting")
+                        ForEach(restingThreads) { restingCard($0) }
+                    }
+
+                    if !ledger.restingNames.isEmpty {
+                        sectionTitle("Names You Set Aside")
+                        Text("Names I once asked about and you let rest. I will not suggest them again unless you wake them.")
+                            .font(.caption)
+                            .foregroundStyle(BookPalette.ink.opacity(0.6))
+                            .fixedSize(horizontal: false, vertical: true)
+                        ForEach(ledger.restingNames.sorted(), id: \.self) { slug in
+                            declinedRow(slug)
+                        }
+                    }
+
+                    if ledger.threads.isEmpty && ledger.restingNames.isEmpty {
+                        Text("No one yet. As a name recurs in your own pages, I will ask about it here — or you can introduce someone above.")
+                            .font(.footnote.italic())
+                            .foregroundStyle(BookPalette.ink.opacity(0.55))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 4)
+                    }
+                }
+                .padding(20)
+            }
+            .background(BookPalette.page.ignoresSafeArea())
+            .navigationTitle("The People of the Book")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+        }
+    }
+
+    private var introduceCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("Introduce Someone")
+            TextField("Their name", text: $introduceName)
+                .textFieldStyle(.roundedBorder)
+            TextField("Who are they, to you? (optional)", text: $introduceWords, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1...3)
+            Button {
+                let name = introduceName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { return }
+                BookFeedback.play(.select)
+                onIntroduce(name, introduceWords)
+                introduceName = ""
+                introduceWords = ""
+            } label: {
+                Text("Add to the Book")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(introduceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? BookPalette.ink.opacity(0.35) : BookPalette.teal)
+            }
+            .buttonStyle(.bookPress())
+            .disabled(introduceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .padding(14)
+        .background(BookPalette.paper.opacity(0.5), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(BookPalette.parchmentEdge.opacity(0.2), lineWidth: 1)
+        }
+    }
+
+    private func threadCard(_ thread: PersonThread) -> some View {
+        let inStory = isInStory(thread)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: inStory ? "theatermasks.fill" : "person.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(inStory ? BookPalette.violet : BookPalette.teal)
+                Text(thread.name)
+                    .font(.headline)
+                    .foregroundStyle(BookPalette.ink)
+                Spacer()
+                statusPill(inStory ? "In the story" : "Kept", tint: inStory ? BookPalette.violet : BookPalette.teal)
+            }
+
+            if !thread.readerWords.isEmpty {
+                Text(thread.readerWords)
+                    .font(.system(.subheadline, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text(historyLine(thread))
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.55))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if editingSlug == slug(thread) {
+                VStack(alignment: .leading, spacing: 6) {
+                    TextField("Who are they, to you?", text: $editingWords, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(1...4)
+                    HStack {
+                        Button("Save") {
+                            onUpdateWords(slug(thread), editingWords)
+                            editingSlug = nil
+                        }
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.teal)
+                        Button("Cancel") { editingSlug = nil }
+                            .font(.caption)
+                            .foregroundStyle(BookPalette.ink.opacity(0.5))
+                    }
+                }
+                .padding(.top, 2)
+            } else {
+                HStack(spacing: 14) {
+                    if !inStory {
+                        cardAction("Write into the story", "theatermasks") {
+                            onWriteIntoStory(slug(thread))
+                        }
+                    }
+                    cardAction(thread.readerWords.isEmpty ? "Add who they are" : "Edit who", "pencil") {
+                        editingWords = thread.readerWords
+                        editingSlug = slug(thread)
+                    }
+                    cardAction("Let rest", "moon.zzz") {
+                        onRest(slug(thread))
+                    }
+                }
+                .padding(.top, 2)
+            }
+        }
+        .padding(14)
+        .background(BookPalette.paper.opacity(0.4), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke((inStory ? BookPalette.violet : BookPalette.parchmentEdge).opacity(0.2), lineWidth: 1)
+        }
+    }
+
+    private func restingCard(_ thread: PersonThread) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "moon.zzz.fill")
+                .font(.subheadline)
+                .foregroundStyle(BookPalette.ink.opacity(0.4))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(thread.name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.7))
+                if !thread.readerWords.isEmpty {
+                    Text(thread.readerWords)
+                        .font(.caption)
+                        .foregroundStyle(BookPalette.ink.opacity(0.5))
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+            cardAction("Wake", "sun.max") { onWake(slug(thread)) }
+        }
+        .padding(12)
+        .background(BookPalette.paper.opacity(0.25), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+    }
+
+    private func declinedRow(_ slug: String) -> some View {
+        HStack {
+            Text(slug.replacingOccurrences(of: "-", with: " ").capitalized)
+                .font(.subheadline)
+                .foregroundStyle(BookPalette.ink.opacity(0.6))
+            Spacer()
+            cardAction("Let it back", "arrow.uturn.backward") { onWakeDeclinedName(slug) }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func statusPill(_ text: String, tint: Color) -> some View {
+        Text(text)
+            .font(.caption2.weight(.bold))
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(tint.opacity(0.14), in: Capsule())
+            .foregroundStyle(tint)
+    }
+
+    private func cardAction(_ title: String, _ symbol: String, action: @escaping () -> Void) -> some View {
+        Button {
+            BookFeedback.play(.select)
+            action()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: symbol).font(.caption2.weight(.bold))
+                Text(title).font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(BookPalette.teal)
+        }
+        .buttonStyle(.bookPress())
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.caption.weight(.bold))
+            .foregroundStyle(BookPalette.ink.opacity(0.5))
+            .padding(.top, 4)
+    }
+
+    private func slug(_ thread: PersonThread) -> String {
+        String(thread.id.dropFirst("person:".count))
+    }
+
+    private func historyLine(_ thread: PersonThread) -> String {
+        let month = monthName(fromDayID: thread.firstMentionDay)
+        let count = thread.mentionPageCount
+        if count <= 0 {
+            return "You introduced them yourself."
+        }
+        let pages = count == 1 ? "1 page" : "\(count) pages"
+        return "\(pages) in your own hand, since \(month)."
+    }
+
+    private func monthName(fromDayID dayID: String) -> String {
+        let parser = DateFormatter()
+        parser.calendar = Calendar.current
+        parser.dateFormat = "yyyy-MM-dd"
+        guard let date = parser.date(from: dayID) else { return "earlier" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM"
+        return formatter.string(from: date)
     }
 }
 

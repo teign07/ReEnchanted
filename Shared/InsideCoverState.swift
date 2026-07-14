@@ -1526,7 +1526,7 @@ enum FacultyResearchNoteGenerator {
             score: facultyID == "dr-vellum" ? 59 : 57,
             reason: "\(facultyName) is quietly getting a little research note ready for tonight's Guild page.",
             prompt: "\(facultyName) opens a research folio.",
-            detail: "A private little study, thought up right here on your phone, for tonight's Support Guild meeting.",
+            detail: "A private little study, thought up right here on your device, for tonight's Support Guild meeting.",
             payload: BookPagePayload(
                 headline: "\(facultyName)'s Research Folio",
                 body: body,

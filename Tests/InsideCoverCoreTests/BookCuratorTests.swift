@@ -3084,11 +3084,14 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(stabilized.last?.detail, "A new letter arrived.")
     }
 
-    func testStabilizedDeskOrderTakesFreshOrderWhenMembershipChanges() {
+    func testStabilizedDeskOrderKeepsShownCardsAndFillsOnlyEmptySlots() {
         let shown = [
             deskCard(id: "desk-quip-s01", type: .quip),
             deskCard(id: "desk-lore-s01", type: .lore)
         ]
+        // The rebuild ranks a new mood card above everything and rotated the
+        // quip's id — but the reader is mid-read: shown cards keep their
+        // places, and the newcomer only takes the one genuinely empty slot.
         let rebuilt = [
             deskCard(id: "desk-mood-s01", type: .mood),
             deskCard(id: "desk-quip-s02", type: .quip)
@@ -3096,10 +3099,94 @@ final class BookCuratorTests: XCTestCase {
 
         let stabilized = BookCurator.stabilizedDeskOrder(previous: shown, rebuilt: rebuilt)
 
-        XCTAssertEqual(stabilized.map(\.id), rebuilt.map(\.id))
+        XCTAssertEqual(
+            stabilized.map(\.id),
+            ["desk-quip-s01", "desk-lore-s01", "desk-mood-s01"]
+        )
     }
 
-    func testStabilizedDeskOrderTakesFreshOrderWhenSlotKeysCollide() {
+    func testStabilizedDeskOrderNeverReplacesAFullDesk() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood)
+        ]
+        // An entirely different curation (foregrounding, a belief tick, a new
+        // day's ranking) must not touch a desk the reader is looking at.
+        let rebuilt = [
+            deskCard(id: "desk-castbond-s01", type: .castBond),
+            deskCard(id: "desk-diary-s01", type: .diary),
+            deskCard(id: "desk-weather-s01", type: .weather)
+        ]
+
+        let stabilized = BookCurator.stabilizedDeskOrder(previous: shown, rebuilt: rebuilt)
+
+        XCTAssertEqual(stabilized.map(\.id), shown.map(\.id))
+    }
+
+    func testStabilizedDeskOrderLetsEarnedMagicMomentInterruptOrdinaryDesk() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood)
+        ]
+        let magic = SurfacePage(
+            id: "book-notice-magic",
+            type: .bookNotices,
+            sourceID: "book-notices",
+            score: 94,
+            prompt: "I have been wondering…",
+            detail: "Rain keeps returning in your photographs.",
+            payload: BookPagePayload(
+                headline: "I have been wondering…",
+                body: "Rain keeps returning in your photographs.",
+                metadata: [
+                    "magicMoment": "true",
+                    "milestone": "true",
+                    "observationKey": "context:rain-photos"
+                ]
+            )
+        )
+
+        let stabilized = BookCurator.stabilizedDeskOrder(
+            previous: shown,
+            rebuilt: [magic] + shown
+        )
+
+        XCTAssertEqual(stabilized.first?.id, magic.id)
+        XCTAssertEqual(stabilized.count, 3)
+        XCTAssertTrue(Set(stabilized.dropFirst().map(\.id)).isSubset(of: Set(shown.map(\.id))))
+    }
+
+    func testStabilizedDeskOrderDoesNotLetMagicMomentEvictFirstReading() {
+        var metadata = ["milestone": "true", "firstReading": "true"]
+        let firstReading = SurfacePage(
+            id: "first-reading",
+            type: .bookNotices,
+            sourceID: "book-notices",
+            score: 96,
+            prompt: "The First Reading",
+            detail: "The Book has begun to notice.",
+            payload: BookPagePayload(headline: "The First Reading", body: "The Book has begun to notice.", metadata: metadata)
+        )
+        metadata = ["magicMoment": "true", "milestone": "true", "observationKey": "semantic:harbor"]
+        let magic = SurfacePage(
+            id: "later-magic",
+            type: .bookRemembered,
+            sourceID: "book-notices",
+            score: 94,
+            prompt: "Two pages spoke",
+            detail: "The harbor returned.",
+            payload: BookPagePayload(headline: "Two pages spoke", body: "The harbor returned.", metadata: metadata)
+        )
+        let shown = [firstReading, deskCard(id: "desk-lore-s01", type: .lore)]
+
+        let stabilized = BookCurator.stabilizedDeskOrder(previous: shown, rebuilt: [magic])
+
+        XCTAssertEqual(stabilized.map(\.id), shown.map(\.id))
+    }
+
+    func testStabilizedDeskOrderKeepsShownDeskWhenSlotKeysCollide() {
         let shown = [
             deskCard(id: "desk-quip-a", type: .quip),
             deskCard(id: "desk-quip-b", type: .quip)
@@ -3111,7 +3198,192 @@ final class BookCuratorTests: XCTestCase {
 
         let stabilized = BookCurator.stabilizedDeskOrder(previous: shown, rebuilt: rebuilt)
 
-        XCTAssertEqual(stabilized.map(\.id), rebuilt.map(\.id))
+        XCTAssertEqual(stabilized.map(\.id), shown.map(\.id))
+    }
+
+    func testStabilizedDeskOrderTakesFreshBuildForAnEmptyDesk() {
+        let rebuilt = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood),
+            deskCard(id: "desk-castbond-s01", type: .castBond)
+        ]
+
+        let stabilized = BookCurator.stabilizedDeskOrder(previous: [], rebuilt: rebuilt)
+
+        XCTAssertEqual(stabilized.map(\.id), rebuilt.prefix(3).map(\.id))
+    }
+
+    func testRestoringRetiredDeskSlotAfterNoCandidateRefillPreservesShiftedSurvivor() {
+        let first = deskCard(id: "desk-quip-s01", type: .quip)
+        let retired = deskCard(id: "desk-lore-s01", type: .lore)
+        let shiftedSurvivor = deskCard(id: "desk-mood-s01", type: .mood)
+        let laterRefill = deskCard(id: "desk-weather-s01", type: .weather)
+
+        let restored = BookCurator.restoringRetiredDeskSlot(
+            current: [first, shiftedSurvivor, laterRefill],
+            surface: retired,
+            replacementID: nil,
+            preferredIndex: 1
+        )
+
+        XCTAssertEqual(restored.map(\.id), [first.id, retired.id, shiftedSurvivor.id])
+        XCTAssertFalse(restored.contains { $0.id == laterRefill.id })
+    }
+
+    func testRestoringRetiredDeskSlotReplacesExactKnownReplacement() {
+        let first = deskCard(id: "desk-quip-s01", type: .quip)
+        let retired = deskCard(id: "desk-lore-s01", type: .lore)
+        let knownReplacement = deskCard(id: "desk-weather-s01", type: .weather)
+        let survivor = deskCard(id: "desk-mood-s01", type: .mood)
+
+        let restored = BookCurator.restoringRetiredDeskSlot(
+            current: [knownReplacement, first, survivor],
+            surface: retired,
+            replacementID: knownReplacement.id,
+            preferredIndex: 1
+        )
+
+        XCTAssertEqual(restored.map(\.id), [retired.id, first.id, survivor.id])
+    }
+
+    func testRetiredDeskSlotIsReplacedAtomicallyAtTheSameIndex() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood)
+        ]
+        let replacement = deskCard(id: "desk-weather-s01", type: .weather)
+
+        let resolution = BookCurator.resolvingRetiredDeskSlots(
+            previous: shown,
+            retiringIDs: [shown[1].id],
+            rebuilt: [replacement]
+        )
+
+        XCTAssertEqual(resolution.pages.count, shown.count)
+        XCTAssertEqual(
+            resolution.pages.map(\.id),
+            [shown[0].id, replacement.id, shown[2].id]
+        )
+        XCTAssertEqual(resolution.replacementIDByRetiringID, [shown[1].id: replacement.id])
+    }
+
+    func testRetiredDeskSlotIsRemovedOnlyInFinalResolutionWhenNoCandidateExists() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood)
+        ]
+
+        let resolution = BookCurator.resolvingRetiredDeskSlots(
+            previous: shown,
+            retiringIDs: [shown[1].id],
+            rebuilt: []
+        )
+
+        XCTAssertEqual(resolution.pages.map(\.id), [shown[0].id, shown[2].id])
+        XCTAssertTrue(resolution.replacementIDByRetiringID.isEmpty)
+    }
+
+    func testTwoRetiredDeskSlotsUseDistinctCandidatesInRebuiltOrder() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood)
+        ]
+        let firstCandidate = deskCard(id: "desk-diary-s01", type: .diary)
+        let secondCandidate = deskCard(id: "desk-weather-s01", type: .weather)
+
+        // Retiring ids arrive as a Set, while rebuilt candidates deliberately
+        // arrive in the reverse of their declaration order. Shown-slot order
+        // must drive the holes, and one candidate may never fill both.
+        let resolution = BookCurator.resolvingRetiredDeskSlots(
+            previous: shown,
+            retiringIDs: [shown[2].id, shown[0].id],
+            rebuilt: [secondCandidate, firstCandidate]
+        )
+
+        XCTAssertEqual(
+            resolution.pages.map(\.id),
+            [secondCandidate.id, shown[1].id, firstCandidate.id]
+        )
+        XCTAssertEqual(Set(resolution.replacementIDByRetiringID.values).count, 2)
+        XCTAssertEqual(resolution.replacementIDByRetiringID[shown[0].id], secondCandidate.id)
+        XCTAssertEqual(resolution.replacementIDByRetiringID[shown[2].id], firstCandidate.id)
+    }
+
+    func testTwoRetiredDeskSlotsRejectRotatedIDsFromTheSameLogicalCandidateFamily() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood)
+        ]
+        let firstWeather = deskCard(id: "desk-weather-s01", type: .weather)
+        let rotatedWeather = deskCard(id: "desk-weather-s02", type: .weather)
+        let fallbackDiary = deskCard(id: "desk-diary-s01", type: .diary)
+
+        let resolution = BookCurator.resolvingRetiredDeskSlots(
+            previous: shown,
+            retiringIDs: [shown[0].id, shown[2].id],
+            rebuilt: [firstWeather, rotatedWeather, fallbackDiary]
+        )
+
+        XCTAssertEqual(
+            resolution.pages.map(\.id),
+            [firstWeather.id, shown[1].id, fallbackDiary.id]
+        )
+        XCTAssertEqual(
+            resolution.pages.filter { $0.deskSlotKey == firstWeather.deskSlotKey }.count,
+            1
+        )
+        XCTAssertEqual(resolution.replacementIDByRetiringID[shown[0].id], firstWeather.id)
+        XCTAssertEqual(resolution.replacementIDByRetiringID[shown[2].id], fallbackDiary.id)
+    }
+
+    func testRetiredDeskResolutionRejectsSurvivorConflictsAndBlockedOutgoingFamily() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood)
+        ]
+        let survivorConflict = deskCard(id: "desk-quip-s02", type: .quip)
+        let blockedOutgoingFamily = deskCard(id: "desk-lore-s02", type: .lore)
+        let validReplacement = deskCard(id: "desk-weather-s01", type: .weather)
+
+        let resolution = BookCurator.resolvingRetiredDeskSlots(
+            previous: shown,
+            retiringIDs: [shown[1].id],
+            rebuilt: [survivorConflict, blockedOutgoingFamily, validReplacement],
+            additionallyBlockedKeys: shown[1].curatorDeskExclusionKeys
+        )
+
+        XCTAssertEqual(
+            resolution.pages.map(\.id),
+            [shown[0].id, validReplacement.id, shown[2].id]
+        )
+        XCTAssertEqual(
+            resolution.replacementIDByRetiringID[shown[1].id],
+            validReplacement.id
+        )
+    }
+
+    func testUnknownRetiredDeskIDLeavesShownDeskUnchanged() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood)
+        ]
+        let rebuilt = [deskCard(id: "desk-weather-s01", type: .weather)]
+
+        let resolution = BookCurator.resolvingRetiredDeskSlots(
+            previous: shown,
+            retiringIDs: ["desk-not-on-screen"],
+            rebuilt: rebuilt
+        )
+
+        XCTAssertEqual(resolution.pages.map(\.id), shown.map(\.id))
+        XCTAssertTrue(resolution.replacementIDByRetiringID.isEmpty)
     }
 
     private func deskCard(

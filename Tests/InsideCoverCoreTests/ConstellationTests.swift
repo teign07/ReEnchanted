@@ -113,6 +113,25 @@ final class ConstellationTests: XCTestCase {
         XCTAssertTrue(ledger[0].name!.contains("Harbor"))
     }
 
+    func testConstellationNamingPossibleInsideFirstWeek() {
+        var ledger: [Constellation] = []
+        let start = date(2026, 5, 1)
+
+        // Six days of sightings: plenty of evidence, but the age floor holds.
+        for offset in 0...6 {
+            let day = calendar.date(byAdding: .day, value: offset, to: start)!
+            ledger = ConstellationKeeper.advanced(ledger, observing: digest([signal(at: day)]), now: day, calendar: calendar)
+        }
+        XCTAssertEqual(ledger[0].phase, .watched)
+        XCTAssertNil(ledger[0].name)
+
+        // Day seven: an engaged first-week reader watches the Book name it.
+        let daySeven = calendar.date(byAdding: .day, value: 7, to: start)!
+        ledger = ConstellationKeeper.advanced(ledger, observing: digest([signal(at: daySeven)]), now: daySeven, calendar: calendar)
+        XCTAssertEqual(ledger[0].phase, .named)
+        XCTAssertNotNil(ledger[0].name)
+    }
+
     func testConstellationNameIsDeterministic() {
         let first = ConstellationKeeper.constellationName(kind: .pattern, subjectName: "Harbor", seed: "constellation-pattern-harbor")
         let second = ConstellationKeeper.constellationName(kind: .pattern, subjectName: "Harbor", seed: "constellation-pattern-harbor")
@@ -183,6 +202,44 @@ final class ConstellationTests: XCTestCase {
             calendar: calendar
         )
         XCTAssertTrue(again.isEmpty)
+    }
+
+    func testFirstWagerFastPathSealsEarlierAndOnlyOnce() {
+        let now = date(2026, 6, 1)
+        let modestHarbor = signal(id: "pattern-harbor", subjectID: "harbor", subjectName: "Harbor", strength: 62, at: now)
+        let modestFog = signal(id: "pattern-fog", subjectID: "fog", subjectName: "Fog", strength: 61, at: now)
+
+        // The Book's first-ever bet accepts a modest pattern and a short window.
+        let minted = SealedMarginEngine.mintWagers(
+            from: digest([modestHarbor, modestFog]),
+            existing: [],
+            now: now,
+            calendar: calendar
+        )
+        XCTAssertEqual(minted.count, 1)
+        XCTAssertEqual(minted[0].subjectID, "harbor")
+        XCTAssertEqual(minted[0].opensAt, calendar.date(byAdding: .day, value: SealedMarginEngine.firstWagerWindowDays, to: now))
+        XCTAssertTrue(minted[0].prediction.contains("\(SealedMarginEngine.firstWagerWindowDays) days"))
+
+        // Once any wager exists, modest patterns go back to being not enough.
+        let after = SealedMarginEngine.mintWagers(
+            from: digest([modestFog]),
+            existing: minted,
+            now: now,
+            calendar: calendar
+        )
+        XCTAssertTrue(after.isEmpty)
+
+        // A strong pattern after the first bet uses the patient window again.
+        let strongLamp = signal(id: "pattern-lamp", subjectID: "lamp", subjectName: "Lamp", strength: 72, at: now)
+        let patient = SealedMarginEngine.mintWagers(
+            from: digest([strongLamp]),
+            existing: minted,
+            now: now,
+            calendar: calendar
+        )
+        XCTAssertEqual(patient.count, 1)
+        XCTAssertEqual(patient[0].opensAt, calendar.date(byAdding: .day, value: SealedMarginEngine.patternWindowDays, to: now))
     }
 
     func testWagerResolvesRightWhenSubjectReturns() {
@@ -287,6 +344,105 @@ final class ConstellationTests: XCTestCase {
         XCTAssertTrue(pages.contains { $0.payload.headline.contains("The Harbor Thread") })
         XCTAssertTrue(pages.contains { $0.payload.metadata["wagerMoment"] == "sealed" })
         XCTAssertTrue(pages.contains { $0.payload.metadata["wagerMoment"] == "opened" && $0.payload.headline.contains("Right") })
+    }
+
+    private func watchedConstellation(id: String = "constellation-pattern-harbor") -> Constellation {
+        Constellation(
+            id: id,
+            signalID: "pattern-harbor",
+            kind: .pattern,
+            subjectID: "harbor",
+            subjectName: "Harbor",
+            name: nil,
+            phase: .watched,
+            firstNoticedAt: date(2026, 6, 6),
+            lastSeenAt: date(2026, 6, 10),
+            sightingDayIDs: ["a", "b", "c"],
+            strengthPeak: 68,
+            latestLine: "The word harbor has gathered across kept pages.",
+            evidencePageIDs: ["page-1"],
+            relatedEntityIDs: [],
+            tags: ["harbor"]
+        )
+    }
+
+    func testAdapterTeasesWatchedThreadOnce() {
+        let now = date(2026, 6, 10)
+        let day = BookDay(id: "2026-06-10", date: date(2026, 6, 10, hour: 0), pages: [])
+        var inputs = BookSourceInputs.empty.withMatureLibrary(now: now)
+        inputs.constellations = [watchedConstellation()]
+
+        let pages = BookNoticesPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+        let tease = pages.first { $0.payload.headline.contains("A Lamp in the Margin") }
+        XCTAssertNotNil(tease)
+        XCTAssertEqual(tease?.payload.metadata["constellationID"], "constellation-pattern-harbor")
+        XCTAssertTrue(tease?.payload.metadata["tags"]?.contains("watched:constellation-pattern-harbor") == true)
+
+        // Once the tease has been kept, that thread is never teased again.
+        let keptTease = BookPage(
+            id: "kept-tease",
+            type: .bookNotices,
+            createdAt: date(2026, 6, 9),
+            promptText: "The Book is watching a thread.",
+            userInput: "",
+            tags: ["constellation", "watched:constellation-pattern-harbor"]
+        )
+        inputs.days.append(BookDay(id: "2026-06-09", date: date(2026, 6, 9, hour: 0), pages: [keptTease]))
+        let again = BookNoticesPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+        XCTAssertFalse(again.contains { $0.payload.headline.contains("A Lamp in the Margin") })
+    }
+
+    func testWatchedThreadTeaseSkipsNamedThreadsAndRestsAfterShowing() {
+        let now = date(2026, 6, 10)
+        let day = BookDay(id: "2026-06-10", date: date(2026, 6, 10, hour: 0), pages: [])
+
+        // A named constellation is past teasing.
+        var named = BookSourceInputs.empty.withMatureLibrary(now: now)
+        var constellation = watchedConstellation()
+        constellation.phase = .named
+        constellation.name = "The Harbor Thread"
+        named.constellations = [constellation]
+        let namedPages = BookNoticesPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: named,
+            now: now
+        )
+        XCTAssertFalse(namedPages.contains { $0.payload.headline.contains("A Lamp in the Margin") })
+
+        // A tease shown yesterday but not kept rests instead of nagging.
+        var resting = BookSourceInputs.empty.withMatureLibrary(now: now)
+        resting.constellations = [watchedConstellation()]
+        resting.surfaceHistory["constellation:constellation-pattern-harbor"] =
+            SurfaceHistoryRecord(lastShownAt: date(2026, 6, 9), recentShowCount: 1)
+        let restingPages = BookNoticesPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: resting,
+            now: now
+        )
+        XCTAssertFalse(restingPages.contains { $0.payload.headline.contains("A Lamp in the Margin") })
+
+        // After the rest window passes, the offer may return.
+        resting.surfaceHistory["constellation:constellation-pattern-harbor"] =
+            SurfaceHistoryRecord(lastShownAt: date(2026, 6, 1), recentShowCount: 1)
+        let returned = BookNoticesPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: resting,
+            now: now
+        )
+        XCTAssertTrue(returned.contains { $0.payload.headline.contains("A Lamp in the Margin") })
     }
 
     // MARK: Letters

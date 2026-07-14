@@ -124,9 +124,28 @@ final class WeeklyIssueTests: XCTestCase {
     }
 
     func testIsDeterministic() {
-        let a = WeeklyIssue.current(days: days(firstWeekPages()), now: at(7, hour: 10))
-        let b = WeeklyIssue.current(days: days(firstWeekPages()), now: at(7, hour: 10))
+        // The same archive always makes the same issue. (Built once — the test
+        // helpers mint fresh page ids, so two builds are two different archives.)
+        let archive = days(firstWeekPages())
+        let a = WeeklyIssue.current(days: archive, now: at(7, hour: 10))
+        let b = WeeklyIssue.current(days: archive, now: at(7, hour: 10))
         XCTAssertEqual(a, b)
+    }
+
+    /// The bound issue typesets the reader's actual ink (Seven Days spread,
+    /// plates, the week's page), so the curated pages ride along.
+    func testIssueCarriesItsCuratedPagesChronologically() throws {
+        let issue = try XCTUnwrap(WeeklyIssue.current(days: days(firstWeekPages()), now: at(7, hour: 10)))
+        XCTAssertGreaterThanOrEqual(issue.pages.count, WeeklyIssue.minimumIssuePages)
+        XCTAssertEqual(issue.pages.map(\.createdAt), issue.pages.map(\.createdAt).sorted())
+        XCTAssertTrue(issue.pages.allSatisfy { $0.createdAt >= issue.startDate && $0.createdAt < issue.endDate })
+    }
+
+    func testShareCardTeasesTheNextIssueDeterministically() throws {
+        let issue = try XCTUnwrap(WeeklyIssue.current(days: days(firstWeekPages()), now: at(7, hour: 10)))
+        let card = WeeklyIssueShareCard.make(issue: issue)
+        XCTAssertFalse(card.nextIssueTease.isEmpty)
+        XCTAssertEqual(card.nextIssueTease, WeeklyIssueShareCard.make(issue: issue).nextIssueTease)
     }
 
     func testShareCardSummarizesWithoutRawHighlightLines() throws {
@@ -224,6 +243,38 @@ final class WeeklyIssueTests: XCTestCase {
         pages.append(BookPage(type: .bindery, createdAt: at(7, hour: 11), promptText: "Your First Issue",
                               userInput: "", tags: ["weekly-issue:1", "edition"]))
         XCTAssertTrue(candidates(days: days(pages), now: at(7, hour: 20)).isEmpty)
+    }
+
+    func testKeptIssueArtifactSurvivesPageArchiveRoundTrip() throws {
+        let issue = try XCTUnwrap(WeeklyIssue.current(days: days(firstWeekPages()), now: at(7, hour: 10)))
+        let card = WeeklyIssueShareCard.make(issue: issue)
+        let artifact = KeptWeeklyIssueArtifact(
+            issue: issue,
+            card: card,
+            readerName: "Reader",
+            editorialNote: "The week held together.",
+            closingNote: "It is kept.",
+            cardPath: "/archive/issue-1.png",
+            pdfPath: "/archive/issue-1.pdf",
+            keptAt: at(7, hour: 11)
+        )
+        let page = BookPage(
+            id: "weekly-issue-1",
+            type: .bindery,
+            createdAt: at(7, hour: 11),
+            promptText: "Weekly Issue No. 1",
+            userInput: "The week held together.",
+            tags: ["weekly-issue", "weekly-issue:1", "edition"],
+            sourceID: "weekly-issue",
+            origin: .generated,
+            weeklyIssueArtifact: artifact
+        )
+
+        let decoded = try JSONDecoder().decode(BookPage.self, from: JSONEncoder().encode(page))
+
+        XCTAssertEqual(decoded.weeklyIssueArtifact, artifact)
+        XCTAssertEqual(decoded.weeklyIssueArtifact?.issue.number, 1)
+        XCTAssertEqual(decoded.weeklyIssueArtifact?.pdfPath, "/archive/issue-1.pdf")
     }
 
     func testDefersDuringDistress() {

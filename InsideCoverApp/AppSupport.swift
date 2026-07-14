@@ -827,7 +827,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     /// DJ break queued to play once an interstitial finishes.
     private var pendingBanter: RadioBanter?
 
-    /// Optional hook so the app can feed live world-state (Disbelief's grey,
+    /// Optional hook so the app can feed live world-state (Routine's grey,
     /// an active festival) into banter selection without coupling the manager to
     /// the broader state graph. Time-of-day and the listening streak are derived
     /// locally. Returns (grey 0–100, festivalActive).
@@ -2561,7 +2561,15 @@ enum WeatherLocationReader {
         let location = try await OneShotLocationReader.requestLocation(
             desiredAccuracy: kCLLocationAccuracyThreeKilometers
         )
-        let weather = try await OpenMeteoClient.forecast(for: location.coordinate)
+        return try await weatherSignal(for: location.coordinate)
+        #else
+        throw ReaderError.unavailable
+        #endif
+    }
+
+    #if canImport(CoreLocation)
+    fileprivate static func weatherSignal(for coordinate: CLLocationCoordinate2D) async throws -> WeatherSourceSignal {
+        let weather = try await OpenMeteoClient.forecast(for: coordinate)
         let temperature = weather.currentTemperature
         let condition = WeatherCode.describe(weather.current.weatherCode)
         let forecast = weather.todayForecast.map { daily in
@@ -2579,10 +2587,8 @@ enum WeatherLocationReader {
             forecast: forecast,
             conditionSymbolName: WeatherCode.symbolName(weather.current.weatherCode)
         )
-        #else
-        throw ReaderError.unavailable
-        #endif
     }
+    #endif
 }
 
 enum AnchorLocationReader {
@@ -2624,6 +2630,73 @@ enum AnchorLocationReader {
         throw ReaderError.unavailable
         #endif
     }
+}
+
+/// The small piece of live context a nightly braid needs. It deliberately
+/// carries no coordinates into the page: GPS is used once to recognize a saved
+/// place (such as Home), a nearby Anchor, or a coarse locality, and to fetch the
+/// local sky.
+struct NightlyBraidLiveContext: Equatable {
+    var locationLabel: String
+    var weather: WeatherSourceSignal?
+    var latitude: Double
+    var longitude: Double
+    var anchorProximity: AnchorProximity?
+}
+
+enum NightlyBraidContextReader {
+    static func request(anchors: [AnchorRecord]) async throws -> NightlyBraidLiveContext {
+        #if canImport(CoreLocation)
+        guard CLLocationManager.locationServicesEnabled() else {
+            throw AnchorLocationReader.ReaderError.unavailable
+        }
+
+        let location = try await OneShotLocationReader.requestLocation(
+            desiredAccuracy: kCLLocationAccuracyHundredMeters
+        )
+        let latitude = location.coordinate.latitude
+        let longitude = location.coordinate.longitude
+        let knownPlace = CompassPlaceMemory.nearestKnownPlace(latitude: latitude, longitude: longitude)
+        let anchorProximity = AnchorRegistry.nearestAnchor(
+            to: latitude,
+            longitude: longitude,
+            anchors: anchors
+        )
+
+        async let weather = try? WeatherLocationReader.weatherSignal(for: location.coordinate)
+        async let coarseLocality = coarseLocality(for: location)
+        let resolvedWeather = await weather
+        let resolvedLocality = await coarseLocality
+        let locationLabel = knownPlace?.name.nonEmpty
+            ?? anchorProximity?.anchor.name.nonEmpty
+            ?? resolvedLocality
+            ?? "Current place"
+
+        return NightlyBraidLiveContext(
+            locationLabel: locationLabel,
+            weather: resolvedWeather,
+            latitude: latitude,
+            longitude: longitude,
+            anchorProximity: anchorProximity
+        )
+        #else
+        throw AnchorLocationReader.ReaderError.unavailable
+        #endif
+    }
+
+    #if canImport(CoreLocation)
+    private static func coarseLocality(for location: CLLocation) async -> String? {
+        let geocoder = CLGeocoder()
+        guard let placemark = try? await geocoder.reverseGeocodeLocation(location).first else {
+            return nil
+        }
+        if let locality = placemark.locality?.nonEmpty {
+            return locality
+        }
+        return placemark.subLocality?.nonEmpty
+            ?? placemark.administrativeArea?.nonEmpty
+    }
+    #endif
 }
 
 #if canImport(CoreLocation)
@@ -3060,6 +3133,50 @@ enum BookWhispers {
         #endif
     }
 
+    /// Arms pre-meeting charges: a whisper an hour before the reader sees
+    /// someone whose thread the Book keeps (calendar title names a confirmed
+    /// person). Pure planning lives in PeopleOfTheBook.preMeetingCharges; this
+    /// only converts the plan into scheduled notifications, using the same
+    /// reply-to-keep category as prompt whispers.
+    static func refreshPersonCharges(
+        enabled: Bool,
+        ledger: PeopleLedger,
+        events: [CalendarEventSignal],
+        now: Date = Date()
+    ) {
+        #if canImport(UserNotifications)
+        let center = UNUserNotificationCenter.current()
+        let prefix = "book-whisper-person-charge-"
+        center.getPendingNotificationRequests { pending in
+            center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix(prefix) })
+            guard enabled else { return }
+            for charge in PeopleOfTheBook.preMeetingCharges(ledger: ledger, events: events, now: now) {
+                let content = UNMutableNotificationContent()
+                content.title = charge.title
+                content.body = charge.body
+                content.sound = .default
+                content.categoryIdentifier = promptCategoryIdentifier
+                content.userInfo = [
+                    "promptWhisperID": "person-charge-\(charge.eventID)",
+                    "keepPrompt": charge.keepPrompt,
+                    "title": charge.title,
+                    "body": charge.body,
+                    "tags": charge.tags.joined(separator: ","),
+                    "kind": PromptWhisper.Kind.mission.rawValue
+                ]
+                center.add(UNNotificationRequest(
+                    identifier: "\(prefix)\(charge.eventID)",
+                    content: content,
+                    trigger: UNTimeIntervalNotificationTrigger(
+                        timeInterval: max(60, charge.fireAt.timeIntervalSince(now)),
+                        repeats: false
+                    )
+                ))
+            }
+        }
+        #endif
+    }
+
     #if canImport(UserNotifications)
     static func registerPromptCategory() {
         let reply = UNTextInputNotificationAction(
@@ -3396,8 +3513,8 @@ extension BookWhispers {
 import BackgroundTasks
 #endif
 
-/// The overnight scribe: while the phone charges, the Book pre-writes the
-/// next Story Page so mornings open onto fresh ink instead of a spinner.
+/// The overnight reader: while the phone charges, the Book may ask its local
+/// model to interpret a small packet of newly proven connections.
 enum OvernightScribe {
     static let taskIdentifier = "com.openclaw.enchantify.insidecover.overnight-scribe"
     static let freshnessWindow: TimeInterval = 18 * 3600
@@ -3474,19 +3591,27 @@ enum OvernightScribe {
         let prepared: (story: SurfacePage, connections: [OvernightConnectionCandidate]) = await MainActor.run {
             let days = BookDatabase.loadDays(migratingFrom: BookStore.loadDays())
             let day = BookStore.today(from: days)
+            let priorDays = days.filter { $0.id != day.id }
+            let vault = PlayerVault.shared.data
             var inputs = BookSourceInputs.from(insideCover: InsideCoverStore.load())
             inputs.days = days
             inputs.selfFacts = (try? BookDatabase.selfFacts()) ?? []
             let events = (try? BookDatabase.narrativeEvents(limit: 160)) ?? []
             let memories = (try? BookDatabase.entityMemories(limit: 240)) ?? []
+            inputs.entityBeliefOffsets = vault.entityBelief
+            inputs.relationshipField = vault.relationshipField ?? [:]
+            inputs.magicMoment = vault.magicMoment ?? MagicMomentState()
+            inputs.bookObservations = vault.bookObservations ?? []
+            inputs.bookReadingBoundaries = vault.bookReadingBoundaries ?? []
+            inputs.readerLearning = vault.readerLearning ?? ReaderLearningModel()
+            inputs.constellations = vault.constellations ?? []
+            inputs.wagers = vault.wagers ?? []
+            inputs.themes = vault.themes ?? []
             inputs.narrative = NarrativeSourceSnapshotBuilder.snapshot(
                 from: events,
                 memories: memories,
                 beliefWeight: nil
             )
-            let vault = PlayerVault.shared.data
-            inputs.bookObservations = vault.bookObservations ?? []
-            inputs.bookReadingBoundaries = vault.bookReadingBoundaries ?? []
             inputs.overnightConnectionDrafts = vault.overnightConnectionDrafts ?? []
             inputs.chosenQuill = vault.chosenQuill
             return (

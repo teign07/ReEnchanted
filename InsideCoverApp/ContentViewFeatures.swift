@@ -13,6 +13,7 @@ import UIKit
 extension ContentView {
     var shouldPauseAmbientMotion: Bool {
         scenePhase != .active
+            || isLaunchAmbientMotionPaused
             || localBrainTelemetry.isWorking
             || generation.isBraiding
             || generation.isPreparingAutomaticIllumination
@@ -841,6 +842,58 @@ extension ContentView {
         saveElectives(list)
         let elective = list[index]
 
+        // Completion says the proof was kept, so mint the corresponding archive
+        // page as well as updating the flyleaf ledger. File-backed photo proof
+        // then follows the same Pagewright path as mission and pressed photos.
+        let proofPageID = "elective-proof-\(elective.id)"
+        if !days.flatMap(\.pages).contains(where: { $0.id == proofPageID }) {
+            let photoAsset: BookPageMediaAsset? = photoURL.flatMap { rawValue in
+                let parsedURL = URL(string: rawValue)
+                let path = parsedURL?.isFileURL == true ? parsedURL?.path : rawValue
+                guard let path = path?.nonEmpty else { return nil }
+                return BookPageMediaAsset(
+                    kind: .renderedImageFile,
+                    reference: path,
+                    caption: "\(elective.title) proof",
+                    sourceID: "unwritten-elective",
+                    metadata: [
+                        "proofPhoto": "true",
+                        "uneditedPhoto": "true",
+                        "electiveID": elective.id
+                    ]
+                )
+            }
+            let proofText = [
+                elective.proof?.nonEmpty,
+                elective.proofLocationSummary?.nonEmpty
+            ]
+                .compactMap { $0 }
+                .joined(separator: "\n\n")
+            var proofTags = [
+                "elective",
+                "completed",
+                "proof",
+                "entity:\(elective.characterID)"
+            ]
+            if photoAsset != nil {
+                proofTags.append(contentsOf: ["photo", "proof-photo", "unedited-photo"])
+            }
+            let proofPage = BookPage(
+                id: proofPageID,
+                type: .elective,
+                promptText: elective.title,
+                userInput: proofText.nonEmpty ?? (photoAsset == nil ? "Quest completed." : "Photo proof kept."),
+                tags: proofTags,
+                sourceID: "unwritten-elective",
+                origin: .userAuthored,
+                privacy: .privateLocal,
+                mediaAssets: [photoAsset].compactMap { $0 }
+            )
+            var day = today
+            day.pages.append(proofPage)
+            persist(day: day, message: "The quest proof is tucked into the Book.")
+        }
+
         withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
             beliefScore = min(100, beliefScore + UnwrittenElective.completionBeliefReward)
         }
@@ -848,7 +901,7 @@ extension ContentView {
             id: "elective-complete-\(elective.id)",
             kind: .pageAnswered,
             sourcePageType: .elective,
-            sourcePageID: nil,
+            sourcePageID: proofPageID,
             createdAt: Date(),
             summary: "The reader completed \(elective.characterName)'s quest \"\(elective.title)\": \(elective.proof ?? "") \(elective.proofLocationSummary ?? "")",
             tags: ["elective", "completed", "entity:\(elective.characterID)"],
@@ -1001,12 +1054,12 @@ extension ContentView {
             storySettingAffinities: vault.data.storySettingAffinities,
             storySceneBiases: vault.data.storySceneBiases,
             bookNoticeEvidence: vault.data.bookNoticeEvidence,
-            nothingGreyOffset: vault.data.nothingGreyOffset,
-            readerLearning: vault.data.readerLearning,
-            openWorldEventArchive: vault.data.openWorldEventArchive,
             magicMoment: vault.data.magicMoment,
             bookObservations: vault.data.bookObservations,
             bookReadingBoundaries: vault.data.bookReadingBoundaries,
+            nothingGreyOffset: vault.data.nothingGreyOffset,
+            readerLearning: vault.data.readerLearning,
+            openWorldEventArchive: vault.data.openWorldEventArchive,
             overnightConnectionDrafts: vault.data.overnightConnectionDrafts,
             chosenQuill: vault.data.chosenQuill,
             people: vault.data.people,
@@ -1431,26 +1484,65 @@ extension ContentView {
     }
 
     @MainActor
-    func exportWeeklyIssuePDF() {
+    func exportWeeklyIssuePDF(forceRebind: Bool = false) {
+        guard weeklyIssueBindingNote == nil else { return }
         guard let issue = currentWeeklyIssue else {
             colophonBindingNote = "No weekly issue is ready to bind yet. A week needs to close with enough kept pages first."
             BookFeedback.play(.error)
             return
         }
-        colophonBindingNote = "Asking Gemma to write the editor's note for Issue No. \(issue.number)…"
-        Task { @MainActor in
-            let wrapper = await gemmaWeeklyIssueBinding(for: issue)
+        // The reader takes over from here; if it was launched from the BookShop,
+        // close the shop so the issue can present cleanly over the main body.
+        let wasShopOpen = isBookShopPresented
+        isBookShopPresented = false
+
+        // If this exact issue is already wrapped, re-open the reader instantly —
+        // unless the reader explicitly asked for a fresh (re-written) bind.
+        if !forceRebind,
+           let cached = cachedWeeklyIssueReader,
+           cached.issue.number == issue.number,
+           FileManager.default.fileExists(atPath: cached.cardURL.path),
+           FileManager.default.fileExists(atPath: cached.pdfURL.path) {
             do {
-                let card = WeeklyIssueShareCard.make(issue: issue, selfFacts: sourceInputs.selfFacts)
+                let kept = try keepWeeklyIssue(cached)
+                cachedWeeklyIssueReader = kept
+                presentWeeklyIssueReader(kept, afterShopDismiss: wasShopOpen)
+            } catch {
+                colophonBindingNote = "The issue opened, but it would not stay on the shelf: \(error.localizedDescription)"
+                presentWeeklyIssueReader(cached, afterShopDismiss: wasShopOpen)
+            }
+            return
+        }
+
+        // "Wait for Gemma": if the on-device brain is installed we ask it to
+        // bind the daily braids into a story, then write the issue's wrapper
+        // prose. The first pass loads the model and can take a while, so a visible
+        // progress overlay stays up until the reading copy is pressed.
+        let brainReady = LocalModelManager.report().isReady
+        let progress = brainReady
+            ? "The Book is writing Issue No. \(issue.number) in its own words…\nThe first pass can take a moment while the local brain wakes."
+            : "The local brain is resting — binding Issue No. \(issue.number) in the Book's standard hand…"
+        weeklyIssueBindingNote = progress
+        colophonBindingNote = progress
+
+        Task { @MainActor in
+            let wrapper: (bindingStory: String?, editorialNote: String?, closingNote: String?) = brainReady
+                ? await gemmaWeeklyIssueBinding(for: issue)
+                : (nil, nil, nil)
+            do {
+                var boundIssue = issue
+                boundIssue.bindingStory = wrapper.bindingStory
+                let card = WeeklyIssueShareCard.make(issue: boundIssue, selfFacts: sourceInputs.selfFacts)
                 let directory = FileManager.default.temporaryDirectory
                 let cardURL = directory
                     .appendingPathComponent("ReEnchanted-Weekly-Wrap-\(issue.number).png")
                 try WeeklyIssueShareCardRenderer.write(card, to: cardURL)
                 let url = directory
                     .appendingPathComponent("ReEnchanted-Weekly-Issue-\(issue.number).pdf")
+                let readerName = CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs)
                 try WeeklyIssuePDFWriter.write(
-                    issue,
-                    readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
+                    boundIssue,
+                    readerName: readerName,
                     shareCard: card,
                     editorialNote: wrapper.editorialNote,
                     closingNote: wrapper.closingNote,
@@ -1458,12 +1550,177 @@ extension ContentView {
                 )
                 preparedWeeklyIssueCardURL = cardURL
                 preparedWeeklyIssuePDFURL = url
-                colophonBindingNote = "Issue No. \(issue.number) is wrapped: a share card for the outside world, and a full weekly issue for you."
+                let reader = WeeklyIssueReader(
+                    issue: boundIssue,
+                    card: card,
+                    readerName: readerName,
+                    editorialNote: wrapper.editorialNote,
+                    closingNote: wrapper.closingNote,
+                    cardURL: cardURL,
+                    pdfURL: url
+                )
+                let keptReader = try keepWeeklyIssue(reader)
+                cachedWeeklyIssueReader = keptReader
+                weeklyIssueBindingNote = nil
+                presentWeeklyIssueReader(keptReader, afterShopDismiss: wasShopOpen)
+                colophonBindingNote = wrapper.bindingStory != nil
+                    ? "Issue No. \(issue.number) is wrapped around the story its daily bindings became, and kept on the Book of You shelf."
+                    : "Issue No. \(issue.number) is wrapped and kept on the Book of You shelf."
                 BookFeedback.play(.braidComplete)
             } catch {
+                weeklyIssueBindingNote = nil
                 colophonBindingNote = "The weekly issue would not bind: \(error.localizedDescription)"
                 BookFeedback.play(.error)
             }
+        }
+    }
+
+    /// Moves a generated issue out of the temporary directory and records it as
+    /// a real archive page. Rebinding replaces that issue's artifact rather than
+    /// adding a duplicate card to the Book of You shelf.
+    @MainActor
+    private func keepWeeklyIssue(_ reader: WeeklyIssueReader) throws -> WeeklyIssueReader {
+        let directory = try weeklyIssueArchiveDirectory()
+        let cardURL = directory.appendingPathComponent("Weekly-Issue-\(reader.issue.number)-Card.png")
+        let pdfURL = directory.appendingPathComponent("Weekly-Issue-\(reader.issue.number).pdf")
+        try replaceArchiveFile(at: cardURL, with: reader.cardURL)
+        try replaceArchiveFile(at: pdfURL, with: reader.pdfURL)
+
+        let keptReader = WeeklyIssueReader(
+            issue: reader.issue,
+            card: reader.card,
+            readerName: reader.readerName,
+            editorialNote: reader.editorialNote,
+            closingNote: reader.closingNote,
+            cardURL: cardURL,
+            pdfURL: pdfURL
+        )
+        let artifact = KeptWeeklyIssueArtifact(
+            issue: keptReader.issue,
+            card: keptReader.card,
+            readerName: keptReader.readerName,
+            editorialNote: keptReader.editorialNote,
+            closingNote: keptReader.closingNote,
+            cardPath: cardURL.path,
+            pdfPath: pdfURL.path,
+            keptAt: Date()
+        )
+        let tag = "weekly-issue:\(reader.issue.number)"
+        let storyParagraphs = keptReader.issue.bindingStory.map { [$0] } ?? []
+        let body = ([keptReader.editorialLead]
+            + storyParagraphs
+            + reader.issue.highlights.map { "• \($0)" }
+            + [keptReader.closingLine])
+            .joined(separator: "\n\n")
+
+        var archiveDay = today
+        if let dayIndex = days.firstIndex(where: { day in day.pages.contains { $0.tags.contains(tag) } }),
+           let pageIndex = days[dayIndex].pages.firstIndex(where: { $0.tags.contains(tag) }) {
+            archiveDay = days[dayIndex]
+            var page = archiveDay.pages[pageIndex]
+            page.promptText = "Weekly Issue No. \(reader.issue.number) · \(reader.issue.dateRange)"
+            page.userInput = body
+            page.sourceID = "weekly-issue"
+            page.origin = .generated
+            page.tags = ["weekly-issue", tag, "edition", "bindery"]
+            page.mediaAssets = [weeklyIssueCardAsset(url: cardURL, issue: reader.issue)]
+            page.weeklyIssueArtifact = artifact
+            archiveDay.pages[pageIndex] = page
+        } else {
+            archiveDay.pages.append(BookPage(
+                id: "weekly-issue-\(reader.issue.number)",
+                type: .bindery,
+                promptText: "Weekly Issue No. \(reader.issue.number) · \(reader.issue.dateRange)",
+                userInput: body,
+                tags: ["weekly-issue", tag, "edition", "bindery"],
+                sourceID: "weekly-issue",
+                origin: .generated,
+                mediaAssets: [weeklyIssueCardAsset(url: cardURL, issue: reader.issue)],
+                weeklyIssueArtifact: artifact
+            ))
+        }
+        persist(day: archiveDay, message: "Issue No. \(reader.issue.number) is kept in the Book of You.")
+        return keptReader
+    }
+
+    /// Reopens an archived issue. If iOS has cleared one of its rendered files,
+    /// the stored issue model is enough to press that file again without Gemma.
+    @MainActor
+    func openKeptWeeklyIssue(_ page: BookPage) {
+        guard let artifact = page.weeklyIssueArtifact else { return }
+        do {
+            let directory = try weeklyIssueArchiveDirectory()
+            let cardURL = directory.appendingPathComponent("Weekly-Issue-\(artifact.issue.number)-Card.png")
+            let pdfURL = directory.appendingPathComponent("Weekly-Issue-\(artifact.issue.number).pdf")
+            if !FileManager.default.fileExists(atPath: cardURL.path) {
+                try WeeklyIssueShareCardRenderer.write(artifact.card, to: cardURL)
+            }
+            if !FileManager.default.fileExists(atPath: pdfURL.path) {
+                try WeeklyIssuePDFWriter.write(
+                    artifact.issue,
+                    readerName: artifact.readerName,
+                    shareCard: artifact.card,
+                    editorialNote: artifact.editorialNote,
+                    closingNote: artifact.closingNote,
+                    to: pdfURL
+                )
+            }
+            let reader = WeeklyIssueReader(
+                issue: artifact.issue,
+                card: artifact.card,
+                readerName: artifact.readerName,
+                editorialNote: artifact.editorialNote,
+                closingNote: artifact.closingNote,
+                cardURL: cardURL,
+                pdfURL: pdfURL
+            )
+            cachedWeeklyIssueReader = reader
+            weeklyIssueReader = reader
+            BookFeedback.play(.openPage)
+        } catch {
+            statusMessage = "Issue No. \(artifact.issue.number) would not open: \(error.localizedDescription)"
+            BookFeedback.play(.error)
+        }
+    }
+
+    private func weeklyIssueArchiveDirectory() throws -> URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let bundle = Bundle.main.bundleIdentifier ?? "com.openclaw.enchantify.insidecover"
+        let directory = base
+            .appendingPathComponent(bundle, isDirectory: true)
+            .appendingPathComponent("WeeklyIssues", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    private func replaceArchiveFile(at destination: URL, with source: URL) throws {
+        guard destination.standardizedFileURL != source.standardizedFileURL else { return }
+        if FileManager.default.fileExists(atPath: destination.path) {
+            try FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.copyItem(at: source, to: destination)
+    }
+
+    private func weeklyIssueCardAsset(url: URL, issue: WeeklyIssue) -> BookPageMediaAsset {
+        BookPageMediaAsset(
+            kind: .renderedImageFile,
+            reference: url.path,
+            caption: "The cover of Weekly Issue No. \(issue.number), \(issue.dateRange).",
+            sourceID: "weekly-issue",
+            metadata: ["weeklyIssueNumber": "\(issue.number)"]
+        )
+    }
+
+    /// Presents the weekly issue reader, holding a beat when the BookShop sheet is
+    /// still animating out so the two sheets don't collide on the same frame.
+    @MainActor
+    private func presentWeeklyIssueReader(_ reader: WeeklyIssueReader, afterShopDismiss: Bool) {
+        guard afterShopDismiss else {
+            weeklyIssueReader = reader
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            weeklyIssueReader = reader
         }
     }
 
@@ -1518,25 +1775,130 @@ extension ContentView {
         }
     }
 
-    /// Writes a built edition to a temp PDF and surfaces it under the share mark.
+    /// Writes a built edition to a PDF, surfaces it under the share mark, and
+    /// keeps it durably so it reopens from the Book of You shelf later.
     @MainActor
     private func bindMonthlyEditionPDF(_ edition: MonthlyEdition) throws {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM"
+        let monthKey = formatter.string(from: edition.startDate)
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ReEnchanted-Monthly-\(formatter.string(from: edition.startDate)).pdf")
+            .appendingPathComponent("ReEnchanted-Monthly-\(monthKey).pdf")
         try MonthlyEditionPDFWriter.write(edition, to: url)
         preparedMonthlyEditionURL = url
-        colophonBindingNote = "\(edition.monthName) is bound — \(edition.pageCount) \(edition.pageCount == 1 ? "page" : "pages") sewn between covers, waiting under the share mark."
+        // Move the edition onto the Book of You shelf so it can be reopened after
+        // launch, not just shared from this session's transient PDF.
+        try keepMonthlyEdition(edition, monthKey: monthKey, renderedPDF: url)
+        colophonBindingNote = "\(edition.monthName) is bound — \(edition.pageCount) \(edition.pageCount == 1 ? "page" : "pages") sewn between covers, and kept on the Book of You shelf."
         // The Monthly Binding gets its own ceremonial peak, not the shared braid cue.
         celebrateMonthlyBinding(monthName: edition.monthName, pageCount: edition.pageCount)
     }
 
+    /// Moves a bound edition's PDF out of the temporary directory and records it
+    /// as a real archive page. Re-binding a month replaces that month's artifact
+    /// rather than adding a duplicate card to the Book of You shelf.
     @MainActor
-    private func gemmaWeeklyIssueBinding(for issue: WeeklyIssue) async -> (editorialNote: String?, closingNote: String?) {
-        async let editorialNote = gemmaWeeklyIssueEditorialNote(for: issue)
-        async let closingNote = gemmaWeeklyIssueClosingNote(for: issue)
-        return await (editorialNote, closingNote)
+    private func keepMonthlyEdition(_ edition: MonthlyEdition, monthKey: String, renderedPDF: URL) throws {
+        let directory = try monthlyEditionArchiveDirectory()
+        let pdfURL = directory.appendingPathComponent("Monthly-Edition-\(monthKey).pdf")
+        try replaceArchiveFile(at: pdfURL, with: renderedPDF)
+
+        let artifact = KeptMonthlyEditionArtifact(
+            edition: edition,
+            monthKey: monthKey,
+            pdfPath: pdfURL.path,
+            keptAt: Date()
+        )
+        let tag = "monthly-edition:\(monthKey)"
+        let body = ([edition.foreword] + edition.sections.prefix(3).map(\.title))
+            .compactMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty }
+            .joined(separator: "\n\n")
+
+        var archiveDay = today
+        if let dayIndex = days.firstIndex(where: { day in day.pages.contains { $0.tags.contains(tag) } }),
+           let pageIndex = days[dayIndex].pages.firstIndex(where: { $0.tags.contains(tag) }) {
+            archiveDay = days[dayIndex]
+            var page = archiveDay.pages[pageIndex]
+            page.promptText = artifact.monthLabel
+            page.userInput = body
+            page.sourceID = "monthly-edition"
+            page.origin = .generated
+            page.tags = ["monthly-edition", tag, "edition", "bindery"]
+            page.monthlyEditionArtifact = artifact
+            archiveDay.pages[pageIndex] = page
+        } else {
+            archiveDay.pages.append(BookPage(
+                id: "monthly-edition-\(monthKey)",
+                type: .bindery,
+                promptText: artifact.monthLabel,
+                userInput: body,
+                tags: ["monthly-edition", tag, "edition", "bindery"],
+                sourceID: "monthly-edition",
+                origin: .generated,
+                monthlyEditionArtifact: artifact
+            ))
+        }
+        persist(day: archiveDay, message: "\(edition.monthName) is kept in the Book of You.")
+    }
+
+    /// Reopens an archived monthly edition. If iOS has cleared its rendered PDF,
+    /// the stored edition is enough to press the file again without rebuilding
+    /// the month.
+    @MainActor
+    func openKeptMonthlyEdition(_ page: BookPage) {
+        guard let artifact = page.monthlyEditionArtifact else { return }
+        do {
+            let directory = try monthlyEditionArchiveDirectory()
+            let pdfURL = directory.appendingPathComponent("Monthly-Edition-\(artifact.monthKey).pdf")
+            if !FileManager.default.fileExists(atPath: pdfURL.path) {
+                try MonthlyEditionPDFWriter.write(artifact.edition, to: pdfURL)
+            }
+            monthlyEditionReader = MonthlyEditionReader(edition: artifact.edition, pdfURL: pdfURL)
+            BookFeedback.play(.openPage)
+        } catch {
+            statusMessage = "\(artifact.edition.monthName) would not open: \(error.localizedDescription)"
+            BookFeedback.play(.error)
+        }
+    }
+
+    private func monthlyEditionArchiveDirectory() throws -> URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let bundle = Bundle.main.bundleIdentifier ?? "com.openclaw.enchantify.insidecover"
+        let directory = base
+            .appendingPathComponent(bundle, isDirectory: true)
+            .appendingPathComponent("MonthlyEditions", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    @MainActor
+    private func gemmaWeeklyIssueBinding(for issue: WeeklyIssue) async -> (bindingStory: String?, editorialNote: String?, closingNote: String?) {
+        // The local inference gate intentionally permits one live generation at
+        // a time. Running these as `async let` made one half race the other and
+        // often return nil as "busy," which could leave the issue half-written.
+        let bindingStory = await gemmaWeeklyBindingStory(for: issue)
+        weeklyIssueBindingNote = bindingStory == nil
+            ? "The daily bindings are gathered. Gemma is writing the editor's note…"
+            : "The week has become a story. Gemma is writing the editor's note…"
+        let editorialNote = await gemmaWeeklyIssueEditorialNote(for: issue)
+        weeklyIssueBindingNote = "The editor's note is dry. Gemma is writing the last page…"
+        let closingNote = await gemmaWeeklyIssueClosingNote(for: issue)
+        weeklyIssueBindingNote = "The words are ready. Pressing the reading copy and share card…"
+        return (bindingStory, editorialNote, closingNote)
+    }
+
+    @MainActor
+    private func gemmaWeeklyBindingStory(for issue: WeeklyIssue) async -> String? {
+        guard let spec = BindingStoryPromptBuilder.weekly(for: issue) else { return nil }
+        guard let raw = await LocalBrainProse.write(
+            prompt: spec.prompt,
+            instructions: BraidInstructions.bookOfYou,
+            maxTokens: spec.maxTokens,
+            sourceID: spec.sourceID,
+            tags: ["edition", "weekly-issue", "binding-story", "gemma"]
+        ) else { return nil }
+        let cleaned = BraidTextPolisher.polishedBookOfYou(raw, maxParagraphs: 5, maxWords: 430)
+        return cleaned.nonEmpty
     }
 
     @MainActor
@@ -1607,7 +1969,7 @@ extension ContentView {
         if let gemma = await foreword {
             bound.foreword = gemma
         }
-        if let gemma = await closing {
+        if let gemma = await gemmaMonthlyClosing(for: edition) {
             bound.closing = gemma
         }
         if let story = await bindingStory {
@@ -2010,6 +2372,31 @@ extension ContentView {
             }
             if let importedEvidence = save.bookNoticeEvidence {
                 vault.data.bookNoticeEvidence = max(vault.data.bookNoticeEvidence ?? 0, importedEvidence)
+            }
+            if let importedMagicMoment = save.magicMoment {
+                let current = vault.data.magicMoment ?? MagicMomentState()
+                vault.data.magicMoment = importedMagicMoment.sessionCount > current.sessionCount
+                    ? importedMagicMoment
+                    : current
+            }
+            if let importedObservations = save.bookObservations {
+                var merged = Dictionary(
+                    uniqueKeysWithValues: (vault.data.bookObservations ?? []).map { ($0.id, $0) }
+                )
+                for record in importedObservations {
+                    if let current = merged[record.id], current.updatedAt > record.updatedAt { continue }
+                    merged[record.id] = record
+                }
+                vault.data.bookObservations = Array(merged.values.sorted { $0.updatedAt < $1.updatedAt }.suffix(200))
+            }
+            if let importedBoundaries = save.bookReadingBoundaries {
+                var merged = Dictionary(
+                    uniqueKeysWithValues: (vault.data.bookReadingBoundaries ?? []).map { ($0.id, $0) }
+                )
+                for boundary in importedBoundaries {
+                    if merged[boundary.id] == nil { merged[boundary.id] = boundary }
+                }
+                vault.data.bookReadingBoundaries = Array(merged.values.sorted { $0.createdAt < $1.createdAt }.suffix(200))
             }
             if let importedGreyOffset = save.nothingGreyOffset {
                 vault.data.nothingGreyOffset = max(-10, min(10, importedGreyOffset))
@@ -3139,7 +3526,9 @@ private struct PagewrightCachedPage {
         let excerpt1000 = PagewrightText.clipped(base, limit: 1_000)
         let baseForQuotes = PagewrightText.clipped(base, limit: 1_200)
         let fallbackQuote = PagewrightText.clipped(base, limit: 190)
-        let pullQuoteOptions = PagewrightText.pullQuoteOptions(from: baseForQuotes, fallback: fallbackQuote)
+        let pullQuoteOptions = page.type == .quotes
+            ? [base]
+            : PagewrightText.pullQuoteOptions(from: baseForQuotes, fallback: fallbackQuote)
 
         self.page = page
         self.dayID = PagewrightDayBucket.id(for: page.createdAt)
@@ -3153,7 +3542,7 @@ private struct PagewrightCachedPage {
         ]
         .joined(separator: " ")
         .lowercased()
-        self.firstVisualMediaAsset = visualMedia.first
+        self.firstVisualMediaAsset = page.pagewrightPreviewImageAsset
         self.hasVisualMedia = !visualMedia.isEmpty
         self.excerpt42 = excerpt42
         self.excerpt86 = excerpt86
@@ -4267,7 +4656,7 @@ struct PagewrightSheet: View {
                     .foregroundStyle(BookPalette.nightText)
             } else {
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 8)], spacing: 8) {
+                    LazyVStack(spacing: 12) {
                         ForEach(assets) { asset in
                             markAssetTile(asset)
                         }
@@ -4369,8 +4758,10 @@ struct PagewrightSheet: View {
         let assets = packAssets(kind: kind, tags: tags, count: count)
         let unlocked = assets.filter(isMarginaliaUnlocked)
         let locked = assets.filter { !isMarginaliaUnlocked($0) }
-        let lockedLimit = unlocked.isEmpty ? 6 : 3
-        return unlocked + locked.prefix(lockedLimit)
+        // Keep earned marks first, but let the whole collection be discoverable.
+        // Locked marks carry their achievement requirement in the gallery rather
+        // than disappearing behind an arbitrary preview limit.
+        return unlocked + locked
     }
 
     private func markAssetTile(_ asset: IlluminationAsset) -> some View {
@@ -4378,7 +4769,7 @@ struct PagewrightSheet: View {
         return Button {
             openMarginaliaLock(asset)
         } label: {
-            VStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(BookPalette.paper.opacity(0.78))
@@ -4400,19 +4791,19 @@ struct PagewrightSheet: View {
                         .background(BookPalette.lampGold.opacity(0.92), in: Capsule())
                     }
                 }
-                .frame(height: 58)
+                .frame(maxWidth: .infinity)
+                .frame(height: 136)
                 Text(markAssetTitle(asset))
-                    .font(.caption2.weight(.bold))
+                    .font(.callout.weight(.bold))
                     .foregroundStyle(BookPalette.nightText.opacity(unlocked ? 0.72 : 0.46))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                    .lineLimit(2)
                 Text(markAchievementSubtitle(for: asset))
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(BookPalette.nightText.opacity(unlocked ? 0.42 : 0.54))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.68)
+                    .lineLimit(3)
             }
-            .padding(6)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(BookPalette.nightText.opacity(0.055), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -5234,6 +5625,9 @@ struct PagewrightSheet: View {
             duplicateElement(element)
             BookFeedback.play(.select)
         }
+        .contextMenu {
+            pagewrightElementContextMenu(for: element)
+        }
         .draggable(page.id)
         .rotationEffect(.degrees(element.rotation))
         .position(x: element.x * canvasSize.width, y: element.y * canvasSize.height)
@@ -5301,6 +5695,9 @@ struct PagewrightSheet: View {
             duplicateElement(element)
             BookFeedback.play(.select)
         }
+        .contextMenu {
+            pagewrightElementContextMenu(for: element)
+        }
         .rotationEffect(.degrees(element.rotation))
         .position(x: element.x * canvasSize.width, y: element.y * canvasSize.height)
         .gesture(elementManipulationGesture(for: element, canvasSize: canvasSize))
@@ -5339,10 +5736,39 @@ struct PagewrightSheet: View {
             duplicateElement(element)
             BookFeedback.play(.select)
         }
+        .contextMenu {
+            pagewrightElementContextMenu(for: element)
+        }
         .rotationEffect(.degrees(element.rotation))
         .position(x: element.x * canvasSize.width, y: element.y * canvasSize.height)
         .gesture(elementManipulationGesture(for: element, canvasSize: canvasSize))
         .zIndex(Double(element.z))
+    }
+
+    @ViewBuilder
+    private func pagewrightElementContextMenu(for element: PagewrightCanvasElement) -> some View {
+        Button {
+            duplicateElement(element)
+            BookFeedback.play(.select)
+        } label: {
+            Label("Duplicate", systemImage: "plus.square.on.square")
+        }
+
+        Button {
+            bringElementForward(element.id)
+            BookFeedback.pressTick()
+        } label: {
+            Label("Bring Forward", systemImage: "square.3.layers.3d.top.filled")
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            deleteElement(element)
+            BookFeedback.pressTick()
+        } label: {
+            Label("Remove", systemImage: "trash")
+        }
     }
 
     private func elementManipulationGesture(for element: PagewrightCanvasElement, canvasSize: CGSize) -> some Gesture {
@@ -6358,9 +6784,7 @@ enum PagewrightText {
     }
 
     static func baseText(for page: BookPage) -> String {
-        let candidates = [page.userInput, page.playerReply, page.promptText]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        return candidates.first { !$0.isEmpty }
+        page.pagewrightDefaultScrapText
             ?? (page.pagewrightVisualMediaAssets.isEmpty ? "A kept page." : "A kept page with \(page.pagewrightVisualMediaAssets.count) visual artifact\(page.pagewrightVisualMediaAssets.count == 1 ? "" : "s").")
     }
 
@@ -6375,6 +6799,9 @@ enum PagewrightText {
     }
 
     static func pullQuoteOptions(for page: BookPage) -> [String] {
+        if page.type == .quotes {
+            return [baseText(for: page)]
+        }
         let base = excerpt(for: page, limit: 1_200)
         return pullQuoteOptions(from: base, fallback: excerpt(for: page, limit: 190))
     }

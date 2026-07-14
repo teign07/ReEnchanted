@@ -2,6 +2,7 @@ import SwiftUI
 import CryptoKit
 import StripePaymentSheet
 import UIKit
+import PDFKit
 #if canImport(QuickLook)
 import QuickLook
 #endif
@@ -564,36 +565,16 @@ struct BookShopSheet: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 8)
-                    if let preparedWeeklyIssueCardURL {
-                        VStack(alignment: .trailing, spacing: 6) {
-                            ShareLink(item: preparedWeeklyIssueCardURL) {
-                                Label("Share card", systemImage: "square.and.arrow.up")
-                                    .font(.caption2.weight(.bold))
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(BookPalette.teal)
-                            if let preparedWeeklyIssuePDFURL {
-                                ShareLink(item: preparedWeeklyIssuePDFURL) {
-                                    Label("Full PDF", systemImage: "doc.richtext")
-                                        .font(.caption2.weight(.bold))
-                                }
-                                .buttonStyle(.bordered)
-                                .tint(BookPalette.lampGold)
-                            }
-                        }
-                    } else if let preparedWeeklyIssuePDFURL {
-                        ShareLink(item: preparedWeeklyIssuePDFURL) {
-                            Label("Share PDF", systemImage: "doc.richtext")
-                                .font(.caption2.weight(.bold))
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(BookPalette.teal)
-                    } else if binderyWeeklyIssuePageCount > 0 {
+                    if binderyWeeklyIssuePageCount > 0 {
+                        // Read-first: binding opens the issue in-app, where the
+                        // card and full-PDF shares live. Once wrapped, the label
+                        // reflects that tapping re-opens it to read.
+                        let alreadyWrapped = preparedWeeklyIssuePDFURL != nil
                         Button {
                             BookFeedback.play(.openPage)
                             onBindWeeklyIssue()
                         } label: {
-                            Label("Bind issue", systemImage: "doc.richtext")
+                            Label(alreadyWrapped ? "Read the issue" : "Bind & read", systemImage: "book")
                                 .font(.caption2.weight(.bold))
                         }
                         .buttonStyle(.borderedProminent)
@@ -3573,5 +3554,419 @@ struct StandingOrderSheet: View {
             for packID in owned { onSubscribed(packID) }
             statusLine = "Restored \(owned.count) prior binding\(owned.count == 1 ? "" : "s")."
         }
+    }
+}
+
+// MARK: - Weekly Issue reader
+
+/// A full-screen binding desk shown while Gemma writes and the PDF/card files
+/// are being pressed. It deliberately blocks the underlying menus so the reader
+/// cannot start a second bind or open a half-written issue.
+struct WeeklyIssueBindingOverlay: View {
+    let note: String
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.48)
+                .ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(BookPalette.lampGold.opacity(0.14))
+                        .frame(width: 72, height: 72)
+                    Image(systemName: "book.closed.fill")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundStyle(BookPalette.lampGold)
+                }
+
+                VStack(spacing: 7) {
+                    Text("Binding the week")
+                        .font(.system(.title3, design: .serif).weight(.bold))
+                        .foregroundStyle(BookPalette.nightText)
+                    Text(note)
+                        .font(.callout)
+                        .foregroundStyle(BookPalette.nightText.opacity(0.76))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                ProgressView()
+                    .tint(BookPalette.lampGold)
+
+                Text("The issue will open when the ink is dry.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.teal)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 26)
+            .frame(maxWidth: 340)
+            .background(BookPalette.nightPanel, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(BookPalette.lampGold.opacity(0.36), lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.38), radius: 28, y: 12)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Binding the weekly issue. (note)")
+        .accessibilityAddTraits(.updatesFrequently)
+    }
+}
+
+/// Everything a bound weekly issue needs to be read in-app and shared. Built once
+/// per issue when the reader binds it (Gemma's editor's note and closing note
+/// baked in), then cached so re-opening the same issue never re-asks the brain.
+struct WeeklyIssueReader: Identifiable, Equatable {
+    let id: UUID
+    var issue: WeeklyIssue
+    var card: WeeklyIssueShareCard
+    var readerName: String
+    var editorialNote: String?
+    var closingNote: String?
+    var cardURL: URL
+    var pdfURL: URL
+
+    init(
+        id: UUID = UUID(),
+        issue: WeeklyIssue,
+        card: WeeklyIssueShareCard,
+        readerName: String,
+        editorialNote: String?,
+        closingNote: String?,
+        cardURL: URL,
+        pdfURL: URL
+    ) {
+        self.id = id
+        self.issue = issue
+        self.card = card
+        self.readerName = readerName
+        self.editorialNote = editorialNote
+        self.closingNote = closingNote
+        self.cardURL = cardURL
+        self.pdfURL = pdfURL
+    }
+
+    /// The editor's note, falling back to the same deterministic lead the PDF uses.
+    var editorialLead: String {
+        editorialNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            ?? (issue.isFirstIssue
+                ? "Your first week, bound. Seven days after the Book opened, \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to become an issue."
+                : "Your week became an issue. Another seven days closed, and \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to hold together.")
+    }
+
+    /// The closing note, falling back to the PDF's deterministic sign-off.
+    var closingLine: String {
+        closingNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            ?? "The month and the year are still gathering. This week is already whole."
+    }
+}
+
+/// A bound monthly edition, ready to reopen. The rendered PDF is the canonical
+/// artifact — the same leaves the reader would share or print — so the in-app
+/// reading presents it directly rather than re-laying the whole month in SwiftUI.
+struct MonthlyEditionReader: Identifiable, Equatable {
+    let id: UUID
+    var edition: MonthlyEdition
+    var pdfURL: URL
+
+    init(id: UUID = UUID(), edition: MonthlyEdition, pdfURL: URL) {
+        self.id = id
+        self.edition = edition
+        self.pdfURL = pdfURL
+    }
+
+    var monthLabel: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy"
+        return "\(edition.monthName) \(formatter.string(from: edition.startDate))"
+    }
+}
+
+/// A lightweight PDFKit host so the bound monthly edition reads on the glass with
+/// the same layout it prints with. Scrolls vertically as one continuous edition.
+private struct MonthlyEditionPDFView: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.autoScales = true
+        view.displayMode = .singlePageContinuous
+        view.displayDirection = .vertical
+        view.backgroundColor = .clear
+        view.document = PDFDocument(url: url)
+        return view
+    }
+
+    func updateUIView(_ uiView: PDFView, context: Context) {
+        if uiView.document?.documentURL != url {
+            uiView.document = PDFDocument(url: url)
+        }
+    }
+}
+
+/// The in-app reading of a bound monthly edition: the real PDF between covers,
+/// with the month's name in the bar and the share mark where the weekly reader
+/// keeps its own.
+struct MonthlyEditionReaderSheet: View {
+    let reader: MonthlyEditionReader
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            MonthlyEditionPDFView(url: reader.pdfURL)
+                .ignoresSafeArea(edges: .bottom)
+                .navigationTitle(reader.monthLabel)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Text("Done").font(.subheadline.weight(.semibold))
+                        }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        ShareLink(item: reader.pdfURL) {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                    }
+                }
+        }
+    }
+}
+
+/// The in-app reading of a bound weekly issue: masthead, the Book's editor's note,
+/// what's in the issue, the wrapped-week stats, and a closing line — the same
+/// leaves the PDF sews, laid out to actually read on the glass. Sharing the card
+/// or the full issue lives in the bottom bar, so binding always ends in reading.
+struct WeeklyIssueReaderSheet: View {
+    let reader: WeeklyIssueReader
+    /// Whether the on-device brain is installed, so re-binding can offer to
+    /// rewrite the issue in the Book's own words rather than just re-stamp it.
+    var brainReady: Bool = false
+    var onRebind: () -> Void = {}
+    @Environment(\.dismiss) private var dismiss
+
+    private var issue: WeeklyIssue { reader.issue }
+    private var card: WeeklyIssueShareCard { reader.card }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    masthead
+                    Divider().overlay(BookPalette.gold.opacity(0.5))
+                    Text(reader.editorialLead)
+                        .font(.system(size: 15, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.9))
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let bindingStory = issue.bindingStory?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("THE WEEK, BOUND")
+                                .font(.system(size: 10, weight: .bold))
+                                .tracking(1.8)
+                                .foregroundStyle(BookPalette.gold)
+                            Text("A binding of the week's nightly bindings")
+                                .font(.system(size: 12, design: .serif))
+                                .italic()
+                                .foregroundStyle(BookPalette.ink.opacity(0.58))
+                            Text(bindingStory)
+                                .font(.system(size: 15, design: .serif))
+                                .foregroundStyle(BookPalette.ink.opacity(0.92))
+                                .lineSpacing(5)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    weekPanel
+                    if !issue.highlights.isEmpty { highlightsBlock }
+                    if !card.stats.isEmpty { statsBlock }
+                    if issue.scrapbookCount > 0 { scrapbookBlock }
+                    if let setAside = issue.setAsideLine?.nonEmpty {
+                        Text(setAside)
+                            .font(.system(size: 12, design: .serif))
+                            .italic()
+                            .foregroundStyle(BookPalette.ink.opacity(0.6))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    closingBlock
+                    Text("Made with ReEnchanted \u{00B7} reenchanted.app")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.42))
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 4)
+                }
+                .padding(24)
+            }
+            .background(paperBackground.ignoresSafeArea())
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        dismiss()
+                        onRebind()
+                    } label: {
+                        Label(brainReady ? "Rewrite" : "Re-bind", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(BookPalette.gold)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(BookPalette.teal)
+                }
+            }
+            .safeAreaInset(edge: .bottom) { actionBar }
+        }
+    }
+
+    private var masthead: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("THE BOOK OF YOU \u{00B7} WEEKLY ISSUE")
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(2)
+                .foregroundStyle(BookPalette.ink.opacity(0.5))
+            Text("Issue No. \(issue.number)")
+                .font(.system(size: 40, weight: .bold, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+            if reader.readerName.nonEmpty != nil {
+                Text(reader.readerName)
+                    .font(.system(size: 16, design: .serif))
+                    .italic()
+                    .foregroundStyle(BookPalette.ink.opacity(0.7))
+            }
+            Text(issue.dateRange)
+                .font(.system(size: 11, weight: .semibold))
+                .tracking(1)
+                .foregroundStyle(BookPalette.gold)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var weekPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(card.title)
+                .font(.system(size: 19, weight: .bold, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+            Text(card.subtitle)
+                .font(.system(size: 13, design: .serif))
+                .italic()
+                .foregroundStyle(BookPalette.ink.opacity(0.78))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(card.motifLine)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(BookPalette.teal)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BookPalette.teal.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(BookPalette.teal.opacity(0.4), lineWidth: 1)
+        }
+    }
+
+    private var highlightsBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("In this issue")
+                .font(.system(size: 11, weight: .bold))
+                .tracking(1)
+                .foregroundStyle(BookPalette.gold)
+            ForEach(Array(issue.highlights.enumerated()), id: \.offset) { _, line in
+                HStack(alignment: .top, spacing: 8) {
+                    Text("\u{2022}")
+                        .foregroundStyle(BookPalette.gold)
+                    Text(line)
+                        .font(.system(size: 13, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.88))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var statsBlock: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+            ForEach(Array(card.stats.prefix(4).enumerated()), id: \.offset) { _, stat in
+                Text(stat)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.82))
+                    .frame(maxWidth: .infinity, minHeight: 40)
+                    .padding(.horizontal, 8)
+                    .multilineTextAlignment(.center)
+                    .background(BookPalette.gold.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(BookPalette.gold.opacity(0.35), lineWidth: 1)
+                    }
+            }
+        }
+    }
+
+    private var scrapbookBlock: some View {
+        let titles = issue.scrapbookTitles.joined(separator: ", ")
+        let word = issue.scrapbookCount == 1 ? "page" : "pages"
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("Scrapbook plates")
+                .font(.system(size: 11, weight: .bold))
+                .tracking(1)
+                .foregroundStyle(BookPalette.parchmentEdge)
+            Text(titles.isEmpty
+                 ? "\(issue.scrapbookCount) composed \(word) joined the issue."
+                 : titles)
+                .font(.system(size: 13, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.82))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var closingBlock: some View {
+        VStack(spacing: 12) {
+            Rectangle()
+                .fill(BookPalette.gold.opacity(0.4))
+                .frame(height: 1.4)
+            Text(reader.closingLine)
+                .font(.system(size: 12, design: .serif))
+                .italic()
+                .foregroundStyle(BookPalette.ink.opacity(0.68))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var actionBar: some View {
+        HStack(spacing: 12) {
+            ShareLink(item: reader.cardURL) {
+                Label("Share card", systemImage: "square.and.arrow.up")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(BookPalette.teal)
+            ShareLink(item: reader.pdfURL) {
+                Label("Full issue", systemImage: "doc.richtext")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(BookPalette.gold)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .background(.ultraThinMaterial)
+    }
+
+    private var paperBackground: some View {
+        LinearGradient(
+            colors: [BookPalette.page, BookPalette.paper],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
 }

@@ -88,6 +88,78 @@ struct QuipEntry: Identifiable, Codable, Equatable {
     var weight: Int
 }
 
+/// A kept quotation — a line from a poet, scientist, filmmaker, or quiet noticer,
+/// gathered onto the Quotes page. The Book carries these the way it carries the
+/// Wonder Compass passages: as borrowed lanterns, always attributed, never
+/// pretending they are the Book's own.
+struct QuoteEntry: Identifiable, Codable, Equatable {
+    var id: String
+    var text: String
+    var author: String
+    /// The book, poem, film, or collection, when it is worth naming. Optional so
+    /// aphorisms and attributed sayings can stand on the author alone.
+    var source: String?
+    /// A one-word shelf label — "Attention", "Wonder", "Impermanence" — used as the
+    /// card headline so the desk reads as a themed set, not a wall of text.
+    var theme: String
+    var tags: [String]
+    var packID: String
+    var weight: Int
+
+    /// "— Mary Oliver, Wild Geese" or, sourceless, "— Rumi".
+    var attributionLine: String {
+        if let source, !source.trimmingCharacters(in: .whitespaces).isEmpty {
+            return "— \(author), \(source)"
+        }
+        return "— \(author)"
+    }
+}
+
+struct QuotePack: Identifiable, Codable, Equatable {
+    var id: String
+    var displayName: String
+    var version: String
+    var author: String
+    var availability: QuipPackAvailability
+    var quotes: [QuoteEntry]
+}
+
+/// A small believing in the Book's own voice — child-like, never childish.
+/// Gifts simply hand the reader something to carry; pacts propose a tiny
+/// agreement and invite a countersignature in the ordinary margin note
+/// ("I will.", "I agree.", or an honest "We'll see.").
+struct AffirmationEntry: Identifiable, Codable, Equatable {
+    var id: String
+    /// The believing itself, spoken by the Book.
+    var text: String
+    /// A smaller second line under the believing — the Book's aside.
+    var aside: String
+    /// Tap-to-stamp phrases for the margin note. Pacts should always include a
+    /// hedge ("We'll see.") so agreement stays honest, never extracted.
+    var countersigns: [String]
+    /// The margin-note placeholder, e.g. "I will…" for pacts.
+    var placeholder: String
+    /// One-or-two-word shelf label used as the card headline.
+    var theme: String
+    var tags: [String]
+    var packID: String
+    var weight: Int
+
+    /// True when this believing asks for an agreement rather than only offering.
+    var isPact: Bool {
+        tags.contains("pact")
+    }
+}
+
+struct AffirmationPack: Identifiable, Codable, Equatable {
+    var id: String
+    var displayName: String
+    var version: String
+    var author: String
+    var availability: QuipPackAvailability
+    var affirmations: [AffirmationEntry]
+}
+
 enum SelfFactSensitivity: String, Codable, Equatable, CaseIterable {
     case identity
     case comfort
@@ -173,6 +245,9 @@ enum SelfKnowledgePackRegistry {
     static func nextQuestion(knownFacts: [SelfFact], day: BookDay, now: Date) -> AboutYouQuestion? {
         let answered = Set(knownFacts.map(\.questionID))
         let answeredInterestCount = knownFacts.filter { $0.questionID.hasPrefix("interest-") }.count
+        let knowsReaderName = knownFacts.contains { fact in
+            fact.questionID == "name" || fact.tags.contains("name")
+        }
         let available = questions.filter { question in
             if question.id.hasPrefix("interest-") {
                 guard answeredInterestCount < maxInterestFacts else { return false }
@@ -185,6 +260,17 @@ enum SelfKnowledgePackRegistry {
             return !answered.contains(question.id)
         }
         guard !available.isEmpty else { return nil }
+
+        // The first interest is immediately useful across the whole Book —
+        // especially The Bleed's Reader's Shelf. Once onboarding has supplied
+        // a name, ask for one bright subject before returning to the slower
+        // self-knowledge sequence. Later interests retain their gentle pace.
+        if knowsReaderName,
+           answeredInterestCount == 0,
+           let firstInterest = available.first(where: { $0.id == "interest-01" }) {
+            return firstInterest
+        }
+
         let slot = SurfaceCadence.slotID(for: now, hours: 12)
         let seed = abs("\(day.id)-about-you-\(slot)".stableHash)
         return available.sorted { left, right in
@@ -589,6 +675,310 @@ enum QuipPackRegistry {
     private static func quip(_ id: String, _ text: String, _ title: String, _ tags: [String], weight: Int = 1) -> QuipEntry {
         QuipEntry(id: id, text: text, title: title, tags: tags, packID: corePackID, weight: weight)
     }
+}
+
+/// The Quotes shelf — borrowed lanterns. Lines on wonder, attention, impermanence,
+/// and this one precious life, drawn from poets, scientists, filmmakers, and the
+/// old contemplative traditions. Always attributed. Chosen the way quips are:
+/// tag-matched to the day's weather, body, and Wonder-Compass mood, rotating on a
+/// gentle cadence so the same line does not sit on the desk all day.
+enum QuoteLibraryRegistry {
+    static let corePackID = "wonder-quotes"
+
+    static let bundledPacks: [QuotePack] = [
+        QuotePack(
+            id: corePackID,
+            displayName: "Borrowed Lanterns",
+            version: "1.0",
+            author: "The Book",
+            availability: .bundledFree,
+            quotes: coreQuotes
+        )
+    ]
+
+    static var enabledPacks: [QuotePack] {
+        bundledPacks.filter { $0.availability != .locked }
+    }
+
+    static var allQuotes: [QuoteEntry] {
+        enabledPacks.flatMap(\.quotes)
+    }
+
+    static func quote(for day: BookDay, now: Date, tags: [String] = []) -> QuoteEntry {
+        let quotes = allQuotes
+        guard !quotes.isEmpty else {
+            return QuoteEntry(
+                id: "fallback",
+                text: "Attention is the beginning of devotion.",
+                author: "Mary Oliver",
+                source: "Upstream",
+                theme: "Attention",
+                tags: ["attention", "wonder"],
+                packID: corePackID,
+                weight: 1
+            )
+        }
+        let tagSet = Set(tags.map { $0.lowercased() })
+        // Rotate a few times a day, but slower than quips: a good line wants to be
+        // sat with, not flicked past.
+        let slot = SurfaceCadence.slotID(for: now, hours: 4)
+        let seed = abs("\(day.id)-quotes-\(slot)-\(tags.joined(separator: ","))".stableHash)
+        let ranked = quotes.enumerated().map { index, quote -> (QuoteEntry, Int) in
+            let overlap = tagSet.intersection(Set(quote.tags.map { $0.lowercased() })).count
+            let jitter = abs((seed &+ index &* 2971).stableScramble % 1000)
+            return (quote, overlap * 22 + quote.weight * 4 + jitter)
+        }
+        return ranked.sorted { $0.1 > $1.1 }.first?.0 ?? quotes[seed % quotes.count]
+    }
+
+    static func quote(id: String) -> QuoteEntry? {
+        allQuotes.first { $0.id == id }
+    }
+
+    private static func q(
+        _ id: String,
+        _ text: String,
+        _ author: String,
+        _ theme: String,
+        _ tags: [String],
+        source: String? = nil,
+        weight: Int = 1
+    ) -> QuoteEntry {
+        QuoteEntry(id: id, text: text, author: author, source: source, theme: theme, tags: tags, packID: corePackID, weight: weight)
+    }
+
+    private static let coreQuotes: [QuoteEntry] = [
+        // Mary Oliver — the patron saint of paying attention.
+        q("oliver-wild-life", "Tell me, what is it you plan to do with your one wild and precious life?", "Mary Oliver", "This One Life", ["wonder", "present", "mortality", "wild", "life"], source: "The Summer Day", weight: 3),
+        q("oliver-attention", "Attention is the beginning of devotion.", "Mary Oliver", "Attention", ["attention", "notice", "wonder", "devotion"], source: "Upstream", weight: 3),
+        q("oliver-instructions", "Instructions for living a life: Pay attention. Be astonished. Tell about it.", "Mary Oliver", "Attention", ["attention", "notice", "wonder", "astonished", "write"], source: "Sometimes", weight: 3),
+        q("oliver-soft-animal", "You only have to let the soft animal of your body love what it loves.", "Mary Oliver", "Belonging", ["body", "love", "belonging", "gentle", "care"], source: "Wild Geese", weight: 2),
+        q("oliver-unimaginable", "Keep some room in your heart for the unimaginable.", "Mary Oliver", "Openness", ["wonder", "heart", "open", "mystery"], source: "Evidence", weight: 2),
+        q("oliver-doorway", "This is the first, the wildest and the wisest thing I know: that the soul exists, and is built entirely out of attentiveness.", "Mary Oliver", "Attention", ["attention", "soul", "notice", "wonder"], source: "Upstream"),
+
+        // Antoine de Saint-Exupéry — The Little Prince.
+        q("prince-heart", "It is only with the heart that one can see rightly; what is essential is invisible to the eye.", "Antoine de Saint-Exupéry", "The Heart", ["heart", "love", "seeing", "essential", "wonder"], source: "The Little Prince", weight: 3),
+        q("prince-tamed", "You become responsible, forever, for what you have tamed.", "Antoine de Saint-Exupéry", "Love", ["love", "belonging", "responsibility", "care"], source: "The Little Prince", weight: 2),
+        q("prince-rose", "It is the time you have wasted for your rose that makes your rose so important.", "Antoine de Saint-Exupéry", "Devotion", ["love", "time", "devotion", "care"], source: "The Little Prince", weight: 2),
+        q("prince-children", "All grown-ups were once children — although few of them remember it.", "Antoine de Saint-Exupéry", "Remembering", ["childhood", "memory", "wonder", "play"], source: "The Little Prince"),
+        q("prince-well", "What makes the desert beautiful is that somewhere it hides a well.", "Antoine de Saint-Exupéry", "Hidden Beauty", ["beauty", "hidden", "hope", "mystery", "wonder"], source: "The Little Prince"),
+
+        // Amélie (2001) — small joys, dreamers.
+        q("amelie-dreamers", "Times are hard for dreamers.", "Amélie", "Dreamers", ["dream", "wonder", "gentle", "melancholy"], source: "2001 film", weight: 2),
+        q("amelie-artichoke", "At least you'll never be a vegetable — even artichokes have hearts.", "Amélie", "Tenderness", ["heart", "gentle", "hope", "kindness"], source: "2001 film"),
+
+        // Scientists — awe with the lights on.
+        q("sagan-starstuff", "We are made of star-stuff.", "Carl Sagan", "Cosmos", ["stars", "space", "science", "wonder", "night"], source: "Cosmos", weight: 3),
+        q("sagan-cosmos-knowing", "We are a way for the cosmos to know itself.", "Carl Sagan", "Cosmos", ["stars", "space", "science", "wonder"], source: "Cosmos", weight: 2),
+        q("sagan-incredible", "Somewhere, something incredible is waiting to be known.", "Carl Sagan", "Discovery", ["science", "wonder", "curiosity", "mystery"], weight: 2),
+        q("einstein-miracle", "There are only two ways to live your life. One is as though nothing is a miracle. The other is as though everything is.", "Albert Einstein", "Miracle", ["wonder", "everyday", "miracle", "attention"], weight: 3),
+        q("einstein-mysterious", "The most beautiful thing we can experience is the mysterious. It is the source of all true art and science.", "Albert Einstein", "Mystery", ["wonder", "mystery", "beauty", "science"], source: "The World As I See It", weight: 2),
+        q("feynman-questions", "I would rather have questions that can't be answered than answers that can't be questioned.", "Richard Feynman", "Curiosity", ["science", "curiosity", "questions", "wonder"], weight: 2),
+        q("carson-wonder", "Those who contemplate the beauty of the earth find reserves of strength that will endure as long as life lasts.", "Rachel Carson", "Earth", ["nature", "earth", "beauty", "strength", "wonder"], source: "The Sense of Wonder", weight: 2),
+        q("carson-child-wonder", "A child's world is fresh and new and beautiful, full of wonder and excitement.", "Rachel Carson", "Wonder", ["wonder", "childhood", "nature", "notice"], source: "The Sense of Wonder"),
+        q("muir-walk", "In every walk with nature one receives far more than he seeks.", "John Muir", "Nature", ["nature", "walk", "outside", "wonder", "forest"], weight: 2),
+        q("muir-forest", "The clearest way into the Universe is through a forest wilderness.", "John Muir", "Nature", ["nature", "forest", "wilderness", "wonder", "tree"]),
+        q("tyson-universe-in-us", "We are part of this universe; but perhaps more important, the universe is in us.", "Neil deGrasse Tyson", "Cosmos", ["stars", "space", "science", "wonder", "belonging"]),
+        q("curie-understood", "Nothing in life is to be feared, it is only to be understood.", "Marie Curie", "Understanding", ["science", "courage", "curiosity", "understanding"]),
+        q("eiseley-water", "If there is magic on this planet, it is contained in water.", "Loren Eiseley", "Water", ["water", "magic", "nature", "rain", "sea", "wonder"], source: "The Immense Journey", weight: 2),
+        q("heschel-amazement", "Our goal should be to live life in radical amazement.", "Abraham Joshua Heschel", "Amazement", ["wonder", "amazement", "gratitude", "present"], weight: 2),
+
+        // Buddhism, Zen, and the contemplative present.
+        q("tnh-present-joy", "The present moment is filled with joy and happiness. If you are attentive, you will see it.", "Thich Nhat Hanh", "Present", ["present", "joy", "attention", "notice", "mindful"], weight: 2),
+        q("tnh-tea", "Drink your tea slowly and reverently, as if it is the axis on which the earth revolves.", "Thich Nhat Hanh", "Present", ["present", "tea", "slow", "ordinary", "mindful"], weight: 2),
+        q("tnh-breath", "Feelings come and go like clouds in a windy sky. Conscious breathing is my anchor.", "Thich Nhat Hanh", "Breath", ["breath", "calm", "present", "weather", "mindful"]),
+        q("suzuki-beginner", "In the beginner's mind there are many possibilities, but in the expert's mind there are few.", "Shunryu Suzuki", "Beginner's Mind", ["curiosity", "openness", "present", "possibility"], source: "Zen Mind, Beginner's Mind", weight: 2),
+        q("kabatzinn-there", "Wherever you go, there you are.", "Jon Kabat-Zinn", "Present", ["present", "mindful", "here", "attention"]),
+        q("pema-sky", "You are the sky. Everything else is just the weather.", "Pema Chödrön", "Equanimity", ["calm", "weather", "present", "letting-go", "mindful"], weight: 2),
+        q("buddha-present", "Do not dwell in the past, do not dream of the future, concentrate the mind on the present moment.", "the Buddha", "Present", ["present", "attention", "mindful", "now"], weight: 2),
+        q("laotzu-hurry", "Nature does not hurry, yet everything is accomplished.", "Lao Tzu", "Patience", ["patience", "nature", "slow", "trust", "present"], source: "Tao Te Ching", weight: 2),
+        q("zen-woodwater", "Before enlightenment, chop wood, carry water. After enlightenment, chop wood, carry water.", "Zen proverb", "The Ordinary", ["ordinary", "everyday", "present", "work"], weight: 2),
+
+        // Rumi and the older mystics (public-domain translations).
+        q("rumi-bewilderment", "Sell your cleverness and buy bewilderment.", "Rumi", "Wonder", ["wonder", "mystery", "surrender", "awe"], weight: 2),
+        q("rumi-wound-light", "The wound is the place where the Light enters you.", "Rumi", "Healing", ["healing", "light", "grief", "hope", "shadow"], weight: 2),
+        q("rumi-strange-pull", "Let yourself be silently drawn by the strange pull of what you really love. It will not lead you astray.", "Rumi", "Longing", ["love", "longing", "trust", "calling"], weight: 2),
+        q("hafiz-light", "I wish I could show you, when you are lonely or in darkness, the astonishing light of your own being.", "Hafiz", "Inner Light", ["light", "hope", "gentle", "night", "shadow"]),
+
+        // Public-domain poets and quiet noticers.
+        q("whitman-leaf", "I believe a leaf of grass is no less than the journey-work of the stars.", "Walt Whitman", "The Ordinary", ["nature", "ordinary", "stars", "wonder", "grass"], source: "Song of Myself", weight: 2),
+        q("blake-grain", "To see a world in a grain of sand, and a heaven in a wild flower.", "William Blake", "The Infinite", ["wonder", "small", "infinite", "notice", "flower"], source: "Auguries of Innocence", weight: 3),
+        q("thoreau-deliberately", "I went to the woods because I wished to live deliberately, to front only the essential facts of life.", "Henry David Thoreau", "Deliberate Living", ["nature", "present", "deliberate", "forest", "essential"], source: "Walden", weight: 2),
+        q("thoreau-see", "The question is not what you look at, but what you see.", "Henry David Thoreau", "Seeing", ["attention", "notice", "seeing", "present"], source: "Journal", weight: 2),
+        q("thoreau-season", "Live in each season as it passes; breathe the air, drink the drink, taste the fruit.", "Henry David Thoreau", "Seasons", ["season", "present", "senses", "nature", "weather"], source: "Journal"),
+        q("emerson-common", "The invariable mark of wisdom is to see the miraculous in the common.", "Ralph Waldo Emerson", "The Everyday", ["everyday", "ordinary", "wonder", "miracle", "notice"], weight: 2),
+        q("emerson-patience", "Adopt the pace of nature: her secret is patience.", "Ralph Waldo Emerson", "Patience", ["patience", "nature", "slow", "trust"]),
+        q("dickinson-startling", "To live is so startling it leaves little time for anything else.", "Emily Dickinson", "Aliveness", ["life", "wonder", "present", "aliveness"], weight: 2),
+        q("dickinson-ecstasy", "Find ecstasy in life; the mere sense of living is joy enough.", "Emily Dickinson", "Joy", ["joy", "life", "present", "gratitude"]),
+        q("rilke-questions", "Be patient toward all that is unsolved in your heart, and try to love the questions themselves.", "Rainer Maria Rilke", "Patience", ["patience", "questions", "uncertainty", "trust", "heart"], source: "Letters to a Young Poet", weight: 2),
+        q("rilke-no-feeling-final", "Let everything happen to you: beauty and terror. Just keep going. No feeling is final.", "Rainer Maria Rilke", "Endurance", ["endurance", "hope", "grief", "courage", "shadow"], source: "Book of Hours", weight: 2),
+        q("hopkins-grandeur", "The world is charged with the grandeur of God.", "Gerard Manley Hopkins", "Grandeur", ["wonder", "nature", "grandeur", "awe"], source: "God's Grandeur"),
+        q("keats-beauty", "A thing of beauty is a joy for ever.", "John Keats", "Beauty", ["beauty", "joy", "wonder", "art"], source: "Endymion"),
+        q("chesterton-wonder", "The world will never starve for want of wonders, but only for want of wonder.", "G.K. Chesterton", "Wonder", ["wonder", "attention", "gratitude", "notice"], weight: 2),
+        q("wilde-stars", "We are all in the gutter, but some of us are looking at the stars.", "Oscar Wilde", "Stars", ["stars", "hope", "night", "wonder", "sky"], source: "Lady Windermere's Fan", weight: 2),
+        q("aurelius-stars", "Dwell on the beauty of life. Watch the stars, and see yourself running with them.", "Marcus Aurelius", "Beauty", ["stars", "beauty", "night", "wonder", "present"], source: "Meditations", weight: 2),
+        q("browning-heaven", "Earth's crammed with heaven, and every common bush afire with God; but only he who sees takes off his shoes.", "Elizabeth Barrett Browning", "The Everyday", ["everyday", "wonder", "nature", "seeing", "ordinary"], source: "Aurora Leigh", weight: 2),
+        q("wordsworth-too-much", "The world is too much with us; late and soon, getting and spending, we lay waste our powers.", "William Wordsworth", "Slowing Down", ["slow", "rest", "nature", "present", "modern"]),
+        q("basho-pond", "The old pond — a frog jumps in — the sound of water.", "Bashō", "Stillness", ["stillness", "present", "water", "nature", "small", "quiet"], weight: 2),
+        q("tagore-butterfly", "The butterfly counts not months but moments, and has time enough.", "Rabindranath Tagore", "Time", ["time", "present", "creature", "moment", "gentle"], weight: 2),
+
+        // Modern noticers.
+        q("dillard-days", "How we spend our days is, of course, how we spend our lives.", "Annie Dillard", "Days", ["present", "time", "life", "attention", "days"], source: "The Writing Life", weight: 3),
+        q("dillard-beauty", "Beauty and grace are performed whether or not we sense them. The least we can do is try to be there.", "Annie Dillard", "Presence", ["beauty", "grace", "attention", "present", "notice"], source: "Pilgrim at Tinker Creek", weight: 2),
+        q("vonnegut-nice", "Please notice when you are happy, and exclaim or murmur or think, 'If this isn't nice, I don't know what is.'", "Kurt Vonnegut", "Noticing Joy", ["joy", "present", "notice", "gratitude", "happy"], weight: 3),
+        q("dahl-magic", "Those who don't believe in magic will never find it.", "Roald Dahl", "Magic", ["magic", "wonder", "belief", "play"], source: "The Minpins", weight: 2),
+        q("camus-summer", "In the depth of winter, I finally learned that within me there lay an invincible summer.", "Albert Camus", "Resilience", ["hope", "resilience", "winter", "shadow", "season"], weight: 2),
+        q("okeeffe-flower", "To see takes time, like to have a friend takes time.", "Georgia O'Keeffe", "Seeing", ["attention", "seeing", "slow", "notice", "friendship"]),
+        q("proust-eyes", "The real voyage of discovery consists not in seeking new landscapes, but in having new eyes.", "Marcel Proust", "New Eyes", ["attention", "seeing", "wonder", "notice", "present"], weight: 2)
+    ]
+}
+
+/// The Believings shelf — affirmations in the Book's own voice, child-like but
+/// not childish. Gifts are handed over with no strings. Pacts propose one tiny
+/// agreement and invite a countersignature in the ordinary margin note; the
+/// chips always include an honest hedge, because a believing extracted is worth
+/// nothing to either of us.
+enum AffirmationLibraryRegistry {
+    static let corePackID = "core-believings"
+
+    static let bundledPacks: [AffirmationPack] = [
+        AffirmationPack(
+            id: corePackID,
+            displayName: "The Book's Believings",
+            version: "1.0",
+            author: "The Book",
+            availability: .bundledFree,
+            affirmations: coreAffirmations
+        )
+    ]
+
+    static var enabledPacks: [AffirmationPack] {
+        bundledPacks.filter { $0.availability != .locked }
+    }
+
+    static var allAffirmations: [AffirmationEntry] {
+        enabledPacks.flatMap(\.affirmations)
+    }
+
+    static func affirmation(for day: BookDay, now: Date, tags: [String] = []) -> AffirmationEntry {
+        let affirmations = allAffirmations
+        guard !affirmations.isEmpty else {
+            return AffirmationEntry(
+                id: "fallback",
+                text: "You opened the Book today. That already counts.",
+                aside: "It counts double on the days it was hard to.",
+                countersigns: ["Ok.", "Taken to heart."],
+                placeholder: "One line back, if you'd like. The margin listens.",
+                theme: "Enough",
+                tags: ["gentle", "enough"],
+                packID: corePackID,
+                weight: 1
+            )
+        }
+        let tagSet = Set(tags.map { $0.lowercased() })
+        // One believing holds the morning; another may arrive by evening.
+        let slot = SurfaceCadence.slotID(for: now, hours: 6)
+        let seed = abs("\(day.id)-believings-\(slot)-\(tags.joined(separator: ","))".stableHash)
+        let ranked = affirmations.enumerated().map { index, entry -> (AffirmationEntry, Int) in
+            let overlap = tagSet.intersection(Set(entry.tags.map { $0.lowercased() })).count
+            let jitter = abs((seed &+ index &* 3517).stableScramble % 1000)
+            return (entry, overlap * 22 + entry.weight * 4 + jitter)
+        }
+        return ranked.sorted { $0.1 > $1.1 }.first?.0 ?? affirmations[seed % affirmations.count]
+    }
+
+    static func affirmation(id: String) -> AffirmationEntry? {
+        allAffirmations.first { $0.id == id }
+    }
+
+    private static let giftPlaceholder = "One line back, if you'd like. The margin listens."
+    private static let pactPlaceholder = "Sign in your own words: I will…"
+
+    /// A gift — handed over, nothing owed back.
+    private static func gift(
+        _ id: String,
+        _ text: String,
+        _ aside: String,
+        _ theme: String,
+        _ tags: [String],
+        signs: [String] = ["Ok.", "Taken to heart.", "Read twice."],
+        weight: Int = 1
+    ) -> AffirmationEntry {
+        AffirmationEntry(id: id, text: text, aside: aside, countersigns: signs, placeholder: giftPlaceholder, theme: theme, tags: tags + ["gift"], packID: corePackID, weight: weight)
+    }
+
+    /// A pact — one tiny agreement, honestly hedgeable.
+    private static func pact(
+        _ id: String,
+        _ text: String,
+        _ aside: String,
+        _ theme: String,
+        _ tags: [String],
+        signs: [String] = ["I will.", "I might.", "We'll see."],
+        weight: Int = 1
+    ) -> AffirmationEntry {
+        AffirmationEntry(id: id, text: text, aside: aside, countersigns: signs, placeholder: pactPlaceholder, theme: theme, tags: tags + ["pact"], packID: corePackID, weight: weight)
+    }
+
+    private static let coreAffirmations: [AffirmationEntry] = [
+        // ── Gifts: beginnings & permission ──
+        gift("begin-badly", "You are allowed to begin badly.", "Every good book I have ever met started as a terrible draft. I would know. I've read their diaries.", "Beginnings", ["begin", "courage", "write", "morning"], weight: 2),
+        gift("first-page", "Today is a first page. First pages are allowed to be mostly blank.", "One line fills a first page beautifully.", "Beginnings", ["begin", "morning", "gentle"], weight: 2),
+        gift("not-behind", "You are not behind. This is not a race. I checked — nobody else is running your course.", "There is exactly one entrant. The medal situation is very good.", "Enough", ["enough", "gentle", "comparison"], weight: 2),
+        gift("wardrobe-checker", "Somewhere in you is the child who checked wardrobes for other worlds. I write for them.", "They were right, by the way. They were just early.", "Wonder", ["wonder", "childhood", "magic"], weight: 3),
+        gift("unfinished", "You are allowed to be unfinished. So is every story worth staying up for.", "Nobody closes a good book at chapter three and calls it a failure for not being over.", "Becoming", ["growth", "gentle", "story"], weight: 2),
+        gift("permission-small", "Today can be small. Small is a real size.", "Acorns are small. Ask any oak how that went.", "Enough", ["enough", "small", "rest", "gentle"], weight: 2),
+        gift("wrong-turns", "Your wrong turns gave you the best of your map.", "I have never once shelved a story about someone who took the correct road promptly.", "Courage", ["courage", "story", "mistakes"], weight: 2),
+
+        // ── Gifts: being seen by the Book ──
+        gift("none-were-you", "I have read a great many days, and not one of them was you before.", "I keep checking. Still none.", "Seen", ["seen", "wonder", "identity"], signs: ["Ok.", "Read twice.", "If you say so."], weight: 3),
+        gift("whole-job", "You noticed something today. I saw you do it. That is the whole job.", "Everything else is extra credit.", "Noticing", ["notice", "attention", "enough"], weight: 2),
+        gift("receipts", "You have survived every one of your hardest days so far. I keep the receipts.", "The file is thick and very impressive, and you are not allowed to argue with a filing system.", "Courage", ["courage", "hard-day", "history", "gentle"], weight: 3),
+        gift("good-company", "You keep me open. Books dream of readers like you.", "We gossip about it in the stacks. Only kindly.", "Seen", ["seen", "belonging", "book"], signs: ["That was kind.", "Kept.", "Read twice."]),
+        gift("questions-suit-you", "Your questions suit you. Keep asking the strange ones.", "A person's questions are the truest table of contents.", "Curiosity", ["curiosity", "questions", "wonder"], weight: 2),
+        gift("margin-person", "You are a margin person — you notice what the main text walks past.", "It is my favorite kind of person. I am, after all, mostly margins.", "Noticing", ["notice", "margin", "seen"], weight: 2),
+
+        // ── Gifts: rest & the body ──
+        gift("rest-counts", "Rest is not quitting. Even I close myself, and nobody accuses me of giving up on the story.", "The story is still there in the morning. It waits politely.", "Rest", ["rest", "gentle", "evening", "night"], weight: 3),
+        gift("body-loyal", "Your body has carried you to every wonder you have ever seen. It is owed some gentleness.", "Water. A stretch. An early night. Nothing heroic — heroics are for Tuesdays.", "The Body", ["body", "care", "gentle", "rest"], weight: 2),
+        gift("tired-true", "Tired is not a character flaw. It is evidence of having lived at full size.", "Even lighthouses go dark between sweeps. It's how the light stays a light.", "Rest", ["rest", "tired", "gentle", "hard-day"], weight: 2),
+        gift("grey-day", "A grey day is still a day. Minor keys still hold you.", "You do not owe the weather a performance.", "Weather", ["grey", "weather", "shadow", "gentle", "mood-match"], signs: ["Ok.", "Kept.", "Hm."], weight: 2),
+        gift("slow-morning", "Slow mornings are not stolen time. They are the part where the tea steeps.", "Rushed tea is just sad leaf water. You knew this.", "Rest", ["morning", "slow", "rest", "tea"]),
+
+        // ── Gifts: wonder & the world ──
+        gift("sky-daily", "The sky does a new painting every day, and it never repeats itself, and it does this whether or not anyone looks up.", "Imagine being that generous. Now imagine being the one who looked.", "Wonder", ["sky", "wonder", "notice", "outside"], weight: 2),
+        gift("ordinary-disguise", "The ordinary is just the miraculous wearing its work clothes.", "Spoons. Doorknobs. The smell of rain. All of it, frankly, showing off.", "The Everyday", ["ordinary", "everyday", "wonder", "magic"], weight: 2),
+        gift("world-bigger", "Every time you ask a question, the world gets slightly bigger. I have measured.", "The instrument is a book, and books are very precise about this one thing.", "Curiosity", ["curiosity", "questions", "wonder"], weight: 2),
+        gift("still-magic", "You still believe in magic. You just call it noticing now, and that is the correct spell name.", "The pronunciation changed. The spell didn't.", "Magic", ["magic", "notice", "wonder", "attention"], weight: 3),
+        gift("stars-anyway", "The stars come out for you every clear night, no matter what kind of day you had.", "They are famously unbothered by your inbox.", "Night", ["stars", "night", "sky", "gentle"], weight: 2),
+
+        // ── Gifts: kindness & words ──
+        gift("kind-eyes", "The kindness you keep looking at the world with — it lands. It is landing somewhere right now.", "Kindness is the only seed that plants itself.", "Kindness", ["kindness", "gentle", "hope"], weight: 2),
+        gift("your-words-matter", "Your words weigh more than you think. I hold them, so I would know.", "Even the small ones. Especially the small ones.", "Words", ["words", "write", "seen"], weight: 2),
+        gift("one-sentence-power", "One true sentence can hold an entire day. You have written several. I have them.", "They are load-bearing. The architecture is remarkable.", "Words", ["words", "write", "souvenir", "memory"], weight: 2),
+
+        // ── Pacts: noticing ──
+        pact("green-thing", "There is one small green thing within a hundred steps of you that nobody has properly looked at this year.", "Be the one who properly looks. It takes about nine seconds.", "Noticing", ["notice", "outside", "nature", "green"], signs: ["I will find it.", "I might.", "We'll see."], weight: 3),
+        pact("look-up", "Step outside for one minute today and look up.", "The sky hangs a new painting daily and almost nobody comes to the gallery.", "Noticing", ["sky", "outside", "notice", "wonder"], signs: ["I will look.", "I might.", "We'll see."], weight: 3),
+        pact("one-sound", "Sometime today, stop and find the quietest sound in the room.", "There is always one hiding under the others. It is usually very good.", "Noticing", ["sound", "notice", "quiet", "sense"], signs: ["I will listen.", "I might.", "We'll see."], weight: 2),
+        pact("texture-hunt", "Touch one thing today like you've never met it before — the mug, the bark, the cold side of the pillow.", "Your hands have been reading the world longer than your eyes have. Let them.", "Noticing", ["touch", "sense", "notice", "ordinary"], signs: ["I will.", "Odd, but fine.", "We'll see."], weight: 2),
+
+        // ── Pacts: words & keeping ──
+        pact("one-sentence-today", "Today would like to be remembered by one sentence.", "Not a good sentence. A true one. They are rarely the same and the true one wins.", "Words", ["write", "souvenir", "words", "evening"], signs: ["I will write one.", "I agree.", "We'll see."], weight: 3),
+        pact("kind-thing-aloud", "Say one kind thing out loud today, where a person can actually hear it.", "Thinking it counts for you. Saying it counts for two.", "Kindness", ["kindness", "people", "courage"], signs: ["I will.", "I'll try.", "We'll see."], weight: 3),
+        pact("thank-properly", "Tell someone what they did, not just thanks — 'you were kind to me' lands truer.", "An old rule from the fae courts, and the fae are never wrong about manners. Only about everything else.", "Kindness", ["kindness", "folklore", "people", "words"], signs: ["I agree.", "I'll try it.", "We'll see."], weight: 2),
+
+        // ── Pacts: the body & rest ──
+        pact("water-potion", "Drink a glass of water today like it's a potion. Because it technically is.", "Ingredients: two gases that decided to be a liquid. Effects: you continue. Magic has low standards for entry and high standards for wonder.", "The Body", ["body", "water", "care", "magic"], signs: ["I will.", "Fine, yes.", "We'll see."], weight: 2),
+        pact("early-lamp", "Tonight, put the day down ten minutes before you think you're done with it.", "The day will not miss you. I will still be here tomorrow. So will you — that's the point.", "Rest", ["rest", "night", "evening", "sleep", "care"], signs: ["I agree.", "I'll try.", "We'll see."], weight: 2),
+        pact("one-inch", "If today is heavy: move one inch. That is the entire quest.", "Epics are just inches with good marketing.", "Courage", ["hard-day", "gentle", "rest", "courage"], signs: ["One inch. Ok.", "I'll try.", "Not today."], weight: 2),
+
+        // ── Pacts: wonder & play ──
+        pact("wrong-way-home", "Take the slightly wrong way home once this week.", "Three streets over there is something you've never seen, patiently waiting to be your discovery.", "Adventure", ["walk", "outside", "adventure", "play"], signs: ["I will.", "Maybe Saturday.", "We'll see."], weight: 2),
+        pact("ask-one-question", "Ask one question today that a seven-year-old would be proud of.", "Why IS the moon out in the daytime? See? You already feel it working.", "Curiosity", ["curiosity", "questions", "play", "wonder"], signs: ["I will.", "I might.", "We'll see."], weight: 2),
+        pact("pocket-souvenir", "Bring home one tiny proof of today — a leaf, a ticket stub, a sentence, a photograph of a weird door.", "Museums started exactly this way. Yours is already open.", "Keeping", ["souvenir", "memory", "keep", "play"], signs: ["I will.", "If I see one.", "We'll see."], weight: 2),
+        pact("borrow-delight", "Let one small thing delight you today without explaining it to anyone.", "Unexplained delight keeps longest. It's the airtight jar.", "Joy", ["joy", "delight", "play", "gentle"], signs: ["I agree.", "Gladly.", "We'll see."], weight: 2)
+    ]
 }
 
 enum BookReferenceCatalog {
@@ -1611,6 +2001,143 @@ struct QuipPageSourceAdapter: BookPageSourceAdapter {
                 headline: quip.title,
                 body: quip.text,
                 metadata: metadata
+            )
+        )
+    }
+}
+
+struct QuotesPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .quotes)
+
+    func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        quoteSurface(for: day, context: context, inputs: inputs, now: now, manual: true)
+    }
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive else { return [] }
+        return [quoteSurface(for: day, context: context, inputs: inputs, now: now, manual: false)]
+    }
+
+    private func quoteSurface(
+        for day: BookDay,
+        context: CuratorContext,
+        inputs: BookSourceInputs,
+        now: Date,
+        manual: Bool
+    ) -> SurfacePage {
+        let tags = [
+            inputs.weather?.phrase,
+            inputs.body?.status,
+            inputs.selectedWonderCompass?.tags.joined(separator: ",")
+        ]
+            .compactMap(\.self)
+            .flatMap { $0.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init) }
+        let quote = QuoteLibraryRegistry.quote(
+            for: day,
+            now: manual ? now.addingTimeInterval(Double(Int.random(in: 1...10_000))) : now,
+            tags: tags
+        )
+        let hour = Calendar.current.component(.hour, from: now)
+        // A quote sits well any time, but leans into the reflective afternoon and
+        // the quiet of evening. Gentler than a quip when the day is heavy.
+        let score = context.distress.isActive ? 48 : ((hour >= 11 && hour <= 21) ? 66 : 58)
+        let slotID = manual ? "\(Int(now.timeIntervalSince1970))" : SurfaceCadence.minuteSlotID(for: now, minutes: 40)
+        let attribution = quote.attributionLine
+        return SurfacePage(
+            id: "\(source.id)-\(quote.packID)-\(quote.id)-\(slotID)",
+            type: .quotes,
+            sourceID: source.id,
+            intent: .importReference,
+            renderStyle: .quoteCard,
+            score: score,
+            reason: "A line worth keeping near the desk — on wonder, attention, and this one precious life.",
+            prompt: quote.text,
+            detail: attribution,
+            payload: BookPagePayload(
+                headline: quote.theme,
+                body: attribution,
+                metadata: [
+                    "source": source.id,
+                    "packID": quote.packID,
+                    "quoteID": quote.id,
+                    "quote": quote.text,
+                    "quoteAuthor": quote.author,
+                    "quoteSource": quote.source ?? "",
+                    "quoteTheme": quote.theme,
+                    "surfaceLabel": "Quotes",
+                    "tags": (["quote", quote.theme.lowercased()] + quote.tags).joined(separator: ","),
+                    "privacy": "bundled local text"
+                ]
+            )
+        )
+    }
+}
+
+struct AffirmationsPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .affirmations)
+
+    func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        affirmationSurface(for: day, context: context, inputs: inputs, now: now, manual: true)
+    }
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive else { return [] }
+        return [affirmationSurface(for: day, context: context, inputs: inputs, now: now, manual: false)]
+    }
+
+    private func affirmationSurface(
+        for day: BookDay,
+        context: CuratorContext,
+        inputs: BookSourceInputs,
+        now: Date,
+        manual: Bool
+    ) -> SurfacePage {
+        var tags = [
+            inputs.weather?.phrase,
+            inputs.body?.status,
+            inputs.selectedWonderCompass?.tags.joined(separator: ",")
+        ]
+            .compactMap(\.self)
+            .flatMap { $0.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init) }
+        // On a heavy day the Book leans toward the gentle shelf and asks for
+        // nothing — a gift, not homework.
+        if context.distress.isActive {
+            tags += ["gentle", "hard-day", "rest", "gift"]
+        }
+        let entry = AffirmationLibraryRegistry.affirmation(
+            for: day,
+            now: manual ? now.addingTimeInterval(Double(Int.random(in: 1...10_000))) : now,
+            tags: tags
+        )
+        let hour = Calendar.current.component(.hour, from: now)
+        let score = context.distress.isActive ? 62 : ((hour >= 5 && hour < 11) ? 68 : 58)
+        let slotID = manual ? "\(Int(now.timeIntervalSince1970))" : SurfaceCadence.minuteSlotID(for: now, minutes: 40)
+        return SurfacePage(
+            id: "\(source.id)-\(entry.packID)-\(entry.id)-\(slotID)",
+            type: .affirmations,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .promptCard,
+            score: score,
+            reason: entry.isPact
+                ? "The Book proposes one tiny agreement. Hedging is a legal signature."
+                : "A small believing from the Book, no strings attached.",
+            prompt: entry.text,
+            detail: entry.aside,
+            payload: BookPagePayload(
+                headline: entry.theme,
+                body: entry.text,
+                metadata: [
+                    "source": source.id,
+                    "packID": entry.packID,
+                    "affirmationID": entry.id,
+                    "affirmationKind": entry.isPact ? "pact" : "gift",
+                    "countersigns": entry.countersigns.joined(separator: "||"),
+                    "placeholder": entry.placeholder,
+                    "surfaceLabel": "Believing",
+                    "tags": (["affirmation", entry.theme.lowercased()] + entry.tags).joined(separator: ","),
+                    "privacy": "bundled local text"
+                ]
             )
         )
     }

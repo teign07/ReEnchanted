@@ -1,4 +1,75 @@
 import Foundation
+#if canImport(NaturalLanguage)
+import NaturalLanguage
+#endif
+
+enum SentenceBuilderIntent: String, Codable, Equatable, CaseIterable {
+    case souvenir
+    case marginNote
+    case letterReply
+    case reflection
+    case missionProof
+}
+
+/// Runtime facts about the writing surface. Packs describe a reusable voice and
+/// vocabulary; context describes the page the reader is actually answering.
+/// None of this is persisted by the builder or sent off-device.
+struct SentenceBuilderContext: Equatable {
+    var intent: SentenceBuilderIntent
+    var prompt: String
+    var sourceText: String
+    var tags: [String]
+    var recipientName: String?
+    var weather: String?
+    var timeOfDay: String?
+    var personalWords: [String]
+    var recentMotifs: [String]
+
+    init(
+        intent: SentenceBuilderIntent = .marginNote,
+        prompt: String = "",
+        sourceText: String = "",
+        tags: [String] = [],
+        recipientName: String? = nil,
+        weather: String? = nil,
+        timeOfDay: String? = nil,
+        personalWords: [String] = [],
+        recentMotifs: [String] = []
+    ) {
+        self.intent = intent
+        self.prompt = prompt
+        self.sourceText = sourceText
+        self.tags = tags
+        self.recipientName = recipientName
+        self.weather = weather
+        self.timeOfDay = timeOfDay
+        self.personalWords = personalWords
+        self.recentMotifs = recentMotifs
+    }
+
+    static let empty = SentenceBuilderContext()
+
+    var hasRuntimeClues: Bool {
+        !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !tags.isEmpty
+            || weather?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            || timeOfDay?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            || !personalWords.isEmpty
+            || !recentMotifs.isEmpty
+    }
+}
+
+private struct SentenceContextVocabulary {
+    var anchors: [String] = []
+    var senses: [String] = []
+    var verbs: [String] = []
+    var priority: [String: Int] = [:]
+
+    var isEmpty: Bool {
+        anchors.isEmpty && senses.isEmpty && verbs.isEmpty
+    }
+}
 
 enum SentenceBuilderStepKind: String, Codable, Equatable, CaseIterable {
     case anchor
@@ -1146,9 +1217,33 @@ struct SentenceScaffold: Equatable {
         var updated = tokens
         let cleaned = newWord.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return self }
-        updated[index].word = cleaned
-        updated[index].role = SentenceScaffold.role(for: cleaned, using: pack)
+        let replacement = Self.matchingCapitalization(of: updated[index].word, replacement: cleaned)
+        updated[index].word = replacement
+        updated[index].role = SentenceScaffold.role(for: replacement, using: pack)
+        if index > 0 {
+            let prior = updated[index - 1].word.lowercased()
+            if prior == "a" || prior == "an" {
+                let wantsAn = Self.startsWithVowelSound(replacement)
+                let article = wantsAn ? "an" : "a"
+                updated[index - 1].word = Self.matchingCapitalization(
+                    of: updated[index - 1].word,
+                    replacement: article
+                )
+            }
+        }
         return SentenceScaffold(tokens: updated)
+    }
+
+    private static func matchingCapitalization(of original: String, replacement: String) -> String {
+        guard let first = original.first, first.isUppercase, let replacementFirst = replacement.first else {
+            return replacement
+        }
+        return replacementFirst.uppercased() + replacement.dropFirst()
+    }
+
+    private static func startsWithVowelSound(_ value: String) -> Bool {
+        guard let firstLetter = value.lowercased().first(where: \.isLetter) else { return false }
+        return "aeiou".contains(firstLetter)
     }
 }
 
@@ -1204,6 +1299,7 @@ extension SentenceScaffold {
         if pack.concreteWords.contains(where: { $0.lowercased() == key }) { return .thing }
         if pack.sensoryWords.contains(where: { $0.lowercased() == key }) { return .sense }
         if pack.animateVerbs.contains(where: { $0.lowercased() == key }) { return .motion }
+        if pack.crossingWords.contains(where: { $0.lowercased() == key }) { return .crossing }
         return .plain
     }
 
@@ -1266,9 +1362,10 @@ struct SentenceBuilderAnalysis: Equatable {
     var memoryStrength: Int
     var craftMarks: [SentenceBuilderCraftMark]
     var diagnostics: [SentenceBuilderDiagnostic]
+    var meetsIntentMinimum: Bool
 
     var canStandAsComplete: Bool {
-        wordCount >= 4 && (hasConcreteAnchor || hasSensoryDetail || hasLivingMotion)
+        meetsIntentMinimum
     }
 
     var isVivid: Bool {
@@ -1278,52 +1375,65 @@ struct SentenceBuilderAnalysis: Equatable {
 
 struct SentenceBuilderEngine {
     var pack: SentenceBuilderPack
+    var context: SentenceBuilderContext
 
-    init(pack: SentenceBuilderPack = .core) {
+    init(pack: SentenceBuilderPack = .core, context: SentenceBuilderContext = .empty) {
         self.pack = pack
+        self.context = context
+    }
+
+    /// The reusable pack plus words found on this particular page. Keeping this
+    /// computed avoids mutating or persisting a user's installed packs.
+    var resolvedPack: SentenceBuilderPack {
+        let vocabulary = contextVocabulary()
+        return resolvedPack(with: vocabulary)
+    }
+
+    private func resolvedPack(with vocabulary: SentenceContextVocabulary) -> SentenceBuilderPack {
+        guard !vocabulary.isEmpty else { return pack }
+        let overlay = SentenceBuilderPack(
+            id: "runtime.context",
+            displayName: "",
+            ritualTitle: "",
+            replayPrompt: "",
+            replayHelper: "",
+            vagueWords: [],
+            avoidWords: [],
+            concreteWords: vocabulary.anchors,
+            sensoryWords: vocabulary.senses,
+            animateVerbs: vocabulary.verbs,
+            crossingWords: [],
+            version: pack.version,
+            author: "This page",
+            availability: "runtime"
+        )
+        return pack.merged(with: overlay)
     }
 
     func analyze(_ text: String) -> SentenceBuilderAnalysis {
+        let activePack = resolvedPack
         let normalizedWords = words(in: text)
         let wordCount = normalizedWords.count
         let wordSet = Set(normalizedWords)
         let lower = text.lowercased()
 
-        let hasConcreteAnchor = containsAnyWord(from: pack.concreteWords, in: wordSet)
-        let hasSensoryDetail = containsAnyWord(from: pack.sensoryWords, in: wordSet)
-        let hasLivingMotion = containsAnyWord(from: pack.animateVerbs, in: wordSet)
-        let hasWorldActor = detectsWorldActor(in: normalizedWords)
-        let hasCrossedSense = pack.crossingWords.contains { lower.contains($0.lowercased()) }
+        let hasConcreteAnchor = containsAnyWord(from: activePack.concreteWords, in: wordSet)
+        let hasSensoryDetail = containsAnyWord(from: activePack.sensoryWords, in: wordSet)
+        let hasLivingMotion = containsAnyWord(from: activePack.animateVerbs, in: wordSet)
+        let hasWorldActor = detectsWorldActor(in: normalizedWords, pack: activePack)
+        let hasCrossedSense = activePack.crossingWords.contains { lower.contains($0.lowercased()) }
             || (hasSensoryDetail && lower.contains(" sound"))
             || (hasSensoryDetail && lower.contains(" taste"))
             || (hasSensoryDetail && lower.contains(" quiet"))
 
-        let marks = [
-            SentenceBuilderCraftMark(
-                id: .anchor,
-                title: "Thing",
-                isPresent: hasConcreteAnchor,
-                hint: "Name the object, place, body part, or weather."
-            ),
-            SentenceBuilderCraftMark(
-                id: .sense,
-                title: "Body",
-                isPresent: hasSensoryDetail,
-                hint: "Add temperature, texture, color, taste, sound, or smell."
-            ),
-            SentenceBuilderCraftMark(
-                id: .motion,
-                title: "Will",
-                isPresent: hasLivingMotion,
-                hint: "Let a nonhuman thing act with a plain verb."
-            ),
-            SentenceBuilderCraftMark(
-                id: .crossing,
-                title: "Cross",
-                isPresent: hasCrossedSense,
-                hint: "Let one sense borrow from another."
-            )
-        ]
+        let marks = craftMarks(
+            text: text,
+            words: normalizedWords,
+            hasConcreteAnchor: hasConcreteAnchor,
+            hasSensoryDetail: hasSensoryDetail,
+            hasLivingMotion: hasLivingMotion,
+            hasCrossedSense: hasCrossedSense
+        )
         let memoryStrength = marks.filter(\.isPresent).count
 
         var diagnostics: [SentenceBuilderDiagnostic] = []
@@ -1345,7 +1455,7 @@ struct SentenceBuilderEngine {
                 word: vagueWord
             ))
         }
-        if wordCount >= 5 && !hasConcreteAnchor {
+        if wordCount >= 5 && !hasConcreteAnchor && context.intent != .letterReply {
             diagnostics.append(SentenceBuilderDiagnostic(
                 id: "missing-anchor",
                 severity: .prompt,
@@ -1364,22 +1474,33 @@ struct SentenceBuilderEngine {
             hasCrossedSense: hasCrossedSense,
             memoryStrength: memoryStrength,
             craftMarks: marks,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            meetsIntentMinimum: canStand(
+                wordCount: wordCount,
+                hasConcreteAnchor: hasConcreteAnchor,
+                hasSensoryDetail: hasSensoryDetail,
+                hasLivingMotion: hasLivingMotion,
+                marks: marks
+            )
         )
     }
 
     /// Parse the user's current text into a grammar-safe scaffold of tagged tokens.
     func scaffold(for text: String) -> SentenceScaffold {
-        SentenceScaffold.tag(text, using: pack)
+        SentenceScaffold.tag(text, using: resolvedPack)
     }
 
     /// The dominant context theme of a sentence: whichever pack theme has the most
     /// of its anchor nouns present. Drives context-aware chip ordering.
     func dominantTheme(in scaffold: SentenceScaffold) -> LexicalTheme? {
-        guard !pack.themes.isEmpty else { return nil }
+        dominantTheme(in: scaffold, using: resolvedPack)
+    }
+
+    private func dominantTheme(in scaffold: SentenceScaffold, using activePack: SentenceBuilderPack) -> LexicalTheme? {
+        guard !activePack.themes.isEmpty else { return nil }
         let present = Set(scaffold.tokens.map { $0.word.lowercased() })
         var best: (theme: LexicalTheme, score: Int)?
-        for theme in pack.themes {
+        for theme in activePack.themes {
             let score = theme.anchors.reduce(0) { $0 + (present.contains($1.lowercased()) ? 1 : 0) }
             if score > 0, score > (best?.score ?? 0) {
                 best = (theme, score)
@@ -1394,55 +1515,97 @@ struct SentenceBuilderEngine {
     /// Suggestions reflect context: words from the sentence's dominant theme come
     /// first, then the global pool. Words already in the sentence are skipped, so
     /// the chips are always live alternatives the user hasn't used yet.
-    func moves(for token: ScaffoldToken, in scaffold: SentenceScaffold, limit: Int = 8) -> [SentenceMove] {
+    func moves(
+        for token: ScaffoldToken,
+        in scaffold: SentenceScaffold,
+        limit: Int = 8,
+        avoiding recentlyShownOrChosen: Set<String> = []
+    ) -> [SentenceMove] {
+        let runtimeVocabulary = contextVocabulary()
+        let activePack = resolvedPack(with: runtimeVocabulary)
         let current = token.word.lowercased()
         let alreadyUsed = Set(scaffold.tokens.map { $0.word.lowercased() }).subtracting([current])
-        let theme = dominantTheme(in: scaffold)
+        let theme = dominantTheme(in: scaffold, using: activePack)
 
         // Theme words first (context), then the global pool — deduped, current and
-        // already-present words removed, capped at `limit`.
-        func compose(themed: [String], global: [String], group: String) -> [SentenceMove] {
+        // already-present words removed. Paging happens after this complete ranked
+        // list is built so "More" can move beyond the first eight.
+        func compose(themed: [String], global: [String], group: String) -> (moves: [SentenceMove], pinnedKeys: [String]) {
             var seen = Set<String>()
             var out: [SentenceMove] = []
-            for word in themed + global {
+            let themedKeys = themed.map { $0.lowercased() }.uniquedPreservingOrder()
+            let candidates = (themed + global).enumerated().sorted { lhs, rhs in
+                let leftScore = suggestionScore(
+                    for: lhs.element,
+                    token: token,
+                    theme: theme,
+                    runtimeVocabulary: runtimeVocabulary
+                )
+                let rightScore = suggestionScore(
+                    for: rhs.element,
+                    token: token,
+                    theme: theme,
+                    runtimeVocabulary: runtimeVocabulary
+                )
+                return leftScore == rightScore ? lhs.offset < rhs.offset : leftScore > rightScore
+            }.map(\.element)
+            let grammarMatched = candidates.filter { grammaticallyFits($0, replacing: token) }
+            let ordered = grammarMatched.isEmpty ? candidates : grammarMatched
+            for word in ordered {
                 let key = word.lowercased()
                 guard key != current, !alreadyUsed.contains(key), seen.insert(key).inserted else { continue }
                 out.append(SentenceMove(id: "\(group)-\(key)", label: word, word: word, group: group))
-                if out.count >= limit { break }
             }
-            return out
+            return (out, themedKeys)
         }
 
         switch token.role {
         case .misty:
-            return compose(themed: alternatives(for: token.word), global: theme?.senses ?? [], group: "ground")
+            let pool = compose(themed: alternatives(for: token.word), global: theme?.senses ?? [], group: "ground")
+            return rotatingMoves(pool.moves, pinnedKeys: pool.pinnedKeys, avoiding: recentlyShownOrChosen, limit: limit)
         case .smoke:
             // Stage-smoke words become a plain physical quality the room can carry.
-            return compose(themed: alternatives(for: token.word), global: (theme?.senses ?? []) + pack.sensoryWords, group: "ground")
+            let pool = compose(themed: alternatives(for: token.word), global: (theme?.senses ?? []) + activePack.sensoryWords, group: "ground")
+            return rotatingMoves(pool.moves, pinnedKeys: pool.pinnedKeys, avoiding: recentlyShownOrChosen, limit: limit)
         case .thing:
-            return compose(themed: theme?.anchors ?? [], global: pack.concreteWords, group: "thing")
+            let pool = compose(themed: runtimeVocabulary.anchors + (theme?.anchors ?? []), global: activePack.concreteWords, group: "thing")
+            return rotatingMoves(pool.moves, pinnedKeys: pool.pinnedKeys, avoiding: recentlyShownOrChosen, limit: limit)
         case .sense:
-            // Sharper senses (theme-biased), then always reserve room for a crossed-sense leap.
-            let crossPool = (theme?.crossings ?? []) + pack.crossingWords
-            let crossings = crossPool
-                .filter { $0.lowercased() != current }
-                .prefix(2)
-                .map { SentenceMove(id: "cross-\($0.lowercased())", label: $0, word: $0, group: "cross") }
-            let senseRoom = max(1, limit - crossings.count)
-            let senses = Array(compose(themed: theme?.senses ?? [], global: pack.sensoryWords, group: "sense").prefix(senseRoom))
-            return senses + crossings
+            // Interleave each page with crossed-sense leaps so that lane rotates,
+            // rather than permanently showing the first two authored phrases.
+            let senses = compose(
+                themed: runtimeVocabulary.senses + (theme?.senses ?? []),
+                global: activePack.sensoryWords,
+                group: "sense"
+            )
+            let crossings = compose(
+                themed: theme?.crossings ?? [],
+                global: activePack.crossingWords,
+                group: "cross"
+            )
+            let mixed = interleavedSenseMoves(senses.moves, crossings: crossings.moves, pageSize: limit)
+            return rotatingMoves(
+                mixed,
+                pinnedKeys: senses.pinnedKeys + crossings.pinnedKeys,
+                avoiding: recentlyShownOrChosen,
+                limit: limit
+            )
         case .motion:
-            return compose(themed: theme?.verbs ?? [], global: pack.animateVerbs, group: "motion")
+            let pool = compose(themed: runtimeVocabulary.verbs + (theme?.verbs ?? []), global: activePack.animateVerbs, group: "motion")
+            return rotatingMoves(pool.moves, pinnedKeys: pool.pinnedKeys, avoiding: recentlyShownOrChosen, limit: limit)
         case .crossing:
-            return compose(themed: theme?.crossings ?? [], global: pack.crossingWords, group: "cross")
+            let pool = compose(themed: theme?.crossings ?? [], global: activePack.crossingWords, group: "cross")
+            return rotatingMoves(pool.moves, pinnedKeys: pool.pinnedKeys, avoiding: recentlyShownOrChosen, limit: limit)
         case .plain:
             return []
         }
     }
 
     func starterDraft(seed: String = "default") -> SentenceStarterDraft? {
-        guard !pack.starterTemplates.isEmpty else { return nil }
-        let template = pack.starterTemplates[stableIndex(for: seed, count: pack.starterTemplates.count)]
+        let intentTemplates = contextualStarterTemplates
+        let templates = intentTemplates.isEmpty ? resolvedPack.starterTemplates : intentTemplates
+        guard !templates.isEmpty else { return nil }
+        let template = templates[stableIndex(for: seed, count: templates.count)]
         var selections: [String: String] = [:]
         for slot in template.slots {
             selections[slot.id] = options(for: slot, in: SentenceStarterDraft(template: template, selections: selections), limit: 1).first
@@ -1451,25 +1614,43 @@ struct SentenceBuilderEngine {
         return SentenceStarterDraft(template: template, selections: selections)
     }
 
-    func options(for slot: SentenceStarterSlot, in draft: SentenceStarterDraft, limit: Int = 8) -> [String] {
-        let theme = starterTheme(for: draft)
+    func options(
+        for slot: SentenceStarterSlot,
+        in draft: SentenceStarterDraft,
+        limit: Int = 8,
+        avoiding recentlyShownOrChosen: Set<String> = []
+    ) -> [String] {
+        let runtimeVocabulary = contextVocabulary()
+        let activePack = resolvedPack(with: runtimeVocabulary)
+        let theme = starterTheme(for: draft, using: activePack)
         let themed: [String]
         let global: [String]
         switch slot.kind {
         case .anchor:
-            themed = theme?.anchors ?? []
-            global = pack.concreteWords
+            themed = runtimeVocabulary.anchors + (theme?.anchors ?? [])
+            global = activePack.concreteWords
         case .sense:
-            themed = theme?.senses ?? []
-            global = pack.sensoryWords
+            themed = runtimeVocabulary.senses + (theme?.senses ?? [])
+            global = activePack.sensoryWords
         case .motion:
-            themed = theme?.verbs ?? []
-            global = pack.animateVerbs
+            themed = runtimeVocabulary.verbs + (theme?.verbs ?? [])
+            global = activePack.animateVerbs
         case .crossing:
             themed = theme?.crossings ?? []
-            global = pack.crossingWords
+            global = activePack.crossingWords
         }
-        return uniqueStarterOptions(slot.options + themed + global, limit: limit)
+        let selected = draft.selections[slot.id].map { [$0] } ?? []
+        let ordered = context.hasRuntimeClues
+            ? selected + themed + slot.options + global
+            : selected + slot.options + themed + global
+        let candidates = uniqueStarterOptions(ordered, limit: .max)
+        return rotatingWords(
+            candidates,
+            pinnedKeys: selected + themed,
+            avoiding: recentlyShownOrChosen,
+            limit: limit,
+            pinnedLimit: selected.isEmpty ? 2 : 3
+        )
     }
 
     func selecting(_ option: String, for slot: SentenceStarterSlot, in draft: SentenceStarterDraft) -> SentenceStarterDraft {
@@ -1489,6 +1670,32 @@ struct SentenceBuilderEngine {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
         return "\(trimmed)\n\n— One-Sentence Souvenir"
+    }
+
+    var replayPrompt: String {
+        switch context.intent {
+        case .letterReply:
+            return "What part of their note are you answering first?"
+        case .reflection:
+            return "What fact made this thought true for you?"
+        case .missionProof:
+            return "What is the smallest piece of evidence you brought back?"
+        case .souvenir, .marginNote:
+            return pack.replayPrompt
+        }
+    }
+
+    var replayHelper: String {
+        switch context.intent {
+        case .letterReply:
+            return "Touch one detail they gave you, then let your own voice answer it."
+        case .reflection:
+            return "Begin with the object, moment, or body signal before explaining what it meant."
+        case .missionProof:
+            return "Name what you found and what it did. Field notes are allowed to be tiny."
+        case .souvenir, .marginNote:
+            return pack.replayHelper
+        }
     }
 
     func hasAvoidWord(_ text: String) -> String? {
@@ -1550,12 +1757,12 @@ struct SentenceBuilderEngine {
         words.contains { wordSet.contains($0.lowercased()) }
     }
 
-    private func detectsWorldActor(in sentenceWords: [String]) -> Bool {
-        let concrete = Set(pack.concreteWords.compactMap { entry -> String? in
+    private func detectsWorldActor(in sentenceWords: [String], pack activePack: SentenceBuilderPack) -> Bool {
+        let concrete = Set(activePack.concreteWords.compactMap { entry -> String? in
             let tokens = words(in: entry)
             return tokens.count == 1 ? tokens[0] : nil
         })
-        let livingVerbs = Set(pack.animateVerbs.compactMap { entry -> String? in
+        let livingVerbs = Set(activePack.animateVerbs.compactMap { entry -> String? in
             let tokens = words(in: entry)
             return tokens.count == 1 ? tokens[0] : nil
         })
@@ -1580,16 +1787,362 @@ struct SentenceBuilderEngine {
         return false
     }
 
-    private func starterTheme(for draft: SentenceStarterDraft) -> LexicalTheme? {
+    private func starterTheme(for draft: SentenceStarterDraft, using activePack: SentenceBuilderPack) -> LexicalTheme? {
         let selected = Set(draft.selections.values.flatMap { words(in: $0) })
         var best: (theme: LexicalTheme, score: Int)?
-        for theme in pack.themes {
+        for theme in activePack.themes {
             let score = theme.anchors.reduce(0) { $0 + (selected.contains($1.lowercased()) ? 1 : 0) }
             if score > 0, score > (best?.score ?? 0) {
                 best = (theme, score)
             }
         }
         return best?.theme
+    }
+
+    private func craftMarks(
+        text: String,
+        words sentenceWords: [String],
+        hasConcreteAnchor: Bool,
+        hasSensoryDetail: Bool,
+        hasLivingMotion: Bool,
+        hasCrossedSense: Bool
+    ) -> [SentenceBuilderCraftMark] {
+        let closes = text.trimmingCharacters(in: .whitespacesAndNewlines).last.map { ".!?".contains($0) } ?? false
+        let hasVoice = sentenceWords.contains { ["i", "me", "my", "we", "our", "you", "your"].contains($0) }
+            || context.recipientName.map { recipient in
+                let recipientWords = Set(words(in: recipient))
+                return !recipientWords.isDisjoint(with: Set(sentenceWords))
+            } ?? false
+        let hasEcho = contextEchoes(in: sentenceWords)
+        let hasMeaning = sentenceWords.contains {
+            ["because", "so", "when", "while", "meant", "means", "noticed", "realized", "needed", "wanted"].contains($0)
+        }
+        let hasAction = hasLivingMotion || containsLikelyVerb(in: text)
+
+        switch context.intent {
+        case .letterReply:
+            return [
+                craftMark(.anchor, "Answer", sentenceWords.count >= 3, "Begin with the one thing you want to say back."),
+                craftMark(.sense, "Echo", hasEcho, "Touch one detail or idea from the note you received."),
+                craftMark(.motion, "Voice", hasVoice, "Let your own voice enter: I, we, you, or their name."),
+                craftMark(.crossing, "Close", closes && sentenceWords.count >= 5, "Let the reply land with a complete thought.")
+            ]
+        case .missionProof:
+            return [
+                craftMark(.anchor, "Proof", hasConcreteAnchor, "Name the object, place, sound, or sight you found."),
+                craftMark(.sense, "Detail", hasSensoryDetail, "Keep one observable color, texture, sound, smell, or pressure."),
+                craftMark(.motion, "Action", hasAction, "Say what happened or what the world did."),
+                craftMark(.crossing, "Return", closes && sentenceWords.count >= 4, "Bring the field note home as one complete sentence.")
+            ]
+        case .reflection:
+            return [
+                craftMark(.anchor, "Truth", sentenceWords.count >= 3, "Name what is true without polishing it away."),
+                craftMark(.sense, "Evidence", hasConcreteAnchor || hasSensoryDetail, "Give the thought one real piece of evidence."),
+                craftMark(.motion, "Meaning", hasMeaning, "Add the turn: because, when, so, or what you noticed."),
+                craftMark(.crossing, "Land", closes && sentenceWords.count >= 5, "Let the thought arrive somewhere definite.")
+            ]
+        case .souvenir, .marginNote:
+            return [
+                craftMark(.anchor, "Thing", hasConcreteAnchor, "Name the object, place, body part, or weather."),
+                craftMark(.sense, "Body", hasSensoryDetail, "Add temperature, texture, color, taste, sound, or smell."),
+                craftMark(.motion, "Will", hasLivingMotion, "Let a nonhuman thing act with a plain verb."),
+                craftMark(.crossing, "Cross", hasCrossedSense, "Let one sense borrow from another.")
+            ]
+        }
+    }
+
+    private func craftMark(
+        _ id: SentenceBuilderStepKind,
+        _ title: String,
+        _ isPresent: Bool,
+        _ hint: String
+    ) -> SentenceBuilderCraftMark {
+        SentenceBuilderCraftMark(id: id, title: title, isPresent: isPresent, hint: hint)
+    }
+
+    private func canStand(
+        wordCount: Int,
+        hasConcreteAnchor: Bool,
+        hasSensoryDetail: Bool,
+        hasLivingMotion: Bool,
+        marks: [SentenceBuilderCraftMark]
+    ) -> Bool {
+        switch context.intent {
+        case .letterReply:
+            let hasEcho = marks.first(where: { $0.title == "Echo" })?.isPresent == true
+            let hasVoice = marks.first(where: { $0.title == "Voice" })?.isPresent == true
+            return wordCount >= 3 && (hasEcho || hasVoice)
+        case .missionProof:
+            return wordCount >= 3 && hasConcreteAnchor && (hasLivingMotion || marks.first(where: { $0.title == "Action" })?.isPresent == true)
+        case .reflection:
+            return wordCount >= 4 && (hasConcreteAnchor || hasSensoryDetail || marks.first(where: { $0.title == "Meaning" })?.isPresent == true)
+        case .souvenir, .marginNote:
+            return wordCount >= 4 && (hasConcreteAnchor || hasSensoryDetail || hasLivingMotion)
+        }
+    }
+
+    private var contextualStarterTemplates: [SentenceStarterTemplate] {
+        switch context.intent {
+        case .letterReply:
+            return [SentenceStarterTemplate(
+                id: "context-reply",
+                title: "A line back",
+                pattern: "Your note about {anchor} left me feeling {sense}.",
+                slots: [
+                    SentenceStarterSlot(id: "anchor", kind: .anchor, title: "What stayed with you?", options: []),
+                    SentenceStarterSlot(id: "sense", kind: .sense, title: "What did it leave?", options: [])
+                ]
+            )]
+        case .reflection:
+            return [SentenceStarterTemplate(
+                id: "context-reflection",
+                title: "What became clear",
+                pattern: "When I noticed {anchor}, I felt {sense}.",
+                slots: [
+                    SentenceStarterSlot(id: "anchor", kind: .anchor, title: "What is the evidence?", options: []),
+                    SentenceStarterSlot(id: "sense", kind: .sense, title: "How did it register?", options: [])
+                ]
+            )]
+        case .missionProof:
+            return [SentenceStarterTemplate(
+                id: "context-proof",
+                title: "Field evidence",
+                pattern: "The {anchor} {motion}; that was the detail I brought back.",
+                slots: [
+                    SentenceStarterSlot(id: "anchor", kind: .anchor, title: "What did you find?", options: []),
+                    SentenceStarterSlot(id: "motion", kind: .motion, title: "What did it do?", options: [])
+                ]
+            )]
+        case .souvenir, .marginNote:
+            return []
+        }
+    }
+
+    private func suggestionScore(
+        for suggestion: String,
+        token: ScaffoldToken,
+        theme: LexicalTheme?,
+        runtimeVocabulary: SentenceContextVocabulary
+    ) -> Int {
+        let key = suggestion.lowercased()
+        var score = runtimeVocabulary.priority[key, default: 0]
+        if theme?.anchors.contains(where: { $0.caseInsensitiveCompare(suggestion) == .orderedSame }) == true
+            || theme?.senses.contains(where: { $0.caseInsensitiveCompare(suggestion) == .orderedSame }) == true
+            || theme?.verbs.contains(where: { $0.caseInsensitiveCompare(suggestion) == .orderedSame }) == true {
+            score += 20
+        }
+        if token.role == .misty, alternatives(for: token.word).contains(where: { $0 == key }) {
+            score += 30
+        }
+        return score
+    }
+
+    private func grammaticallyFits(_ suggestion: String, replacing token: ScaffoldToken) -> Bool {
+        let current = token.word.lowercased()
+        let candidate = suggestion.lowercased()
+        guard token.role == .motion else { return true }
+        if current.hasSuffix("ing") { return candidate.hasSuffix("ing") }
+        if current.hasSuffix("ed") { return candidate.hasSuffix("ed") || Self.irregularPastVerbs.contains(candidate) }
+        if current.hasSuffix("s"), !current.hasSuffix("ss") { return candidate.hasSuffix("s") }
+        return true
+    }
+
+    private static let irregularPastVerbs: Set<String> = [
+        "caught", "held", "kept", "left", "made", "sat", "stood", "took", "went", "wore"
+    ]
+
+    func contextNote(for token: ScaffoldToken) -> String? {
+        let vocabulary = contextVocabulary()
+        let hasRelevantWords: Bool
+        switch token.role {
+        case .thing: hasRelevantWords = !vocabulary.anchors.isEmpty
+        case .sense, .misty, .smoke: hasRelevantWords = !vocabulary.senses.isEmpty
+        case .motion: hasRelevantWords = !vocabulary.verbs.isEmpty
+        case .crossing, .plain: hasRelevantWords = false
+        }
+        return hasRelevantWords ? "First choices come from this page and its nearby context." : nil
+    }
+
+    private func contextEchoes(in sentenceWords: [String]) -> Bool {
+        let clueWords = Set(words(in: [context.prompt, context.sourceText].joined(separator: " ")))
+            .subtracting(Self.contextStopWords)
+        return !clueWords.isDisjoint(with: Set(sentenceWords))
+    }
+
+    private func containsLikelyVerb(in text: String) -> Bool {
+        #if canImport(NaturalLanguage)
+        let tagger = NLTagger(tagSchemes: [.lexicalClass])
+        tagger.string = text
+        var found = false
+        tagger.enumerateTags(
+            in: text.startIndex..<text.endIndex,
+            unit: .word,
+            scheme: .lexicalClass,
+            options: [.omitPunctuation, .omitWhitespace]
+        ) { tag, _ in
+            if tag == .verb { found = true }
+            return !found
+        }
+        return found
+        #else
+        return words(in: text).contains { $0.hasSuffix("ed") || $0.hasSuffix("ing") }
+        #endif
+    }
+
+    private func contextVocabulary() -> SentenceContextVocabulary {
+        guard context.hasRuntimeClues else { return SentenceContextVocabulary() }
+        var vocabulary = SentenceContextVocabulary()
+        let sources: [(String, Int)] = [
+            (String(context.prompt.prefix(800)), 60),
+            (String(context.sourceText.prefix(1_200)), 45),
+            (context.weather ?? "", 40),
+            (context.tags.joined(separator: " "), 35),
+            (context.personalWords.joined(separator: " "), 32),
+            (context.timeOfDay ?? "", 25)
+        ] + context.recentMotifs.prefix(6).map { (String($0.prefix(320)), 20) }
+
+        for (text, weight) in sources where !text.isEmpty {
+            extractContextWords(from: text, weight: weight, into: &vocabulary)
+        }
+        vocabulary.anchors = vocabulary.anchors.uniquedPreservingOrder()
+        vocabulary.senses = vocabulary.senses.uniquedPreservingOrder()
+        vocabulary.verbs = vocabulary.verbs.uniquedPreservingOrder()
+        return vocabulary
+    }
+
+    private func extractContextWords(
+        from text: String,
+        weight: Int,
+        into vocabulary: inout SentenceContextVocabulary
+    ) {
+        let recipientWords = Set(context.recipientName.map { words(in: $0) } ?? [])
+
+        func accept(_ surface: String, as role: SentenceRole) {
+            let key = surface.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            guard key.count >= 2,
+                  key.count <= 28,
+                  !Self.contextStopWords.contains(key),
+                  !recipientWords.contains(key),
+                  key.rangeOfCharacter(from: .letters) != nil else { return }
+            vocabulary.priority[key] = max(vocabulary.priority[key, default: 0], weight)
+            switch role {
+            case .thing: vocabulary.anchors.append(key)
+            case .sense: vocabulary.senses.append(key)
+            case .motion: vocabulary.verbs.append(key)
+            default: break
+            }
+        }
+
+        // Known pack vocabulary keeps its authored role even if the system
+        // tagger reads an enchanted use differently.
+        let tokenSet = Set(words(in: text))
+        for word in pack.concreteWords where tokenSet.contains(word.lowercased()) { accept(word, as: .thing) }
+        for word in pack.sensoryWords where tokenSet.contains(word.lowercased()) { accept(word, as: .sense) }
+        for word in pack.animateVerbs where tokenSet.contains(word.lowercased()) { accept(word, as: .motion) }
+
+        #if canImport(NaturalLanguage)
+        let tagger = NLTagger(tagSchemes: [.lexicalClass])
+        tagger.string = text
+        tagger.enumerateTags(
+            in: text.startIndex..<text.endIndex,
+            unit: .word,
+            scheme: .lexicalClass,
+            options: [.omitPunctuation, .omitWhitespace, .joinNames]
+        ) { tag, range in
+            let surface = String(text[range]).lowercased()
+            switch tag {
+            case .noun: accept(surface, as: .thing)
+            case .adjective: accept(surface, as: .sense)
+            case .verb: accept(surface, as: .motion)
+            default: break
+            }
+            return true
+        }
+        #endif
+    }
+
+    private static let contextStopWords: Set<String> = [
+        "a", "about", "add", "an", "and", "answer", "anything", "are", "as", "ask", "back", "be", "book",
+        "bring", "can", "catch", "choose", "come", "could", "day", "describe", "detail", "did", "do", "does",
+        "feeling", "find", "first", "for", "from", "give", "had", "has", "have", "help", "here", "how", "i",
+        "if", "in", "into", "is", "it", "keep", "last", "let", "line", "make", "may", "me", "moment", "name",
+        "note", "of", "on", "one", "or", "page", "part", "prompt", "question", "reader", "remember", "reply", "say",
+        "sentence", "small", "something", "that", "the", "their", "them", "then", "thing", "this", "to", "true",
+        "use", "was", "we", "what", "when", "where", "which", "who", "why", "will", "with", "word", "write", "you", "your"
+    ]
+
+    /// Keeps the strongest page/theme matches visible while filling the remaining
+    /// chip slots with words the reader has not just seen or chosen. Once the pool
+    /// is exhausted, older words naturally become available again.
+    private func rotatingMoves(
+        _ candidates: [SentenceMove],
+        pinnedKeys: [String],
+        avoiding: Set<String>,
+        limit: Int,
+        pinnedLimit: Int = 2
+    ) -> [SentenceMove] {
+        guard limit > 0 else { return [] }
+        let candidateByKey = Dictionary(
+            candidates.map { ($0.word.lowercased(), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var seenPins = Set<String>()
+        let pins = pinnedKeys
+            .compactMap { candidateByKey[$0.lowercased()] }
+            .filter { seenPins.insert($0.word.lowercased()).inserted }
+            .prefix(min(pinnedLimit, limit))
+        let pinnedSet = Set(pins.map { $0.word.lowercased() })
+        let avoided = Set(avoiding.map { $0.lowercased() })
+        let remaining = candidates.filter { !pinnedSet.contains($0.word.lowercased()) }
+        let fresh = remaining.filter { !avoided.contains($0.word.lowercased()) }
+        let seen = remaining.filter { avoided.contains($0.word.lowercased()) }
+        return Array(pins) + Array((fresh + seen).prefix(max(0, limit - pins.count)))
+    }
+
+    private func rotatingWords(
+        _ candidates: [String],
+        pinnedKeys: [String],
+        avoiding: Set<String>,
+        limit: Int,
+        pinnedLimit: Int = 2
+    ) -> [String] {
+        guard limit > 0 else { return [] }
+        let candidateByKey = Dictionary(
+            candidates.map { ($0.lowercased(), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let pins = pinnedKeys
+            .compactMap { candidateByKey[$0.lowercased()] }
+            .uniquedPreservingOrder()
+            .prefix(min(pinnedLimit, limit))
+        let pinnedSet = Set(pins.map { $0.lowercased() })
+        let avoided = Set(avoiding.map { $0.lowercased() })
+        let remaining = candidates.filter { !pinnedSet.contains($0.lowercased()) }
+        let fresh = remaining.filter { !avoided.contains($0.lowercased()) }
+        let seen = remaining.filter { avoided.contains($0.lowercased()) }
+        return Array(pins) + Array((fresh + seen).prefix(max(0, limit - pins.count)))
+    }
+
+    private func interleavedSenseMoves(
+        _ senses: [SentenceMove],
+        crossings: [SentenceMove],
+        pageSize: Int
+    ) -> [SentenceMove] {
+        guard !crossings.isEmpty, pageSize > 1 else { return senses + crossings }
+        let crossingChunk = min(2, max(1, pageSize / 4))
+        let senseChunk = max(1, pageSize - crossingChunk)
+        var mixed: [SentenceMove] = []
+        var senseIndex = 0
+        var crossingIndex = 0
+        while senseIndex < senses.count || crossingIndex < crossings.count {
+            let nextSenseIndex = min(senses.count, senseIndex + senseChunk)
+            mixed.append(contentsOf: senses[senseIndex..<nextSenseIndex])
+            senseIndex = nextSenseIndex
+            let nextCrossingIndex = min(crossings.count, crossingIndex + crossingChunk)
+            mixed.append(contentsOf: crossings[crossingIndex..<nextCrossingIndex])
+            crossingIndex = nextCrossingIndex
+        }
+        return mixed
     }
 
     private func uniqueStarterOptions(_ options: [String], limit: Int) -> [String] {
@@ -1606,15 +2159,16 @@ struct SentenceBuilderEngine {
     }
 
     private func fallbackOption(for kind: SentenceStarterSlotKind) -> String {
+        let activePack = resolvedPack
         switch kind {
         case .anchor:
-            return pack.concreteWords.first ?? "the room"
+            return activePack.concreteWords.first ?? "the room"
         case .sense:
-            return pack.sensoryWords.first ?? "soft"
+            return activePack.sensoryWords.first ?? "soft"
         case .motion:
-            return pack.animateVerbs.first ?? "waited"
+            return activePack.animateVerbs.first ?? "waited"
         case .crossing:
-            return pack.crossingWords.first ?? "paper quiet"
+            return activePack.crossingWords.first ?? "paper quiet"
         }
     }
 

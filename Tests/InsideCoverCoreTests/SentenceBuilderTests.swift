@@ -199,6 +199,73 @@ final class SentenceBuilderTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(engine.moves(for: mug, in: scaffold).count, 8)
     }
 
+    func testMoreMovesKeepsContextLeadersAndRotatesTheOtherSlots() throws {
+        let engine = SentenceBuilderEngine(
+            context: SentenceBuilderContext(prompt: "Remember the train ticket on the platform.")
+        )
+        let scaffold = engine.scaffold(for: "The mug waited.")
+        let mug = try XCTUnwrap(scaffold.tokens.first { $0.word == "mug" })
+        let firstPage = engine.moves(for: mug, in: scaffold)
+        let shown = Set(firstPage.map { $0.word.lowercased() })
+        let secondPage = engine.moves(for: mug, in: scaffold, avoiding: shown)
+
+        XCTAssertEqual(firstPage.prefix(2).map(\.word), secondPage.prefix(2).map(\.word))
+        XCTAssertTrue(Set(firstPage.dropFirst(2).map(\.word)).isDisjoint(with: secondPage.dropFirst(2).map(\.word)))
+    }
+
+    func testMoreMovesCyclesEntirePoolWhenThereIsNoContextToPin() throws {
+        let engine = SentenceBuilderEngine()
+        let scaffold = engine.scaffold(for: "The phone waited.")
+        let phone = try XCTUnwrap(scaffold.tokens.first { $0.word == "phone" })
+        let firstPage = engine.moves(for: phone, in: scaffold)
+        let secondPage = engine.moves(
+            for: phone,
+            in: scaffold,
+            avoiding: Set(firstPage.map { $0.word.lowercased() })
+        )
+
+        XCTAssertEqual(firstPage.count, 8)
+        XCTAssertEqual(secondPage.count, 8)
+        XCTAssertTrue(Set(firstPage.map(\.word)).isDisjoint(with: secondPage.map(\.word)))
+    }
+
+    func testCrossedSenseChipsRotateWithTheRestOfThePage() throws {
+        let engine = SentenceBuilderEngine()
+        let scaffold = engine.scaffold(for: "It felt warm.")
+        let warm = try XCTUnwrap(scaffold.tokens.first { $0.word == "warm" })
+        let firstPage = engine.moves(for: warm, in: scaffold)
+        let secondPage = engine.moves(
+            for: warm,
+            in: scaffold,
+            avoiding: Set(firstPage.map { $0.word.lowercased() })
+        )
+        let firstCrossings = firstPage.filter { $0.group == "cross" }.map(\.word)
+        let secondCrossings = secondPage.filter { $0.group == "cross" }.map(\.word)
+
+        XCTAssertEqual(firstCrossings.count, 2)
+        XCTAssertEqual(secondCrossings.count, 2)
+        XCTAssertTrue(Set(firstCrossings).isDisjoint(with: secondCrossings))
+    }
+
+    func testStarterOptionsKeepSelectionAndContextWhileRotating() throws {
+        let engine = SentenceBuilderEngine(
+            context: SentenceBuilderContext(prompt: "Remember the train ticket on the platform.")
+        )
+        let template = try XCTUnwrap(SentenceBuilderPack.core.starterTemplates.first)
+        let anchor = try XCTUnwrap(template.slots.first { $0.kind == .anchor })
+        let draft = SentenceStarterDraft(template: template, selections: [anchor.id: "ticket"])
+        let firstPage = engine.options(for: anchor, in: draft)
+        let secondPage = engine.options(
+            for: anchor,
+            in: draft,
+            avoiding: Set(firstPage.map { $0.lowercased() })
+        )
+
+        XCTAssertEqual(firstPage.first, "ticket")
+        XCTAssertEqual(secondPage.first, "ticket")
+        XCTAssertGreaterThan(Set(secondPage).subtracting(firstPage).count, 0)
+    }
+
     // MARK: - Upgradeable packs (JSON merge)
 
     func testPartialJSONPackDecodesWithDefaults() throws {
@@ -598,5 +665,125 @@ final class SentenceBuilderTests: XCTestCase {
 
         XCTAssertEqual(swapped.rendered, "The kettle sat there.")
         XCTAssertTrue(swapped.presentRoles.contains(.thing))
+    }
+
+    // MARK: - Runtime page context
+
+    func testRuntimeContextChangesTopSuggestionsForTheSameDraft() throws {
+        let railEngine = SentenceBuilderEngine(
+            context: SentenceBuilderContext(prompt: "Remember the train ticket on the platform.")
+        )
+        let weatherEngine = SentenceBuilderEngine(
+            context: SentenceBuilderContext(prompt: "Notice the rain against the window.")
+        )
+        let railScaffold = railEngine.scaffold(for: "The mug waited.")
+        let weatherScaffold = weatherEngine.scaffold(for: "The mug waited.")
+        let railMug = try XCTUnwrap(railScaffold.tokens.first { $0.word == "mug" })
+        let weatherMug = try XCTUnwrap(weatherScaffold.tokens.first { $0.word == "mug" })
+
+        let railFirst = try XCTUnwrap(railEngine.moves(for: railMug, in: railScaffold).first?.word)
+        let weatherFirst = try XCTUnwrap(weatherEngine.moves(for: weatherMug, in: weatherScaffold).first?.word)
+
+        XCTAssertTrue(["ticket", "train"].contains(railFirst))
+        XCTAssertTrue(["rain", "window"].contains(weatherFirst))
+        XCTAssertNotEqual(railFirst, weatherFirst)
+    }
+
+    func testRuntimeNounBecomesARecognizedAnchor() {
+        let engine = SentenceBuilderEngine(
+            context: SentenceBuilderContext(prompt: "The telescope stood beside the railing.")
+        )
+
+        XCTAssertTrue(engine.analyze("The telescope waited beside me.").hasConcreteAnchor)
+        XCTAssertEqual(engine.scaffold(for: "The telescope waited.").tokens.first { $0.word == "telescope" }?.role, .thing)
+    }
+
+    func testPersonalLexiconWordsArePromotedWhenThePageHasNoStrongerClue() throws {
+        var lexicon = ReaderLexicon()
+        lexicon.upsert(LexiconEntry(
+            word: "thimble",
+            originalSense: "a small metal sewing guard",
+            newSense: "a tiny room for courage",
+            ruling: .adopted,
+            category: .concrete,
+            origin: .seeded,
+            ledAt: Date(timeIntervalSinceReferenceDate: 17)
+        ))
+        let pack = SentenceBuilderPackRegistry.composed(onto: .core, readerLexicon: lexicon)
+        let engine = SentenceBuilderEngine(
+            pack: pack,
+            context: SentenceBuilderContext(personalWords: ["thimble"])
+        )
+        let scaffold = engine.scaffold(for: "The mug waited.")
+        let mug = try XCTUnwrap(scaffold.tokens.first { $0.word == "mug" })
+
+        XCTAssertEqual(engine.moves(for: mug, in: scaffold).first?.word, "thimble")
+    }
+
+    func testReplyUsesReplySpecificCraftMarksAndEchoesIncomingNote() {
+        let engine = SentenceBuilderEngine(context: SentenceBuilderContext(
+            intent: .letterReply,
+            sourceText: "The broken umbrella made me laugh.",
+            recipientName: "Pippa"
+        ))
+
+        let analysis = engine.analyze("I keep thinking about your umbrella.")
+
+        XCTAssertEqual(analysis.craftMarks.map(\.title), ["Answer", "Echo", "Voice", "Close"])
+        XCTAssertTrue(analysis.craftMarks.first { $0.title == "Echo" }?.isPresent == true)
+        XCTAssertTrue(analysis.craftMarks.first { $0.title == "Voice" }?.isPresent == true)
+        XCTAssertTrue(analysis.canStandAsComplete)
+    }
+
+    func testMissionProofUsesActionAndEvidenceInsteadOfCrossedSense() {
+        let engine = SentenceBuilderEngine(context: SentenceBuilderContext(
+            intent: .missionProof,
+            prompt: "Find one overlooked umbrella.",
+            sourceText: "The umbrella is field evidence."
+        ))
+
+        let analysis = engine.analyze("The umbrella rolled across the pavement.")
+
+        XCTAssertEqual(analysis.craftMarks.map(\.title), ["Proof", "Detail", "Action", "Return"])
+        XCTAssertTrue(analysis.craftMarks.first { $0.title == "Action" }?.isPresent == true)
+        XCTAssertTrue(analysis.canStandAsComplete)
+    }
+
+    func testContextualReplyStarterUsesIncomingPageVocabulary() throws {
+        let engine = SentenceBuilderEngine(context: SentenceBuilderContext(
+            intent: .letterReply,
+            sourceText: "I found your umbrella beside the station clock."
+        ))
+
+        let draft = try XCTUnwrap(engine.starterDraft(seed: "reply"))
+
+        XCTAssertEqual(draft.template.id, "context-reply")
+        XCTAssertTrue(["umbrella", "station", "clock"].contains(draft.selections["anchor"] ?? ""))
+        XCTAssertTrue(engine.render(draft).hasPrefix("Your note about "))
+    }
+
+    func testReplacementPreservesCapitalizationAndRepairsArticle() throws {
+        let engine = SentenceBuilderEngine()
+        let scaffold = engine.scaffold(for: "A Mug waited.")
+        let mug = try XCTUnwrap(scaffold.tokens.first { $0.word == "Mug" })
+
+        let replaced = scaffold.replacing(tokenID: mug.id, with: "envelope", using: .core)
+
+        XCTAssertEqual(replaced.rendered, "An Envelope waited.")
+    }
+
+    func testPastTenseMotionSuggestionsKeepPastTenseShape() throws {
+        let engine = SentenceBuilderEngine(context: SentenceBuilderContext(
+            prompt: "The rain is drumming on the roof."
+        ))
+        let scaffold = engine.scaffold(for: "The rain waited.")
+        let waited = try XCTUnwrap(scaffold.tokens.first { $0.word == "waited" })
+
+        let moves = engine.moves(for: waited, in: scaffold)
+
+        XCTAssertFalse(moves.isEmpty)
+        XCTAssertTrue(moves.allSatisfy {
+            $0.word.hasSuffix("ed") || ["caught", "held", "kept", "left", "made", "sat", "stood", "took", "went", "wore"].contains($0.word)
+        })
     }
 }

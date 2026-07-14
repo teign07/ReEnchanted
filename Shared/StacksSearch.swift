@@ -288,18 +288,23 @@ enum StacksSearchEngine {
         extraTerms: [String] = [],
         now: Date = Date(),
         limit: Int = 40,
-        semanticScorer: StacksSemanticScoring? = defaultSemanticScorer()
+        semanticScorer: StacksSemanticScoring? = defaultSemanticScorer(),
+        prebuiltGraph: (documents: [StacksSearchDocument], links: [StacksSearchLink])? = nil
     ) -> [StacksSearchResult] {
         let lexicalResults = search(raw, in: dataset, extraTerms: extraTerms, now: now, limit: limit)
         guard shouldRunSemanticSearch(raw, extraTerms: extraTerms),
               let semanticScorer else { return lexicalResults }
 
-        let graph = buildSearchGraph(from: dataset, now: now)
+        let graph = prebuiltGraph ?? buildSearchGraph(from: dataset, now: now)
         var resultsByID = Dictionary(uniqueKeysWithValues: lexicalResults.map { ($0.id, $0) })
         let queryText = ([raw] + extraTerms).joined(separator: " ")
         let lexicalIDs = Set(lexicalResults.map(\.id))
 
         for document in graph.documents {
+            // A newer keystroke supersedes this search; the lexical results
+            // are still honest, so hand those back instead of finishing the
+            // embedding walk.
+            if Task.isCancelled { return lexicalResults }
             guard let similarity = semanticScorer.similarity(between: queryText, and: document.semanticText),
                   similarity >= semanticScoreThreshold else { continue }
             let semanticScore = Int((similarity * 34).rounded())
@@ -591,10 +596,11 @@ enum StacksSearchEngine {
                 if age < 2 * 86_400 { score += 6 } else if age < 7 * 86_400 { score += 3 } else if age < 30 * 86_400 { score += 1 }
 
                 let snippet: String
+                let previewText = page.archivePreviewText ?? page.type.title
                 if correlated, query.terms.isEmpty {
-                    snippet = "Kept on a \(query.moodKey ?? "matching") day. \(page.userInput.bookPreviewSentenceLimit(1))"
+                    snippet = "Kept on a \(query.moodKey ?? "matching") day. \(previewText.bookPreviewSentenceLimit(1))"
                 } else {
-                    snippet = snippetAround(matchedTerm, in: page.userInput.isEmpty ? page.promptText : page.userInput)
+                    snippet = snippetAround(matchedTerm, in: previewText)
                 }
                 let title = page.type == .bookOfYou
                     ? BraidPageDetails.details(for: page).title
@@ -771,6 +777,53 @@ enum StacksSearchEngine {
         let prefix = start == normalized.startIndex ? "" : "…"
         let suffix = end == normalized.endIndex ? "" : "…"
         return prefix + normalized[start..<end].trimmingCharacters(in: .whitespaces) + suffix
+    }
+}
+
+/// The reading-room clerk behind an open Search the Stacks sheet. One clerk
+/// per sheet: it holds one snapshot of the dataset, builds the document graph
+/// once, loads the sentence-embedding model once (off the main thread, on
+/// first use), and — being an actor — serialises searches so rapid keystrokes
+/// never race each other over the shared embedding.
+actor StacksSearchService {
+    private let dataset: StacksSearchDataset
+    private var cachedGraph: (documents: [StacksSearchDocument], links: [StacksSearchLink])?
+    private var scorerLoaded = false
+    private var cachedScorer: StacksSemanticScoring?
+
+    init(dataset: StacksSearchDataset) {
+        self.dataset = dataset
+    }
+
+    /// The instant pass: pure lexical matching, cheap enough to run on every
+    /// keystroke so results appear while the reader is still typing.
+    func lexicalResults(for query: String, extraTerms: [String] = []) -> [StacksSearchResult] {
+        StacksSearchEngine.search(query, in: dataset, extraTerms: extraTerms)
+    }
+
+    /// The deep pass: lexical plus the sentence-embedding graph walk. Bails
+    /// back to lexical partway through if the surrounding task is cancelled.
+    func hybridResults(for query: String, extraTerms: [String] = []) -> [StacksSearchResult] {
+        if cachedGraph == nil {
+            cachedGraph = StacksSearchEngine.buildSearchGraph(from: dataset)
+        }
+        return StacksSearchEngine.hybridSearch(
+            query,
+            in: dataset,
+            extraTerms: extraTerms,
+            semanticScorer: scorer(),
+            prebuiltGraph: cachedGraph
+        )
+    }
+
+    private func scorer() -> StacksSemanticScoring? {
+        if !scorerLoaded {
+            scorerLoaded = true
+            #if canImport(NaturalLanguage)
+            cachedScorer = NaturalLanguageStacksEmbeddingScorer()
+            #endif
+        }
+        return cachedScorer
     }
 }
 

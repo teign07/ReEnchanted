@@ -535,7 +535,7 @@ struct AnchorOfferFormView: View {
             .tint(BookPalette.teal)
             .disabled(anchorPlaceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-            Text("The Labyrinth will grow an Outer Stacks room from your words, and you can step inside the moment it is made. Location stays on your phone.")
+            Text("The Labyrinth will grow an Outer Stacks room from your words, and you can step inside the moment it is made. Location stays on your device.")
                 .font(.caption)
                 .foregroundStyle(BookPalette.ink.opacity(0.58))
                 .fixedSize(horizontal: false, vertical: true)
@@ -765,7 +765,10 @@ struct ElectiveFlyleafListView: View {
         let directory = base.appendingPathComponent("QuestProofs", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appendingPathComponent("quest-proof-\(UUID().uuidString).jpg")
-        try data.write(to: url, options: [.atomic])
+        guard let jpeg = PressedPhotograph.downscaledJPEG(from: data) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        try jpeg.write(to: url, options: [.atomic])
         return url
     }
 }
