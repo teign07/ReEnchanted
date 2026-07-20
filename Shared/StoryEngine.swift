@@ -536,20 +536,20 @@ struct BookJumpState: Codable, Equatable {
 }
 
 enum BookJumpEngine {
-    static let startCost = 1
-    static let returnReward = 6
+    static let startCost = 3
+    static let returnReward = 2
     static let maxDepth = 4
     static let borrowedRuleDays = 4
     static let coldDays = 5
 
     /// Going one beat deeper costs escalating Belief; Routine charges rent on depth.
-    static func advanceCost(depth: Int) -> Int { max(0, depth - 1) }
+    static func advanceCost(depth: Int) -> Int { min(3, max(1, depth - 1)) }
 
     /// Returning pays the base reward plus a bonus for how deep you dared, but
     /// only when you bring a real souvenir home.
     static func returnReward(depth: Int, hasSouvenir: Bool) -> Int {
-        guard hasSouvenir else { return 1 }
-        return returnReward + max(0, depth - 1) * 2
+        guard hasSouvenir else { return 0 }
+        return min(BeliefEconomyPolicy.compassRunReward - 1, returnReward + max(0, depth - 1))
     }
 
     static let publicDomainShelf: [BookJumpWork] = [
@@ -1113,12 +1113,13 @@ enum BookJumpEngine {
             Name one true real-world detail in the margin, then keep this page. The Book will use it as ballast and lower Routine pressure.
             """
         case .return:
+            let possibleReward = returnReward(depth: active.depth, hasSouvenir: true)
             body = """
             The Spine is visible.
 
             You have gone deep enough into \(active.title). The Book wants one sentence from the journey before it closes the door.
 
-            Write a one-sentence souvenir in the margin. Keeping this page returns you and restores \(returnReward) Belief.
+            Write a one-sentence souvenir in the margin. Bringing it home restores \(possibleReward) Belief; returning empty-handed restores none.
             """
         case .start:
             body = active.arrival
@@ -1138,7 +1139,9 @@ enum BookJumpEngine {
                 headline: headline(for: action),
                 body: body,
                 metadata: surfaceMetadata(active: active, action: action, extra: [
-                    "bookJumpBeliefDelta": action == .return ? "\(returnReward)" : "0",
+                    "bookJumpBeliefDelta": action == .return
+                        ? "\(returnReward(depth: active.depth, hasSouvenir: true))"
+                        : (action == .advance ? "-\(advanceCost(depth: active.depth))" : "0"),
                     "bookJumpDepth": "\(active.depth)",
                     "bookJumpDegradation": "\(active.degradation)",
                     "bookJumpDirection": active.lastDirection ?? "",
@@ -1898,6 +1901,8 @@ enum MeaningfulPassageSelector {
         scorer: StacksSemanticScoring?,
         maximumAge: TimeInterval = MeaningfulPassageSelector.maximumAge,
         minimumScore: Int = MeaningfulPassageSelector.minimumSelectionScore,
+        honorPriorUse: Bool = true,
+        includeKeptGeneratedPages: Bool = false,
         now: Date = Date()
     ) -> Selection? {
         rankedSelections(
@@ -1908,6 +1913,8 @@ enum MeaningfulPassageSelector {
             limit: 1,
             maximumAge: maximumAge,
             minimumScore: minimumScore,
+            honorPriorUse: honorPriorUse,
+            includeKeptGeneratedPages: includeKeptGeneratedPages,
             now: now
         ).first
     }
@@ -1922,6 +1929,7 @@ enum MeaningfulPassageSelector {
         minimumScore: Int = MeaningfulPassageSelector.minimumSelectionScore,
         honorPriorUse: Bool = true,
         diversifyPageTypes: Bool = false,
+        includeKeptGeneratedPages: Bool = false,
         now: Date = Date()
     ) -> [Selection] {
         guard limit > 0 else { return [] }
@@ -1950,7 +1958,7 @@ enum MeaningfulPassageSelector {
                     && !EditionCurator.defaultPrivateTypes.contains(page.type)
                     && page.privacy != .publicReference
                     && !usedSourceIDs.contains(page.id.lowercased())
-                    && readerGroundingText(for: page) != nil
+                    && groundingText(for: page, includeKeptGeneratedPages: includeKeptGeneratedPages) != nil
             }
             .sorted { left, right in
                 let leftSignal = archiveSignalBoost(for: left, inputs: inputs)
@@ -1964,7 +1972,7 @@ enum MeaningfulPassageSelector {
         let queryWords = SemanticKeepEcho.contentWords(in: query)
         var ranked: [(page: BookPage, passage: PassageScore, total: Int)] = []
         for page in eligible {
-            guard let raw = readerGroundingText(for: page) else { continue }
+            guard let raw = groundingText(for: page, includeKeptGeneratedPages: includeKeptGeneratedPages) else { continue }
             let passage = bestPassage(
                 in: raw,
                 page: page,
@@ -2032,10 +2040,18 @@ enum MeaningfulPassageSelector {
         return "passage specificity plus archive significance"
     }
 
-    private static func readerGroundingText(for page: BookPage) -> String? {
+    private static func groundingText(
+        for page: BookPage,
+        includeKeptGeneratedPages: Bool
+    ) -> String? {
         let reply = page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines)
         if !reply.isEmpty { return reply }
-        guard page.origin == .userAuthored || page.origin == .imported else { return nil }
+        let isReaderAuthored = page.origin == .userAuthored || page.origin == .imported
+        let isKeptGeneratedPage = includeKeptGeneratedPages
+            && (page.origin == .generated || page.origin == .simulated)
+            && page.type != .note
+            && page.type != .letter
+        guard isReaderAuthored || isKeptGeneratedPage else { return nil }
         let input = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !input.isEmpty else { return nil }
         return input
@@ -2067,7 +2083,6 @@ enum MeaningfulPassageSelector {
             if lowered.contains(" i ") || lowered.hasPrefix("i ") || lowered.contains(" we ") { score += 3 }
             let vividLongWords = Set(words.filter { $0.count >= 7 && !KeepMarginalia.stopWords.contains($0) }).count
             score += min(6, vividLongWords)
-            if page.hiddenMagicFinding != nil { score += 4 }
             if passage.contains("?") && !passage.contains(".") && !passage.contains("!") { score -= 6 }
             if passage.filter({ $0 == ":" }).count >= 3 { score -= 8 }
             if isThinOrGeneric(passage) { score -= 18 }
@@ -2140,7 +2155,6 @@ enum MeaningfulPassageSelector {
         if inputs.themes.prefix(6).contains(where: { $0.evidencePageIDs.contains(page.id) }) { score += 8 }
         let fingerprint = page.resolvedAttentionFingerprint
         score += min(5, fingerprint.modalities.count * 2)
-        if page.hiddenMagicFinding != nil { score += 4 }
         return score
     }
 
@@ -3201,6 +3215,19 @@ enum GossipSimulationBuilder {
         let talismanMoves = turns.compactMap(\.chapterTalismanMove)
         let talismanDeltaTokens = talismanMoves.compactMap(\.ledgerToken)
         let pageBeliefMoves = turns.compactMap(\.pageBeliefMove)
+        let participantIDs = Set(turns.flatMap { turn -> [String] in
+            let tagged = turn.tags.compactMap { tag -> String? in
+                if tag.hasPrefix("actor:") { return String(tag.dropFirst("actor:".count)) }
+                if tag.hasPrefix("witness:") { return String(tag.dropFirst("witness:".count)) }
+                return nil
+            }
+            return [turn.actorID] + tagged
+        })
+        let characterCanon = CharacterCanonPacket.promptSection(
+            for: (NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity))
+                .filter { participantIDs.contains($0.id) },
+            contextLines: turns.compactMap(\.relationshipMove).map(\.promptLine)
+        )
         let simulationPacket = turns.enumerated().map { index, turn in
             let talismanMove = turn.chapterTalismanMove.map { "\nChapter talisman move: \($0.summaryLine)" } ?? ""
             let relationshipMove = turn.relationshipMove.map { "\nBetween characters: \($0.promptLine)" } ?? ""
@@ -3240,6 +3267,7 @@ enum GossipSimulationBuilder {
                     "actorIDs": turns.map(\.actorID).joined(separator: ","),
                     "actorName": primary.actorName,
                     "actorNames": turns.map(\.actorName).joined(separator: ", "),
+                    CharacterCanonPacket.metadataKey: characterCanon,
                     "threadID": primary.threadID,
                     "threadIDs": turns.map(\.threadID).joined(separator: ","),
                     "threadTitle": primary.threadTitle,
@@ -4031,6 +4059,10 @@ enum SupportGuildSynthesisGenerator {
             inputs.weather?.phrase,
             inputs.enchantedWeather?.enchantified
         ].compactMap { $0 }.joined(separator: " · ")
+        let characterCanon = CharacterCanonPacket.promptSection(
+            for: [vellum, inkrest].compactMap { $0 },
+            contextLines: ["They are comparing evidence together without turning the reader into a verdict."]
+        )
 
         return SurfacePage(
             id: "\(source.id)-\(day.id)-\(slot)",
@@ -4064,6 +4096,7 @@ enum SupportGuildSynthesisGenerator {
                         vellum?.unwrittenInterest ?? "longevity, fuel, recovery, supplements, movement",
                         inkrest?.unwrittenInterest ?? "consciousness, narrative psychology, brain studies"
                     ].joined(separator: "\n"),
+                    CharacterCanonPacket.metadataKey: characterCanon,
                     "tags": "support-guild,support-guild:\(slot),dr-vellum,dr-inkrest,vellum-chart,therapy-chart,research,experiment"
                 ]
             )
@@ -4330,18 +4363,25 @@ enum StudentNotePageGenerator {
         let voice = CharacterLetterPageGenerator.voiceProfile(for: entity)
         let weatherLine = inputs.weather?.phrase.nonEmpty ?? inputs.enchantedWeather?.summary.nonEmpty ?? "No weather signal is available."
         let worldEventLine = inputs.activeWorldEvents.map(\.title).joined(separator: ", ").nonEmpty ?? "No active world event."
-        let memories = inputs.narrative?.entityMemories
+        let memoryLines = inputs.narrative?.entityMemories
             .filter { $0.entityID == entity.id }
             .prefix(4)
-            .map { "- \($0.summary)" }
-            .joined(separator: "\n") ?? ""
+            .map(\.summary) ?? []
+        let memories = memoryLines.map { "- \($0)" }.joined(separator: "\n")
         let priorNotes = (inputs.days + [day]).flatMap(\.pages)
             .filter { $0.type == .note && $0.tags.contains("sender:\(entity.id)") }
             .sorted { $0.createdAt < $1.createdAt }
         let replyMemory = priorNotes.last?.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
         let timeLine = timeOfDayLine(now: now)
         let classLine = classLine(inputs: inputs, day: day)
-        let noteKind = noteKind(for: entity, inputs: inputs, day: day, now: now)
+        let keptPages = (inputs.days + [day]).flatMap(\.capturedPages)
+        let noteKind = noteKind(
+            for: entity,
+            inputs: inputs,
+            day: day,
+            hasKeptPages: !keptPages.isEmpty,
+            now: now
+        )
         let passageQuery = notePassageQuery(
             entity: entity,
             noteKind: noteKind,
@@ -4353,23 +4393,47 @@ enum StudentNotePageGenerator {
         let scorer = semanticScorer
             ?? (inputs.semanticPassageSelectionEnabled ? SemanticKeepEcho.keepTimeScorer : nil)
         let selectedPassage = MeaningfulPassageSelector.select(
-            pages: (inputs.days + [day]).flatMap(\.capturedPages),
+            pages: keptPages,
             query: passageQuery,
             inputs: inputs,
             scorer: scorer,
-            maximumAge: 45 * 86_400,
-            minimumScore: 18,
+            maximumAge: 120 * 86_400,
+            minimumScore: 8,
+            honorPriorUse: false,
+            includeKeptGeneratedPages: true,
             now: now
         )
+        let selectedPage = selectedPassage.flatMap { selection in
+            keptPages.first { $0.id == selection.pageID }
+        }
+        let subjectKind = selectedPage.map { noteSubjectKind(for: $0) }
         let passageSection = selectedPassage.map {
             """
-            Selected reader passage (the note's concrete hinge):
+            REQUIRED KEPT-PAGE SUBJECT (the note is about this):
             - From a \($0.pageType.shortTitle) page: “\($0.excerpt)”
+            - Subject kind: \(subjectKind ?? "kept-page event")
             - Selection basis: \($0.reason)
 
-            Use the detail only if it sounds natural in this sender's quick hand. Quote at most one short phrase. Never say you searched, ranked, analyzed, or opened an archive.
+            This is not optional atmosphere. Make the sender react to, question, tease, warn about, or otherwise interpret this exact kept thing through their own beliefs, wants, faults, habits, interests, relationships, and memories. If it is reader-authored, quote or closely echo at most one short phrase. If it is kept fiction, speak of what happened in the fiction as an in-world event; never claim the reader did it in ordinary life. Never say you searched, ranked, analyzed, or opened an archive.
             """
-        } ?? "No reader passage strongly fits this note. Do not force a callback."
+        } ?? "No substantial kept page is available for this note. Do not invent one."
+        let relationshipContext = CharacterLetterPageGenerator.thirdPartyRelationshipContext(
+            for: entity,
+            inputs: inputs,
+            allowInCurrentLetter: true
+        )
+        var characterContext = memoryLines.map { "Current memory: \($0)" }
+        characterContext += relationshipContext
+        if let replyMemory {
+            characterContext.append("The reader previously replied to this sender: \(replyMemory)")
+        }
+        if let selectedPassage {
+            characterContext.append("The kept subject this character is responding to now: \(selectedPassage.excerpt)")
+        }
+        let characterCanon = CharacterCanonPacket.promptSection(
+            for: [entity],
+            contextLines: characterContext
+        )
         let body = """
         Sender: \(entity.name)
         Address the player as: \(playerName)
@@ -4381,7 +4445,7 @@ enum StudentNotePageGenerator {
         Writing voice:
         \(voice.promptDescription)
 
-        Meaningful kept-page context:
+        Kept-page subject:
         \(passageSection)
 
         Sender memories:
@@ -4390,7 +4454,7 @@ enum StudentNotePageGenerator {
         Prior note reply:
         \(replyMemory.map { "The reader previously slipped back: \"\($0.replacingOccurrences(of: "\n", with: " ").prefix(180))...\"" } ?? "No prior note reply from the reader.")
 
-        Write one quick in-world note slipped to the player. Keep it brief enough to fit on folded paper. It may ask a question, warn, tease, invite, apologize, pass gossip, or hand over one small saved-up noticing that wants no reply. Do not format as a formal letter. Do not claim the player completed actions not in the packet.
+        Write one quick in-world note slipped to the player. When a kept-page subject is supplied, the note must plainly be about it; weather, corridor business, and world events are secondary and may appear only if they sharpen that response. Let the sender's whole binding character packet decide what they notice, misunderstand, protect, joke about, want, avoid, and ask next—not merely their surface diction. Keep it brief enough to fit on folded paper. Do not format as a formal letter. Do not claim the player completed actions not in the packet.
         """
         var tags = ["note", "student-note", "reply", "sender:\(entity.id)"] + Array(entity.tags.prefix(4))
         if let selectedPassage {
@@ -4409,6 +4473,7 @@ enum StudentNotePageGenerator {
             "weatherContext": weatherLine,
             "worldEventTitles": worldEventLine,
             "writingVoice": voice.promptDescription,
+            CharacterCanonPacket.metadataKey: characterCanon,
             "slotID": slot,
             "placeholder": "\(entity.name) just slipped you a note.",
             "tags": tags.joined(separator: ",")
@@ -4419,6 +4484,8 @@ enum StudentNotePageGenerator {
             metadata["meaningfulSourcePassage"] = selectedPassage.excerpt
             metadata["meaningfulSourceReason"] = selectedPassage.reason
             metadata["meaningfulSourceSemanticSimilarity"] = selectedPassage.semanticSimilarity.map { String($0) } ?? ""
+            metadata["noteSubjectKind"] = subjectKind ?? "kept-page event"
+            metadata["noteSubjectRequired"] = "true"
         }
         if let asset = CharacterPortrait.bundledAssetName(forName: entity.name) {
             metadata["assetName"] = asset
@@ -4492,16 +4559,33 @@ enum StudentNotePageGenerator {
     }
 
     private static func entityScore(_ entity: NarrativeWorldEntity, day: BookDay, inputs: BookSourceInputs, slot: String) -> Int {
-        let recentText = day.pages.suffix(8).map { "\($0.promptText) \($0.userInput) \($0.tags.joined(separator: " "))" }.joined(separator: " ").lowercased()
-        let memoryHit = recentText.contains(entity.id.lowercased()) || recentText.contains(entity.name.lowercased()) ? 16 : 0
+        let recentPages = (Array(inputs.days.suffix(14)) + [day])
+            .flatMap(\.capturedPages)
+            .suffix(24)
+        let recentText = recentPages.map {
+            "\($0.promptText) \($0.userInput) \($0.playerReply) \($0.tags.joined(separator: " "))"
+        }.joined(separator: " ").lowercased()
+        let memoryHit = recentText.contains(entity.id.lowercased()) || recentText.contains(entity.name.lowercased()) ? 24 : 0
         let narrativeHit = inputs.narrative?.weightedEntityIDs.contains(entity.id) == true ? 12 : 0
         let relationship = inputs.entityBeliefOffsets[entity.id] ?? 0
         let jitter = stableIndex(for: "\(slot)-\(entity.id)-student-note", count: 14)
         return entity.belief + entity.narrativeWeight + relationship + memoryHit + narrativeHit + jitter
     }
 
-    private static func noteKind(for entity: NarrativeWorldEntity, inputs: BookSourceInputs, day: BookDay, now: Date) -> String {
+    private static func noteKind(
+        for entity: NarrativeWorldEntity,
+        inputs: BookSourceInputs,
+        day: BookDay,
+        hasKeptPages: Bool,
+        now: Date
+    ) -> String {
         let seed = stableIndex(for: "\(day.id)-\(entity.id)-\(SurfaceCadence.slotID(for: now, hours: 3))-kind", count: 100)
+        if hasKeptPages {
+            if seed < 30 { return "question about a kept page" }
+            if seed < 55 { return "tease about a kept page" }
+            if seed < 75 { return "warning prompted by a kept page" }
+            return "private aside about a kept page"
+        }
         if !inputs.activeWorldEvents.isEmpty { return seed.isMultiple(of: 2) ? "warning" : "gossip" }
         if day.pages.contains(where: { $0.type == .academyClass }) { return "class question" }
         if inputs.weather != nil && seed < 24 { return "weather check-in" }
@@ -4510,6 +4594,16 @@ enum StudentNotePageGenerator {
         if seed < 66 { return "invitation" }
         if seed < 82 { return "confession-adjacent aside" }
         return "tiny joke"
+    }
+
+    private static func noteSubjectKind(for page: BookPage) -> String {
+        if !page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "the reader's own reply on a kept page"
+        }
+        if page.origin == .userAuthored || page.origin == .imported {
+            return "the reader's own kept words"
+        }
+        return "an event from kept fiction"
     }
 
     private static func classLine(inputs: BookSourceInputs, day: BookDay) -> String {
@@ -4580,6 +4674,7 @@ enum CharacterLetterPageGenerator {
         let homeContext = homeContextLine(inputs: inputs, day: day)
         let playerName = preferredPlayerName(inputs: inputs)
         let voice = voiceProfile(for: entity)
+        let characterCanon = CharacterCanonPacket.promptSection(for: [entity])
         let talismanMoves = ChapterTalismanBeliefMoves.moves(
             for: [entity],
             seed: stableIndex(for: "\(day.id)-\(slot)-\(entity.id)-letter-talisman", count: 10_000)
@@ -4672,6 +4767,7 @@ enum CharacterLetterPageGenerator {
             "thirdPartyRelationshipContext": relationshipWeather.joined(separator: "\n"),
             "researchQuery": query,
             "writingVoice": voice.promptDescription,
+            CharacterCanonPacket.metadataKey: characterCanon,
             "chapterTalismanMoves": talismanMoveLines,
             "chapterTalismanDeltas": talismanDeltaTokens,
             "slotID": slot,
@@ -4719,25 +4815,7 @@ enum CharacterLetterPageGenerator {
     }
 
     static func voiceProfile(for entity: NarrativeWorldEntity) -> WritingVoiceProfile {
-        if let writingVoice = entity.writingVoice {
-            return writingVoice
-        }
-        let traitLine = entity.traits.prefix(3).joined(separator: ", ")
-        let quirkLine = entity.quirks.prefix(2).joined(separator: "; ")
-        return WritingVoiceProfile(
-            register: entity.kind == .character ? "personal, direct, and specific" : "observant and quietly animate",
-            rhythm: "varied sentence lengths; one intimate turn near the end",
-            diction: Array((entity.traits + entity.tags).prefix(5)),
-            habits: [
-                traitLine.isEmpty ? "write from what the character notices first" : "let these traits guide the hand: \(traitLine)",
-                quirkLine.isEmpty ? "include one small concrete observation" : "one habit may surface: \(quirkLine)"
-            ],
-            avoid: [
-                "generic assistant voice",
-                "fake citations",
-                "claiming the player did things not present in memory"
-            ]
-        )
+        entity.resolvedWritingVoice
     }
 
     private static func selectedEntity(for day: BookDay, inputs: BookSourceInputs, now: Date) -> NarrativeWorldEntity? {
@@ -5643,24 +5721,6 @@ enum PlayfulMissionRegistry {
         } else {
             preferredTags = ["touch", "visual", "scent", "sound"]
         }
-        let attentionProfile = HiddenMagicAttentionProfile.make(days: inputs.days + [day])
-        let stretchSenses: [HiddenMagicSense] = [.sight, .sound, .touch, .scent, .taste, .body, .place, .people, .kindness, .time, .imagination]
-        if let stretch = attentionProfile.leastPracticed(in: stretchSenses, seed: "mission:\(day.id)") {
-            switch stretch {
-            case .sight: preferredTags.formUnion(["visual", "color", "light"])
-            case .sound: preferredTags.formUnion(["sound", "rhythm"])
-            case .touch: preferredTags.formUnion(["touch", "texture", "temperature"])
-            case .scent: preferredTags.formUnion(["scent", "weather"])
-            case .taste: preferredTags.formUnion(["taste", "fuel"])
-            case .body: preferredTags.formUnion(["body", "movement", "low-energy"])
-            case .weather: preferredTags.formUnion(["weather", "sky", "outside"])
-            case .place: preferredTags.formUnion(["place", "outside", "public"])
-            case .people: preferredTags.formUnion(["people", "connection"])
-            case .kindness: preferredTags.formUnion(["kindness", "shared-wonder"])
-            case .time: preferredTags.formUnion(["history", "old", "memory"])
-            case .imagination: preferredTags.formUnion(["imagination", "character", "strange"])
-            }
-        }
         if shadowVariant, ShadowWonder.state(inputs: inputs, now: now).isActive {
             preferredTags.formUnion(["shadow-wonder", "shadow", "night", "history", "threshold", "old"])
         }
@@ -5680,7 +5740,7 @@ enum PlayfulMissionRegistry {
         }
     }
 
-    static let missions: [PlayfulMission] = coreMissions + attentionMissions + sharedWonderMissions + peopleMissions + shadowMissions
+    static let missions: [PlayfulMission] = coreMissions + ridiculousMissions + attentionMissions + sharedWonderMissions + peopleMissions + shadowMissions
 
     /// The lens turned toward the people already in the reader's real days.
     /// These aim attention at company, not performance: nobody is asked to do
@@ -5735,6 +5795,36 @@ enum PlayfulMissionRegistry {
         mission("chair-held", "The Chair Holds", "Sit down and let the chair do all the work for sixty seconds. Notice where it pushes back.", "Complete this: The chair held me by...", ["touch", "rest", "low-energy", "inside"], allowsPhoto: false),
         mission("brightest-small", "Small Bright Thing", "Find the brightest small thing nearby. Not the biggest bright thing. The small one.", "Write why it caught the light.", ["visual", "low-energy", "inside", "public"])
     ]
+
+    /// Immediate nonsense with a sensory job to do. Every mission begins now,
+    /// works in public or private, needs no special object or able-bodied
+    /// movement, and accepts either a sentence or a photo as its souvenir.
+    static let ridiculousMissions: [PlayfulMission] = [
+        mission("ridiculous-body-meeting", "Emergency Body Meeting", "Convene an emergency meeting of three body parts you can safely move — toes, fingers, eyebrows, shoulders, anything. Let each vote once. Which one is clearly trying to take over?", "Write the three delegates and the would-be ruler.", ["ridiculous", "anywhere", "present-moment", "body", "movement", "imagination"], allowsPhoto: false),
+        mission("ridiculous-ambient-conductor", "Conduct The Situation", "For twenty seconds, conduct every sound around you with one finger. Bring in the hum. Silence the clunk. Give the smallest sound an outrageous solo.", "Write which sound got the solo.", ["ridiculous", "anywhere", "present-moment", "sound", "movement", "imagination"], allowsPhoto: false),
+        mission("ridiculous-countdown", "Completely Unnecessary Countdown", "Choose one harmless tiny action you can do right now — blink, sip, stand, tap, turn a page. Give it a five-second launch countdown, then notice the exact instant it becomes done.", "Write the action that received launch clearance.", ["ridiculous", "anywhere", "present-moment", "body", "time", "noticing"], allowsPhoto: false),
+        mission("ridiculous-dramatic-zoom", "Dramatic Zoom", "Pick the most boring thing in view. Slowly lean your attention closer like a television camera revealing the villain. Stop when one detail becomes suspicious.", "Write the suspicious detail revealed by the zoom.", ["ridiculous", "anywhere", "present-moment", "visual", "imagination", "low-energy"], allowsPhoto: false),
+        mission("ridiculous-tiny-applause", "Applause For The Competent", "Find one ordinary thing currently doing its job. Give it the smallest possible round of applause — fingertips, one nod, or silent jazz hands — then inspect what it did to earn this.", "Write the performer and its exact achievement.", ["ridiculous", "anywhere", "present-moment", "visual", "touch", "imagination"], allowsPhoto: false),
+        mission("ridiculous-object-election", "Emergency Object Election", "Choose three things you can see. Elect one Mayor of Right Now, one Minister of Suspicious Affairs, and one object that absolutely demanded a title it cannot handle.", "Write the cabinet and the evidence behind one appointment.", ["ridiculous", "anywhere", "present-moment", "visual", "object", "imagination"], allowsPhoto: false),
+        mission("ridiculous-freeze-frame", "Freeze-Frame Investigation", "When you are safely still, freeze for ten seconds in the exact pose you are already in. Your only job is to catch what keeps moving without you.", "Write the thing that refused to freeze.", ["ridiculous", "anywhere", "present-moment", "body", "visual", "movement"], allowsPhoto: false),
+        mission("ridiculous-imaginary-hat", "Adjust The Invisible Hat", "You are wearing an invisible hat of unreasonable importance. Adjust it once with complete dignity. Now notice what your forehead, hair, skin, or the air was actually doing.", "Write the hat's title and the real sensation beneath it.", ["ridiculous", "anywhere", "present-moment", "body", "touch", "imagination"], allowsPhoto: false),
+        mission("ridiculous-five-beat-parade", "Five-Beat Parade", "Hold a five-beat parade using whatever can safely move — feet, shoulders, fingers, wheels, or eyebrows. Give every beat more ceremony than the last.", "Write which beat believed the hype most.", ["ridiculous", "anywhere", "present-moment", "body", "rhythm", "movement"], allowsPhoto: false),
+        mission("ridiculous-support-surface", "Gravity's Press Conference", "Press gently into whatever is supporting you — floor, chair, bed, wall, shoes. Ask gravity one question by shifting your weight, then feel exactly where the answer pushes back.", "Write where gravity answered.", ["ridiculous", "anywhere", "present-moment", "body", "touch", "weight"], allowsPhoto: false),
+        mission("ridiculous-air-border", "Air Border Patrol", "Move one hand slowly through the air around you. Find the border where the temperature, breeze, light, or texture changes. It is a tiny country now; name it.", "Write the border and the country's name.", ["ridiculous", "anywhere", "present-moment", "touch", "temperature", "imagination"], allowsPhoto: false),
+        mission("ridiculous-blink-photo", "Blink Photograph", "Frame the scene in front of you with your eyes. Close them for three seconds. Open them and catch the very first detail that develops.", "Write the first detail in the blink photograph.", ["ridiculous", "anywhere", "present-moment", "visual", "body", "low-energy"], allowsPhoto: false),
+        mission("ridiculous-museum-plaque", "Museum Of This Exact Second", "Choose the nearest utterly ordinary thing and give it a seven-word museum plaque describing its exact condition right now. Curators are standing by.", "Write the seven-word plaque.", ["ridiculous", "anywhere", "present-moment", "visual", "object", "words"], allowsPhoto: false),
+        mission("ridiculous-sound-audition", "Audition The Soundtrack", "Audition three sounds you can hear for the role of Sound of This Exact Moment. Listen to each candidate all the way through before choosing the winner.", "Write the winning sound and why it got the part.", ["ridiculous", "anywhere", "present-moment", "sound", "attention", "imagination"], allowsPhoto: false),
+        mission("ridiculous-micro-ceremony", "Historic Tiny Achievement", "Complete one tiny action already available to you, then mark the occasion with a solemn nod, a fingertip fanfare, or one whispered 'done.' Notice what changes in your body after the ceremony.", "Write the achievement and what shifted after it.", ["ridiculous", "anywhere", "present-moment", "body", "movement", "noticing"], allowsPhoto: false),
+        mission("ridiculous-opposite-hand", "Cameo By The Other Hand", "Give your non-usual hand one safe, tiny job right now. Let it tap, point, turn, hold, or choose. Watch what suddenly requires a committee.", "Write the job and the awkwardly vivid part.", ["ridiculous", "anywhere", "present-moment", "body", "touch", "movement"], allowsPhoto: false),
+        mission("ridiculous-constellation", "Emergency Constellation", "Choose three points above or ahead of you — marks, lights, corners, clouds, anything. Connect them into a constellation and name the extremely local legend it depicts.", "Write the constellation and its legend in one line.", ["ridiculous", "anywhere", "present-moment", "visual", "place", "imagination"], allowsPhoto: false),
+        mission("ridiculous-official-nod", "The Official Nod", "Find the most overlooked thing in sight. Study its actual work for ten seconds, then give it one grave official nod. The inspection is complete.", "Write what passed inspection and the job it was doing.", ["ridiculous", "anywhere", "present-moment", "visual", "object", "attention"], allowsPhoto: false),
+        mission("ridiculous-red-carpet", "Three-Step Red Carpet", "Travel three safe steps toward whatever you were doing next as if the ground has waited all day for this entrance. If steps do not suit, walk two fingers across a surface. Notice one sensation per step.", "Write the three red-carpet sensations.", ["ridiculous", "anywhere", "present-moment", "body", "touch", "movement"], allowsPhoto: false),
+        mission("ridiculous-reality-caption", "Caption Reality Badly", "Look at this exact moment and give it the most overdramatic six-word title the evidence can support. It must include one real detail you can sense now.", "Write the six-word title.", ["ridiculous", "anywhere", "present-moment", "visual", "words", "imagination"], allowsPhoto: false)
+    ].map { draft in
+        var mission = draft
+        mission.allowsPhoto = true
+        return mission
+    }
 
     static let attentionMissions: [PlayfulMission] = [
         mission("body-heartbeat-location", "The Body Reports In", "Stand completely still until you can feel your heartbeat somewhere other than your chest. Report the location.", "Write the place where the heartbeat answered.", ["body", "touch", "low-energy", "inside"], allowsPhoto: false),
@@ -5883,11 +5973,30 @@ enum PromptWhisperRegistry {
         )
     }
 
+    static func promptWhisper(from favor: BookFavor) -> PromptWhisper {
+        PromptWhisper(
+            id: "book-favor-\(favor.id)",
+            kind: .mission,
+            title: "A favor from the Book",
+            body: favor.ask,
+            keepPrompt: favor.practiceShape,
+            tags: ["book-favor", favor.archiveTag, "wonder:\(favor.facet.rawValue)"]
+        )
+    }
+
     static func prompts(for day: BookDay, inputs: BookSourceInputs, now: Date, count: Int) -> [PromptWhisper] {
         guard count > 0 else { return [] }
         let missions = rankedMissionWhispers(for: day, inputs: inputs, now: now)
         var prompts: [PromptWhisper] = []
         var seen: Set<String> = []
+
+        if let favor = inputs.bookInterior.activeFavor,
+           favor.status == .offered,
+           Calendar.current.isDate(favor.createdAt, inSameDayAs: day.date) {
+            let whisper = promptWhisper(from: favor)
+            prompts.append(whisper)
+            seen.insert(whisper.id)
+        }
 
         for slot in 0..<(count * 3) {
             let preferCheckIn = slot % 2 == 0
@@ -6886,6 +6995,63 @@ enum StoryFormRegistry {
             tone: "Grave bureaucratic tenderness: stamps, folders, and complete seriousness about the unserious. Verification is a form of welcome.",
             choices: "Offer verifying one testable claim, filing it as itself with the contradictions intact, or letting it dictate its own entry — three curatorial philosophies with different drawers.",
             continuation: "The catalog entry is canon and citable; later scenes may pull the card. Never re-discover the specimen or lose the file."),
+        // The mischief register: comedy made from sincere people facing an
+        // absurdly specific problem. The joke is never that somebody cared;
+        // caring is what lets the ridiculous situation acquire real stakes.
+        recipe("wrong-size-emergency", "The Wrong Size of Emergency", weight: 13, requirements: [.groundedSource, .character], mode: .action,
+            premise: "{{lead}} arrives inside {{thread}} equipped for a five-alarm magical emergency because {{grounding}} sounded much more ominous from the other side of the door. The actual problem could fit in a teacup.",
+            beats: ["Inventory the heroic overpreparation at speed — rope, warning bell, emergency cloak, one tool nobody can explain — then reveal the tiny exact trouble none of it was designed to solve.", "After the chosen response, the ridiculous equipment is repurposed, dismissed with honors, or sent where it is genuinely needed, and the teacup-sized emergency is actually solved."],
+            turn: turn(.smallDecision, want: "to solve the small true problem hidden inside the large misunderstanding about {{grounding}}", obstacle: "{{lead}} has brought enough equipment to make admitting the mistake socially expensive", statement: "By the end, the small emergency is solved and the unnecessary heroics have found a graceful fate.", slice: "One absurd tool turns out to be perfect once everybody stops pretending it was brought on purpose.", progress: "The overpacked kit contains the one overlooked thing that moves {{thread}} forward.", surprise: "There was a real emergency after all — but it belongs to the person who loaned {{lead}} the ladder."),
+            tags: ["mischief", "energy", "mission", "comic"], forms: ["visitation", "quiet-epic"], genres: ["screwball", "tiny-heist"],
+            grounding: "Use one concrete feature of the grounded detail as both the believable source of the misunderstanding and the clue to the much smaller real problem. Never mock the reader's actual concern.",
+            tone: "Affectionate farce with brisk entrances and total commitment. The mismatch is funny; the person who cared enough to come prepared is not the punchline.",
+            choices: "Offer admitting the mistake and solving the small problem plainly, repurposing the most excessive piece of gear, or sending the whole heroic kit toward the emergency it accidentally uncovered.",
+            continuation: "The small problem stays solved, and any equipment sent onward stays in play. Never inflate the same misunderstanding into a second false crisis."),
+        recipe("one-simple-conversation", "One Simple Conversation", weight: 12, requirements: [.groundedSource, .character, .secondCharacter], mode: .conversation,
+            premise: "{{lead}} only needs to say one simple thing to {{companion}} about {{grounding}}. Unfortunately, the rehearsal inside {{thread}} has acquired cue cards, three opening lines, and a cape nobody authorized.",
+            beats: ["Let the rehearsal worsen through sincere revisions: each attempt to sound natural adds one more prop, flourish, or terrible piece of advice while the unsaid sentence remains short and clear.", "After the chosen response, the real conversation happens plainly, happens theatrically on purpose, or begins when {{companion}} walks in early — and the one necessary sentence finally lands."],
+            turn: turn(.relationshipShift, want: "to say one honest sentence to {{companion}} about {{grounding}} without making it strange", obstacle: "every rehearsal makes the sentence stranger and the audience larger", statement: "By the end, the honest sentence has been said and answered, with or without the cape.", slice: "The cue cards are put down and the sentence is tried once in an ordinary voice.", progress: "{{companion}} answers the actual sentence, moving {{thread}} past the rehearsal.", surprise: "{{companion}} heard the first rehearsal through the wall and has brought notes."),
+            tags: ["mischief", "cast", "conversation", "comic"], forms: ["visitation", "correspondence"], genres: ["screwball", "cozy-mystery"],
+            grounding: "The grounded detail supplies the exact subject of the honest sentence. Keep its emotional truth intact while the performance around it gets ridiculous.",
+            tone: "Warm social comedy: escalating preparation, quick interruptions, and no humiliation. Beneath the farce, let the simple sentence matter.",
+            choices: "Offer abandoning the rehearsal for plain speech, committing to the theatrical version with full honesty, or swapping roles so {{lead}} can hear how the sentence sounds.",
+            continuation: "The answer to the honest sentence is canon. Follow the relationship after it was said; never send everyone back into rehearsal."),
+        recipe("rumor-with-good-shoes", "The Rumor with Good Shoes", weight: 12, requirements: [.groundedSource, .character], mode: .action,
+            premise: "A harmless misunderstanding about {{grounding}} has put on excellent shoes and is walking briskly through {{thread}}. {{lead}} is one corridor behind and losing ground.",
+            beats: ["Track the rumor by the increasingly confident details people have added to it; every version should be more specific, less accurate, and funnier without becoming cruel.", "After the chosen response, the rumor is caught and corrected, redirected into an obviously fictional legend, or introduced to the much better truth — and its shoes are finally accounted for."],
+            turn: turn(.factLearned, want: "to catch the walking rumor before it reaches someone who will embroider it", obstacle: "each correction arrives one room late and becomes part of the story", statement: "By the end, the misunderstanding has been corrected, harmlessly fictionalized, or replaced by the specific truth.", slice: "One listener simply asks what actually happened, and waits for the answer.", progress: "The rumor's route reveals who in {{thread}} needed the real information.", surprise: "The shoes belong to a second rumor coming the other way."),
+            tags: ["mischief", "words", "mission", "comic"], forms: ["small-mystery", "quiet-epic"], genres: ["screwball", "serial-adventure"],
+            grounding: "Build the first misunderstanding from a plausible ambiguity in the grounded detail, then preserve one exact true fact through every wrong version. Do not turn private pain, identity, or vulnerability into gossip.",
+            tone: "Fleet-footed verbal comedy. The additions are absurd, the consequences stay kind, and accuracy gets the last good line.",
+            choices: "Offer catching the rumor with a concise correction, declaring it fiction and improving it beyond belief, or letting the person who needs the truth hear the full specific version first.",
+            continuation: "The corrected people stay corrected. Any deliberately fictional legend may recur only as a known joke, never as believed fact."),
+        recipe("petty-prophecy", "The Petty Prophecy", weight: 13, requirements: [], mode: .environmental,
+            premise: "A sealed prophecy has opened itself in the Great Hall and announced, in thunderous gold letters, a consequence of almost insulting smallness before midnight.",
+            beats: ["Read the prophecy with full ceremonial gravity, then make its promised event painfully concrete — the last clean spoon, a crooked button, the wrong person getting the good chair — while the Labyrinth reacts as if dynasties depend on it.", "After the chosen response, the prophecy is fulfilled exactly, outwitted on a technicality, or persuaded to admit what tiny thing it was really trying to protect."],
+            turn: turn(.smallDecision, want: "to settle the prophecy before midnight without granting it more grandeur than it has earned", obstacle: "the wording is airtight, pompous, and annoyingly achievable", statement: "By the end, the petty prophecy has been fulfilled, outwitted, or honestly reinterpreted, and the small consequence is permanent.", slice: "The reader performs the tiny foretold act with absurd solemnity, and the gold letters calm down.", progress: "One overlooked clause points straight into {{thread}}.", surprise: "The prophecy is accurate because it wrote the event into the duty roster itself."),
+            tags: ["world-led", "mischief", "words", "ritual", "comic"], forms: ["correspondence", "nocturne"], genres: ["screwball", "cozy-mystery"],
+            grounding: "Hour and weather may sharpen the deadline; the prophecy belongs wholly to the world and never predicts the reader's destiny, worth, romance, health, or real future.",
+            tone: "Cosmic language, household stakes, absolutely straight faces. Let ceremony and pettiness make each other funnier.",
+            choices: "Offer fulfilling the tiny prediction with full honors, defeating it through one exact loophole, or questioning the prophecy until it confesses the small good it wants protected.",
+            continuation: "The prophecy's exact outcome is world-fact and its parchment goes quiet. Never issue a grander sequel to justify the joke."),
+        recipe("unscheduled-parade", "The Unscheduled Parade", weight: 13, requirements: [.character], mode: .action,
+            premise: "{{lead}} makes one perfectly ordinary signal in a corridor — a whistle, a raised umbrella, three knocks — and an entire parade forms behind it with no agreed destination.",
+            beats: ["Build the procession while it moves: one dubious banner, one impossible instrument, at least one marcher who thinks this is a different parade, and {{lead}} trying to discover what they apparently started.", "After the chosen response, the parade is given a worthy destination, steered toward someone who needs cheering, or allowed to elect its own purpose — then ends before it becomes a meeting."],
+            turn: turn(.handOff, want: "to give the accidental parade somewhere worth arriving", obstacle: "every new marcher has already announced a different purpose", statement: "By the end, the parade has arrived somewhere on purpose, cheered one person, or elected a cause everybody can actually name.", slice: "For one corridor the reader simply marches, letting the worst instrument keep the beat.", progress: "The chosen destination carries the whole procession one jubilant step into {{thread}}.", surprise: "The parade has a permit. It was filed eighty years ago for exactly today."),
+            tags: ["world-led", "mischief", "music", "energy", "comic"], forms: ["quiet-epic", "threshold-crossing"], genres: ["screwball", "serial-adventure"],
+            grounding: "Weather and hour set the parade's light and acoustics; the procession comes from the Labyrinth's own life. The reader's pages stay closed.",
+            tone: "Joyful escalating nonsense with forward motion. Everyone is allowed dignity, including the person playing the impossible instrument badly.",
+            choices: "Offer choosing a destination worth the noise, taking the parade to one person who needs it, or calling a moving vote so the marchers invent a shared purpose.",
+            continuation: "The parade ends at its destination and leaves one banner, tune, or new tradition behind. Never make the same signal summon it twice."),
+        recipe("rule-nobody-read", "The Rule Nobody Read", weight: 12, requirements: [.character], mode: .balanced,
+            premise: "A self-inking rulebook has cited {{lead}} for breaking an ancient Labyrinth regulation nobody has read because its title continues onto the next shelf.",
+            beats: ["State the absurd rule, the inconvenient but harmless penalty, and the exact ordinary act that triggered it; the rulebook should be technically correct and unbearable about punctuation.", "After the chosen response, the rule is obeyed spectacularly, defeated by its own footnote, or amended through an older precedent — and the book must enter the ruling in ink."],
+            turn: turn(.factLearned, want: "to resolve one ridiculous but valid citation before the rulebook adds late fees", obstacle: "the rule has seventeen clauses, one useful footnote, and custody of the ink", statement: "By the end, the citation has been satisfied, overturned, or converted into a better rule the book is forced to print.", slice: "Someone reads the rule all the way through; the final clause is unexpectedly reasonable.", progress: "The precedent hidden in the footnote opens a lawful route into {{thread}}.", surprise: "{{lead}} did not break the rule — the rulebook did, by issuing the citation in the prohibited typeface."),
+            tags: ["world-led", "mischief", "books", "evidence", "comic"], forms: ["small-mystery", "correspondence"], genres: ["screwball", "cozy-mystery"],
+            grounding: "Hour, season, and weather may affect office hours or ink behavior; the rule arises from the world's history, never from policing the reader's real conduct.",
+            tone: "Deadpan magical bureaucracy: exact language, escalating procedure, no institutional cruelty. The rulebook is formidable, fallible, and very proud of its semicolons.",
+            choices: "Offer complying so magnificently the rule becomes silly, building a case from the footnote, or finding an older precedent that lets the rule be amended in public.",
+            continuation: "The ruling is entered and binding. Later scenes honor the amendment or precedent; never cite the same character for the same act again."),
         // The chosen quill's own scene: only offered once an instrument has
         // chosen the reader in the Quillquarium, and staged so the quill's
         // opposite-of-the-reader temperament does the dramatic work.

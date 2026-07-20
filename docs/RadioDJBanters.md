@@ -4,7 +4,7 @@ Between-song station chatter for the five ReEnchanted Radio stations — **hoste
 real Academy cast**, not invented mascots. Each DJ is an actual
 `NarrativeWorldEntity` from `Shared/NarrativeCore.swift`, and the banters are
 written in that character's real voice (their traits, quirks, faults, and
-chapter). They connect to the world (Disbelief, Belief, Glow, the Chapters),
+chapter). They connect to the world (Routine, Belief, Glow, the Chapters),
 the callsigns, fae sponsors, gossip from **The Bleed**, "current events," and the
 bundled track names — so the dial feels alive and a little bit real.
 
@@ -144,7 +144,7 @@ Style 35–40%, Speed 0.97.
 - [smooth] Rumor under the bassline. There's a chapter in this building nobody can jump into — yours, the Unwritten one. [low] Everybody wants a look. They'd test it, pick it apart, like I would. [quiet] Don't let us. Write it yourself first.
 
 ### "News" / current events
-- [low] Tonight's reading off Today's Sky: Disbelief made a move at the edges. We held. We always hold — barely, on purpose, which is the only kind of holding worth anything. [amused] Believe something out loud. I dare you. That's not mockery. That's the assignment.
+- [low] Tonight's reading off Today's Sky: Routine made a move at the edges. We held. We always hold — barely, on purpose, which is the only kind of holding worth anything. [amused] Believe something out loud. I dare you. That's not mockery. That's the assignment.
 - [quiet] Pact Dispatch is busy tonight. Three bargains struck, two already regretted, one that'll change a life. [smooth] I can usually tell which is which — it's my whole talent. [low] Tonight? Can't call it. That's how you know it's real. More Thornwave, after this.
 
 ---
@@ -233,7 +233,7 @@ Short "you're on the Academy band" stings to glue the stations together.
 - **What keeps it real:** each DJ's actual voice from `NarrativeCore.swift`
   (Penny's dry filing, Euphony's harmonies, Wicker's testing, Villanelle's one
   true sentence, Melisande's second-version rumors), the callsign + frequency,
-  Disbelief/Belief/Glow vocabulary, The Bleed as in-world news, and the real
+  Routine/Belief/Glow vocabulary, The Bleed as in-world news, and the real
   bundled track names. Swapping tracks later only means re-recording transitions.
 - **Time-of-day:** Fae-Fi reads best in daylight rotations, Mothlight at dusk,
   Thornwave / Bindery / Market after dark — matching the half-hour window
@@ -259,7 +259,7 @@ of this lives in `Shared/WorldSystems.swift` and is covered by
 - **`RadioBanter.Category`** — `stationID`, `transition`, `sponsor`, `gossip`,
   `news`, `network`. (These mirror the headings in this doc.)
 - **`RadioBanter.Conditions`** — all-optional gate: `timeOfDay`, `minGrey` /
-  `maxGrey` (Disbelief's pressure), `festivalOnly`, `minListeningDays`. Leave a
+  `maxGrey` (Routine's pressure), `festivalOnly`, `minListeningDays`. Leave a
   field nil to mean "don't care."
 - **`RadioWorldContext`** — the live snapshot the app builds from existing systems
   (clock → `timeOfDay`, `NothingTide` → `grey`, festival window, the listening

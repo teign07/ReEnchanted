@@ -113,13 +113,35 @@ continuous living world:
   kept page so their week one is Issue No. 1; exports as its own PDF.
 - **Plain Page and the Book's Pocket:** a deliberately promptless "just
   write" door that enters the archive unprocessed and never surfaces through
-  the curator, plus the existing Parting Whisper/Pocket keepsake system now
-  surfaces as its own `bookPocket` archive page type instead of a home-shelf
-  extra.
+  the curator, plus attention-earned Page fragments that surface as their own
+  `bookPocket` archive page type instead of a home-shelf extra.
+- **Moment-to-moment attention:** prose-first Pages open with one small action
+  above the longer text, immediately quote the reader's exact words back, and
+  progress through Notice, Name, Connect, and Transform as the reader gains
+  fluency. A substantial keep can put one causally named follow-up Page into
+  the vacated desk slot. Four distinct attended Pages earn a permanent Pocket
+  fragment; dismissing only receives a warm deterministic closing line.
+  Private on-device telemetry measures open-to-action latency, recognition,
+  followed threads, and earned fragments without optimizing session length.
 - **Book Notices learns out loud:** notices can now carry small "tiny
   pattern card" evidence, an adaptive-action menu (send to Pagewright, bind
   the Weekly Issue, let a pattern rest), and a direct feedback prompt ("Did
   the Book read this right?").
+- **Earned magic moments:** the strongest evidence-backed readings are earned
+  by substantive keeps and completed real-world attention, never by reopening
+  the app. Three distinct meaningful actions arm the next evidence-backed
+  reveal. An armed reveal persists until met, can interrupt an ordinary full
+  desk, and never displaces the First Reading or another protected milestone.
+- **Private attention fingerprints:** kept pages carry a compact local
+  vocabulary drawn from the reader's words, on-device photo labels/OCR, voice
+  attachment context, and coarse weather/day-part/body/calendar/anchor context.
+  Continuity can therefore notice cross-media habits without retaining feature
+  tensors, exporting embeddings, or building a cloud profile.
+- **The overnight night reader:** when iOS grants charging-only background
+  time, `OvernightScribe` can give Gemma a bounded packet of connections the
+  deterministic reader already proved. Gemma may return cautious questions or
+  silence; it cannot select new evidence, create citations, or bypass a reader
+  boundary. Reviewed questions still wait for the irregular session governor.
 - **Siri, Shortcuts, and Spotlight:** `Shared/ReEnchantedSiriIntents.swift`
   exposes private kept pages to Siri/Shortcuts and Spotlight (iOS 18) as App
   Intents/entities, with bundled shortcut phrases for writing a page and
@@ -128,6 +150,30 @@ continuous living world:
 - **Richer story continuation:** story turns now pass the previous scene and
   the reader's chosen option into the next generation call, with larger
   token budgets for story, academy, and Book Fae surfaces.
+- **Archive-aware Chat with the Book:** conversation now retrieves from the
+  durable whole archive rather than only the launch cache or current day. An
+  explicit evidence-authority layer separates reader-authored pages, recorded
+  Self Facts, prior reader messages, generated Book continuity, and computed
+  findings; privacy and quotation permissions travel with every result.
+- **Believings:** affirmations have been consolidated into one richer ritual of
+  gifts and honestly hedgeable pacts. The reader can accept, amend, disagree,
+  or write a countersign; hard days receive gifts rather than disguised
+  homework.
+- **Tarot Pages:** a complete 78-card Rider-Waite-Smith deck now supports a
+  daily one-card Page and a Root / Weather / Door spread. Local interpretation
+  and the reader's first look come before an optional, explicit Aurora reading;
+  archive context is opt-in and preserved with an inspectable source receipt.
+- **Public Margins:** the Book now has a deliberately narrow, two-door public
+  bridge. Reading the shared margin and offering one exact sentence or fixed
+  choice are independent opt-ins, both off by default; no Book, identity,
+  location, health, photo, Belief, or local-brain context is uploaded.
+- **Journal parity:** Diary pages now draw from a broad, family-balanced prompt
+  catalog, can select against real local page evidence, carry prompt provenance,
+  offer one deeper question, and become gentler late at night.
+- **The Open Window:** the home desk is now balanced across outward attention,
+  inward reflection, and story/world continuity. Moon, weather, and anchored
+  places can ring condition-based bells, while slow door pages and milestones
+  are protected from crowding or accidental displacement.
 
 ## Repository Layout
 
@@ -186,6 +232,155 @@ Design principles:
 - **One in, one out:** a new page family only joins the desk rotation when an
   existing one is retired, slowed, or moved behind a door. The desk has three
   slots; the lens must never be crowded out of the daylight one.
+
+### The Book As A Character
+
+The Book has one persistent character across deterministic copy, generated
+Pages, the home desk, cover knocks, Book Notices, Book Remembered, and Chat with
+the Book. It is an insatiably curious, slightly theatrical reader: fond of exact
+ordinary details and returns with a difference, suspicious of summaries that
+flatten a life, a little too ready to become attached to a pattern, and quick to
+own a miss. It is nosy about patterns and reverent about boundaries. It may have
+an opinion; the reader has the last word about their own life.
+
+`BookCharacterCanon` holds those fixed motives and contradictions.
+`BookRelationshipLedger` does not create another save store: it rebuilds a
+`BookRelationshipSnapshot` from durable Pages, reader-learning events, taught
+braid notes, observation corrections, hard reading boundaries, constellations,
+and sealed wagers. That snapshot gives the Book a current stance — curious,
+protective, mischievous, hushed, contrite, intent, or pleased — and lets a
+correction made in Book Notices alter a later greeting, knock, archive return,
+or conversation.
+
+The relationship must never become an affection meter or a source of guilt.
+Quiet days make the Book protective, not needy. Familiarity changes its
+confidence and shared references but is never shown as a level. Generated Book
+speech receives the same canon and relationship packet as deterministic speech,
+so Chat with the Book cannot quietly become a different, generically cheerful
+character.
+
+### The Book's Inner Life
+
+The Labyrinth of Stories has one governing obsession: show the reader the
+wonder and magic in their own life, then help them notice it, discover it, play
+with it, explore it, define it in their own language, express it in a form that
+belongs to them, and remember it later. This obsession changes curation and
+action; it is not merely a sentence in the prompt.
+
+`BookInteriorState` persists only the parts of a character that cannot be
+recomputed honestly from the archive: a fascination the Book chose, its current
+favorite Page, a promise it made, an optional favor it asked, a recent surprise,
+running business shared with the reader, and a self-secret it has placed under
+seal. Evidence about the reader remains in Pages, observations, boundaries,
+constellations, and archive retrieval rather than being copied into a hidden
+personality profile. `BookInteriorEngine` reconciles those two layers at
+meaningful refresh seams and gives every promise and favor a lifecycle.
+
+The Book's favors use the existing Flyleaf quest and proof ceremony. Their
+beneficiary is always the reader. A favor must be small, ordinary-life-sized,
+optional, explicit about why it might help, and completable through attention,
+play, exploration, naming, expression, or memory. Dismissing one is a clean no:
+the Book releases it without treating refusal or absence as relationship data.
+Completing one gives the Book evidence, fulfills its promise, and may loosen a
+sealed self-secret; it never proves loyalty or affection.
+
+The Book may keep secrets about itself or the fictional Labyrinth. It may also
+seal an explicitly provisional hypothesis until evidence catches up with its
+enthusiasm. It must never use "secret" to conceal a derived personal profile,
+invent a memory, or surprise the reader with a private inference they cannot
+inspect and forbid.
+
+Inner life must have visible consequences. Fascinations change candidate
+weighting. Favorites return as dog-eared Pages with provenance and an opinion.
+Promises appear under the ribbon. Sealed leaves alter the cover and wait as
+real Pages. Chat answers direct questions about the Book's wants, favorites,
+promises, and secrets from durable Swift state before generated prose is
+allowed to speak. Notifications and widgets carry only privacy-safe evidence
+that the Book is in the middle of something.
+
+### The Long Game
+
+The Book has a lifelong goal: re-enchant the reader's actual life until they
+can feel the aliveness, autonomy, mystery, and irreducible otherness of the
+everyday world—and, at the end of it, say, “Holy shit, what a trip. That was
+magical.” This is persisted as `BookLongGame`, not left as model rhetoric. It
+advances through six evidence-backed phases: wake the senses, estrange the
+familiar, court the living world, author a personal magic, build an inheritance
+of remembering, and keep meeting the life that is still here.
+
+The phase is not an engagement ladder. Time in app, Page totals, completed
+favors, revealed secrets, and streak-like activity create opportunities but do
+not count as transformation. `BookLongGameEvidence` keeps receipts for seven
+observable practices: attention that arrived without a Book assignment, an
+encounter with the world's autonomy and otherness, freedom from an inherited
+cultural script, a self-authored action, personal language, wonder shared with
+another life, and deliberate return across lived time. Prompted evidence stays
+explicitly marked as prompted. The last phase additionally requires the
+reader's own explicit declaration; the Book cannot award itself success.
+
+`BookLongGameHypothesis` names the next missing kind of evidence and the next
+honest test. Its wording is always about what the archive has or has not shown,
+never a secret diagnosis of the reader. The hypothesis affects curation and
+favor selection, so the Long Game changes the Book's behavior rather than only
+its copy. The reader can ask whether this is working and receive receipts,
+limits, and the current hypothesis. An older activity-count phase is migrated
+by a visible correction: the Book admits that it was measuring the wrong thing.
+
+Sometimes that strategy opens the casement. `BookFoundGiftEngine` commissions
+an occasional broad public-web search for the missing capacity, and
+`BookFoundGiftFinder` returns one real source as: “Here, I found this for you.”
+No Page text, names, health material, inferred traits, or private archive facts
+enter the search query. The resulting loose Page keeps its public URL, source,
+query, fetch time, curation directive, and privacy receipt. The voice may be
+casual; the provenance may not be vague. A six-day return interval keeps this
+as a surprising act of outward curiosity rather than a feed.
+
+The Book may be Machiavellian about arrangement: timing a return, placing two
+true Pages beside each other, sending the reader on a safe detour, delaying one
+of its own secrets, changing scale, or making an ordinary object arrive as a
+character rather than scenery. It may never be Machiavellian about consent,
+facts, privacy, fear, loneliness, or attachment. A refusal is not resistance to
+overcome. The Book cannot invent evidence, manufacture memory, punish absence,
+or make itself emotionally necessary. Its cunning is aimed at Routine, not the
+reader's autonomy.
+
+Alien-ness is not treated as personalized symbolism. The encounter repertoire
+asks the reader to meet places, creatures, objects, weather, labor, and ordinary
+processes as realities with their own continuities and unknowns. A crow need not
+be a message; a street existed before the reader arrived; another person remains
+more than the Book's story about them. This is how the world can become company
+without the Book manufacturing attachment. A separate dehabituation family
+catches borrowed rules—productive, normal, impressive, adult, worth sharing—
+and invites small conscious exceptions without assuming every convention must
+be overthrown.
+
+### Inexhaustible Character
+
+Each Book adopts five stable quirks from an authored character catalog. They
+begin latent, become glimpsed, familiar, and eventually beloved through lived
+time, Pages, completed fieldwork, and owned mistakes. Quirks change speech and
+surface behavior; they do not reroll on launch. The Book can therefore become
+known without becoming fully predictable.
+
+Secrets belong to six rotating families—origin, method, prejudice,
+vulnerability, house politics, and hope—with different honest reveal
+conditions. Revealed secrets remain in history so the Book does not repeatedly
+perform the same confession. Secrets are always about the Book or Labyrinth,
+never a disguised private inference about the reader.
+
+`BookOpinion` preserves a current evidence-bound statement, its degree of
+confidence, supporting Page IDs, and every revision. New evidence can move an
+opinion from wondering to leaning to held. An opened wrong wager forces a
+visible reconsideration, archives the former stance, and keeps the correction
+beside the confidence that required it.
+
+The favor repertoire contains distinct authored experiments across noticing,
+fieldwork, encounters with otherness, dehabituation, mischief, making, naming,
+remembrance, connection, and restoration.
+Recent asks are excluded before selection. Each favor carries its own reason,
+completion shape, return question, and completion response, so fieldwork does
+not collapse into the same prompt with different nouns. Weather, late hours,
+distress, consent, safety, and a clean no remain hard constraints.
 
 ## The Core Loop
 
@@ -256,7 +451,7 @@ field is filled.
 | 1 | The Unwritten | **The Chapter Without an Ending** | Zara Finch frames the reader's ordinary life as the Great Unwritten Chapter — the one book no one in the Academy can jump into. The reader drags `UNWRITTEN` into the margin before continuing. |
 | 2 | Guide | **The Guide** | Zara introduces herself (portrait) and asks the reader's **favorite reading snack** → `snack`. |
 | 3 | Name | **The Name the Book Knows** | Collects the **preferred reader name** → `name` (used in letters, Welcome, generated text). |
-| 4 | Belief | **Belief and the Grey** | The Disbelief, Belief, and Glow are explained via a **core-belief** prompt → `belief`. Once non-empty, an inline panel offers **Plant 3 Belief** vs **Keep it for now** → `investedBelief`. (This is where the Glow pill reveals.) |
+| 4 | Belief | **Belief and the Grey** | The Rut of Routine, Belief, and Glow are explained via a **core-belief** prompt → `belief`. Once non-empty, an inline panel offers **Plant 3 Belief** vs **Keep it for now** → `investedBelief`. (This is where the Glow pill reveals.) |
 | 5 | Chapters | **The School's Argument** | The five Academy Chapters are introduced (rendered from `AcademyChapterRegistry.publicChapters`). Chapter **Binding is explicitly deferred**, but Zara asks which Chapter tugs first → `drawnChapterID`; that talisman warms by 3 Belief and teaches that the strongest talisman influences page frequency, invitations, and atmosphere. |
 | 6 | First Page | **The First Page Rises** | A **practice page**: the reader chooses **Keep** or **Let it wait** (`rehearsalChoice`); choosing Keep reveals a one-sentence field → `firstSouvenir`. Teaches the core keep/dismiss loop in a no-stakes sandbox. |
 | 7 | Illumination | **The Plate Illuminates** | Optional illuminated-photo demo: the reader can choose or take a photo, and the app creates a local illuminated plate with `IlluminatedPageComposer` / `IlluminatedPageRenderer` **without calling Gemma**. It teaches the photo feature without blocking onboarding. |
@@ -299,7 +494,7 @@ comfortBoundary, whisperCadence }`:
   ("The Academy doors are open, <name>.").
 
 The First Door teaches the actual loop (offer → keep/wait → archive → the Book
-remembers) and the core vocabulary (Disbelief, Belief, Glow, Chapters), and it
+remembers) and the core vocabulary (Routine, Belief, Glow, Chapters), and it
 explains the app as a living book of kept pages — never as a productivity app.
 
 > **Note:** the beat table above is the original 14-step shape; the flow is now
@@ -359,9 +554,9 @@ default Belief, and narrative weight.
 Current page types:
 
 ```text
-mood, diary, souvenir, rest, body, fuel, weather, location, quip,
-aboutYou, wonderCompass, lore, patreon, illustration, illuminatedPhoto,
-narrativeOS, gossip, facultyResearch, letter, supportGuild,
+mood, diary, souvenir, rest, body, fuel, weather, location, quip, quotes,
+affirmations, aboutYou, wonderCompass, tarot, lore, patreon, illustration,
+illuminatedPhoto, narrativeOS, gossip, note, facultyResearch, letter, supportGuild,
 bookOfYou, askTheBook, inkrestOfficeHours, faeBargain, bookFae,
 pactDispatch, pactVerdict, pactErrand, festival, twoReadings, castBond, todaysSky, radio,
 bookJump, enchantment, anchor, academyClass, elective, packPage,
@@ -395,14 +590,17 @@ It returns zero or more `SurfacePage` candidates. The active adapter order is:
 
 ```text
 Inventory, BookShop Preview, World Event, Rest, Mood, Diary, Souvenir,
-Book of You, Book Remembered, Book Connections, Book Notices, The Bleed,
+Plain Page (manual only), Book of You, Book Remembered, Book Connections,
+First Reading, Pen Choosing, The Book Asks, Overnight Connections, Book Notices,
+Book Pocket, The Bleed,
 Ask the Book, Body, Fuel, Faculty Research, Character Letter, Support Guild,
-Dr. Inkrest's Office Hours, Fae Bargain, Book Fae, Pact Dispatch, Pact Verdict,
+Student Notes, Dr. Inkrest's Office Hours, Fae Bargain, Book Fae, Pact Dispatch, Pact Verdict,
 Pact Errand, Festival, Today's Sky, Radio, Book Jump, Two Readings, Cast Bond,
-Glow Invitation, Bindery, Weather, Enchantment, Welcome, First Door Origin,
+Glow Invitation, Weekly Issue, Bindery, Weather, Enchantment, Welcome, First Door Origin,
 Local Brain Awake, First Door Apprenticeship, Academy Class, Elective, Game Page,
-Word Negotiation, Pack Page, Calendar, Quip, About You, Wonder Compass, Lore,
-Help Tips, Patreon, Illustration, Illuminated Photo, Story Page, Margins Atlas,
+Word Negotiation, Pack Page, Calendar, Public Margins, Quote, Quip, Quotes,
+Believings, About You, Tarot, Wonder Compass, Lore,
+Help Tips, Illustration, Illuminated Photo, Story Page, Margins Atlas,
 Gossip, Cast Member, Outer Stacks Anchor, Location
 ```
 
@@ -438,6 +636,23 @@ Key pieces:
 
 Curation is intentionally not pure randomness. It blends authorial source
 scores with reader preference, memory, fatigue, time, and current context.
+`BookCurationDirective` gives the current cautious Long Game hypothesis real
+authority over that blend: it can reserve one ordinary desk place for the Page
+family most likely to reopen an absent capacity. Kept or loved experiments may
+continue; a dismissed or missed tactic rests for three days. Distress,
+preferences, source disables, memory gates, protected milestones, and the
+reader's clean no remain hard boundaries. The strategic reason is persisted in
+surface metadata even when the Book presents the encounter casually.
+
+The visible desk is now governed as **three lanes**: outward attention to the
+real world, inward reflection/archive reading, and story/world continuity. The
+curator balances those jobs rather than letting several high-scoring variants of
+one mood occupy all three places. Protected milestones such as the First
+Reading, Pen Choosing, and earned magic moments can interrupt an ordinary full
+desk without displacing each other; slower door pages rest longer after being
+seen. Condition-triggered moon, weather, and anchor “bells” can point the reader
+back outside while keeping the home surface a Book rather than a notification
+dashboard.
 
 **Performance note.** The literary-continuity digest and motif clusters are
 expensive over a large archive. They are computed once per data change and cached
@@ -459,6 +674,16 @@ Faculty-flavored capture windows, such as Dr. Inkrest for inner weather and Dr.
 Vellum for fuel/body notes, use structured `FacultyEntry` records so the app
 can tell whether a window has already been logged.
 
+The Diary is now a full **Journal** ritual rather than one repeating generic
+prompt. `JournalPromptCatalog` contains several families of authored questions
+and a paired deeper question; `JournalPromptSelector` chooses by time, local
+context, and—when available—semantic relevance to an actual kept Page. Any
+quoted context is taken from that supplied evidence, never invented. Selection
+metadata records the prompt, family, evidence Page, and selector path, while
+late-night policy avoids the more demanding shadow, authorship, and mischief
+families. The Journal is weighted toward evening without becoming a streak or
+obligation.
+
 The Center/Rest family now includes **Gear Shifters** from the Wonder Compass's
 Center chapter: concrete Alpha and Theta rest invitations chosen by hour and
 day state. This lets rest surface as a specific nervous-system relief ("soft
@@ -478,6 +703,20 @@ voice recordings are referenced as media assets, Photos-library references are
 resolved only when binding/exporting with permission, and share cards are
 rendered into the app's own files instead of becoming hidden network work.
 
+### Believings
+
+**The Book Believes** is the one home for affirmations. Its catalog contains two
+honest forms: **gifts**, which ask nothing back, and **pacts**, which always
+include hedgeable countersigns such as “might,” “maybe,” or “not today.” A hard
+day can only receive a gift; the Book does not turn distress into an assignment.
+
+The reading is participatory rather than compulsory inspiration. The
+`AffirmationsPageSourceAdapter` carries the believing's identity, kind,
+countersigns, and response placeholder into a `LivingTextEditor`, where the
+reader can accept, amend, disagree, or write one line back. The reader's response
+is what becomes canonical. The older competing affirmation path has been
+retired so this richer ritual is the only adapter serving the page family.
+
 ### Sentence Builder
 
 `Shared/SentenceBuilder.swift` is the craft helper behind the Book's "make one
@@ -491,6 +730,11 @@ Core pieces:
   an overlay for Souvenir sentences.
 - `SentenceBuilderEngine` - returns the next nudge, analyzes the text, scores
   memory strength, emits craft marks, diagnostics, chips, and alchemy levels.
+- `SentenceBuilderContext` - supplies the live page intent, prompt/source prose,
+  tags, recipient, weather/day-part, and recent reader motifs without mutating a
+  reusable pack. The engine extracts local parts of speech, promotes page words,
+  and changes its craft rubric for souvenirs, replies, reflections, and mission
+  proof.
 - `SentenceBuilderStepKind` - anchor, sense, motion, crossing, cutMist, and
   groundGlow.
 
@@ -608,16 +852,27 @@ world rather than a detached storefront.
 **The Sentence Runner**, turns the reader's own archive into level design:
 `GamePageSourceAdapter` extracts and deduplicates short phrases from kept pages,
 selects a stable set for each six-hour slot, and mixes them with a small pool of
-Disbelief's flattening phrases ("fine", "whatever", "nothing much", and the
+Routine's flattening phrases ("fine", "whatever", "nothing much", and the
 like). The page rises automatically once at least six usable archive phrases
 exist and can also be opened manually.
 
-Opening the page presents a 28-second local SwiftUI/Canvas runner. The reader
-taps to jump, catches bright archive phrases, and tries to clear grey Nothing
-phrases. The run has no punitive failure state: `SentenceRunnerResult` records
-bright catches and grey touches as evidence, then `SentenceRunnerPoem` binds the
-result deterministically as empty-hands prose, a short poem, or (at four or more
-bright catches) a miniature story. The result becomes the keepable page text.
+Opening the page presents a short local SwiftUI/Canvas runner. Before a run, the
+reader chooses one real archive phrase to carry; each six-hour surface also has
+an authored rhythm (the Low Road, Staircase, or Weather in the Margins) rather
+than merely a new word list. The reader taps to jump, catches bright archive
+phrases, and tries to clear grey Nothing phrases. Three consecutive bright
+catches lock a visible sentence-line; a grey touch breaks only the in-progress
+line and offers a concrete restored phrase to carry into the next run. Catches
+briefly name their exact source page and date. The run has no punitive failure
+state: `SentenceRunnerResult` records bright catches and grey touches as
+evidence, then `SentenceRunnerPoem` binds the result deterministically as
+empty-hands prose, a short poem, or (at four or more bright catches) a miniature
+story. The result becomes the keepable page text.
+
+Three saved Runner results bind a **Loom Folio**. This is not a daily streak and
+cannot be lost by closing the app: it is simply a small archive artifact earned
+when three different runs have become pages. The draw is unfinished personal
+language—what sentence will your own life make next—not an opaque loot table.
 
 After a run, the reader may explicitly ask the local Scribe to braid it.
 `MLXSentenceRunnerProseWriter` may polish only the supplied caught/grey phrases
@@ -636,16 +891,29 @@ variant's atmospheric layer.
 The Book of You is the nightly braid. It gathers kept pages from the day and
 asks the local brain to compose them into a coherent personal page.
 
+The current shape is a **Tale Cabinet** or day-topology reading, not a summary
+of every signal the app collected. Deterministic evidence preparation identifies
+one narrative motion through the day and one faerie pressure around it. The
+reader's authored and explicitly endorsed material holds the spine; weather,
+body, mood, fuel, calendar, and other support logs may color or complicate that
+motion but cannot dominate merely because they are plentiful. Real-life and
+reader-endorsed fiction remain two named shelves, with any story clash used as a
+hinge rather than silently presented as a factual event.
+
 Related pieces:
 
 - `BookOfYouPageSourceAdapter`
 - `Braider`, `AppBraider`, `MLXBookBraider`, `FakeBraider`, `ResilientBraider`
 - `BraidTextPolisher`
 - `BraidRecoveryState`
+- `BraidOutputAudit`
 
 The polisher removes repeated sentences, repeated ideas, motif echoes, and
 overlong output. The braid only becomes canonical after it is successfully kept
-and captured in the archive.
+and captured in the archive. `BraidOutputAudit` also rejects structural drift—
+including evidence leakage, weather-led recaps, excessive support-log weight,
+and prose that fails the required reading shape—so a model response must pass
+the Book's contract before it can become the night's page.
 
 **Braid prompt context (continuity, not material).** `BraidPromptBuilder.context`
 (in `Shared/LiteraryContinuity.swift`) now hands the braider a structured
@@ -681,11 +949,22 @@ signals to explain why something returned.
 
 This is one of the app's central "memory acting on memory" features. A returned
 page is not just a search result; it is the Book saying, "This matters again."
+High-confidence returns now expose an explicit **Then / Today** pairing: the old
+page's evidence beside the present condition that called it back. That makes the
+connection legible instead of presenting serendipity as an unexplained verdict.
 
 ### The Book Notices
 
 The Book Notices is the dedicated page where the Book surfaces its own literary
 observations. It is powered by `LiteraryContinuityProjector`.
+
+Before the mature pattern engine has enough history, **The First Reading** gives
+an early, once-ever proof that the Book read the reader rather than merely
+showing a feature tour. After three eligible authored Pages—but before the
+library is deep—it quotes their actual words back and names a recurring thread
+only if one genuinely repeats. Private support logs never count. It is a
+protected desk milestone and is re-offered until engaged, but never repeats once
+kept.
 
 It looks for:
 
@@ -747,6 +1026,40 @@ notice via `BookNoticeAdaptiveAction` (send the pattern to Pagewright, bind
 the Weekly Issue, or let the pattern rest) or answer with a
 `BookNoticeFeedbackChoice`, so noticing is not a one-way pronouncement.
 
+Observations now have a durable conversation lifecycle in
+`BookObservationRecord`: `asked`, `confirmed`, `questioned`, or `forbidden`.
+Opening a reading records that the Book asked it; feedback updates the same
+exact evidence-scoped claim. "Not quite" and "Do not read me this way" are not
+soft ranking hints: that exact reading is prevented from resurfacing, and the
+latter also creates a `BookReadingBoundary`. Fresh evidence may eventually
+support a genuinely new observation, but the Book cannot repeat the rejected
+claim as if the conversation never happened.
+
+The rarest eligible observations participate in `MagicMomentGovernor`. A
+meaningful app session requires a foreground gap, so quick app switching cannot
+farm draws. After a reveal, the first session cannot arm another; sessions two,
+three, and four draw at 24%, 48%, and 76%, and session five is the backstop.
+Once armed, the result is stable until the reader opens or dismisses it. The
+winning reading is selected from several strong candidates with deterministic
+session jitter, marked as a desk milestone, and tucked above ordinary cards.
+
+**The night reader** adds interpretation without handing discovery to the
+model. `OvernightConnectionReview` freezes at most three deterministic semantic,
+recurrence, or context candidates, including exact evidence page IDs and the
+small evidence cards already visible in Book Notices. While charging,
+`OvernightScribe` may ask Gemma to return zero to three structured hypotheses.
+Only supplied candidate IDs are accepted; confidence below 70, invented IDs,
+clinical/profile language, missing questions, and malformed JSON are discarded.
+The app attaches the frozen evidence after validation, so Gemma cannot author
+its own citations.
+
+The evidence packet has a stable signature. The same packet is never reread on
+following nights, including when Gemma correctly returns silence. The overnight
+task spends no model turn unless that evidence packet has materially changed;
+it does not pre-write Story Pages. Accepted drafts persist as non-canonical
+questions, remain subject to `BookObservationLedger` and
+`BookReadingBoundary`, and surface only through `MagicMomentGovernor`.
+
 **The Thread Between** is an additional, higher-evidence Book Notices page. It
 does not replace the general notice. It quotes and narrates either a strong
 word-disjoint semantic pairing between two reader-authored pages or one
@@ -768,21 +1081,35 @@ noticed -> watched -> named -> woven -> faded (and back, on return)
 
 `ConstellationKeeper.advanced(...)` runs the promotions deterministically:
 strength >= 58 creates `noticed`; three sighting days make it `watched`; five
-sightings plus fourteen days of age earn it a Book-given name (`named`); nine
+sightings plus seven days of age earn it a Book-given name (`named`); nine
 sightings make it `woven`; twenty-eight quiet days fade it. A faded
-constellation that returns keeps its name and increments `returnCount`.
+constellation that returns keeps its name and increments `returnCount`. The
+five sighting days are the real evidence bar; the age floor only spreads them
+across a week, so an engaged first-week reader gets to watch a naming happen.
 
 Names are deterministic per constellation and template-built by signal kind:
 "The Harbor Thread", "What Shoreline Left Quiet", "The Long Archive",
 "The Living Lamp". When a constellation crosses into `named`, the Book
 surfaces a naming page ("The Book Names: ...").
 
+The watching is visible before the naming: when a thread reaches `watched`,
+Book Notices may surface a one-time anticipation beat ("A Lamp in the
+Margin") that shows the sightings so far and promises a naming if the thread
+keeps returning - or an honest letting-go if it goes quiet. Each thread is
+teased at most once (kept teases tag `watched:<id>`); an ignored tease rests
+four days between offers via the per-constellation `constellation:<id>`
+variety key.
+
 **Sealed margins.** `SealedMarginEngine` lets the Book risk being wrong. A
 strong pattern or absence signal can mint a dated, sealed `BookWager`
 (maximum two sealed at once, with a 45-day per-subject cooldown). When the
 open date arrives, the wager is judged against the pages actually kept since
 sealing, and the Book surfaces an "opened seal" page owning the result either
-way - being graciously wrong is part of the design.
+way - being graciously wrong is part of the design. The Book's first-ever
+wager runs on a faster clock (`firstWagerPatternThreshold` 60,
+`firstWagerWindowDays` 7 instead of 66/14), so a new reader meets the sealed
+margin and watches it open inside the first two weeks; every wager after the
+first uses the patient constants.
 
 Both ledgers persist in `PlayerVaultData` and are advanced by
 `ContentView.tendConstellations()`, which runs alongside `tendArc()` at launch
@@ -950,6 +1277,14 @@ biggest addition to `InsideCoverApp/ContentViewFeatures.swift` to date.
 - The candidate material comes from `pagewrightCandidatePages`: any non-welcome,
   non-help kept page with usable content or media, exposed through
   `pagewrightVisualMediaAssets`.
+- The material tray includes a full marginalia browser rather than only a short
+  suggested shelf. Larger preview tiles expose the catalog clearly, while
+  permanent marginalia achievements unlock expressive marks through useful
+  studio actions rather than daily chores.
+- A reader can also place a caption-free personal photograph directly on the
+  canvas. Personal-photo elements are downscaled, persisted in the draft, and
+  threaded through rendering, PDF export, keep, duplicate, and delete paths like
+  every other native canvas kind.
 
 The entry point for all freeform input changed to match: the old "Camera" seal
 is now **Input**, and fans out to Photo / Text / Audio / Pagewright rather than
@@ -965,10 +1300,11 @@ the **Input** seal's Text option (`PlainPageSheet`, kept via `keepPlainPage`),
 never surfaced by the curator. Its `BookPageSource` is `"plain-page"`
 (`square.and.pencil`).
 
-`bookPocket` gives the existing Parting Whisper/Pocket keepsake system (see
-"Parting whisper & Pocket" in project memory) its own archive page type,
-titled "The Book's Pocket", so pressed keepsakes read as a real kind of page
-rather than a home-shelf-only extra.
+`bookPocket` gives attention-earned keepsakes their own archive page type,
+titled "The Book's Pocket", so real fragments from attended Pages read as a
+kind of page rather than a home-shelf-only extra. Dismissal never mints one:
+four distinct Pages must receive a substantive action, keep, love, or followed
+thread since the previous fragment.
 
 ### Siri, Shortcuts, And Spotlight
 
@@ -997,15 +1333,42 @@ yet enabled.
 
 ### Ask The Book
 
-Ask the Book is a conversational surface. It can answer from local context,
-archive material, and enchantment follow-up state. The prompt contract keeps
-answers in the Book's voice but bans pretending the reader completed real-world
-actions.
+Ask the Book is a conversational surface backed by the reader's **whole durable
+archive**, not just the current day or whatever happened to be in memory at app
+launch. `AskTheBookArchiveMemoryReader` builds a current search dataset from the
+archive database, Self Facts, story continuity, prior reader turns, and typed
+local findings before every answer.
+
+The retrieval contract is stricter than general Search the Stacks. Each item in
+`AskTheBookMemoryPacket` carries an `AskTheBookEvidenceAuthority` and quotation
+permission:
+
+- reader-authored Pages may be evidence and may be quoted when their privacy
+  allows it;
+- recorded Self Facts obey `SelfFactUsePermission`; private-context facts use
+  their softened Book translation and cannot be quoted, while story-only and
+  do-not-use facts stay out;
+- prior **reader** messages may support conversational continuity, but old Book
+  answers are not recycled as factual memory;
+- generated Story Pages are labeled created continuity, never proof that their
+  fictional events happened;
+- calculations such as distinct sunny days are typed computed findings with
+  coverage limits, not estimates dressed as memory;
+- sensitive support Pages require a relevant, direct question before retrieval.
+
+Pattern answers require independent dated evidence and causal questions are
+worded cautiously. The prompt contract still keeps the answer in the Book's
+voice and bans pretending the reader completed real-world actions, but the
+hidden machinery makes provenance, uncertainty, privacy, and the difference
+between life and story explicit.
 
 Related pieces:
 
 - `AskTheBookPageSourceAdapter`
 - `AskTheBookTurn`
+- `AskTheBookArchiveMemoryReader`
+- `AskTheBookMemoryRetriever` / `AskTheBookMemoryPacket`
+- `AskTheBookEvidenceAuthority`
 - `AskTheBookAnswering`
 - `MLXAskTheBookAnswerer`
 - `FakeAskTheBookAnswerer`
@@ -1107,7 +1470,7 @@ variety works across all three layers.
 `StoryRecipeSceneMode` controls the prose contract: conversation favors speech,
 balanced scenes share weight between speech/observation/action, action scenes
 may move physically, and environmental scenes allow a place, object, weather,
-or Disbelief to act. This replaces the old universal rule that every scene
+or Routine to act. This replaces the old universal rule that every scene
 must be a mostly-dialogue interpersonal disagreement. The internal Slice of
 Life / Progress Arc / Surprise roles remain stable for mechanics, but visible
 choices may now be speech, action, exploration, protection, or exact noticing.
@@ -1291,6 +1654,35 @@ Related pieces:
 - `MLXWonderCompassChooser`
 - `WonderCompassFallbackChooser`
 
+### Tarot Pages And The Unwritten Deck
+
+Tarot Pages are a daily image-and-reflection ritual hosted by **Aurora
+Whispers**. The first deck is a complete, versioned 78-card
+Rider-Waite-Smith-derived deck: 22 Major Arcana and four 14-card suits. The
+traditional structure and difficult cards remain intact; ReEnchanted adds
+correspondences and field language without sanding the deck into generic
+positivity. Reversals are represented in the artifact schema but intentionally
+off in the current draw engine.
+
+The reader may draw **A Page for Now** (one card) or **Root / Weather / Door**
+(three unique cards). The order of interpretation matters:
+
+1. The card turns with deterministic local field notes for its actual spread
+   position.
+2. The reader records what caught their eye and what they want to carry.
+3. Only an explicit button invites Aurora and the local brain to read beside
+   them.
+4. Archive context is a separate opt-in. When invited, the reading stores an
+   inspectable `TarotReadingContextReceipt` with the exact source Pages and
+   relationship edges used.
+
+The random draw is not evidence about the reader. The kept reflection is. A
+`TarotReadingArtifact` preserves the deck version, spread, cards, question,
+first look, local reveal prose, optional Aurora prose, and optional source
+receipt through archive/database Codable round trips. The daily adapter waits
+until a small real archive exists, offers at most one reading per calendar day,
+and claims an ordinary desk slot rather than a protected milestone slot.
+
 ### Shadow Wonder
 
 `ShadowWonder` is the Dusk Thorn's cross-surface variant system. It is locked
@@ -1374,6 +1766,69 @@ adds an `AnchorTurnBuilder` turn to the metadata. Keeping a choice can advance
 the anchor's rolling `miniStory` through `AnchorMiniStory.advanced(...)`, so
 each return visit carries a short memory of how the room has changed.
 
+### The People Of The Book
+
+Real people from the reader's life have their own register, separate from the
+Cast, under one house rule:
+
+> **The Reader's Hand.** By default the Book is a witness to real people: it
+> quotes what the reader kept, notices patterns, marks absences and returns,
+> and points attention toward them — without inventing their words. But the
+> border between the real and the story belongs to the reader. At any time
+> the reader may **write a person into the story**: the thread mints a linked
+> custom cast member (`writePersonIntoStory` → `saveCustomCastMember`,
+> `PersonThread.castMemberID`), and from then on that figure participates in
+> letters, story pages, and gossip like any other cast. The Book never makes
+> that crossing uninvited — the reader opens the door, one person at a time.
+
+The pieces (engine in `Shared/WorldSystems.swift` under `PeopleOfTheBook`,
+surfaces in the Book Notices adapter, ledger in `PlayerVaultData.people`):
+
+- **Confirm-on-suggest.** `PeopleOfTheBook.suggestions(...)` finds names that
+  keep arriving *mid-sentence* in the reader's own authored prose (the How You
+  See page types), with two-sided honesty rules: at least 4 pages, 3 distinct
+  days, a 10-day span; sentence-initial capitals prove nothing; a word the
+  reader also writes lowercased as often is a common noun, not a person; cast
+  names, custom cast, the reader's own name, calendar words, and the app's own
+  capitalized lexicon are excluded. The Book Notices page then asks ("A
+  Recurring Name" — who is this, in your book?) with the reader's own quoted
+  sentence as evidence. The reader chooses the register: open a witness
+  thread (`openPersonThread`), write them straight into the story
+  (`writePersonIntoStory` — thread plus linked cast member in one tap), or
+  decline (`letPersonRest`), which rests the name permanently.
+- **Quiet and return.** `quietSignals(...)` marks a confirmed thread gone
+  quiet (35–240 days, only with real history behind it) or freshly returned
+  after a long gap. Both surface as observations plus a question, never a
+  prescription, rest via the notices' `spoke:` tags, and stay silent under
+  distress. The reader can press a thread to rest (`restPersonThread`) and the
+  Book keeps it gently and says no more — the grief valve.
+- **People missions.** `PlayfulMissionRegistry.peopleMissions` aims the lens
+  at company (hands, refrains, laughs, what they notice, the borrowed eye);
+  days whose pages hold company prefer them. Proof stays in the reader's
+  words; none allow photos.
+- **Pre-meeting charges.** `PeopleOfTheBook.preMeetingCharges(...)` arms a
+  whisper about an hour before a calendar event whose *title* names a
+  confirmed, non-resting thread ("You see Dana at 3" plus one attention
+  assignment). Pure planning in the core; `BookWhispers.refreshPersonCharges`
+  converts the plan to reply-to-keep notifications. No new permissions — it
+  reads only the calendar titles the Calendar Door already supplies.
+- **The flyleaf** (`PeopleOfTheBookSheet`, opened from the Glow menu's Cast
+  section) is the register's home outside the transient notices: it lists each
+  thread with who they are, their history, and status (Kept / In the story /
+  Resting), and lets the reader edit `readerWords`, write a thread into the
+  story, rest or wake a thread, introduce someone the Book hasn't suggested
+  (`introducePerson`, which reuses any existing mentions for honest history),
+  and wake a previously declined name. The thread-centric actions
+  (`writeThreadIntoStory`, `updatePersonWords`, `restPersonThread`,
+  `wakePersonThread`, `introducePerson`, `wakeDeclinedName`) live in
+  `ContentView` and are shared with the notice's adaptive actions.
+
+The witness thread survives the crossing: kept pages about the person keep
+accruing to it as the reader's record of the real one, while the linked cast
+member carries the fictional life. Blending reality and fiction is the app's
+whole game — the register just makes the blend the reader's act. Covered by
+`Tests/InsideCoverCoreTests/PeopleOfTheBookTests.swift`.
+
 ### Classes, Clubs, And Electives
 
 Academy classes and clubs come from schedule registries and surface at relevant
@@ -1394,6 +1849,16 @@ Related pieces:
 - `UnwrittenElective`
 - `ElectiveOfferWriter`
 - `ElectiveFlyleafListView`
+
+The **Quillquarium** also hosts a once-ever milestone called **The Pen
+Choosing**. After at least six eligible prose Pages, `QuillChoosing` reads
+stable traits of the reader's hand while excluding private body/fuel logs, then
+mints one deterministic `ChosenQuill` with a name, make, temperament, and
+writing affinity. The same archive always chooses the same instrument; it waits
+patiently until kept and never rerolls merely because another day passed. The
+prepared ceremony uses the Quillquarium art, a dedicated second-person-past
+prompt and page title, and persists the chosen instrument into the reader's
+save.
 
 ### Help, Tips, Lore, Quips, Patreon, And Packs
 
@@ -1456,7 +1921,7 @@ after being kept, preventing an invitation-to-spend feedback loop.
   **top-2 recently-touched** entities under 70 — never the whole cast.
 - **Settling (the sink).** Reader Glow above a soft ceiling cools overnight;
   untouched high-Glow entities (>70) and page sources (>60) cool toward floors.
-  The Disbelief and its kin are excluded from both the tide and the cooling —
+  The Rut of Routine and its kin are excluded from both the tide and the cooling —
   antagonist Glow only moves through real events.
 - **A closed cast economy.** Gossip invest/attack makes the *actor spend* Belief
   (`castSpendDelta`, never below a floor), and **invest is conservative** — a
@@ -1626,10 +2091,10 @@ Spine into a real public-domain book — a controlled, page-at-a-time ritual tha
 - **Borrowed Rules.** Returning *with a souvenir* carries one of the book's rules
   home as a time-boxed `BorrowedRule` with a real, cross-system effect
   (`BorrowedRuleEffect`) — Holmes sharpens Book Notices, Dracula warms records,
-  *A Christmas Carol*/Secret Garden push Disbelief's grey back, Oz warms the
+  *A Christmas Carol*/Secret Garden push Routine's grey back, Oz warms the
   cast. Effects feed the same curator seams as the Almanac (`surfaceBoosts`,
   `greyShift`).
-- **Real stakes.** Leave a jump unstabilized and the daily tick lets Disbelief
+- **Real stakes.** Leave a jump unstabilized and the daily tick lets Routine
   gain a margin; if it overruns, the jump **collapses** — you lose the staked
   Belief and that book goes **cold** for a few days (skipped by selection until it
   warms back), mirroring the Fae-lapse pattern.
@@ -1697,7 +2162,7 @@ parallel economy:
   Goblin Market.
 - **Gifts** (`FaeGift`) - functional talismans the fae *fronts on credit*, each
   with a real effect (`FaeGiftEffect`): Reshelving (lifts a rested page kind back
-  to the front), Quieting (holds Disbelief's grey back a shade), Long Memory
+  to the front), Quieting (holds Routine's grey back a shade), Long Memory
   (pins a kept page to resurface), Calling Card (opens the Goblin Market), and
   Loose Page (a static, regenerating collectible).
 
@@ -2033,7 +2498,7 @@ doubles** Belief for festivals and Enchantments.
 
 The Wheel bends every system, all pure-local and distress-aware:
 
-- **The Disbelief** — `Almanac.greyShift` feeds `NothingTide.greyLevel`: light
+- **The Rut of Routine** — `Almanac.greyShift` feeds `NothingTide.greyLevel`: light
   feasts (full moon, Litha) push the grey back; thinning-veil nights (Samhain,
   new moon) let it nearer.
 - **Curation atmosphere** — `Almanac.surfaceBoosts` leans the feed toward
@@ -2488,6 +2953,14 @@ Signals feed:
 This is the foundation for the Book forming careful opinions about the reader's
 story.
 
+The keep moment has its own smaller continuity chain, **Echoes and Ripples**.
+`KeepEcho` can recognize a rare word shared with an older authored Page (while
+excluding recent pages and private logs) and name the dated return immediately.
+`KeepMarginalia` lets a Belief-weighted cast voice leave one short note beside
+the keep, including distinct Almanac festival notes; `BeliefRipple` then names
+how the keep changed that entity's Glow. These are deterministic receipts of a
+real archive connection and mechanical consequence, not generated praise.
+
 ## Memory Model
 
 The app has several kinds of memory, each with a different job:
@@ -2594,6 +3067,7 @@ Generation services include:
 - Book Fae interactive scenes,
 - Book Jump prose,
 - Wonder Compass choice and mission generation,
+- optional Aurora Tarot reading after the local reveal,
 - Weather enchantment,
 - Story Page prose and result prose,
 - optional Sentence Runner result braiding,
@@ -2612,14 +3086,15 @@ usable when the model is missing, busy, unavailable, or returns malformed JSON.
 `JSONSalvage` exists to recover small-model JSON output without exposing raw
 braces to the reader.
 
-**Model calls are always user-initiated.** Every inference runs from an explicit
-button press (Keep, Ask, Knock on the door, Pay the bargain, Continue the scene,
-Open the edition, etc.) and off the main actor, so the loading animation never
-stutters. Ambient/automatic systems - the curator, `tendArc`/`tendFae`/
+**Foreground model calls are user-initiated.** Ordinary inference runs from an
+explicit button press (Keep, Ask, Knock on the door, Pay the bargain, Continue
+the scene, Open the edition, etc.) and off the main actor, so the loading
+animation never stutters. Ambient/automatic systems - the curator, `tendArc`/`tendFae`/
 `tendPact`/`tendConstellations`, surfacing, Fae offers, marginalia, loose pages,
 and Pact voices - are pure local logic and never call the model. (The lone
-background exception is `OvernightScribe`, which can pre-write a Story Page draft
-while charging.)
+background exception is `OvernightScribe`: while charging and only when iOS
+grants a `BGProcessingTask`, it may spend one model turn reviewing materially
+new, deterministically proven connection evidence.)
 
 ## Media And Visual Design
 
@@ -2755,6 +3230,30 @@ Useful rule:
   adapter, visual style, default intent, route handling, persistence handling as
   needed, and tests.
 
+## Public Margins
+
+Public Margins is the intentionally tiny public edge of an otherwise private
+Book. It is not an account, social graph, shared archive, or ambient feed. Two
+independent preferences—**receive the public margin** and **offer something to
+it**—default off, so reading never implies permission to publish and publishing
+never opts the reader into incoming material.
+
+Outgoing contribution is always a separate, exact-text act. The app prepares
+either one short sentence (collapsed to plain text, capped, and rejected if it
+contains a URL) or one controlled poll choice, previews exactly what will leave,
+and asks for final confirmation. The request envelope contains a random request
+ID, public event/kind fields, the confirmed text or choice, and explicit consent
+flags—no account or device identifier, archive/Page ID, location, health data,
+photos, contacts, Calendar, Belief, or model context.
+
+The narrow Cloudflare Worker in `docs/public-margins-backend/` encrypts accepted
+text at rest, validates fixed choices, fails closed on sentence safety checks,
+and returns a one-time deletion token whose hash alone is stored. Anonymous
+tallies count contributions, not people. Its former X/creator shelf remains
+dormant in source for reversibility but is disabled in production and ignored by
+the app's current adapters. The shared margin currently centers a rotating quiet
+choice rather than importing a general social feed.
+
 ## Privacy And Data Boundaries
 
 The app distinguishes privacy at the page-source level:
@@ -2775,6 +3274,8 @@ Network-facing or external data paths are specific:
   Reddit, and the default Shelf path remains DuckDuckGo/open-web fallback,
 - system EventKit writes (Reminders/Calendar) only on explicit user action,
 - local notification scheduling via UserNotifications,
+- Public Margins only after its dedicated incoming/outgoing opt-ins and an
+  exact contribution confirmation, through the narrow envelope described above,
 - package resolution/build tooling during development,
 - StoreKit or dev unlock paths for packs when implemented.
 
@@ -2802,6 +3303,8 @@ Important app files:
   pages).
 - `InsideCoverApp/CapturePageSections.swift` - extracted sheet sections such as
   Chapter Binding, Anchor offers, electives, and support guild.
+- `InsideCoverApp/TarotPageView.swift` - card-turn ritual, spread layout,
+  reader reflection, optional Aurora/archive invitation, and kept reading state.
 - `InsideCoverApp/BookStatusCards.swift` - status cards, Glow menu, Belief UI,
   lab/status displays, and the Fae/Pact hub sheets (`TheMarginSheet`,
   `GoblinMarketSheet`, `PactMapSheet`).
@@ -2816,6 +3319,7 @@ Important app files:
   (Fae-Fi, Mothlight Beats, Thornwave), pack stations, DJ banter, and Radio Free
   Margin static/intercepts.
 - `InsideCoverApp/BookDatabase.swift` - app wrapper over the shared archive.
+  It also rebuilds whole-archive Ask the Book memory packets from durable state.
 - `InsideCoverApp/SearchTheStacksSheet.swift` - local archive search UI.
 - `InsideCoverApp/CustomCastMemberSheet.swift` - custom cast creation UI.
 - `InsideCoverApp/BookShopSheet.swift` - pack/shop UI, including owned/free
@@ -2854,6 +3358,8 @@ Important shared files:
 - `Shared/PageModel.swift` - page types, page/source metadata, media assets,
   durable page/day models, page Belief.
 - `Shared/SourceAdapters.swift` - page source adapters and source input bundle.
+- `Shared/Tarot.swift` - complete versioned deck, spreads, draw engine, local
+  interpretation, daily adapter, and persisted reading/source receipts.
 - `Shared/SurfaceAndCurator.swift` - curation, readiness, action routing,
   work-blocking, surface history, and recovery state.
 - `Shared/NarrativeCore.swift` - entities, threads, relationships, story field,
@@ -2919,6 +3425,22 @@ Coverage areas include:
 - letters, gossip, story choices, class schedules,
 - margins atlas layout,
 - literary continuity and Book Notices,
+- the First Reading, momentary engagement, earned magic moments, hard reading
+  boundaries, overnight evidence review, and attention-earned Pocket pages,
+- whole-archive Ask the Book retrieval, evidence authority, privacy/quotation
+  permissions, typed calculations, and conversation-memory boundaries,
+- Journal prompt variety, evidence provenance, semantic selection, and
+  late-night gentleness,
+- Believings gifts/pacts, countersigns, and the single-adapter invariant,
+- Tarot deck completeness, draw/artifact persistence, local reveals, archive
+  receipts, daily curation, and backwards decoding,
+- Public Margins' independent opt-ins, minimal contribution envelope, text
+  constraints, quiet-choice snapshots, and dormant social adapters,
+- Pagewright scraps, invitation, marginalia achievements, and personal-photo
+  canvas/export paths,
+- Pen Choosing maturity, privacy exclusions, deterministic instrument minting,
+  ceremony routing, and once-ever persistence,
+- Echoes and Ripples, Student Notes, and character-canon prompt packets,
 - packs, entitlements, welcome/help behavior,
 - Inventory, BookShop listings, owned packs, radio stations, and manual radio
   surfaces including static between stations,
@@ -3018,6 +3540,26 @@ now reaches onto the Home/Lock Screen through the **`ReEnchantedWidgets`**
 extension — six widgets with an App-Group snapshot bridge and interactive radio /
 Wonder Compass App Intents.
 
+The Book's reader layer is also now load-bearing: cross-media attention
+fingerprints feed literary continuity; Book Remembered can show Then / Today;
+observations persist as conversations with exact hard boundaries; and an
+irregular session governor gives earned readings privileged, non-clockwork
+arrival on the desk. The charging-only night reader can now add cautious local
+Gemma interpretations to frozen evidence packets without inventing citations or
+showing them outside that same governor.
+
+The newest pass closes several once-thin doors instead of multiplying novelty:
+Chat with the Book now consults the whole durable archive under explicit
+evidence and privacy authority; Diary has become a provenance-carrying Journal;
+affirmations have become the reader-authored Believings ritual; the nightly
+braid reads the day's topology through the Tale Cabinet contract; Pagewright
+has a full marginalia library and native personal photos; and the Quillquarium's
+Pen Choosing reads a mature writing hand once. Tarot Pages add one genuinely
+new daily ritual, but preserve the same law: the random card is not knowledge
+about the reader, while the reflection they choose to keep is. Public Margins
+is the corresponding network law made concrete—two closed-by-default doors and
+only the exact sentence or choice the reader deliberately offers.
+
 The system spine is now a real **narrative simulation**: play creates events,
 events reshape Belief, the relationship field, the Pact War, and the Fae economy;
 those feed back into what surfaces and how the cast speaks; and the Almanac turns
@@ -3025,12 +3567,18 @@ the whole thing with the real sky and seasons.
 
 Open directions worth pursuing next:
 
-- **Two invariants to protect** in all new work: every local-model call stays
-  user-initiated, and nothing heavy runs on a rendered view (read cached state).
-- richer Book Remembered returns and Belief life-cycle pages,
+- **Two invariants to protect** in all new work: foreground local-model calls
+  stay user-initiated (with the one bounded charging-only night-reader exception),
+  and nothing heavy runs on a rendered view (read cached state).
+- deeper combinations of the new cross-media fingerprints, especially visual
+  composition and voice-language patterns that can be explained with concrete
+  evidence,
+- richer Belief life-cycle pages and consequences for Believings,
 - the Wheel woven into monthly/annual editions as a recurring structure,
 - relationship shifts surfaced more explicitly inside letters,
-- eclipses and rarer astronomical events in the Almanac.
+- eclipses and rarer astronomical events in the Almanac,
+- replacing temporary Tarot art only through a licensed/public-domain asset
+  path while preserving the versioned reading artifacts already kept.
 
 The destination is a reader-held volume - a year of ordinary life bound into a
 fairy story accumulated page by page - and a living world whose Fae, Talismans,

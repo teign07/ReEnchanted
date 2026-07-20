@@ -116,7 +116,9 @@ final class QuillCompanionTests: XCTestCase {
         XCTAssertNotNil(quill)
         // The page must introduce the instrument by name and read the hand honestly.
         XCTAssertTrue(page.payload.body.contains(quill?.name ?? "§"))
-        XCTAssertTrue(page.payload.body.contains(quill?.temperament.dominant?.readerLeaning ?? "§"))
+        XCTAssertTrue(page.payload.body.contains("you had"))
+        XCTAssertEqual(page.payload.metadata["pageTitle"], "The Pen Choosing")
+        XCTAssertEqual(page.payload.metadata["locationAsset"], "LabyrinthLocationQuillquarium")
     }
 
     func testChoosingOffersTheSameQuillOnLaterDays() {
@@ -150,6 +152,36 @@ final class QuillCompanionTests: XCTestCase {
         XCTAssertNotNil(quill)
         let surfaced = candidates(inputs(with: hedgingPages(), quill: quill), now: date(2, hour: 20))
         XCTAssertTrue(surfaced.isEmpty)
+    }
+
+    func testChoosingPromptIsNotTheGenericTwoCastPrompt() throws {
+        let page = try XCTUnwrap(candidates(inputs(with: hedgingPages()), now: date(1, hour: 20)).first)
+        let prompt = QuillChoosing.generationPrompt(surface: page)
+        let quillJSON = try XCTUnwrap(page.payload.metadata[QuillChoosing.metadataKey])
+        let quill = try JSONDecoder().decode(ChosenQuill.self, from: Data(quillJSON.utf8))
+        XCTAssertTrue(prompt.contains("SECOND-PERSON PAST TENSE"))
+        XCTAssertTrue(prompt.contains(quill.name))
+        XCTAssertTrue(prompt.contains(quill.make))
+        XCTAssertTrue(prompt.contains("Quillquarium"))
+        XCTAssertTrue(prompt.contains("Do not introduce two cast members"))
+        XCTAssertFalse(prompt.contains("The relationship web has crossed a milestone"))
+    }
+
+    func testGeneratedCeremonyRejectsUnrelatedFirstPersonProse() throws {
+        let quill = try XCTUnwrap(QuillChoosing.mint(from: hedgingPages(), now: date(1, hour: 20)))
+        let unrelated = String(repeating: "I walked through a sunny market and thought about my friendship with two strangers. ", count: 5)
+        XCTAssertFalse(QuillChoosing.generatedCeremonyIsGrounded(unrelated, quill: quill))
+
+        let grounded = """
+        You had entered the Quillquarium while the living pens circled above you. The room was holding its breath, and every nib had turned toward your hand.
+
+        \(quill.name) had waited in the highest school. It chose you, broke from the others, and landed before you with one bright drop of ink trembling at its point.
+
+        You had written softly before, but the quill had arrived to be brave first. Your fingers closed around the \(quill.make), and the paper beneath it was warm.
+
+        The choosing was not complete. If you kept the page, the quill would stay; if you let it wait, it would return patiently to the school.
+        """
+        XCTAssertTrue(QuillChoosing.generatedCeremonyIsGrounded(grounded, quill: quill))
     }
 
     // MARK: - Margin voice

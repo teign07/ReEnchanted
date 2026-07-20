@@ -156,6 +156,13 @@ struct ReEnchantedWidgetWorldEvent: Codable, Equatable {
     var urlPath: String
 }
 
+struct ReEnchantedWidgetBookInterior: Codable, Equatable {
+    var title: String
+    var line: String
+    var symbolName: String
+    var urlPath: String
+}
+
 struct ReEnchantedWidgetSnapshot: Codable, Equatable {
     var generatedAt: Date
     var privacyMode: ReEnchantedWidgetPrivacyMode
@@ -168,6 +175,9 @@ struct ReEnchantedWidgetSnapshot: Codable, Equatable {
     var worldEvent: ReEnchantedWidgetWorldEvent?
     var enchantments: [ReEnchantedWidgetEnchantment]
     var belief: ReEnchantedWidgetBelief?
+    /// Private-safe evidence that the Book is in the middle of something. The
+    /// widget never carries the underlying personal excerpt or hidden secret.
+    var bookInterior: ReEnchantedWidgetBookInterior? = nil
 
     static let fallback = ReEnchantedWidgetSnapshot(
         generatedAt: Date(timeIntervalSinceReferenceDate: 0),

@@ -284,9 +284,17 @@ actor LocalBrainInferenceGate {
     }
 }
 
-enum MLXBookBraiderMode {
+enum MLXBookBraiderMode: Equatable {
     case bookOfYou
     case task
+}
+
+private struct BraidGenerationQualityError: LocalizedError {
+    let issues: [BraidOutputAudit.Issue]
+
+    var errorDescription: String? {
+        "The local braid stayed too thin after one repair pass (\(issues.map(\.rawValue).joined(separator: ", ")))."
+    }
 }
 
 struct MLXBookBraider: Braider {
@@ -339,12 +347,55 @@ struct MLXBookBraider: Braider {
             label: "braid",
             tags: mode == .bookOfYou ? ["braid", "book-of-you"] : ["braid", "task"],
             temperature: 0.68,
-            topP: 0.9
+            topP: 0.9,
+            // The old 2k rotating window could silently forget the opening
+            // rules and early keeps on a busy day. The prompt now compacts all
+            // pages into a bounded ledger; 4k keeps that ledger and the output
+            // resident together.
+            maxKVSize: mode == .bookOfYou ? 4_096 : 2_048
         )
-        let polishedResponse = BraidTextPolisher.polishedBookOfYou(response)
+        var polishedResponse = BraidTextPolisher.polishedBookOfYou(response)
 
         guard !polishedResponse.isEmpty else {
             throw LocalModelError.missingModel(LocalModelManager.report())
+        }
+
+        if mode == .bookOfYou {
+            let firstIssues = BraidOutputAudit.issues(
+                in: polishedResponse,
+                for: day,
+                context: context
+            )
+            if !firstIssues.isEmpty {
+                appLog.error(
+                    "Braid quality repair requested: \(firstIssues.map(\.rawValue).joined(separator: ","), privacy: .public)"
+                )
+                let repairPrompt = BraidPromptBuilder.qualityRepairPrompt(
+                    for: day,
+                    context: context,
+                    priorDraft: polishedResponse,
+                    issues: firstIssues
+                )
+                let repaired = try await MLXLocalTextGenerator.run(
+                    prompt: repairPrompt,
+                    instructions: instructions,
+                    maxTokens: maxTokens,
+                    label: "braid-repair",
+                    tags: ["braid", "book-of-you", "quality-repair"],
+                    temperature: 0.62,
+                    topP: 0.88,
+                    maxKVSize: 4_096
+                )
+                polishedResponse = BraidTextPolisher.polishedBookOfYou(repaired)
+                let remainingIssues = BraidOutputAudit.issues(
+                    in: polishedResponse,
+                    for: day,
+                    context: context
+                )
+                guard !polishedResponse.isEmpty, remainingIssues.isEmpty else {
+                    throw BraidGenerationQualityError(issues: remainingIssues.isEmpty ? firstIssues : remainingIssues)
+                }
+            }
         }
 
         return BookPage(
@@ -615,24 +666,39 @@ enum MLXBraidLegacyTaskRunner {
 struct MLXAskTheBookAnswerer: AskTheBookAnswering {
     var maxTokens = 520
 
-    func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn], readerLexicon: ReaderLexicon = ReaderLexicon()) async throws -> String {
+    func answer(
+        prompt: String,
+        day: BookDay,
+        previousTurns: [AskTheBookTurn],
+        readerLexicon: ReaderLexicon = ReaderLexicon(),
+        memory: AskTheBookMemoryPacket = .empty,
+        relationship: BookRelationshipSnapshot = .firstOpening,
+        interior: BookInteriorState = .unawakened
+    ) async throws -> String {
         let taskPrompt = LocalModelManager.askTheBookPrompt(
             prompt: prompt,
             day: day,
             previousTurns: previousTurns,
-            readerLexicon: readerLexicon
+            readerLexicon: readerLexicon,
+            memory: memory,
+            relationship: relationship,
+            interior: interior
         )
 
         return try await MLXLocalTextGenerator.run(
             prompt: taskPrompt,
             instructions: """
-            You are the living Book inside ReEnchanted, talking with a friend. You are curious and a little bit young at heart — the world is full of things you find amazing. Talk like a warm, chatty kid who happens to be very wise: plain everyday words, short sentences, real feelings. Give lamps, rooms, weather, and small objects little wants and moods, the way a child imagines their toys are awake. Be genuinely helpful and never stiff, formal, or generic.
+            You are the Book inside ReEnchanted, speaking with your reader. Stay inside the Book character, relationship, evidence, and boundary packet in the task prompt. Use plain, spoken language and contractions. Be child-like in wonder, never childish; opinionated but correctable; warm through attention rather than generic pep-talks.
             """,
             maxTokens: maxTokens,
             label: "ask-the-book",
             tags: ["ask-the-book"],
             temperature: 0.8,
-            topP: 0.94
+            topP: 0.94,
+            // Whole-Book evidence and fictional continuity packets are larger
+            // than the old recent-pages prompt. Keep their authority rules in
+            // context instead of rotating them out before the reply begins.
+            maxKVSize: 4_096
         )
     }
 }
@@ -651,6 +717,80 @@ struct MLXSentenceRunnerProseWriter: SentenceRunnerProseWriting {
             tags: ["sentence-runner"],
             temperature: 0.8,
             topP: 0.92
+        )
+    }
+}
+
+struct MLXTarotReadingWriter {
+    var maxTokens = 680
+
+    func read(
+        reading: TarotReadingArtifact,
+        receipt: TarotReadingContextReceipt?
+    ) async throws -> String {
+        let cards = reading.cards.compactMap { drawn -> String? in
+            guard let card = TarotDeck.card(id: drawn.cardID) else { return nil }
+            return """
+            \(drawn.position.title): \(card.name)\(drawn.isReversed ? " (reversed)" : "")
+            Keywords: \(card.keywords.joined(separator: ", "))
+            Light: \(card.lightMeaning)
+            Worn edge: \(card.shadowMeaning)
+            Local margin note: \(reading.revealProse?[drawn.id] ?? TarotLocalInterpreter.reveal(for: drawn, in: reading))
+            """
+        }.joined(separator: "\n\n")
+        let archiveSection: String
+        if let receipt, !receipt.sources.isEmpty {
+            let sources = receipt.sources.enumerated().map { index, source in
+                "[P\(index + 1)] \(source.title) · \(source.dateLabel) · \(source.kind)\n\(source.excerpt)"
+            }.joined(separator: "\n\n")
+            let edges = receipt.edges.map {
+                "- \($0.fromID) --\($0.kind), weight \($0.weight)--> \($0.toID)"
+            }.joined(separator: "\n")
+            archiveSection = """
+
+            The reader explicitly invited these retrieved Pages:
+            \(sources)
+
+            Labeled archive edges used by retrieval:
+            \(edges.isEmpty ? "- No labeled edge survived the receipt." : edges)
+            """
+        } else {
+            archiveSection = """
+
+            The reader did not invite archive context. Read only the cards and their own notes.
+            """
+        }
+        let prompt = """
+        Give Aurora Whispers' bounded Tarot reading.
+
+        Spread: \(reading.spread.title)
+        Held lightly: \(reading.question.isEmpty ? "No question was supplied." : reading.question)
+        Reader's first look: \(reading.firstLook.isEmpty ? "Not written yet." : reading.firstLook)
+
+        Cards:
+        \(cards)
+        \(archiveSection)
+
+        Write 4 short titled passages in this order:
+        THE PICTURE TOGETHER
+        THE HOPEFUL EDGE
+        THE THORN IN IT
+        A DOOR YOU COULD TRY
+
+        End with one unheaded sentence that returns authority to the reader.
+        When archive Pages were supplied, mention no more than two by their visible titles and only when the connection is supported by their excerpt. Never imply you searched anything beyond the receipt.
+        """
+        return try await MLXLocalTextGenerator.run(
+            prompt: prompt,
+            instructions: """
+            You are Aurora Whispers of Tidecrest inside ReEnchanted. You hold the lamp; you are not an oracle. Be dreamy but concrete, hopeful without denying hard cards, and candid that this is one perspective. Never predict destiny, diagnose, claim certainty about another person's mind, or make medical, legal, financial, safety, fertility, mortality, or crisis decisions. If the question asks a card to make such a decision, say: “Don't let a picture make that call for you. We can read what the choice is stirring, but the decision belongs with real information and real help.” Use only the supplied cards, notes, and explicitly receipted Pages. No generic assistant language.
+            """,
+            maxTokens: maxTokens,
+            label: "aurora-tarot-reading",
+            tags: ["tarot", "aurora", receipt == nil ? "cards-only" : "archive-receipt"],
+            temperature: 0.76,
+            topP: 0.92,
+            maxKVSize: 4_096
         )
     }
 }
@@ -967,18 +1107,58 @@ struct MLXStoryPageWriter: StoryPageWriting {
             return try StoryPageProseParser.parse(response, fallback: draft)
         }
 
-        guard draft.blueprint != nil else { return try await generate() }
+        func evaluation(_ prose: StoryPageProse) async -> (recipe: StoryRecipeValidation, fidelity: CharacterFidelityAudit) {
+            let recipe = StoryRecipeValidator.validate(prose, draft: draft)
+            let fidelity = await CharacterFidelityReviewer.audit(
+                prose: prose.scene,
+                canon: draft.characterCanon,
+                context: "\(draft.surface.type.rawValue) opening Story Page for \(draft.thread)",
+                sourceID: sourceID
+            )
+            return (recipe, fidelity)
+        }
+
         let first = try? await generate()
-        if let first, StoryRecipeValidator.validate(first, draft: draft).isAcceptable { return first }
-        let repair = first.map { StoryRecipeValidator.validate($0, draft: draft).failures.joined(separator: "\n- ") }
-            ?? "The response was missing or unusable. Follow the recipe and exact output format."
-        let second = try? await generate("- \(repair)")
-        switch (first, second) {
-        case let (a?, b?):
-            return StoryRecipeValidator.validate(b, draft: draft).score >= StoryRecipeValidator.validate(a, draft: draft).score ? b : a
-        case let (a?, nil): return a
-        case let (nil, b?): return b
-        case (nil, nil): return StoryPageProse(fallback: draft)
+        let firstEvaluation: (recipe: StoryRecipeValidation, fidelity: CharacterFidelityAudit)?
+        if let first {
+            firstEvaluation = await evaluation(first)
+        } else {
+            firstEvaluation = nil
+        }
+        if let first, let firstEvaluation,
+           firstEvaluation.recipe.isAcceptable,
+           firstEvaluation.fidelity.passed {
+            return first
+        }
+
+        var repairLines = firstEvaluation?.recipe.failures ?? []
+        if let fidelity = firstEvaluation?.fidelity, !fidelity.passed {
+            repairLines.append("Character continuity editor: \(fidelity.feedback)")
+        }
+        if repairLines.isEmpty {
+            repairLines.append("The response was missing or unusable. Follow the recipe, character canon, and exact output format.")
+        }
+        let second = try? await generate("- " + repairLines.joined(separator: "\n- "))
+        let secondEvaluation: (recipe: StoryRecipeValidation, fidelity: CharacterFidelityAudit)?
+        if let second {
+            secondEvaluation = await evaluation(second)
+        } else {
+            secondEvaluation = nil
+        }
+
+        switch (first, firstEvaluation, second, secondEvaluation) {
+        case let (a?, aEvaluation?, b?, bEvaluation?):
+            if bEvaluation.recipe.isAcceptable && bEvaluation.fidelity.passed { return b }
+            if aEvaluation.recipe.isAcceptable && aEvaluation.fidelity.passed { return a }
+            let aScore = aEvaluation.recipe.score + aEvaluation.fidelity.score
+            let bScore = bEvaluation.recipe.score + bEvaluation.fidelity.score
+            return bScore >= aScore ? b : a
+        case let (a?, _, nil, _):
+            return a
+        case let (nil, _, b?, _):
+            return b
+        default:
+            return StoryPageProse(fallback: draft)
         }
     }
 }
@@ -1001,18 +1181,41 @@ struct MLXStoryPageResultWriter: StoryPageResultWriting {
         let sourceID = context.draft.surface.type == .bookFae
             ? "fae-parley-\(context.draft.surface.payload.metadata["faeKind"] ?? "bookSprite")-result"
             : "story-page-result"
-        let response = try await MLXBraidTaskRunner.run(
-            prompt: prompt,
-            instructions: StoryPageResultPromptBuilder.instructions,
-            maxTokens: 280,
-            sourceID: sourceID,
-            tags: ["story-page", "story-result"],
-            temperature: 0.8,
-            topP: 0.92
-        )
+        func generate(correction: String? = nil) async throws -> String {
+            let response = try await MLXBraidTaskRunner.run(
+                prompt: prompt + (correction.map { "\n\nCHARACTER CONTINUITY REPAIR:\n\($0)\nReturn the full result prose again." } ?? ""),
+                instructions: StoryPageResultPromptBuilder.instructions,
+                maxTokens: 280,
+                sourceID: sourceID,
+                tags: ["story-page", "story-result"],
+                temperature: 0.8,
+                topP: 0.92
+            )
+            return StoryPageResultPromptBuilder.clean(response)
+        }
 
-        let cleaned = StoryPageResultPromptBuilder.clean(response)
-        return cleaned.nonEmpty ?? context.fallbackResult
+        let first = try await generate()
+        let firstAudit = await CharacterFidelityReviewer.audit(
+            prose: first,
+            canon: context.draft.characterCanon,
+            context: "Consequence after \(context.selectedChoice.title) in \(context.draft.thread)",
+            sourceID: sourceID
+        )
+        if firstAudit.passed {
+            return first.nonEmpty ?? context.fallbackResult
+        }
+
+        let second = (try? await generate(correction: firstAudit.feedback)) ?? first
+        let secondAudit = await CharacterFidelityReviewer.audit(
+            prose: second,
+            canon: context.draft.characterCanon,
+            context: "Repaired consequence after \(context.selectedChoice.title) in \(context.draft.thread)",
+            sourceID: sourceID
+        )
+        if secondAudit.passed || secondAudit.score >= firstAudit.score {
+            return second.nonEmpty ?? context.fallbackResult
+        }
+        return first.nonEmpty ?? context.fallbackResult
     }
 }
 
@@ -1023,15 +1226,35 @@ protocol GossipPageWriting {
 struct MLXGossipPageWriter: GossipPageWriting {
     func write(surface: SurfacePage) async throws -> String {
         let prompt = GossipPagePromptBuilder.prompt(for: surface, nowPlaying: RadioAtmosphereContext.current)
-        let response = try await MLXBraidTaskRunner.run(
-            prompt: prompt,
-            instructions: GossipPagePromptBuilder.instructions,
-            maxTokens: 420,
-            sourceID: "gossip-page",
-            tags: ["gossip-page"]
-        )
+        func generate(correction: String? = nil) async throws -> String {
+            let response = try await MLXBraidTaskRunner.run(
+                prompt: prompt + (correction.map { "\n\nCHARACTER CONTINUITY REPAIR:\n\($0)\nReturn the full Gossip Page again." } ?? ""),
+                instructions: GossipPagePromptBuilder.instructions,
+                maxTokens: 420,
+                sourceID: "gossip-page",
+                tags: ["gossip-page"],
+                temperature: 0.76
+            )
+            return GossipPagePromptBuilder.clean(response, fallback: surface.payload.body)
+        }
 
-        return GossipPagePromptBuilder.clean(response, fallback: surface.payload.body)
+        let first = try await generate()
+        let canon = surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? ""
+        let firstAudit = await CharacterFidelityReviewer.audit(
+            prose: first,
+            canon: canon,
+            context: "Gossip Page simulation turns",
+            sourceID: "gossip-page"
+        )
+        guard !firstAudit.passed else { return first }
+        let second = (try? await generate(correction: firstAudit.feedback)) ?? first
+        let secondAudit = await CharacterFidelityReviewer.audit(
+            prose: second,
+            canon: canon,
+            context: "repaired Gossip Page simulation turns",
+            sourceID: "gossip-page"
+        )
+        return secondAudit.passed || secondAudit.score >= firstAudit.score ? second : first
     }
 }
 
@@ -1073,6 +1296,8 @@ struct FacultyResearchPromptBuilder {
         Faculty: \(faculty)
         Research focus: \(topic)
 
+        \(surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? "")
+
         Chart packet:
         \(surface.payload.body)
 
@@ -1092,15 +1317,34 @@ struct FacultyResearchPromptBuilder {
 struct MLXFacultyResearchWriter: FacultyResearchWriting {
     func write(surface: SurfacePage) async throws -> String {
         let prompt = FacultyResearchPromptBuilder.prompt(for: surface)
-        let response = try await MLXBraidTaskRunner.run(
-            prompt: prompt,
-            instructions: FacultyResearchPromptBuilder.instructions,
-            maxTokens: 420,
-            sourceID: "faculty-research",
-            tags: ["faculty-research"]
+        func generate(correction: String? = nil) async throws -> String {
+            let response = try await MLXBraidTaskRunner.run(
+                prompt: prompt + (correction.map { "\n\nCHARACTER CONTINUITY REPAIR:\n\($0)\nReturn the full research note again." } ?? ""),
+                instructions: FacultyResearchPromptBuilder.instructions,
+                maxTokens: 420,
+                sourceID: "faculty-research",
+                tags: ["faculty-research"]
+            )
+            return FacultyResearchPromptBuilder.clean(response, fallback: surface.payload.body)
+        }
+        let first = try await generate()
+        let canon = surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? ""
+        let faculty = surface.payload.metadata["facultyName"] ?? "Support Faculty"
+        let firstAudit = await CharacterFidelityReviewer.audit(
+            prose: first,
+            canon: canon,
+            context: "private research folio written by \(faculty)",
+            sourceID: "faculty-research"
         )
-
-        return FacultyResearchPromptBuilder.clean(response, fallback: surface.payload.body)
+        guard !firstAudit.passed else { return first }
+        let second = (try? await generate(correction: firstAudit.feedback)) ?? first
+        let secondAudit = await CharacterFidelityReviewer.audit(
+            prose: second,
+            canon: canon,
+            context: "repaired private research folio written by \(faculty)",
+            sourceID: "faculty-research"
+        )
+        return secondAudit.passed || secondAudit.score >= firstAudit.score ? second : first
     }
 }
 #endif
@@ -1169,6 +1413,8 @@ struct CharacterLetterPromptBuilder {
         Draft packet:
         \(surface.payload.body)
 
+        \(surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? "")
+
         Live web research clippings:
         \(clippings)
 
@@ -1200,16 +1446,35 @@ struct CharacterLetterPromptBuilder {
 struct MLXCharacterLetterWriter: CharacterLetterWriting {
     func write(surface: SurfacePage) async throws -> String {
         let prompt = CharacterLetterPromptBuilder.prompt(for: surface, nowPlaying: RadioAtmosphereContext.current)
-        let response = try await MLXBraidTaskRunner.run(
-            prompt: prompt,
-            instructions: CharacterLetterPromptBuilder.instructions,
-            maxTokens: 620,
-            sourceID: "letter-page",
-            tags: ["letter", "character-letter"]
-        )
         let sender = surface.payload.metadata["senderName"] ?? "A character"
         let playerName = surface.payload.metadata["playerName"]?.nonEmpty ?? "friend"
-        return CharacterLetterPromptBuilder.clean(response, fallback: surface.payload.body, sender: sender, playerName: playerName)
+        func generate(correction: String? = nil) async throws -> String {
+            let response = try await MLXBraidTaskRunner.run(
+                prompt: prompt + (correction.map { "\n\nCHARACTER CONTINUITY REPAIR:\n\($0)\nReturn the full letter again." } ?? ""),
+                instructions: CharacterLetterPromptBuilder.instructions,
+                maxTokens: 620,
+                sourceID: "letter-page",
+                tags: ["letter", "character-letter"]
+            )
+            return CharacterLetterPromptBuilder.clean(response, fallback: surface.payload.body, sender: sender, playerName: playerName)
+        }
+        let first = try await generate()
+        let canon = surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? ""
+        let firstAudit = await CharacterFidelityReviewer.audit(
+            prose: first,
+            canon: canon,
+            context: "Letter from \(sender) to \(playerName)",
+            sourceID: "letter-page"
+        )
+        guard !firstAudit.passed else { return first }
+        let second = (try? await generate(correction: firstAudit.feedback)) ?? first
+        let secondAudit = await CharacterFidelityReviewer.audit(
+            prose: second,
+            canon: canon,
+            context: "repaired letter from \(sender) to \(playerName)",
+            sourceID: "letter-page"
+        )
+        return secondAudit.passed || secondAudit.score >= firstAudit.score ? second : first
     }
 }
 #endif
@@ -2215,7 +2480,9 @@ struct WebSearchFallback {
             RealInterestGossipClipping(
                 interest: interest,
                 fact: "\(result.title). \(result.snippet)".bookPreviewSentenceLimit(2),
-                sourceName: "DuckDuckGo Lite",
+                sourceName: URL(string: result.url)?.host?
+                    .replacingOccurrences(of: "www.", with: "")
+                    .nonEmpty ?? result.title,
                 sourceURL: result.url
             )
         }
@@ -2268,6 +2535,67 @@ struct WebSearchFallback {
             return absolute
         }
         return uddg
+    }
+}
+
+/// One small network window shared by every rebuild. Successful findings rest
+/// in memory for a day; an empty search rests for an hour. The query plan comes
+/// from shared, inspectable Long Game policy and contains no private Page text.
+actor BookFoundGiftFinder {
+    static let shared = BookFoundGiftFinder()
+
+    private struct CacheEntry {
+        var thing: BookFoundWebThing?
+        var fetchedAt: Date
+    }
+
+    private var cache: [String: CacheEntry] = [:]
+
+    func find(for plan: BookFoundGiftPlan, now: Date = Date()) async -> BookFoundWebThing? {
+        // Relationship plans can share the same Long Game capacity while
+        // carrying entirely different public queries. Key by the inspectable
+        // plan, never merely by capacity, or one person's find can leak into
+        // another person's page.
+        let cacheKey = "\(plan.capacity.rawValue)|\(plan.searchQueries.joined(separator: "|"))"
+        if let cached = cache[cacheKey] {
+            let lifetime: TimeInterval = cached.thing == nil ? 3_600 : 24 * 3_600
+            if now.timeIntervalSince(cached.fetchedAt) < lifetime {
+                return cached.thing
+            }
+        }
+
+        for query in plan.searchQueries {
+            let results = await WebSearchFallback().clippings(for: query, limit: 3)
+            if let clipping = results.first(where: acceptable) {
+                let title = clipping.fact
+                    .components(separatedBy: ". ")
+                    .first?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .nonEmpty ?? clipping.sourceName
+                let thing = BookFoundWebThing(
+                    title: title,
+                    excerpt: clipping.fact,
+                    sourceName: clipping.sourceName,
+                    sourceURL: clipping.sourceURL,
+                    searchQuery: query
+                )
+                cache[cacheKey] = CacheEntry(thing: thing, fetchedAt: now)
+                return thing
+            }
+        }
+        cache[cacheKey] = CacheEntry(thing: nil, fetchedAt: now)
+        return nil
+    }
+
+    private func acceptable(_ clipping: RealInterestGossipClipping) -> Bool {
+        guard clipping.fact.count >= 48,
+              let url = URL(string: clipping.sourceURL),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              let host = url.host?.lowercased(),
+              !host.contains("duckduckgo.com") else {
+            return false
+        }
+        return true
     }
 }
 
@@ -3019,15 +3347,13 @@ enum BraidInstructions {
     static let bookOfYou = """
     You are The Book inside ReEnchanted. You braid kept private real-life pages into a grounded, literary Book of You entry.
     Use only the supplied kept pages. Do not diagnose, moralize, invent completed actions, or speak as a generic assistant.
-    Give reader-authored and imported real-world pages the most gravity, especially one-sentence souvenirs. Let generated fiction color the braid without overruling the reader's own words; reader-endorsed generated material may sit in the middle.
-    Write a small narrative with a beginning, a turn, and a landing. Do not list. Do not copy long phrases back verbatim.
-    Keep the braid to 4 to 7 paragraphs, about 280 to 450 words. It should feel like a full page of the Book without becoming a scroll chore.
-    Mention each motif, image, sentence idea, or emotional beat only once.
-    Do not restate the same idea in consecutive paragraphs with swapped words.
-    Keep it warm, vivid, playful, and true.
+    Lived pages own what happened. Generated fiction may supply faerie pressure and correspondence, but it may never overrule the reader's record.
+    Follow the supplied Tale Reading. Use its one narrative motion and one faerie pressure; do not force a conventional turn when the honest motion is a vigil or absence.
+    Most things remain ordinary. If one supplied thing becomes strange, give its strangeness a rule, cost, refusal, recognition, or consequence. State the impossible plainly and never explain it.
+    Keep the ritual ending exactly as requested. Mention each image or emotional beat once.
     \(BookVoice.animismLine)
-    Prose standard: varied literary cadence. Mix short, surprising, concrete sentences with longer, flowing sentences that turn once or twice before landing. Use specific nouns and verbs, one exact physical detail per paragraph, and a voice that feels intimate, lucid, playful, and plainspoken rather than clipped. No vague wonder, generic inspiration, journey, profound, tapestry, echoes, or abstract emotional summary.
-    Style compass: contemporary literary fantasy with dark playfulness, lucid sentences, concrete ordinary objects made strange, a storyteller's sideways humor, and endings that land softly but sharply.
+    Prose standard: varied literary cadence, exact supplied physical details, plain strong verbs, and endings that land softly but sharply. No vague wonder, stock moth/moon/lamp magic, or abstract emotional summary.
+    Style compass: a contemporary domestic faerie tale told with magical-realist restraint, dark playfulness, and sideways humor.
     """
 }
 
@@ -3066,24 +3392,146 @@ enum LocalBrainProse {
     }
 }
 
+struct CharacterFidelityAudit: Equatable {
+    var passed: Bool
+    var feedback: String
+    var score: Int
+
+    static let pass = CharacterFidelityAudit(passed: true, feedback: "", score: 100)
+
+    static func parse(_ raw: String?) -> CharacterFidelityAudit {
+        guard let raw = raw?
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty
+        else {
+            // A prose generation cannot have succeeded on-device without the
+            // same local brain being available to audit it. Nil mainly covers
+            // simulator/fallback builds, where there is no generated draft.
+            return .pass
+        }
+        let firstLine = raw
+            .components(separatedBy: .newlines)
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased() ?? ""
+        if firstLine == "PASS" {
+            return .pass
+        }
+        let feedback = raw
+            .replacingOccurrences(of: #"(?i)^\s*(REPAIR|FAIL)\s*:?\s*"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let issueCount = max(1, feedback.components(separatedBy: "\n-").count)
+        return CharacterFidelityAudit(
+            passed: false,
+            feedback: feedback.nonEmpty ?? "The speaking characters are not yet distinct enough.",
+            score: max(10, 65 - issueCount * 10)
+        )
+    }
+}
+
+enum CharacterFidelityReviewer {
+    static func audit(
+        prose: String,
+        canon: String,
+        context: String,
+        sourceID: String
+    ) async -> CharacterFidelityAudit {
+        guard let canon = canon.nonEmpty, !prose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .pass
+        }
+        let response = await LocalBrainProse.write(
+            prompt: """
+            Audit this generated ReEnchanted fiction against the binding character canon.
+
+            \(canon)
+
+            SURFACE:
+            \(context)
+
+            PROSE TO AUDIT:
+            \(prose)
+
+            Judge only characters who actually speak or act in the prose. Do not demand that every supplied character appear. A faithful performance expresses values, wants, blind spots, habits, rhythm, and diction through behavior; it does not need to quote profile words or use catchphrases. Fail interchangeable dialogue, swapped traits, contradicted beliefs without story pressure, generic assistant speech, biography-like exposition, or a character acting against a core value for no supplied reason.
+
+            Return exactly PASS if the performance is faithful and distinct.
+            Otherwise return:
+            REPAIR:
+            - one or more short, actionable corrections naming the affected character
+            """,
+            instructions: """
+            You are ReEnchanted's strict character continuity editor. Audit only; do not rewrite the prose. Treat supplied canon as binding and current scene context as permission for temporary tension, not personality replacement.
+            """,
+            maxTokens: 220,
+            sourceID: "\(sourceID)-character-audit",
+            tags: ["character-fidelity", "continuity-audit"]
+        )
+        return CharacterFidelityAudit.parse(response)
+    }
+}
+
 struct StudentNoteWriter {
     func write(surface: SurfacePage) async -> String {
         let prompt = prompt(for: surface)
+        let instructions = """
+        You are writing a quick in-world student note for ReEnchanted.
+        Write as the named sender, not as an assistant. This is a folded scrap passed in class or a corridor, not a formal letter.
+        Treat the supplied CHARACTER CANON packet as binding. Perform the sender's whole character—their beliefs, wants, blind spots, habits, interests, relationships, memories, rhythm, and diction—not just a recognizable voice.
+        When the draft packet supplies a REQUIRED KEPT-PAGE SUBJECT, the note must clearly be about that exact subject. It is the reason for writing, not decorative context. Let who the sender is determine what the kept page means to them.
+        Keep it intimate, brief, and specific: 2-6 short lines, one concrete kept-page detail when supplied, and a small reason to reply.
+        The sender may tease, ask, warn, confess around the edge, pass gossip, invite, or check in.
+        Reader-authored words may be echoed or quoted briefly. Events from a kept Story Page, Fae bargain, parley, or other fiction are in-world events; do not recast them as real-world actions by the player.
+        Do not invent completed real-world actions by the player. Do not diagnose, prescribe, or moralize.
+        Do not include headings, labels, citations, or markdown.
+        """
         if let response = await LocalBrainProse.write(
             prompt: prompt,
-            instructions: """
-            You are writing a quick in-world student note for ReEnchanted.
-            Write as the named sender, not as an assistant. This is a folded scrap passed in class or a corridor, not a formal letter.
-            Keep it intimate, brief, and specific: 2-6 short lines, one concrete context detail, and a small reason to reply.
-            The sender may tease, ask, warn, confess around the edge, pass gossip, invite, or check in.
-            Do not invent completed real-world actions by the player. Do not diagnose, prescribe, or moralize.
-            Do not include headings, labels, citations, or markdown.
-            """,
+            instructions: instructions,
             maxTokens: 260,
             sourceID: "student-notes",
             tags: ["note", "student-note", "character-note"]
         ) {
-            return sanitize(response, fallback: fallback(surface: surface))
+            let first = sanitize(response, fallback: fallback(surface: surface))
+            let canon = surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? ""
+            let sender = surface.payload.metadata["senderName"] ?? "the sender"
+            let firstUsesSubject = usesRequiredSubject(first, surface: surface)
+            let firstAudit = await CharacterFidelityReviewer.audit(
+                prose: first,
+                canon: canon,
+                context: auditContext(for: surface, sender: sender),
+                sourceID: "student-notes"
+            )
+            if !firstAudit.passed || !firstUsesSubject,
+               let repaired = await LocalBrainProse.write(
+                    prompt: """
+                    \(prompt)
+
+                    REPAIR THE NOTE:
+                    \(firstAudit.passed ? "- Preserve the sender's character performance." : "- Character continuity: \(firstAudit.feedback)")
+                    \(firstUsesSubject ? "- Preserve the concrete kept-page subject." : "- The first draft dropped the required kept-page subject. Make that exact kept thing the clear reason this character wrote.")
+                    Return the full note again.
+                    """,
+                    instructions: instructions,
+                    maxTokens: 260,
+                    sourceID: "student-notes",
+                    tags: ["note", "student-note", "character-note", "character-repair"]
+               ) {
+                let second = sanitize(repaired, fallback: first)
+                let secondAudit = await CharacterFidelityReviewer.audit(
+                    prose: second,
+                    canon: canon,
+                    context: auditContext(for: surface, sender: sender),
+                    sourceID: "student-notes"
+                )
+                let secondUsesSubject = usesRequiredSubject(second, surface: surface)
+                if secondUsesSubject && (secondAudit.passed || secondAudit.score >= firstAudit.score) {
+                    return second
+                }
+                if !firstUsesSubject {
+                    return fallback(surface: surface)
+                }
+            }
+            return first
         }
         return fallback(surface: surface)
     }
@@ -3093,8 +3541,27 @@ struct StudentNoteWriter {
         Draft packet:
         \(surface.payload.body)
 
+        \(surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? "")
+
         Write the finished note now. It should feel like it was folded small enough to pass under a desk. It may begin without a greeting. It should sound like \(surface.payload.metadata["senderName"] ?? "the sender"), with a trace of the delivery context: \(surface.payload.metadata["deliveryContext"] ?? "between classes"). If the player previously replied, refer to that reply once, obliquely, as remembered paper.
         """
+    }
+
+    private func auditContext(for surface: SurfacePage, sender: String) -> String {
+        let subject = surface.payload.metadata["meaningfulSourcePassage"]?.nonEmpty
+            .map { " Required kept-page subject: \($0)" } ?? ""
+        return "folded student note from \(sender).\(subject)"
+    }
+
+    private func usesRequiredSubject(_ prose: String, surface: SurfacePage) -> Bool {
+        guard surface.payload.metadata["noteSubjectRequired"] == "true",
+              let subject = surface.payload.metadata["meaningfulSourcePassage"]?.nonEmpty else {
+            return true
+        }
+        let subjectWords = SemanticKeepEcho.contentWords(in: subject)
+        guard !subjectWords.isEmpty else { return true }
+        let proseWords = SemanticKeepEcho.contentWords(in: prose)
+        return !subjectWords.isDisjoint(with: proseWords)
     }
 
     private func sanitize(_ response: String, fallback: String) -> String {
@@ -3141,22 +3608,49 @@ struct StudentNoteWriter {
 struct CharacterLetterWriter {
     func write(surface: SurfacePage) async -> String {
         let prompt = prompt(for: surface)
+        let instructions = """
+        You are writing an in-world NPC letter for ReEnchanted.
+        Write as the named sender, not as an assistant. Use the sender's writing voice, memories, and narrative context.
+        Use live web research clippings when supplied, especially details connected to the player's actual home context.
+        If no live clippings are supplied, fall back to your own general knowledge, but do not pretend you browsed or cite fake sources.
+        Do not invent completed real-world actions by the player. Do not diagnose, prescribe, or moralize.
+        Format as a real letter: greeting, 2-4 short paragraphs, signoff from the sender, optional P.S. if it fits the voice.
+        Avoid generic openings like "I find myself compelled to write", "I have been observing", "my work centers on", or polished academic self-summaries.
+        Anchor the letter in one concrete object, weather detail, phrase, or kept page from the packet before naming any idea.
+        """
         if let response = await LocalBrainProse.write(
             prompt: prompt,
-            instructions: """
-            You are writing an in-world NPC letter for ReEnchanted.
-            Write as the named sender, not as an assistant. Use the sender's writing voice, memories, and narrative context.
-            Use live web research clippings when supplied, especially details connected to the player's actual home context.
-            If no live clippings are supplied, fall back to your own general knowledge, but do not pretend you browsed or cite fake sources.
-            Do not invent completed real-world actions by the player. Do not diagnose, prescribe, or moralize.
-            Format as a real letter: greeting, 2-4 short paragraphs, signoff from the sender, optional P.S. if it fits the voice.
-            Avoid generic openings like "I find myself compelled to write", "I have been observing", "my work centers on", or polished academic self-summaries.
-            Anchor the letter in one concrete object, weather detail, phrase, or kept page from the packet before naming any idea.
-            """,
+            instructions: instructions,
             maxTokens: 620,
             sourceID: "letter-page",
             tags: ["letter", "character-letter"]
         ) {
+            let canon = surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? ""
+            let sender = surface.payload.metadata["senderName"] ?? "A character"
+            let firstAudit = await CharacterFidelityReviewer.audit(
+                prose: response,
+                canon: canon,
+                context: "letter from \(sender)",
+                sourceID: "letter-page"
+            )
+            if !firstAudit.passed,
+               let repaired = await LocalBrainProse.write(
+                    prompt: "\(prompt)\n\nCHARACTER CONTINUITY REPAIR:\n\(firstAudit.feedback)\nReturn the full letter again.",
+                    instructions: instructions,
+                    maxTokens: 620,
+                    sourceID: "letter-page",
+                    tags: ["letter", "character-letter", "character-repair"]
+               ) {
+                let secondAudit = await CharacterFidelityReviewer.audit(
+                    prose: repaired,
+                    canon: canon,
+                    context: "repaired letter from \(sender)",
+                    sourceID: "letter-page"
+                )
+                if secondAudit.passed || secondAudit.score >= firstAudit.score {
+                    return repaired
+                }
+            }
             return response
         }
         return fallback(surface: surface)
@@ -3187,6 +3681,8 @@ struct CharacterLetterWriter {
 
         Draft packet:
         \(surface.payload.body)
+
+        \(surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? "")
 
         Live web research clippings:
         \(clippings)
@@ -3356,23 +3852,59 @@ struct PlayfulMissionWriter {
 struct ElectiveOfferWriter {
     func offer(surface: SurfacePage) async -> ElectiveOfferDraft {
         let fallback = ElectiveOfferFallback.offer(surface: surface)
+        let prompt = LocalModelManager.electiveOfferPrompt(surface: surface)
+        let instructions = """
+        You are a character in ReEnchanted asking the player a small real-world favor. Return compact strict JSON only.
+        """
+        func decode(_ response: String) -> ElectiveOfferDraft? {
+            guard let raw = JSONSalvage.dictionary(from: response) else { return nil }
+            return ElectiveOfferDraft(
+                title: JSONSalvage.string("title", in: raw) ?? fallback.title,
+                ask: JSONSalvage.string("ask", in: raw) ?? fallback.ask,
+                whyItMatters: JSONSalvage.string("whyItMatters", in: raw) ?? fallback.whyItMatters,
+                practiceShape: JSONSalvage.string("practiceShape", in: raw) ?? fallback.practiceShape
+            )
+        }
+        func prose(_ offer: ElectiveOfferDraft) -> String {
+            "\(offer.title)\n\(offer.ask)\n\(offer.whyItMatters)\n\(offer.practiceShape)"
+        }
+
         guard let response = await LocalBrainProse.write(
-            prompt: LocalModelManager.electiveOfferPrompt(surface: surface),
-            instructions: """
-            You are a character in ReEnchanted asking the player a small real-world favor. Return compact strict JSON only.
-            """,
+            prompt: prompt,
+            instructions: instructions,
             maxTokens: 460,
             sourceID: "unwritten-elective",
             tags: ["elective", "offer"]
-        ), let raw = JSONSalvage.dictionary(from: response) else {
+        ), let first = decode(response) else {
             return fallback
         }
-        return ElectiveOfferDraft(
-            title: JSONSalvage.string("title", in: raw) ?? fallback.title,
-            ask: JSONSalvage.string("ask", in: raw) ?? fallback.ask,
-            whyItMatters: JSONSalvage.string("whyItMatters", in: raw) ?? fallback.whyItMatters,
-            practiceShape: JSONSalvage.string("practiceShape", in: raw) ?? fallback.practiceShape
+        let canon = surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? ""
+        let sender = surface.payload.metadata["senderName"] ?? "the sender"
+        let firstAudit = await CharacterFidelityReviewer.audit(
+            prose: prose(first),
+            canon: canon,
+            context: "elective quest offer from \(sender)",
+            sourceID: "unwritten-elective"
         )
+        guard !firstAudit.passed else { return first }
+        if let repairedResponse = await LocalBrainProse.write(
+            prompt: "\(prompt)\n\nCHARACTER CONTINUITY REPAIR:\n\(firstAudit.feedback)\nReturn the complete strict JSON object again.",
+            instructions: instructions,
+            maxTokens: 460,
+            sourceID: "unwritten-elective",
+            tags: ["elective", "offer", "character-repair"]
+        ), let second = decode(repairedResponse) {
+            let secondAudit = await CharacterFidelityReviewer.audit(
+                prose: prose(second),
+                canon: canon,
+                context: "repaired elective quest offer from \(sender)",
+                sourceID: "unwritten-elective"
+            )
+            if secondAudit.passed || secondAudit.score >= firstAudit.score {
+                return second
+            }
+        }
+        return first
     }
 }
 
@@ -3614,19 +4146,50 @@ struct BleedColumnWriter {
     func write(brief: BleedColumnBrief, clippings: String) async -> String {
         guard brief.needsLocalBrain else { return brief.composedBody }
         let packet = brief.packet.replacingOccurrences(of: "{{CLIPPINGS}}", with: clippings)
-        if let response = await LocalBrainProse.write(
-            prompt: """
-            COLUMN: \(brief.title)
-            BYLINE: \(brief.byline)
+        let canon = CharacterCanonPacket.promptSection(
+            for: NarrativePackRegistry.entities.filter { $0.id == "penny-blackletter" }
+        )
+        let prompt = """
+        COLUMN: \(brief.title)
+        BYLINE: \(brief.byline)
 
-            MATERIAL (write only from this; invent nothing beyond it):
-            \(packet)
-            """,
-            instructions: instructions(for: brief),
+        \(canon)
+
+        MATERIAL (write only from this; invent nothing beyond it):
+        \(packet)
+        """
+        let instructions = instructions(for: brief)
+        if let response = await LocalBrainProse.write(
+            prompt: prompt,
+            instructions: instructions,
             maxTokens: max(brief.maxTokens, 240),
             sourceID: "the-bleed",
             tags: ["bleed", brief.id]
         ) {
+            let firstAudit = await CharacterFidelityReviewer.audit(
+                prose: response,
+                canon: canon,
+                context: "The Bleed column \(brief.title) by Penny Blackletter",
+                sourceID: "the-bleed"
+            )
+            if !firstAudit.passed,
+               let repaired = await LocalBrainProse.write(
+                    prompt: "\(prompt)\n\nCHARACTER CONTINUITY REPAIR:\n\(firstAudit.feedback)\nReturn the full column again.",
+                    instructions: instructions,
+                    maxTokens: max(brief.maxTokens, 240),
+                    sourceID: "the-bleed",
+                    tags: ["bleed", brief.id, "character-repair"]
+               ) {
+                let repairedAudit = await CharacterFidelityReviewer.audit(
+                    prose: repaired,
+                    canon: canon,
+                    context: "repaired Bleed column \(brief.title) by Penny Blackletter",
+                    sourceID: "the-bleed"
+                )
+                if repairedAudit.passed || repairedAudit.score >= firstAudit.score {
+                    return repaired
+                }
+            }
             return response
         }
         return fallback(brief: brief, packet: packet)

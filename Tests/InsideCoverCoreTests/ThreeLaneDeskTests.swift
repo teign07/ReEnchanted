@@ -15,18 +15,21 @@ final class ThreeLaneDeskTests: XCTestCase {
         _ type: BookPageType,
         score: Int,
         id: String? = nil,
+        sourceID: String? = nil,
+        copy: String? = nil,
         metadata: [String: String] = [:]
     ) -> SurfacePage {
-        SurfacePage(
+        let visibleCopy = copy ?? type.title
+        return SurfacePage(
             id: id ?? "cand-\(type.rawValue)",
             type: type,
-            sourceID: "cand-\(type.rawValue)",
+            sourceID: sourceID ?? "cand-\(type.rawValue)",
             score: score,
-            prompt: type.title,
-            detail: "Candidate for \(type.title).",
+            prompt: visibleCopy,
+            detail: "Candidate for \(visibleCopy).",
             payload: BookPagePayload(
-                headline: type.title,
-                body: "Candidate for \(type.title).",
+                headline: visibleCopy,
+                body: "Candidate for \(visibleCopy).",
                 metadata: metadata
             )
         )
@@ -250,5 +253,106 @@ final class ThreeLaneDeskTests: XCTestCase {
         let second = BookCurator.rankedPages(from: candidates, limit: 3, mood: mood, now: now).map { $0.page.id }
 
         XCTAssertEqual(first, second)
+    }
+
+    // MARK: - Discovery law
+
+    func testExactRepeatNeedsBeliefButNewActualPageDoesNot() {
+        let now = fixedDate(hour: 12)
+        let repeated = candidate(.letter, score: 96, sourceID: "letters", copy: "The same old letter")
+        let fresh = candidate(.letter, score: 24, id: "fresh-letter", sourceID: "letters", copy: "A genuinely different letter")
+        var mood = openMood(types: [.letter])
+        mood.surfaceHistory[repeated.curatorContentNoveltyKey] = SurfaceHistoryRecord(
+            lastShownAt: now.addingTimeInterval(-25 * 3600),
+            recentShowCount: 1
+        )
+        mood.surfaceHistory["source:letters"] = SurfaceHistoryRecord(
+            lastShownAt: now.addingTimeInterval(-25 * 3600),
+            recentShowCount: 1
+        )
+
+        let pages = BookCurator.rankedPages(
+            from: [repeated, fresh],
+            limit: 3,
+            mood: mood,
+            now: now
+        ).map(\.page)
+
+        XCTAssertEqual(pages.map(\.id), ["fresh-letter"])
+    }
+
+    func testInvestedBeliefAllowsAnExactPageToReturn() {
+        let now = fixedDate(hour: 12)
+        let repeated = candidate(.letter, score: 40, sourceID: "letters", copy: "A beloved letter")
+        var mood = openMood(types: [.letter])
+        let old = SurfaceHistoryRecord(lastShownAt: now.addingTimeInterval(-25 * 3600), recentShowCount: 1)
+        mood.surfaceHistory[repeated.curatorContentNoveltyKey] = old
+        mood.surfaceHistory["source:letters"] = old
+        let profile = PageBeliefProfile(
+            sourceID: "letters",
+            type: .letter,
+            title: "Letters",
+            belief: CuratorNoveltyPolicy.repeatBeliefThreshold,
+            narrativeWeight: 22,
+            cadence: "when believed",
+            note: "test"
+        )
+        let preferences = CuratorSurfacePreferences(pageBeliefProfiles: ["letters": profile])
+
+        let pages = BookCurator.rankedPages(
+            from: [repeated],
+            limit: 3,
+            preferences: preferences,
+            mood: mood,
+            now: now
+        ).map(\.page)
+
+        XCTAssertEqual(pages.map(\.id), [repeated.id])
+    }
+
+    func testBeliefPermittedRepeatStillPreservesAllThreeLanes() {
+        let now = fixedDate(hour: 12)
+        let outward = candidate(.fuel, score: 30, copy: "A new outward page")
+        let fiction = candidate(.letter, score: 80, sourceID: "letters", copy: "A beloved returning letter")
+        let other = candidate(.gamePage, score: 30, copy: "A new surprise game")
+        var mood = openMood(types: [.fuel, .letter, .gamePage])
+        let old = SurfaceHistoryRecord(lastShownAt: now.addingTimeInterval(-25 * 3600), recentShowCount: 1)
+        mood.surfaceHistory[fiction.curatorContentNoveltyKey] = old
+        mood.surfaceHistory["source:letters"] = old
+        let profile = PageBeliefProfile(
+            sourceID: "letters",
+            type: .letter,
+            title: "Letters",
+            belief: 80,
+            narrativeWeight: 22,
+            cadence: "when believed",
+            note: "test"
+        )
+
+        let pages = BookCurator.rankedPages(
+            from: [fiction, other, outward],
+            limit: 3,
+            preferences: CuratorSurfacePreferences(pageBeliefProfiles: ["letters": profile]),
+            mood: mood,
+            now: now
+        ).map(\.page)
+
+        XCTAssertEqual(Set(pages.map(\.type.deskLane)), Set(DeskLane.allCases))
+    }
+
+    func testCuratorTraceExplainsUninvestedExactRepeat() throws {
+        let now = fixedDate(hour: 12)
+        let repeated = candidate(.lore, score: 80, sourceID: "lore", copy: "The same lore")
+        var mood = openMood(types: [.lore])
+        mood.surfaceHistory[repeated.curatorContentNoveltyKey] = SurfaceHistoryRecord(
+            lastShownAt: now.addingTimeInterval(-25 * 3600),
+            recentShowCount: 1
+        )
+
+        let trace = try XCTUnwrap(BookCurator.candidateTrace(from: [repeated], mood: mood, now: now).first)
+
+        XCTAssertFalse(trace.isNewContent)
+        XCTAssertEqual(trace.lane, .other)
+        XCTAssertEqual(trace.rejection, "exact-repeat-needs-belief")
     }
 }

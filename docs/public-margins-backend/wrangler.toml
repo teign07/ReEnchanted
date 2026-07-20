@@ -1,0 +1,24 @@
+name = "reenchanted-public-margins"
+main = "public-margins-worker.mjs"
+compatibility_date = "2026-07-18"
+workers_dev = true
+preview_urls = false
+routes = [
+  { pattern = "community-api.reenchanted.app", custom_domain = true }
+]
+
+[vars]
+X_USERNAME = "Enchantifyink"
+X_IMPORT_ENABLED = "false"
+PUBLIC_SITE_ORIGIN = "https://reenchanted.app"
+
+[[d1_databases]]
+binding = "PUBLIC_MARGINS_DB"
+database_name = "reenchanted-public-margins"
+database_id = "f68894e2-7fdd-4e52-83bc-7455284ba571"
+
+[triggers]
+crons = ["17 5 * * *"]
+
+[ai]
+binding = "AI"

@@ -1,0 +1,8 @@
+# Never commit the real values. Add them with `wrangler secret put ...`.
+# X imports are intentionally dormant. The production flag lives in wrangler.toml.
+X_CONSUMER_KEY=replace-me
+X_CONSUMER_SECRET=replace-me
+X_ACCESS_TOKEN=replace-me
+X_ACCESS_TOKEN_SECRET=replace-me
+PUBLIC_MARGINS_ENCRYPTION_KEY=base64-encoded-32-byte-key
+PUBLIC_MARGINS_ADMIN_TOKEN=replace-with-a-long-random-token

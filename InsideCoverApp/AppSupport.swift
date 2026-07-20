@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 import OSLog
 import Darwin.Mach
 #if canImport(AVFoundation)
@@ -64,6 +65,97 @@ let appLog = Logger(subsystem: "com.openclaw.enchantify.insidecover", category: 
 extension Notification.Name {
     static let bookAppLockAuthorized = Notification.Name("bookAppLockAuthorized")
     static let promptWhisperKept = Notification.Name("promptWhisperKept")
+}
+
+// MARK: - Public Margins network doorway
+
+enum PublicMarginsAPI {
+    static let incomingOptInKey = "publicMarginsIncomingOptIn"
+    static let outgoingOptInKey = "publicMarginsOutgoingOptIn"
+    static let deletionReceiptsKey = "publicMarginsDeletionReceipts"
+
+    private static var baseURL: URL {
+        if let configured = Bundle.main.object(forInfoDictionaryKey: "PublicMarginsAPIBaseURL") as? String,
+           let url = URL(string: configured) {
+            return url
+        }
+        return URL(string: "https://community-api.reenchanted.app/v1")!
+    }
+
+    static func fetchSnapshot(session: URLSession = .shared) async throws -> PublicMarginsSnapshot {
+        let url = baseURL.appendingPathComponent("community/snapshot")
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        request.cachePolicy = .reloadRevalidatingCacheData
+        let (data, response) = try await session.data(for: request)
+        try requireSuccess(response)
+        return try JSONDecoder().decode(PublicMarginsSnapshot.self, from: data)
+    }
+
+    static func submit(
+        _ contribution: PublicMarginsContributionRequest,
+        session: URLSession = .shared
+    ) async throws -> PublicMarginsContributionReceipt {
+        var request = URLRequest(url: baseURL.appendingPathComponent("contributions"))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(contribution)
+        let (data, response) = try await session.data(for: request)
+        try requireSuccess(response)
+        let receipt = try JSONDecoder().decode(PublicMarginsContributionReceipt.self, from: data)
+        storeDeletionReceipt(receipt)
+        return receipt
+    }
+
+    static var storedDeletionReceiptCount: Int {
+        (UserDefaults.standard.dictionary(forKey: deletionReceiptsKey) as? [String: String] ?? [:]).count
+    }
+
+    static func withdrawAllStoredContributions(session: URLSession = .shared) async -> Int {
+        var receipts = UserDefaults.standard.dictionary(forKey: deletionReceiptsKey) as? [String: String] ?? [:]
+        var deleted = 0
+        for (id, token) in receipts {
+            var request = URLRequest(
+                url: baseURL
+                    .appendingPathComponent("contributions")
+                    .appendingPathComponent(id)
+            )
+            request.httpMethod = "DELETE"
+            request.timeoutInterval = 15
+            request.setValue(token, forHTTPHeaderField: "X-Deletion-Token")
+            do {
+                let (_, response) = try await session.data(for: request)
+                try requireSuccess(response)
+                receipts.removeValue(forKey: id)
+                deleted += 1
+            } catch {
+                // Keep the local receipt so a later attempt remains possible.
+            }
+        }
+        UserDefaults.standard.set(receipts, forKey: deletionReceiptsKey)
+        return deleted
+    }
+
+    private static func requireSuccess(_ response: URLResponse) throws {
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw PublicMarginsAPIError.requestFailed
+        }
+    }
+
+    private static func storeDeletionReceipt(_ receipt: PublicMarginsContributionReceipt) {
+        var receipts = UserDefaults.standard.dictionary(forKey: deletionReceiptsKey) as? [String: String] ?? [:]
+        receipts[receipt.id] = receipt.deletionToken
+        UserDefaults.standard.set(receipts, forKey: deletionReceiptsKey)
+    }
+}
+
+enum PublicMarginsAPIError: LocalizedError {
+    case requestFailed
+
+    var errorDescription: String? {
+        "The Public Margins didn't answer. Your Book stayed private; nothing was sent again."
+    }
 }
 
 #if canImport(LocalAuthentication)
@@ -1885,6 +1977,7 @@ struct BookPersistenceWriteResult: @unchecked Sendable {
     let storeReport: BookStore.Report
     let databaseReport: BookArchiveDatabase.Report
     let resurfacedPages: [BookPage]
+    let returnedStackCards: [ReturnedStackCard]
     let usedFallbackStore: Bool
 }
 
@@ -1929,12 +2022,14 @@ actor BookPersistenceWriter {
         days: [BookDay],
         usedFallbackStore: Bool
     ) -> BookPersistenceWriteResult {
-        BookPersistenceWriteResult(
+        let now = Date()
+        return BookPersistenceWriteResult(
             revision: revision,
             days: days,
             storeReport: BookStore.report(for: days),
             databaseReport: database.report(for: days),
-            resurfacedPages: (try? database.resurfacingCandidates(limit: 3)) ?? [],
+            resurfacedPages: (try? database.resurfacingCandidates(before: now, limit: 64)) ?? [],
+            returnedStackCards: (try? database.returnedStacksCards(from: days, now: now, limit: 3)) ?? [],
             usedFallbackStore: usedFallbackStore
         )
     }
@@ -3034,7 +3129,7 @@ enum StandingOrderTrialReminder {
 }
 
 /// The Book's voice outside the app: a few quiet, in-world local
-/// notifications. Class bells, the evening braid whisper, and aging quests.
+/// notifications. One morning prompt, one evening return, and aging quests.
 /// Everything is prefixed so a refresh can sweep ours without touching
 /// anything else, and the whole channel has one switch in the Colophon.
 enum BookWhispers {
@@ -3045,11 +3140,11 @@ enum BookWhispers {
 
     static func refreshSchedule(
         enabled: Bool,
+        cadence: BookWhisperCadence = .both,
         electives: [UnwrittenElective],
         whisperController: String? = nil,
-        whisperSovereign: Bool = false,
         festivalWhisper: (title: String, body: String)? = nil,
-        eventWhisper: (title: String, body: String)? = nil,
+        bookInterior: BookInteriorState = .unawakened,
         now: Date = Date()
     ) {
         #if canImport(UserNotifications)
@@ -3059,10 +3154,10 @@ enum BookWhispers {
                 $0.hasPrefix(identifierPrefix) && !$0.hasPrefix(promptIdentifierPrefix)
             }
             center.removePendingNotificationRequests(withIdentifiers: ours)
-            guard enabled else { return }
+            guard enabled, cadence != .inside else { return }
             center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
                 guard granted else { return }
-                schedule(center: center, electives: electives, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisper, eventWhisper: eventWhisper, now: now)
+                schedule(center: center, cadence: cadence, electives: electives, whisperController: whisperController, festivalWhisper: festivalWhisper, bookInterior: bookInterior, now: now)
             }
         }
         #endif
@@ -3070,8 +3165,12 @@ enum BookWhispers {
 
     static func refreshPromptWhispers(
         enabled: Bool,
+        cadence: BookWhisperCadence = .both,
         day: BookDay,
         inputs: BookSourceInputs,
+        whisperController: String? = nil,
+        whisperSovereign: Bool = false,
+        eventWhisper: (title: String, body: String)? = nil,
         now: Date = Date()
     ) {
         #if canImport(UserNotifications)
@@ -3079,10 +3178,19 @@ enum BookWhispers {
         center.getPendingNotificationRequests { pending in
             let ours = pending.map(\.identifier).filter { $0.hasPrefix(promptIdentifierPrefix) }
             center.removePendingNotificationRequests(withIdentifiers: ours)
-            guard enabled else { return }
+            guard enabled, cadence.allowsMorning else { return }
             center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
                 guard granted else { return }
-                schedulePromptWhispers(center: center, day: day, inputs: inputs, now: now)
+                schedulePromptWhispers(
+                    center: center,
+                    cadence: cadence,
+                    day: day,
+                    inputs: inputs,
+                    whisperController: whisperController,
+                    whisperSovereign: whisperSovereign,
+                    eventWhisper: eventWhisper,
+                    now: now
+                )
             }
         }
         #endif
@@ -3200,91 +3308,44 @@ enum BookWhispers {
         }
     }
 
-    private static func schedule(center: UNUserNotificationCenter, electives: [UnwrittenElective], whisperController: String?, whisperSovereign: Bool, festivalWhisper: (title: String, body: String)?, eventWhisper: (title: String, body: String)?, now: Date) {
+    private static func schedule(center: UNUserNotificationCenter, cadence: BookWhisperCadence, electives: [UnwrittenElective], whisperController: String?, festivalWhisper: (title: String, body: String)?, bookInterior: BookInteriorState, now: Date) {
         var requests: [UNNotificationRequest] = []
         let calendar = Calendar.current
 
-        // Class and club bells for the next three days, only future ones.
-        for dayOffset in 0..<3 {
-            guard let day = calendar.date(byAdding: .day, value: dayOffset, to: now) else { continue }
-            let weekday = calendar.component(.weekday, from: day)
-            guard let plan = AcademyScheduleRegistry.week[weekday] else { continue }
-            if let id = plan.morning,
-               let session = AcademyScheduleRegistry.classes[id],
-               let request = bellRequest(for: session, on: day, hour: 9, isClub: false, calendar: calendar, now: now) {
-                requests.append(request)
+        if cadence.allowsEvening {
+            // A festival replaces the evening braid rather than stacking a
+            // second tap on the reader's chosen return window.
+            let braidWhisper = PactVoices.braidWhisper(controller: whisperController)
+            let interiorWhisper: (title: String, body: String)?
+            if let secret = bookInterior.secret, secret.status == .ready {
+                interiorWhisper = ("A sealed leaf shifted", "One of the Book's own secrets is ready inside.")
+            } else if let promise = bookInterior.promise, promise.status == .keeping {
+                interiorWhisper = ("The ribbon kept its place", "The Book is still holding an unfinished promise. Nothing is required tonight.")
+            } else if let opinion = bookInterior.opinion,
+                      opinion.strength == .reconsidering,
+                      opinion.firstPresentedAt == nil {
+                interiorWhisper = ("An erasure in the margin", "The Book changed its mind and kept the reason beside the correction.")
+            } else if let game = bookInterior.longGame, game.phasePresentedAt == nil {
+                interiorWhisper = ("The long game moved", "The Book's campaign of re-enchantment has entered \(game.phase.title).")
+            } else if let fascination = bookInterior.fascination {
+                interiorWhisper = ("The Book is still thinking", "A thread about \(fascination.facet.verb) is moving quietly in the margins.")
+            } else {
+                interiorWhisper = nil
             }
-            if let id = plan.club,
-               let session = AcademyScheduleRegistry.clubs[id],
-               let request = bellRequest(for: session, on: day, hour: 19, isClub: true, calendar: calendar, now: now) {
-                requests.append(request)
-            }
-        }
-
-        // The evening braid whisper, repeating daily — recolored by whoever holds
-        // the Whisper Channel in the Pact War.
-        let whisper = PactVoices.braidWhisper(controller: whisperController)
-        let braidContent = UNMutableNotificationContent()
-        braidContent.title = whisper.title
-        braidContent.body = whisper.body
-        braidContent.sound = .default
-        var braidTime = DateComponents()
-        braidTime.hour = 20
-        braidTime.minute = 45
-        requests.append(UNNotificationRequest(
-            identifier: "\(identifierPrefix)braid",
-            content: braidContent,
-            trigger: UNCalendarNotificationTrigger(dateMatching: braidTime, repeats: true)
-        ))
-
-        // A festival on the Wheel calls the reader to it in the early evening.
-        if let festivalWhisper {
-            let content = UNMutableNotificationContent()
-            content.title = festivalWhisper.title
-            content.body = festivalWhisper.body
-            content.sound = .default
-            var feastTime = DateComponents()
-            feastTime.hour = 18
-            feastTime.minute = 0
+            let whisper: (title: String, body: String) = festivalWhisper
+                ?? interiorWhisper
+                ?? (title: braidWhisper.title, body: braidWhisper.body)
+            let braidContent = UNMutableNotificationContent()
+            braidContent.title = whisper.title
+            braidContent.body = whisper.body
+            braidContent.sound = .default
+            var braidTime = DateComponents()
+            braidTime.hour = festivalWhisper == nil ? 20 : 18
+            braidTime.minute = festivalWhisper == nil ? 45 : 0
             requests.append(UNNotificationRequest(
-                identifier: "\(identifierPrefix)festival",
-                content: content,
-                trigger: UNCalendarNotificationTrigger(dateMatching: feastTime, repeats: false)
-            ))
-        }
-
-        // Active monthly world events can tap the glass once in the morning,
-        // making authored arcs feel present outside the app without adding a
-        // separate notification system.
-        if let eventWhisper {
-            let content = UNMutableNotificationContent()
-            content.title = eventWhisper.title
-            content.body = eventWhisper.body
-            content.sound = .default
-            var eventTime = DateComponents()
-            eventTime.hour = 10
-            eventTime.minute = 15
-            requests.append(UNNotificationRequest(
-                identifier: "\(identifierPrefix)world-event",
-                content: content,
-                trigger: UNCalendarNotificationTrigger(dateMatching: eventTime, repeats: false)
-            ))
-        }
-
-        // Sovereign automation: a Talisman that reigns over the Whisper Channel
-        // speaks an extra, unprompted morning whisper in its own voice.
-        if whisperSovereign, let sovereign = PactVoices.sovereignWhisper(controller: whisperController) {
-            let content = UNMutableNotificationContent()
-            content.title = sovereign.title
-            content.body = sovereign.body
-            content.sound = .default
-            var morning = DateComponents()
-            morning.hour = 8
-            morning.minute = 30
-            requests.append(UNNotificationRequest(
-                identifier: "\(identifierPrefix)sovereign",
-                content: content,
-                trigger: UNCalendarNotificationTrigger(dateMatching: morning, repeats: true)
+                identifier: festivalWhisper == nil ? "\(identifierPrefix)braid" : "\(identifierPrefix)festival",
+                content: braidContent,
+                trigger: UNCalendarNotificationTrigger(dateMatching: braidTime, repeats: festivalWhisper == nil)
             ))
         }
 
@@ -3293,8 +3354,13 @@ enum BookWhispers {
             let remindAt = elective.createdAt.addingTimeInterval(3 * 24 * 3600)
             guard remindAt > now else { continue }
             let content = UNMutableNotificationContent()
-            content.title = "A quest is waiting in the flyleaf"
-            content.body = "\(elective.characterName) is still hoping for \"\(elective.title)\". Sentence, photo, or GPS proof completes it."
+            if elective.bookFavorID != nil {
+                content.title = "An optional favor rests in the flyleaf"
+                content.body = "\(elective.title) is still there if it would add something to your day. Nothing is owed."
+            } else {
+                content.title = "A quest is waiting in the flyleaf"
+                content.body = "\(elective.characterName) is still hoping for \"\(elective.title)\". Sentence, photo, or GPS proof completes it."
+            }
             content.sound = .default
             let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: remindAt)
             requests.append(UNNotificationRequest(
@@ -3309,9 +3375,20 @@ enum BookWhispers {
         }
     }
 
-    private static func schedulePromptWhispers(center: UNUserNotificationCenter, day: BookDay, inputs: BookSourceInputs, now: Date) {
+    private static func schedulePromptWhispers(
+        center: UNUserNotificationCenter,
+        cadence: BookWhisperCadence,
+        day: BookDay,
+        inputs: BookSourceInputs,
+        whisperController: String?,
+        whisperSovereign: Bool,
+        eventWhisper: (title: String, body: String)?,
+        now: Date
+    ) {
         let calendar = Calendar.current
-        let slots: [(hour: Int, minute: Int)] = [(11, 0), (16, 0), (19, 30)]
+        // One keepable morning prompt. Evening belongs to the braid call, so
+        // choosing both produces two predictable contacts rather than a pile.
+        let slots: [(hour: Int, minute: Int)] = cadence.allowsMorning ? [(11, 0)] : []
         let start = BookDay.startDate(for: day.id, fallback: day.date, calendar: calendar)
 
         for dayOffset in 0..<3 {
@@ -3325,7 +3402,24 @@ enum BookWhispers {
                 components.minute = slot.minute
                 guard let fireDate = calendar.date(from: components), fireDate > now else { continue }
 
-                let whisper = prompts[slotIndex]
+                let sovereign: (title: String, body: String)? = whisperSovereign
+                    ? PactVoices.sovereignWhisper(controller: whisperController).map {
+                        (title: $0.title, body: $0.body)
+                    }
+                    : nil
+                // Authored context takes the existing morning seat. It never
+                // creates an additional notification beyond the chosen cadence.
+                let contextual = dayOffset == 0 ? (eventWhisper ?? sovereign) : sovereign
+                let whisper = contextual.map {
+                    PromptWhisper(
+                        id: "contextual-\(scheduledDay.id)",
+                        kind: .checkIn,
+                        title: $0.title,
+                        body: $0.body,
+                        keepPrompt: $0.body,
+                        tags: ["contextual-whisper"]
+                    )
+                } ?? prompts[slotIndex]
                 let content = UNMutableNotificationContent()
                 content.title = whisper.title
                 content.body = whisper.body
@@ -3345,60 +3439,9 @@ enum BookWhispers {
                     trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
                 ))
             }
-
-            guard let mission = PlayfulMissionRegistry.moonMission(on: date) else { continue }
-            var components = calendar.dateComponents([.year, .month, .day], from: date)
-            components.hour = 21
-            components.minute = 30
-            guard let fireDate = calendar.date(from: components), fireDate > now else { continue }
-
-            let whisper = PromptWhisperRegistry.promptWhisper(from: mission)
-            let content = UNMutableNotificationContent()
-            content.title = whisper.title
-            content.body = whisper.body
-            content.sound = .default
-            content.categoryIdentifier = promptCategoryIdentifier
-            content.userInfo = [
-                "promptWhisperID": whisper.id,
-                "keepPrompt": whisper.keepPrompt,
-                "title": whisper.title,
-                "body": whisper.body,
-                "tags": whisper.tags.joined(separator: ","),
-                "kind": whisper.kind.rawValue
-            ]
-            center.add(UNNotificationRequest(
-                identifier: "\(promptIdentifierPrefix)\(scheduledDay.id)-moon",
-                content: content,
-                trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-            ))
         }
     }
 
-    private static func bellRequest(
-        for session: AcademySession,
-        on day: Date,
-        hour: Int,
-        isClub: Bool,
-        calendar: Calendar,
-        now: Date
-    ) -> UNNotificationRequest? {
-        var components = calendar.dateComponents([.year, .month, .day], from: day)
-        components.hour = hour
-        components.minute = 0
-        guard let fireDate = calendar.date(from: components), fireDate > now else { return nil }
-        let content = UNMutableNotificationContent()
-        content.title = isClub ? "\(session.name) is gathering" : "The \(session.name) bell"
-        content.body = isClub
-            ? "\(session.room), seven bells. \(session.companions.first.map { "\($0) will be there." } ?? "The regulars are arriving.")"
-            : "\(session.leader) is starting in \(session.room)."
-        content.sound = .default
-        let dayID = calendar.dateComponents([.year, .month, .day], from: day)
-        return UNNotificationRequest(
-            identifier: "\(identifierPrefix)bell-\(session.id)-\(dayID.year ?? 0)-\(dayID.month ?? 0)-\(dayID.day ?? 0)",
-            content: content,
-            trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-        )
-    }
     #endif
 }
 
@@ -3801,6 +3844,54 @@ final class GenerationCoordinator {
     var bleedEditionRecovery = PreparedPageRecoveryState()
 }
 
+/// A tiny, bounded diagnostic/recovery copy of the last visible desk. Launch
+/// curation never publishes this snapshot as interactive UI: the first cards a
+/// reader can touch must come from the current session's curator.
+enum LaunchDeskSnapshotStore {
+    private static let defaultsKey = "launchDeskSnapshotV1"
+    private static let maximumSurfaceBytes = 256 * 1_024
+    private static let maximumSnapshotBytes = 640 * 1_024
+
+    private struct Snapshot: Codable {
+        var version: Int
+        var dayID: String
+        var savedAt: Date
+        var surfaces: [SurfacePage]
+    }
+
+    /// Only same-day, bounded snapshots are eligible. A generated page can
+    /// carry large embedded metadata; excluding an oversized card keeps this
+    /// launch shortcut from quietly becoming another expensive archive.
+    static func load(dayID: String, now: Date = Date()) -> [SurfacePage] {
+        guard let data = InsideCoverStore.defaults.data(forKey: defaultsKey),
+              data.count <= maximumSnapshotBytes,
+              let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data),
+              snapshot.version == 1,
+              snapshot.dayID == dayID,
+              now.timeIntervalSince(snapshot.savedAt) < 24 * 60 * 60 else {
+            return []
+        }
+        return Array(snapshot.surfaces.prefix(3))
+    }
+
+    static func save(_ surfaces: [SurfacePage], dayID: String, now: Date = Date()) {
+        let encoder = JSONEncoder()
+        let bounded = surfaces.prefix(3).filter { surface in
+            guard let data = try? encoder.encode(surface) else { return false }
+            return data.count <= maximumSurfaceBytes
+        }
+        let snapshot = Snapshot(
+            version: 1,
+            dayID: dayID,
+            savedAt: now,
+            surfaces: Array(bounded)
+        )
+        guard let data = try? encoder.encode(snapshot),
+              data.count <= maximumSnapshotBytes else { return }
+        InsideCoverStore.defaults.set(data, forKey: defaultsKey)
+    }
+}
+
 /// Owns PlayerVaultData on disk. Replaces five separate JSON-in-AppStorage
 /// ledgers; migrates them once on first launch and then becomes the only
 /// writer. Observable, so views tracking vault-backed values stay live.
@@ -3809,6 +3900,12 @@ final class PlayerVault {
     static let shared = PlayerVault()
 
     var data: PlayerVaultData
+    @ObservationIgnored private let persistenceQueue = DispatchQueue(
+        label: "com.openclaw.reenchanted.player-vault",
+        qos: .utility
+    )
+    @ObservationIgnored private let persistenceLock = NSLock()
+    @ObservationIgnored private var persistenceRevision: UInt64 = 0
 
     private static var fileURL: URL {
         let base = InsideCoverStore.containerURL
@@ -3831,15 +3928,34 @@ final class PlayerVault {
             return
         }
         data = Self.migrateFromLegacyLedgers()
-        persist()
+        persistImmediately(data)
     }
 
     func save() {
-        persist()
+        // The observable in-memory value is authoritative during the session.
+        // JSON encoding plus an atomic file replacement used to run inline on
+        // every tap/keep/economy tick, producing visible interaction hitches.
+        // Coalesce bursts and serialize the durable writes on a utility queue.
+        let snapshot = data
+        let url = Self.fileURL
+        persistenceLock.lock()
+        persistenceRevision &+= 1
+        let revision = persistenceRevision
+        persistenceLock.unlock()
+
+        persistenceQueue.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            guard let self else { return }
+            self.persistenceLock.lock()
+            let isLatest = revision == self.persistenceRevision
+            self.persistenceLock.unlock()
+            guard isLatest else { return }
+            guard let bytes = try? JSONEncoder().encode(snapshot) else { return }
+            try? bytes.write(to: url, options: [.atomic])
+        }
     }
 
-    private func persist() {
-        guard let bytes = try? JSONEncoder().encode(data) else { return }
+    private func persistImmediately(_ snapshot: PlayerVaultData) {
+        guard let bytes = try? JSONEncoder().encode(snapshot) else { return }
         try? bytes.write(to: Self.fileURL, options: [.atomic])
     }
 

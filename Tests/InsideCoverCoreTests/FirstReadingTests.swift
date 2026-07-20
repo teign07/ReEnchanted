@@ -50,6 +50,19 @@ final class FirstReadingTests: XCTestCase {
         XCTAssertTrue(candidates(inputs, now: date(1, hour: 20)).isEmpty)
     }
 
+    func testReflectableBookOverloadDoesNotDuplicateToday() {
+        let today = BookDay(id: "2026-07-01", date: date(1), pages: [
+            souvenir("The kitchen window held the last of the gold light.", on: 1),
+            souvenir("Rain all afternoon, and I did not mind it once.", on: 1),
+            souvenir("A quiet mug of coffee before anyone else woke.", on: 1)
+        ])
+        var inputs = BookSourceInputs.empty
+        inputs.days = [today]
+
+        XCTAssertEqual(FirstReading.reflectablePages(in: inputs, today: today).count, 3)
+        XCTAssertEqual(FirstReading.reflectablePages(in: [today]).count, 3)
+    }
+
     func testDoesNotSurfaceOnceLibraryIsDeep() {
         // Eight kept pages: past the early window, real noticing should carry it.
         let pages = (1...8).map { souvenir("A real kept line number \($0), with substance.", on: 1, hour: $0) }

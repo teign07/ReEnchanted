@@ -739,7 +739,7 @@ And change the reader-side settle note (verbatim):
 
 Rules that must hold:
 - The catcher comes from the existing `tideCandidates` filter, so it is always
-  recently-touched, under 70, and never Disbelief or its kin.
+  recently-touched, under 70, and never Routine or its kin.
 - If no candidate exists, the overflow settles into the paper exactly as today
   (keep the current note for that case).
 - The catcher may receive both the ordinary tide point and the overflow on the

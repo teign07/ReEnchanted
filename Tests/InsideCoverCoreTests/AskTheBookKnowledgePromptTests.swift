@@ -22,7 +22,7 @@ final class AskTheBookKnowledgePromptTests: XCTestCase {
         let packet = BookKnowledgePromptBuilder.trainingPacket(for: "What are Story Pages and Belief?")
 
         XCTAssertTrue(packet.contains("Story Pages"))
-        XCTAssertTrue(packet.contains("Belief is attention made usable"))
+        XCTAssertTrue(packet.contains("Belief is real attention made usable"))
         XCTAssertTrue(packet.contains("Glow"))
     }
 }

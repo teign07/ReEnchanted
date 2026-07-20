@@ -41,6 +41,37 @@ final class BookArchiveDatabaseTests: XCTestCase {
         XCTAssertEqual(resurfacing.map(\.id), ["souvenir-old"])
     }
 
+    func testDailyReturnedStacksSelectionPersistsAndRereadsWithoutReshuffling() throws {
+        let harness = try DatabaseHarness()
+        let database = BookArchiveDatabase(storeURL: harness.storeURL)
+        let archive = (1...5).map { dayNumber in
+            BookDay(
+                id: "day-\(dayNumber)",
+                date: date(day: dayNumber, hour: 9),
+                pages: [
+                    BookPage(
+                        id: "returnable-\(dayNumber)",
+                        type: dayNumber.isMultiple(of: 2) ? .diary : .souvenir,
+                        createdAt: date(day: dayNumber, hour: 12),
+                        promptText: "A kept page",
+                        userInput: "A sufficiently particular sentence from archive day \(dayNumber)."
+                    )
+                ]
+            )
+        }
+        try database.saveDays(archive)
+        let now = date(day: 10, hour: 9)
+
+        let first = try database.returnedStacksCards(from: archive, now: now)
+        let second = try database.returnedStacksCards(from: archive, now: now)
+        let history = try database.resurfacingHistory(surfacePrefix: ReturnedStacksRitual.surfacePrefix)
+
+        XCTAssertEqual(first.count, 3)
+        XCTAssertEqual(first, second)
+        XCTAssertEqual(history.count, 3)
+        XCTAssertEqual(Set(history.map(\.pageID)), Set(first.map(\.page.id)))
+    }
+
     func testMediaAssetsPersistThroughSwiftDataReload() throws {
         let harness = try DatabaseHarness()
         let database = BookArchiveDatabase(storeURL: harness.storeURL)

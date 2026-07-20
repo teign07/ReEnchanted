@@ -938,12 +938,13 @@ enum BookArchiveIndex {
         return pages(
             in: days,
             matching: BookPageQuery(
-                type: .souvenir,
-                usedInBookOfYou: true,
                 endDate: startOfDay,
-                limit: limit
+                limit: Int.max
             )
         )
+        .filter(ReturnedStacksRitual.isEligible)
+        .prefix(max(limit, 0))
+        .map { $0 }
     }
 
     static func matches(_ page: BookPage, query: BookPageQuery) -> Bool {
@@ -1517,6 +1518,7 @@ enum FacultyResearchNoteGenerator {
         let topic = entity?.unwrittenInterest ?? chart?.purpose ?? "care research"
         let slot = SurfaceCadence.slotID(for: now, hours: 12)
         let body = promptBody(for: facultyID, topic: topic, day: day, inputs: inputs)
+        let characterCanon = CharacterCanonPacket.promptSection(for: [entity].compactMap { $0 })
         return SurfacePage(
             id: "\(source.id)-\(day.id)-\(slot)-\(facultyID)",
             type: .facultyResearch,
@@ -1535,6 +1537,7 @@ enum FacultyResearchNoteGenerator {
                     "facultyID": facultyID,
                     "facultyName": facultyName,
                     "researchTopic": topic,
+                    CharacterCanonPacket.metadataKey: characterCanon,
                     "slotID": slot,
                     "placeholder": "Keep this research note for tonight's Guild page.",
                     "tags": "faculty-research,faculty:\(facultyID),support-guild,research"

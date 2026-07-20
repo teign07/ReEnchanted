@@ -29,7 +29,7 @@ final class BookArchiveIndexTests: XCTestCase {
         XCTAssertEqual(results.map(\.id), ["souvenir-3", "souvenir-2"])
     }
 
-    func testResurfacingCandidatesReturnOlderUsedSouvenirsNewestFirst() {
+    func testResurfacingCandidatesReturnMeaningfulOlderPagesNewestFirst() {
         let results = BookArchiveIndex.resurfacingCandidates(
             in: archiveDays(),
             before: date(day: 3, hour: 12),
@@ -37,7 +37,7 @@ final class BookArchiveIndexTests: XCTestCase {
             limit: 10
         )
 
-        XCTAssertEqual(results.map(\.id), ["souvenir-2", "souvenir-1"])
+        XCTAssertEqual(results.map(\.id), ["wonder-2", "souvenir-2", "souvenir-1"])
     }
 
     func testLimitZeroReturnsNoPages() {

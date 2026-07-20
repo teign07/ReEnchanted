@@ -259,4 +259,31 @@ final class ContextWeaveTests: XCTestCase {
         }
         XCTAssertTrue(repeated.isEmpty, "A spoken connection rests; silence beats a rerun.")
     }
+
+    func testKeptPageContextRoundTripsPlaceAndPrivateChartReferences() throws {
+        let context = BookPageContextSnapshot(
+            at: now,
+            weatherTags: ["Rain", "wind"],
+            bodyScore: 74,
+            calendarEventCount: 3,
+            nearbyAnchorID: "front-porch",
+            locationLabel: "Home",
+            innerWeatherEntryID: "mood-entry-1",
+            fuelEntryID: "fuel-entry-1"
+        )
+
+        let data = try JSONEncoder().encode(context)
+        let decoded = try JSONDecoder().decode(
+            BookPageContextSnapshot.self,
+            from: data
+        )
+
+        XCTAssertEqual(decoded.weatherTags, ["rain", "wind"])
+        XCTAssertEqual(decoded.locationLabel, "Home")
+        XCTAssertEqual(decoded.nearbyAnchorID, "front-porch")
+        XCTAssertEqual(decoded.innerWeatherEntryID, "mood-entry-1")
+        XCTAssertEqual(decoded.fuelEntryID, "fuel-entry-1")
+        XCTAssertEqual(decoded.bodyScore, 74)
+        XCTAssertEqual(decoded.calendarEventCount, 3)
+    }
 }

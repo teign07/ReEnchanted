@@ -2,100 +2,35 @@ import XCTest
 @testable import InsideCoverCore
 
 final class HiddenMagicPracticeTests: XCTestCase {
-    func testOutwardPagesKeepTheirTypesWhileReceivingDifferentLenses() throws {
+    func testCuratedPagesKeepTheirOwnOutcomeWithoutCrossPageLensMetadata() throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
-        let surfaces = [
-            surface(.souvenir, id: "souvenir"),
-            surface(.body, id: "body"),
-            surface(.fuel, id: "fuel"),
-            surface(.weather, id: "weather"),
-            surface(.location, id: "location"),
-            surface(.enchantment, id: "enchantment")
-        ]
-
-        let decorated = surfaces.map {
-            HiddenMagicPractice.decorating($0, days: [day], now: now)
-        }
-
-        XCTAssertEqual(decorated.map(\.type), surfaces.map(\.type))
-        XCTAssertTrue(decorated.allSatisfy { $0.hiddenMagicLens != nil })
-        XCTAssertGreaterThan(Set(decorated.compactMap { $0.hiddenMagicLens?.sense }).count, 2)
-        XCTAssertEqual(BookPageType.weather.deskLane, .outward)
-        XCTAssertEqual(BookPageType.enchantment.deskLane, .outward)
-    }
-
-    func testCompletedLensRequiresTakenStateAndRealProof() throws {
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let decorated = HiddenMagicPractice.decorating(
-            surface(.souvenir, id: "souvenir"),
-            days: [],
-            now: now
+        let pages = BookCurator.surfacedPages(
+            for: day,
+            inputs: .empty,
+            now: now,
+            limit: 12
         )
 
-        XCTAssertNil(HiddenMagicPractice.finding(for: decorated, input: "A blue shadow.", media: [], now: now))
-
-        let taken = HiddenMagicPractice.markingTaken(decorated)
-        XCTAssertNil(HiddenMagicPractice.finding(for: taken, input: "", media: [], now: now))
-
-        let finding = try XCTUnwrap(HiddenMagicPractice.finding(
-            for: taken,
-            input: "A blue shadow crossed the kettle.",
-            media: [],
-            now: now
-        ))
-        XCTAssertEqual(finding.expressionModes, [.words])
-        XCTAssertEqual(finding.foundAt, now)
+        XCTAssertFalse(pages.isEmpty)
+        XCTAssertTrue(pages.allSatisfy { page in
+            page.payload.metadata.keys.allSatisfy { !$0.hasPrefix("hiddenMagicLens") }
+        })
     }
 
-    func testPracticedSenseMakesFutureLensStretchElsewhere() throws {
+    func testLegacyLensFindingStillRoundTripsWithoutDrivingNewPages() throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let sightPages = (0..<4).map { index in
-            findingPage(
-                id: "sight-\(index)",
-                sense: .sight,
-                date: now.addingTimeInterval(Double(-index) * 86_400),
-                text: "Light detail \(index)."
-            )
-        }
-        let day = BookDay(id: "past", date: now.addingTimeInterval(-86_400), pages: sightPages)
-        let decorated = HiddenMagicPractice.decorating(
-            surface(.souvenir, id: "stretch"),
-            days: [day],
-            now: now
+        let legacyPage = findingPage(
+            id: "sound-legacy",
+            sense: .sound,
+            date: now,
+            text: "The room kept a different quiet sound."
         )
 
-        XCTAssertNotEqual(decorated.hiddenMagicLens?.sense, .sight)
-    }
+        let data = try JSONEncoder().encode(legacyPage)
+        let decoded = try JSONDecoder().decode(BookPage.self, from: data)
 
-    func testFindingsBecomeConfirmableWayOfSeeingAndNightReaderCandidate() throws {
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let findings = (0..<4).map { index in
-            findingPage(
-                id: "sound-\(index)",
-                sense: .sound,
-                date: now.addingTimeInterval(Double(-(index + 1)) * 86_400),
-                text: "The room kept a different quiet sound \(index)."
-            )
-        }
-        var inputs = BookSourceInputs()
-        inputs.days = findings.map { page in
-            BookDay(id: BookDay.id(for: page.createdAt), date: page.createdAt, pages: [page])
-        }
-        inputs = inputs.withMatureLibrary(now: now)
-        let today = BookDay(id: BookDay.id(for: now), date: now, pages: [])
-
-        let surface = try XCTUnwrap(BookNoticesPageSourceAdapter()
-            .candidates(for: today, context: .make(for: today), inputs: inputs, now: now)
-            .first { $0.payload.metadata["hiddenMagicWayOfSeeing"] == "true" })
-
-        XCTAssertEqual(surface.payload.metadata["hiddenMagicSense"], HiddenMagicSense.sound.rawValue)
-        XCTAssertEqual(surface.payload.metadata["connectionNarrative"], "true")
-        XCTAssertEqual(surface.payload.metadata["magicMomentEligible"], "true")
-        XCTAssertEqual(BookObservationLedger.evidencePageIDs(for: surface).count, 3)
-
-        let candidates = OvernightConnectionReview.candidates(for: today, inputs: inputs, now: now)
-        XCTAssertTrue(candidates.contains { $0.observationKey == surface.payload.metadata["observationKey"] })
+        XCTAssertEqual(decoded.hiddenMagicFinding, legacyPage.hiddenMagicFinding)
     }
 
     private func surface(_ type: BookPageType, id: String) -> SurfacePage {

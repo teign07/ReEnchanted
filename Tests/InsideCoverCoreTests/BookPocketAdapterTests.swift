@@ -1,10 +1,10 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// The Book's Pocket page: once a few keepsakes have gathered from swiped-away
-/// pages, a page surfaces that empties the pocket onto the desk. It waits for the
-/// pocket to fill (a minimum count), keys its id to the count so a handled
-/// pocketful never re-surfaces, and stands down once today already holds one.
+/// The Book's Pocket page: once a few attention-earned fragments have gathered,
+/// a page surfaces that empties the pocket onto the desk. It waits for the
+/// pocket to fill (a minimum count), keys its id to the count so a newly filled
+/// pocket gets a fresh identity, and stands down once today already holds one.
 final class BookPocketAdapterTests: XCTestCase {
     private let adapter = BookPocketPageSourceAdapter()
 
@@ -46,6 +46,47 @@ final class BookPocketAdapterTests: XCTestCase {
         XCTAssertEqual(page?.type, .bookPocket)
         XCTAssertEqual(page?.payload.metadata["pocketTotal"], "\(BookPocketPageSourceAdapter.minimumKeepsakes)")
         XCTAssertFalse((page?.payload.metadata["pocketItems"] ?? "").isEmpty)
+    }
+
+    func testPocketSurfaceCarriesAndRevealsRealPageFragments() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        var pocket = PocketLedger()
+        pocket.press(PocketKeepsake(
+            id: "real-1",
+            dayID: "today",
+            pageType: .weather,
+            object: "Fog at the Window",
+            glyph: "cloud.fog",
+            foundAt: now.addingTimeInterval(-20),
+            sourceSurfaceID: "weather-fog",
+            title: "Fog at the Window",
+            excerpt: "The roofs disappeared one chimney at a time.",
+            reason: "Fog was moving through the reader's morning.",
+            mediaAssets: []
+        ))
+        pocket.press(PocketKeepsake(
+            id: "real-2",
+            dayID: "today",
+            pageType: .illustration,
+            object: "A Small Green Door",
+            glyph: "photo",
+            foundAt: now.addingTimeInterval(-10),
+            sourceSurfaceID: "illustration-door",
+            title: "A Small Green Door",
+            excerpt: "The paint had worn away around a keyhole no one used.",
+            reason: "The illustration rose from the archive.",
+            mediaAssets: [BookPageMediaAsset(kind: .bundledImage, reference: "GreenDoor")]
+        ))
+        var richInputs = BookSourceInputs.empty
+        richInputs.pocket = pocket
+
+        let page = try XCTUnwrap(candidates(inputs: richInputs).first)
+        let encoded = try XCTUnwrap(page.payload.metadata[PocketKeepsakeArchive.metadataKey])
+        let revealed = PocketKeepsakeArchive.decode(encoded)
+
+        XCTAssertEqual(revealed.map(\.title), ["A Small Green Door", "Fog at the Window"])
+        XCTAssertTrue(page.payload.body.contains("The paint had worn away"))
+        XCTAssertEqual(page.mediaAssets.first?.reference, "GreenDoor")
     }
 
     func testSurfaceIDIsKeyedToKeepsakeCount() {

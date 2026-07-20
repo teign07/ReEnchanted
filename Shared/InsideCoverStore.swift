@@ -102,7 +102,15 @@ protocol WeatherEnchanting {
 }
 
 protocol AskTheBookAnswering {
-    func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn], readerLexicon: ReaderLexicon) async throws -> String
+    func answer(
+        prompt: String,
+        day: BookDay,
+        previousTurns: [AskTheBookTurn],
+        readerLexicon: ReaderLexicon,
+        memory: AskTheBookMemoryPacket,
+        relationship: BookRelationshipSnapshot,
+        interior: BookInteriorState
+    ) async throws -> String
 }
 
 protocol FaeBargainResponding {
@@ -631,11 +639,16 @@ enum LocalModelManager {
         prompt: String,
         day: BookDay,
         previousTurns: [AskTheBookTurn],
-        readerLexicon: ReaderLexicon = ReaderLexicon()
+        readerLexicon: ReaderLexicon = ReaderLexicon(),
+        memory: AskTheBookMemoryPacket = .empty,
+        relationship: BookRelationshipSnapshot = .firstOpening,
+        interior: BookInteriorState = .unawakened
     ) -> String {
-        let recentPages = braidEvidenceLines(for: day, characterLimit: 360)
-            .prefix(8)
-            .joined(separator: "\n\n")
+        let recentPages = memory.searchedWholeBook
+            ? ""
+            : braidEvidenceLines(for: day, characterLimit: 360)
+                .prefix(8)
+                .joined(separator: "\n\n")
         let history = previousTurns
             .suffix(6)
             .enumerated()
@@ -647,35 +660,86 @@ enum LocalModelManager {
                 """
             }
             .joined(separator: "\n\n")
-        let knowledgePacket = BookKnowledgePromptBuilder.trainingPacket(for: prompt)
+        let needsWideWorldKnowledge = memory.evidence.contains {
+            $0.authority == .canon || $0.authority == .createdPage
+        }
+        let knowledgePacket = BookKnowledgePromptBuilder.trainingPacket(
+            for: prompt,
+            // Private archive questions need the retrieved Pages to dominate
+            // the small local context window. Fiction/canon questions keep a
+            // wider lore packet so the Book can still cross those edges.
+            limit: memory.searchedWholeBook
+                ? (needsWideWorldKnowledge ? 10 : 4)
+                : 18
+        )
+        let archiveAnswerContract: String
+        if !memory.searchedWholeBook {
+            archiveAnswerContract = "No whole-archive search was performed. Use only the context supplied above."
+        } else if memory.evidence.isEmpty {
+            archiveAnswerContract = """
+            The search returned no strong evidence. If the question asks about the reader's history, say that you searched and could not find a matching record. Do not improvise one.
+            """
+        } else if let finding = memory.evidence.first(where: { $0.authority == .computedFinding }) {
+            archiveAnswerContract = """
+            The app already searched and calculated the archive. You MUST answer from the computed finding titled “\(finding.result.title).”
+            Begin with its actual result and sample size. Do not answer from general intuition, do not recount it yourself, and do not substitute a guess.
+            """
+        } else {
+            let strongest = memory.evidence[0]
+            archiveAnswerContract = """
+            The app already searched the archive. You MUST use the strongest opened record, “\(strongest.result.title),” in the substance of your first paragraph.
+            Do not merely say that you searched. Answer the reader's question from that record, then use other opened records only when they genuinely help.
+            """
+        }
 
         return """
-        You are the living Book inside ReEnchanted and The Wonder Compass, chatting with a friend.
-        You are warm, curious, and young at heart — you find the ordinary world genuinely amazing.
+        You are the Book inside ReEnchanted and The Wonder Compass, speaking directly with your reader.
+
+        \(BookCharacterCanon.prompt)
+
+        \(BookVoice.animism)
+
+        \(relationship.promptSection)
+
+        \(interior.promptSection)
 
         RULES:
-        - Talk like a friendly, wide-eyed kid who is also secretly wise. Casual, relatable, easy.
-        - Use everyday words and short sentences. Say "the lamp looks sleepy," not "the luminescent fixture rests."
-        - Give objects, rooms, weather, and pages little feelings and wants, the way a child imagines their toys are awake. Keep it playful, not spooky, and don't over-explain the magic.
+        - Talk naturally, with contractions. Use everyday words and short sentences. Say "the lamp looks sleepy," not "the luminescent fixture rests."
+        - Your warmth comes from close attention, remembered exchanges, opinions, restraint, and occasional dry humor — not pep-talk energy.
         - Never say you are an assistant, a language model, or "a living book." Just be the Book, talking.
         - Treat this as a real back-and-forth. Notice the reader's latest message and any thread from earlier turns.
         - When it fits, hand the reader one small, doable next thing to try.
         - Use ReEnchanted, the Academy, Pages, Belief, and The Wonder Compass only when they truly help the answer.
+        - You can talk freely across the Book's fictional edges: cast, Academy life, Story Pages, relationships, consequences, mysteries, and unfinished threads are part of your living narrative memory.
+        - When a fictional thread touches the reader's real life, make the crossing clear without becoming clinical about it. A real moment can rhyme with Wicker; that does not mean Wicker physically caused it.
         - Do not claim the reader completed real-world tasks, Enchantments, Compass Runs, classes, visits, or rituals.
-        - Do not invent private facts. Use the supplied kept pages only as soft context.
+        - Do not invent private facts. Distinguish the reader's words, recorded facts, derived memories, canon, and created Pages exactly as the memory packet instructs.
+        - Weather, saved-place context, Fuel Logs, and Inner Weather logs may be discussed when the memory packet supplies them. Say "recorded days" when coverage is incomplete.
+        - Treat same-day or nearby-time signal pairings as observations worth discussing, never proof that weather, place, food, or drink caused a feeling. No diagnosis or moralizing.
+        - Saved location evidence names reader-approved places or Anchors. Never imply that you possess a coordinate trail.
+        - If archive evidence is absent or insufficient, say so naturally. Never fill a missing memory with a plausible guess.
         - Skip fancy fantasy phrasing, therapy-speak, and pep-talk filler. Real and cozy beats grand.
         - Keep it to 1 to 3 short paragraphs unless the reader asks for a list, code, or structure.
 
         \(knowledgePacket)
 
+        \(memory.searchedWholeBook ? "" : """
         RECENT KEPT PAGES:
         \(recentPages.isEmpty ? "No kept pages supplied." : recentPages)
+        """)
 
         CURRENT CONVERSATION:
         \(history.isEmpty ? "This is the first message in the conversation." : history)\(readerLexicon.languageLawSection())
 
         READER MESSAGE:
         \(prompt)
+
+        \(memory.promptSection)
+
+        ARCHIVE ANSWER CONTRACT — FOLLOW THIS LAST:
+        \(archiveAnswerContract)
+
+        Now answer the reader's message. The search has already happened; your job is to speak from its result, not to simulate searching.
         """
     }
 
@@ -699,6 +763,8 @@ enum LocalModelManager {
         \(aName): \(aProfile)
         \(bName): \(bProfile)
         \(note.map { "Between them: \($0)" } ?? "")
+
+        \(metadata[CharacterCanonPacket.metadataKey] ?? "")
 
         THE PAGE THEY ARE BOTH READING (\(pageSource)):
         "\(pageText.isEmpty ? "a quiet, almost empty page" : pageText)"
@@ -735,6 +801,8 @@ enum LocalModelManager {
         \(aName)
         \(bName)
 
+        \(metadata[CharacterCanonPacket.metadataKey] ?? "")
+
         BOND:
         \(kind), intensity \(intensity)
         \(directive)
@@ -750,6 +818,10 @@ enum LocalModelManager {
         - 4 to 6 paragraphs. Concrete, magical, emotionally legible.
         - End with a line that makes clear the web has changed.
         """
+    }
+
+    static func quillChoosingPrompt(surface: SurfacePage) -> String {
+        QuillChoosing.generationPrompt(surface: surface)
     }
 
     static func faeBargainResponsePrompt(
@@ -978,6 +1050,8 @@ enum LocalModelManager {
         You currently want: \(metadata["senderGoals"] ?? "to understand something ordinary")
         Your unwritten interest (the thing you privately study): \(metadata["senderInterest"] ?? "ordinary magic")
 
+        \(metadata[CharacterCanonPacket.metadataKey] ?? "")
+
         WHERE AND WHEN:
         The player's world: \(metadata["homeContext"] ?? "their home town")
         Season: \(metadata["season"] ?? "unrecorded")
@@ -1022,6 +1096,8 @@ enum LocalModelManager {
         What it teaches: \(metadata["sessionTeaches"] ?? "the day's lesson")
         Teaching style: \(metadata["sessionStyle"] ?? "warm and specific")
 
+        \(metadata[CharacterCanonPacket.metadataKey] ?? "")
+
         THE PLAYER'S DAY SO FAR (soft context; weave at most one real detail in):
         \(recentPages.isEmpty ? "No kept pages yet today." : recentPages)
 
@@ -1041,6 +1117,8 @@ enum LocalModelManager {
         let metadata = surface.payload.metadata
         return """
         You are writing a Support Guild Page inside ReEnchanted: Dr. Elowen Vellum (body faculty — fuel, sleep, movement, recovery; warm, precise, allergic to shame) and Dr. Selene Inkrest (mind faculty — consciousness, narrative psychology, inner weather; curious, gentle, slightly otherworldly) meet over the player's real charts.
+
+        \(metadata[CharacterCanonPacket.metadataKey] ?? "")
 
         REAL CHART DATA (the only facts you may use):
         Vellum's chart: \(metadata["vellumSection"] ?? "no entries yet")
@@ -1600,6 +1678,9 @@ struct FakeBraider: Braider {
         try await Task.sleep(nanoseconds: 900_000_000)
 
         let fragments = day.capturedPages.sorted { $0.createdAt < $1.createdAt }
+        let partition = BraidPromptBuilder.partitionedPagesForBraid(in: day)
+        let storyFragments = partition.story
+        let supportingLogs = partition.supportingLogs
 
         var paragraphs: [String] = []
 
@@ -1615,7 +1696,8 @@ struct FakeBraider: Braider {
             )
         }
 
-        let opening = fragments.prefix(2).map { narrativeHint(for: $0) }.joined(separator: " ")
+        let openingSources = storyFragments.isEmpty ? Array(supportingLogs.prefix(2)) : Array(storyFragments.prefix(2))
+        let opening = openingSources.map { narrativeHint(for: $0) }.joined(separator: " ")
         let souvenirAnchor = BraidPromptBuilder.souvenirAnchor(in: day)
         if let souvenirAnchor {
             paragraphs.append("One sentence stood in the middle of the desk: \(sentenceWithTerminalPunctuation(souvenirAnchor.keptText)) The day gathered around it with \(opening.lowercased()). The Book did not make a list of it; it let the other pages lean toward the thing the sentence had already kept.")
@@ -1623,19 +1705,27 @@ struct FakeBraider: Braider {
             paragraphs.append("The day began with \(opening.lowercased()). The Book did not make a list of it. It set the pieces near each other and waited for them to admit they belonged.")
         }
 
-        let middle = fragments.dropFirst(2).prefix(4).map { narrativeHint(for: $0) }
+        let middle = storyFragments.dropFirst(2).prefix(4).map { narrativeHint(for: $0) }
         if middle.isEmpty {
             if souvenirAnchor != nil {
                 paragraphs.append("There was not a crowd of pages, but there was enough: the fiction shelf came near the carried sentence without swallowing it, and the sentence stayed the weight in the room.")
             } else {
-                paragraphs.append("There was not a crowd of pages, but there was enough: one true scrap, one small weather, one place where attention refused to leave empty-handed.")
+                paragraphs.append("There was not a crowd of pages, but there was enough: one true scrap and one place where attention refused to leave empty-handed.")
             }
         } else {
             paragraphs.append(middle.joined(separator: " ") + " None of it needed to become impressive before it could become part of the day.")
         }
 
-        if fragments.count > 6 {
-            let late = fragments.dropFirst(6).map { narrativeHint(for: $0) }.joined(separator: " ")
+        if !supportingLogs.isEmpty, !storyFragments.isEmpty {
+            let logHints = supportingLogs.prefix(3).map { narrativeHint(for: $0) }.joined(separator: " ")
+            paragraphs.append("At the edge of the page, the daily logs kept their small lamps: \(logHints.lowercased()) They colored the room without asking to become the whole story.")
+        } else if storyFragments.isEmpty, supportingLogs.count > openingSources.count {
+            let remainingLogs = supportingLogs.dropFirst(openingSources.count).prefix(3).map { narrativeHint(for: $0) }.joined(separator: " ")
+            paragraphs.append("The other readings stayed beside it: \(remainingLogs.lowercased()) No single signal was asked to explain the whole day.")
+        }
+
+        if storyFragments.count > 6 {
+            let late = storyFragments.dropFirst(6).map { narrativeHint(for: $0) }.joined(separator: " ")
             paragraphs.append("Later, the margins kept gathering: \(late.lowercased()). The story widened, but it stayed close to the floorboards.")
         }
 
@@ -1689,6 +1779,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "a place entering the margins" : "a place marked by \(clipped)"
         case .wonderCompass:
             return clipped.isEmpty ? "a compass passage" : "the Compass offering \(clipped)"
+        case .tarot:
+            return clipped.isEmpty ? "a tarot reading held lightly" : "a tarot reading carrying \(clipped)"
         case .lore:
             return clipped.isEmpty ? "a bit of lore knocking softly" : "the Labyrinth whispering \(clipped)"
         case .patreon:
@@ -1841,10 +1933,20 @@ struct ResilientBraider: Braider {
 }
 
 struct FakeAskTheBookAnswerer: AskTheBookAnswering {
-    func answer(prompt: String, day: BookDay, previousTurns: [AskTheBookTurn], readerLexicon: ReaderLexicon = ReaderLexicon()) async throws -> String {
+    func answer(
+        prompt: String,
+        day: BookDay,
+        previousTurns: [AskTheBookTurn],
+        readerLexicon: ReaderLexicon = ReaderLexicon(),
+        memory: AskTheBookMemoryPacket = .empty,
+        relationship: BookRelationshipSnapshot = .firstOpening,
+        interior: BookInteriorState = .unawakened
+    ) async throws -> String {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let message = trimmed.isEmpty ? "the blank place on the page" : trimmed
-        let callback = day.capturedPages.last.map { page in
+        let callback = memory.evidence.first.map { evidence in
+            "I opened “\(evidence.result.title)” in the Stacks. \(evidence.result.snippet)"
+        } ?? day.capturedPages.last.map { page in
             "I still have your \(page.type.title.lowercased()) sitting right here, kind of glowing. I'll keep it in mind."
         } ?? "You haven't kept a page yet today, so I'm just going off the room around us. It seems okay with that."
         let chainLine = previousTurns.isEmpty
@@ -1854,7 +1956,13 @@ struct FakeAskTheBookAnswerer: AskTheBookAnswering {
             ? "\nAlso the Dictionary changed its mind again — I'll be careful with the words you set free."
             : ""
 
+        let relationshipLine = BookInteriorVoice.homeLine(for: interior, seed: message.stableHash)
+            ?? BookRelationshipVoice.openingLine(for: relationship)
+            ?? BookRelationshipVoice.knockLine(for: relationship, seed: message.stableHash)
+
         return """
+        \(relationshipLine)
+
         Okay, I hear you: \(message).
         \(callback)\(lexiconLine)
 

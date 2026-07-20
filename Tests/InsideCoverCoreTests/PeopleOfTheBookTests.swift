@@ -301,6 +301,218 @@ final class PeopleOfTheBookTests: XCTestCase {
         XCTAssertEqual(decoded.people, ledger)
     }
 
+    // MARK: Relationship ecology
+
+    func testExistingPersonThreadDecodesWithoutInventingRelationshipContext() throws {
+        let json = """
+        {
+          "id":"person:river",
+          "name":"River",
+          "introducedDay":"2026-01-02",
+          "readerWords":"An old friend",
+          "firstMentionDay":"2025-12-01",
+          "lastMentionDay":"2026-01-01",
+          "mentionPageCount":4,
+          "resting":false
+        }
+        """
+        let decoded = try JSONDecoder().decode(PersonThread.self, from: Data(json.utf8))
+        XCTAssertNil(decoded.relationship)
+        XCTAssertEqual(decoded.name, "River")
+    }
+
+    func testReaderConfirmedProfileCleansAndAttributesFacts() {
+        let proposed = PersonRelationshipProfile(
+            roles: [" Coworker ", "coworker", "friend"],
+            settings: [.work, .work],
+            channels: [.together],
+            sharedInterests: ["AI", " ai "],
+            ordinaryRituals: ["Tuesday lunch"],
+            boundaries: ["Work stays work"],
+            season: "  building something  ",
+            invitationPermission: .playful,
+            contactIdentifier: "local-contact-1",
+            evidence: []
+        )
+        let profile = PeopleOfTheBook.readerConfirmedProfile(proposed, onDay: "2026-07-19")
+        XCTAssertEqual(profile.roles, ["Coworker", "friend"])
+        XCTAssertEqual(profile.settings, [.work])
+        XCTAssertEqual(profile.sharedInterests, ["AI"])
+        XCTAssertEqual(profile.season, "building something")
+        XCTAssertEqual(profile.contactIdentifier, "local-contact-1")
+        XCTAssertEqual(profile.evidence.count, 8)
+        XCTAssertTrue(profile.evidence.allSatisfy { $0.source == .readerConfirmed && $0.recordedDay == "2026-07-19" })
+    }
+
+    func testInvitationFamilyFitsHowRelationshipActuallyLives() throws {
+        var home = confirmedSam()
+        home.relationship = PersonRelationshipProfile(settings: [.sharedHome])
+        XCTAssertEqual(
+            PeopleOfTheBook.relationshipInvitation(for: home, onDay: "2026-07-19")?.family,
+            .sharedHome
+        )
+
+        var text = confirmedSam()
+        text.name = "Juniper"
+        text.id = "person:juniper"
+        text.relationship = PersonRelationshipProfile(settings: [.family], channels: [.text])
+        XCTAssertEqual(
+            PeopleOfTheBook.relationshipInvitation(for: text, onDay: "2026-07-19")?.family,
+            .asynchronous
+        )
+
+        var work = confirmedSam()
+        work.name = "Marisol"
+        work.id = "person:marisol"
+        work.relationship = PersonRelationshipProfile(settings: [.work], sharedInterests: ["robotics"])
+        let invitation = try XCTUnwrap(PeopleOfTheBook.relationshipInvitation(for: work, onDay: "2026-07-19"))
+        XCTAssertEqual(invitation.family, .workAndInterest)
+        XCTAssertTrue(invitation.title.contains("Marisol") || invitation.body.contains("Marisol"))
+        XCTAssertTrue(invitation.body.contains("robotics"))
+        XCTAssertTrue(invitation.tags.contains("person:marisol"))
+    }
+
+    func testWitnessOnlyIsAHardInvitationBoundary() {
+        var thread = confirmedSam()
+        thread.relationship = PersonRelationshipProfile(
+            settings: [.family],
+            invitationPermission: .witnessOnly
+        )
+        XCTAssertNil(PeopleOfTheBook.relationshipInvitation(for: thread, onDay: "2026-07-19"))
+    }
+
+    func testRelationshipHypothesesAskFromExplicitEvidenceWithoutPersistingAGuess() throws {
+        var thread = confirmedSam()
+        thread.id = "person:rowan"
+        thread.name = "Rowan"
+        let evidence = days(from: [
+            page("I live with Rowan, and the kitchen has become our weather station", at: daysAgo(4), id: "home-proof"),
+            page("Texted Rowan about the thunder", at: daysAgo(3), id: "text-proof-1"),
+            page("Rowan texted back a photograph", at: daysAgo(2), id: "text-proof-2"),
+            page("Rowan and I talk about urban birds.", at: daysAgo(1), id: "interest-proof")
+        ])
+
+        let hypotheses = PeopleOfTheBook.relationshipHypotheses(for: thread, days: evidence)
+        let home = try XCTUnwrap(hypotheses.first { $0.kind == .setting && $0.value == PersonRelationshipSetting.sharedHome.rawValue })
+        XCTAssertEqual(home.evidencePageIDs, ["home-proof"])
+        XCTAssertTrue(home.question.contains("share a home"))
+        XCTAssertTrue(hypotheses.contains { $0.kind == .channel && $0.value == PersonContactChannel.text.rawValue })
+        XCTAssertTrue(hypotheses.contains { $0.kind == .sharedInterest && $0.value == "urban birds" })
+        XCTAssertNil(thread.relationship, "A hypothesis is only a question until the reader confirms it.")
+
+        thread.relationship = PersonRelationshipProfile(settings: [.sharedHome], channels: [.text], sharedInterests: ["urban birds"])
+        let alreadyKnown = PeopleOfTheBook.relationshipHypotheses(for: thread, days: evidence)
+        XCTAssertFalse(alreadyKnown.contains { $0.kind == .setting && $0.value == PersonRelationshipSetting.sharedHome.rawValue })
+        XCTAssertFalse(alreadyKnown.contains { $0.kind == .channel && $0.value == PersonContactChannel.text.rawValue })
+        XCTAssertFalse(alreadyKnown.contains { $0.kind == .sharedInterest })
+    }
+
+    func testLifeKnowledgeGraphConnectsPeopleThroughSharedInterestsWithoutFictionalizingThem() throws {
+        var first = confirmedSam()
+        first.id = "person:marisol"
+        first.name = "Marisol"
+        first.relationship = PeopleOfTheBook.readerConfirmedProfile(
+            PersonRelationshipProfile(roles: ["coworker"], settings: [.work], sharedInterests: ["AI"]),
+            onDay: "2026-07-19"
+        )
+        var second = confirmedSam()
+        second.id = "person:dev"
+        second.name = "Dev"
+        second.relationship = PeopleOfTheBook.readerConfirmedProfile(
+            PersonRelationshipProfile(roles: ["friend"], settings: [.online], sharedInterests: ["AI"]),
+            onDay: "2026-07-19"
+        )
+        var ledger = PeopleLedger()
+        ledger.threads = [first, second]
+        let sharedPage = page("Marisol and Dev argued cheerfully about AI", at: daysAgo(1), id: "shared-ai-page")
+
+        let graph = PeopleOfTheBook.knowledgeGraph(ledger: ledger, days: days(from: [sharedPage]))
+        let interest = try XCTUnwrap(graph.nodes.first { $0.kind == .interest && $0.label == "AI" })
+        let peopleTouchingAI = Set(graph.edges.filter { $0.targetID == interest.id }.map(\.sourceID))
+        XCTAssertEqual(peopleTouchingAI, Set(["person:marisol", "person:dev"]))
+        let pageNode = try XCTUnwrap(graph.nodes.first { $0.kind == .page && $0.id == "life:page:shared-ai-page" })
+        let peopleOnSharedPage = Set(graph.edges.filter { $0.targetID == pageNode.id }.map(\.sourceID))
+        XCTAssertEqual(peopleOnSharedPage, Set(["person:marisol", "person:dev"]))
+        XCTAssertTrue(graph.edges.filter { $0.targetID == pageNode.id }.allSatisfy { $0.provenance == .readerAuthored })
+        XCTAssertFalse(graph.nodes.contains { $0.id.hasPrefix("user-cast-") })
+        XCTAssertTrue(graph.edges.contains { $0.provenance == .readerConfirmed })
+
+        let atlas = graph.atlasGraph
+        XCTAssertEqual(atlas.nodes.count, graph.nodes.count)
+        XCTAssertEqual(atlas.edges.count, graph.edges.count)
+    }
+
+    func testRelationshipPlaySurfacesBeforeTheArchiveIsMature() throws {
+        var thread = confirmedSam()
+        thread.relationship = PersonRelationshipProfile(settings: [.work], sharedInterests: ["astronomy"])
+        var inputs = BookSourceInputs.empty
+        inputs.people.threads = [thread]
+        let today = BookDay(id: BookDay.id(for: now), date: Calendar.current.startOfDay(for: now), pages: [])
+
+        let pages = BookNoticesPageSourceAdapter().candidates(
+            for: today,
+            context: CuratorContext.make(for: today),
+            inputs: inputs,
+            now: now
+        )
+        let favor = try XCTUnwrap(pages.first { $0.payload.metadata["personID"] == thread.id })
+        XCTAssertEqual(favor.type, .wonderCompass)
+        XCTAssertEqual(favor.payload.metadata["relationshipMode"], PeopleOfTheBook.InvitationFamily.workAndInterest.rawValue)
+        XCTAssertEqual(favor.payload.metadata["compassMode"], "standalone")
+        XCTAssertEqual(favor.payload.metadata["proofKind"], "sentence")
+        XCTAssertTrue(favor.payload.metadata["tags"]?.contains("spoke:person-play-sam") == true)
+    }
+
+    func testBookAsksBeforeBelievingRelationshipContext() throws {
+        var thread = confirmedSam()
+        thread.id = "person:rowan"
+        thread.name = "Rowan"
+        var inputs = BookSourceInputs.empty
+        inputs.people.threads = [thread]
+        inputs.days = days(from: [
+            page("I live with Rowan above the noisy bakery", at: daysAgo(2), id: "relationship-evidence")
+        ])
+        let today = BookDay(id: BookDay.id(for: now), date: Calendar.current.startOfDay(for: now), pages: [])
+
+        let pages = BookNoticesPageSourceAdapter().candidates(
+            for: today,
+            context: CuratorContext.make(for: today),
+            inputs: inputs,
+            now: now
+        )
+        let question = try XCTUnwrap(pages.first { $0.payload.metadata["personContextHypothesisID"] != nil })
+        XCTAssertEqual(question.type, .bookNotices)
+        XCTAssertTrue(question.payload.body.contains("Until then it remains a question"))
+        XCTAssertEqual(question.payload.metadata["personContextKind"], PeopleOfTheBook.RelationshipHypothesis.Kind.setting.rawValue)
+        XCTAssertEqual(question.payload.metadata["personContextValue"], PersonRelationshipSetting.sharedHome.rawValue)
+        XCTAssertTrue(question.payload.metadata["adaptiveActions"]?.contains("confirmPersonContext") == true)
+        XCTAssertTrue(question.payload.metadata["adaptiveActions"]?.contains("openPeopleOfTheBook") == true)
+        XCTAssertFalse(pages.contains { $0.payload.metadata["playfulMissionID"] != nil }, "The Book asks what is true before tailoring play from it.")
+    }
+
+    func testCompanyGraphUsesExistingMarginsAtlasRendererAsASeparateRealm() throws {
+        var thread = confirmedSam()
+        thread.relationship = PeopleOfTheBook.readerConfirmedProfile(
+            PersonRelationshipProfile(roles: ["friend"], sharedInterests: ["night walks"]),
+            onDay: "2026-07-19"
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.people.threads = [thread]
+        let today = BookDay(id: BookDay.id(for: now), date: Calendar.current.startOfDay(for: now), pages: [])
+
+        let pages = MarginsAtlasPageSourceAdapter().candidates(
+            for: today,
+            context: CuratorContext.make(for: today),
+            inputs: inputs,
+            now: now
+        )
+        let company = try XCTUnwrap(pages.first { $0.payload.metadata["graphVariant"] == MarginsAtlasVariant.company.rawValue })
+        XCTAssertEqual(company.payload.headline, "The Company You Keep")
+        XCTAssertTrue(company.payload.metadata["tags"]?.contains("life-knowledge") == true)
+        XCTAssertTrue(company.payload.metadata["graphNodes"]?.contains("Sam") == true)
+        XCTAssertFalse(company.payload.metadata["tags"]?.contains("loom") == true)
+    }
+
     // MARK: Pre-meeting charges
 
     private func event(_ title: String, id: String = "event-1", inHours hours: Double, allDay: Bool = false) -> CalendarEventSignal {
@@ -371,6 +583,101 @@ final class PeopleOfTheBookTests: XCTestCase {
         XCTAssertEqual(PeopleOfTheBook.timeLabel(for: threeThirty), "3:30")
         let noon = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: now)!
         XCTAssertEqual(PeopleOfTheBook.timeLabel(for: noon), "12")
+    }
+
+    // MARK: The Company You Kept
+
+    func testCompanyYouKeptBindsReaderWordsOffersAndAttributedAftermathWithoutRankingPeople() throws {
+        var sam = confirmedSam()
+        sam.relationship = PersonRelationshipProfile(
+            roles: ["friend"],
+            sharedInterests: ["moths"],
+            ordinaryRituals: ["Friday photographs"]
+        )
+        let authored = page(
+            "Sam stopped under the pharmacy light to show me a moth with windows in its wings.",
+            at: daysAgo(8),
+            id: "sam-authored"
+        )
+        let reference = BookPageExternalReference(
+            title: "A moth census",
+            sourceName: "Field Notes",
+            url: "https://example.org/moths",
+            fetchedAt: daysAgo(3),
+            provenance: "live-public-web-search"
+        )
+        let receipt = RelationshipPageReceipt(
+            personID: sam.id,
+            personName: sam.name,
+            kind: .foundGift,
+            bookOffer: "Here, I found this for you and Sam.",
+            readerAftermath: "We argued about whether the moth looked like stained glass and both changed our minds.",
+            sharedInterest: "moths",
+            relationshipMode: "sharedInterest",
+            evidenceAuthority: "reader-authored-aftermath"
+        )
+        let found = BookPage(
+            id: "sam-found",
+            type: .bookNotices,
+            createdAt: daysAgo(3),
+            promptText: receipt.bookOffer,
+            userInput: receipt.readerAftermath ?? "",
+            tags: ["people-of-the-book", "person:sam", "relationship-found-gift"],
+            sourceID: BookFoundGiftEngine.sourceID,
+            origin: .imported,
+            privacy: .publicReference,
+            externalReference: reference,
+            relationshipReceipt: receipt
+        )
+        let volume = PeopleOfTheBook.companyYouKept(
+            ledger: PeopleLedger(threads: [sam]),
+            days: days(from: [authored, found]),
+            now: now
+        )
+
+        XCTAssertEqual(volume.title, "The Company You Kept")
+        XCTAssertEqual(volume.chapters.count, 1)
+        let chapter = try XCTUnwrap(volume.chapters.first)
+        XCTAssertEqual(chapter.name, "Sam")
+        XCTAssertEqual(chapter.entries.count, 2)
+        XCTAssertEqual(chapter.readerWrittenCount, 2)
+        XCTAssertTrue(chapter.entries.contains { $0.authority == .readerWords && $0.pageID == authored.id })
+        let aftermath = try XCTUnwrap(chapter.entries.first { $0.authority == .readerAftermath })
+        XCTAssertEqual(aftermath.externalReference?.url, reference.url)
+        XCTAssertTrue(volume.foreword.contains("not a ranking"))
+        XCTAssertFalse(volume.shareText.lowercased().contains("closeness score"))
+    }
+
+    func testCompanyYouKeptKeepsUnansweredBookOfferAsOfferNotMemory() throws {
+        let sam = confirmedSam()
+        let receipt = RelationshipPageReceipt(
+            personID: sam.id,
+            personName: sam.name,
+            kind: .favor,
+            bookOffer: "Borrow Sam's eyes",
+            readerAftermath: nil,
+            sharedInterest: nil,
+            relationshipMode: "general",
+            evidenceAuthority: "book-offer-only"
+        )
+        let offer = BookPage(
+            id: "offer-only",
+            type: .wonderCompass,
+            createdAt: daysAgo(2),
+            promptText: receipt.bookOffer,
+            userInput: "",
+            tags: ["person:sam"],
+            relationshipReceipt: receipt
+        )
+        let volume = PeopleOfTheBook.companyYouKept(
+            ledger: PeopleLedger(threads: [sam]),
+            days: days(from: [offer]),
+            now: now
+        )
+        let entry = try XCTUnwrap(volume.chapters.first?.entries.first)
+        XCTAssertEqual(entry.authority, .bookOffer)
+        XCTAssertEqual(volume.readerWrittenCount, 0)
+        XCTAssertTrue(entry.text.contains("made no claim"))
     }
 
     // MARK: People missions

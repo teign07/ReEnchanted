@@ -755,6 +755,10 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(page?.payload.metadata["rememberedPageID"], "fog-walk")
         XCTAssertEqual(page?.payload.metadata["tinyAction"], "Stand at the nearest threshold for ten seconds. Let the outside know you noticed.")
         XCTAssertTrue(page?.payload.body.contains("\"The fog on the walk made the window light look soft.\"") == true)
+        XCTAssertTrue(
+            page?.payload.metadata["todayConnectionLines"]?.lowercased().contains("fog") == true,
+            "The open remembered Page should say what in today called the old Page back."
+        )
 
         let topShelf = BookCurator.surfacedPages(
             for: today,
@@ -808,6 +812,7 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(page?.payload.metadata["rememberedPageID"], "kettle-waiting")
         XCTAssertTrue(page?.payload.metadata["rhymeReason"]?.contains("answered this one by feeling") == true)
         XCTAssertTrue(page?.payload.metadata["rhymeReason"]?.contains(echoLine) == true)
+        XCTAssertTrue(page?.payload.metadata["todayConnectionLines"]?.contains(echoLine) == true)
     }
 
     func testBookConnectionsCountsSemanticEchoesAsGraphEdges() {
@@ -1541,8 +1546,8 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(characterEntities.allSatisfy {
             ($0.unwrittenInterest ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         })
-        XCTAssertTrue(corePack.entities.first { $0.id == "dr-inkrest" }?.unwrittenInterest?.contains("Consciousness") == true)
-        XCTAssertTrue(corePack.entities.first { $0.id == "penny-blackletter" }?.unwrittenInterest?.contains("ethical marketing") == true)
+        XCTAssertTrue(corePack.entities.first { $0.id == "dr-inkrest" }?.unwrittenInterest?.contains("déjà vu") == true)
+        XCTAssertTrue(corePack.entities.first { $0.id == "penny-blackletter" }?.unwrittenInterest?.contains("small presses") == true)
     }
 
     func testCoreNarrativeCharactersAllHaveChapters() throws {
@@ -1698,6 +1703,7 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertNotNil(storyPage.payload.metadata["selectedThreads"])
         XCTAssertNotNil(storyPage.payload.metadata["selectedEntities"])
         XCTAssertNotNil(storyPage.payload.metadata["selectedRelationships"])
+        XCTAssertTrue(storyPage.payload.metadata[CharacterCanonPacket.metadataKey]?.contains("PERFORMANCE CHECK") == true)
         XCTAssertNotNil(storyPage.payload.metadata["storyScene"])
     }
 
@@ -1705,6 +1711,13 @@ final class BookCuratorTests: XCTestCase {
         let now = localDate(hour: 16)
         var inputs = richInputs().withMatureLibrary(now: now)
         inputs.preparedStoryPageSurface = nil
+        // This test is about the invested Story Page preview. Keep the separate
+        // once-ever Pen Choosing milestone from rightfully claiming the fiction
+        // lane before ordinary lane ranking runs.
+        inputs.chosenQuill = QuillChoosing.mint(
+            from: inputs.days.flatMap(\.capturedPages),
+            now: now
+        )
         let profiles = BookPageSourceRegistry.beliefProfiles(ledger: ["narrative-os": 80])
         let preferences = CuratorSurfacePreferences(
             pageBeliefProfiles: Dictionary(uniqueKeysWithValues: profiles.map { ($0.sourceID, $0) })
@@ -3311,6 +3324,26 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(Set(resolution.replacementIDByRetiringID.values).count, 2)
         XCTAssertEqual(resolution.replacementIDByRetiringID[shown[0].id], secondCandidate.id)
         XCTAssertEqual(resolution.replacementIDByRetiringID[shown[2].id], firstCandidate.id)
+        XCTAssertTrue(resolution.replacesAll([shown[0].id, shown[2].id]))
+    }
+
+    func testRetiredDeskResolutionDoesNotClaimAnIncompleteBenchIsAtomic() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood)
+        ]
+        let onlyCandidate = deskCard(id: "desk-weather-s01", type: .weather)
+        let retiringIDs = Set([shown[0].id, shown[2].id])
+
+        let resolution = BookCurator.resolvingRetiredDeskSlots(
+            previous: shown,
+            retiringIDs: retiringIDs,
+            rebuilt: [onlyCandidate]
+        )
+
+        XCTAssertFalse(resolution.replacesAll(retiringIDs))
+        XCTAssertEqual(resolution.replacementIDByRetiringID.count, 1)
     }
 
     func testTwoRetiredDeskSlotsRejectRotatedIDsFromTheSameLogicalCandidateFamily() {
@@ -3384,6 +3417,66 @@ final class BookCuratorTests: XCTestCase {
 
         XCTAssertEqual(resolution.pages.map(\.id), shown.map(\.id))
         XCTAssertTrue(resolution.replacementIDByRetiringID.isEmpty)
+    }
+
+    func testReaderRefreshReplacesTheWholeDeskAtOnce() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood)
+        ]
+        let refreshed = [
+            deskCard(id: "desk-weather-s01", type: .weather),
+            deskCard(id: "desk-diary-s01", type: .diary),
+            deskCard(id: "desk-souvenir-s01", type: .souvenir)
+        ]
+
+        let result = BookCurator.refreshedDeskOrder(
+            previous: shown,
+            rebuilt: refreshed
+        )
+
+        XCTAssertEqual(result.map(\.id), refreshed.map(\.id))
+    }
+
+    func testReaderRefreshKeepsTheWholeDeskWhenBenchCannotReplaceEveryCard() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood)
+        ]
+        let incompleteBench = [deskCard(id: "desk-weather-s01", type: .weather)]
+
+        let result = BookCurator.refreshedDeskOrder(
+            previous: shown,
+            rebuilt: incompleteBench
+        )
+
+        XCTAssertEqual(result.map(\.id), shown.map(\.id))
+    }
+
+    func testReaderRefreshRejectsRotatedVersionsOfOutgoingCardFamilies() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood)
+        ]
+        let rebuilt = [
+            deskCard(id: "desk-quip-s02", type: .quip),
+            deskCard(id: "desk-weather-s01", type: .weather),
+            deskCard(id: "desk-diary-s01", type: .diary),
+            deskCard(id: "desk-souvenir-s01", type: .souvenir)
+        ]
+
+        let result = BookCurator.refreshedDeskOrder(
+            previous: shown,
+            rebuilt: rebuilt
+        )
+
+        XCTAssertEqual(
+            result.map(\.id),
+            ["desk-weather-s01", "desk-diary-s01", "desk-souvenir-s01"]
+        )
     }
 
     private func deskCard(

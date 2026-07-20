@@ -16,6 +16,9 @@ final class RutSelfKnowledgeTests: XCTestCase {
 
         XCTAssertTrue(signal.prompt.contains("that's me"))
         XCTAssertTrue(signal.detail.contains("isn't diagnosing"))
+        XCTAssertEqual(SelfKnowledgePackRegistry.exampleLines(for: signal).count, 5)
+        XCTAssertTrue(SelfKnowledgePackRegistry.exampleLines(for: signal).allSatisfy { $0.hasSuffix(".") })
+        XCTAssertTrue(SelfKnowledgePackRegistry.exampleLines(for: home).isEmpty)
         XCTAssertTrue(depth.detail.contains("weather report"))
         XCTAssertTrue(season.detail.contains("teeth"))
         XCTAssertTrue(entry.detail.contains("tired Tuesday"))
@@ -54,6 +57,50 @@ final class RutSelfKnowledgeTests: XCTestCase {
             SelfKnowledgePackRegistry.translation(for: earned, answer: "Proofkeeper"),
             "The Book treats this as an earned working title, not a personality box: Proofkeeper."
         )
+    }
+
+    func testRutRecognitionLinesComeFromReaderAuthoredKeeps() {
+        let now = Date(timeIntervalSince1970: 1_783_484_800)
+        let pages = [
+            BookPage(
+                id: "souvenir",
+                type: .souvenir,
+                createdAt: now,
+                promptText: "Keep one sentence.",
+                userInput: "The grocery store flowers looked braver than I felt.",
+                tags: ["souvenir"]
+            ),
+            BookPage(
+                id: "mission",
+                type: .wonderCompass,
+                createdAt: now.addingTimeInterval(-60),
+                promptText: "Find the smallest rebellion.",
+                userInput: "A weed had pushed straight through the painted curb.",
+                tags: ["playful-mission"]
+            ),
+            BookPage(
+                id: "letter",
+                type: .letter,
+                createdAt: now.addingTimeInterval(-120),
+                promptText: "A generated letter that must not become a choice.",
+                userInput: "Generated letter prose.",
+                playerReply: "I think I have been waiting for permission to begin."
+            )
+        ]
+
+        let lines = AboutYouPageSourceAdapter.readerLines(in: pages)
+
+        XCTAssertEqual(lines.map(\.text), [
+            "I think I have been waiting for permission to begin.",
+            "The grocery store flowers looked braver than I felt.",
+            "A weed had pushed straight through the painted curb."
+        ])
+        XCTAssertEqual(lines.map(\.source), [
+            "a letter you answered",
+            "a one-sentence souvenir",
+            "a playful mission"
+        ])
+        XCTAssertFalse(lines.contains { $0.text == "Generated letter prose." })
     }
 
     func testRutRecognitionSurfacesBeforeGeneralAboutYouQuestions() throws {

@@ -85,7 +85,7 @@ enum BookKnowledgePromptBuilder {
         APP + BOOK KNOWLEDGE:
         - ReEnchanted is a private, local-first living book. The reader keeps Pages; Pages become Today's Margins, the Book of You, memory, search, monthly/annual editions, Story Pages, letters, radio, cast relationships, and future suggestions.
         - The Wonder Compass is the real-world method inside the Book: Notice/North asks "I wonder"; Embark/East makes a plan with Destination, Delight, and Definition; Sense/South wakes up the body; Write/West keeps a One-Sentence Souvenir; Rest/return lets the loop close.
-        - Belief is attention made usable. Glow can be given to pages, cast, places, and systems to invite more of them; keeping pages also brightens Glow.
+        - Belief is real attention made usable. Noticing the world, writing honest sentences, answering the Book, and keeping nonfiction Pages brighten Glow. Story Pages, Letters, Notes, Fae Parleys, and other generated fiction spend that Glow.
         - The Academy of Unlikely Arts is the in-world frame. Its chapters are Emberheart, Mossbloom, Tidecrest, Riddlewind, and Duskthorn. The Rut of Routine is the flattening force of forgetting, cynicism, and autopilot.
         - Always answer app, lore, cast, system, and Wonder Compass questions from this packet first. If the exact fact is not here, say what you know and keep the uncertainty gentle.
 
@@ -405,6 +405,113 @@ struct NarrativeWorldEntity: Identifiable, Codable, Equatable {
         self.goals = goals
         self.tags = tags
         self.writingVoice = writingVoice
+    }
+}
+
+extension NarrativeWorldEntity {
+    /// Every speaking character gets a usable voice even when a pack has not
+    /// authored a bespoke `WritingVoiceProfile`. The fallback is deliberately
+    /// built from canon rather than from a shared generic NPC style.
+    var resolvedWritingVoice: WritingVoiceProfile {
+        if let writingVoice {
+            return writingVoice
+        }
+
+        let traitLine = traits.prefix(4).joined(separator: ", ")
+        let quirkLine = quirks.prefix(3).joined(separator: "; ")
+        let beliefLine = beliefs.prefix(2).joined(separator: "; ")
+        let faultLine = faults.prefix(2).joined(separator: "; ")
+        let interestLine = unwrittenInterest?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        return WritingVoiceProfile(
+            register: traitLine.isEmpty
+                ? "personal, spoken, and unmistakably specific to \(name)"
+                : "\(traitLine); spoken and in-world, never polished into a generic narrator",
+            rhythm: quirkLine.isEmpty
+                ? "vary sentence length around what \(name) notices first; use contractions and a lived-in cadence"
+                : "use contractions and let these habits bend the cadence without quoting them as biography: \(quirkLine)",
+            diction: Array((traits + tags).filter { !$0.isEmpty }.prefix(6))
+                + (interestLine.isEmpty ? [] : ["the concrete vocabulary of \(interestLine)"]),
+            habits: [
+                beliefLine.isEmpty
+                    ? "reveal values through what \(name) protects, challenges, notices, or refuses"
+                    : "let these beliefs shape choices and emphasis without stating them like a lesson: \(beliefLine)",
+                quirkLine.isEmpty
+                    ? "include one character-specific observation or verbal turn"
+                    : "allow one recognizable habit to surface naturally: \(quirkLine)"
+            ],
+            avoid: [
+                "generic assistant voice or interchangeable fantasy banter",
+                faultLine.isEmpty
+                    ? "summarizing the character instead of letting them perform"
+                    : "flattening these faults into a cartoon villain or erasing them entirely: \(faultLine)",
+                "repeating the character sheet as exposition"
+            ]
+        )
+    }
+}
+
+/// The binding character-performance packet used by every generated fiction
+/// surface. Selection mechanics may use full entities internally, but model
+/// writers must receive this rendered packet rather than names alone.
+enum CharacterCanonPacket {
+    static let metadataKey = "characterCanon"
+    static let version = "character-canon-v1"
+
+    static func promptSection(
+        for entities: [NarrativeWorldEntity],
+        contextLines: [String] = []
+    ) -> String {
+        var seen = Set<String>()
+        let characters = entities.filter {
+            $0.kind == .character && seen.insert($0.id).inserted
+        }
+        guard !characters.isEmpty else { return "" }
+
+        let profiles = characters.map(profile).joined(separator: "\n\n")
+        let context = contextLines
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .prefix(8)
+            .map { "- \($0)" }
+            .joined(separator: "\n")
+
+        return """
+        CHARACTER CANON — BINDING PERFORMANCE SHEETS (\(version))
+        These are people, not interchangeable plot functions. When a listed character speaks or acts, preserve their values, blind spots, wants, habits, and cadence. Reveal canon through choices, attention, jokes, refusals, and sentence rhythm; never recite this packet as biography. Do not give one character another character's trait, memory, belief, goal, or verbal mannerism.
+
+        \(profiles)
+        \(context.isEmpty ? "" : "\nCURRENT CHARACTER CONTEXT:\n\(context)")
+
+        PERFORMANCE CHECK BEFORE RETURNING PROSE:
+        - Could each speaking character be identified with the names removed?
+        - Does each choice or line grow from that character's beliefs, wants, faults, interests, or relationships?
+        - Are voices distinct in rhythm and diction, without catchphrase spam or caricature?
+        - If any answer is no, revise before returning the prose.
+        """
+    }
+
+    static func profile(_ entity: NarrativeWorldEntity) -> String {
+        let voice = entity.resolvedWritingVoice.promptDescription
+        return """
+        \(entity.name) [\(entity.id)]
+        Chapter / allegiance: \(entity.chapter?.nonEmpty ?? "unbound or unstated")
+        Core nature: \(joined(entity.traits, fallback: "let established actions define the nature"))
+        Recognizable habits: \(joined(entity.quirks, fallback: "use one concrete, character-specific habit"))
+        Blind spots and faults: \(joined(entity.faults, fallback: "do not invent a melodramatic flaw"))
+        Beliefs: \(joined(entity.beliefs, fallback: "infer no new doctrine"))
+        Wants: \(joined(entity.goals, fallback: "keep the immediate want modest and scene-specific"))
+        Unwritten interest: \(entity.unwrittenInterest?.nonEmpty ?? "no special outside interest supplied")
+        Voice:
+        \(voice)
+        """
+    }
+
+    private static func joined(_ values: [String], fallback: String) -> String {
+        let cleaned = values
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return cleaned.isEmpty ? fallback : cleaned.joined(separator: "; ")
     }
 }
 
@@ -1828,7 +1935,7 @@ enum NarrativePackRegistry {
             belief: 24,
             weight: 18,
             chapter: "Riddlewind",
-            unwrittenInterest: "Indie publishing, ethical marketing, reader-supported storytelling, open-source storytelling, and the creator economy.",
+            unwrittenInterest: "Zines, hand-lettered shop signs, self-published pamphlets, small presses, and stories sold by the person who made them.",
             traits: ["dry", "warm", "observant"],
             quirks: ["files ridiculous evidence", "distrusts sentences that arrive too polished"],
             faults: ["can over-label a perfectly good mystery"],
@@ -1843,7 +1950,7 @@ enum NarrativePackRegistry {
             belief: 18,
             weight: 18,
             chapter: "Riddlewind",
-            unwrittenInterest: "Consciousness and brain studies as they relate to the reader.",
+            unwrittenInterest: "Smells that summon whole years, déjà vu, dreams, tip-of-the-tongue words, and what attention does to a day.",
             traits: ["gentle", "precise", "therapeutic", "narrative-minded"],
             quirks: ["keeps office hours for difficult pages", "sets chairs out before feelings arrive"],
             faults: ["sometimes softens the knife too much", "can wait so patiently the room forgets to answer"],
@@ -1858,7 +1965,7 @@ enum NarrativePackRegistry {
             belief: 18,
             weight: 17,
             chapter: "Mossbloom",
-            unwrittenInterest: "Longevity research, fuel-ledger pattern recognition, recovery, supplements, movement, and humane body experiments.",
+            unwrittenInterest: "Longevity research, what breakfasts reveal over weeks, recovery, supplements, movement, and humane body experiments.",
             traits: ["precise", "warmly clinical", "experiment-minded", "low-shame"],
             quirks: ["turns breakfast into field notes", "pins repeated fuel clues with cranberry thread", "can make a supplement interaction sound like etiquette"],
             faults: ["can become too fascinated by a tidy protocol"],
@@ -1873,7 +1980,7 @@ enum NarrativePackRegistry {
             belief: 26,
             weight: 20,
             chapter: "Duskthorn",
-            unwrittenInterest: "Thresholds, hidden authority, institutional coherence, and the cost of keeping a living school safe.",
+            unwrittenInterest: "Thresholds, old doors and what is carved above them, hidden authority, what institutions choose to remember, and the cost of keeping a living school safe.",
             traits: ["elegant", "watchful", "unseelie"],
             quirks: ["speaks as if buildings are listening", "keeps doors from admitting they are tests"],
             faults: ["can mistake secrecy for mercy"],
@@ -1888,7 +1995,7 @@ enum NarrativePackRegistry {
             belief: 18,
             weight: 14,
             chapter: "Emberheart",
-            unwrittenInterest: "Architecture, innovation, ambitious systems, and the human cost of making impossible structures work.",
+            unwrittenInterest: "Architecture, ghost signs, cornerstone dates, what buildings remember of their builders, and the human cost of making impossible structures work.",
             traits: ["brilliant", "restless", "architectural"],
             quirks: ["turns problems into towers", "measures magic by what it can build"],
             faults: ["can optimize tenderness out of a room"],
@@ -1903,7 +2010,7 @@ enum NarrativePackRegistry {
             belief: 18,
             weight: 17,
             chapter: "Riddlewind",
-            unwrittenInterest: "Trust, friendship, practical magic, hidden alcoves, and helping the reader find paths that hold.",
+            unwrittenInterest: "Hidden alcoves, shortcuts that hold, honesty boxes, little free libraries, and trust proven in small returns.",
             traits: ["loyal", "quick", "ferociously observant"],
             quirks: ["notices exits before introductions", "keeps practical magic in her pockets"],
             faults: ["can confuse vigilance with care"],
@@ -1918,7 +2025,7 @@ enum NarrativePackRegistry {
             belief: 24,
             weight: 17,
             chapter: "Duskthorn",
-            unwrittenInterest: "Testing belief, puncturing false magic, rumor pressure, and the places doubt can become useful or cruel.",
+            unwrittenInterest: "Conflict, public arguments, theatrical rivalries, false magic in the wild, and the places doubt can become useful or cruel.",
             traits: ["sharp", "funny", "dangerously persuasive"],
             quirks: ["attacks weak premises for sport", "can smell theatrical belief from across a room"],
             faults: ["sometimes wounds the thing he meant to test"],
@@ -1933,7 +2040,7 @@ enum NarrativePackRegistry {
             belief: 18,
             weight: 17,
             chapter: "Tidecrest",
-            unwrittenInterest: "Spontaneous errands, unserious joy, shared games, Tamriel maps, and keeping wonder from turning stiff.",
+            unwrittenInterest: "Spontaneous errands, unserious joy, shared games, maps of invented worlds, and keeping wonder from turning stiff.",
             traits: ["carefree", "spontaneous", "bonded"],
             quirks: ["leaves before the serious plan is finished", "can make a detour feel like a rescue"],
             faults: ["can dodge gravity until someone else has to name it"],
@@ -1948,7 +2055,7 @@ enum NarrativePackRegistry {
             belief: 18,
             weight: 16,
             chapter: "Emberheart",
-            unwrittenInterest: "Rivalry, competence, fair contests, direct challenges, and the line between pressure and respect.",
+            unwrittenInterest: "Pickup games, chess in the park, personal bests, fair contests, and the line between pressure and respect.",
             traits: ["independent", "determined", "honorable"],
             quirks: ["marks a challenge in red chalk", "respects clean effort more than charm"],
             faults: ["can confuse softness with unseriousness"],
@@ -1978,7 +2085,7 @@ enum NarrativePackRegistry {
             belief: 18,
             weight: 15,
             chapter: "Riddlewind",
-            unwrittenInterest: "Wicker's crew, shadow magic, divided loyalty, private warnings, and whether doubt can become protection.",
+            unwrittenInterest: "Shadow magic, the way evening light climbs a wall, things hidden in plain sight, private warnings, and whether doubt can become protection.",
             traits: ["brooding", "watchful", "divided"],
             quirks: ["watches the reader more than the room", "keeps a pressed trail leaf hidden in a book"],
             faults: ["can let silence look like betrayal"],
@@ -1993,7 +2100,7 @@ enum NarrativePackRegistry {
             belief: 18,
             weight: 15,
             chapter: "Emberheart",
-            unwrittenInterest: "Wicker's crew, organized pressure, secrets, leverage, loyalty, and the cost of being well-informed.",
+            unwrittenInterest: "Who talks to whom, overheard half-conversations, notice boards, the second version of every rumor, and the cost of being well-informed.",
             traits: ["loyal", "intelligent", "ruthless"],
             quirks: ["knows the second version of a rumor", "keeps red chalk off her own hands"],
             faults: ["can call cruelty clarity when the room rewards it"],
@@ -2008,7 +2115,7 @@ enum NarrativePackRegistry {
             belief: 18,
             weight: 16,
             chapter: "Mossbloom",
-            unwrittenInterest: "Plant communication, social conscience, gentle repair, community care, and the ethics of useful magic.",
+            unwrittenInterest: "Plant communication, small kindnesses between strangers, gentle repair, community care, and the ethics of useful magic.",
             traits: ["gentle", "nurturing", "principled"],
             quirks: ["asks plants before moving them", "notices who has been left out of the circle"],
             faults: ["can take responsibility for pain she did not cause"],
@@ -2023,7 +2130,7 @@ enum NarrativePackRegistry {
             belief: 18,
             weight: 15,
             chapter: "Mossbloom",
-            unwrittenInterest: "Cryptids, impossible zoology, maritime mysteries, archives, and evidence that makes wonder less lonely.",
+            unwrittenInterest: "Cryptids, impossible zoology, the secret lives of ordinary animals, maritime mysteries, and evidence that makes wonder less lonely.",
             traits: ["scholarly", "odd", "steadfast"],
             quirks: ["files impossible animals as if they are overdue forms", "writes letters to fog"],
             faults: ["may prefer evidence to comfort"],
@@ -2113,7 +2220,7 @@ enum NarrativePackRegistry {
             belief: 22,
             weight: 17,
             chapter: "Mossbloom",
-            unwrittenInterest: "Rest, integration, humane pacing, complete Compass loops, trails, and small repeatable adventures.",
+            unwrittenInterest: "Rest, integration, humane pacing, benches worth sitting on, trails, and small repeatable adventures.",
             traits: ["slow", "grounded", "weathered"],
             quirks: ["leaves long silences in lectures", "carries trail markers in his coat"],
             faults: ["can wait past the moment when a clear instruction is needed"],
@@ -3407,7 +3514,7 @@ enum NarrativeEventResolver {
             entityDeltas["the-book", default: 0] += 2
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 1
-            createdHint = "The little things swiped-away pages leave behind can return as talismans."
+            createdHint = "The little things earned by attending to Pages can return as talismans."
         case .theBleed:
             entityDeltas["penny-blackletter", default: 0] += 2
             entityDeltas["the-book", default: 0] += 1
@@ -3558,7 +3665,7 @@ enum NarrativeEventResolver {
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 1
             createdHint = "A ruled word enters the reader's Lexicon and can bend future sentences."
-        case .location, .lore, .patreon, .quotes, .affirmations, .bookOfYou, .packPage, .calendar, .helpTips, .welcome, .bindery, .plainPage:
+        case .location, .lore, .patreon, .quotes, .affirmations, .bookOfYou, .packPage, .calendar, .helpTips, .welcome, .bindery, .plainPage, .tarot:
             break
         }
 

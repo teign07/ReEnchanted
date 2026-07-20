@@ -15,6 +15,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case affirmations
     case aboutYou
     case wonderCompass
+    case tarot
     case lore
     case patreon
     case illustration
@@ -91,7 +92,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .mood:
             return "Inner Weather"
         case .diary:
-            return "Diary Page"
+            return "Journal Page"
         case .souvenir:
             return "One-Sentence Souvenir"
         case .rest:
@@ -114,6 +115,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "About You"
         case .wonderCompass:
             return "From the Wonder Compass Book"
+        case .tarot:
+            return "Tarot Pages"
         case .lore:
             return "Lore Page"
         case .patreon:
@@ -210,7 +213,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .mood:
             return "Weather"
         case .diary:
-            return "Diary"
+            return "Journal"
         case .souvenir:
             return "Souvenir"
         case .rest:
@@ -233,6 +236,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "You"
         case .wonderCompass:
             return "Wonder Book"
+        case .tarot:
+            return "Tarot"
         case .lore:
             return "Lore"
         case .patreon:
@@ -352,6 +357,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "person.text.rectangle"
         case .wonderCompass:
             return "safari"
+        case .tarot:
+            return "rectangle.stack.fill"
         case .lore:
             return "books.vertical"
         case .patreon:
@@ -467,6 +474,118 @@ enum BookPageIntent: String, Codable, Equatable {
     case simulate
 }
 
+// MARK: - Public Margins
+
+/// The Public Margins are deliberately not an account or a sync service. The
+/// two permissions are separate doors, both closed by default, and neither one
+/// is allowed to imply the other.
+struct PublicMarginsPreferences: Codable, Equatable {
+    var acceptsIncomingPages = false
+    var offersOutgoingContributions = false
+}
+
+enum PublicMarginsContributionKind: String, Codable, CaseIterable, Equatable {
+    case souvenir
+    case spark
+    case choice
+    case detail
+}
+
+struct PublicMarginsBroadcast: Codable, Identifiable, Equatable {
+    var id: String
+    var text: String
+    var authorName: String
+    var authorUsername: String
+    var authorAvatarURL: String?
+    var permalink: String
+    var createdAt: String
+}
+
+struct PublicMarginsSouvenir: Codable, Identifiable, Equatable {
+    var id: String
+    var text: String
+    var kind: PublicMarginsContributionKind
+    var createdAt: String
+}
+
+struct PublicMarginsTally: Codable, Identifiable, Equatable {
+    var id: String { choiceID }
+    var choiceID: String
+    var label: String
+    var count: Int
+}
+
+struct PublicMarginsChoiceOption: Codable, Identifiable, Equatable {
+    var id: String
+    var label: String
+    var count: Int
+}
+
+struct PublicMarginsChoicePoll: Codable, Identifiable, Equatable {
+    var id: String
+    var question: String
+    var options: [PublicMarginsChoiceOption]
+}
+
+struct PublicMarginsSnapshot: Codable, Equatable {
+    var generatedAt: String
+    var contributionCount: Int
+    var broadcasts: [PublicMarginsBroadcast]
+    var creatorPosts: [PublicMarginsBroadcast]
+    var souvenirs: [PublicMarginsSouvenir]
+    var tallies: [PublicMarginsTally]
+    var choicePoll: PublicMarginsChoicePoll? = nil
+}
+
+struct PublicMarginsContributionRequest: Codable, Equatable {
+    var requestID: String
+    var eventID: String
+    var kind: PublicMarginsContributionKind
+    var text: String?
+    var category: String?
+    var choiceID: String?
+    var confirmedAt: String
+    var consent: Consent
+
+    struct Consent: Codable, Equatable {
+        var publicDisplay: Bool
+        var moderation: Bool
+    }
+}
+
+struct PublicMarginsContributionReceipt: Codable, Equatable {
+    var id: String
+    var status: String
+    var deletionToken: String
+}
+
+enum PublicMarginsText {
+    static let maximumCharacters = 220
+
+    /// Produces the exact one-sentence preview used for an explicit public
+    /// contribution. It never reads or appends archive context.
+    static func preparedSentence(from rawValue: String) -> String? {
+        let collapsed = rawValue
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !collapsed.isEmpty, collapsed.count <= maximumCharacters else { return nil }
+        guard URLDetector.containsURL(in: collapsed) == false else { return nil }
+        return collapsed
+    }
+
+    private enum URLDetector {
+        static func containsURL(in value: String) -> Bool {
+            let lowercased = value.lowercased()
+            return lowercased.contains("://")
+                || lowercased.contains("www.")
+                || lowercased.contains("x.com/")
+                || lowercased.contains("twitter.com/")
+        }
+    }
+}
+
 enum BookPageRenderStyle: String, Codable, Equatable {
     case promptCard
     case gentleTranslation
@@ -476,6 +595,7 @@ enum BookPageRenderStyle: String, Codable, Equatable {
     case illuminatedPhoto
     case graphEvent
     case archiveReturn
+    case tarotReading
 }
 
 struct BookPagePayload: Codable, Equatable {
@@ -560,14 +680,14 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "diary-page",
             type: .diary,
-            title: "Diary Page",
-            shortTitle: "Diary",
+            title: "Journal Page",
+            shortTitle: "Journal",
             symbolName: "book.pages",
             origin: .userAuthored,
             privacy: .privateLocal,
             isActive: true,
-            cadence: "manual",
-            note: "What is happening inside this exact moment."
+            cadence: "usually in the evening; always available by hand",
+            note: "One semantically aware question from the Book, with occasional questions from the cast."
         ),
         BookPageSource(
             id: "plain-page",
@@ -690,6 +810,18 @@ enum BookPageSourceRegistry {
             note: "The Book's visible map of clusters, constellations, themes, and evidence pages."
         ),
         BookPageSource(
+            id: MomentaryThreadFollowUp.sourceID,
+            type: .bookConnections,
+            title: "The Thread That Answered",
+            shortTitle: "Answered Thread",
+            symbolName: "point.3.connected.trianglepath.dotted",
+            origin: .userAuthored,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "immediately after a substantial keep",
+            note: "One causal follow-up made from the reader's exact kept words."
+        ),
+        BookPageSource(
             id: "the-book-remembered",
             type: .bookRemembered,
             title: "The Book Remembered",
@@ -714,6 +846,30 @@ enum BookPageSourceRegistry {
             note: "The Book surfaces literary patterns, absences, living Beliefs, and duration."
         ),
         BookPageSource(
+            id: BookFoundGiftEngine.sourceID,
+            type: .bookNotices,
+            title: "Found Beyond the Casement",
+            shortTitle: "Found for You",
+            symbolName: "safari.fill",
+            origin: .imported,
+            privacy: .publicReference,
+            isActive: false,
+            cadence: "occasionally, when the Long Game commissions a broad public-web search",
+            note: "A sourced public-web finding selected for the re-enchantment mission. Private Page text is never used as its search query."
+        ),
+        BookPageSource(
+            id: "book-reenchantment-director",
+            type: .bookNotices,
+            title: "The Book's Long Game",
+            shortTitle: "A Small Door",
+            symbolName: "door.left.hand.open",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: false,
+            cadence: "event-driven; finite campaigns separated by silence",
+            note: "Notices, invites, and proportional real-world experiments chosen by the Book's persistent re-enchantment director."
+        ),
+        BookPageSource(
             id: "the-book-pocket",
             type: .bookPocket,
             title: "The Book's Pocket",
@@ -723,7 +879,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "when the pocket fills",
-            note: "The little things swiped-away pages leave behind, emptied onto the desk now and then."
+            note: "Real fragments pressed loose by meaningful attention, emptied onto the desk now and then."
         ),
         BookPageSource(
             id: "spend-glow",
@@ -1002,6 +1158,30 @@ enum BookPageSourceRegistry {
             note: "Lines from poets, scientists, and quiet noticers on wonder, attention, and this one precious life."
         ),
         BookPageSource(
+            id: "public-margins-creators",
+            type: .quotes,
+            title: "Elsewhere, Someone Noticed",
+            shortTitle: "Elsewhere",
+            symbolName: "person.2.wave.2",
+            origin: .imported,
+            privacy: .publicReference,
+            isActive: false,
+            cadence: "dormant",
+            note: "A retired X adapter retained only for reversibility. Outside voices should return through durable, editorially reviewed sources rather than a social feed."
+        ),
+        BookPageSource(
+            id: "public-margins-community",
+            type: .quotes,
+            title: "From the Public Margins",
+            shortTitle: "Public Margins",
+            symbolName: "text.bubble.fill",
+            origin: .imported,
+            privacy: .publicReference,
+            isActive: true,
+            cadence: "occasionally, only when the Public Margins doorway is open",
+            note: "A moderated one-sentence souvenir offered deliberately by another reader."
+        ),
+        BookPageSource(
             id: "affirmations-page",
             type: .affirmations,
             title: "The Book Believes",
@@ -1240,6 +1420,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "when an event or pack gives a word agency",
             note: "A living word asks the reader to rule on what it may mean in this Book."
+        ),
+        BookPageSource(
+            id: "tarot-pages",
+            type: .tarot,
+            title: "Tarot Pages",
+            shortTitle: "Tarot",
+            symbolName: "rectangle.stack.fill",
+            origin: .simulated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "daily; one kept reading per calendar day",
+            note: "A one-card pull or a Root / Weather / Door spread, drawn locally from a real 78-card deck."
         )
     ]
 
@@ -1312,7 +1504,7 @@ enum BookPageSourceRegistry {
             return 26
         case .theBleed:
             return 30
-        case .aboutYou, .rest, .helpTips:
+        case .aboutYou, .rest, .helpTips, .tarot:
             return 24
         case .lore, .illustration, .illuminatedPhoto, .packPage, .wordNegotiation:
             return 22
@@ -1365,7 +1557,7 @@ enum BookPageSourceRegistry {
             return 22
         case .theBleed:
             return 26
-        case .aboutYou, .rest, .helpTips:
+        case .aboutYou, .rest, .helpTips, .tarot:
             return 20
         case .lore, .illustration, .illuminatedPhoto, .packPage, .wordNegotiation:
             return 18
@@ -1485,8 +1677,9 @@ struct BookReadingBoundary: Codable, Identifiable, Equatable {
     var createdAt: Date
 }
 
-/// A variable-ratio governor for the Book's larger surprises. Sessions warm
-/// the possibility rather than scheduling a reveal on a calendar.
+/// The Book's larger surprises are earned by meaningful attention, never by
+/// reopening the app. The persisted field names retain their original
+/// session-based spelling so existing saves decode without migration.
 struct MagicMomentState: Codable, Equatable {
     var sessionCount: Int = 0
     var sessionsSinceMoment: Int = 0
@@ -1494,34 +1687,29 @@ struct MagicMomentState: Codable, Equatable {
     var lastSessionAt: Date?
     var lastMomentAt: Date?
     var lastMomentKey: String?
+    var lastMeaningfulActionKey: String?
 }
 
 enum MagicMomentGovernor {
-    static let meaningfulSessionGap: TimeInterval = 20 * 60
+    static let meaningfulActionsToArm = 3
 
-    static func enteringSession(
+    /// Records one substantive, uniquely identified act of attention. There is
+    /// no random draw: the surprise is what the Book notices, not whether the
+    /// reader's attention counted. Repeated delivery of the same action is a
+    /// no-op, which also makes notification/app lifecycle retries harmless.
+    static func recordingMeaningfulAction(
         _ state: MagicMomentState,
-        now: Date = Date(),
-        roll: Int = Int.random(in: 0...99)
+        key: String,
+        now: Date = Date()
     ) -> MagicMomentState {
         var updated = state
-        if let last = state.lastSessionAt,
-           now.timeIntervalSince(last) < meaningfulSessionGap {
-            return updated
-        }
+        guard !key.isEmpty, key != state.lastMeaningfulActionKey else { return updated }
+        updated.lastMeaningfulActionKey = key
         updated.lastSessionAt = now
         updated.sessionCount += 1
         updated.sessionsSinceMoment += 1
         guard !updated.isArmed else { return updated }
-        let chance: Int
-        switch updated.sessionsSinceMoment {
-        case ..<2: chance = 0
-        case 2: chance = 18
-        case 3: chance = 45
-        case 4: chance = 72
-        default: chance = 100
-        }
-        updated.isArmed = roll < chance
+        updated.isArmed = updated.sessionsSinceMoment >= meaningfulActionsToArm
         return updated
     }
 
@@ -1536,6 +1724,31 @@ enum MagicMomentGovernor {
         updated.lastMomentAt = now
         updated.lastMomentKey = key
         return updated
+    }
+}
+
+/// The exact outside-the-covers agreement made in the First Door. Morning is a
+/// keepable prompt, evening is the braid's return, both is one of each, and
+/// inside means the Book never schedules an ordinary call.
+enum BookWhisperCadence: String, Codable, CaseIterable, Equatable {
+    case morning
+    case evening
+    case both
+    case inside
+
+    var allowsMorning: Bool { self == .morning || self == .both }
+    var allowsEvening: Bool { self == .evening || self == .both }
+
+    var enablesBookWhispers: Bool { allowsEvening }
+    var enablesPromptWhispers: Bool { allowsMorning }
+
+    static func resolved(bookWhispersEnabled: Bool, promptWhispersEnabled: Bool) -> BookWhisperCadence {
+        switch (bookWhispersEnabled, promptWhispersEnabled) {
+        case (true, true): return .both
+        case (true, false): return .evening
+        case (false, true): return .morning
+        case (false, false): return .inside
+        }
     }
 }
 
@@ -1567,8 +1780,10 @@ struct OvernightConnectionDraft: Codable, Equatable {
 /// weather/body/calendar that was true *then*, never whatever happens to be
 /// current when the archive is reread.
 ///
-/// The snapshot contains no coordinates, place names, calendar titles, or raw
-/// Health data. It is private page context, not a second activity log.
+/// The snapshot contains no coordinates, calendar titles, raw Health data, or
+/// copied chart prose. A location is a reader-approved label/Anchor, while Fuel
+/// and Inner Weather are references to their private chart entries. It is
+/// private page context, not a second activity log.
 struct BookPageContextSnapshot: Codable, Equatable {
     var timeZoneIdentifier: String
     var utcOffsetSeconds: Int
@@ -1577,6 +1792,9 @@ struct BookPageContextSnapshot: Codable, Equatable {
     var bodyScore: Int?
     var calendarEventCount: Int?
     var nearbyAnchorID: String?
+    var locationLabel: String?
+    var innerWeatherEntryID: String?
+    var fuelEntryID: String?
 
     init(
         at date: Date = Date(),
@@ -1584,7 +1802,10 @@ struct BookPageContextSnapshot: Codable, Equatable {
         weatherTags: [String] = [],
         bodyScore: Int? = nil,
         calendarEventCount: Int? = nil,
-        nearbyAnchorID: String? = nil
+        nearbyAnchorID: String? = nil,
+        locationLabel: String? = nil,
+        innerWeatherEntryID: String? = nil,
+        fuelEntryID: String? = nil
     ) {
         let timeZone = calendar.timeZone
         self.timeZoneIdentifier = timeZone.identifier
@@ -1594,6 +1815,9 @@ struct BookPageContextSnapshot: Codable, Equatable {
         self.bodyScore = bodyScore.map { min(100, max(0, $0)) }
         self.calendarEventCount = calendarEventCount.map { max(0, $0) }
         self.nearbyAnchorID = nearbyAnchorID?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        self.locationLabel = locationLabel?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        self.innerWeatherEntryID = innerWeatherEntryID?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        self.fuelEntryID = fuelEntryID?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -1604,6 +1828,9 @@ struct BookPageContextSnapshot: Codable, Equatable {
         case bodyScore
         case calendarEventCount
         case nearbyAnchorID
+        case locationLabel
+        case innerWeatherEntryID
+        case fuelEntryID
     }
 
     init(from decoder: Decoder) throws {
@@ -1615,6 +1842,9 @@ struct BookPageContextSnapshot: Codable, Equatable {
         bodyScore = try container.decodeIfPresent(Int.self, forKey: .bodyScore)
         calendarEventCount = try container.decodeIfPresent(Int.self, forKey: .calendarEventCount)
         nearbyAnchorID = try container.decodeIfPresent(String.self, forKey: .nearbyAnchorID)
+        locationLabel = try container.decodeIfPresent(String.self, forKey: .locationLabel)
+        innerWeatherEntryID = try container.decodeIfPresent(String.self, forKey: .innerWeatherEntryID)
+        fuelEntryID = try container.decodeIfPresent(String.self, forKey: .fuelEntryID)
     }
 
     private static func dayPart(for date: Date, calendar: Calendar) -> String {
@@ -1689,22 +1919,9 @@ enum HiddenMagicExpressionMode: String, Codable, CaseIterable, Equatable {
     case voice
 }
 
-/// A small real-world instruction carried by any outward-facing Page. The
-/// Page keeps its own type, prose, and mechanics; this is only the common
-/// grammar that lets the app guide action and recognize proof consistently.
-struct HiddenMagicLens: Codable, Equatable {
-    var id: String
-    var sense: HiddenMagicSense
-    var voice: String
-    var action: String
-    var proofPrompt: String
-    var durationSeconds: Int
-    var expressionModes: [HiddenMagicExpressionMode]
-}
-
-/// Durable proof that a reader used a lens in the real world. The page itself
-/// remains the source of truth for the sentence, photograph, or recording; the
-/// finding stores only the practice context needed to develop future lenses.
+/// Legacy decoding support for pages kept before the cross-page lens system was
+/// retired. New pages never create this value; keeping it optional preserves
+/// existing private archives without letting the old interaction back into UI.
 struct HiddenMagicFinding: Codable, Equatable {
     var lensID: String
     var sense: HiddenMagicSense
@@ -1815,6 +2032,92 @@ struct AttentionFingerprint: Codable, Equatable {
     }
 }
 
+/// A public source that entered a kept Page through an explicit Book window.
+/// Keeping this as typed provenance prevents later bindings from presenting a
+/// generated summary as if it were the source itself.
+struct BookPageExternalReference: Codable, Equatable {
+    var title: String
+    var sourceName: String
+    var url: String
+    var fetchedAt: Date?
+    var provenance: String
+
+    static func from(surface: SurfacePage) -> BookPageExternalReference? {
+        let metadata = surface.payload.metadata
+        guard let rawURL = metadata["url"],
+              let url = URL(string: rawURL),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? "") else {
+            return nil
+        }
+        let fetchedAt = metadata["fetchedAt"].flatMap { ISO8601DateFormatter().date(from: $0) }
+        return BookPageExternalReference(
+            title: metadata["sourceTitle"]?.nonEmpty ?? surface.payload.headline,
+            sourceName: metadata["sourceName"]?.nonEmpty ?? url.host ?? "the public web",
+            url: rawURL,
+            fetchedAt: fetchedAt,
+            provenance: metadata["provenance"]?.nonEmpty ?? "public-reference"
+        )
+    }
+}
+
+/// The receipt joining a kept Page to one real person's thread. It records the
+/// Book's offer and the reader's own aftermath separately; it never records an
+/// invented response or an inferred feeling for the other person.
+struct RelationshipPageReceipt: Codable, Equatable {
+    enum Kind: String, Codable, Equatable {
+        case foundGift
+        case favor
+        case witness
+    }
+
+    var personID: String
+    var personName: String
+    var kind: Kind
+    var bookOffer: String
+    var readerAftermath: String?
+    var sharedInterest: String?
+    var relationshipMode: String?
+    var evidenceAuthority: String
+
+    static func from(surface: SurfacePage, readerInput: String) -> RelationshipPageReceipt? {
+        let metadata = surface.payload.metadata
+        guard let personID = metadata["personID"]?.nonEmpty,
+              let personName = metadata["personName"]?.nonEmpty else {
+            return nil
+        }
+        let kind: Kind
+        if metadata["relationshipFoundGift"] == "true" {
+            kind = .foundGift
+        } else if metadata["playfulMissionID"] != nil || metadata["personCharge"] == "true" {
+            kind = .favor
+        } else {
+            kind = .witness
+        }
+        let trimmed = readerInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let marker = "\n\nMargin note: "
+        let aftermath: String?
+        if let range = trimmed.range(of: marker, options: .backwards) {
+            aftermath = String(trimmed[range.upperBound...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nonEmpty
+        } else if kind == .favor, !trimmed.isEmpty, trimmed != surface.payload.body {
+            aftermath = trimmed
+        } else {
+            aftermath = nil
+        }
+        return RelationshipPageReceipt(
+            personID: personID,
+            personName: personName,
+            kind: kind,
+            bookOffer: surface.prompt,
+            readerAftermath: aftermath,
+            sharedInterest: metadata["sharedInterest"]?.nonEmpty,
+            relationshipMode: metadata["relationshipMode"]?.nonEmpty,
+            evidenceAuthority: aftermath == nil ? "book-offer-only" : "reader-authored-aftermath"
+        )
+    }
+}
+
 struct BookPage: Codable, Identifiable, Equatable {
     var id: String
     var type: BookPageType
@@ -1831,6 +2134,7 @@ struct BookPage: Codable, Identifiable, Equatable {
     var mediaAssets: [BookPageMediaAsset]
     var context: BookPageContextSnapshot?
     var attentionFingerprint: AttentionFingerprint?
+    /// Legacy save-file field. New pages leave this nil.
     var hiddenMagicFinding: HiddenMagicFinding?
     /// Present when this archive page is a fully-bound weekly issue. Optional
     /// keeps older archives source-compatible and avoids flattening a whole
@@ -1840,6 +2144,12 @@ struct BookPage: Codable, Identifiable, Equatable {
     /// for the same reasons as `weeklyIssueArtifact` — older archives decode
     /// without it, and a whole edition can't be flattened into tags.
     var monthlyEditionArtifact: KeptMonthlyEditionArtifact?
+    /// The exact locally-drawn cards and the reader's own observations.
+    var tarotReadingArtifact: TarotReadingArtifact?
+    /// Typed public provenance retained beyond transient Surface metadata.
+    var externalReference: BookPageExternalReference?
+    /// Typed relational receipt used by The Company You Kept.
+    var relationshipReceipt: RelationshipPageReceipt?
 
     init(
         id: String = UUID().uuidString,
@@ -1859,7 +2169,10 @@ struct BookPage: Codable, Identifiable, Equatable {
         attentionFingerprint: AttentionFingerprint? = nil,
         hiddenMagicFinding: HiddenMagicFinding? = nil,
         weeklyIssueArtifact: KeptWeeklyIssueArtifact? = nil,
-        monthlyEditionArtifact: KeptMonthlyEditionArtifact? = nil
+        monthlyEditionArtifact: KeptMonthlyEditionArtifact? = nil,
+        tarotReadingArtifact: TarotReadingArtifact? = nil,
+        externalReference: BookPageExternalReference? = nil,
+        relationshipReceipt: RelationshipPageReceipt? = nil
     ) {
         self.id = id
         self.type = type
@@ -1879,6 +2192,9 @@ struct BookPage: Codable, Identifiable, Equatable {
         self.hiddenMagicFinding = hiddenMagicFinding
         self.weeklyIssueArtifact = weeklyIssueArtifact
         self.monthlyEditionArtifact = monthlyEditionArtifact
+        self.tarotReadingArtifact = tarotReadingArtifact
+        self.externalReference = externalReference
+        self.relationshipReceipt = relationshipReceipt
     }
 
     enum CodingKeys: String, CodingKey {
@@ -1900,6 +2216,9 @@ struct BookPage: Codable, Identifiable, Equatable {
         case hiddenMagicFinding
         case weeklyIssueArtifact
         case monthlyEditionArtifact
+        case tarotReadingArtifact
+        case externalReference
+        case relationshipReceipt
     }
 
     init(from decoder: Decoder) throws {
@@ -1922,6 +2241,9 @@ struct BookPage: Codable, Identifiable, Equatable {
         hiddenMagicFinding = try container.decodeIfPresent(HiddenMagicFinding.self, forKey: .hiddenMagicFinding)
         weeklyIssueArtifact = try container.decodeIfPresent(KeptWeeklyIssueArtifact.self, forKey: .weeklyIssueArtifact)
         monthlyEditionArtifact = try container.decodeIfPresent(KeptMonthlyEditionArtifact.self, forKey: .monthlyEditionArtifact)
+        tarotReadingArtifact = try container.decodeIfPresent(TarotReadingArtifact.self, forKey: .tarotReadingArtifact)
+        externalReference = try container.decodeIfPresent(BookPageExternalReference.self, forKey: .externalReference)
+        relationshipReceipt = try container.decodeIfPresent(RelationshipPageReceipt.self, forKey: .relationshipReceipt)
     }
 }
 

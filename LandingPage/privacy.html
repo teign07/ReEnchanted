@@ -91,13 +91,13 @@
 
       <p class="eyebrow">The fine print, plainly</p>
       <h1>Privacy <span class="accent">Policy</span></h1>
-      <p class="updated">Effective July 3, 2026 · Last updated July 3, 2026</p>
+      <p class="updated">Effective July 18, 2026 · Last updated July 18, 2026</p>
 
       <p class="lede">
         The most personal app on your phone shouldn't feel like a surveillance product.
         ReEnchanted is built local-first: your journal, your kept pages, and everything you
-        write live on your device, not on our servers. We don't have accounts, and we don't
-        want your data.
+        write live on your device, not on our servers. We don't have accounts. The only reader
+        writing we receive is a specific public contribution you deliberately preview and confirm.
       </p>
 
       <p>
@@ -113,6 +113,7 @@
         <li><strong>On-device intelligence.</strong> The app's &ldquo;local brain&rdquo; runs entirely on your device. Your writing is not sent to us or to an AI service to generate pages.</li>
         <li><strong>No ads, no trackers, no analytics.</strong> We do not embed advertising, third-party trackers, or usage analytics SDKs.</li>
         <li><strong>No selling data.</strong> We never sell, rent, or share your personal information. There is no data broker in here.</li>
+        <li><strong>Public means deliberate.</strong> Importing the Public Margins and offering something to them are separate opt-ins, both off by default. Every outgoing sentence gets another exact public preview and confirmation.</li>
       </ul>
 
       <h2>Information the app keeps on your device</h2>
@@ -144,6 +145,46 @@
         A few features reach the internet by design. When they do, only what that feature needs is
         sent, and only to the service that performs it:
       </p>
+
+      <div class="callout" id="public-margins">
+        <h3 style="margin-top:0.2rem">The Public Margins</h3>
+        <p>
+          The Public Margins are an optional community window. They have <strong>two independent
+          controls, both off by default</strong>. &ldquo;Bring the Public Margins into my Book&rdquo;
+          permits the app to fetch approved community sentences deliberately offered by readers.
+          &ldquo;Offer me ways to add to the Public Margins&rdquo; only permits the app to show
+          contribution invitations. Turning on one never turns on the other.
+        </p>
+        <p>
+          Even when outgoing invitations are enabled, nothing is uploaded automatically. For each
+          contribution, the app shows the exact sentence or fixed choice that may appear publicly
+          on this website and in other readers' Books. It sends only after you press the plainly
+          labelled public confirmation button. The submission contains a random request identifier,
+          the public event and contribution type, the sentence or choice you confirmed, and the confirmation
+          time. It does <strong>not</strong> contain an account or device identifier, Book page ID,
+          surrounding writing, archive, photos, audio, location, health, Calendar, contacts, Belief,
+          Book of You, or local-brain data.
+        </p>
+        <p>
+          Public contribution text travels over HTTPS and is encrypted at rest. Fixed choices are
+          approved automatically because the app can submit only the displayed answers. Sentences
+          are checked automatically for obvious contact details and by a safety classifier; they
+          become public only when those checks pass. If a check is unsafe or unavailable, the
+          sentence is rejected rather than published. No person is expected to read an ordinary
+          submission. The server returns a random deletion receipt to the app; the server
+          stores only a one-way hash of that token. The service intentionally does not create a
+          stable identity, so it counts contributions rather than claiming to count people. Our
+          network provider may transiently process an IP address to deliver the request, as any
+          internet service does, but the Public Margins database does not store it or use it to
+          profile you.
+        </p>
+        <p>
+          Pending or rejected contributions are removed after 30 days. Approved contributions are
+          removed after one year unless you delete them sooner with the receipt kept on your device.
+          You can close either doorway at any time; closing the outgoing doorway stops future
+          invitations but does not by itself delete a sentence already made public.
+        </p>
+      </div>
 
       <h3>Weather and local context</h3>
       <p>
@@ -191,6 +232,11 @@
         You can unsubscribe at any time using the link in that email. The website does not run
         advertising or third-party analytics trackers.
       </p>
+      <p>
+        The community section fetches the same public, moderated Public Margins snapshot available
+        to opted-in apps. It does not set a community account cookie or attach reactions, profiles,
+        or analytics to a contribution. It does not import a social-media feed.
+      </p>
 
       <h2>Data retention and deletion</h2>
       <p>
@@ -199,6 +245,7 @@
         backup on Apple's normal schedule). For a print order, we and our print/payment partners retain
         the order records needed to fulfill it and to meet tax and accounting obligations. To request
         deletion of information tied to a print order, email us at the address below.
+        Public Margins retention and deletion are described in the Public Margins section above.
       </p>
 
       <h2>Children's privacy</h2>
@@ -211,7 +258,8 @@
       <h2>Security</h2>
       <p>
         Keeping data on your device, protected by your device's own security, is the strongest privacy
-        posture we can offer. For the limited information involved in a print order, we rely on
+        posture we can offer. Public Margins contribution text is encrypted in transit and at rest.
+        For the limited information involved in a print order, we rely on
         reputable partners (Apple, Stripe, Lulu) that use industry-standard encryption in transit. No
         method of transmission or storage is perfectly secure, but we've minimized what's at risk by
         collecting as little as possible.
@@ -221,6 +269,7 @@
       <p>
         You can revoke any device permission in iOS Settings, decline any feature that reaches the
         internet, unsubscribe from our email list, and delete your data by deleting pages or the app.
+        A Public Margins deletion receipt can remove its specific contribution without an account.
         Depending on where you live, you may have rights to access or delete personal information we
         hold about a print order; contact us and we'll honor applicable requests.
       </p>

@@ -12,6 +12,7 @@ enum EmergentPageMaturity {
 
 struct BookSourceInputs: Equatable {
     var days: [BookDay] = []
+    var bookInterior: BookInteriorState = .unawakened
     var magicMoment: MagicMomentState = MagicMomentState()
     var bookObservations: [BookObservationRecord] = []
     var bookReadingBoundaries: [BookReadingBoundary] = []
@@ -90,6 +91,9 @@ struct BookSourceInputs: Equatable {
     /// witness; a person only enters the story when the reader writes them in
     /// (the thread then carries a linked custom cast member).
     var people: PeopleLedger = PeopleLedger()
+    /// A deliberately public, server-curated snapshot. It is nil unless the
+    /// reader independently opted into bringing Public Margins into the Book.
+    var publicMargins: PublicMarginsSnapshot?
 
     func recentVarietyKeys(within seconds: TimeInterval = 48 * 3600, now: Date = Date()) -> Set<String> {
         Set(surfaceHistory.filter { now.timeIntervalSince($0.value.lastShownAt) < seconds }.keys)
@@ -702,11 +706,13 @@ struct BookShopPreviewPageSourceAdapter: BookPageSourceAdapter {
 enum MarginsAtlasVariant: String, Codable, Equatable, CaseIterable {
     case loom
     case constellation
+    case company
 
     var title: String {
         switch self {
         case .loom: return "The Loom"
         case .constellation: return "The Constellation"
+        case .company: return "The Company You Keep"
         }
     }
 
@@ -716,6 +722,8 @@ enum MarginsAtlasVariant: String, Codable, Equatable, CaseIterable {
             return "The threads get warm and pull tight wherever the cast has started to really care about each other."
         case .constellation:
             return "The stars glow brightest where your Belief lives, and little lines show where your attention has been wandering."
+        case .company:
+            return "Real people, shared interests, ordinary rituals, and the different doors through which they enter your life."
         }
     }
 }
@@ -827,29 +835,633 @@ struct MoodPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+enum JournalPromptFamily: String, CaseIterable {
+    case wonder
+    case authorship
+    case listening
+    case moment
+    case connection
+    case shadow
+    case traditional
+    case mischief
+    case rest
+}
+
+enum JournalPromptContext: String {
+    case none
+    case recentPage
+    case person
+    case place
+    case weather
+    case recurringThread
+}
+
+struct JournalPromptEntry: Equatable {
+    var id: String
+    var family: JournalPromptFamily
+    var title: String
+    var question: String
+    var deeperQuestion: String
+    var placeholder: String
+    var semanticHints: [String]
+    var context: JournalPromptContext = .none
+    var authorEntityID: String? = nil
+    var authorName: String? = nil
+    var authorLead: String? = nil
+
+    var isCastAuthored: Bool { authorEntityID != nil }
+
+    var semanticDocument: String {
+        ([title, question, deeperQuestion] + semanticHints + [family.rawValue])
+            .joined(separator: " ")
+    }
+}
+
+struct JournalPromptSelection: Equatable {
+    var entry: JournalPromptEntry
+    var question: String
+    var deeperQuestion: String
+    var selector: String
+    var evidencePageID: String?
+    var evidenceExcerpt: String?
+    var contextLabel: String?
+}
+
+enum JournalPromptCatalog {
+    static let entries: [JournalPromptEntry] = [
+        prompt("almost-missed", .wonder, "The Thing That Nearly Vanished",
+               "What did you almost miss today?",
+               "What made you look twice?",
+               "I almost missed...",
+               ["notice", "detail", "ordinary", "sensory", "attention", "small moment"]),
+        prompt("ordinary-broke-character", .wonder, "When Ordinary Broke Character",
+               "What ordinary thing briefly stopped being ordinary today?",
+               "What changed: the thing, the light, the timing, or you?",
+               "For a moment...",
+               ["wonder", "surprise", "object", "place", "light", "unexpected"]),
+        prompt("sound-punctuation", .wonder, "The Day's Punctuation",
+               "What sound served as the day's punctuation?",
+               "Was it a period, question mark, comma, or something less grammatical?",
+               "The sound was...",
+               ["sound", "voice", "music", "weather", "room", "rhythm"]),
+        prompt("light-favorites", .wonder, "The Light Chose Favorites",
+               "Where did the light behave as if it had chosen a favorite?",
+               "What did it make visible that the room usually keeps quiet?",
+               "The light chose...",
+               ["light", "color", "window", "weather", "room", "sight", "photo"]),
+        prompt("undocumented-side-quest", .mischief, "The Undocumented Side Quest",
+               "What was today's unofficial side quest?",
+               "At what exact moment did you accidentally accept it?",
+               "The side quest began when...",
+               ["errand", "adventure", "unexpected", "detour", "funny", "problem", "quest"]),
+        prompt("smallest-scandal", .mischief, "A Very Small Scandal",
+               "What was the day's smallest, least consequential scandal?",
+               "Who—or what—behaved most suspiciously?",
+               "The scandal involved...",
+               ["funny", "awkward", "pet", "food", "object", "mistake", "ridiculous"]),
+        prompt("object-performance-review", .mischief, "An Overdue Performance Review",
+               "Which object near you worked hardest today without proper recognition?",
+               "What rating does it receive, and what must management improve?",
+               "Employee of the day...",
+               ["object", "home", "work", "tool", "funny", "care", "ordinary"]),
+        prompt("academy-transfer-student", .mischief, "Today's Transfer Student",
+               "If today arrived at the Academy as a transfer student, what would be suspicious about it?",
+               "Which Chapter would claim it first?",
+               "Today arrived wearing...",
+               ["day", "academy", "character", "funny", "weather", "mood", "story"]),
+        prompt("two-percent", .authorship, "Two Percent Different",
+               "What did you change your mind about by two percent?",
+               "What tiny piece of evidence moved it?",
+               "I am not entirely where I was on...",
+               ["choice", "change", "decision", "belief", "learn", "evidence"]),
+        prompt("chosen-moment", .authorship, "The Moment You Authored",
+               "Where did you make a choice today instead of simply continuing?",
+               "What became possible because you interrupted the default?",
+               "I chose...",
+               ["choice", "agency", "boundary", "decision", "courage", "change"]),
+        prompt("tomorrow-line", .authorship, "A Line for Tomorrow",
+               "What sentence do you need to be able to read tomorrow morning?",
+               "Can it be both kind and completely true?",
+               "Tomorrow, remember...",
+               ["tomorrow", "intention", "choice", "courage", "need", "future"]),
+        prompt("world-already-saying", .listening, "Before You Answered",
+               "What was the world already trying to show you today?",
+               "What happened when you stopped trying to make it mean something else?",
+               "It kept showing me...",
+               ["listen", "nature", "weather", "pattern", "signal", "patience", "notice"]),
+        prompt("kept-returning", .listening, "The Returning Thing",
+               "What kept returning to your attention after you dismissed it?",
+               "What if recurrence, not loudness, is what made it important?",
+               "It returned when...",
+               ["repeat", "pattern", "memory", "attention", "thought", "object", "person"]),
+        prompt("complete-without-lesson", .moment, "No Lesson Required",
+               "Which part of today deserves no lesson, silver lining, or character growth?",
+               "What changes if you let it remain complete exactly as it was?",
+               "It was enough that...",
+               ["moment", "present", "rest", "complete", "ordinary", "no lesson"]),
+        prompt("first-surprise", .moment, "The Unplanned Hour",
+               "What caught you genuinely off guard today?",
+               "What did the surprise make vivid for a moment?",
+               "I did not expect...",
+               ["surprise", "unexpected", "moment", "change", "delight", "weather"]),
+        prompt("room-temperature", .connection, "Who Changed the Room?",
+               "Who changed the temperature of a room today simply by entering it?",
+               "What did your body notice before your mind supplied the explanation?",
+               "When they arrived...",
+               ["person", "people", "relationship", "room", "body", "presence"]),
+        prompt("still-echoing", .connection, "Still Echoing",
+               "What did someone say that is still echoing?",
+               "Is the echo carrying their meaning, or one you added later?",
+               "They said...",
+               ["person", "conversation", "voice", "relationship", "words", "memory"]),
+        prompt("invisible-work", .connection, "The Work Nobody Announced",
+               "Whose invisible work made your day easier?",
+               "What exactly did they do that could have disappeared into 'nothing'?",
+               "Because they...",
+               ["person", "care", "kindness", "work", "family", "friend", "gratitude"]),
+        prompt("convenient-truth", .shadow, "Waiting for a Better Time",
+               "What truth are you waiting to become more convenient before admitting?",
+               "What is the smallest honest version you can write without turning it into a verdict?",
+               "The inconvenient part is...",
+               ["truth", "avoid", "conflict", "boundary", "decision", "fear", "honest"]),
+        prompt("protecting-avoidance", .shadow, "The Guard at the Door",
+               "What might your avoidance be trying to protect?",
+               "Can you thank the guard without giving it permanent control of the door?",
+               "The guard thinks...",
+               ["avoid", "protect", "fear", "conflict", "boundary", "care", "door"]),
+        prompt("changed-room", .traditional, "Evidence of Today",
+               "Look around. What did today's events change, move, empty, dirty, finish, or leave behind?",
+               "Begin with the changed thing instead of a summary.",
+               "The room proves today happened because...",
+               ["day", "room", "object", "evidence", "home", "work", "detail"]),
+        prompt("plain-chronology", .traditional, "What Happened",
+               "What happened today? Tell it plainly. Which moment still has heat?",
+               "Why that moment and not the supposedly important one?",
+               "Today...",
+               ["journal", "day", "memory", "event", "reflection", "traditional"]),
+        prompt("hard-and-helped", .traditional, "Hard / Helped",
+               "What was hard today? What helped—even a little?",
+               "What does the size of the help tell you about what you actually needed?",
+               "What was hard...\nWhat helped...",
+               ["hard", "help", "care", "support", "tired", "reflection", "traditional"]),
+        prompt("three-concrete-goods", .traditional, "Three Good Things with Names",
+               "Name three good things, but no abstractions: give the person, object, place, sound, or action.",
+               "Which one would be easiest to overlook tomorrow?",
+               "1.\n2.\n3.",
+               ["gratitude", "good", "person", "object", "place", "sound", "traditional"]),
+        prompt("tomorrow-contain", .traditional, "A Shape for Tomorrow",
+               "What do you need tomorrow to contain?",
+               "What is the smallest form that need could honestly take?",
+               "Tomorrow needs...",
+               ["tomorrow", "need", "plan", "care", "rest", "traditional"]),
+        prompt("free-page", .traditional, "No Discovery Required",
+               "Write freely for five minutes. You do not have to discover anything.",
+               "If a true sentence appears, let it stay unpolished.",
+               "Start anywhere...",
+               ["free write", "journal", "thought", "feeling", "traditional", "private"]),
+        prompt("unfinished-permission", .rest, "Allowed to Remain Unfinished",
+               "What may remain unfinished tonight without becoming a failure?",
+               "What would closing the cover look like in practical terms?",
+               "Tonight, I am leaving...",
+               ["rest", "unfinished", "tired", "night", "permission", "care"]),
+        prompt("stop-performing", .rest, "After the Performance",
+               "What can stop performing now that the day is ending?",
+               "What is still true when nobody needs anything from it?",
+               "It can stop...",
+               ["rest", "night", "work", "body", "performance", "quiet"]),
+        prompt("survived-with-you", .rest, "The Things That Made It Home",
+               "Name three things within reach that survived the day with you.",
+               "Which one seems most ready to be put down?",
+               "Still here with me...",
+               ["rest", "object", "home", "night", "survive", "inventory"]),
+        prompt("page-left-out", .wonder, "What the Page Left Out",
+               "This line is still warm from today: “{excerpt}” What did it leave out?",
+               "Was the missing thing too small, too strange, or too close to name the first time?",
+               "What it left out...",
+               ["page", "memory", "detail", "missing", "notice", "evidence"],
+               context: .recentPage),
+        prompt("routine-cross-examination", .wonder, "Evidence Against an Ordinary Day",
+               "Routine claims nothing happened. Your own page says: “{excerpt}” What does that line prove?",
+               "What would Routine prefer you call insignificant?",
+               "It proves...",
+               ["routine", "evidence", "ordinary", "page", "memory", "wonder"],
+               context: .recentPage),
+        prompt("named-person-temperature", .connection, "A Person in the Margins",
+               "{person} crossed the Book's margins recently. What did their presence change that a timeline would miss?",
+               "What detail belongs specifically to them and no one else?",
+               "When {person} was there...",
+               ["person", "relationship", "presence", "memory", "change"],
+               context: .person),
+        prompt("place-at-this-hour", .moment, "This Place, This Hour",
+               "What is {place} like at this exact hour—not generally, but tonight?",
+               "What would be gone if you returned at noon?",
+               "At this hour, {place}...",
+               ["place", "location", "night", "room", "weather", "time"],
+               context: .place),
+        prompt("weather-made-visible", .listening, "What the Weather Revealed",
+               "The weather arrived as “{weather}.” What did it make easier to notice?",
+               "What did the forecast fail to mention?",
+               "The weather revealed...",
+               ["weather", "outside", "sound", "light", "body", "place"],
+               context: .weather),
+        prompt("thread-keeps-pulling", .listening, "The Thread That Keeps Pulling",
+               "The Book keeps finding “{thread}” in the recent margins. What do you think is actually gathering there?",
+               "What would be too early—or too neat—to conclude?",
+               "The thread might be...",
+               ["pattern", "theme", "repeat", "memory", "meaning", "notice"],
+               context: .recurringThread),
+
+        prompt("penny-evidence", .wonder, "Filed as Contradictory Evidence",
+               "Penny Blackletter requests one detail proving today was not merely a repeat of yesterday.",
+               "Would the evidence survive cross-examination by someone extremely committed to being bored?",
+               "Evidence, item one...",
+               ["evidence", "detail", "routine", "archive", "ordinary", "funny"],
+               author: ("penny-blackletter", "Penny Blackletter", "Penny has opened a file. Apparently the day is under investigation.")),
+        prompt("wicker-premise", .shadow, "The Premise Wicker Doesn't Buy",
+               "Which explanation about today sounds tidy, reasonable—and not entirely true?",
+               "What exact fact makes the premise wobble?",
+               "The tidy version is...",
+               ["truth", "conflict", "premise", "doubt", "avoid", "evidence"],
+               author: ("wicker-eddies", "Wicker Eddies", "Wicker underlined this twice, which is rarely a peaceful sign.")),
+        prompt("zara-small-return", .connection, "A Small Return",
+               "Who proved something through one small return today—coming back, following through, remembering, or making room?",
+               "What trust did that tiny act build?",
+               "The small return was...",
+               ["trust", "friendship", "person", "return", "care", "relationship"],
+               author: ("zara-finch", "Zara Finch", "Zara left this question beside the safest path through the page.")),
+        prompt("stonebrook-set-down", .rest, "Put One Thing Down",
+               "What are you still carrying only because you have not formally put it down?",
+               "What would count as setting it down for tonight—not forever?",
+               "For tonight, I can put down...",
+               ["rest", "night", "carry", "unfinished", "body", "care"],
+               author: ("professor-cedric-stonebrook", "Professor Cedric Stonebrook", "Professor Stonebrook has turned the hourglass on its side.")),
+        prompt("villanelle-true-line", .traditional, "One Line That Holds",
+               "Write one sentence from today that is true enough to carry time.",
+               "Which pretty but inaccurate word can you cross out?",
+               "The sentence is...",
+               ["sentence", "write", "memory", "true", "detail", "souvenir"],
+               author: ("professor-vivian-villanelle", "Professor Vivian Villanelle", "Professor Villanelle is weighing the sentence in her palm.")),
+        prompt("wispwood-object", .mischief, "The Object's Complaint",
+               "Choose one nearby object. If it were allowed one calm, specific complaint about today, what would it say?",
+               "What visible fact supports its case?",
+               "The object says...",
+               ["object", "voice", "home", "funny", "enchantment", "evidence"],
+               author: ("professor-luna-wispwood", "Professor Luna Wispwood", "Professor Wispwood apologized to the object before handing it the floor."))
+    ]
+
+    private static func prompt(
+        _ id: String,
+        _ family: JournalPromptFamily,
+        _ title: String,
+        _ question: String,
+        _ deeperQuestion: String,
+        _ placeholder: String,
+        _ semanticHints: [String],
+        context: JournalPromptContext = .none,
+        author: (id: String, name: String, lead: String)? = nil
+    ) -> JournalPromptEntry {
+        JournalPromptEntry(
+            id: id,
+            family: family,
+            title: title,
+            question: question,
+            deeperQuestion: deeperQuestion,
+            placeholder: placeholder,
+            semanticHints: semanticHints,
+            context: context,
+            authorEntityID: author?.id,
+            authorName: author?.name,
+            authorLead: author?.lead
+        )
+    }
+}
+
+enum JournalPromptSelector {
+    private struct Signals {
+        var recentPages: [BookPage]
+        var personName: String?
+        var placeName: String?
+        var weather: String?
+        var recurringThread: String?
+        var query: String
+        var queryWords: Set<String>
+    }
+
+    static func select(
+        day: BookDay,
+        inputs: BookSourceInputs,
+        context: CuratorContext,
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        scorer: StacksSemanticScoring? = nil
+    ) -> JournalPromptSelection {
+        let signals = signals(day: day, inputs: inputs, now: now)
+        let hour = calendar.component(.hour, from: now)
+        let isEvening = (17..<22).contains(hour)
+        let isVeryLate = hour >= 22 || hour < 5
+        let recentPromptIDs = recentTagValues(prefix: "journal-prompt:", pages: signals.recentPages)
+        let recentFamilies = recentTagValues(prefix: "journal-family:", pages: signals.recentPages)
+        let recentCastPage = signals.recentPages.prefix(8).contains {
+            $0.tags.contains(where: { $0.hasPrefix("journal-author:") && $0 != "journal-author:the-book" })
+        }
+        let castTurn = !context.distress.isActive
+            && !isVeryLate
+            && !recentCastPage
+            && abs("\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 6))-journal-cast".stableHash) % 5 == 0
+        let enabledCastIDs = Set(NarrativePackRegistry.entities.map(\.id))
+
+        var candidates = JournalPromptCatalog.entries.filter { entry in
+            guard contextAvailable(entry.context, signals: signals) else { return false }
+            if castTurn {
+                guard entry.isCastAuthored,
+                      let authorID = entry.authorEntityID,
+                      enabledCastIDs.contains(authorID) else {
+                    return false
+                }
+            } else if entry.isCastAuthored {
+                return false
+            }
+            if context.distress.isActive && [.shadow, .mischief].contains(entry.family) {
+                return false
+            }
+            if isVeryLate && [.shadow, .authorship, .mischief].contains(entry.family) {
+                return false
+            }
+            return true
+        }
+        if candidates.isEmpty {
+            candidates = JournalPromptCatalog.entries.filter { !$0.isCastAuthored && $0.context == .none }
+        }
+
+        var scored = candidates.map { entry -> (entry: JournalPromptEntry, score: Int, similarity: Double?) in
+            let entryWords = SemanticKeepEcho.contentWords(in: entry.semanticDocument)
+            let overlap = signals.queryWords.intersection(entryWords).count
+            var score = 30 + min(30, overlap * 6)
+            if entry.context != .none { score += 12 }
+            if isEvening { score += eveningBoost(entry.family) }
+            if isVeryLate && [.rest, .traditional, .listening].contains(entry.family) { score += 16 }
+            if context.distress.isActive && [.rest, .traditional, .listening].contains(entry.family) { score += 18 }
+            if recentPromptIDs.contains(entry.id) { score -= 80 }
+            if recentFamilies.prefix(2).contains(entry.family.rawValue) { score -= 12 }
+            if entry.isCastAuthored { score += 4 }
+            score += abs("\(day.id)-\(entry.id)-journal".stableHash) % 9
+            return (entry, score, nil)
+        }
+        scored.sort { rankedBefore($0, $1) }
+
+        if let scorer, !signals.query.isEmpty {
+            for index in scored.indices.prefix(12) {
+                guard let similarity = scorer.similarity(
+                    between: signals.query,
+                    and: scored[index].entry.semanticDocument
+                ) else { continue }
+                scored[index].similarity = similarity
+                scored[index].score += Int((similarity * 36).rounded())
+            }
+            scored.sort { rankedBefore($0, $1) }
+        }
+
+        let selected = scored.first?.entry
+            ?? JournalPromptCatalog.entries.first(where: { $0.id == "plain-chronology" })!
+        let evidencePage = bestEvidencePage(
+            for: selected,
+            pages: signals.recentPages,
+            scorer: scorer
+        )
+        let excerpt = evidencePage.flatMap { clippedEvidence(from: $0) }
+        let values: [String: String] = [
+            "excerpt": excerpt ?? "one small thing happened",
+            "person": signals.personName ?? "someone",
+            "place": signals.placeName ?? "this place",
+            "weather": signals.weather ?? "the weather outside",
+            "thread": signals.recurringThread ?? "something unfinished"
+        ]
+        return JournalPromptSelection(
+            entry: selected,
+            question: replacingPlaceholders(in: selected.question, values: values),
+            deeperQuestion: replacingPlaceholders(in: selected.deeperQuestion, values: values),
+            selector: scorer == nil ? "context-lexical" : "context-semantic-lexical",
+            evidencePageID: selected.context == .recentPage ? evidencePage?.id : nil,
+            evidenceExcerpt: selected.context == .recentPage ? excerpt : nil,
+            contextLabel: contextLabel(for: selected.context, signals: signals)
+        )
+    }
+
+    private static func signals(day: BookDay, inputs: BookSourceInputs, now: Date) -> Signals {
+        let cutoff = now.addingTimeInterval(-21 * 86_400)
+        let pages = Dictionary(
+            (inputs.days.suffix(21).flatMap(\.capturedPages) + day.capturedPages)
+                .filter { $0.createdAt >= cutoff }
+                .map { ($0.id, $0) },
+            uniquingKeysWith: { first, second in first.createdAt >= second.createdAt ? first : second }
+        ).values.sorted { left, right in
+            if left.createdAt == right.createdAt { return left.id < right.id }
+            return left.createdAt > right.createdAt
+        }
+        let authored = pages.filter {
+            $0.origin == .userAuthored && $0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil
+        }
+        let pageText = authored.prefix(14).map { page in
+            "\(page.userInput) \(page.tags.joined(separator: " ")) \(page.resolvedAttentionFingerprint.patternText)"
+        }
+        let usableFacts = inputs.selfFacts
+            .filter { $0.usePermission != .doNotUse }
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .prefix(5)
+            .map { "\($0.answer) \($0.tags.joined(separator: " "))" }
+        let recurring = inputs.themes.sorted { $0.strength > $1.strength }.first?.name.nonEmpty
+            ?? inputs.clusters.sorted { $0.strength > $1.strength }.first?.name.nonEmpty
+        let person = inputs.people.threads
+            .filter { !$0.resting }
+            .sorted { left, right in
+                if left.lastMentionDay == right.lastMentionDay { return left.name < right.name }
+                return left.lastMentionDay > right.lastMentionDay
+            }
+            .first?.name.nonEmpty
+        let place = inputs.currentLocationLabel?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            ?? inputs.nearbyAnchor?.anchor.name.nonEmpty
+        let weather = inputs.weather?.phrase.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            ?? inputs.enchantedWeather?.summary.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        let queryPieces = pageText + usableFacts + [person, place, weather, recurring].compactMap { $0 }
+        let query = String(queryPieces.joined(separator: ". ").prefix(2_400))
+        return Signals(
+            recentPages: pages,
+            personName: person,
+            placeName: place,
+            weather: weather.map { String($0.prefix(140)) },
+            recurringThread: recurring,
+            query: query,
+            queryWords: SemanticKeepEcho.contentWords(in: query)
+        )
+    }
+
+    private static func contextAvailable(_ context: JournalPromptContext, signals: Signals) -> Bool {
+        switch context {
+        case .none: return true
+        case .recentPage: return signals.recentPages.contains { clippedEvidence(from: $0) != nil }
+        case .person: return signals.personName != nil
+        case .place: return signals.placeName != nil
+        case .weather: return signals.weather != nil
+        case .recurringThread: return signals.recurringThread != nil
+        }
+    }
+
+    private static func bestEvidencePage(
+        for entry: JournalPromptEntry,
+        pages: [BookPage],
+        scorer: StacksSemanticScoring?
+    ) -> BookPage? {
+        let candidates = pages.filter { clippedEvidence(from: $0) != nil }.prefix(16)
+        let hintWords = SemanticKeepEcho.contentWords(in: entry.semanticDocument)
+        return candidates.enumerated().map { index, page in
+            let text = clippedEvidence(from: page) ?? ""
+            let words = SemanticKeepEcho.contentWords(in: "\(text) \(page.tags.joined(separator: " ")) \(page.resolvedAttentionFingerprint.patternText)")
+            let lexical = hintWords.intersection(words).count * 8
+            let semantic = scorer?.similarity(between: entry.semanticDocument, and: text) ?? 0
+            return (page, lexical + Int((semantic * 40).rounded()) + max(0, 8 - index))
+        }.max { left, right in
+            if left.1 == right.1 { return left.0.createdAt < right.0.createdAt }
+            return left.1 < right.1
+        }?.0
+    }
+
+    private static func clippedEvidence(from page: BookPage) -> String? {
+        let input = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !input.isEmpty else { return nil }
+        let firstLine = input.split(separator: "\n", omittingEmptySubsequences: true).first.map(String.init) ?? input
+        let oneSentence = firstLine.bookPreviewSentenceLimit(1)
+        guard !oneSentence.isEmpty else { return nil }
+        if oneSentence.count <= 120 { return oneSentence }
+        let prefix = oneSentence.prefix(120)
+        let end = prefix.lastIndex(of: " ") ?? prefix.endIndex
+        return String(prefix[..<end]) + "\u{2026}"
+    }
+
+    private static func recentTagValues(prefix: String, pages: [BookPage]) -> [String] {
+        pages.flatMap(\.tags).compactMap { tag in
+            guard tag.hasPrefix(prefix) else { return nil }
+            return String(tag.dropFirst(prefix.count))
+        }
+    }
+
+    private static func eveningBoost(_ family: JournalPromptFamily) -> Int {
+        switch family {
+        case .wonder, .connection, .traditional: return 10
+        case .moment, .listening, .rest: return 8
+        case .authorship, .shadow, .mischief: return 5
+        }
+    }
+
+    private static func rankedBefore(
+        _ left: (entry: JournalPromptEntry, score: Int, similarity: Double?),
+        _ right: (entry: JournalPromptEntry, score: Int, similarity: Double?)
+    ) -> Bool {
+        if left.score != right.score { return left.score > right.score }
+        if left.similarity != right.similarity {
+            return (left.similarity ?? 0) > (right.similarity ?? 0)
+        }
+        return left.entry.id < right.entry.id
+    }
+
+    private static func replacingPlaceholders(in text: String, values: [String: String]) -> String {
+        values.reduce(text) { partial, entry in
+            partial.replacingOccurrences(of: "{\(entry.key)}", with: entry.value)
+        }
+    }
+
+    private static func contextLabel(for context: JournalPromptContext, signals: Signals) -> String? {
+        switch context {
+        case .none, .recentPage: return nil
+        case .person: return signals.personName
+        case .place: return signals.placeName
+        case .weather: return signals.weather
+        case .recurringThread: return signals.recurringThread
+        }
+    }
+}
+
 struct DiaryPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .diary)
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        [
+        let scorer = inputs.semanticPassageSelectionEnabled ? SemanticKeepEcho.keepTimeScorer : nil
+        let selection = JournalPromptSelector.select(
+            day: day,
+            inputs: inputs,
+            context: context,
+            now: now,
+            scorer: scorer
+        )
+        let hour = Calendar.current.component(.hour, from: now)
+        let isEvening = (17..<22).contains(hour)
+        let isVeryLate = hour >= 22 || hour < 5
+        let score: Int
+        if isVeryLate {
+            score = context.distress.isActive ? 58 : 50
+        } else if isEvening {
+            score = context.distress.isActive ? 72 : 70
+        } else {
+            score = context.distress.isActive ? 70 : 58
+        }
+
+        var metadata: [String: String] = [
+            "source": source.id,
+            "placeholder": selection.entry.placeholder,
+            "journalPromptID": selection.entry.id,
+            "journalFamily": selection.entry.family.rawValue,
+            "journalDeeperQuestion": selection.deeperQuestion,
+            "journalSelector": selection.selector,
+            "journalSemanticallyAware": "true",
+            "journalAuthorID": selection.entry.authorEntityID ?? "the-book",
+            "journalAuthorName": selection.entry.authorName ?? "The Book",
+            "tags": [
+                "journal",
+                "journal-page",
+                "private",
+                "journal-prompt:\(selection.entry.id)",
+                "journal-family:\(selection.entry.family.rawValue)",
+                "journal-author:\(selection.entry.authorEntityID ?? "the-book")"
+            ].joined(separator: ",")
+        ]
+        if let evidencePageID = selection.evidencePageID {
+            metadata["journalEvidencePageID"] = evidencePageID
+        }
+        if let evidenceExcerpt = selection.evidenceExcerpt {
+            metadata["journalEvidenceExcerpt"] = evidenceExcerpt
+        }
+        if let contextLabel = selection.contextLabel {
+            metadata["journalContextLabel"] = contextLabel
+        }
+        let authorLead = selection.entry.authorLead.map { "\($0)\n\n" } ?? ""
+        let body = "\(authorLead)\(selection.question)\n\nOne sentence is enough."
+        let detail: String
+        if let author = selection.entry.authorName {
+            detail = "\(author) left one question in the margin. Answer briefly or turn the page in your own time."
+        } else if isVeryLate {
+            detail = "A small question only. The Book would rather you sleep than perform an insight."
+        } else {
+            detail = "The Book chose one question from the shape of the day. Answer briefly or keep going."
+        }
+
+        return [
             SurfacePage(
-                id: "\(source.id)-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 2))",
+                id: "\(source.id)-journal-\(selection.entry.id)-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 6))",
                 type: .diary,
                 sourceID: source.id,
                 intent: .capture,
                 renderStyle: .promptCard,
-                score: context.distress.isActive ? 74 : 60,
-                reason: context.distress.isActive ? "A quiet private page can just hold right now without trying to fix it." : "The Book has a spot open for one honest note about right now.",
-                prompt: "What's happening right now?",
-                detail: "Write whatever you're feeling or thinking this very second. It doesn't have to be tidy.",
+                score: score,
+                reason: context.distress.isActive
+                    ? "A private Journal Page can hold one true thing without trying to repair it."
+                    : isEvening
+                    ? "Evening gives the Book enough of the day to ask one unusually good question."
+                    : "The Book found a question that fits the material already gathering in the margins.",
+                prompt: selection.question,
+                detail: detail,
                 payload: BookPagePayload(
-                    headline: "Diary Page",
-                    body: "Write what you are experiencing, thinking, or feeling right now, in this moment.",
-                    metadata: [
-                        "source": source.id,
-                        "placeholder": "Right now I am noticing...\nI am thinking...\nI am feeling...",
-                        "tags": "diary,page,private,present-moment"
-                    ]
+                    headline: selection.entry.title,
+                    body: body,
+                    metadata: metadata
                 )
             )
         ]
@@ -860,7 +1472,79 @@ struct PlainPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .plainPage)
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        []
+        let pages = Self.pagewrightSeedPages(from: inputs.days, limit: 3)
+        guard pages.count >= 3 else { return [] }
+
+        let slot = SurfaceCadence.slotID(for: now, hours: 72)
+        return [
+            SurfacePage(
+                id: "pagewright-invitation-\(slot)",
+                type: .plainPage,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .promptCard,
+                score: context.distress.isActive ? 34 : 67,
+                reason: "The Pagewright has enough of the reader's own material to begin a spread.",
+                prompt: "The Pagewright Has Laid Things Out",
+                detail: "A few things you kept are already waiting on the canvas — photographs, illuminated plates, and scraps from the Book. Move them until they belong together.",
+                payload: BookPagePayload(
+                    headline: "A Pagewright Spread Is Waiting",
+                    body: "The Pagewright has been through the kept pages with clean hands and questionable scissors.\n\nA few pieces are already on the table. Open the spread and arrange what belongs together.",
+                    metadata: [
+                        "source": "pagewright",
+                        "opensPagewright": "true",
+                        "pagewrightPageIDs": pages.map(\.id).joined(separator: ","),
+                        "symbol": "scissors",
+                        "tags": "pagewright,scrapbook,kept-pages,invitation"
+                    ]
+                )
+            )
+        ]
+    }
+
+    static func pagewrightSeedPages(from days: [BookDay], limit: Int = 3) -> [BookPage] {
+        let candidates = days
+            .flatMap(\.pages)
+            .filter {
+                $0.type != .welcome
+                    && $0.type != .helpTips
+                    && ($0.pagewrightDefaultScrapText != nil || Self.hasPagewrightVisual($0))
+            }
+            .sorted { lhs, rhs in
+                let lhsVisual = Self.hasPagewrightVisual(lhs)
+                let rhsVisual = Self.hasPagewrightVisual(rhs)
+                if lhsVisual != rhsVisual { return lhsVisual }
+                let lhsIlluminated = lhs.type == .illuminatedPhoto
+                let rhsIlluminated = rhs.type == .illuminatedPhoto
+                if lhsIlluminated != rhsIlluminated { return lhsIlluminated }
+                return lhs.createdAt > rhs.createdAt
+            }
+
+        var selected: [BookPage] = []
+        var selectedTypes: Set<BookPageType> = []
+        for page in candidates where selected.count < limit {
+            if selected.count < 3 || !selectedTypes.contains(page.type) {
+                selected.append(page)
+                selectedTypes.insert(page.type)
+            }
+        }
+        if selected.count < limit {
+            selected.append(contentsOf: candidates.filter { candidate in
+                !selected.contains(where: { $0.id == candidate.id })
+            }.prefix(limit - selected.count))
+        }
+        return selected
+    }
+
+    private static func hasPagewrightVisual(_ page: BookPage) -> Bool {
+        page.mediaAssets.contains { asset in
+            switch asset.kind {
+            case .bundledImage, .renderedImageFile, .photoLibraryAsset:
+                return true
+            case .audioFile:
+                return false
+            }
+        }
     }
 }
 
@@ -1293,6 +1977,384 @@ struct BookOfYouPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+enum ReturnedStackRole: String, Codable, CaseIterable {
+    case rhyme
+    case longMemory
+    case wildCard
+
+    var title: String {
+        switch self {
+        case .rhyme: return "The Rhyme"
+        case .longMemory: return "The Long Memory"
+        case .wildCard: return "The Wild Card"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .rhyme: return "Something in the recent margins called this back."
+        case .longMemory: return "The Stacks refuse to let a long silence become disappearance."
+        case .wildCard: return "One page returns without having to justify itself."
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .rhyme: return "point.3.connected.trianglepath.dotted"
+        case .longMemory: return "lamp.desk"
+        case .wildCard: return "sparkles"
+        }
+    }
+}
+
+struct ReturnedStackCard: Identifiable, Equatable {
+    var page: BookPage
+    var role: ReturnedStackRole
+    var reason: String
+    var tinyAction: String
+
+    var id: String { page.id }
+}
+
+/// The daily ritual behind Returned From the Stacks.
+///
+/// Its three chairs have different laws: a recent rhyme, a page that has waited
+/// longest for light, and one sanctioned surprise. Selection is deterministic
+/// for the calendar day and persisted by `BookArchiveDatabase`, so opening the
+/// fold does not reshuffle it. Recent returns rest before they may be selected
+/// again, with a shorter emergency rest only when a young archive would
+/// otherwise leave a chair empty.
+enum ReturnedStacksRitual {
+    static let surfacePrefix = "returned-stacks"
+    static let preferredRestDays = 14
+    static let emergencyRestDays = 3
+
+    private struct Connection {
+        var score: Int
+        var reason: String
+    }
+
+    static func surfaceName(role: ReturnedStackRole, index: Int) -> String {
+        "\(surfacePrefix):\(index):\(role.rawValue)"
+    }
+
+    static func isEligible(_ page: BookPage) -> Bool {
+        let excludedTypes: Set<BookPageType> = [
+            .mood, .rest, .body, .fuel, .weather,
+            .bookOfYou, .bookRemembered, .bookPocket,
+            .helpTips, .welcome, .inventory, .bindery,
+            .radio, .calendar, .todaysSky
+        ]
+        guard !excludedTypes.contains(page.type),
+              page.privacy != .localSensitive,
+              let preview = page.archivePreviewText?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              preview.count >= 12 else {
+            return false
+        }
+        return true
+    }
+
+    static func cards(
+        from days: [BookDay],
+        history: [BookArchiveResurfacing],
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        limit: Int = 3
+    ) -> [ReturnedStackCard] {
+        guard limit > 0 else { return [] }
+        let startOfToday = calendar.startOfDay(for: now)
+        let allPages = days
+            .flatMap(\.pages)
+            .filter { $0.createdAt < startOfToday && isEligible($0) }
+        let pagesByID = Dictionary(uniqueKeysWithValues: allPages.map { ($0.id, $0) })
+
+        let todaysHistory = history
+            .filter {
+                $0.surface.hasPrefix(surfacePrefix)
+                    && $0.surfacedAt >= startOfToday
+                    && $0.surfacedAt <= now
+            }
+            .sorted { historyIndex($0.surface) < historyIndex($1.surface) }
+        var cards = todaysHistory.compactMap { event -> ReturnedStackCard? in
+            guard let page = pagesByID[event.pageID] else { return nil }
+            return ReturnedStackCard(
+                page: page,
+                role: historyRole(event.surface) ?? .wildCard,
+                reason: event.reason,
+                tinyAction: tinyAction(for: page)
+            )
+        }
+        if cards.count >= limit {
+            return Array(cards.prefix(limit))
+        }
+
+        let selectedIDs = Set(cards.map(\.page.id))
+        let returnedAtByPageID = history
+            .filter { $0.surface.hasPrefix(surfacePrefix) }
+            .reduce(into: [String: Date]()) { result, event in
+                result[event.pageID] = max(result[event.pageID] ?? .distantPast, event.surfacedAt)
+            }
+        let references = referencePages(from: days, before: now, calendar: calendar)
+        let preferredCutoff = calendar.date(byAdding: .day, value: -preferredRestDays, to: now)
+            ?? now.addingTimeInterval(TimeInterval(-preferredRestDays) * 86_400)
+        let emergencyCutoff = calendar.date(byAdding: .day, value: -emergencyRestDays, to: now)
+            ?? now.addingTimeInterval(TimeInterval(-emergencyRestDays) * 86_400)
+
+        func available(afterRestingSince cutoff: Date) -> [BookPage] {
+            allPages.filter { page in
+                !selectedIDs.contains(page.id)
+                    && (returnedAtByPageID[page.id] ?? .distantPast) < cutoff
+            }
+        }
+
+        var pool = available(afterRestingSince: preferredCutoff)
+        if pool.count < limit - cards.count {
+            pool = available(afterRestingSince: emergencyCutoff)
+        }
+        if pool.count < limit - cards.count {
+            pool = allPages.filter { !selectedIDs.contains($0.id) }
+        }
+
+        let missingRoles = ReturnedStackRole.allCases.filter { role in
+            !cards.contains { $0.role == role }
+        }
+        var usedTypes = Set(cards.map(\.page.type))
+        for role in missingRoles where cards.count < limit {
+            guard !pool.isEmpty else { break }
+            let choice: BookPage
+            let reason: String
+            switch role {
+            case .rhyme:
+                let ranked = pool
+                    .map { ($0, connection(for: $0, references: references, now: now, calendar: calendar)) }
+                    .sorted { left, right in
+                        if left.1.score == right.1.score {
+                            return stableDailyRank(pageID: left.0.id, now: now, calendar: calendar)
+                                < stableDailyRank(pageID: right.0.id, now: now, calendar: calendar)
+                        }
+                        return left.1.score > right.1.score
+                    }
+                guard let best = ranked.first else { continue }
+                choice = best.0
+                reason = best.1.reason
+            case .longMemory:
+                choice = pool.sorted { left, right in
+                    let leftReturn = returnedAtByPageID[left.id] ?? .distantPast
+                    let rightReturn = returnedAtByPageID[right.id] ?? .distantPast
+                    if leftReturn == rightReturn { return left.createdAt < right.createdAt }
+                    return leftReturn < rightReturn
+                }[0]
+                reason = longMemoryReason(
+                    for: choice,
+                    lastReturnedAt: returnedAtByPageID[choice.id],
+                    now: now,
+                    calendar: calendar
+                )
+            case .wildCard:
+                let diverse = pool.filter { !usedTypes.contains($0.type) }
+                let choices = diverse.isEmpty ? pool : diverse
+                choice = choices.min {
+                    stableDailyRank(pageID: $0.id, now: now, calendar: calendar)
+                        < stableDailyRank(pageID: $1.id, now: now, calendar: calendar)
+                } ?? choices[0]
+                reason = wildCardReason(for: choice, now: now, calendar: calendar)
+            }
+
+            cards.append(
+                ReturnedStackCard(
+                    page: choice,
+                    role: role,
+                    reason: reason,
+                    tinyAction: tinyAction(for: choice)
+                )
+            )
+            pool.removeAll { $0.id == choice.id }
+            usedTypes.insert(choice.type)
+        }
+        return Array(cards.prefix(limit))
+    }
+
+    private static func referencePages(
+        from days: [BookDay],
+        before now: Date,
+        calendar: Calendar
+    ) -> [BookPage] {
+        let recentCutoff = calendar.date(byAdding: .day, value: -4, to: now)
+            ?? now.addingTimeInterval(-4 * 86_400)
+        return days
+            .flatMap(\.pages)
+            .filter {
+                $0.createdAt >= recentCutoff
+                    && $0.createdAt <= now
+                    && isEligible($0)
+            }
+            .sorted { $0.createdAt > $1.createdAt }
+            .prefix(12)
+            .map { $0 }
+    }
+
+    private static func connection(
+        for page: BookPage,
+        references: [BookPage],
+        now: Date,
+        calendar: Calendar
+    ) -> Connection {
+        if let semantic = references.first(where: {
+            $0.tags.contains("\(SemanticKeepEcho.sourceTagPrefix)\(page.id)")
+        }), let line = semantic.tags
+            .first(where: { $0.hasPrefix(SemanticKeepEcho.lineTagPrefix) })
+            .map({ String($0.dropFirst(SemanticKeepEcho.lineTagPrefix.count)) })
+            .flatMap(\.nonEmpty) {
+            return Connection(score: 140, reason: line)
+        }
+
+        let pageWords = meaningfulWords(in: page.archivePreviewText ?? "")
+        let wordMatches = references.compactMap { reference -> (BookPage, String)? in
+            let overlap = pageWords.intersection(meaningfulWords(in: reference.archivePreviewText ?? ""))
+            guard let word = overlap.sorted(by: {
+                if $0.count == $1.count { return $0 < $1 }
+                return $0.count > $1.count
+            }).first else { return nil }
+            return (reference, word)
+        }
+        if let match = wordMatches.sorted(by: { $0.1.count > $1.1.count }).first {
+            let when = relativeDay(match.0.createdAt, now: now, calendar: calendar)
+            return Connection(
+                score: 90 + match.1.count,
+                reason: "\(when) used “\(match.1)” again. The Stacks heard the rhyme."
+            )
+        }
+
+        if let pageContext = page.context {
+            for reference in references {
+                guard let referenceContext = reference.context else { continue }
+                let sharedWeather = Set(pageContext.weatherTags).intersection(referenceContext.weatherTags)
+                if let weather = sharedWeather.sorted().first {
+                    return Connection(
+                        score: 76,
+                        reason: "\(relativeDay(reference.createdAt, now: now, calendar: calendar)) carried \(weather) too—the same weather that pressed this page."
+                    )
+                }
+                if let anchor = pageContext.nearbyAnchorID,
+                   anchor == referenceContext.nearbyAnchorID {
+                    return Connection(
+                        score: 70,
+                        reason: "A recent page was kept near the same Anchor. The place remembered this one."
+                    )
+                }
+                if pageContext.dayPart == referenceContext.dayPart {
+                    return Connection(
+                        score: 42,
+                        reason: "A recent \(referenceContext.dayPart) page struck the same hour-bell as this one."
+                    )
+                }
+            }
+        }
+
+        let month = calendar.component(.month, from: page.createdAt)
+        if month == calendar.component(.month, from: now) {
+            return Connection(
+                score: 36,
+                reason: "The year has reached the month that first held this page. The light is leaning the same way."
+            )
+        }
+        let weekday = calendar.component(.weekday, from: page.createdAt)
+        if weekday == calendar.component(.weekday, from: now) {
+            return Connection(
+                score: 30,
+                reason: "This was written on the same turn of the week. The calendar left the door unlatched."
+            )
+        }
+        return Connection(
+            score: 20 + (page.usedInBookOfYou ? 8 : 0),
+            reason: "A recent margin and this page share no obvious word. The Book is keeping the quieter rhyme."
+        )
+    }
+
+    private static func longMemoryReason(
+        for page: BookPage,
+        lastReturnedAt: Date?,
+        now: Date,
+        calendar: Calendar
+    ) -> String {
+        if let lastReturnedAt {
+            let days = ageDays(from: lastReturnedAt, to: now, calendar: calendar)
+            return "This page has rested \(days) day\(days == 1 ? "" : "s") since its last return. Its lamp is due."
+        }
+        let days = ageDays(from: page.createdAt, to: now, calendar: calendar)
+        return "This page has waited \(days) day\(days == 1 ? "" : "s") without once being called upstairs."
+    }
+
+    private static func wildCardReason(for page: BookPage, now: Date, calendar: Calendar) -> String {
+        let month = page.createdAt.formatted(.dateTime.month(.wide))
+        let year = calendar.component(.year, from: page.createdAt)
+        let sameYear = year == calendar.component(.year, from: now)
+        let when = sameYear ? month : "\(month) \(year)"
+        return "One return each day is chosen by chance, so the Book cannot become predictable. Today’s fell open to \(when)."
+    }
+
+    private static func tinyAction(for page: BookPage) -> String {
+        let text = "\(page.archivePreviewText ?? "") \(page.tags.joined(separator: " "))".lowercased()
+        if text.contains("walk") || text.contains("outside") || text.contains("trail") {
+            return "Step to the nearest threshold and see what the old page notices now."
+        }
+        if text.contains("coffee") || text.contains("tea") || text.contains("cup") {
+            return "Let your next cup become completely real in your hand before the first sip."
+        }
+        if text.contains("friend") || text.contains("family") || page.type == .letter {
+            return "Send one small warmth toward the person in this page—even if it stays silent."
+        }
+        if page.type == .wonderCompass || page.type == .location {
+            return "Look up and name one direction the day could still take."
+        }
+        return "Look up from the Book and find one physical detail this page would understand."
+    }
+
+    private static func meaningfulWords(in text: String) -> Set<String> {
+        Set(
+            text.lowercased()
+                .split { !$0.isLetter && !$0.isNumber }
+                .map(String.init)
+                .filter { $0.count >= 5 && !KeepMarginalia.stopWords.contains($0) }
+        )
+    }
+
+    private static func relativeDay(_ date: Date, now: Date, calendar: Calendar) -> String {
+        if calendar.isDateInToday(date) { return "Today’s margin" }
+        if calendar.isDateInYesterday(date) { return "Yesterday’s margin" }
+        let days = ageDays(from: date, to: now, calendar: calendar)
+        return "A margin from \(days) days ago"
+    }
+
+    private static func ageDays(from date: Date, to now: Date, calendar: Calendar) -> Int {
+        max(
+            1,
+            calendar.dateComponents(
+                [.day],
+                from: calendar.startOfDay(for: date),
+                to: calendar.startOfDay(for: now)
+            ).day ?? 1
+        )
+    }
+
+    private static func stableDailyRank(pageID: String, now: Date, calendar: Calendar) -> UInt64 {
+        KeepMarginalia.seed(for: "\(BookDay.id(for: now, calendar: calendar))-\(pageID)-returned-stacks")
+    }
+
+    private static func historyIndex(_ surface: String) -> Int {
+        let parts = surface.split(separator: ":")
+        guard parts.count >= 2 else { return .max }
+        return Int(parts[1]) ?? .max
+    }
+
+    private static func historyRole(_ surface: String) -> ReturnedStackRole? {
+        let parts = surface.split(separator: ":")
+        guard let raw = parts.last else { return nil }
+        return ReturnedStackRole(rawValue: String(raw))
+    }
+}
+
 struct BookRememberedPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .bookRemembered)
     /// How long a returned archive page rests before the Book may return it
@@ -1341,8 +2403,8 @@ struct BookRememberedPageSourceAdapter: BookPageSourceAdapter {
 
 /// Surfaces "The Book's Pocket" now and then, once a few keepsakes have gathered
 /// from pages the reader swiped away. The surface id is keyed to the keepsake
-/// count, so a Pocket page that's been seen or dismissed only returns once a new
-/// keepsake bumps the count — the page waits for the pocket to fill again.
+/// count, so adding a keepsake creates a fresh Pocket Page even while an earlier
+/// pocketful is resting after dismissal.
 struct BookPocketPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .bookPocket)
 
@@ -1358,13 +2420,14 @@ struct BookPocketPageSourceAdapter: BookPageSourceAdapter {
 
         let shown = Array(pocket.newestFirst.prefix(Self.shownKeepsakes))
         let latest = shown.first
-        // Keyed to the count so the same pocketful never re-surfaces once handled.
+        // Keyed to the count so a newly filled pocket is distinct from the last.
         let surfaceID = "\(source.id)-\(pocket.count)"
         let score = min(60, 40 + pocket.count * 2)
         let serialized = shown.map { keepsake in
             [keepsake.glyph, keepsake.object, keepsake.pageType.shortTitle, "\(keepsake.foundAt.timeIntervalSince1970)"]
                 .joined(separator: "\u{1F}")
         }.joined(separator: "\n")
+        let richKeepsakes = PocketKeepsakeArchive.encode(shown)
 
         return [
             SurfacePage(
@@ -1384,6 +2447,7 @@ struct BookPocketPageSourceAdapter: BookPageSourceAdapter {
                     metadata: [
                         "source": source.id,
                         "pocketItems": serialized,
+                        PocketKeepsakeArchive.metadataKey: richKeepsakes,
                         "pocketTotal": "\(pocket.count)",
                         "tags": "book-pocket,keepsake,parting-whisper,local-memory"
                     ]
@@ -1397,8 +2461,12 @@ struct BookPocketPageSourceAdapter: BookPageSourceAdapter {
     }
 
     static func body(for keepsakes: [PocketKeepsake], total: Int) -> String {
-        let opener = "I turned out my Pocket onto the desk. These are the little things pages left behind on their way off — kept, because keeping small things is what I am for."
-        let lines = keepsakes.map { "\u{2022} \($0.object), left by the \($0.pageType.shortTitle.lowercased()) page" }
+        let opener = "I turned out my Pocket onto the desk. These are real fragments of the pages that left: their words, their pictures, and where they came from — kept, because letting a Page go should not make it vanish without a trace."
+        let lines = keepsakes.map { keepsake in
+            let title = keepsake.title?.nonEmpty ?? keepsake.object
+            let excerpt = keepsake.excerpt?.nonEmpty.map { " — \u{201C}\($0)\u{201D}" } ?? ""
+            return "\u{2022} \(title), from the \(keepsake.pageType.shortTitle.lowercased()) Page\(excerpt)"
+        }
         let more = total > keepsakes.count ? "\n\n(\(total - keepsakes.count) more wait deeper in the lining.)" : ""
         return opener + "\n\n" + lines.joined(separator: "\n") + more
     }
@@ -1513,7 +2581,20 @@ enum FirstReading {
     /// Body and fuel logs stay out of the Book's commentary, matching
     /// `EditionCurator` and `KeepMarginalia`.
     static func reflectablePages(in inputs: BookSourceInputs, today: BookDay) -> [BookPage] {
-        (inputs.days + [today])
+        var days = inputs.days
+        if let existing = days.firstIndex(where: { $0.id == today.id }) {
+            days[existing] = today
+        } else {
+            days.append(today)
+        }
+        return reflectablePages(in: days)
+    }
+
+    /// The same privacy boundary over an already assembled Book. Keeping this
+    /// overload here lets the app detect the exact Keep that wakes the First
+    /// Reading without reimplementing its eligibility rules in SwiftUI.
+    static func reflectablePages(in days: [BookDay]) -> [BookPage] {
+        days
             .flatMap(\.capturedPages)
             .filter { !EditionCurator.defaultPrivateTypes.contains($0.type) }
     }
@@ -1939,15 +3020,25 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .bookNotices)
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        var pages: [SurfacePage] = []
+        // Relationship play does not require a mature archive. Once the reader
+        // has deliberately opened a person thread, the Book can offer one
+        // fitting door into ordinary life. Distress and witness-only remain
+        // hard stops.
+        if !context.distress.isActive {
+            let contextQuestions = personContextQuestionSurfaces(for: day, inputs: inputs, now: now)
+            pages += contextQuestions
+            if contextQuestions.isEmpty {
+                pages += personPlaySurfaces(for: day, inputs: inputs, now: now)
+            }
+        }
         // Patterns, namings, and wagers only mean something once the library has
         // enough kept pages to find a pattern in.
-        guard inputs.libraryReadyForReflectivePages(includingToday: day, now: now) else { return [] }
-        var pages: [SurfacePage] = []
+        guard inputs.libraryReadyForReflectivePages(includingToday: day, now: now) else { return pages }
         pages += namingSurfaces(for: day, inputs: inputs, now: now)
         pages += wagerSurfaces(for: day, inputs: inputs, now: now)
         pages += watchedThreadSurfaces(for: day, inputs: inputs, now: now)
         pages += learningSurfaces(for: day, inputs: inputs, now: now)
-        pages += hiddenMagicWaysOfSeeingSurfaces(for: day, inputs: inputs, now: now)
         pages += howYouSeeSurfaces(for: day, inputs: inputs, now: now)
         // The People of the Book speak only on a gentle desk: suggestions and
         // absence observations both stay silent under distress.
@@ -2289,63 +3380,6 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
     /// Findings are allowed to become an opinion only after the reader has
     /// supplied repeat evidence on separate days. The Page asks for
     /// confirmation; it never turns a practice history into a diagnosis.
-    private func hiddenMagicWaysOfSeeingSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        guard !didNoticeToday(day) else { return [] }
-        let allDays = inputs.days + [day]
-        let profile = HiddenMagicAttentionProfile.make(days: allDays)
-        guard let reading = profile.wayOfSeeing else { return [] }
-        let observationID = reading.observationKey
-        guard !Self.spokenSignalIDs(days: allDays, within: 90, now: now).contains(observationID) else { return [] }
-
-        let evidence: [BookPage] = reading.evidencePages
-        let cards: [NoticePatternCard] = evidence.map { page in
-            NoticePatternCard(
-                title: Self.connectionDateFormatter.string(from: page.createdAt),
-                text: Self.connectionExcerpt(from: page),
-                symbol: reading.sense.symbolName
-            )
-        }
-        let body = """
-        I have been wondering about a way you see.
-
-        \(reading.claim)
-
-        I am not guessing from a profile. I am looking at things you actually went out and found, including the pages below.
-
-        \(reading.question)
-        """
-        return [SurfacePage(
-            id: "\(source.id)-\(observationID)-\(day.id)",
-            type: .bookNotices,
-            sourceID: source.id,
-            intent: .reflect,
-            renderStyle: .loreLetter,
-            score: 89,
-            reason: "Several real-world findings suggest a confirmable way of seeing.",
-            prompt: "The Book has been wondering about the way you see.",
-            detail: reading.claim,
-            payload: BookPagePayload(
-                headline: reading.title,
-                body: body,
-                metadata: [
-                    "source": source.id,
-                    "howYouSee": "true",
-                    "hiddenMagicWayOfSeeing": "true",
-                    "hiddenMagicSense": reading.sense.rawValue,
-                    "connectionNarrative": "true",
-                    "connectionKind": "ways-of-seeing",
-                    "connectionID": observationID,
-                    "observationKey": observationID,
-                    "magicMomentEligible": "true",
-                    "evidencePageIDs": evidence.map { $0.id }.joined(separator: ","),
-                    "tinyPatternCards": Self.encodeNoticePatternCards(cards),
-                    "feedbackPrompt": "Did the Book read this right?",
-                    "tags": "book-notices,how-you-see,hidden-magic-way-of-seeing,spoke:\(observationID),local-memory"
-                ]
-            )
-        )]
-    }
-
     private func howYouSeeSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard !didNoticeToday(day) else { return [] }
         let allDays = inputs.days + [day]
@@ -2390,71 +3424,10 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         )]
     }
 
-    private func waysOfSeeingSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        let profile = HiddenMagicAttentionProfile.make(days: inputs.days + [day])
-        guard let reading = profile.wayOfSeeing else { return [] }
-        let excerpts = reading.evidencePages.map { page in
-            page.archivePreviewText?.bookPreviewSentenceLimit(1).nonEmpty
-                ?? (page.mediaAssets.contains(where: { $0.kind == .audioFile })
-                    ? "A finding kept in the reader's voice."
-                    : "A finding kept as an image.")
-        }
-        let cards = zip(reading.evidencePages, excerpts).map { page, excerpt in
-            NoticePatternCard(
-                title: "\(page.type.shortTitle) · \(Self.connectionDateFormatter.string(from: page.createdAt))",
-                text: excerpt,
-                symbol: reading.sense.symbolName
-            )
-        }
-        let evidenceLines = zip(reading.evidencePages, excerpts).map { page, excerpt in
-            "On \(Self.connectionDateFormatter.string(from: page.createdAt)), a \(page.type.shortTitle.lowercased()) Page kept: “\(excerpt)”"
-        }
-        let body = """
-        I am not giving you a personality label. I am showing you a trail of things you actually found.
-
-        \(evidenceLines.joined(separator: "\n\n"))
-
-        Laid together, they suggest this: \(reading.claim)
-
-        This may be a real way you see, or only the lens these particular days needed. You get the final word.
-
-        \(reading.question)
-        """
-        return [SurfacePage(
-            id: "\(source.id)-ways-of-seeing-\(reading.sense.rawValue)-\(reading.tier)-\(day.id)",
-            type: .bookNotices,
-            sourceID: source.id,
-            intent: .reflect,
-            renderStyle: .loreLetter,
-            score: min(92, 84 + reading.tier * 2),
-            reason: "Several completed real-world lenses point toward the same way of noticing: \(reading.claim)",
-            prompt: "The Book has been studying how you find hidden magic.",
-            detail: reading.claim,
-            payload: BookPagePayload(
-                headline: reading.title,
-                body: body,
-                metadata: [
-                    "source": source.id,
-                    "howYouSee": "true",
-                    "hiddenMagicWayOfSeeing": "true",
-                    "hiddenMagicSense": reading.sense.rawValue,
-                    "connectionNarrative": "true",
-                    "connectionKind": "ways-of-seeing",
-                    "connectionID": reading.observationKey,
-                    "observationKey": reading.observationKey,
-                    "magicMomentEligible": "true",
-                    "evidencePageIDs": reading.evidencePages.map(\.id).joined(separator: ","),
-                    "tinyPatternCards": Self.encodeNoticePatternCards(cards),
-                    "feedbackPrompt": reading.question,
-                    "tags": "book-notices,how-you-see,hidden-magic,ways-of-seeing,local-memory"
-                ]
-            )
-        )]
-    }
-
     private func learningSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard !didLearnToday(day) else { return [] }
         let metrics = inputs.readerLearning.metrics(days: inputs.days + [day], now: now)
+        let momentum = inputs.readerLearning.momentumMetrics()
         guard metrics.meaningfulEventCount >= 4 else { return [] }
         let insights = inputs.readerLearning.insights(now: now, limit: 4)
         guard !insights.isEmpty else { return [] }
@@ -2481,6 +3454,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
                         "source": source.id,
                         "bookLearning": "true",
                         "learningMetrics": "tenureDays:\(metrics.tenureDays),events:\(metrics.eventCount),positiveRate:\(metrics.positiveRatePercent)",
+                        "momentumMetrics": "opened:\(momentum.opened),acted:\(momentum.acted),within30s:\(momentum.actionsWithinThirtySeconds),openToActionRate:\(momentum.openToActionRatePercent),recognized:\(momentum.recognized),followedThreads:\(momentum.followedThreads),keepsakes:\(momentum.keepsakesEarned),medianSeconds:\(momentum.medianOpenToActionSeconds.map { String(format: "%.1f", $0) } ?? "none")",
                         "learningInsights": evidence,
                         "learningSummary": summary ?? "",
                         "tinyPatternCards": Self.encodeNoticePatternCards(patternCards),
@@ -2498,6 +3472,125 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
     // Confirm-on-suggest, quiet, and return — the only places the Book speaks
     // about real people. Everything here quotes the reader's own hand and
     // asks; nothing here (or anywhere) writes words for a real person.
+
+    private func personContextQuestionSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        let allDays = inputs.days + [day]
+        let resting = Self.spokenSignalIDs(days: allDays, within: 45, now: now)
+        let hypotheses = inputs.people.threads
+            .filter { !$0.resting }
+            .flatMap { PeopleOfTheBook.relationshipHypotheses(for: $0, days: allDays) }
+            .filter { !resting.contains($0.id) }
+            .sorted { $0.id < $1.id }
+        guard let hypothesis = hypotheses.first else { return [] }
+        let slug = PeopleOfTheBook.slug(for: hypothesis.personName)
+        let body = """
+        I think I may have learned something about how \(hypothesis.personName) lives in your life — but people are not facts I am allowed to smuggle past you.
+
+        In your own hand:
+        “\(hypothesis.evidenceQuote)”
+
+        \(hypothesis.question) If I read this wrong, teach me differently. Until then it remains a question, not part of their chapter.
+        """
+        return [
+            SurfacePage(
+                id: "\(source.id)-\(hypothesis.id)-\(day.id)",
+                type: .bookNotices,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                score: 66,
+                reason: "The Book found an explicit relationship clue in the reader's own words and is asking before believing it.",
+                prompt: "May I remember this about \(hypothesis.personName)?",
+                detail: hypothesis.question,
+                payload: BookPagePayload(
+                    headline: "A Question About a Thread",
+                    body: body,
+                    metadata: [
+                        "source": source.id,
+                        "personName": hypothesis.personName,
+                        "personSlug": slug,
+                        "personContextHypothesisID": hypothesis.id,
+                        "personContextKind": hypothesis.kind.rawValue,
+                        "personContextValue": hypothesis.value,
+                        "personContextDisplayValue": hypothesis.displayValue,
+                        "evidencePageIDs": hypothesis.evidencePageIDs.joined(separator: ","),
+                        "adaptiveActions": ["confirmPersonContext", "openPeopleOfTheBook"].joined(separator: "\n"),
+                        "feedbackPrompt": "Did the Book read this relationship right?",
+                        "tags": "book-notices,people-of-the-book,person-context,spoke:\(hypothesis.id),person:\(slug),reader-authored-evidence"
+                    ]
+                )
+            )
+        ]
+    }
+
+    private func personPlaySurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        let allDays = inputs.days + [day]
+        let recentlyInvited = Self.spokenSignalIDs(days: allDays, within: 5, now: now)
+        let eligible = inputs.people.threads
+            .filter { !$0.resting }
+            .compactMap { thread -> (PersonThread, PeopleOfTheBook.RelationshipInvitation)? in
+                let slug = PeopleOfTheBook.slug(for: thread.name)
+                guard !recentlyInvited.contains("person-play-\(slug)"),
+                      let invitation = PeopleOfTheBook.relationshipInvitation(for: thread, onDay: day.id) else {
+                    return nil
+                }
+                return (thread, invitation)
+            }
+            .sorted { lhs, rhs in
+                if lhs.0.lastMentionDay == rhs.0.lastMentionDay { return lhs.0.id < rhs.0.id }
+                return lhs.0.lastMentionDay < rhs.0.lastMentionDay
+            }
+        guard !eligible.isEmpty else { return [] }
+        let daySeed = abs("people-play|\(day.id)".stableHash)
+        let (_, invitation) = eligible[daySeed % eligible.count]
+        let familyReason: String
+        switch invitation.family {
+        case .sharedHome: familyReason = "Shared life becomes invisible fastest; the Book is putting one ordinary detail back into play."
+        case .asynchronous: familyReason = "This relationship usually crosses distance or a small glowing screen."
+        case .workAndInterest: familyReason = "A shared fascination can open a playful door without asking a work friendship to become something else."
+        case .work: familyReason = "The Book found a work-sized invitation that respects the shape of the relationship."
+        case .community: familyReason = "Communities become alive when particular people stop blending into the crowd."
+        case .sharedInterest: familyReason = "A shared interest is a ready-made passage between two different minds."
+        case .gentle: familyReason = "The reader asked the Book to tread gently around this thread."
+        case .general: familyReason = "Another person is an entire world; the Book is lending the reader one better question."
+        }
+        let tags = (["people-of-the-book"] + invitation.tags).joined(separator: ",")
+        return [
+            SurfacePage(
+                id: "\(source.id)-\(invitation.id)",
+                type: .wonderCompass,
+                sourceID: BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID,
+                intent: .capture,
+                renderStyle: .promptCard,
+                score: 68,
+                reason: familyReason,
+                prompt: invitation.title,
+                detail: "A favor involving \(invitation.personName).",
+                payload: BookPagePayload(
+                    headline: "People of the Book",
+                    body: "\(invitation.body)\n\nProof, if anything happens: \(invitation.keepPrompt)",
+                    metadata: [
+                        "source": source.id,
+                        "surfaceLabel": "A Favor for Two",
+                        "compassStep": "sense",
+                        "compassMode": "standalone",
+                        "playfulMissionID": invitation.id,
+                        "playfulMissionTitle": invitation.title,
+                        "mission": invitation.body,
+                        "souvenirPrompt": invitation.keepPrompt,
+                        "placeholder": invitation.keepPrompt,
+                        "proofKind": "sentence",
+                        "personName": invitation.personName,
+                        "personID": invitation.personID,
+                        "relationshipMode": invitation.family.rawValue,
+                        "symbol": "person.2.fill",
+                        "startingPageBelief": "64",
+                        "tags": tags
+                    ]
+                )
+            )
+        ]
+    }
 
     /// Names the fiction owns, plus the reader's own name: never suggested as
     /// real-person threads.
@@ -3216,6 +4309,14 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
 struct BookConnectionsPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .bookConnections)
 
+    /// The substantial-Keep follow-up is causally emitted rather than polled
+    /// during an ordinary curator pass, but it is still a source served by the
+    /// Book Connections family. Declaring it here keeps source registration,
+    /// Belief, search, and curator diagnostics describing the same system.
+    var servedSourceIDs: [String] {
+        [source.id, MomentaryThreadFollowUp.sourceID]
+    }
+
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         let clusters = inputs.clusters.isEmpty
             ? BookMotifClusterEngine.clusters(from: inputs.continuity, constellations: inputs.constellations, themes: inputs.themes, now: now)
@@ -3328,6 +4429,9 @@ struct BookRememberedVisitation: Equatable {
     var page: BookPage
     var score: Int
     var reason: String
+    /// The concrete signals joining the archived page to the present day.
+    /// Compact surfaces use `reason`; the open Page shows this fuller answer.
+    var todayConnections: [String]
     var action: String
 
     func surface(source: BookPageSource, day: BookDay, now: Date) -> SurfacePage {
@@ -3407,6 +4511,7 @@ struct BookRememberedVisitation: Equatable {
                     "rememberedAgeLine": ageLine,
                     "rememberedUsedInBraid": page.usedInBookOfYou ? "true" : "false",
                     "rhymeReason": reason,
+                    "todayConnectionLines": todayConnections.joined(separator: "\n"),
                     "thenLine": rememberedText,
                     "nowLine": reason,
                     "evidencePageIDs": page.id,
@@ -3437,11 +4542,12 @@ enum BookRememberedEngine {
         let pinned = FaeGiftEffects.pinnedPageIDs(state: inputs.faeState)
         let eligible = candidates
             .filter { isEligible($0, day: day, now: now, calendar: calendar) }
-            .map { page -> (page: BookPage, score: Int, reason: String) in
+            .map { page -> (page: BookPage, score: Int, reason: String, connections: [String]) in
                 var scoredPage = scored(page, inputs: inputs, now: now, calendar: calendar)
                 if pinned.contains(page.id) {
                     scoredPage.score += 40
                     scoredPage.reason = "The Long Memory keeps this one near. \(scoredPage.reason)"
+                    scoredPage.connections.insert("The Long Memory keeps this page near enough to answer today.", at: 0)
                 }
                 return scoredPage
             }
@@ -3457,6 +4563,7 @@ enum BookRememberedEngine {
             page: best.page,
             score: best.score,
             reason: best.reason,
+            todayConnections: best.connections,
             action: tinyAction(for: best.page, reason: best.reason, inputs: inputs, now: now, calendar: calendar)
         )
     }
@@ -3493,7 +4600,7 @@ enum BookRememberedEngine {
         inputs: BookSourceInputs,
         now: Date,
         calendar: Calendar
-    ) -> (page: BookPage, score: Int, reason: String) {
+    ) -> (page: BookPage, score: Int, reason: String, connections: [String]) {
         var score = 42
         var reasons: [String] = []
         // Rhyme reasons vary by page, so two visitations never explain
@@ -3583,7 +4690,7 @@ enum BookRememberedEngine {
                 "The Stacks breathed, and this floated up."
             ], seed: seed, salt: 15))
         }
-        return (page, score, reasons[0])
+        return (page, score, reasons[0], Array(reasons.prefix(3)))
     }
 
     private static func semanticEchoReturnReason(for page: BookPage, inputs: BookSourceInputs) -> String? {
@@ -4014,6 +5121,15 @@ struct AcademyClassPageSourceAdapter: BookPageSourceAdapter {
         let eventInstruction = inputs.activeWorldEvents
             .map { $0.packet.classInstruction }
             .joined(separator: "\n")
+        let castPool = NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity)
+        let sessionNames = Set(([session.leader] + session.companions).map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        })
+        let sessionCast = castPool.filter { entity in
+            entity.id == session.leaderEntityID
+                || sessionNames.contains(entity.name.lowercased())
+        }
+        let characterCanon = CharacterCanonPacket.promptSection(for: sessionCast)
         var metadata: [String: String] = [
             "source": source.id,
             "sessionID": session.id,
@@ -4027,6 +5143,7 @@ struct AcademyClassPageSourceAdapter: BookPageSourceAdapter {
             "sessionStyle": session.style,
             "sessionSubjectThreadID": session.subjectThreadID,
             "sessionBlock": block,
+            CharacterCanonPacket.metadataKey: characterCanon,
             "tags": tags.joined(separator: ",")
         ]
         metadata.merge([
@@ -4106,8 +5223,20 @@ struct ElectivePageSourceAdapter: BookPageSourceAdapter {
         let calendar = Calendar.current
         let hour = calendar.component(.hour, from: now)
         let offeredToday = inputs.electives.contains { calendar.isDate($0.createdAt, inSameDayAs: now) }
+        let bookFavor = inputs.bookInterior.activeFavor.flatMap { favor in
+            favor.status == .offered && !inputs.electives.contains(where: { $0.bookFavorID == favor.id })
+                ? favor
+                : nil
+        }
+        if active.count < UnwrittenElective.maxActive,
+           (10..<21).contains(hour),
+           !context.distress.isActive,
+           let bookFavor {
+            pages.append(bookFavorSurface(bookFavor, day: day))
+        }
         if active.count < UnwrittenElective.maxActive,
            !offeredToday,
+           bookFavor == nil,
            (10..<21).contains(hour),
            !context.distress.isActive,
            let sender = offerSender(inputs: inputs, day: day, now: now) {
@@ -4121,10 +5250,26 @@ struct ElectivePageSourceAdapter: BookPageSourceAdapter {
         if !active.isEmpty {
             return flyleafSurface(active: active, day: day, now: now)
         }
+        if let favor = inputs.bookInterior.activeFavor,
+           favor.status == .offered,
+           !inputs.electives.contains(where: { $0.bookFavorID == favor.id }) {
+            return bookFavorSurface(favor, day: day)
+        }
         if let sender = offerSender(inputs: inputs, day: day, now: now) {
             return offerSurface(sender: sender, inputs: inputs, day: day, now: now)
         }
         return flyleafSurface(active: [], day: day, now: now)
+    }
+
+    /// The named Flyleaf door always opens the quest ledger itself. Unlike the
+    /// generic manual Elective Page, it never substitutes a new quest offer
+    /// when the binding is empty.
+    func flyleafSurface(for day: BookDay, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        flyleafSurface(
+            active: inputs.electives.filter(\.isActive),
+            day: day,
+            now: now
+        )
     }
 
     private func homeContext(inputs: BookSourceInputs) -> String {
@@ -4186,12 +5331,64 @@ struct ElectivePageSourceAdapter: BookPageSourceAdapter {
                     "senderBeliefs": sender.beliefs.joined(separator: "; "),
                     "senderGoals": sender.goals.joined(separator: "; "),
                     "senderChapter": sender.chapter ?? "",
+                    CharacterCanonPacket.metadataKey: CharacterCanonPacket.promptSection(for: [sender]),
                     "season": AnchorRegistry.currentSeason(for: now),
                     "nearbyPlaces": cooledPlaces.prefix(10).map(\.promptLine).joined(separator: "\n"),
                     "destinationCooldownDays": "\(Self.destinationCooldownDays)",
                     "cooledDestinationCount": "\(max(0, inputs.nearbyPlaces.count - cooledPlaces.count))",
                     "homeContext": homeContext(inputs: inputs),
                     "tags": "elective,offer,entity:\(sender.id)"
+                ]
+            )
+        )
+    }
+
+    private func bookFavorSurface(_ favor: BookFavor, day: BookDay) -> SurfacePage {
+        let body = """
+        I have a favor to ask. It is for you, not for me.
+
+        \(favor.ask)
+
+        Why I am asking: \(favor.whyItMayHelp)
+
+        What I am trying to cultivate: \(favor.cultivates.title). This is an experiment, not a judgment of you.
+
+        What counts as done: \(favor.practiceShape)
+
+        The question I will ask when you return: \(favor.reflectionQuestion)
+
+        Keep this Page if you want the favor tucked into the flyleaf. Dismiss it freely if today is not the day. I will not make your no into a story about us.
+        """
+        return SurfacePage(
+            id: "book-favor-offer-\(favor.id)",
+            type: .elective,
+            sourceID: source.id,
+            intent: .capture,
+            renderStyle: .loreLetter,
+            score: 76,
+            reason: "The Book has a small favor whose beneficiary is the reader.",
+            prompt: "\(favor.title) — a favor from the Book",
+            detail: "Optional fieldwork in service of the Book's great obsession.",
+            payload: BookPagePayload(
+                headline: "A Favor from the Book",
+                body: body,
+                metadata: [
+                    "source": source.id,
+                    "electiveOffer": "true",
+                    "electivePrepared": "true",
+                    "bookFavorOffer": "true",
+                    "bookFavorID": favor.id,
+                    "bookWonderFacet": favor.facet.rawValue,
+                    "bookFavorFamily": favor.family.rawValue,
+                    "bookFavorCultivates": favor.cultivates.rawValue,
+                    "senderID": "the-book",
+                    "senderName": "The Book",
+                    "electiveTitle": favor.title,
+                    "electiveAsk": favor.ask,
+                    "electiveWhy": favor.whyItMayHelp,
+                    "electivePractice": favor.practiceShape,
+                    "electiveReflection": favor.reflectionQuestion,
+                    "tags": "elective,offer,book-favor,\(favor.offerTag),wonder:\(favor.facet.rawValue)"
                 ]
             )
         )
@@ -4796,6 +5993,66 @@ struct FirstDoorApprenticeshipPageSourceAdapter: BookPageSourceAdapter {
 struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .aboutYou)
 
+    struct ReaderLine: Equatable {
+        var text: String
+        var source: String
+        var score: Int
+        var keptAt: Date
+    }
+
+    static func readerLines(in pages: [BookPage], limit: Int = 5) -> [ReaderLine] {
+        var seenPageIDs = Set<String>()
+        var seenLines = Set<String>()
+        return pages
+            .filter { seenPageIDs.insert($0.id).inserted }
+            .compactMap(readerLine)
+            .sorted { left, right in
+                left.score == right.score ? left.keptAt > right.keptAt : left.score > right.score
+            }
+            .filter { line in
+                seenLines.insert(line.text.lowercased()).inserted
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    private static func readerLine(from page: BookPage) -> ReaderLine? {
+        let tags = Set(page.tags.map { $0.lowercased() })
+        let isPlayfulMission = tags.contains("playful-mission")
+            || page.sourceID == BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID
+        let rawText: String
+        let source: String
+        let score: Int
+
+        if (page.type == .letter || page.type == .note), !page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            rawText = page.playerReply
+            source = page.type == .letter ? "a letter you answered" : "a note you answered"
+            score = 110
+        } else if page.type == .souvenir {
+            rawText = page.userInput
+            source = "a one-sentence souvenir"
+            score = 105
+        } else if isPlayfulMission {
+            rawText = page.userInput
+            source = "a playful mission"
+            score = 100
+        } else if [.diary, .plainPage, .mood, .rest, .wonderCompass].contains(page.type) {
+            rawText = page.userInput
+            source = page.type == .diary ? "a journal page" : "a page you kept"
+            score = 70
+        } else {
+            return nil
+        }
+
+        let text = rawText
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let wordCount = text.split(whereSeparator: { $0.isWhitespace }).count
+        guard (3...45).contains(wordCount), text.count <= 240 else { return nil }
+        return ReaderLine(text: text, source: source, score: score, keptAt: page.createdAt)
+    }
+
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
 
@@ -4864,6 +6121,13 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
             }
 
             if isCadenceAllowed {
+                let archivedPages = (inputs.days + [day]).flatMap(\.capturedPages)
+                let readerLines = question.id == "rut-signal"
+                    ? Self.readerLines(in: archivedPages)
+                    : []
+                let choiceLines = readerLines.isEmpty
+                    ? SelfKnowledgePackRegistry.exampleLines(for: question)
+                    : readerLines.map(\.text)
                 let score = isFirstQuestion
                     ? 83
                     : (isFirstInterestQuestion ? 91 : (context.distress.isActive ? 46 : 67))
@@ -4894,6 +6158,9 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
                                 "sensitivity": question.sensitivity.rawValue,
                                 "usePermission": question.defaultUsePermission.rawValue,
                                 "tags": question.tags.joined(separator: ","),
+                                "exampleLines": choiceLines.joined(separator: "||"),
+                                "exampleLineSources": readerLines.map(\.source).joined(separator: "||"),
+                                "exampleLineMode": readerLines.isEmpty ? "examples" : "reader-archive",
                                 "privacy": "private local profile"
                             ]
                         )
@@ -5963,6 +7230,10 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
                 return "\(entityName): \(memory.summary)"
             }
             .joined(separator: "\n")
+        let characterCanon = CharacterCanonPacket.promptSection(
+            for: packet.selectedEntities,
+            contextLines: packet.relationshipPressures + packet.selectedEntityMemories.map(\.summary)
+        )
         let chapterTalismanMoves = packet.chapterTalismanMoves.map(\.promptLine).joined(separator: "\n")
         let chapterTalismanDeltas = packet.chapterTalismanMoves.compactMap(\.ledgerToken).joined(separator: ",")
         var metadata: [String: String] = [
@@ -6014,6 +7285,7 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
             "selectedThreadIDs": selectedThreadIDs,
             "selectedRelationships": selectedRelationships,
             "entityMemories": selectedEntityMemories,
+            CharacterCanonPacket.metadataKey: characterCanon,
             "realSignals": packet.realSignals.joined(separator: "\n"),
             "relationshipPressures": packet.relationshipPressures.joined(separator: "\n"),
             "chapterTalismanMoves": chapterTalismanMoves,
@@ -6098,12 +7370,16 @@ struct MarginsAtlasPageSourceAdapter: BookPageSourceAdapter {
             events: events,
             playerBelief: inputs.narrative?.beliefWeight ?? 30
         )
+        let company = PeopleOfTheBook.knowledgeGraph(ledger: inputs.people, days: inputs.days + [day]).atlasGraph
         var pages: [SurfacePage] = []
         if !loom.nodes.isEmpty && !loom.edges.isEmpty {
             pages.append(surface(variant: .loom, graph: loom, day: day, now: now, score: 44 + min(14, loom.edges.count)))
         }
         if constellation.nodes.count > 1 {
             pages.append(surface(variant: .constellation, graph: constellation, day: day, now: now, score: 46 + min(14, constellation.edges.count * 2)))
+        }
+        if company.nodes.count > 1 && !company.edges.isEmpty {
+            pages.append(surface(variant: .company, graph: company, day: day, now: now, score: 48 + min(14, company.edges.count)))
         }
         return pages
     }
@@ -6147,7 +7423,13 @@ struct MarginsAtlasPageSourceAdapter: BookPageSourceAdapter {
             intent: .simulate,
             renderStyle: .graphEvent,
             score: score,
-            reason: variant == .loom ? "The cast left threads all over the place, and now you can see them." : "Belief drew a little star map in the margins.",
+            reason: {
+                switch variant {
+                case .loom: return "The cast left threads all over the place, and now you can see them."
+                case .constellation: return "Belief drew a little star map in the margins."
+                case .company: return "The real people in the reader's life have begun to form a constellation of their own."
+                }
+            }(),
             prompt: variant.title,
             detail: variant.detail,
             payload: BookPagePayload(
@@ -6158,7 +7440,7 @@ struct MarginsAtlasPageSourceAdapter: BookPageSourceAdapter {
                     "graphVariant": variant.rawValue,
                     "graphNodes": encode(nodes: graph.nodes),
                     "graphEdges": encode(edges: graph.edges),
-                    "tags": "margins-atlas,\(variant.rawValue),graph"
+                    "tags": "margins-atlas,\(variant.rawValue),graph\(variant == .company ? ",people-of-the-book,life-knowledge" : "")"
                 ]
             )
         )
@@ -6977,12 +8259,12 @@ struct AskTheBookPageSourceAdapter: BookPageSourceAdapter {
                 intent: .reflect,
                 renderStyle: .promptCard,
                 score: 61,
-                reason: "Just say something simple, and the Book will say something simple right back.",
+                reason: "The Book can open its own Stacks now — kept Pages, weather, places, Fuel and Inner Weather charts, lore, and the threads between them.",
                 prompt: "Chat with the Book",
-                detail: "Write one little message, and the Book will answer with one helpful next step.",
+                detail: "Ask naturally—even for a count or a pattern. The Book will search what it is allowed to remember and show which records helped it answer.",
                 payload: BookPagePayload(
                     headline: "Chat with the Book",
-                    body: "Start with one real question. The answer should help you move.",
+                    body: "Ask about a person, place, old Page, story thread, feeling, weather, Fuel Log, Inner Weather entry, piece of lore, or something that may have changed over time. The Book can count recorded days and compare dated notes without pretending that a pattern proves a cause. It will leave the records it consulted beneath its answer.",
                     metadata: [
                         "source": source.id,
                         "privacy": "private local",
@@ -7707,6 +8989,10 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
 
         let aProfile = entities.first { $0.id == pair.aID }.map(Self.profile) ?? pair.aName
         let bProfile = entities.first { $0.id == pair.bID }.map(Self.profile) ?? pair.bName
+        let characterCanon = CharacterCanonPacket.promptSection(
+            for: entities.filter { $0.id == pair.aID || $0.id == pair.bID },
+            contextLines: [pair.relationshipNote].compactMap { $0 }
+        )
         let clipped = PactReadings.clip(anchor.userInput)
         let authoredNote = anchor.origin == .userAuthored ? "the page you wrote" : "one of your kept pages"
         return [
@@ -7732,6 +9018,7 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
                         "entityBName": pair.bName,
                         "entityAProfile": aProfile,
                         "entityBProfile": bProfile,
+                        CharacterCanonPacket.metadataKey: characterCanon,
                         "relationshipNote": pair.relationshipNote ?? "",
                         "anchorPageID": anchor.id,
                         "anchorPageText": anchor.userInput,
@@ -7958,7 +9245,7 @@ struct CastBondPageSourceAdapter: BookPageSourceAdapter {
             now: now
         )
         .prefix(2)
-        .map { surface(for: $0, now: now) }
+        .map { surface(for: $0, entities: entities, now: now) }
     }
 
     private func firedKeys(in days: [BookDay]) -> Set<String> {
@@ -7967,7 +9254,7 @@ struct CastBondPageSourceAdapter: BookPageSourceAdapter {
         })
     }
 
-    private func surface(for bond: CastBond, now: Date) -> SurfacePage {
+    private func surface(for bond: CastBond, entities: [NarrativeWorldEntity], now: Date) -> SurfacePage {
         let isRivalry = bond.kind == .rivalry
         let title = isRivalry ? "A Rivalry Erupts" : "An Alliance Forms"
         let kind = bond.kind.rawValue
@@ -7979,6 +9266,12 @@ struct CastBondPageSourceAdapter: BookPageSourceAdapter {
 
         Something between them is strong enough now to step out of the background and act. Open it.
         """
+        let characterCanon = CharacterCanonPacket.promptSection(
+            for: entities.filter { $0.id == bond.aID || $0.id == bond.bID },
+            contextLines: [
+                "\(bond.aName) and \(bond.bName) have crossed a \(bond.kind.rawValue) threshold at intensity \(bond.intensity)."
+            ]
+        )
 
         return SurfacePage(
             id: "\(source.id)-\(bond.firedKey)-\(SurfaceCadence.minuteSlotID(for: now, minutes: 30))",
@@ -8007,6 +9300,7 @@ struct CastBondPageSourceAdapter: BookPageSourceAdapter {
                     "entityBID": bond.bID,
                     "entityAName": bond.aName,
                     "entityBName": bond.bName,
+                    CharacterCanonPacket.metadataKey: characterCanon,
                     "intensity": "\(bond.intensity)",
                     "tags": "cast-bond,\(kind),cast-bond:\(bond.firedKey),entity:\(bond.aID),entity:\(bond.bID),relationship-field"
                 ]
@@ -8028,14 +9322,14 @@ struct GlowInvitationPageSourceAdapter: BookPageSourceAdapter {
         let glowName = BeliefLexicon.glowName(for: inputs.readerBeliefScore)
         let body = isTooFull
             ? """
-            Your Glow has reached the top of the wick. The Book can hold it for a while, but excess light settles back into the paper overnight.
+            Your Glow has reached the top of the wick. It is bright enough to wake Story Pages, carry Letters through the stacks, unfold Notes, or call a Fae Parley into fuller ink.
 
-            Spend some of it on a cast member, a page type, a spell, or a living thread you want the Book to treat as more real. Attention kept in motion becomes story.
+            You can also give it directly to a cast member, page type, spell, or living thread you want the Book to treat as more real. Attention kept in motion becomes story.
             """
             : """
             Your Glow is radiant enough to steer the Book on purpose.
 
-            Give Belief to a cast member you want closer, a page type you want more often, or a spell that deserves weight. Take Belief from anything that has been too loud.
+            Spend it when a fiction door asks to open, give it to a cast member you want closer, or warm a page type you want more often.
             """
 
         return [
@@ -8050,7 +9344,7 @@ struct GlowInvitationPageSourceAdapter: BookPageSourceAdapter {
                     ? "Your Glow is so full it's spilling over and wants somewhere to go."
                     : "Your Glow is bright enough now to spend on purpose.",
                 prompt: isTooFull ? "Your Glow Is Too Full" : "Your Glow Wants a Direction",
-                detail: "Open the Glow menu and hand some Belief to a cast member, a kind of page, or anything you'd like more of.",
+                detail: "Wake fiction when it calls, or open the Glow menu and hand Belief to something you'd like more of.",
                 payload: BookPagePayload(
                     headline: isTooFull ? "Your Glow Is Too Full" : "Your Glow Wants a Direction",
                     body: body,
@@ -8286,7 +9580,7 @@ struct HelpTipEntry: Equatable {
 }
 
 enum HelpTipsCatalog {
-    static let entries: [HelpTipEntry] = [
+    static let systemEntries: [HelpTipEntry] = [
         HelpTipEntry(
             id: "first-five-minutes",
             title: "First Five Minutes",
@@ -8294,7 +9588,7 @@ enum HelpTipsCatalog {
             body: """
             Use the app like a living notebook, not a dashboard.
 
-            1. Keep one small thing that feels alive. A Diary Page, Inner Weather note, Fuel Log, photo, or Souvenir all count.
+            1. Keep one small thing that feels alive. A Journal Page, Inner Weather note, Fuel Log, photo, or Souvenir all count.
             2. Don't wait for a grand moment. The Book's strongest when you feed it ordinary evidence.
             3. Open one rising page and answer only what feels finishable.
             4. If a page feels wrong today, dismiss it. Dismissed pages rest and may return later.
@@ -8517,10 +9811,226 @@ enum HelpTipsCatalog {
         )
     ]
 
+    /// One small way to alter the texture of ordinary life. These are tips,
+    /// not assignments: each surfaced page carries exactly one enchantment and
+    /// leaves the reader free to adopt it, adapt it, or merely enjoy the idea.
+    static let everydayEnchantmentEntries: [HelpTipEntry] = [
+        enchantment(
+            "wonder-ringtone", "Give Your Phone a Better Voice",
+            "Replace one default ringtone with a sound that makes interruption feel less like an alarm.",
+            "Default ringtones make every caller sound like a minor emergency. Choose one sound with a different emotional shape: a soft bell, rain on a window, three piano notes, a frog, a train arriving, or a tiny recording from somewhere you love.\n\nOne changed sound is enough. The magic is deciding what gets to enter your day sounding like itself.",
+            ["sound", "phone", "ritual"]
+        ),
+        enchantment(
+            "wonder-alarm-name", "Rename One Alarm",
+            "Turn one alarm label into a message from the version of you who set it.",
+            "An alarm named “7:30” is a noise with paperwork. Give one alarm a line that changes the moment it arrives: “The kettle chapter,” “Shoes, keys, tiny courage,” or “Tomorrow asked nicely.”\n\nKeep the time exactly the same. You aren't optimizing the morning; you're letting your past self speak with better manners.",
+            ["time", "phone", "words"]
+        ),
+        enchantment(
+            "wonder-wallpaper-door", "Put a Door on the Screen",
+            "Use a photo from your real life as a phone wallpaper that opens attention instead of demanding it.",
+            "Choose a photograph of a doorway, path, window, tree, strange shadow, or ordinary place you want to keep seeing. It doesn't need to be beautiful. It needs to contain somewhere your eyes can enter.\n\nThe screen already gets hundreds of glances. Give some of those glances a place to go.",
+            ["phone", "photo", "attention", "door"]
+        ),
+        enchantment(
+            "wonder-device-name", "Give the Machine a True Name",
+            "Rename one device according to its actual temperament.",
+            "The printer isn't “OfficeJet 4520” if it jams whenever company is coming. The speaker isn't “Living Room” if it only cooperates with jazz. Give one device a name earned from evidence.\n\nA true name can be affectionate, dramatic, or mildly prosecutorial. Afterward, every connection menu becomes a tiny piece of household lore.",
+            ["technology", "naming", "home"]
+        ),
+        enchantment(
+            "wonder-portal-playlist", "Choose Portal Music",
+            "Give one repeated transition its own short piece of music.",
+            "Pick a song for leaving work, beginning dinner, starting the drive home, opening the curtains, or putting the room to bed. Use the same one often enough that the first notes become a threshold.\n\nThe song doesn't describe the moment. It teaches your body that one world is ending and another is beginning.",
+            ["sound", "music", "threshold", "ritual"]
+        ),
+        enchantment(
+            "wonder-object-personality", "Notice Who the Object Is",
+            "Personify one object you use every day, but make its personality answer to evidence.",
+            "Choose the kettle, car, favorite pen, stubborn drawer, old coat, or lamp. Watch how it behaves. Is it patient, theatrical, fussy, loyal, overqualified, always cold?\n\nYou don't have to pretend it's alive. Just stop pretending it has no character. Familiar things become visible again when they are allowed a point of view.",
+            ["object", "imagination", "attention"]
+        ),
+        enchantment(
+            "wonder-household-guardian", "Appoint a Household Guardian",
+            "Choose one ordinary object to guard a small part of the day.",
+            "A key bowl can guard departures. A lamp can guard the reading hour. A chipped mug can guard slow mornings. Pick one object already doing the work and make the appointment official.\n\nNothing supernatural has to happen. The guardian's job is to remind you what this little territory is for.",
+            ["object", "home", "protection", "ritual"]
+        ),
+        enchantment(
+            "wonder-room-title", "Give the Room a Secret Title",
+            "Name one familiar place for what happens there, not what the floor plan calls it.",
+            "The hallway might be The Sock Migration. The porch might be The Weather Office. One end of the couch might be The Recovery Wing.\n\nKeep the title private or tell the household. Either way, the room stops being generic and starts holding a particular kind of life.",
+            ["place", "home", "naming", "words"]
+        ),
+        enchantment(
+            "wonder-museum-label", "Write One Museum Label",
+            "Give one meaningful ordinary object the label a museum would write after you were famous.",
+            "Name the object, the approximate year, the material, and why it survived. Keep it to two or three lines. A taped measuring cup and a concert wristband deserve the same grave curatorial respect.\n\nYou may never display the label. Writing it is enough to notice that your life already has artifacts.",
+            ["object", "memory", "writing", "museum"]
+        ),
+        enchantment(
+            "wonder-good-spoon", "Declare the Good Spoon",
+            "Choose the best spoon in the drawer and stop acting as if all spoons are equal.",
+            "You already know which one balances correctly, fits the bowl, and doesn't have the regrettable edge. Give it a title and use it deliberately for something small.\n\nPreference is a form of attention. The kingdom can survive one openly favored spoon.",
+            ["object", "food", "home", "preference"]
+        ),
+        enchantment(
+            "wonder-victory-cup", "Keep a Cup for Tiny Victories",
+            "Choose one cup or glass that only comes out when an ordinary thing deserves marking.",
+            "Use it when the difficult call is over, the laundry is folded, the walk happened, the form was sent, or the day simply remained survivable. The drink can be water.\n\nCeremony doesn't require grandeur. It requires one object behaving differently because the moment counted.",
+            ["object", "ritual", "celebration", "home"]
+        ),
+        enchantment(
+            "wonder-departure-ritual", "Make Leaving a Threshold",
+            "Choose one tiny action that means you have truly left one place for another.",
+            "Touch the doorframe, straighten one object, say “house held,” ring a small bell, or take one deliberate breath after the latch clicks. Use the same action whenever it helps.\n\nThe ritual shouldn't delay you. It gives the crossing an edge, so your body doesn't have to drag the whole previous room along.",
+            ["threshold", "ritual", "home", "body"]
+        ),
+        enchantment(
+            "wonder-dusk-lamp", "Appoint a Dusk Lamp",
+            "Let one lamp mark the moment the day becomes evening.",
+            "Choose a lamp with warm light and turn it on at dusk before the larger room lights, whenever you happen to notice the change. If flame suits you, a safely placed candle or battery candle can do the same job.\n\nThe lamp isn't for brightness. It's the household noticing that the sky changed shifts.",
+            ["light", "dusk", "home", "ritual"]
+        ),
+        enchantment(
+            "wonder-window-weather", "Keep a Weather Window",
+            "Choose one window as the place where you check what the day is actually doing.",
+            "Before accepting the forecast's summary, look through that window for ten seconds. Notice the nearest moving thing, the color of the light, and whether the glass feels like a boundary or an invitation.\n\nYou don't need a weather practice. You need one reliable place where weather is allowed to be more than data.",
+            ["weather", "window", "attention", "place"]
+        ),
+        enchantment(
+            "wonder-scent-key", "Choose a Scent Key",
+            "Pair one safe, familiar scent with a kind of moment you want to enter more easily.",
+            "It might be orange peel while beginning the evening, rosemary before writing, a particular tea while reading, or hand lotion at the end of work. Choose something your body already welcomes; skip fragrance if scent is difficult for you.\n\nRepeated gently, the scent becomes a key your nervous system recognizes before language arrives.",
+            ["scent", "body", "ritual", "care"]
+        ),
+        enchantment(
+            "wonder-secret-costume", "Wear One Secret Costume Piece",
+            "Add one private, slightly ridiculous detail to an otherwise ordinary outfit.",
+            "Constellation socks, a bright lining, a tiny pin, a serious ring with an unserious meaning, or a color nobody else can see all count. It doesn't need to attract attention.\n\nThe point is to know that beneath the day's dress code, you dressed for a more interesting story.",
+            ["clothing", "play", "color", "private"]
+        ),
+        enchantment(
+            "wonder-ring-spell", "Give a Ring One Sentence",
+            "Attach a short intention to a ring, bracelet, watch, or other thing you already touch.",
+            "Choose a sentence small enough to remain true: “Look once more,” “Stay on my own side,” “Soft hands,” or “This hour is real.” Remember it whenever your fingers find the object.\n\nThe jewelry doesn't make the sentence true. It keeps you from forgetting which truth you meant to practice.",
+            ["object", "body", "words", "talisman"]
+        ),
+        enchantment(
+            "wonder-pocket-talisman", "Carry an Unimportant Talisman",
+            "Put one small, safe, almost worthless object in your pocket and let it represent the day.",
+            "A smooth stone, washer, bead, acorn cap, foreign coin, button, or folded scrap will do. Choose it for texture or private logic, not monetary value.\n\nTouch it once when the day goes strange. At night, decide whether its service is finished or whether it earned another day.",
+            ["object", "touch", "talisman", "pocket"]
+        ),
+        enchantment(
+            "wonder-future-note", "Hide a Note for Future You",
+            "Leave one kind or funny sentence where a later version of you will find it naturally.",
+            "Put it in a coat pocket, suitcase, book, glove compartment, seasonal box, or the back of a drawer. Don't make it advice. Make it company.\n\nA good note says, “You found the pocket,” “Still excellent taste in coats,” or one true thing this future person may need returned.",
+            ["writing", "time", "kindness", "memory"]
+        ),
+        enchantment(
+            "wonder-seasonal-shelf", "Keep a One-Shelf Season",
+            "Let one tiny surface change as the real season changes.",
+            "Use a windowsill, saucer, corner of a shelf, or small tray. Hold only a few found or ordinary things: a leaf, stone, seedpod, postcard, ribbon, shell, or color that belongs to now.\n\nThis isn't decorating the whole house. It's giving time one visible place to leave its coat.",
+            ["season", "home", "nature", "time"]
+        ),
+        enchantment(
+            "wonder-route-landmarks", "Name the Landmarks on Your Route",
+            "Give private names to three things on a route you travel often.",
+            "The tree leaning over the road, the suspicious mailbox, the excellent puddle, and the corner where the light changes can become real landmarks. Use names based on what you actually notice.\n\nThe route hasn't changed. It has acquired chapters, which is often enough to make repetition visible again.",
+            ["place", "route", "naming", "attention"]
+        ),
+        enchantment(
+            "wonder-urban-familiar", "Choose an Urban Familiar",
+            "Adopt one recurring nonhuman neighbor as a character in the local story.",
+            "Choose a crow, pigeon, squirrel, street tree, delivery robot, bus, or impossible weed you see more than once. Don't invent a bond it hasn't offered. Learn its habits instead.\n\nA familiar begins as recognition: there you are again, doing your strange little work beside mine.",
+            ["creature", "place", "attention", "character"]
+        ),
+        enchantment(
+            "wonder-chore-ceremony", "Give One Chore an Opening Ceremony",
+            "Start one recurring chore with the same tiny flourish every time.",
+            "Roll up your sleeves with absurd seriousness, play one opening song, announce the first dish, light the laundry beacon, or salute the vacuum. Keep the flourish shorter than the chore.\n\nThe ceremony doesn't make work disappear. It turns “I should” into “the scene has begun.”",
+            ["home", "ritual", "work", "play"]
+        ),
+        enchantment(
+            "wonder-water-glass", "Let Water Wear Formal Clothes",
+            "Drink ordinary water from a vessel usually saved for something more important.",
+            "Use the beautiful glass, tiny cup, inherited tumbler, silver-rimmed thing, or ridiculous straw on a day with no guests and no occasion. Notice whether the water acquires posture.\n\nUseful things don't have to wait for a worthy future. Being alive and thirsty is already an occasion.",
+            ["water", "object", "care", "celebration"]
+        ),
+        enchantment(
+            "wonder-visible-mend", "Let One Repair Be Beautiful",
+            "When a safe, repairable object needs mending, consider making the repair visible on purpose.",
+            "Use contrasting thread, a handsome patch, colored tape, a marked date, or one careful line that admits where the break happened. Choose only a repair you can make safely; structural and electrical repairs still belong to experts.\n\nA visible mend lets the object keep both truths: it broke, and someone chose it again.",
+            ["repair", "object", "care", "craft"]
+        ),
+        enchantment(
+            "wonder-plant-title", "Give the Plant a Job Title",
+            "Assign one plant a household role based on what it already does.",
+            "The windowsill pothos may be Director of Reaching. The herb pot may be Minister of Supper. The determined weed outside may be Boundary Counsel.\n\nThe title is a joke with an attention hook inside it. Once appointed, the plant becomes harder to pass without seeing.",
+            ["plant", "home", "naming", "attention"]
+        ),
+        enchantment(
+            "wonder-house-holiday", "Invent a Tiny Household Holiday",
+            "Give one recurring ordinary event a name and one modest tradition.",
+            "The first open-window evening, the return of a favorite seasonal snack, changing the sheets, or the day the hallway gets its sunlight can become an annual or monthly observance. One food, song, toast, or photograph is plenty.\n\nA holiday is just attention that remembered to come back.",
+            ["home", "ritual", "calendar", "celebration"]
+        ),
+        enchantment(
+            "wonder-good-chair", "Make the Good Chair Official",
+            "Decide which seat is the best seat for one particular kind of moment.",
+            "Not the best chair in general: the rain-watching chair, phone-call step, shoe-tying edge, late-night reading corner, or place where hard news is allowed to land. Name its jurisdiction.\n\nA place becomes easier to enter when it knows what it is for.",
+            ["home", "place", "rest", "naming"]
+        ),
+        enchantment(
+            "wonder-sound-postcard", "Keep a Sound Postcard",
+            "Record ten seconds of a place you want to remember without narrating over it.",
+            "Capture the kitchen before guests arrive, rain in the parking lot, a train platform, summer insects, the washing machine in an old apartment, or the quiet after snow. Respect other people's privacy and avoid recording conversations.\n\nName the file with the place and date. Later, it won't sound like audio. It'll sound like a door.",
+            ["sound", "memory", "place", "phone"]
+        ),
+        enchantment(
+            "wonder-wifi-name", "Name the Invisible Weather",
+            "Give your Wi-Fi network a name that makes the invisible household atmosphere more interesting.",
+            "Choose something welcoming, local, and safe to show nearby strangers: “The Lantern Window,” “Moths Welcome,” “Third-Floor Weather,” or a private piece of neighborhood lore. Don't put personal information in it.\n\nThe signal was already passing through the walls. A name simply lets it knock with character.",
+            ["technology", "home", "naming", "weather"]
+        ),
+        enchantment(
+            "wonder-house-word", "Invent One Household Word",
+            "Name a recurring experience your household understands but ordinary language has neglected.",
+            "It might be the cold patch by the stairs, the silence after the dishwasher stops, the pile that is clean but not put away, or the exact light that means someone will soon say “Should we eat?”\n\nUse the word again. Private vocabulary turns repeated life from background noise into shared folklore.",
+            ["words", "home", "naming", "folklore"]
+        )
+    ]
+
+    static let entries: [HelpTipEntry] = systemEntries + everydayEnchantmentEntries
+
     static func entry(for day: BookDay, now: Date, manual: Bool = false) -> HelpTipEntry {
         let slot = SurfaceCadence.slotID(for: now, hours: manual ? 1 : 6)
-        let index = stableIndex(for: "\(day.id)-help-tips-\(slot)-\(manual)", count: entries.count)
-        return entries[index]
+        let key = "\(day.id)-help-tips-\(slot)-\(manual)"
+        // Keep practical app guidance alive while letting the larger everyday-
+        // enchantment shelf take two of every three deterministic lanes.
+        let pool = stableIndex(for: "\(key)-lane", count: 3) == 0
+            ? systemEntries
+            : everydayEnchantmentEntries
+        let index = stableIndex(for: key, count: pool.count)
+        return pool[index]
+    }
+
+    private static func enchantment(
+        _ id: String,
+        _ title: String,
+        _ prompt: String,
+        _ body: String,
+        _ tags: [String]
+    ) -> HelpTipEntry {
+        HelpTipEntry(
+            id: id,
+            title: title,
+            prompt: prompt,
+            body: body,
+            tags: ["help", "everyday-enchantment", "wonder-filled", "magic"] + tags
+        )
     }
 
     private static func stableIndex(for key: String, count: Int) -> Int {
@@ -8759,45 +10269,81 @@ struct QuotePageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
-struct AffirmationPageSourceAdapter: BookPageSourceAdapter {
-    let source = BookPageSourceRegistry.source(for: .affirmations)
-
-    private static let beliefs = [
-        "Your attention is not small. It changes the room it enters.",
-        "You do not have to earn wonder before you notice it.",
-        "The ordinary is allowed to be enough, and still be enchanted.",
-        "You are permitted to keep the detail everyone else walked past.",
-        "A quiet day can still contain a door.",
-        "What you notice is part of how the world becomes yours.",
-        "You may trust the small bright thing before you can explain it.",
-        "There is no wrong size for a life worth paying attention to."
-    ]
+struct PublicMarginsCreatorPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(id: "public-margins-creators", fallbackType: .quotes)
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        guard source.isActive else { return [] }
-        let slot = SurfaceCadence.slotID(for: now, hours: 6)
-        let index = abs("belief:\(day.id):\(slot)".stableHash) % Self.beliefs.count
-        let belief = Self.beliefs[index]
+        guard source.isActive,
+              let snapshot = inputs.publicMargins,
+              !snapshot.creatorPosts.isEmpty else { return [] }
+        let slot = SurfaceCadence.slotID(for: now, hours: 8)
+        let index = abs("public-creator:\(day.id):\(slot)".stableHash) % snapshot.creatorPosts.count
+        let post = snapshot.creatorPosts[index]
+        let handle = post.authorUsername.hasPrefix("@") ? post.authorUsername : "@\(post.authorUsername)"
         return [SurfacePage(
-            id: "\(source.id)-\(day.id)-\(slot)",
-            type: .affirmations,
+            id: "\(source.id)-\(post.id)",
+            type: .quotes,
             sourceID: source.id,
-            intent: .reflect,
-            renderStyle: .loreLetter,
-            score: context.distress.isActive ? 67 : 58,
-            reason: "The Book occasionally places a small, answerable belief in its own margin.",
-            prompt: "The Book believes this. You may countersign it—or amend the ink.",
-            detail: belief,
+            intent: .importReference,
+            renderStyle: .quoteCard,
+            score: context.distress.isActive ? 34 : 57,
+            reason: "A reviewed public voice noticed something worth looking at twice.",
+            prompt: "Elsewhere, someone noticed.",
+            detail: post.text,
             payload: BookPagePayload(
-                headline: "The Book Believes",
-                body: belief,
+                headline: "Elsewhere, Someone Noticed",
+                body: "\(post.text)\n\n— \(post.authorName) (\(handle))\n\(post.createdAt)",
                 metadata: [
                     "source": source.id,
-                    "writerPlaceholder": "I will… / I disagree because…",
-                    "tags": "affirmation,book-believes,attention"
+                    "url": post.permalink,
+                    "platform": "x",
+                    "xPostID": post.id,
+                    "xAuthorName": post.authorName,
+                    "xAuthorUsername": handle,
+                    "xCreatedAt": post.createdAt,
+                    "tags": "public-margins,creator,attention,wonder"
                 ]
             )
         )]
+    }
+}
+
+struct PublicMarginsCommunityPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(id: "public-margins-community", fallbackType: .quotes)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive, let snapshot = inputs.publicMargins else { return [] }
+        let slot = SurfaceCadence.slotID(for: now, hours: 8)
+
+        if !snapshot.souvenirs.isEmpty {
+            let index = abs("public-souvenir:\(day.id):\(slot)".stableHash) % snapshot.souvenirs.count
+            let souvenir = snapshot.souvenirs[index]
+            return [SurfacePage(
+                id: "\(source.id)-\(souvenir.id)",
+                type: .quotes,
+                sourceID: source.id,
+                intent: .importReference,
+                renderStyle: .quoteCard,
+                score: context.distress.isActive ? 38 : 55,
+                reason: "Someone deliberately left one small sentence in the communal margin.",
+                prompt: "A sentence left in the margin.",
+                detail: souvenir.text,
+                payload: BookPagePayload(
+                    headline: "From the Public Margins",
+                    body: "“\(souvenir.text)”\n\n— offered anonymously by a reader",
+                    metadata: [
+                        "source": source.id,
+                        "publicContributionID": souvenir.id,
+                        "tags": "public-margins,community,souvenir"
+                    ]
+                )
+            )]
+        }
+
+        // Social-platform broadcasts are deliberately not a Book source. The
+        // compatibility field may still decode from older snapshots, but the
+        // app only admits moderated reader souvenirs through this doorway.
+        return []
     }
 }
 
@@ -8856,12 +10402,13 @@ enum BookPageSourceAdapters {
         WordNegotiationPageSourceAdapter(),
         PackPageSourceAdapter(),
         CalendarPageSourceAdapter(),
+        PublicMarginsCommunityPageSourceAdapter(),
         QuotePageSourceAdapter(),
-        AffirmationPageSourceAdapter(),
         QuipPageSourceAdapter(),
         QuotesPageSourceAdapter(),
         AffirmationsPageSourceAdapter(),
         AboutYouPageSourceAdapter(),
+        TarotPageSourceAdapter(),
         WonderCompassPageSourceAdapter(),
         EnchantifyLorePageSourceAdapter(),
         HelpTipsPageSourceAdapter(),
@@ -8910,6 +10457,50 @@ enum BookPageSourceAdapters {
                 ]
             )
         )
+    }
+}
+
+/// A small authored rhythm for a Sentence Runner outing. These are not difficulty
+/// gates: each gives the same reader-owned words a different physical cadence.
+enum SentenceRunnerRunShape: String, CaseIterable, Equatable {
+    case lowRoad
+    case staircase
+    case weather
+
+    var title: String {
+        switch self {
+        case .lowRoad: return "The Low Road"
+        case .staircase: return "The Staircase"
+        case .weather: return "Weather in the Margins"
+        }
+    }
+
+    var invitation: String {
+        switch self {
+        case .lowRoad: return "A spacious run for listening to what comes close."
+        case .staircase: return "A rising run: catch a line one step at a time."
+        case .weather: return "A brisk, grey-streaked run with more chances to make a rescue."
+        }
+    }
+
+    var runDuration: TimeInterval {
+        switch self {
+        case .lowRoad: return 31
+        case .staircase: return 28
+        case .weather: return 26
+        }
+    }
+
+    var scrollSpeed: CGFloat {
+        switch self {
+        case .lowRoad: return 145
+        case .staircase: return 168
+        case .weather: return 186
+        }
+    }
+
+    static func selected(seed: String) -> Self {
+        allCases[Int(seed.stableHash.magnitude % UInt(allCases.count))]
     }
 }
 
@@ -8968,6 +10559,7 @@ struct GamePageSourceAdapter: BookPageSourceAdapter {
         let isShadow = shadow?.isActive == true
         let slotID = SurfaceCadence.slotID(for: now, hours: 6)
         let seed = "\(day.id)-\(slotID)-sentence-runner\(isShadow ? "-shadow" : "")"
+        let runShape = SentenceRunnerRunShape.selected(seed: "\(seed)-shape")
         let sourceMap = Dictionary(
             phrases.map { ($0.phrase, (id: $0.pageID, date: $0.date, label: $0.label)) },
             uniquingKeysWith: { first, _ in first }
@@ -8992,6 +10584,8 @@ struct GamePageSourceAdapter: BookPageSourceAdapter {
             "source": source.id,
             "gameID": isShadow ? "shadow-sentence-runner" : "sentence-runner",
             "gameTitle": isShadow ? "The Shadow Runner" : "The Sentence Runner",
+            "runnerShape": runShape.rawValue,
+            "runnerShapeTitle": runShape.title,
             "gamePhrases": selected.joined(separator: "||"),
             "nothingPhrases": grey.joined(separator: "||"),
             "phraseSources": sources.joined(separator: "||"),

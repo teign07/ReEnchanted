@@ -28,7 +28,9 @@
 		01000000000000000000001F /* CapturePageSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000117 /* CapturePageSections.swift */; };
 		010000000000000000000020 /* SentenceBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000118 /* SentenceBuilder.swift */; };
 		010000000000000000000021 /* LivingTextInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000119 /* LivingTextInput.swift */; };
+		010000000000000000000022 /* TarotPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000011A /* TarotPageView.swift */; };
 		020000000000000000000200 /* PageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000100 /* PageModel.swift */; };
+		020000000000000000000211 /* Tarot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000111 /* Tarot.swift */; };
 		020000000000000000000201 /* SurfaceAndCurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000101 /* SurfaceAndCurator.swift */; };
 		020000000000000000000202 /* NarrativeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000102 /* NarrativeCore.swift */; };
 		020000000000000000000203 /* StoryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000103 /* StoryEngine.swift */; };
@@ -121,6 +123,7 @@
 		010000000000000000000117 /* CapturePageSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePageSections.swift; sourceTree = "<group>"; };
 		010000000000000000000118 /* SentenceBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentenceBuilder.swift; sourceTree = "<group>"; };
 		010000000000000000000119 /* LivingTextInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivingTextInput.swift; sourceTree = "<group>"; };
+		01000000000000000000011A /* TarotPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TarotPageView.swift; sourceTree = "<group>"; };
 		010000000000000000000201 /* InsideCoverApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InsideCoverApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		020000000000000000000100 /* PageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageModel.swift; sourceTree = "<group>"; };
 		020000000000000000000101 /* SurfaceAndCurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfaceAndCurator.swift; sourceTree = "<group>"; };
@@ -135,6 +138,7 @@
 		02000000000000000000010A /* MonthlyEdition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEdition.swift; sourceTree = "<group>"; };
 		02000000000000000000010F /* PhysicalBookOrders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalBookOrders.swift; sourceTree = "<group>"; };
 		020000000000000000000110 /* QuillCompanion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuillCompanion.swift; sourceTree = "<group>"; };
+		020000000000000000000111 /* Tarot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tarot.swift; sourceTree = "<group>"; };
 		02000000000000000000010E /* EditionCurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionCurator.swift; sourceTree = "<group>"; };
 		02000000000000000000010B /* Constellations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constellations.swift; sourceTree = "<group>"; };
 		02000000000000000000010C /* TheBleed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheBleed.swift; sourceTree = "<group>"; };
@@ -207,6 +211,7 @@
 				010000000000000000000110 /* LocalBrainServices.swift */,
 				010000000000000000000111 /* BookStatusCards.swift */,
 				010000000000000000000112 /* CapturePageSheet.swift */,
+				01000000000000000000011A /* TarotPageView.swift */,
 				010000000000000000000113 /* BookSurfaceViews.swift */,
 				010000000000000000000114 /* CustomCastMemberSheet.swift */,
 				010000000000000000000115 /* ContentViewFeatures.swift */,
@@ -240,6 +245,7 @@
 				030000000000000000000107 /* PressedPhotograph.swift */,
 				030000000000000000000108 /* PlainInkExport.swift */,
 				020000000000000000000100 /* PageModel.swift */,
+				020000000000000000000111 /* Tarot.swift */,
 				020000000000000000000101 /* SurfaceAndCurator.swift */,
 				020000000000000000000102 /* NarrativeCore.swift */,
 				020000000000000000000103 /* StoryEngine.swift */,
@@ -422,6 +428,7 @@
 				010000000000000000000018 /* LocalBrainServices.swift in Sources */,
 				010000000000000000000019 /* BookStatusCards.swift in Sources */,
 				01000000000000000000001A /* CapturePageSheet.swift in Sources */,
+				010000000000000000000022 /* TarotPageView.swift in Sources */,
 				01000000000000000000001B /* BookSurfaceViews.swift in Sources */,
 				01000000000000000000001C /* CustomCastMemberSheet.swift in Sources */,
 				01000000000000000000001D /* ContentViewFeatures.swift in Sources */,
@@ -445,6 +452,7 @@
 				010000000000000000000020 /* SentenceBuilder.swift in Sources */,
 				030000000000000000000200 /* StacksSearch.swift in Sources */,
 				020000000000000000000200 /* PageModel.swift in Sources */,
+				020000000000000000000211 /* Tarot.swift in Sources */,
 				020000000000000000000201 /* SurfaceAndCurator.swift in Sources */,
 				020000000000000000000202 /* NarrativeCore.swift in Sources */,
 				020000000000000000000203 /* StoryEngine.swift in Sources */,

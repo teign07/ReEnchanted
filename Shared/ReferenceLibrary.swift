@@ -238,6 +238,17 @@ enum SelfKnowledgePackRegistry {
         questions.first { $0.id == id }
     }
 
+    static func exampleLines(for question: AboutYouQuestion) -> [String] {
+        guard question.id == "rut-signal" else { return [] }
+        return [
+            "Whole weeks are happening, but I couldn't tell you what I did.",
+            "I keep opening my phone without knowing why.",
+            "Figuring out dinner feels like a major administrative task.",
+            "When plans get canceled, relief arrives before disappointment.",
+            "Things I usually like feel weirdly flavorless."
+        ]
+    }
+
     static func packName(for packID: String) -> String {
         enabledPacks.first { $0.id == packID }?.displayName ?? "the shelf"
     }
@@ -315,7 +326,7 @@ enum SelfKnowledgePackRegistry {
     }
 
     private static let coreQuestions: [AboutYouQuestion] = [
-        question("rut-signal", "Which 'ugh, that's me' line hit first?", "The Book isn't diagnosing you. It's finding the door that already opened.", "Time blur. Phone fog. Dinner decisions. Plans canceling felt like relief. Nothing tastes bright.", .comfort, .privateContext, ["rut", "rut-signal", "wonder-compass", "self-recognition", "state-not-identity"], 96),
+        question("rut-signal", "Which 'ugh, that's me' line hit first?", "The Book isn't diagnosing you. It's finding the door that already opened.", "Tap the line that found you first, or write your own.", .comfort, .privateContext, ["rut", "rut-signal", "wonder-compass", "self-recognition", "state-not-identity"], 96),
         question("rut-depth", "How loud is the Rut right now?", "Rough is enough. This is a weather report, not a tattoo.", "0-3: tired but functional. 4-7: in the rut. 8-10: whirlpool. 11-12: deep water.", .comfort, .privateContext, ["rut", "rut-depth", "wonder-compass", "self-recognition", "state-not-identity"], 95),
         question("rut-season", "What should we call this season?", "Naming it takes some of its teeth. Keep it small and honest.", "The Fog. Maintenance Mode. The Too-Many-Tabs Era. Getting Back to Color.", .comfort, .privateContext, ["rut", "rut-season", "wonder-compass", "self-recognition", "state-not-identity"], 94),
         question("wonder-entry", "What kind of wonder still works on you?", "Pick the door you'd actually open on a tired Tuesday.", "Looking out. Pocket adventure. Odd details. Color. Making. People. Quiet.", .delight, .privateContext, ["wonder", "wonder-compass", "wonder-entry", "wonder-affinity", "delight", "low-friction"], 93),
@@ -568,7 +579,7 @@ enum QuipPackRegistry {
             version: "1.0",
             author: "The Book",
             availability: .bundledFree,
-            quips: coreQuips
+            quips: coreQuips + ridiculousPerspectiveQuips
         )
     ]
 
@@ -670,6 +681,52 @@ enum QuipPackRegistry {
         quip("book-breath", "An unread book is the most patient object in any house.", "Bookish Oddity", ["book", "home"]),
         quip("photo-key", "A photograph doesn't hold the memory. You do. The photo is just where you left the key.", "Memory Note", ["memory", "photo"]),
         quip("novelty-save", "Novelty is just the save button.", "Memory Note", ["memory", "attention"])
+    ]
+
+    /// Comic reframes that do the same perspective work as the core oddities,
+    /// only with less dignity. Each starts from a thing the reader may already
+    /// be looking at and gives it a second, ridiculous classification.
+    static let ridiculousPerspectiveQuips: [QuipEntry] = [
+        quip("ridiculous-hallway", "A hallway is a room that refused to settle down.", "House Reclassified", ["ridiculous", "perspective", "home", "place"], weight: 2),
+        quip("ridiculous-stairs", "Stairs are a hill that passed a building inspection.", "House Reclassified", ["ridiculous", "perspective", "home", "movement"], weight: 2),
+        quip("ridiculous-window", "A window is a wall having second thoughts.", "House Reclassified", ["ridiculous", "perspective", "home", "light"], weight: 2),
+        quip("ridiculous-mirror", "A mirror is an extremely punctual ghost.", "House Reclassified", ["ridiculous", "perspective", "home", "reflection"], weight: 2),
+        quip("ridiculous-shadow", "A shadow is your body filing a second opinion.", "Body Reclassified", ["ridiculous", "perspective", "body", "light"], weight: 2),
+        quip("ridiculous-dust", "Dust is a house quietly practicing archaeology.", "House Reclassified", ["ridiculous", "perspective", "home", "history"], weight: 2),
+        quip("ridiculous-table", "A table is a floor that believed in itself.", "Furniture Reclassified", ["ridiculous", "perspective", "home", "object"], weight: 2),
+        quip("ridiculous-chair", "A chair is a machine for turning standing into opinions.", "Furniture Reclassified", ["ridiculous", "perspective", "home", "body"], weight: 2),
+        quip("ridiculous-doormat", "A doormat is a rug assigned to border control.", "Furniture Reclassified", ["ridiculous", "perspective", "home", "threshold"], weight: 2),
+        quip("ridiculous-laundry-basket", "A laundry basket is a chair with consequences.", "Furniture Reclassified", ["ridiculous", "perspective", "home", "ordinary"], weight: 2),
+        quip("ridiculous-fridge", "A refrigerator is a cupboard with its own weather system.", "Appliance Reclassified", ["ridiculous", "perspective", "home", "food", "weather"], weight: 2),
+        quip("ridiculous-microwave", "A microwave is a tiny thunderstorm with a clock.", "Appliance Reclassified", ["ridiculous", "perspective", "home", "food", "weather"], weight: 2),
+        quip("ridiculous-dishwasher", "A dishwasher is rain that knows where the plates live.", "Appliance Reclassified", ["ridiculous", "perspective", "home", "water"], weight: 2),
+        quip("ridiculous-broom", "A broom is a tree branch promoted to management.", "Object Reclassified", ["ridiculous", "perspective", "home", "tree"], weight: 2),
+        quip("ridiculous-umbrella", "An umbrella is a portable roof that panics in the wind.", "Object Reclassified", ["ridiculous", "perspective", "weather", "wind"], weight: 2),
+        quip("ridiculous-zipper", "A zipper is two rows of tiny teeth achieving rare cooperation.", "Object Reclassified", ["ridiculous", "perspective", "clothing", "object"], weight: 2),
+        quip("ridiculous-button", "A button is a tiny employee holding your outfit together without recognition.", "Object Reclassified", ["ridiculous", "perspective", "clothing", "ordinary"], weight: 2),
+        quip("ridiculous-escalator", "An escalator is a staircase doing all the work while everyone stands there.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "movement"], weight: 2),
+        quip("ridiculous-elevator", "An elevator is a room pretending to be public transportation.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "movement"], weight: 2),
+        quip("ridiculous-traffic-light", "A traffic light is a three-bulb government for cars.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "road", "color"], weight: 2),
+        quip("ridiculous-parking-lot", "A parking lot is a meadow that got audited into rectangles.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "road", "place"], weight: 2),
+        quip("ridiculous-roundabout", "A roundabout is a road avoiding a difficult decision.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "road", "movement"], weight: 2),
+        quip("ridiculous-sidewalk", "A sidewalk is the road's safety margin.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "walk", "margin"], weight: 2),
+        quip("ridiculous-bench", "A bench is public punctuation.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "rest", "place"], weight: 2),
+        quip("ridiculous-receipt", "A receipt is a store saying goodbye and showing its work.", "Errand Reclassified", ["ridiculous", "perspective", "public", "errand", "paper"], weight: 2),
+        quip("ridiculous-notification", "A notification is a tiny doorbell installed inside your attention.", "Attention Reclassified", ["ridiculous", "perspective", "attention", "technology", "sound"], weight: 2),
+        quip("ridiculous-autocorrect", "Autocorrect is a ghostwriter with unlimited confidence and no context.", "Technology Reclassified", ["ridiculous", "perspective", "technology", "writing", "words"], weight: 2),
+        quip("ridiculous-typo", "A typo is a letter sitting in the wrong chair and acting natural.", "Type Reclassified", ["ridiculous", "perspective", "writing", "letter", "words"], weight: 2),
+        quip("ridiculous-loading-spinner", "A loading spinner is the computer stirring its thoughts.", "Technology Reclassified", ["ridiculous", "perspective", "technology", "time", "movement"], weight: 2),
+        quip("ridiculous-headphones", "Headphones are privacy curtains for your ears.", "Technology Reclassified", ["ridiculous", "perspective", "technology", "sound", "body"], weight: 2),
+        quip("ridiculous-wifi", "Wi-Fi is indoor weather that everyone blames personally.", "Technology Reclassified", ["ridiculous", "perspective", "technology", "weather", "home"], weight: 2),
+        quip("ridiculous-puddle", "A puddle is the sky dropping a mirror and walking away.", "Weather Reclassified", ["ridiculous", "perspective", "weather", "water", "reflection"], weight: 2),
+        quip("ridiculous-thunder", "Thunder is the sky rearranging furniture upstairs.", "Weather Reclassified", ["ridiculous", "perspective", "weather", "storm", "sound"], weight: 2),
+        quip("ridiculous-wind", "Wind is air late for something.", "Weather Reclassified", ["ridiculous", "perspective", "weather", "wind", "movement"], weight: 2),
+        quip("ridiculous-sunset", "A sunset is the day making a dramatic exit after insisting it hates attention.", "Weather Reclassified", ["ridiculous", "perspective", "weather", "sky", "light"], weight: 2),
+        quip("ridiculous-pigeon", "A pigeon is a city bird dressed for middle management.", "Creature Reclassified", ["ridiculous", "perspective", "creature", "bird", "public"], weight: 2),
+        quip("ridiculous-cat", "A cat is a roommate with diplomatic immunity.", "Creature Reclassified", ["ridiculous", "perspective", "creature", "home"], weight: 2),
+        quip("ridiculous-dog", "A dog is enthusiasm wearing a mammal.", "Creature Reclassified", ["ridiculous", "perspective", "creature", "joy"], weight: 2),
+        quip("ridiculous-plant", "A houseplant is a slow green argument for the window seat.", "Botanical Reclassified", ["ridiculous", "perspective", "nature", "plant", "home"], weight: 2),
+        quip("ridiculous-weed", "A weed is a plant that declined the terms and conditions.", "Botanical Reclassified", ["ridiculous", "perspective", "nature", "plant", "public"], weight: 2)
     ]
 
     private static func quip(_ id: String, _ text: String, _ title: String, _ tags: [String], weight: Int = 1) -> QuipEntry {
@@ -876,15 +933,26 @@ enum AffirmationLibraryRegistry {
             )
         }
         let tagSet = Set(tags.map { $0.lowercased() })
+        // A hard day gets a gift, never homework disguised as encouragement.
+        // Other context still guides selection, but does not force a pact.
+        let eligibleAffirmations: [AffirmationEntry]
+        if tagSet.contains("hard-day") {
+            let gifts = affirmations.filter { !$0.isPact }
+            eligibleAffirmations = gifts.isEmpty ? affirmations : gifts
+        } else {
+            eligibleAffirmations = affirmations
+        }
         // One believing holds the morning; another may arrive by evening.
         let slot = SurfaceCadence.slotID(for: now, hours: 6)
         let seed = abs("\(day.id)-believings-\(slot)-\(tags.joined(separator: ","))".stableHash)
-        let ranked = affirmations.enumerated().map { index, entry -> (AffirmationEntry, Int) in
+        let ranked = eligibleAffirmations.enumerated().map { index, entry -> (AffirmationEntry, Int) in
             let overlap = tagSet.intersection(Set(entry.tags.map { $0.lowercased() })).count
-            let jitter = abs((seed &+ index &* 3517).stableScramble % 1000)
+            // Keep variety as a tie-breaker without letting it drown out context.
+            let jitter = abs((seed &+ index &* 3517).stableScramble % 17)
             return (entry, overlap * 22 + entry.weight * 4 + jitter)
         }
-        return ranked.sorted { $0.1 > $1.1 }.first?.0 ?? affirmations[seed % affirmations.count]
+        return ranked.sorted { $0.1 > $1.1 }.first?.0
+            ?? eligibleAffirmations[seed % eligibleAffirmations.count]
     }
 
     static func affirmation(id: String) -> AffirmationEntry? {

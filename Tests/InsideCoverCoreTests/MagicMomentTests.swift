@@ -2,54 +2,88 @@ import XCTest
 @testable import InsideCoverCore
 
 final class MagicMomentTests: XCTestCase {
-    func testGovernorWarmsAcrossMeaningfulSessionsWithoutClockworkCadence() {
+    func testGovernorWarmsOnlyFromDistinctMeaningfulActions() {
         let start = Date(timeIntervalSince1970: 1_800_000_000)
         var state = MagicMomentState()
 
-        state = MagicMomentGovernor.enteringSession(state, now: start, roll: 0)
+        state = MagicMomentGovernor.recordingMeaningfulAction(state, key: "keep:a", now: start)
         XCTAssertEqual(state.sessionsSinceMoment, 1)
         XCTAssertFalse(state.isArmed)
 
-        // A quick foreground bounce is still the same sitting.
-        state = MagicMomentGovernor.enteringSession(state, now: start.addingTimeInterval(60), roll: 0)
+        // Lifecycle retries and repeated delivery of the same keep do nothing.
+        state = MagicMomentGovernor.recordingMeaningfulAction(
+            state,
+            key: "keep:a",
+            now: start.addingTimeInterval(60)
+        )
         XCTAssertEqual(state.sessionsSinceMoment, 1)
 
-        // Session two has a chance, not a promise.
-        state = MagicMomentGovernor.enteringSession(state, now: start.addingTimeInterval(1_300), roll: 90)
+        state = MagicMomentGovernor.recordingMeaningfulAction(
+            state,
+            key: "keep:b",
+            now: start.addingTimeInterval(1_300)
+        )
         XCTAssertEqual(state.sessionsSinceMoment, 2)
         XCTAssertFalse(state.isArmed)
 
-        // The same roll wins as the draw gets warmer on session three.
-        state = MagicMomentGovernor.enteringSession(state, now: start.addingTimeInterval(2_600), roll: 30)
+        state = MagicMomentGovernor.recordingMeaningfulAction(
+            state,
+            key: "compass:c",
+            now: start.addingTimeInterval(2_600)
+        )
         XCTAssertEqual(state.sessionsSinceMoment, 3)
         XCTAssertTrue(state.isArmed)
     }
 
-    func testGovernorGuaranteesByFifthSessionAndPersistsUntilConsumed() {
+    func testGovernorPersistsUntilConsumedAndThenNeedsFreshAttention() {
         let start = Date(timeIntervalSince1970: 1_800_000_000)
         var state = MagicMomentState()
-        for session in 0..<5 {
-            state = MagicMomentGovernor.enteringSession(
+        for action in 0..<3 {
+            state = MagicMomentGovernor.recordingMeaningfulAction(
                 state,
-                now: start.addingTimeInterval(TimeInterval(session * 1_300)),
-                roll: 99
+                key: "keep:\(action)",
+                now: start.addingTimeInterval(TimeInterval(action * 1_300))
             )
         }
 
         XCTAssertTrue(state.isArmed)
-        XCTAssertEqual(state.sessionsSinceMoment, 5)
-
-        state = MagicMomentGovernor.enteringSession(
-            state,
-            now: start.addingTimeInterval(6_500),
-            roll: 99
-        )
-        XCTAssertTrue(state.isArmed)
+        XCTAssertEqual(state.sessionsSinceMoment, 3)
 
         state = MagicMomentGovernor.consuming(state, key: "semantic:harbor", now: start.addingTimeInterval(6_600))
         XCTAssertFalse(state.isArmed)
         XCTAssertEqual(state.sessionsSinceMoment, 0)
         XCTAssertEqual(state.lastMomentKey, "semantic:harbor")
+
+        state = MagicMomentGovernor.recordingMeaningfulAction(
+            state,
+            key: "keep:fresh",
+            now: start.addingTimeInterval(7_000)
+        )
+        XCTAssertEqual(state.sessionsSinceMoment, 1)
+        XCTAssertFalse(state.isArmed)
+    }
+
+    func testWhisperCadenceMapsToOneMorningPromptAndOneEveningReturn() {
+        XCTAssertEqual(
+            BookWhisperCadence.resolved(bookWhispersEnabled: false, promptWhispersEnabled: true),
+            .morning
+        )
+        XCTAssertEqual(
+            BookWhisperCadence.resolved(bookWhispersEnabled: true, promptWhispersEnabled: false),
+            .evening
+        )
+        XCTAssertEqual(
+            BookWhisperCadence.resolved(bookWhispersEnabled: true, promptWhispersEnabled: true),
+            .both
+        )
+        XCTAssertEqual(
+            BookWhisperCadence.resolved(bookWhispersEnabled: false, promptWhispersEnabled: false),
+            .inside
+        )
+        XCTAssertTrue(BookWhisperCadence.morning.enablesPromptWhispers)
+        XCTAssertFalse(BookWhisperCadence.morning.enablesBookWhispers)
+        XCTAssertTrue(BookWhisperCadence.evening.enablesBookWhispers)
+        XCTAssertFalse(BookWhisperCadence.evening.enablesPromptWhispers)
     }
 
     func testObservationLedgerMakesExactNoReadBoundaryHard() {

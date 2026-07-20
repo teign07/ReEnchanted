@@ -139,6 +139,8 @@ final class TwoReadingsTests: XCTestCase {
         XCTAssertEqual(surfaced.first?.type, .twoReadings)
         XCTAssertFalse(surfaced.first?.payload.metadata["entityAID"]?.isEmpty ?? true)
         XCTAssertFalse(surfaced.first?.payload.metadata["entityAProfile"]?.isEmpty ?? true)
+        XCTAssertTrue(surfaced.first?.payload.metadata[CharacterCanonPacket.metadataKey]?.contains("Beliefs:") == true)
+        XCTAssertTrue(surfaced.first?.payload.metadata[CharacterCanonPacket.metadataKey]?.contains("Blind spots and faults:") == true)
         XCTAssertEqual(surfaced.first?.varietyKey, "tworeadings:\(surfaced.first!.payload.metadata["pairID"]!)")
     }
 
@@ -259,6 +261,8 @@ final class TwoReadingsTests: XCTestCase {
         XCTAssertEqual(pages.first?.payload.metadata["bondKind"], CastBondKind.alliance.rawValue)
         XCTAssertTrue(pages.first?.payload.metadata["tags"]?.contains("cast-bond:") ?? false)
         XCTAssertTrue(pages.first?.payload.metadata["tags"]?.contains("entity:dr-vellum") ?? false)
+        XCTAssertTrue(pages.first?.payload.metadata[CharacterCanonPacket.metadataKey]?.contains("Dr. Elowen Vellum") == true)
+        XCTAssertTrue(pages.first?.payload.metadata[CharacterCanonPacket.metadataKey]?.contains("Dr. Selene Inkrest") == true)
     }
 
     func testCastBondAdapterSurfacesRivalryWhenTensionCrossesMilestone() {

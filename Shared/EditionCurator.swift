@@ -148,7 +148,21 @@ enum EditionCurator {
         default: joined = "\(parts[0]), \(parts[1]), and \(parts[2])"
         }
         let month = now.formatted(.dateTime.month(.wide))
-        return "This week the Bindery sewed \(sewn.count) pages into \(month)\u{2019}s edition: \(joined)."
+        let threadLabels = BraidEmber.threadLabels(
+            for: sewn.filter { $0.origin == .userAuthored }
+        )
+        let carried: String
+        switch threadLabels.count {
+        case 0:
+            carried = ""
+        case 1:
+            carried = " It carried \(threadLabels[0]) all the way to the binding."
+        case 2:
+            carried = " It carried \(threadLabels[0]) and \(threadLabels[1]) all the way to the binding."
+        default:
+            carried = " It carried \(threadLabels[0]), \(threadLabels[1]), and \(threadLabels[2]) all the way to the binding."
+        }
+        return "This week the Bindery sewed \(sewn.count) pages into \(month)\u{2019}s edition: \(joined).\(carried)"
     }
 
     // MARK: Curation

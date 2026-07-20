@@ -301,20 +301,131 @@ enum QuillChoosing {
     /// opposite-nature explained through what the Book actually observed.
     static func choosingBody(quill: ChosenQuill) -> String {
         let dominant = quill.temperament.dominant
-        let evidence = dominant.map { "It has read your hand — you \($0.readerLeaning) — and it applied for the post anyway. Especially because of that." }
-            ?? "It has read your hand and applied for the post anyway."
+        let evidence = dominant.map {
+            "It had read your hand and noticed that \(pastReaderObservation(for: $0)). It had applied for the post especially because of that."
+        } ?? "It had read your hand and applied for the post anyway."
+        let counterweight = dominant.map {
+            "Where your hand \(pastReaderHabit(for: $0)), the new instrument \(pastQuillPromise(for: $0))."
+        } ?? "The new instrument had arrived with opinions, and ink to spend on them."
         return """
-        The Quillquarium is never entirely still. Pens school overhead like minnows, nibs glinting; the predatory quills patrol the high shelves; somewhere a pencil pretends, badly, to be asleep. Instruments wait here for years, the keepers say, because a pen cannot merely be picked up. It has to choose.
+        The Quillquarium had not been still when you entered. Pens had schooled overhead like minnows, their nibs glinting; predatory quills had patrolled the high shelves; somewhere, a pencil had pretended badly to be asleep. Instruments sometimes waited there for years, the keepers had told you, because a pen could not merely be picked up. It had to choose.
 
-        Tonight one of them did.
+        That night, one of them chose you.
 
-        It broke from the school on your second breath in the room, circled once — checking your margins, the keepers say, the way sailors check weather — and landed on the desk in front of you, nib politely lowered. \(quill.name): \(quill.make). \(evidence)
+        On your second breath in the room, it had broken from the school above you. It had circled once — checking your margins, the keepers later said, the way sailors checked weather — and landed on the desk before you with its nib politely lowered. Its name was \(quill.name). It was \(quill.make). \(evidence)
 
-        \(quill.natureLine)
+        \(counterweight)
 
-        That is not an insult. It is the oldest rule of the room: the right instrument is the one that carries you where you would not go alone. \(quill.name) \(quill.wants.first ?? "has opinions, and ink to spend on them"). It also, for the record, \(quill.quirks.first ?? "hums faintly on downstrokes").
+        That had not been an insult. It had been the oldest rule of the room: the right instrument was the one that carried you where you would not have gone alone. \(quill.name) had chosen you because it \(quill.wants.first ?? "had opinions, and ink to spend on them"). For the record, it also \(quill.quirks.first ?? "hummed faintly on downstrokes").
 
-        Keep this page and the choosing stands: \(quill.name) rides in your Book's spine from tonight, with opinions about everything the two of you write. Let the page wait, and it will return to the school without offense — quills are patient, and it has already decided about you.
+        The page waited for your answer. If you kept it, the choosing would stand, and \(quill.name) would ride in your Book's spine with opinions about everything the two of you wrote. If you let it wait, the quill would return to the school without offense. Quills had always been patient. This one had already decided about you.
+        """
+    }
+
+    private static func pastReaderObservation(for axis: QuillTemperament.Axis) -> String {
+        switch (axis.id, axis.readerSideIsHigh) {
+        case ("boldness", false): return "you had often softened a thought with maybe"
+        case ("boldness", true): return "you had often sent a sentence out at full volume"
+        case ("order", false): return "you had let sentences roam past their fences"
+        case ("order", true): return "you had kept each line squared and properly closed"
+        case ("inquiry", false): return "you had stated what you meant and moved on"
+        case ("inquiry", true): return "you had asked the page more questions than it answered"
+        case ("ornament", false): return "you had spent words as though they were rationed"
+        default: return "you had given your sentences room to wander"
+        }
+    }
+
+    private static func pastReaderHabit(for axis: QuillTemperament.Axis) -> String {
+        switch (axis.id, axis.readerSideIsHigh) {
+        case ("boldness", false): return "had hesitated"
+        case ("boldness", true): return "had rushed ahead"
+        case ("order", false): return "had wandered"
+        case ("order", true): return "had obeyed every margin"
+        case ("inquiry", false): return "had declared"
+        case ("inquiry", true): return "had questioned"
+        case ("ornament", false): return "had stayed spare"
+        default: return "had grown elaborate"
+        }
+    }
+
+    private static func pastQuillPromise(for axis: QuillTemperament.Axis) -> String {
+        switch (axis.id, axis.readerSideIsHigh) {
+        case ("boldness", false): return "had arrived to be brave first"
+        case ("boldness", true): return "had arrived to slow one true word down"
+        case ("order", false): return "had arrived to keep commas like promises"
+        case ("order", true): return "had arrived to bend one rule and see what escaped"
+        case ("inquiry", false): return "had arrived with one more good question"
+        case ("inquiry", true): return "had arrived prepared to answer plainly"
+        case ("ornament", false): return "had arrived with flourishes to spare"
+        default: return "had arrived to take the ribbons off the truth"
+        }
+    }
+
+    /// Gemma prose is allowed onto the choosing page only when it still names
+    /// the minted instrument, stays in the Quillquarium ceremony, addresses
+    /// the reader as "you", and carries unmistakable past-tense narration.
+    /// A failed check falls back to `choosingBody`, so an off-topic or
+    /// first-person model turn can never replace the actual choosing again.
+    static func generatedCeremonyIsGrounded(_ prose: String, quill: ChosenQuill) -> Bool {
+        let trimmed = prose.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 180 else { return false }
+        let lower = " \(trimmed.lowercased()) "
+        guard lower.contains(quill.name.lowercased()),
+              lower.contains(" you ") || lower.contains(" your "),
+              lower.contains("quillquarium") || lower.contains(" quill ") || lower.contains(" nib "),
+              lower.contains(" chose ") || lower.contains(" chosen ") || lower.contains(" choosing ") else {
+            return false
+        }
+        let pastMarkers = [" was ", " were ", " had ", " chose ", " landed ", " circled ", " waited "]
+        guard pastMarkers.filter({ lower.contains($0) }).count >= 2 else { return false }
+
+        // Reject an unmistakable first-person narrator. Dialogue may still use
+        // "I", so only paragraph openings are treated as a narration failure.
+        let paragraphs = trimmed.components(separatedBy: "\n\n")
+        return !paragraphs.contains { paragraph in
+            let line = paragraph.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return line.hasPrefix("i ") || line.hasPrefix("i'd ") || line.hasPrefix("i had ") || line.hasPrefix("my ")
+        }
+    }
+
+    /// A dedicated handoff for the once-ever choosing. Keeping this beside
+    /// the minting lore prevents the ceremony from silently drifting back
+    /// through the generic two-cast relationship prompt.
+    static func generationPrompt(surface: SurfacePage) -> String {
+        let metadata = surface.payload.metadata
+        let quill: ChosenQuill? = metadata[metadataKey]
+            .flatMap { $0.data(using: .utf8) }
+            .flatMap { try? JSONDecoder().decode(ChosenQuill.self, from: $0) }
+        let name = quill?.name ?? metadata["quillName"] ?? "the waiting quill"
+        let make = quill?.make ?? metadata["quillMake"] ?? "a living writing instrument"
+        let nature = quill?.natureLine ?? metadata["quillNature"] ?? "The instrument was the useful opposite of the reader's hand."
+        let wants = quill?.wants.joined(separator: "; ") ?? metadata["quillWant"] ?? "to carry the writer somewhere new"
+        let quirks = quill?.quirks.joined(separator: "; ") ?? metadata["quillQuirk"] ?? "hummed on downstrokes"
+
+        return """
+        You were the scribe of the Labyrinth of Stories inside ReEnchanted, writing the once-ever ceremony called "The Pen Choosing."
+
+        CANON:
+        - Magic here was written, never waved. There were no wands.
+        - In the Quillquarium, living pens, pencils, and quills schooled through the air until an instrument chose its writer.
+        - The right instrument chose the writer whose habits it could usefully oppose. It was a companion and counterweight, not a pet, wand, or generic cast member.
+        - This exact instrument was \(name): \(make).
+        - What the Book had learned about the pairing: \(nature)
+        - What \(name) wanted: \(wants)
+        - Its private oddity: \(quirks)
+
+        THE CEREMONY FACTS TO STAGE:
+        \(surface.payload.body)
+
+        NON-NEGOTIABLE VOICE AND SHAPE:
+        - Write the entire scene in SECOND-PERSON PAST TENSE: "you entered," "you heard," "the quill had waited." Address the reader only as "you."
+        - Never use first-person narration. Never narrate as "I" or "we." Dialogue may use first person only when a keeper speaks.
+        - Keep the entire scene about \(name) breaking from the airborne school, studying the reader's hand, landing before them, and choosing them in the Quillquarium.
+        - Make the choosing tactile and magical: airborne instruments, ink, paper, sound, the weight or temperature of the chosen pen, and one small reaction from the room.
+        - Explain through action why this opposite temperament made the pairing right. Do not diagnose the reader or invent private facts beyond the supplied writing habits.
+        - Do not introduce two cast members, a Loom milestone, a relationship scene, today's weather, or an unrelated adventure.
+        - Do not claim the reader accepted. End at the held-breath choice: keeping the page would make the choosing stand; letting it wait would return \(name) patiently to the school.
+        - Prose only. No headings, lists, analysis, or meta-commentary. 5 to 7 short paragraphs.
         """
     }
 
@@ -446,6 +557,13 @@ struct QuillChoosingPageSourceAdapter: BookPageSourceAdapter {
                     QuillChoosing.metadataKey: encoded,
                     "quillName": quill.name,
                     "quillID": quill.id,
+                    "quillMake": quill.make,
+                    "quillNature": quill.natureLine,
+                    "quillWant": quill.wants.first ?? "has opinions, and ink to spend on them",
+                    "quillQuirk": quill.quirks.first ?? "hums faintly on downstrokes",
+                    "pageTitle": "The Pen Choosing",
+                    "pageSymbol": "pencil.and.scribble",
+                    "locationAsset": "LabyrinthLocationQuillquarium",
                     "milestone": "true",
                     "tags": "\(QuillChoosing.chosenTag),quillquarium,chosen-quill"
                 ]

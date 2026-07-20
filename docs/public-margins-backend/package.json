@@ -1,0 +1,14 @@
+{
+  "name": "reenchanted-public-margins",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check public-margins-worker.mjs",
+    "test": "node --test test-public-margins.mjs",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.24.0"
+  }
+}

@@ -12,7 +12,8 @@ enum ReEnchantedWidgetSnapshotWriter {
         beliefScore: Int,
         radio: RadioPlaybackState?,
         radioIsPlaying: Bool,
-        activeWorldEvents: [ResolvedWorldEvent] = []
+        activeWorldEvents: [ResolvedWorldEvent] = [],
+        bookInterior: BookInteriorState = .unawakened
     ) {
         let snapshot = makeSnapshot(
             today: today,
@@ -22,7 +23,8 @@ enum ReEnchantedWidgetSnapshotWriter {
             beliefScore: beliefScore,
             radio: radio,
             radioIsPlaying: radioIsPlaying,
-            activeWorldEvents: activeWorldEvents
+            activeWorldEvents: activeWorldEvents,
+            bookInterior: bookInterior
         )
         try? ReEnchantedWidgetSnapshotStore.save(snapshot)
         #if canImport(WidgetKit)
@@ -38,7 +40,8 @@ enum ReEnchantedWidgetSnapshotWriter {
         beliefScore: Int,
         radio: RadioPlaybackState?,
         radioIsPlaying: Bool,
-        activeWorldEvents: [ResolvedWorldEvent] = []
+        activeWorldEvents: [ResolvedWorldEvent] = [],
+        bookInterior: BookInteriorState = .unawakened
     ) -> ReEnchantedWidgetSnapshot {
         let readerName = selfFacts
             .first { $0.id == "onboarding:onboarding-name" }?
@@ -58,6 +61,7 @@ enum ReEnchantedWidgetSnapshotWriter {
             detail: beliefDetail(for: beliefScore),
             level: max(0, min(100, beliefScore))
         )
+        let interior = interiorStatus(from: bookInterior)
 
         return ReEnchantedWidgetSnapshot(
             generatedAt: Date(),
@@ -70,8 +74,79 @@ enum ReEnchantedWidgetSnapshotWriter {
             radio: radio,
             worldEvent: worldEvent,
             enchantments: enchantments,
-            belief: belief
+            belief: belief,
+            bookInterior: interior
         )
+    }
+
+    private static func interiorStatus(from interior: BookInteriorState) -> ReEnchantedWidgetBookInterior? {
+        guard interior.isAwake else { return nil }
+        if let secret = interior.secret, secret.status == .ready {
+            return ReEnchantedWidgetBookInterior(
+                title: "A Sealed Leaf",
+                line: "One of the Book's own secrets is ready to open.",
+                symbolName: "seal",
+                urlPath: "today"
+            )
+        }
+        if let favor = interior.activeFavor, favor.status == .offered {
+            return ReEnchantedWidgetBookInterior(
+                title: "A Favor from the Book",
+                line: "Optional fieldwork for \(favor.facet.verb): small enough for ordinary life.",
+                symbolName: "bookmark",
+                urlPath: "today"
+            )
+        }
+        if let promise = interior.promise, promise.status == .keeping {
+            return ReEnchantedWidgetBookInterior(
+                title: "The Book Is Keeping Watch",
+                line: "An unfinished promise is resting under the ribbon.",
+                symbolName: "bookmark.fill",
+                urlPath: "today"
+            )
+        }
+        if interior.favorite?.firstPresentedAt == nil {
+            return ReEnchantedWidgetBookInterior(
+                title: "The Book Chose a Favorite",
+                line: "A dog-eared Page is waiting inside. The Book has reasons.",
+                symbolName: "book.pages",
+                urlPath: "today"
+            )
+        }
+        if let opinion = interior.opinion,
+           opinion.firstPresentedAt == nil {
+            return ReEnchantedWidgetBookInterior(
+                title: opinion.strength == .reconsidering ? "The Book Revised Itself" : "The Book Has an Opinion",
+                line: "A \(opinion.strength.confidenceLabel) thought is waiting with its evidence.",
+                symbolName: "pencil.and.outline",
+                urlPath: "today"
+            )
+        }
+        if let quirk = interior.quirks.first(where: { $0.maturity != .latent && $0.firstPresentedAt == nil }) {
+            return ReEnchantedWidgetBookInterior(
+                title: "A Habit Became Visible",
+                line: "This Book appears to have developed \(quirk.title.lowercased()).",
+                symbolName: "book.closed",
+                urlPath: "today"
+            )
+        }
+        if let game = interior.longGame, game.phasePresentedAt == nil {
+            return ReEnchantedWidgetBookInterior(
+                title: "The Long Game",
+                line: "The campaign has entered: \(game.phase.title).",
+                symbolName: "map",
+                urlPath: "today"
+            )
+        }
+        if let fascination = interior.fascination {
+            return ReEnchantedWidgetBookInterior(
+                title: "Current Fascination",
+                line: "The Book is following a thread about \(fascination.facet.verb).",
+                symbolName: "sparkle.magnifyingglass",
+                urlPath: "today"
+            )
+        }
+        return nil
     }
 
     private static func preferredTodaySurface(from surfaces: [SurfacePage]) -> SurfacePage? {

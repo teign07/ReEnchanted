@@ -78,6 +78,15 @@ enum BookDatabase {
         return try database.resurfacingCandidates(before: date, limit: limit)
     }
 
+    static func returnedStacksCards(
+        from days: [BookDay],
+        now: Date = Date(),
+        limit: Int = 3
+    ) throws -> [ReturnedStackCard] {
+        refreshDatabaseIfNeeded()
+        return try database.returnedStacksCards(from: days, now: now, limit: limit)
+    }
+
     static func recordResurfacing(page: BookPage, reason: String, surface: String = "home") throws {
         refreshDatabaseIfNeeded()
         try database.recordResurfacing(page: page, reason: reason, surface: surface)
@@ -169,5 +178,47 @@ enum BookDatabase {
         let baseURL = InsideCoverStore.containerURL
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return baseURL.appendingPathComponent(storeFileName)
+    }
+}
+
+/// Reads the durable archive rather than the launch-time view cache. ContentView
+/// intentionally hydrates bounded event/memory windows for responsiveness; a
+/// direct question to the Book is the moment to consult the complete local store.
+actor AskTheBookArchiveMemoryReader {
+    static let shared = AskTheBookArchiveMemoryReader()
+
+    func retrieve(
+        query: String,
+        previousTurns: [AskTheBookTurn],
+        baseline: StacksSearchDataset
+    ) -> AskTheBookMemoryPacket {
+        let database = BookDatabase.detachedDatabase()
+        var dataset = baseline
+        dataset.days = database.loadDays(migratingFrom: baseline.days)
+        if let facts = try? database.selfFacts() {
+            dataset.selfFacts = facts
+        }
+        if let events = try? database.narrativeEvents(limit: 20_000) {
+            dataset.narrativeEvents = events
+        }
+        if let memories = try? database.entityMemories(entityIDs: nil, limit: 20_000) {
+            dataset.memories = NarrativeEntityMemoryConsolidator.consolidate(memories)
+        }
+        if let entries = try? database.facultyEntries(
+            kind: nil,
+            dayIDs: nil,
+            since: nil,
+            limit: 20_000
+        ) {
+            dataset.facultyEntries = entries
+        }
+        if let customCast = try? database.customCastMembers(limit: 5_000) {
+            dataset.entities = NarrativePackRegistry.entities + customCast.map(\.entity)
+        }
+        return AskTheBookMemoryRetriever.retrieve(
+            query: query,
+            previousTurns: previousTurns,
+            from: dataset
+        )
     }
 }

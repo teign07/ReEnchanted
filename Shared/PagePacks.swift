@@ -1164,7 +1164,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "keep-page",
             title: "Keeping a Page",
-            text: "Kept. It lives in Today's Margins now, and tonight it becomes a thread in your Book of You. Keeping pages also brightens your Glow — the Book pays attention to attention."
+            text: "Kept. It lives in Today's Margins now, and tonight it becomes a thread in your Book of You. Real noticing, honest answers, and nonfiction Pages brighten your Glow; Story Pages, Letters, Notes, and Parleys spend that attention on wonder."
         ),
         MarginTutorNote(
             id: "dismiss-surface",
@@ -1471,6 +1471,9 @@ struct ReEnchantedSaveFile: Codable {
     /// First-run steps the reader engaged with, so a restored Book never
     /// replays onboarding the reader already lived past on the old phone.
     var firstRunEngaged: [String]? = nil
+    /// Permanent Pagewright and Book-wide marginalia achievements. Optional so
+    /// sealed copies made before the achievement catalog still import cleanly.
+    var marginaliaAchievementIDs: [String]? = nil
 }
 
 extension BookPageMediaAsset.Kind {
@@ -1648,6 +1651,11 @@ struct PlayerVaultData: Codable, Equatable {
     /// local brain finished downloading, say) burn through steps nobody read.
     /// Nil means "never seeded": seeded once from surfaceHistory on load.
     var firstRunEngaged: [String]?
+    /// The Book's irreducible interior life: promises it chose to make,
+    /// favorites it chose, favors it asked, running business, and self-secrets.
+    /// Reader facts and inferred patterns remain in their existing evidence
+    /// stores rather than being duplicated here.
+    var bookInterior: BookInteriorState?
 }
 
 // MARK: - The BookShop

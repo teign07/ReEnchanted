@@ -183,7 +183,7 @@ Rumor under the bassline. There's a chapter in this building nobody can jump int
 
 ### DJ_thornwave_news_01
 
-Tonight's reading off Today's Sky: Disbelief made a move at the edges. We held. We always hold — barely, on purpose, which is the only kind of holding worth anything. Believe something out loud. I dare you. That's not mockery. That's the assignment.
+Tonight's reading off Today's Sky: Routine made a move at the edges. We held. We always hold — barely, on purpose, which is the only kind of holding worth anything. Believe something out loud. I dare you. That's not mockery. That's the assignment.
 
 ### DJ_thornwave_news_02
 

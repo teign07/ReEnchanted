@@ -25,6 +25,7 @@ let package = Package(
                 "SentenceBuilder.swift",
                 "BookArchiveDatabase.swift",
                 "PageModel.swift",
+                "Tarot.swift",
                 "SurfaceAndCurator.swift",
                 "NarrativeCore.swift",
                 "StoryEngine.swift",

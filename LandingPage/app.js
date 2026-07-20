@@ -135,7 +135,7 @@ function buildSkyAddress(w, context) {
     showers: "Showers come and go because some feelings can't sit still.",
     "snow showers": "Small snow keeps arriving, like the sky remembered one more thing.",
     storm: "The storm is loud because it's full. I won't call that wrong.",
-  }[w.cond] || "The weather is being itself. I think that is hard work.";
+  }[w.cond] || "The weather is being itself. I think that's hard work.";
   const moonLine = {
     "New Moon": "The moon isn't missing. It's resting where I can't see.",
     "Waxing Crescent": "The moon is a small silver beginning.",
@@ -183,6 +183,80 @@ const FALLBACK_WEATHER = (() => {
     enchanted: d.enchanted, plain: d.plain, moonLine: moon.line, moonName: moon.name,
     place: "Over the Stacks · the Book's default sky",
   };
+})();
+
+/* ───────────────────────── Public Margins ─────────────────────────
+   Read-only on the website. Contributions begin in the app, where the reader
+   sees the exact public sentence and confirms it separately. */
+(function setupPublicMargins() {
+  const root = document.querySelector(".community-grid");
+  if (!root) return;
+
+  const apiBase = document.querySelector('meta[name="reenchanted-community-api"]')?.content;
+  if (!apiBase) return;
+  const souvenir = document.getElementById("community-souvenir");
+  const count = document.getElementById("community-count");
+  const tallies = document.getElementById("community-tallies");
+  const choiceQuestion = document.getElementById("community-choice-question");
+
+  const element = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  };
+
+  fetch(`${apiBase.replace(/\/$/, "")}/community/snapshot`, {
+    headers: { accept: "application/json" }
+  })
+    .then((response) => {
+      if (!response.ok) throw new Error(`Public Margins returned ${response.status}`);
+      return response.json();
+    })
+    .then((snapshot) => {
+      root.dataset.communityState = "ready";
+
+      const sentences = Array.isArray(snapshot.souvenirs) ? snapshot.souvenirs : [];
+      if (sentences.length) {
+        let index = 0;
+        const show = () => {
+          souvenir.textContent = `“${sentences[index % sentences.length].text}”`;
+          index += 1;
+        };
+        show();
+        if (sentences.length > 1 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          window.setInterval(show, 9000);
+        }
+      }
+      const total = Number(snapshot.contributionCount || 0);
+      count.textContent = total
+        ? `${total.toLocaleString()} deliberate public contribution${total === 1 ? "" : "s"}; no attempt is made to identify or count people.`
+        : "No reader contribution is public yet.";
+
+      const poll = snapshot.choicePoll && typeof snapshot.choicePoll === "object"
+        ? snapshot.choicePoll
+        : null;
+      const choices = Array.isArray(poll?.options)
+        ? poll.options
+        : (Array.isArray(snapshot.tallies) ? snapshot.tallies : []);
+      if (choiceQuestion) {
+        choiceQuestion.textContent = poll?.question || "Today's quiet question is finding its ink.";
+      }
+      if (choices.length) {
+        tallies.replaceChildren(...choices.slice(0, 6).map((item) => {
+          const row = element("div", "community-tally");
+          row.appendChild(element("span", "community-tally-label", item.label));
+          row.appendChild(element("span", "community-tally-count", String(item.count)));
+          return row;
+        }));
+      } else {
+        tallies.replaceChildren(element("p", "community-quiet", "No public choices yet."));
+      }
+    })
+    .catch(() => {
+      root.dataset.communityState = "quiet";
+      count.textContent = "The community window is temporarily quiet.";
+    });
 })();
 
 let weatherCtx = { ...FALLBACK_WEATHER };
@@ -303,7 +377,11 @@ const PAGES = [
   {
     kicker: "The Great Unwritten",
     title: "Your ordinary world is the chapter.",
-    body: "Zara Finch reaches you first. She checks your sleeve for punctuation, then looks behind you for the door that vanished. \"You're from the Great Unwritten,\" she says. \"That means your ordinary world is a chapter of this Book - supposedly the best one. No fixed plot. No narrator cleaning up afterward. What you do next actually matters.\" She says it like a warning and a compliment, which is very Zara.",
+    body: "You arrive in the entranceway of an impossible Library. Shelves climb past the reach of sight; staircases revise their destinations overhead. Zara Finch reaches you first. She checks your sleeve for punctuation, then looks behind you for the door that vanished. \"You're from the Great Unwritten,\" she says. \"That means your ordinary world is a chapter of this Book - supposedly the best one. No fixed plot. No narrator cleaning up afterward. What you do next actually matters.\" She says it like a warning and a compliment, which is very Zara.",
+    bodyByFallChoice: {
+      ink: "You crash into the floor in a sprawl at the entranceway of an impossible Library - palms, knees, and dignity arriving separately. Shelves climb past the reach of sight; staircases revise their destinations overhead. Zara Finch reaches you first. She checks your sleeve for punctuation, then looks behind you for the door that vanished. \"You're from the Great Unwritten,\" she says. \"That means your ordinary world is a chapter of this Book - supposedly the best one. No fixed plot. No narrator cleaning up afterward. What you do next actually matters.\" She says it like a warning and a compliment, which is very Zara.",
+      landing: "You land lightly in the entranceway of an impossible Library, knees bent, one hand skimming a floor veined with gold. Shelves climb past the reach of sight; staircases revise their destinations overhead. Zara Finch reaches you first. She checks your sleeve for punctuation, then looks behind you for the door that vanished. \"You're from the Great Unwritten,\" she says. \"That means your ordinary world is a chapter of this Book - supposedly the best one. No fixed plot. No narrator cleaning up afterward. What you do next actually matters.\" She says it like a warning and a compliment, which is very Zara.",
+    },
     source: "Zara Finch · arrival notes",
     shot: "./assets/screens/character-zara-finch.jpg",
     braid: "Zara named the Great Unwritten, and the ordinary world stopped pretending it was outside the story.",
@@ -333,7 +411,7 @@ const PAGES = [
   {
     kicker: "Belief and Glow",
     title: "Name the stubborn light.",
-    body: "At the far end of the aisle, a grey absence worries at the corner of a page. One word vanishes. Then another. Zara raises her compass and the erased letters return in wet black ink. \"That's Disbelief,\" she says. \"It's what happens when attention leaves and the world turns into wallpaper.\" She offers you her Belief - every book is a door - then nods to the blank line. \"Your turn. What matters enough that you want the Book to notice it?\"",
+    body: "At the far end of the aisle, a grey absence worries at the corner of a page. One word vanishes. Then another. Zara raises her compass and the erased letters return in wet black ink. \"That's Routine,\" she says. \"It's what happens when attention leaves and the world turns into wallpaper.\" She offers you her Belief - every book is a door - then nods to the blank line. \"Your turn. What matters enough that you want the Book to notice it?\"",
     source: "Onboarding · Belief",
     shot: "./assets/screens/belief-cast.jpg",
     braid: "A named belief warmed under the page, small at first and therefore serious.",
@@ -591,6 +669,10 @@ function wickerMode() {
 
 function fallChoice() {
   return FALL_CHOICES.find((choice) => choice.id === onboarding.fallChoice);
+}
+
+function pageBody(page) {
+  return page?.bodyByFallChoice?.[onboarding.fallChoice] || page?.body;
 }
 
 function onboardingReady(page = PAGES[index]) {
@@ -1165,7 +1247,7 @@ function render() {
   if (p.bodyHTML) {
     elBody.innerHTML = p.bodyHTML;
   } else {
-    elBody.textContent = p.body;
+    elBody.textContent = pageBody(p);
   }
   elSource.textContent = p.source;
   elShot.src = p.shot;
@@ -2613,7 +2695,7 @@ const BOOK_CHARACTERS = [
     body: "Marginalia Goblin lives where the page almost stops looking. It files ridiculous evidence, prices attention like currency, and points at the corner your eyes kept sliding past.",
     source: "Book Fae dossier · overlooked evidence",
     shot: "./assets/screens/character-marginalia-goblin.jpg",
-    card: "A mercantile little witness to the unchosen detail: the gap between what a thing is called and what it is.",
+    card: "A mercantile little witness to the unchosen detail: the gap between what people call a thing and what it is.",
     braid: "A Marginalia Goblin joined the cast from the page-corner and offered the Unspoken Pen; the bargain price was three seconds of attention paid to the thing I kept almost noticing.",
   },
 ];
@@ -2985,7 +3067,7 @@ document.addEventListener("keydown", (e) => {
 render();
 
 /* ───────────────────────── the Book reads the visitor ─────────────────────────
-   The first thing on the page is the Book speaking - composed from signals that
+   Beneath the plain-language promise, the Book speaks back - composed from signals that
    never leave the device (clock, moon, month, pointer, a localStorage bookmark).
    The one networked read - the sky - is offered, never taken: the Book asks,
    the visitor consents, and the answer is spoken once and not stored. */
@@ -3150,22 +3232,22 @@ render();
     greeting,
     noticing,
     problem: pick([
-      "Same alarms, same hours - the day pretending it has nothing inside it.",
-      "The ordinary world is persuasive. It says: later, not this, nothing happened. I don't think it means to lie. I think it's tired.",
-      "Routine is good at hiding. It can make a whole day quiet while wearing your shoes.",
-      "A day can stand beside you all afternoon, hoping to be seen, and still leave without a name.",
+      "Work, dinner, chores, scrolling, bed. Then someone asks about your week and every real detail hides behind 'fine.'",
+      "You scroll because you're too tired to choose anything else. An hour goes by. Somehow you feel emptier than when you started.",
+      "'How was your day?' shouldn't be a hard question. So why can you never think of anything to say?",
+      "You finally get an hour to yourself, then spend half of it feeling guilty and the other half trying to decide what you want.",
     ], 47),
     absolution: pick([
-      "Every blank book made that feel like your fault. It wasn't. Blank pages can be lonely and proud.",
-      "You didn't fail all those blank books. They gave you silence and forgot to offer a hand.",
-      "Starting from nothing is hard. Give me one true crumb and I'll try to find the trail.",
-      "The page should meet you halfway. More than halfway, on hard days. I can come closer.",
+      "You're not boring. Your life isn't empty. Familiar things are just very easy to stop seeing.",
+      "You didn't fail at journaling. A blank page asked you to do all the work and then sat there judging you.",
+      "You're not lazy, boring, or bad at appreciating things. Your days have simply gotten good at blending together.",
+      "Nothing has to be terribly wrong for life to start feeling flat. It isn't your fault.",
     ], 53),
     vow: pick([
-      "The days you don't keep don't disappear. They go somewhere neither of us can read.",
-      "I can't save every hour. I can hold out my hands and ask which one still feels warm.",
-      "Let the dull parts go, if they need to. But if one bright splinter catches, hand it here. I'll be careful.",
-      "Today doesn't need to become impressive. It only needs one honest place to open.",
+      "Give me one true detail from today - a sound, a sentence, some weird light. I'll help you keep it.",
+      "Give me sixty seconds. Not to understand the whole thing. Just to feel one ordinary moment become keepable.",
+      "I can't fix your life. I can help you be there for more of it.",
+      "Today doesn't need to be impressive. One true sentence is enough.",
     ], 59),
   };
 
@@ -3175,13 +3257,17 @@ render();
     if (text) el.innerHTML = text;
   });
 
-  /* ── ink the lines in, one at a time ── */
+  /* ── ink the lines in, one at a time, when the reader reaches the demo ── */
   const honesty = document.querySelector("#address-honesty");
   wrap.classList.add("is-addressing");
-  if (reduceMotion) {
-    lineEls.forEach((el) => el.classList.add("is-inked"));
-    if (honesty) honesty.hidden = false;
-  } else {
+  const revealAddress = () => {
+    if (wrap.dataset.addressStarted === "1") return;
+    wrap.dataset.addressStarted = "1";
+    if (reduceMotion) {
+      lineEls.forEach((el) => el.classList.add("is-inked"));
+      if (honesty) honesty.hidden = false;
+      return;
+    }
     lineEls.forEach((el, i) => {
       setTimeout(() => el.classList.add("is-inked"), 300 + i * 1050);
     });
@@ -3191,6 +3277,16 @@ render();
         requestAnimationFrame(() => honesty.classList.add("is-inked"));
       }
     }, 300 + lineEls.length * 1050 + 500);
+  };
+  if (!reduceMotion && "IntersectionObserver" in window) {
+    const addressObserver = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      addressObserver.disconnect();
+      revealAddress();
+    }, { threshold: 0.2 });
+    addressObserver.observe(wrap);
+  } else {
+    revealAddress();
   }
 
   /* ── the sky, read only by consent ── */
@@ -3601,7 +3697,7 @@ const STATIONS = [
       { id: "thornwave-news-nothing", category: "news",
         src: "./assets/audio/thornwave-wicker-news-grey.m4a",
         conditions: { timeOfDay: ["dusk", "night"] },
-        caption: "Tonight's reading off Today's Sky: Disbelief made a move at the edges. We held. We always hold - barely, on purpose, which is the only kind of holding worth anything. Believe something out loud. I dare you. That's not mockery. That's the assignment." },
+        caption: "Tonight's reading off Today's Sky: Routine made a move at the edges. We held. We always hold - barely, on purpose, which is the only kind of holding worth anything. Believe something out loud. I dare you. That's not mockery. That's the assignment." },
       { id: "thornwave-news-pact-dispatch", category: "news",
         src: "./assets/audio/thornwave-wicker-news-pact-dispatch.m4a",
         conditions: { timeOfDay: ["dusk", "night"] },
@@ -4267,7 +4363,7 @@ const STATIONS = [
 
   audio.addEventListener("error", () => {
     if (!tuned?.hidden) return;
-    powerOffBroadcast("The frequency is open, but the intercepted recording has not crossed through yet.");
+    powerOffBroadcast("The frequency is open, but the intercepted recording hasn't crossed through yet.");
   });
 
   function tuneTo(station, betweenFreq) {
@@ -4943,13 +5039,13 @@ const LORE = {
   },
   "the-nothing": {
     kicker: "Name the force that makes everything less",
-    title: "The Disbelief",
+    title: "The Rut of Routine",
     kind: "system",
     body: [
-      "Let me name the thing I'm set against. The Disbelief isn't a monster with a speech to give. It's erasure - colours dulling, details going missing, stories flattening, rooms becoming merely rooms. It feeds on inattention and routine until your whole world reads like a summary of itself.",
-      "Feeling grey is its first weather. Every Compass Run, every Enchantment, is a small refusal: specific, sensory meaning made in the real world, where Disbelief can't follow.",
+      "Let me name the thing I'm set against. The Rut of Routine isn't a monster with a speech to give. It's erasure - colours dulling, details going missing, stories flattening, rooms becoming merely rooms. It feeds on inattention and routine until your whole world reads like a summary of itself.",
+      "Feeling grey is its first weather. Every Compass Run, every Enchantment, is a small refusal: specific, sensory meaning made in the real world, where Routine can't follow.",
     ],
-    tryThis: "Pick one thing Disbelief has flattened into ‘just a room, just a commute’ and make it specific and sensory again.",
+    tryThis: "Pick one thing Routine has flattened into ‘just a room, just a commute’ and make it specific and sensory again.",
   },
   "wonder-compass": {
     kicker: "Make a complete loop through wonder",
@@ -5169,7 +5265,7 @@ const LORE = {
     kind: "cast",
     art: { src: "./assets/art/cast-gwendolyn-mythwright.jpg", alt: "Illustrated dossier of Gwendolyn Mythwright, cryptid researcher" },
     body: [
-      "She does her own research, passionately and at length, on things she has not yet proven. Her notebooks run ahead of her evidence - which is either a flaw or the entire point, depending on the week.",
+      "She does her own research, passionately and at length, on things she hasn't yet proven. Her notebooks run ahead of her evidence - which is either a flaw or the entire point, depending on the week.",
       "I keep her because a world needs people who chase the thing in the hedge before anyone agrees it's there. Half of what I know, I learned from someone who refused to wait for permission.",
     ],
   },

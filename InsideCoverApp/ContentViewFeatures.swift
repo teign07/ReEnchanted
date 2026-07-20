@@ -1,4 +1,10 @@
 import SwiftUI
+#if canImport(PhotosUI)
+import PhotosUI
+#endif
+#if canImport(Photos)
+import Photos
+#endif
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -51,6 +57,102 @@ extension ContentView {
                         || !page.pagewrightVisualMediaAssets.isEmpty)
             }
             .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    var bookwideMarginaliaAchievementContext: BookwideMarginaliaAchievement.Context {
+        let completedCompassRuns = Set(
+            completedCompassRunLedger
+                .split(separator: ",")
+                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        ).count
+        let completedBookJumps = vault.data.bookJump?
+            .returned
+            .filter { !$0.souvenir.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .count ?? 0
+        return BookwideMarginaliaAchievement.Context(
+            pages: days.flatMap(\.pages),
+            anchors: anchorLedger,
+            entityBeliefOffsets: entityBeliefLedger,
+            completedBookJumps: completedBookJumps,
+            completedCompassRuns: completedCompassRuns,
+            completedElectives: electives.filter { $0.completedAt != nil }.count,
+            hasChosenQuill: vault.data.chosenQuill != nil
+        )
+    }
+
+    var bookwideMarginaliaAchievementSignature: String {
+        let context = bookwideMarginaliaAchievementContext
+        let weatherCounts = Dictionary(
+            grouping: context.pages.flatMap { $0.context?.weatherTags ?? [] },
+            by: { $0 }
+        )
+        .map { "\($0.key):\($0.value.count)" }
+        .sorted()
+        .joined(separator: "|")
+        let typeCounts = Dictionary(grouping: context.pages, by: \.type)
+            .map { "\($0.key.rawValue):\($0.value.count)" }
+            .sorted()
+            .joined(separator: "|")
+        return [
+            "\(context.pages.count)",
+            "\(context.keptDayIDs.count)",
+            typeCounts,
+            weatherCounts,
+            "\(context.pages.filter { $0.context?.dayPart == "night" }.count)",
+            "\(context.pages.filter(\.hasMarginaliaAchievementVisual).count)",
+            "\(context.readerAnchors.count)",
+            "\(Set(context.readerAnchors.map(\.kind)).count)",
+            "\(context.anchors.reduce(0) { $0 + $1.visitCount })",
+            "\(context.entityBeliefOffsets[ShadowWonder.duskThornTalismanID] ?? 0)",
+            "\(context.completedBookJumps)",
+            "\(context.completedCompassRuns)",
+            "\(context.completedElectives)",
+            context.hasChosenQuill ? "quill" : "waiting"
+        ].joined(separator: "§")
+    }
+
+    func refreshBookwideMarginaliaAchievements(announce: Bool = true) {
+        let completedBefore = Set(
+            completedMarginaliaAchievementLedger
+                .split(separator: ",")
+                .map(String.init)
+        )
+        let context = bookwideMarginaliaAchievementContext
+        let completedNow = BookwideMarginaliaAchievement.all.filter { $0.isComplete(in: context) }
+        let newlyCompleted = completedNow.filter { !completedBefore.contains($0.id) }
+        guard !newlyCompleted.isEmpty else {
+            didSeedBookwideMarginaliaAchievements = true
+            return
+        }
+
+        var earned = completedBefore
+        earned.formUnion(newlyCompleted.map(\.id))
+        completedMarginaliaAchievementLedger = earned.sorted().joined(separator: ",")
+
+        let shouldAnnounce = announce && didSeedBookwideMarginaliaAchievements
+        didSeedBookwideMarginaliaAchievements = true
+        guard shouldAnnounce, let first = newlyCompleted.first else { return }
+
+        let rewardCount = newlyCompleted.reduce(0) { $0 + $1.rewardAssetIDs.count }
+        let additionalCount = newlyCompleted.count - 1
+        let line = additionalCount > 0
+            ? "\(first.name), and \(additionalCount) more \(additionalCount == 1 ? "achievement" : "achievements"). \(rewardCount) new marks are waiting in Pagewright."
+            : "\(first.name). \(rewardCount) new \(rewardCount == 1 ? "mark is" : "marks are") waiting in Pagewright."
+        let note = KeepMarginalia.Note(
+            castSlug: "marginalia-goblin",
+            castName: "Marginalia Goblin",
+            assetName: "LabyrinthFaeMarginaliaGoblin",
+            line: line,
+            carryOutLine: "Earned marks stay open. The ledger does not ask twice."
+        )
+        marginaliaAchievementUnlockTitle = additionalCount > 0
+            ? "\(newlyCompleted.count) MARGINALIA ACHIEVEMENTS"
+            : first.name.uppercased()
+        withAnimation(.spring(response: 0.48, dampingFraction: 0.8)) {
+            marginaliaAchievementUnlockNote = note
+        }
+        BookFeedback.play(.braidComplete)
     }
 
     @MainActor
@@ -175,6 +277,7 @@ extension ContentView {
             "background:\(draft.background.rawValue)",
             "marginalia:\(draft.marginalia.rawValue)",
             "source-count:\(draft.pages.count)",
+            "photo-count:\(draft.personalPhotos.count)",
             "mark-count:\(draft.elements.filter { $0.kind == .marginaliaAsset }.count)",
             "note-count:\(draft.pinnedNotes.count)"
         ] + Array(sourceTypeTags) + Array(sourcePageTags))
@@ -467,6 +570,20 @@ extension ContentView {
             answer: result.snack,
             tags: ["snack", "delight", "onboarding"]
         )
+        if !result.favoritePerson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-favorite-person",
+                question: "Who is one of your favorite people?",
+                answer: result.favoritePerson,
+                tags: ["person", "favorite-person", "people-of-the-book", "onboarding"],
+                sensitivity: .identity,
+                usePermission: .privateContext
+            )
+            _ = introducePerson(
+                name: result.favoritePerson,
+                words: "One of my favorite people"
+            )
+        }
         saveOnboardingFact(
             questionID: "onboarding-name",
             question: "What should the Book call you?",
@@ -607,18 +724,26 @@ extension ContentView {
     func applyOnboardingWhisperPreference(_ cadence: String) {
         let trimmed = cadence.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let enabled = trimmed != "inside"
-        bookWhispersEnabled = enabled
-        promptWhispersEnabled = enabled
+        let chosen = BookWhisperCadence(rawValue: trimmed) ?? .inside
+        bookWhispersEnabled = chosen.enablesBookWhispers
+        promptWhispersEnabled = chosen.enablesPromptWhispers
         BookWhispers.refreshSchedule(
-            enabled: enabled,
+            enabled: bookWhispersEnabled,
+            cadence: chosen,
             electives: electives,
             whisperController: whisperController,
-            whisperSovereign: whisperSovereign,
             festivalWhisper: festivalWhisperToday,
+            bookInterior: sourceInputs.bookInterior
+        )
+        BookWhispers.refreshPromptWhispers(
+            enabled: promptWhispersEnabled,
+            cadence: chosen,
+            day: today,
+            inputs: sourceInputs,
+            whisperController: whisperController,
+            whisperSovereign: whisperSovereign,
             eventWhisper: worldEventWhisperToday
         )
-        BookWhispers.refreshPromptWhispers(enabled: enabled, day: today, inputs: sourceInputs)
     }
 
     func keepOnboardingSouvenirIfNeeded(_ answer: String) {
@@ -640,19 +765,11 @@ extension ContentView {
             createdAt: now,
             promptText: "What did you notice before it disappeared into the ordinary?",
             userInput: trimmed,
-            tags: ["souvenir", "first-page", "first-run-souvenir", "onboarding", "onboarding-first-souvenir", "hidden-magic", "hidden-magic-finding", "hidden-magic-sense:sight"],
+            tags: ["souvenir", "first-page", "first-run-souvenir", "onboarding", "onboarding-first-souvenir"],
             sourceID: source.id,
             origin: source.origin,
             privacy: source.privacy,
-            promptVersion: "first-door-v2",
-            hiddenMagicFinding: HiddenMagicFinding(
-                lensID: "first-door",
-                sense: .sight,
-                action: "Find one real detail before it disappears into the ordinary.",
-                proofPrompt: "Keep one true sentence.",
-                expressionModes: [.words],
-                foundAt: now
-            )
+            promptVersion: "first-door-v2"
         )
         day.pages.append(page)
         recordNarrativeEvent(for: page)
@@ -769,6 +886,41 @@ extension ContentView {
         return decoded
     }
 
+    // MARK: - The Book's inner life
+
+    /// Reconciles durable interior choices against the current archive. This is
+    /// called at meaningful refresh seams rather than on every body pass: the
+    /// Book evolves because something happened, not because SwiftUI asked the
+    /// same question twice.
+    @MainActor
+    func refreshBookInterior(now: Date = Date()) {
+        let base = vault.data.bookInterior ?? BookInteriorState(awakenedAt: now)
+        var inputs = sourceInputs
+        inputs.bookInterior = base
+        let updated = BookInteriorEngine.reconciled(base, inputs: inputs, now: now)
+        guard updated != base else { return }
+        vault.data.bookInterior = updated
+        vault.save()
+    }
+
+    @MainActor
+    func recordBookInteriorSurfaceOpened(_ surface: SurfacePage, now: Date = Date()) {
+        guard surface.payload.metadata["bookInteriorSurface"] == "true" else { return }
+        let base = vault.data.bookInterior ?? BookInteriorState(awakenedAt: now)
+        let updated = BookInteriorEngine.recordingSurfaceOpened(
+            base,
+            secretID: surface.payload.metadata["bookSecretID"],
+            favoriteID: surface.payload.metadata["bookFavoriteID"],
+            quirkID: surface.payload.metadata["bookQuirkID"],
+            opinionID: surface.payload.metadata["bookOpinionID"],
+            longGamePhase: surface.payload.metadata["bookLongGamePhase"],
+            now: now
+        )
+        guard updated != base else { return }
+        vault.data.bookInterior = updated
+        vault.save()
+    }
+
     func saveElectives(_ list: [UnwrittenElective]) {
         guard let data = try? JSONEncoder().encode(list),
               let encoded = String(data: data, encoding: .utf8) else {
@@ -777,8 +929,8 @@ extension ContentView {
         electiveLedgerData = encoded
         surfaceRefreshDate = Date()
         rebuildSurfaceCache()
-        BookWhispers.refreshSchedule(enabled: bookWhispersEnabled, electives: list, whisperController: whisperController, whisperSovereign: whisperSovereign, festivalWhisper: festivalWhisperToday, eventWhisper: worldEventWhisperToday)
-        BookWhispers.refreshPromptWhispers(enabled: promptWhispersEnabled, day: today, inputs: sourceInputs)
+        BookWhispers.refreshSchedule(enabled: bookWhispersEnabled, cadence: bookWhisperCadence, electives: list, whisperController: whisperController, festivalWhisper: festivalWhisperToday, bookInterior: sourceInputs.bookInterior)
+        BookWhispers.refreshPromptWhispers(enabled: promptWhispersEnabled, cadence: bookWhisperCadence, day: today, inputs: sourceInputs, whisperController: whisperController, whisperSovereign: whisperSovereign, eventWhisper: worldEventWhisperToday)
     }
 
 
@@ -808,11 +960,22 @@ extension ContentView {
             targetPlaceName: targetPlace?.name,
             targetLatitude: targetPlace?.latitude,
             targetLongitude: targetPlace?.longitude,
-            targetRadiusMeters: QuestLocationProof.defaultRadiusMeters
+            targetRadiusMeters: QuestLocationProof.defaultRadiusMeters,
+            bookFavorID: surface.payload.metadata["bookFavorID"]
         )
         list.append(elective)
+        if let favorID = elective.bookFavorID {
+            let base = vault.data.bookInterior ?? BookInteriorState(awakenedAt: Date())
+            vault.data.bookInterior = BookInteriorEngine.recordingFavorAccepted(
+                base,
+                favorID: favorID
+            )
+            vault.save()
+        }
         saveElectives(list)
-        statusMessage = "\(elective.characterName)'s quest is tucked into the flyleaf."
+        statusMessage = elective.bookFavorID == nil
+            ? "\(elective.characterName)'s quest is tucked into the flyleaf."
+            : "The favor is tucked into the flyleaf. The Book will keep its promise without keeping score."
     }
 
     private func matchedQuestPlace(for surface: SurfacePage) -> LocalPlaceSignal? {
@@ -875,6 +1038,9 @@ extension ContentView {
                 "proof",
                 "entity:\(elective.characterID)"
             ]
+            if let favorID = elective.bookFavorID {
+                proofTags.append("book-favor-completed:\(favorID)")
+            }
             if photoAsset != nil {
                 proofTags.append(contentsOf: ["photo", "proof-photo", "unedited-photo"])
             }
@@ -892,6 +1058,19 @@ extension ContentView {
             var day = today
             day.pages.append(proofPage)
             persist(day: day, message: "The quest proof is tucked into the Book.")
+        }
+
+        var bookCompletionLine: String?
+        if let favorID = elective.bookFavorID {
+            let base = vault.data.bookInterior ?? BookInteriorState(awakenedAt: Date())
+            let updated = BookInteriorEngine.recordingFavorCompleted(
+                base,
+                favorID: favorID,
+                evidencePageID: proofPageID
+            )
+            vault.data.bookInterior = updated
+            bookCompletionLine = updated.recentSurprise?.line
+            vault.save()
         }
 
         withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
@@ -921,7 +1100,9 @@ extension ContentView {
             statusMessage = "The quest is complete, but a hidden margin note slipped: \(error.localizedDescription)"
             return
         }
-        statusMessage = "\(elective.characterName) will remember this. +\(UnwrittenElective.completionBeliefReward) Belief."
+        statusMessage = elective.bookFavorID == nil
+            ? "\(elective.characterName) will remember this. +\(UnwrittenElective.completionBeliefReward) Belief."
+            : "\(bookCompletionLine ?? "You brought the favor back. The Book will remember it.") +\(UnwrittenElective.completionBeliefReward) Belief."
         BookFeedback.play(.braidComplete)
     }
 
@@ -1064,7 +1245,10 @@ extension ContentView {
             chosenQuill: vault.data.chosenQuill,
             people: vault.data.people,
             continuity: continuity,
-            firstRunEngaged: vault.data.firstRunEngaged
+            firstRunEngaged: vault.data.firstRunEngaged,
+            marginaliaAchievementIDs: Array(
+                Set(completedMarginaliaAchievementLedger.split(separator: ",").map(String.init))
+            ).sorted()
         )
     }
 
@@ -2445,6 +2629,17 @@ extension ContentView {
                 let current = Set(vault.data.firstRunEngaged ?? [])
                 vault.data.firstRunEngaged = current.union(importedEngaged).sorted()
             }
+            if let importedAchievements = save.marginaliaAchievementIDs {
+                let current = Set(
+                    completedMarginaliaAchievementLedger
+                        .split(separator: ",")
+                        .map(String.init)
+                )
+                completedMarginaliaAchievementLedger = current
+                    .union(importedAchievements)
+                    .sorted()
+                    .joined(separator: ",")
+            }
             vault.save()
             marginTutorSeenData = MarginTutorLedger.encode(Set(save.marginTutorSeen))
             if save.didCompleteStoryOnboarding {
@@ -2674,13 +2869,46 @@ extension ContentView {
     ) async -> SurfacePage {
         var metadata = base.payload.metadata
         let body: String
-        if let prose = await LocalBrainProse.write(
+        if let first = await LocalBrainProse.write(
             prompt: prompt,
             instructions: instructions,
             maxTokens: maxTokens,
             sourceID: sourceID,
             tags: tags
-        ), !prose.hasPrefix("{") {
+        ), !first.hasPrefix("{") {
+            let canon = metadata[CharacterCanonPacket.metadataKey] ?? ""
+            let firstAudit = await CharacterFidelityReviewer.audit(
+                prose: first,
+                canon: canon,
+                context: "\(base.type.rawValue) surface \(base.payload.headline)",
+                sourceID: sourceID
+            )
+            var prose = first
+            if !firstAudit.passed,
+               let repaired = await LocalBrainProse.write(
+                    prompt: """
+                    \(prompt)
+
+                    CHARACTER CONTINUITY REPAIR:
+                    \(firstAudit.feedback)
+                    Return the complete prose again, preserving every factual and mechanical requirement.
+                    """,
+                    instructions: instructions,
+                    maxTokens: maxTokens,
+                    sourceID: sourceID,
+                    tags: tags + ["character-repair"]
+               ),
+               !repaired.hasPrefix("{") {
+                let repairedAudit = await CharacterFidelityReviewer.audit(
+                    prose: repaired,
+                    canon: canon,
+                    context: "repaired \(base.type.rawValue) surface \(base.payload.headline)",
+                    sourceID: sourceID
+                )
+                if repairedAudit.passed || repairedAudit.score >= firstAudit.score {
+                    prose = repaired
+                }
+            }
             metadata[proseKey] = prose
             body = prose
         } else {
@@ -2771,6 +2999,9 @@ extension ContentView {
 
     @MainActor
     func castBondSurfaceWithProse(from base: SurfacePage) async -> SurfacePage {
+        if base.payload.metadata["tags", default: ""].contains(QuillChoosing.chosenTag) {
+            return await quillChoosingSurfaceWithProse(from: base)
+        }
         let metadata = base.payload.metadata
         let aName = metadata["entityAName"] ?? "One character"
         let bName = metadata["entityBName"] ?? "Another character"
@@ -2786,6 +3017,49 @@ extension ContentView {
             sourceID: "cast-bond",
             tags: ["cast-bond", kind, "entity:\(metadata["entityAID"] ?? "")", "entity:\(metadata["entityBID"] ?? "")"],
             fallbackBody: "\(aName) and \(bName) crossed a \(kind) threshold in the Loom. The Book saw the thread change color, and from then on the web no longer treated them as strangers."
+        )
+    }
+
+    @MainActor
+    func quillChoosingSurfaceWithProse(from base: SurfacePage) async -> SurfacePage {
+        var metadata = base.payload.metadata
+        let quill: ChosenQuill? = metadata[QuillChoosing.metadataKey]
+            .flatMap { $0.data(using: .utf8) }
+            .flatMap { try? JSONDecoder().decode(ChosenQuill.self, from: $0) }
+        let generated = await LocalBrainProse.write(
+            prompt: LocalModelManager.quillChoosingPrompt(surface: base),
+            instructions: """
+            Write only the Pen Choosing ceremony in second-person past tense. Keep the named instrument, the Quillquarium, the reader's observed writing habits, and the unresolved keep-or-wait choice. Prose only; never first-person narration.
+            """,
+            maxTokens: 720,
+            sourceID: "quillquarium-choosing",
+            tags: ["pen-choosing", "quillquarium", "second-person", "past-tense", "quill:\(metadata["quillID"] ?? "waiting")"]
+        )
+        let prose: String
+        if let generated, !generated.hasPrefix("{"),
+           let quill,
+           QuillChoosing.generatedCeremonyIsGrounded(generated, quill: quill) {
+            prose = generated
+            metadata["quillChoosingProse"] = generated
+            metadata["castBondProse"] = generated
+            metadata["proseStatus"] = "generated"
+        } else {
+            prose = quill.map { QuillChoosing.choosingBody(quill: $0) } ?? base.payload.body
+            metadata["quillChoosingProse"] = "fallback"
+            metadata["castBondProse"] = "fallback"
+            metadata["proseStatus"] = "fallback"
+        }
+        return SurfacePage(
+            id: base.id,
+            type: base.type,
+            sourceID: base.sourceID,
+            intent: base.intent,
+            renderStyle: base.renderStyle,
+            score: base.score,
+            reason: base.reason,
+            prompt: "The quill that chose you",
+            detail: "In the Quillquarium, one living instrument had finished waiting.",
+            payload: BookPagePayload(headline: base.payload.headline, body: prose, metadata: metadata)
         )
     }
 
@@ -2816,16 +3090,46 @@ extension ContentView {
     @MainActor
     func supportGuildSurfaceWithProse(from base: SurfacePage) async -> SurfacePage {
         var metadata = base.payload.metadata
+        let prompt = LocalModelManager.supportGuildPrompt(surface: base)
+        let instructions = """
+        You are the Support Guild scribe inside ReEnchanted. Return only the requested labeled sections. Complete every sentence. Never label prose paragraphs with "Try:".
+        """
         let generated = await LocalBrainProse.write(
-            prompt: LocalModelManager.supportGuildPrompt(surface: base),
-            instructions: """
-            You are the Support Guild scribe inside ReEnchanted. Return only the requested labeled sections. Complete every sentence. Never label prose paragraphs with "Try:".
-            """,
+            prompt: prompt,
+            instructions: instructions,
             maxTokens: 760,
             sourceID: "support-guild",
             tags: ["support-guild", "dr-vellum", "dr-inkrest"]
         )
-        let raw = (generated?.hasPrefix("{") == false) ? (generated ?? "") : ""
+        var raw = (generated?.hasPrefix("{") == false) ? (generated ?? "") : ""
+        if !raw.isEmpty {
+            let canon = metadata[CharacterCanonPacket.metadataKey] ?? ""
+            let firstAudit = await CharacterFidelityReviewer.audit(
+                prose: raw,
+                canon: canon,
+                context: "Support Guild consultation between Dr. Vellum and Dr. Inkrest",
+                sourceID: "support-guild"
+            )
+            if !firstAudit.passed,
+               let repaired = await LocalBrainProse.write(
+                    prompt: "\(prompt)\n\nCHARACTER CONTINUITY REPAIR:\n\(firstAudit.feedback)\nReturn every required labeled section again.",
+                    instructions: instructions,
+                    maxTokens: 760,
+                    sourceID: "support-guild",
+                    tags: ["support-guild", "dr-vellum", "dr-inkrest", "character-repair"]
+               ),
+               !repaired.hasPrefix("{") {
+                let repairedAudit = await CharacterFidelityReviewer.audit(
+                    prose: repaired,
+                    canon: canon,
+                    context: "repaired Support Guild consultation",
+                    sourceID: "support-guild"
+                )
+                if repairedAudit.passed || repairedAudit.score >= firstAudit.score {
+                    raw = repaired
+                }
+            }
+        }
         let parsed = SupportGuildProseParser.parse(raw, fallbackMetadata: metadata, fallbackBody: base.payload.body)
 
         metadata["guildProse"] = raw.isEmpty ? "fallback" : raw
@@ -3185,7 +3489,12 @@ extension ContentView {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(Int.random(in: 650...1_400)))
 
-            let passesNote = knocksThisSession == 1 ? Int.random(in: 0..<4) == 0 : Int.random(in: 0..<3) == 0
+            let relationship = openingVoiceContext.bookRelationship
+            let bookHasSomethingToOwn = relationship.stance == .contrite || relationship.stance == .protective
+            let bookKnowsThisKnock = relationship.depth == .trusted || relationship.depth == .companion
+            let passesNote = bookHasSomethingToOwn
+                || (bookKnowsThisKnock && knocksThisSession >= 2)
+                || (knocksThisSession == 1 ? Int.random(in: 0..<4) == 0 : Int.random(in: 0..<3) == 0)
             if passesNote || knocksThisSession >= 4 {
                 openingVoiceSeed = Int.random(in: 0..<10_000) + knocksThisSession
                 let note = openingVoice.knockLine
@@ -3382,10 +3691,19 @@ struct PagewrightDraft {
     var pages: [BookPage]
     var pullQuotes: [String: String]
     var pinnedNotes: [PagewrightPinnedNote]
+    var personalPhotos: [PagewrightPersonalPhoto]
     var elements: [PagewrightCanvasElement]
     var background: PagewrightBackground
     var marginalia: PagewrightMarginaliaStyle
     var marginaliaPackID: String
+}
+
+struct PagewrightPersonalPhoto: Identifiable, Equatable, Sendable {
+    var id: String = UUID().uuidString
+    var data: Data
+    /// Width divided by height. The Pagewright uses this to show and export
+    /// the complete photograph without cropping it into a preset frame.
+    var aspectRatio: CGFloat
 }
 
 enum PagewrightBackground: String, CaseIterable, Identifiable {
@@ -3488,6 +3806,7 @@ struct PagewrightCanvasElement: Identifiable, Equatable {
     enum Kind: String, Equatable {
         case page
         case note
+        case personalPhoto
         case marginaliaAsset
     }
 
@@ -3766,6 +4085,443 @@ enum PagewrightTemplate: String, CaseIterable, Identifiable {
     }
 }
 
+struct BookwideMarginaliaAchievement {
+    indirect enum Trigger {
+        case keptPages(Int)
+        case keptPageType(BookPageType, Int)
+        case distinctKeptDays(Int)
+        case keptInWeather(tags: Set<String>?, count: Int)
+        case keptAtNight(Int)
+        case keptVisualPages(Int)
+        case anchorsCreated(Int)
+        case distinctAnchorKinds(Int)
+        case anchorVisits(Int)
+        case shadowWonder
+        case completedBookJumps(Int)
+        case completedCompassRuns(Int)
+        case completedElectives(Int)
+        case chosenQuill
+        case all([Trigger])
+
+        func isComplete(in context: Context) -> Bool {
+            switch self {
+            case .keptPages(let count):
+                return context.pages.count >= count
+            case .keptPageType(let type, let count):
+                return context.pages.filter { $0.type == type }.count >= count
+            case .distinctKeptDays(let count):
+                return context.keptDayIDs.count >= count
+            case .keptInWeather(let tags, let count):
+                return context.weatherKeptCount(tags: tags) >= count
+            case .keptAtNight(let count):
+                return context.pages.filter { $0.context?.dayPart == "night" }.count >= count
+            case .keptVisualPages(let count):
+                return context.pages.filter(\.hasMarginaliaAchievementVisual).count >= count
+            case .anchorsCreated(let count):
+                return context.readerAnchors.count >= count
+            case .distinctAnchorKinds(let count):
+                return Set(context.readerAnchors.map(\.kind)).count >= count
+            case .anchorVisits(let count):
+                return context.anchors.reduce(0) { $0 + $1.visitCount } >= count
+            case .shadowWonder:
+                return (context.entityBeliefOffsets[ShadowWonder.duskThornTalismanID] ?? 0) > 0
+            case .completedBookJumps(let count):
+                return context.completedBookJumps >= count
+            case .completedCompassRuns(let count):
+                return context.completedCompassRuns >= count
+            case .completedElectives(let count):
+                return context.completedElectives >= count
+            case .chosenQuill:
+                return context.hasChosenQuill
+            case .all(let triggers):
+                return triggers.allSatisfy { $0.isComplete(in: context) }
+            }
+        }
+
+        func progress(in context: Context) -> String {
+            switch self {
+            case .keptPages(let count):
+                return "\(min(context.pages.count, count))/\(count) pages kept"
+            case .keptPageType(let type, let count):
+                let current = context.pages.filter { $0.type == type }.count
+                return "\(min(current, count))/\(count) \(type.shortTitle.lowercased()) pages"
+            case .distinctKeptDays(let count):
+                return "\(min(context.keptDayIDs.count, count))/\(count) kept days"
+            case .keptInWeather(let tags, let count):
+                let current = context.weatherKeptCount(tags: tags)
+                let label = tags?.sorted().joined(separator: " or ") ?? "recorded weather"
+                return "\(min(current, count))/\(count) pages kept in \(label)"
+            case .keptAtNight(let count):
+                let current = context.pages.filter { $0.context?.dayPart == "night" }.count
+                return "\(min(current, count))/\(count) pages kept at night"
+            case .keptVisualPages(let count):
+                let current = context.pages.filter(\.hasMarginaliaAchievementVisual).count
+                return "\(min(current, count))/\(count) visual pages"
+            case .anchorsCreated(let count):
+                return "\(min(context.readerAnchors.count, count))/\(count) Anchors made"
+            case .distinctAnchorKinds(let count):
+                let current = Set(context.readerAnchors.map(\.kind)).count
+                return "\(min(current, count))/\(count) Anchor kinds"
+            case .anchorVisits(let count):
+                let current = context.anchors.reduce(0) { $0 + $1.visitCount }
+                return "\(min(current, count))/\(count) Anchor visits"
+            case .shadowWonder:
+                return isComplete(in: context) ? "Shadow Wonder awake" : "Dusk Thorn still waiting"
+            case .completedBookJumps(let count):
+                return "\(min(context.completedBookJumps, count))/\(count) Book Jumps returned"
+            case .completedCompassRuns(let count):
+                return "\(min(context.completedCompassRuns, count))/\(count) Compass runs"
+            case .completedElectives(let count):
+                return "\(min(context.completedElectives, count))/\(count) electives completed"
+            case .chosenQuill:
+                return context.hasChosenQuill ? "quill chosen" : "quill still waiting"
+            case .all(let triggers):
+                return triggers.map { $0.progress(in: context) }.joined(separator: " · ")
+            }
+        }
+    }
+
+    struct Context {
+        var pages: [BookPage]
+        var anchors: [AnchorRecord]
+        var entityBeliefOffsets: [String: Int]
+        var completedBookJumps: Int
+        var completedCompassRuns: Int
+        var completedElectives: Int
+        var hasChosenQuill: Bool
+
+        var keptDayIDs: Set<String> {
+            Set(pages.map { BookDay.id(for: $0.createdAt) })
+        }
+
+        var readerAnchors: [AnchorRecord] {
+            anchors.filter { $0.id.hasPrefix("user-anchor-") }
+        }
+
+        func weatherKeptCount(tags: Set<String>?) -> Int {
+            pages.filter { page in
+                let pageTags = Set(page.context?.weatherTags ?? [])
+                if let tags {
+                    return !pageTags.isDisjoint(with: tags)
+                }
+                return page.type == .weather || !pageTags.isEmpty
+            }.count
+        }
+    }
+
+    var id: String
+    var name: String
+    var riddle: String
+    var hint: String
+    var trigger: Trigger
+    var rewardAssetIDs: [String]
+
+    func isComplete(in context: Context) -> Bool {
+        trigger.isComplete(in: context)
+    }
+
+    func progress(in context: Context) -> String {
+        trigger.progress(in: context)
+    }
+
+    static func achievement(id: String) -> BookwideMarginaliaAchievement? {
+        all.first { $0.id == id }
+    }
+
+    static func rewarding(assetID: String) -> BookwideMarginaliaAchievement? {
+        rewardIndex[assetID]
+    }
+
+    private static let rewardIndex: [String: BookwideMarginaliaAchievement] = {
+        Dictionary(
+            all.flatMap { achievement in
+                achievement.rewardAssetIDs.map { ($0, achievement) }
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+    }()
+
+    static let all: [BookwideMarginaliaAchievement] = [
+        achievement(
+            "first-margin", "The First Margin",
+            "The Book only needs one kept thing before it starts writing in the corners.",
+            "Keep your first page anywhere in the Book.",
+            .keptPages(1),
+            ["illumination_paper_deckled", "illumination_reported_small"]
+        ),
+        achievement(
+            "shelf-begun", "A Shelf Begun",
+            "Five kept pages are no longer a pile. They are a shelf.",
+            "Keep five pages of any kind.",
+            .keptPages(5),
+            ["illumination_blank_summary", "tape_01"]
+        ),
+        achievement(
+            "archive-stirs", "The Archive Stirs",
+            "Twenty-five pages make enough paper for the archive to turn over in its sleep.",
+            "Keep twenty-five pages across the Book.",
+            .keptPages(25),
+            ["illumination_library_acquired", "illumination_edge_remembers"]
+        ),
+        achievement(
+            "hundred-leaves", "One Hundred Leaves",
+            "A hundred pages have learned the particular sound of your attention.",
+            "Keep one hundred pages.",
+            .keptPages(100),
+            ["illumination_archive_quiet", "illumination_margins_speak", "overlay_speckles_01"]
+        ),
+        achievement(
+            "first-souvenir", "Something to Bring Home",
+            "One true sentence can carry an entire day by the handle.",
+            "Keep one One-Sentence Souvenir.",
+            .keptPageType(.souvenir, 1),
+            ["illumination_small_astonishments"]
+        ),
+        achievement(
+            "five-souvenirs", "The Small Astonishments Drawer",
+            "Five carried sentences are enough to begin a private museum.",
+            "Keep five One-Sentence Souvenirs.",
+            .keptPageType(.souvenir, 5),
+            ["illumination_witness_ordinary", "illumination_ordinary_wonder"]
+        ),
+        achievement(
+            "twelve-souvenirs", "A Dozen Days, Carried",
+            "Twelve days have each surrendered one sentence worth taking.",
+            "Keep twelve One-Sentence Souvenirs.",
+            .keptPageType(.souvenir, 12),
+            ["illumination_passage_ticket", "illumination_unannounced", "illumination_thyme_stamp"]
+        ),
+        achievement(
+            "weather-witness", "Weather Witness",
+            "Keep a page while the sky is willing to sign as a witness.",
+            "Keep one page with recorded real-world weather.",
+            .keptInWeather(tags: nil, count: 1),
+            ["illumination_weather_cabinet", "illumination_blank_field"]
+        ),
+        achievement(
+            "weather-ledger", "The Weather Ledger",
+            "The sky has signed three separate pages. The ledger believes you now.",
+            "Keep three pages with recorded real-world weather.",
+            .keptInWeather(tags: nil, count: 3),
+            ["illumination_field_note_harbor", "illumination_observation_small"]
+        ),
+        achievement(
+            "rain-kept", "Rain, Kept",
+            "The rain was happening and you kept something anyway.",
+            "Keep a page while the recorded weather includes rain.",
+            .keptInWeather(tags: ["rain"], count: 1),
+            ["illumination_rain_collected", "illumination_lighthouse_01"]
+        ),
+        achievement(
+            "storm-lantern", "Lantern in a Storm",
+            "A storm crossed the page without putting out the lamp.",
+            "Keep a page while the recorded weather includes a storm.",
+            .keptInWeather(tags: ["storm"], count: 1),
+            ["illumination_lighthouse_02", "overlay_edge_vignette_01"]
+        ),
+        achievement(
+            "snowbound-margin", "The Snowbound Margin",
+            "Snow quieted the world long enough for one page to be heard.",
+            "Keep a page while the recorded weather includes snow or ice.",
+            .keptInWeather(tags: ["snow"], count: 1),
+            ["illumination_paper_moth", "illumination_pale_feather"]
+        ),
+        achievement(
+            "fog-archive", "Filed in Fog",
+            "The world withheld its edges. You kept a page without demanding them back.",
+            "Keep a page while the recorded weather includes fog.",
+            .keptInWeather(tags: ["fog"], count: 1),
+            ["illumination_borrowed_hush", "illumination_moon_strip"]
+        ),
+        achievement(
+            "wind-written", "Written Sideways by Wind",
+            "The wind tried to edit the day. You kept its corrections.",
+            "Keep a page while the recorded weather includes wind.",
+            .keptInWeather(tags: ["wind"], count: 1),
+            ["illumination_windy_tag"]
+        ),
+        achievement(
+            "bright-weather", "Three Bright Witnesses",
+            "Three pages were kept while the world had its lamps on.",
+            "Keep three pages while the recorded weather is bright.",
+            .keptInWeather(tags: ["bright"], count: 3),
+            ["illumination_pressed_fern", "illumination_lamp_remembered"]
+        ),
+        achievement(
+            "night-keeper", "Keeper After Midnight",
+            "Three pages know what your attention sounds like after dark.",
+            "Keep three pages during the night.",
+            .keptAtNight(3),
+            ["illumination_moon_row", "illumination_starlight"]
+        ),
+        achievement(
+            "first-anchor", "A Door Where None Was",
+            "You stood somewhere real and taught the Outer Stacks a new room.",
+            "Create your first Anchor.",
+            .anchorsCreated(1),
+            ["doodle_anchor_01", "illumination_map_unseen"]
+        ),
+        achievement(
+            "three-anchors", "A Private Geography",
+            "Three made places are enough for a map that did not exist before you.",
+            "Create three Anchors.",
+            .anchorsCreated(3),
+            ["illumination_compass_reminder", "illumination_astrolabe_stamp"]
+        ),
+        achievement(
+            "three-anchor-kinds", "The Five Verbs of Place",
+            "Notice, embark, sense, write, rest. Three of the verbs now have rooms.",
+            "Create Anchors of three different kinds.",
+            .distinctAnchorKinds(3),
+            ["doodle_sailboat_01", "doodle_compass_01", "illumination_kept_tide"]
+        ),
+        achievement(
+            "anchor-returner", "The Door Remembers You",
+            "A made place becomes a relationship when you return.",
+            "Make five total visits to Anchors.",
+            .anchorVisits(5),
+            ["illumination_patient_day", "illumination_map_fragment"]
+        ),
+        achievement(
+            "shadow-wonder", "Shadow Wonder",
+            "You fed the Dusk Thorn, and it answered from the beautiful worn edge.",
+            "Raise the Dusk Thorn from no Belief to positive Belief.",
+            .shadowWonder,
+            ["illumination_belief_margin", "illumination_moon_marker", "illumination_brown_feather"]
+        ),
+        achievement(
+            "rest-five", "Five Quiet Centers",
+            "Five times, you let rest be a page instead of an absence.",
+            "Keep five Center Pages.",
+            .keptPageType(.rest, 5),
+            ["illumination_quiet_pages", "illumination_moss_return"]
+        ),
+        achievement(
+            "visible-proof", "Visible Proof",
+            "Three pages brought back light in a form the eye could keep.",
+            "Keep three pages containing photographs or rendered images.",
+            .keptVisualPages(3),
+            ["illumination_frame_attention", "illumination_ink_proof"]
+        ),
+        achievement(
+            "first-book-jump", "Returned Through the Spine",
+            "You went into an old story and came home carrying one true thing.",
+            "Complete one Book Jump and return with a souvenir.",
+            .completedBookJumps(1),
+            ["illumination_moth_ticket"]
+        ),
+        achievement(
+            "three-book-jumps", "Frequent Visitor to Impossible Libraries",
+            "Three stories have stamped your return papers.",
+            "Complete three Book Jumps and return with souvenirs.",
+            .completedBookJumps(3),
+            ["illumination_wander_record", "illumination_dreams_ticket"]
+        ),
+        achievement(
+            "first-compass-run", "The Compass Moved",
+            "Notice, embark, sense, write, rest: the needle has seen the whole ritual.",
+            "Complete one Wonder Compass run.",
+            .completedCompassRuns(1),
+            ["illumination_paper_compass"]
+        ),
+        achievement(
+            "three-compass-runs", "Known to the Needle",
+            "After three journeys, the Compass no longer mistakes you for a tourist.",
+            "Complete three Wonder Compass runs.",
+            .completedCompassRuns(3),
+            ["stamp_west_write"]
+        ),
+        achievement(
+            "chosen-quill", "Chosen in Return",
+            "You did not merely choose an instrument. One of them chose back.",
+            "Complete the Pen Choosing and keep your chosen quill.",
+            .chosenQuill,
+            ["illumination_inkwell", "illumination_script_strip"]
+        ),
+        achievement(
+            "first-elective", "Fieldwork Submitted",
+            "A professor asked for proof from the real world, and you brought it.",
+            "Complete one Unwritten Elective.",
+            .completedElectives(1),
+            ["illumination_clover_tag", "illumination_lavender_stamp"]
+        ),
+        achievement(
+            "three-tarot-readings", "Three Dealings with Chance",
+            "Three spreads have answered without pretending to be verdicts.",
+            "Keep three Tarot readings.",
+            .keptPageType(.tarot, 3),
+            ["illumination_constellation", "illumination_luna_moth"]
+        ),
+        achievement(
+            "three-letters", "Letters Know the Way",
+            "Three letters have crossed the Margins and found a place to land.",
+            "Keep three Letter pages.",
+            .keptPageType(.letter, 3),
+            ["illumination_letters_margins", "illumination_daylight_missed"]
+        ),
+        achievement(
+            "three-plain-pages", "The Sacred Dumb Door",
+            "Three times, you asked for no prompt and wrote anyway.",
+            "Keep three Plain Pages.",
+            .keptPageType(.plainPage, 3),
+            ["scrap_note_torn_01"]
+        ),
+        achievement(
+            "remembered-three", "The Book Remembered",
+            "Three old pages returned with reasons, not merely recurrence.",
+            "Keep three Book Remembered pages.",
+            .keptPageType(.bookRemembered, 3),
+            ["illumination_keep_moment", "illumination_found_margins"]
+        ),
+        achievement(
+            "first-binding", "Bound for the Shelf",
+            "Loose days became an artifact with a spine.",
+            "Keep one Bindery page, weekly issue, or edition.",
+            .keptPageType(.bindery, 1),
+            ["illumination_living_story", "illumination_lanterns_lit"]
+        ),
+        achievement(
+            "seven-kept-days", "A Week with Margins",
+            "Seven different days have each left something behind.",
+            "Keep pages on seven different days.",
+            .distinctKeptDays(7),
+            ["illumination_blank_date"]
+        )
+    ]
+
+    private static func achievement(
+        _ id: String,
+        _ name: String,
+        _ riddle: String,
+        _ hint: String,
+        _ trigger: Trigger,
+        _ rewardAssetIDs: [String]
+    ) -> BookwideMarginaliaAchievement {
+        precondition((1...3).contains(rewardAssetIDs.count), "Marginalia achievements must reveal 1–3 marks.")
+        return BookwideMarginaliaAchievement(
+            id: id,
+            name: name,
+            riddle: riddle,
+            hint: hint,
+            trigger: trigger,
+            rewardAssetIDs: rewardAssetIDs
+        )
+    }
+}
+
+private extension BookPage {
+    var hasMarginaliaAchievementVisual: Bool {
+        mediaAssets.contains { asset in
+            switch asset.kind {
+            case .bundledImage, .renderedImageFile, .photoLibraryAsset:
+                return true
+            case .audioFile:
+                return false
+            }
+        }
+    }
+}
+
 private struct PagewrightMarginaliaAchievement {
     enum Requirement {
         case selectedScraps(Int)
@@ -3782,6 +4538,7 @@ private struct PagewrightMarginaliaAchievement {
         case exportedDraft
         case namedDraft
         case editedPullQuote
+        case bookwide(String)
 
         var title: String {
             switch self {
@@ -3813,6 +4570,8 @@ private struct PagewrightMarginaliaAchievement {
                 return "Name the page"
             case .editedPullQuote:
                 return "Choose a pull quote"
+            case .bookwide(let id):
+                return BookwideMarginaliaAchievement.achievement(id: id)?.name ?? "A Book-wide achievement"
             }
         }
 
@@ -3846,6 +4605,47 @@ private struct PagewrightMarginaliaAchievement {
                 return "Change the title from the default to a name of your own."
             case .editedPullQuote:
                 return "Select a scrap, open Quotes, and choose one of its pull quotes."
+            case .bookwide(let id):
+                return BookwideMarginaliaAchievement.achievement(id: id)?.hint
+                    ?? "Complete this achievement elsewhere in the Book."
+            }
+        }
+
+        func progress(in context: Context) -> String {
+            switch self {
+            case .selectedScraps(let count):
+                return "\(min(context.selectedPages.count, count))/\(count) kept scraps"
+            case .selectedAnyType:
+                return isComplete(in: context) ? "matching scrap gathered" : "matching scrap still needed"
+            case .format(let format):
+                return context.format == format ? "\(format.shareName) chosen" : "\(format.shareName) still needed"
+            case .template(let template):
+                return context.template == template ? "\(template.title) applied" : "\(template.title) still needed"
+            case .background(let background):
+                return context.background == background ? "\(background.title) chosen" : "\(background.title) still needed"
+            case .marginaliaStyle(let style):
+                return context.marginaliaStyle == style ? "\(style.title) chosen" : "\(style.title) still needed"
+            case .pinnedNotes(let count):
+                return "\(min(context.pinnedNoteCount, count))/\(count) pinned notes"
+            case .placedMarks(let count):
+                return "\(min(context.placedMarkCount, count))/\(count) marks placed"
+            case .distinctSelectedTypes(let count):
+                return "\(min(context.selectedTypes.count, count))/\(count) page kinds"
+            case .litDays(let count):
+                return "\(min(context.selectedDayIDs.count, count))/\(count) kept days"
+            case .visualScrap:
+                return context.hasVisualScrap ? "visual scrap gathered" : "visual scrap still needed"
+            case .exportedDraft:
+                return context.hasExport ? "artifact made" : "PDF or PNG still needed"
+            case .namedDraft:
+                return context.hasCustomTitle ? "page named" : "a true title still needed"
+            case .editedPullQuote:
+                return context.hasEditedPullQuote ? "pull quote chosen" : "pull quote still needed"
+            case .bookwide(let id):
+                guard let achievement = BookwideMarginaliaAchievement.achievement(id: id) else {
+                    return "achievement unavailable"
+                }
+                return achievement.progress(in: context.bookwide)
             }
         }
 
@@ -3879,6 +4679,9 @@ private struct PagewrightMarginaliaAchievement {
                 return context.hasCustomTitle
             case .editedPullQuote:
                 return context.hasEditedPullQuote
+            case .bookwide(let id):
+                return context.completedAchievementIDs.contains(id)
+                    || BookwideMarginaliaAchievement.achievement(id: id)?.isComplete(in: context.bookwide) == true
             }
         }
 
@@ -3895,42 +4698,65 @@ private struct PagewrightMarginaliaAchievement {
         var marginaliaStyle: PagewrightMarginaliaStyle
         var pinnedNoteCount: Int
         var placedMarkCount: Int
+        var personalPhotoCount: Int
         var hasExport: Bool
         var hasCustomTitle: Bool
         var hasEditedPullQuote: Bool
+        var completedAchievementIDs: Set<String>
+        var bookwide: BookwideMarginaliaAchievement.Context
 
         var selectedTypes: Set<BookPageType> { Set(selectedPages.map(\.type)) }
         var selectedDayIDs: Set<String> { Set(selectedPages.map { BookDay.id(for: $0.createdAt) }) }
         var hasVisualScrap: Bool {
-            selectedPages.contains { !$0.pagewrightVisualMediaAssets.isEmpty }
+            personalPhotoCount > 0 || selectedPages.contains { !$0.pagewrightVisualMediaAssets.isEmpty }
         }
+    }
+
+    private struct Quest {
+        var id: String
+        var name: String
+        var riddle: String
+        var requirements: [Requirement]
     }
 
     var assetID: String
     var assetName: String
-    var requirement: Requirement
+    var questID: String
+    var name: String
+    var riddle: String
+    var requirements: [Requirement]
 
     var title: String {
-        "\(Self.assetDisplayName(assetID)) — \(requirement.title)"
+        "\(name) — \(Self.assetDisplayName(assetID))"
     }
 
     var hiddenHint: String {
-        "Spend 1 Belief for a clue, or earn it by reading what kind of mark this is."
+        "\(riddle)\nSpend 1 Belief to turn the riddle into exact instructions."
     }
 
-    var revealedHint: String {
-        requirement.hint
+    var requirementSummary: String {
+        requirements.map(\.title).joined(separator: " · ")
+    }
+
+    func revealedHint(in context: Context) -> String {
+        let instructions = requirements.map(\.hint).joined(separator: " ")
+        let progress = requirements.map { $0.progress(in: context) }.joined(separator: " · ")
+        return "\(instructions)\nProgress: \(progress)."
     }
 
     func isComplete(in context: Context) -> Bool {
-        requirement.isComplete(in: context)
+        requirements.allSatisfy { $0.isComplete(in: context) }
     }
 
     static func achievement(for asset: IlluminationAsset) -> PagewrightMarginaliaAchievement {
-        PagewrightMarginaliaAchievement(
+        let quest = quest(for: asset)
+        return PagewrightMarginaliaAchievement(
             assetID: asset.id,
             assetName: asset.assetName,
-            requirement: requirement(for: asset)
+            questID: quest.id,
+            name: quest.name,
+            riddle: quest.riddle,
+            requirements: quest.requirements
         )
     }
 
@@ -3948,93 +4774,337 @@ private struct PagewrightMarginaliaAchievement {
             .capitalized
     }
 
-    private static func requirement(for asset: IlluminationAsset) -> Requirement {
+    private static func quest(for asset: IlluminationAsset) -> Quest {
+        if let achievement = BookwideMarginaliaAchievement.rewarding(assetID: asset.id) {
+            return Quest(
+                id: achievement.id,
+                name: achievement.name,
+                riddle: achievement.riddle,
+                requirements: [.bookwide(achievement.id)]
+            )
+        }
         let tags = Set(asset.tags.map { $0.lowercased() })
 
-        if containsAny(tags, ["botanical", "flower", "fern", "lavender", "clover", "thyme", "moss", "green"]) {
-            return .selectedAnyType([.weather, .location, .souvenir])
-        }
-        if containsAny(tags, ["night", "moon", "moth", "dreams"]) {
-            return .background(.night)
-        }
-        if containsAny(tags, ["compass", "map", "walk", "west", "anchor", "sailboat"]) {
-            return containsAny(tags, ["anchor", "sailboat"])
-                ? .selectedAnyType([.anchor, .location])
-                : .selectedAnyType([.wonderCompass, .anchor])
-        }
-        if containsAny(tags, ["harbor", "water", "tide", "lighthouse", "shell", "rain", "weather"]) {
-            return .selectedAnyType([.weather, .todaysSky, .location])
-        }
-        if containsAny(tags, ["library", "archive", "book", "memory", "remembered", "card"]) {
-            return .selectedScraps(5)
-        }
-        if containsAny(tags, ["letter", "script"]) {
-            return .format(.letterPacket)
-        }
-        if containsAny(tags, ["field", "study", "observer", "label", "tag", "note"]) {
-            return .template(.fieldNotes)
-        }
-        if containsAny(tags, ["rest", "quiet", "hush", "patient"]) {
-            return .selectedAnyType([.rest, .bookRemembered, .bookPocket])
-        }
-        if containsAny(tags, ["photo", "attention"]) {
-            return .visualScrap
-        }
-        if containsAny(tags, ["ink", "write", "spell", "magic", "belief"]) {
-            return .pinnedNotes(1)
-        }
-        if containsAny(tags, ["star", "constellation"]) {
-            return .distinctSelectedTypes(3)
-        }
-        if containsAny(tags, ["ticket", "passage", "wander", "arrival"]) {
-            return .format(.letterPacket)
-        }
-        if containsAny(tags, ["ordinary", "wonder", "curiosity", "surprise"]) {
-            return .selectedAnyType([.souvenir, .narrativeOS, .bookNotices])
-        }
-        if containsAny(tags, ["home", "teacup", "heart", "company", "paw", "creature"]) {
-            return .format(.pocketPage)
-        }
-        if containsAny(tags, ["seal", "stamp", "round"]) {
-            return .selectedScraps(3)
-        }
-        if containsAny(tags, ["grain", "speckles", "edge", "vignette"]) {
-            return .exportedDraft
-        }
-        if containsAny(tags, ["generic", "blank", "plain"]) {
-            switch asset.kind {
-            case .background:
-                return .namedDraft
-            case .paperScrap, .tape:
-                return .selectedScraps(2)
-            case .stamp, .doodle:
-                return .selectedScraps(3)
-            case .overlay:
-                return .exportedDraft
-            }
-        }
-
         switch asset.kind {
-        case .background, .paperScrap:
-            return .selectedScraps(2)
+        case .background:
+            return namedFlyleaf
+        case .paperScrap:
+            if containsAny(tags, ["botanical", "flower", "fern", "lavender", "clover", "thyme", "moss", "green"]) {
+                return pressedBetweenPages
+            }
+            if containsAny(tags, ["night", "moon", "moth", "dreams"]) {
+                return nightPaper
+            }
+            if containsAny(tags, ["compass", "map", "walk", "west", "anchor", "sailboat"]) {
+                return cartographersOffcut
+            }
+            if containsAny(tags, ["field", "study", "observer", "label", "tag", "note"]) {
+                return evidenceSlip
+            }
+            return firstCut
         case .stamp:
-            return .selectedScraps(3)
+            if containsAny(tags, ["night", "moon", "moth", "dreams"]) {
+                return lunaPost
+            }
+            if containsAny(tags, ["compass", "map", "walk", "west", "anchor", "sailboat", "star"]) {
+                return northboundSeal
+            }
+            if containsAny(tags, ["library", "archive", "book", "memory", "remembered", "card"]) {
+                return archivistsSeal
+            }
+            if containsAny(tags, ["ordinary", "wonder", "curiosity", "surprise", "bee"]) {
+                return astonishmentCertified
+            }
+            if containsAny(tags, ["field", "study", "observer", "label", "tag", "note"]) {
+                return officiallyObserved
+            }
+            if containsAny(tags, ["home", "teacup", "heart", "company", "paw", "creature"]) {
+                return creatureWasHere
+            }
+            return sealOfAssembly
         case .doodle:
-            return .selectedScraps(3)
+            if containsAny(tags, ["photo", "attention"]) {
+                return visibleEvidence
+            }
+            if containsAny(tags, ["ink", "write", "spell", "magic", "belief"]) {
+                return inkbound
+            }
+            if containsAny(tags, ["star", "constellation"]) {
+                return handmadeConstellation
+            }
+            if containsAny(tags, ["ticket", "passage", "wander", "arrival"]) {
+                return passageGranted
+            }
+            if containsAny(tags, ["letter", "script"]) {
+                return lettersThroughMargins
+            }
+            if containsAny(tags, ["harbor", "water", "tide", "lighthouse", "shell", "rain", "weather"]) {
+                return harborLedger
+            }
+            if containsAny(tags, ["compass", "map", "walk", "west", "anchor", "sailboat"]) {
+                return unlostOnPurpose
+            }
+            if containsAny(tags, ["night", "moon", "moth", "dreams"]) {
+                return nocturneCollector
+            }
+            if containsAny(tags, ["botanical", "flower", "fern", "lavender", "clover", "thyme", "moss", "green"]) {
+                return greenhousePressing
+            }
+            if containsAny(tags, ["rest", "quiet", "hush", "patient"]) {
+                return keeperOfQuiet
+            }
+            if containsAny(tags, ["field", "study", "observer", "label", "tag", "note"]) {
+                return filedUnderAstonishment
+            }
+            if containsAny(tags, ["ordinary", "wonder", "curiosity", "surprise"]) {
+                return usualInterrupted
+            }
+            if containsAny(tags, ["home", "teacup", "heart", "company", "paw", "creature"]) {
+                return pocketFamiliar
+            }
+            if containsAny(tags, ["light", "lamp", "lantern", "story", "world"]) {
+                return weeklyIlluminator
+            }
+            if containsAny(tags, ["library", "archive", "book", "memory", "remembered", "card", "margin"]) {
+                return livingArchive
+            }
+            if containsAny(tags, ["feather", "soft", "wind", "brown"]) {
+                return softChaosLicense
+            }
+            if containsAny(tags, ["eye", "observed", "witness"]) {
+                return witnessedEdge
+            }
+            return marginApprentice
         case .tape:
-            return .selectedScraps(2)
+            return containsAny(tags, ["botanical", "flower", "green"])
+                ? greenBinding
+                : heldTogether
         case .overlay:
-            return .exportedDraft
+            return finalVarnish
         }
     }
 
     private static func containsAny(_ tags: Set<String>, _ candidates: [String]) -> Bool {
         !tags.isDisjoint(with: Set(candidates))
     }
+
+    private static let firstCut = Quest(
+        id: "first-cut",
+        name: "The First Cut",
+        riddle: "One kept thing is enough to give the scissors courage.",
+        requirements: [.selectedScraps(1)]
+    )
+    private static let namedFlyleaf = Quest(
+        id: "named-flyleaf",
+        name: "A Name in the Flyleaf",
+        riddle: "The page wants a name that only its maker would have chosen.",
+        requirements: [.namedDraft]
+    )
+    private static let pressedBetweenPages = Quest(
+        id: "pressed-between-pages",
+        name: "Pressed Between Pages",
+        riddle: "Bring the green world inside, then let a flower keep watch.",
+        requirements: [.selectedAnyType([.weather, .location, .souvenir]), .marginaliaStyle(.pressedFlower)]
+    )
+    private static let nightPaper = Quest(
+        id: "night-paper",
+        name: "Paper After Midnight",
+        riddle: "Two scraps are waiting for the lamps to go out.",
+        requirements: [.selectedScraps(2), .background(.night)]
+    )
+    private static let cartographersOffcut = Quest(
+        id: "cartographers-offcut",
+        name: "The Cartographer's Offcut",
+        riddle: "A direction means more after the road has lasted two days.",
+        requirements: [.selectedAnyType([.wonderCompass, .anchor, .location]), .litDays(2)]
+    )
+    private static let evidenceSlip = Quest(
+        id: "evidence-slip",
+        name: "The Evidence Slip",
+        riddle: "File the page carefully, but choose the sentence yourself.",
+        requirements: [.template(.fieldNotes), .editedPullQuote]
+    )
+    private static let greenBinding = Quest(
+        id: "green-binding",
+        name: "The Green Binding",
+        riddle: "A flower and a handwritten thought can hold almost anything together.",
+        requirements: [.marginaliaStyle(.pressedFlower), .pinnedNotes(1)]
+    )
+    private static let heldTogether = Quest(
+        id: "held-together",
+        name: "Held Together on Purpose",
+        riddle: "Name the page. Place one earned mark. The tear becomes part of the design.",
+        requirements: [.namedDraft, .placedMarks(1)]
+    )
+    private static let archivistsSeal = Quest(
+        id: "archivists-seal",
+        name: "The Archivist's Seal",
+        riddle: "Five scraps from more than one day are enough to become an archive.",
+        requirements: [.selectedScraps(5), .litDays(2)]
+    )
+    private static let lunaPost = Quest(
+        id: "luna-post",
+        name: "Luna Post",
+        riddle: "Address a letter after dark. The moths will handle delivery.",
+        requirements: [.format(.letterPacket), .background(.night)]
+    )
+    private static let northboundSeal = Quest(
+        id: "northbound-seal",
+        name: "The Northbound Seal",
+        riddle: "Find a bearing, then gather three different kinds of proof.",
+        requirements: [.selectedAnyType([.wonderCompass, .anchor, .location]), .distinctSelectedTypes(3)]
+    )
+    private static let astonishmentCertified = Quest(
+        id: "astonishment-certified",
+        name: "Small Astonishment, Certified",
+        riddle: "The ordinary thing needs a witness and a proper name.",
+        requirements: [.selectedAnyType([.souvenir, .narrativeOS, .bookNotices]), .namedDraft]
+    )
+    private static let officiallyObserved = Quest(
+        id: "officially-observed",
+        name: "Officially Observed",
+        riddle: "Set out the field ledger and pin down what the form forgot to ask.",
+        requirements: [.template(.fieldNotes), .pinnedNotes(1)]
+    )
+    private static let creatureWasHere = Quest(
+        id: "creature-was-here",
+        name: "A Creature Was Here",
+        riddle: "A small pocket and one visible piece of evidence should do it.",
+        requirements: [.format(.pocketPage), .visualScrap]
+    )
+    private static let sealOfAssembly = Quest(
+        id: "seal-of-assembly",
+        name: "The Seal of Assembly",
+        riddle: "Three scraps, one wax seal: now it counts as a gathering.",
+        requirements: [.selectedScraps(3), .marginaliaStyle(.waxSeal)]
+    )
+    private static let visibleEvidence = Quest(
+        id: "visible-evidence",
+        name: "The Visible Evidence",
+        riddle: "Let a picture lead. Scatter the rest around it.",
+        requirements: [.visualScrap, .template(.polaroidScatter)]
+    )
+    private static let inkbound = Quest(
+        id: "inkbound",
+        name: "Inkbound",
+        riddle: "Two notes and one chosen sentence will make the ink take the oath.",
+        requirements: [.pinnedNotes(2), .editedPullQuote]
+    )
+    private static let handmadeConstellation = Quest(
+        id: "handmade-constellation",
+        name: "A Handmade Constellation",
+        riddle: "Three kinds of page become a sky when the ink learns stars.",
+        requirements: [.distinctSelectedTypes(3), .marginaliaStyle(.inkStars)]
+    )
+    private static let passageGranted = Quest(
+        id: "passage-granted",
+        name: "Passage Granted",
+        riddle: "Put a true name on a letter and the ticket will recognize you.",
+        requirements: [.format(.letterPacket), .namedDraft]
+    )
+    private static let lettersThroughMargins = Quest(
+        id: "letters-through-margins",
+        name: "Letters Through the Margins",
+        riddle: "A letter travels farther with a private note pinned inside.",
+        requirements: [.format(.letterPacket), .pinnedNotes(1)]
+    )
+    private static let harborLedger = Quest(
+        id: "harbor-ledger",
+        name: "The Harbor Ledger",
+        riddle: "Bring weather or water to the ruled green page. The harbor keeps accounts.",
+        requirements: [.selectedAnyType([.weather, .todaysSky, .location, .anchor]), .background(.ledger)]
+    )
+    private static let unlostOnPurpose = Quest(
+        id: "unlost-on-purpose",
+        name: "Unlost on Purpose",
+        riddle: "A compass is only a beginning. Keep walking until three days touch the map.",
+        requirements: [.selectedAnyType([.wonderCompass, .anchor, .location]), .litDays(3)]
+    )
+    private static let nocturneCollector = Quest(
+        id: "nocturne-collector",
+        name: "The Nocturne Collector",
+        riddle: "Three kept days look different under the same night sky.",
+        requirements: [.litDays(3), .background(.night)]
+    )
+    private static let greenhousePressing = Quest(
+        id: "greenhouse-pressing",
+        name: "The Greenhouse Pressing",
+        riddle: "Study one living scrap closely enough for the ledger to grow leaves.",
+        requirements: [.selectedAnyType([.weather, .location, .souvenir]), .template(.fieldNotes)]
+    )
+    private static let keeperOfQuiet = Quest(
+        id: "keeper-of-quiet",
+        name: "Keeper of Quiet",
+        riddle: "Rest belongs on vellum. Give it somewhere soft to remain.",
+        requirements: [.selectedAnyType([.rest, .bookRemembered, .bookPocket]), .background(.vellum)]
+    )
+    private static let filedUnderAstonishment = Quest(
+        id: "filed-under-astonishment",
+        name: "Filed Under Astonishment",
+        riddle: "The field desk wants three unlike specimens before it opens the drawer.",
+        requirements: [.template(.fieldNotes), .distinctSelectedTypes(3)]
+    )
+    private static let usualInterrupted = Quest(
+        id: "usual-interrupted",
+        name: "The Usual, Interrupted",
+        riddle: "Give an ordinary wonder permission to make a beautiful mess.",
+        requirements: [.selectedAnyType([.souvenir, .narrativeOS, .bookNotices]), .template(.softChaos)]
+    )
+    private static let pocketFamiliar = Quest(
+        id: "pocket-familiar",
+        name: "The Pocket Familiar",
+        riddle: "Make a pocket for company, then leave it two small instructions.",
+        requirements: [.format(.pocketPage), .pinnedNotes(2)]
+    )
+    private static let weeklyIlluminator = Quest(
+        id: "weekly-illuminator",
+        name: "The Weekly Illuminator",
+        riddle: "Five days and a little shrine are enough to relight the story.",
+        requirements: [.template(.weeklyShrine), .litDays(5)]
+    )
+    private static let livingArchive = Quest(
+        id: "living-archive",
+        name: "The Living Archive",
+        riddle: "Gather five scraps, then decide which sentence survives the filing.",
+        requirements: [.selectedScraps(5), .editedPullQuote]
+    )
+    private static let softChaosLicense = Quest(
+        id: "soft-chaos-license",
+        name: "License for Soft Chaos",
+        riddle: "Three earned marks placed without apology will loosen the feather.",
+        requirements: [.template(.softChaos), .placedMarks(3)]
+    )
+    private static let witnessedEdge = Quest(
+        id: "witnessed-edge",
+        name: "The Witnessed Edge",
+        riddle: "Name the page and choose the line that proves you really looked.",
+        requirements: [.namedDraft, .editedPullQuote]
+    )
+    private static let marginApprentice = Quest(
+        id: "margin-apprentice",
+        name: "The Margin Apprentice",
+        riddle: "Two kept scraps are enough for the margins to start teaching back.",
+        requirements: [.selectedScraps(2)]
+    )
+    private static let finalVarnish = Quest(
+        id: "final-varnish",
+        name: "The Final Varnish",
+        riddle: "Give the work its true name, then let it leave the studio once.",
+        requirements: [.namedDraft, .exportedDraft]
+    )
 }
 
 struct PagewrightSheet: View {
+    private struct MarginaliaUnlockNotice: Equatable {
+        var questID: String
+        var title: String
+        var markCount: Int
+        var additionalQuestCount: Int
+    }
+
     let keptPages: [BookPage]
+    let bookwideAchievementContext: BookwideMarginaliaAchievement.Context
+    let initialPageIDs: [String]
     let initialPDFURL: URL?
     let initialPNGURL: URL?
     let onExportPDF: (PagewrightDraft) -> URL?
@@ -4044,6 +5114,7 @@ struct PagewrightSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var title = "A Page I Kept"
+    @State private var hasEditedTitle = false
     @State private var note = ""
     @State private var format: PagewrightFormat = .scrapPage
     @State private var selectedIDs: [String] = []
@@ -4051,11 +5122,13 @@ struct PagewrightSheet: View {
     @State private var searchText = ""
     @State private var activePageID: String?
     @State private var pullQuotes: [String: String] = [:]
+    @State private var editedPullQuotePageIDs: Set<String> = []
     @State private var background: PagewrightBackground = .parchment
     @State private var marginalia: PagewrightMarginaliaStyle = .pressedFlower
     @State private var noteDraft = ""
     @State private var noteStyle: PagewrightPinnedNoteStyle = .margin
     @State private var pinnedNotes: [PagewrightPinnedNote] = []
+    @State private var personalPhotos: [PagewrightPersonalPhoto] = []
     @State private var canvasElements: [PagewrightCanvasElement] = []
     @State private var activeElementID: String?
     @State private var dragOrigins: [String: CGPoint] = [:]
@@ -4072,17 +5145,29 @@ struct PagewrightSheet: View {
     @State private var pageCache = PagewrightPageCache.empty
     @State private var marginaliaAssetCache = PagewrightMarginaliaAssetCache.empty
     @State private var isManipulatingElement = false
+    #if canImport(PhotosUI)
+    @State private var pendingPersonalPhotoItems: [PhotosPickerItem] = []
+    @State private var isImportingPersonalPhotos = false
+    @State private var personalPhotoImportMessage: String?
+    #endif
     @FocusState private var focusedScrapTextElementID: String?
 
     /// Shared with the rest of the Book by key — the Pagewright reads and spends
     /// the same Belief the reader earns everywhere else.
     @AppStorage("beliefScore") private var beliefScore = 30
     @AppStorage("didCompleteStoryOnboarding") private var didCompleteStoryOnboarding = false
-    /// Marks whose achievement clue has been purchased with Belief.
+    /// Achievement sets whose clue has been purchased with Belief. Older
+    /// versions stored asset IDs; the read path below still honors those.
     @AppStorage("scrapbookRevealedMarginaliaHints") private var revealedMarginaliaHintsRaw = ""
+    /// Achievement sets stay earned after the current canvas changes. Storing
+    /// quest IDs rather than asset IDs also unlocks matching rewards from future
+    /// marginalia packs without making the reader repeat the same ritual.
+    @AppStorage("scrapbookCompletedMarginaliaAchievements") private var completedMarginaliaAchievementsRaw = ""
     /// A locked mark the reader tapped — drives the achievement/hint sheet.
     @State private var pendingUnlockMarginalia: IlluminationAsset?
     @State private var activeTutorNote: MarginTutorNote?
+    @State private var marginaliaUnlockNotice: MarginaliaUnlockNotice?
+    @State private var hasSeededMarginaliaAchievements = false
 
     private var marginTutorSeenData: String {
         get { MarginTutorLedger.encode(Set(PlayerVault.shared.data.tutorSeen)) }
@@ -4094,6 +5179,10 @@ struct PagewrightSheet: View {
 
     private var revealedMarginaliaHintIDs: Set<String> {
         Set(revealedMarginaliaHintsRaw.split(separator: ",").map(String.init))
+    }
+
+    private var completedMarginaliaAchievementIDs: Set<String> {
+        Set(completedMarginaliaAchievementsRaw.split(separator: ",").map(String.init))
     }
 
     private func tutorTouch(_ id: String) {
@@ -4116,22 +5205,87 @@ struct PagewrightSheet: View {
             marginaliaStyle: marginalia,
             pinnedNoteCount: pinnedNotes.count,
             placedMarkCount: canvasElements.filter { $0.kind == .marginaliaAsset }.count,
+            personalPhotoCount: personalPhotos.count,
             hasExport: sharedURL != nil || sharedPNGURL != nil,
-            hasCustomTitle: title.trimmingCharacters(in: .whitespacesAndNewlines)
-                .nonEmpty
-                .map { $0 != "A Page I Kept" } ?? false,
-            hasEditedPullQuote: !pullQuotes.isEmpty
+            hasCustomTitle: hasEditedTitle && (
+                title.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .nonEmpty
+                    .map { $0 != "A Page I Kept" } ?? false
+            ),
+            hasEditedPullQuote: !editedPullQuotePageIDs.isEmpty,
+            completedAchievementIDs: completedMarginaliaAchievementIDs,
+            bookwide: bookwideAchievementContext
+        )
+    }
+
+    private var marginaliaAchievementSignature: String {
+        let context = marginaliaAchievementContext
+        return [
+            context.selectedPages.map(\.id).sorted().joined(separator: "|"),
+            context.selectedTypes.map(\.rawValue).sorted().joined(separator: "|"),
+            context.selectedDayIDs.sorted().joined(separator: "|"),
+            context.format.rawValue,
+            context.template.rawValue,
+            context.background.rawValue,
+            context.marginaliaStyle.rawValue,
+            "\(context.pinnedNoteCount)",
+            "\(context.placedMarkCount)",
+            context.hasVisualScrap ? "visual" : "text",
+            context.hasExport ? "exported" : "draft",
+            context.hasCustomTitle ? "named" : "default",
+            context.hasEditedPullQuote ? "quote-edited" : "quote-seeded"
+        ].joined(separator: "§")
+    }
+
+    private var pageTitleBinding: Binding<String> {
+        Binding(
+            get: { title },
+            set: {
+                title = $0
+                hasEditedTitle = true
+            }
         )
     }
 
     private func isMarginaliaUnlocked(_ asset: IlluminationAsset) -> Bool {
-        PagewrightMarginaliaAchievement
-            .achievement(for: asset)
-            .isComplete(in: marginaliaAchievementContext)
+        let achievement = PagewrightMarginaliaAchievement.achievement(for: asset)
+        return completedMarginaliaAchievementIDs.contains(achievement.questID)
+            || achievement.isComplete(in: marginaliaAchievementContext)
+    }
+
+    private func refreshMarginaliaAchievements(announce: Bool = true) {
+        let achievements = selectedMarginaliaPack.allAssets.map(PagewrightMarginaliaAchievement.achievement)
+        let completedNow = Set(
+            achievements
+                .filter { $0.isComplete(in: marginaliaAchievementContext) }
+                .map(\.questID)
+        )
+        let newlyCompleted = completedNow.subtracting(completedMarginaliaAchievementIDs)
+        guard !newlyCompleted.isEmpty else { return }
+
+        var earned = completedMarginaliaAchievementIDs
+        earned.formUnion(newlyCompleted)
+        completedMarginaliaAchievementsRaw = earned.sorted().joined(separator: ",")
+
+        guard announce, hasSeededMarginaliaAchievements,
+              let questID = newlyCompleted.sorted().first,
+              let achievement = achievements.first(where: { $0.questID == questID }) else { return }
+        let rewardCount = achievements.filter { newlyCompleted.contains($0.questID) }.count
+        withAnimation(.spring(response: 0.44, dampingFraction: 0.82)) {
+            marginaliaUnlockNotice = MarginaliaUnlockNotice(
+                questID: questID,
+                title: achievement.name,
+                markCount: rewardCount,
+                additionalQuestCount: max(0, newlyCompleted.count - 1)
+            )
+        }
+        BookFeedback.play(.select)
     }
 
     private func isMarginaliaHintRevealed(_ asset: IlluminationAsset) -> Bool {
-        revealedMarginaliaHintIDs.contains(asset.id)
+        let questID = PagewrightMarginaliaAchievement.achievement(for: asset).questID
+        return revealedMarginaliaHintIDs.contains(questID)
+            || revealedMarginaliaHintIDs.contains(asset.id)
     }
 
     private func revealMarginaliaHint(_ asset: IlluminationAsset) {
@@ -4142,7 +5296,7 @@ struct PagewrightSheet: View {
         }
         beliefScore = max(0, beliefScore - 1)
         var revealed = revealedMarginaliaHintIDs
-        revealed.insert(asset.id)
+        revealed.insert(PagewrightMarginaliaAchievement.achievement(for: asset).questID)
         revealedMarginaliaHintsRaw = revealed.sorted().joined(separator: ",")
         BookFeedback.play(.select)
     }
@@ -4191,7 +5345,15 @@ struct PagewrightSheet: View {
     }
 
     private var selectionLabel: String {
-        "\(selectedIDs.count) selected"
+        let scrapWord = selectedIDs.count == 1 ? "scrap" : "scraps"
+        let photoWord = personalPhotos.count == 1 ? "photo" : "photos"
+        return "\(selectedIDs.count) \(scrapWord) · \(personalPhotos.count) \(photoWord)"
+    }
+
+    private var hasPrimaryCanvasContent: Bool {
+        canvasElements.contains { element in
+            element.kind == .page || element.kind == .personalPhoto
+        }
     }
 
     private var activePage: BookPage? {
@@ -4272,13 +5434,29 @@ struct PagewrightSheet: View {
                 ensureSelectedMarginaliaPackIsUnlocked()
                 refreshStudioCachesIfNeeded()
                 guard selectedIDs.isEmpty else { return }
-                selectedIDs = keptPages.prefix(format.defaultSelectionCount).map(\.id)
+                let availableIDs = Set(keptPages.map(\.id))
+                let seededIDs = initialPageIDs.filter(availableIDs.contains)
+                selectedIDs = seededIDs.isEmpty
+                    ? keptPages.prefix(format.defaultSelectionCount).map(\.id)
+                    : seededIDs
                 activePageID = selectedIDs.first
                 seedPullQuotes()
-                syncCanvasElements()
+                if seededIDs.isEmpty {
+                    syncCanvasElements()
+                } else {
+                    applyTemplate(.polaroidScatter, replaceSelection: false)
+                    if title == "A Page I Kept" {
+                        title = "Things the Book Kept"
+                    }
+                    #if canImport(Photos)
+                    Task { await replaceThirdSeedScrapWithRandomLibraryPhoto() }
+                    #endif
+                }
                 activeElementID = canvasElements.first?.id
                 sharedURL = initialPDFURL
                 sharedPNGURL = initialPNGURL
+                refreshMarginaliaAchievements(announce: false)
+                hasSeededMarginaliaAchievements = true
                 tutorTouch("scrapbook-studio")
             }
             .onChange(of: format) { _, newFormat in
@@ -4296,8 +5474,19 @@ struct PagewrightSheet: View {
             }
             .onChange(of: selectedMarginaliaPackID) { _, _ in
                 refreshMarginaliaAssetCacheIfNeeded()
+                refreshMarginaliaAchievements(announce: false)
                 invalidateExports()
             }
+            .onChange(of: marginaliaAchievementSignature) { _, _ in
+                refreshMarginaliaAchievements()
+            }
+            #if canImport(PhotosUI)
+            .onChange(of: pendingPersonalPhotoItems) { _, items in
+                guard !items.isEmpty else { return }
+                pendingPersonalPhotoItems = []
+                Task { await importPersonalPhotos(from: items) }
+            }
+            #endif
             .overlay(alignment: .bottom) {
                 if let activeTutorNote {
                     MarginTutorNoteCard(note: activeTutorNote) {
@@ -4313,6 +5502,59 @@ struct PagewrightSheet: View {
                         guard !Task.isCancelled else { return }
                         withAnimation(.easeOut(duration: 0.5)) {
                             self.activeTutorNote = nil
+                        }
+                    }
+                }
+            }
+            .overlay(alignment: .top) {
+                if let notice = marginaliaUnlockNotice {
+                    Button {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            marginaliaUnlockNotice = nil
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "seal.fill")
+                                .font(.title2.weight(.black))
+                                .foregroundStyle(BookPalette.lampGold)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("MARGINALIA EARNED")
+                                    .font(.caption2.weight(.black))
+                                    .tracking(0.9)
+                                    .foregroundStyle(BookPalette.violet)
+                                Text(notice.title)
+                                    .font(.headline.weight(.bold))
+                                    .foregroundStyle(BookPalette.nightText)
+                                Text(
+                                    notice.additionalQuestCount > 0
+                                        ? "+ \(notice.additionalQuestCount) more \(notice.additionalQuestCount == 1 ? "achievement" : "achievements") · \(notice.markCount) new marks opened permanently."
+                                        : "\(notice.markCount) new \(notice.markCount == 1 ? "mark" : "marks") opened permanently."
+                                )
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(BookPalette.nightText.opacity(0.68))
+                            }
+                            Spacer(minLength: 4)
+                            Image(systemName: "xmark")
+                                .font(.caption.weight(.black))
+                                .foregroundStyle(BookPalette.nightText.opacity(0.42))
+                        }
+                        .padding(14)
+                        .background(BookPalette.nightPanel.opacity(0.98), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(BookPalette.lampGold.opacity(0.34), lineWidth: 1)
+                        }
+                        .shadow(color: .black.opacity(0.22), radius: 16, y: 8)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 10)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .task(id: notice.questID) {
+                        try? await Task.sleep(for: .seconds(7))
+                        guard !Task.isCancelled else { return }
+                        withAnimation(.easeOut(duration: 0.4)) {
+                            marginaliaUnlockNotice = nil
                         }
                     }
                 }
@@ -4376,7 +5618,7 @@ struct PagewrightSheet: View {
 
     private var compactHeader: some View {
         HStack(spacing: 10) {
-            TextField("Page title", text: $title)
+            TextField("Page title", text: pageTitleBinding)
                 .font(.system(.headline, design: .serif, weight: .bold))
                 .foregroundStyle(BookPalette.nightText)
                 .textFieldStyle(.plain)
@@ -4525,6 +5767,8 @@ struct PagewrightSheet: View {
 
     private var scrapTrayContent: some View {
         VStack(spacing: 9) {
+            personalPhotoPicker
+
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(BookPalette.nightText.opacity(0.46))
@@ -4572,6 +5816,155 @@ struct PagewrightSheet: View {
             }
         }
     }
+
+    @ViewBuilder
+    private var personalPhotoPicker: some View {
+        #if canImport(PhotosUI)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                PhotosPicker(
+                    selection: $pendingPersonalPhotoItems,
+                    maxSelectionCount: 12,
+                    matching: .images,
+                    photoLibrary: .shared()
+                ) {
+                    Label(
+                        isImportingPersonalPhotos ? "Adding photos…" : "Add Your Photos",
+                        systemImage: "photo.badge.plus"
+                    )
+                    .font(.caption.weight(.black))
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(BookPalette.teal)
+                .disabled(isImportingPersonalPhotos)
+
+                if !personalPhotos.isEmpty {
+                    Text("\(personalPhotos.count) on canvas")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.58))
+                        .fixedSize()
+                }
+            }
+
+            if let personalPhotoImportMessage {
+                Text(personalPhotoImportMessage)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.58))
+            }
+        }
+        #else
+        EmptyView()
+        #endif
+    }
+
+    #if canImport(PhotosUI)
+    private func importPersonalPhotos(from items: [PhotosPickerItem]) async {
+        await MainActor.run {
+            isImportingPersonalPhotos = true
+            personalPhotoImportMessage = nil
+        }
+
+        var imported: [PagewrightPersonalPhoto] = []
+        var failedCount = 0
+        for item in items {
+            guard let raw = try? await item.loadTransferable(type: Data.self),
+                  let jpeg = PressedPhotograph.downscaledJPEG(from: raw),
+                  let image = UIImage(data: jpeg),
+                  image.size.width > 0,
+                  image.size.height > 0 else {
+                failedCount += 1
+                continue
+            }
+            imported.append(
+                PagewrightPersonalPhoto(
+                    data: jpeg,
+                    aspectRatio: image.size.width / image.size.height
+                )
+            )
+        }
+
+        await MainActor.run {
+            for photo in imported {
+                personalPhotos.append(photo)
+                let element = defaultPersonalPhotoElement(
+                    for: photo,
+                    index: personalPhotos.count - 1
+                )
+                canvasElements.append(element)
+                activeElementID = element.id
+            }
+            isImportingPersonalPhotos = false
+            if imported.isEmpty {
+                personalPhotoImportMessage = "Those photos could not be read."
+                BookFeedback.play(.error)
+            } else {
+                let noun = imported.count == 1 ? "photo" : "photos"
+                personalPhotoImportMessage = "Added \(imported.count) complete \(noun), without captions."
+                invalidateExports()
+                BookFeedback.play(.select)
+            }
+            if failedCount > 0, !imported.isEmpty {
+                personalPhotoImportMessage? += " \(failedCount) could not be read."
+            }
+        }
+    }
+    #endif
+
+    #if canImport(Photos)
+    private func replaceThirdSeedScrapWithRandomLibraryPhoto() async {
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        let resolvedStatus = status == .notDetermined
+            ? await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+            : status
+        guard resolvedStatus == .authorized || resolvedStatus == .limited else { return }
+
+        let options = PHFetchOptions()
+        options.includeHiddenAssets = false
+        let assets = PHAsset.fetchAssets(with: .image, options: options)
+        guard assets.count > 0 else { return }
+        let asset = assets.object(at: Int.random(in: 0..<assets.count))
+        let requestOptions = PHImageRequestOptions()
+        requestOptions.isNetworkAccessAllowed = true
+        requestOptions.deliveryMode = .highQualityFormat
+        let raw: Data? = await withCheckedContinuation { continuation in
+            PHImageManager.default().requestImageDataAndOrientation(
+                for: asset,
+                options: requestOptions
+            ) { data, _, _, _ in
+                continuation.resume(returning: data)
+            }
+        }
+        guard let raw,
+              let jpeg = PressedPhotograph.downscaledJPEG(from: raw),
+              let image = UIImage(data: jpeg),
+              image.size.width > 0,
+              image.size.height > 0 else { return }
+
+        let photo = PagewrightPersonalPhoto(
+            data: jpeg,
+            aspectRatio: image.size.width / image.size.height
+        )
+        await MainActor.run {
+            // The surfaced spread remains exactly three scraps: two things
+            // already kept by the Book and one uncropped photograph from the
+            // reader's library. If Photos is unavailable, the original three
+            // kept scraps remain in place.
+            if let replacedID = selectedIDs.last {
+                selectedIDs.removeAll { $0 == replacedID }
+                canvasElements.removeAll { $0.kind == .page && $0.sourceID == replacedID }
+                editedPullQuotePageIDs.remove(replacedID)
+            }
+            personalPhotos.append(photo)
+            let element = defaultPersonalPhotoElement(for: photo, index: 2)
+            canvasElements.append(element)
+            normalizeZOrder()
+            activeElementID = element.id
+            personalPhotoImportMessage = "The Pagewright borrowed one whole photograph from your library."
+            invalidateExports()
+        }
+    }
+    #endif
 
     private func scrapScopeButton(_ scope: PagewrightScrapTrayScope) -> some View {
         Button {
@@ -4692,7 +6085,7 @@ struct PagewrightSheet: View {
             if isMarginaliaUnlocked(asset) {
                 Text("\(achievement.title)\nUnlocked. Place it on the page.")
             } else if isMarginaliaHintRevealed(asset) {
-                Text("\(achievement.title)\nHint: \(achievement.revealedHint)\nYou hold \(beliefScore) Belief.")
+                Text("\(achievement.title)\n\(achievement.revealedHint(in: marginaliaAchievementContext))\nYou hold \(beliefScore) Belief.")
             } else {
                 Text("\(achievement.title)\n\(achievement.hiddenHint)\nYou hold \(beliefScore) Belief.")
             }
@@ -4722,12 +6115,12 @@ struct PagewrightSheet: View {
     private func markAchievementSubtitle(for asset: IlluminationAsset) -> String {
         let achievement = PagewrightMarginaliaAchievement.achievement(for: asset)
         if isMarginaliaUnlocked(asset) {
-            return "Unlocked"
+            return "Earned · \(achievement.name)"
         }
         if isMarginaliaHintRevealed(asset) {
-            return achievement.revealedHint
+            return achievement.requirementSummary
         }
-        return achievement.requirement.title
+        return achievement.name
     }
 
     private func markCategoryButton(_ category: PagewrightMarkTrayCategory) -> some View {
@@ -4829,6 +6222,7 @@ struct PagewrightSheet: View {
         Divider()
         Button("Clear scraps", role: .destructive) {
             selectedIDs.removeAll()
+            editedPullQuotePageIDs.removeAll()
             activePageID = nil
             activeElementID = nil
             canvasElements.removeAll { $0.kind == .page }
@@ -4947,6 +6341,7 @@ struct PagewrightSheet: View {
             ForEach(cached.pullQuoteOptions.prefix(5), id: \.self) { option in
                 Button {
                     pullQuotes[page.id] = option
+                    editedPullQuotePageIDs.insert(page.id)
                     invalidateExports()
                     BookFeedback.pressTick()
                 } label: {
@@ -4965,19 +6360,19 @@ struct PagewrightSheet: View {
         } label: {
             Label("Make PDF", systemImage: "doc.richtext")
         }
-        .disabled(selectedIDs.isEmpty)
+        .disabled(!hasPrimaryCanvasContent)
         Button {
             renderCurrentPNG()
         } label: {
             Label("Make PNG", systemImage: "photo")
         }
-        .disabled(selectedIDs.isEmpty)
+        .disabled(!hasPrimaryCanvasContent)
         Button {
             keepCurrentDraft()
         } label: {
             Label("Keep in Book", systemImage: "book.closed")
         }
-        .disabled(selectedIDs.isEmpty)
+        .disabled(!hasPrimaryCanvasContent)
         Divider()
         if let sharedURL {
             ShareLink(item: sharedURL) {
@@ -4998,7 +6393,7 @@ struct PagewrightSheet: View {
             Label("Export", systemImage: "square.and.arrow.up")
         }
         .foregroundStyle(BookPalette.lampGold)
-        .disabled(selectedIDs.isEmpty)
+        .disabled(!hasPrimaryCanvasContent)
     }
 
     private var templateRail: some View {
@@ -5079,14 +6474,16 @@ struct PagewrightSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Pick from any kept day.", systemImage: "calendar")
+            Label("Add photos or pick from any kept day.", systemImage: "photo.on.rectangle.angled")
                 .font(.headline.weight(.bold))
                 .foregroundStyle(BookPalette.lampGold)
 
-            Text("Drag or tap kept pages into the canvas. Only the selected scraps, notes, and visible page styling leave the Book.")
+            Text("Place your own complete photos with no captions, or drag kept pages into the canvas. Then layer on notes, marks, and page styling.")
                 .font(.callout)
                 .foregroundStyle(BookPalette.nightText.opacity(0.72))
                 .fixedSize(horizontal: false, vertical: true)
+
+            personalPhotoPicker
         }
         .padding(14)
         .background(BookPalette.nightText.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -5174,7 +6571,7 @@ struct PagewrightSheet: View {
 
     private var titleFields: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TextField("Title", text: $title)
+            TextField("Title", text: pageTitleBinding)
                 .textFieldStyle(.roundedBorder)
                 .onChange(of: title) { _, _ in invalidateExports() }
 
@@ -5199,6 +6596,7 @@ struct PagewrightSheet: View {
             Spacer()
             Button("Clear") {
                 selectedIDs.removeAll()
+                editedPullQuotePageIDs.removeAll()
                 activePageID = nil
                 activeElementID = nil
                 canvasElements.removeAll { $0.kind == .page }
@@ -5219,7 +6617,7 @@ struct PagewrightSheet: View {
                 Label("No kept pages yet", systemImage: "tray")
                     .font(.headline.weight(.bold))
                     .foregroundStyle(BookPalette.nightText)
-                Text("Keep a few pages first; then the Pagewright will have scraps to bind.")
+                Text("You can still make a page from your own photos above, or keep a few pages first to add scraps.")
                     .font(.callout)
                     .foregroundStyle(BookPalette.nightText.opacity(0.62))
             }
@@ -5429,9 +6827,9 @@ struct PagewrightSheet: View {
 
     private var emptyCanvas: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Drop kept pages here", systemImage: "hand.draw")
+            Label("Add a photo or kept page", systemImage: "hand.draw")
                 .font(.headline.weight(.bold))
-            Text("Tap a page in the archive, or drag it into the canvas.")
+            Text("Choose your own photos above, tap a page in the archive, or drag a scrap into the canvas.")
                 .font(.callout)
         }
         .foregroundStyle(background == .night ? BookPalette.nightText.opacity(0.72) : BookPalette.ink.opacity(0.68))
@@ -5505,11 +6903,63 @@ struct PagewrightSheet: View {
             if let note = pinnedNotes.first(where: { $0.id == element.sourceID }) {
                 freeformNote(note, element: element, canvasSize: canvasSize)
             }
+        case .personalPhoto:
+            if let photo = personalPhotos.first(where: { $0.id == element.sourceID }) {
+                personalPhoto(photo, element: element, canvasSize: canvasSize)
+            }
         case .marginaliaAsset:
             if let asset = marginaliaAsset(named: element.sourceID) {
                 packMarginaliaAsset(asset, element: element, canvasSize: canvasSize)
             }
         }
+    }
+
+    private func personalPhoto(
+        _ photo: PagewrightPersonalPhoto,
+        element: PagewrightCanvasElement,
+        canvasSize: CGSize
+    ) -> some View {
+        let isActive = activeElementID == element.id
+        let photoWidth = element.width * canvasSize.width
+        return Group {
+            if let image = UIImage(data: photo.data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Image(systemName: "photo")
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(BookPalette.teal.opacity(0.44))
+            }
+        }
+        .frame(width: photoWidth)
+        .contentShape(Rectangle())
+        .overlay {
+            Rectangle()
+                .stroke(isActive ? BookPalette.lampGold.opacity(0.82) : Color.clear, lineWidth: 2)
+        }
+        .shadow(color: .black.opacity(0.14), radius: 8, y: 4)
+        .onTapGesture {
+            activeElementID = element.id
+            BookFeedback.pressTick()
+        }
+        .onTapGesture(count: 2) {
+            bringElementForward(element.id)
+            BookFeedback.pressTick()
+        }
+        .onLongPressGesture(minimumDuration: 0.45) {
+            duplicateElement(element)
+            BookFeedback.play(.select)
+        }
+        .contextMenu {
+            pagewrightElementContextMenu(for: element)
+        }
+        .rotationEffect(.degrees(element.rotation))
+        .position(x: element.x * canvasSize.width, y: element.y * canvasSize.height)
+        .gesture(elementManipulationGesture(for: element, canvasSize: canvasSize))
+        .zIndex(Double(element.z))
+        .accessibilityLabel("Personal photo")
     }
 
     private func selectedScrap(_ page: BookPage, element: PagewrightCanvasElement, canvasSize: CGSize) -> some View {
@@ -5518,6 +6968,7 @@ struct PagewrightSheet: View {
             get: { pullQuotes[page.id]?.nonEmpty ?? cached.pullQuote },
             set: { newValue in
                 pullQuotes[page.id] = newValue
+                editedPullQuotePageIDs.insert(page.id)
                 invalidateExports()
             }
         )
@@ -5864,7 +7315,9 @@ struct PagewrightSheet: View {
 
     private func clampedWidth(for kind: PagewrightCanvasElement.Kind, proposed: CGFloat) -> CGFloat {
         let minimum: CGFloat = kind == .note ? 0.18 : 0.12
-        let maximum: CGFloat = kind == .marginaliaAsset ? 0.86 : (kind == .note ? 0.46 : 0.62)
+        let maximum: CGFloat = (kind == .marginaliaAsset || kind == .personalPhoto)
+            ? 0.86
+            : (kind == .note ? 0.46 : 0.62)
         return min(maximum, max(minimum, proposed))
     }
 
@@ -6026,6 +7479,7 @@ struct PagewrightSheet: View {
         switch element.kind {
         case .page: return "Selected Scrap"
         case .note: return "Selected Note"
+        case .personalPhoto: return "Selected Photo"
         case .marginaliaAsset: return "Selected Marginalia"
         }
     }
@@ -6034,6 +7488,7 @@ struct PagewrightSheet: View {
         switch element.kind {
         case .page: return "rectangle.on.rectangle"
         case .note: return "note.text"
+        case .personalPhoto: return "photo"
         case .marginaliaAsset: return "seal"
         }
     }
@@ -6053,6 +7508,7 @@ struct PagewrightSheet: View {
                 ForEach(cached.pullQuoteOptions.prefix(4), id: \.self) { option in
                     Button {
                         pullQuotes[page.id] = option
+                        editedPullQuotePageIDs.insert(page.id)
                         invalidateExports()
                     } label: {
                         Text(option)
@@ -6069,6 +7525,7 @@ struct PagewrightSheet: View {
                     get: { pullQuotes[page.id] ?? cached.pullQuote },
                     set: {
                         pullQuotes[page.id] = $0
+                        editedPullQuotePageIDs.insert(page.id)
                         invalidateExports()
                     }
                 ), axis: .vertical)
@@ -6182,7 +7639,7 @@ struct PagewrightSheet: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(BookPalette.lampGold)
-            .disabled(selectedIDs.isEmpty)
+            .disabled(!hasPrimaryCanvasContent)
         }
     }
 
@@ -6195,6 +7652,7 @@ struct PagewrightSheet: View {
             pages: selectedPages,
             pullQuotes: pullQuotes,
             pinnedNotes: pinnedNotes,
+            personalPhotos: personalPhotos,
             elements: canvasElements,
             background: background,
             marginalia: marginalia,
@@ -6255,6 +7713,7 @@ struct PagewrightSheet: View {
 
     private func removeSelectedPage(_ id: String) {
         selectedIDs.removeAll { $0 == id }
+        editedPullQuotePageIDs.remove(id)
         canvasElements.removeAll { $0.kind == .page && $0.sourceID == id }
         if activePageID == id {
             activePageID = selectedIDs.first
@@ -6301,10 +7760,13 @@ struct PagewrightSheet: View {
         if replaceSelection || selectedIDs.isEmpty {
             selectedIDs = smartPages(for: template).map(\.id)
             activePageID = selectedIDs.first
+            editedPullQuotePageIDs.formIntersection(selectedIDs)
         }
 
         seedPullQuotes()
-        let packElements = canvasElements.filter { $0.kind == .marginaliaAsset }
+        let freeformElements = canvasElements.filter {
+            $0.kind == .marginaliaAsset || $0.kind == .personalPhoto
+        }
         canvasElements.removeAll()
         for (index, id) in selectedIDs.enumerated() {
             canvasElements.append(templatePageElement(for: id, index: index, template: template))
@@ -6312,7 +7774,7 @@ struct PagewrightSheet: View {
         for (index, note) in pinnedNotes.enumerated() {
             canvasElements.append(templateNoteElement(for: note.id, index: index, template: template))
         }
-        canvasElements.append(contentsOf: packElements)
+        canvasElements.append(contentsOf: freeformElements)
         normalizeZOrder()
         activeElementID = canvasElements.first?.id
         invalidateExports()
@@ -6387,6 +7849,7 @@ struct PagewrightSheet: View {
             switch element.kind {
             case .page: return !selectedIDs.contains(element.sourceID)
             case .note: return !pinnedNotes.contains { $0.id == element.sourceID }
+            case .personalPhoto: return !personalPhotos.contains { $0.id == element.sourceID }
             case .marginaliaAsset: return false
             }
         }
@@ -6420,6 +7883,32 @@ struct PagewrightSheet: View {
 
     private func defaultNoteElement(for noteID: String, index: Int) -> PagewrightCanvasElement {
         templateNoteElement(for: noteID, index: index, template: selectedTemplate)
+    }
+
+    private func defaultPersonalPhotoElement(
+        for photo: PagewrightPersonalPhoto,
+        index: Int
+    ) -> PagewrightCanvasElement {
+        let placements: [(CGFloat, CGFloat, CGFloat, Double)] = [
+            (0.50, 0.48, 0.52, 0),
+            (0.34, 0.36, 0.40, -5),
+            (0.66, 0.52, 0.38, 4),
+            (0.42, 0.72, 0.36, -2),
+            (0.70, 0.76, 0.30, 6)
+        ]
+        let placement = placements[index % placements.count]
+        // Keep unusually tall photos wholly inside the initial canvas. The
+        // reader can still enlarge them deliberately with the normal gesture.
+        let fittedWidth = min(placement.2, max(0.16, photo.aspectRatio * 0.90))
+        return PagewrightCanvasElement(
+            kind: .personalPhoto,
+            sourceID: photo.id,
+            x: placement.0,
+            y: placement.1,
+            width: fittedWidth,
+            rotation: placement.3,
+            z: nextZ
+        )
     }
 
     private func templateNoteElement(for noteID: String, index: Int, template: PagewrightTemplate) -> PagewrightCanvasElement {
@@ -6605,6 +8094,13 @@ struct PagewrightSheet: View {
             canvasElements.removeAll { $0.id == element.id }
             activeElementID = canvasElements.first?.id
             invalidateExports()
+        case .personalPhoto:
+            canvasElements.removeAll { $0.id == element.id }
+            if !canvasElements.contains(where: { $0.kind == .personalPhoto && $0.sourceID == element.sourceID }) {
+                personalPhotos.removeAll { $0.id == element.sourceID }
+            }
+            activeElementID = canvasElements.first?.id
+            invalidateExports()
         case .marginaliaAsset:
             canvasElements.removeAll { $0.id == element.id }
             activeElementID = canvasElements.first?.id
@@ -6615,7 +8111,9 @@ struct PagewrightSheet: View {
     private func resetCanvasLayout() {
         let pageIDs = selectedIDs
         let notes = pinnedNotes
-        let packAssets = canvasElements.filter { $0.kind == .marginaliaAsset }
+        let freeformElements = canvasElements.filter {
+            $0.kind == .marginaliaAsset || $0.kind == .personalPhoto
+        }
         canvasElements.removeAll()
         if pageIDs.count <= 4 {
             for (index, id) in pageIDs.enumerated() {
@@ -6629,7 +8127,7 @@ struct PagewrightSheet: View {
         for (index, note) in notes.enumerated() {
             canvasElements.append(defaultNoteElement(for: note.id, index: index))
         }
-        canvasElements.append(contentsOf: packAssets)
+        canvasElements.append(contentsOf: freeformElements)
         normalizeZOrder()
         activeElementID = canvasElements.first?.id
         invalidateExports()
@@ -6978,8 +8476,10 @@ enum PagewrightPDFWriter {
             y += noteHeight + 20
         }
 
+        let pageWord = draft.pages.count == 1 ? "page" : "pages"
+        let photoWord = draft.personalPhotos.count == 1 ? "photo" : "photos"
         drawText(
-            "\(draft.pages.count) kept page\(draft.pages.count == 1 ? "" : "s"), selected by hand.",
+            "\(draft.pages.count) kept \(pageWord) and \(draft.personalPhotos.count) personal \(photoWord), arranged by hand.",
             font: .systemFont(ofSize: 11, weight: .semibold),
             color: mutedInk,
             rect: CGRect(x: margin, y: y, width: pageSize.width - margin * 2, height: 20),
@@ -7034,6 +8534,7 @@ enum PagewrightPDFWriter {
 
         let pagesByID = Dictionary(uniqueKeysWithValues: draft.pages.map { ($0.id, $0) })
         let notesByID = Dictionary(uniqueKeysWithValues: draft.pinnedNotes.map { ($0.id, $0) })
+        let photosByID = Dictionary(uniqueKeysWithValues: draft.personalPhotos.map { ($0.id, $0) })
         let assetsByName = Dictionary(
             IlluminationPackRegistry.unlockedPacks
                 .flatMap(\.allAssets)
@@ -7048,6 +8549,9 @@ enum PagewrightPDFWriter {
             case .note:
                 guard let note = notesByID[element.sourceID] else { continue }
                 drawComposedNote(note, element: element, in: canvasRect)
+            case .personalPhoto:
+                guard let photo = photosByID[element.sourceID] else { continue }
+                drawComposedPhoto(photo, element: element, in: canvasRect)
             case .marginaliaAsset:
                 guard let asset = assetsByName[element.sourceID] else { continue }
                 drawComposedMarginaliaAsset(asset, element: element, in: canvasRect)
@@ -7128,6 +8632,30 @@ enum PagewrightPDFWriter {
         context.restoreGState()
     }
 
+    private static func drawComposedPhoto(
+        _ photo: PagewrightPersonalPhoto,
+        element: PagewrightCanvasElement,
+        in canvasRect: CGRect
+    ) {
+        guard let image = UIImage(data: photo.data),
+              image.size.width > 0,
+              image.size.height > 0,
+              let context = UIGraphicsGetCurrentContext() else { return }
+        let width = element.width * canvasRect.width
+        let height = width * image.size.height / image.size.width
+        let center = CGPoint(
+            x: canvasRect.minX + element.x * canvasRect.width,
+            y: canvasRect.minY + element.y * canvasRect.height
+        )
+        let rect = CGRect(x: -width / 2, y: -height / 2, width: width, height: height)
+
+        context.saveGState()
+        context.translateBy(x: center.x, y: center.y)
+        context.rotate(by: CGFloat(element.rotation * .pi / 180))
+        image.draw(in: rect)
+        context.restoreGState()
+    }
+
     private static func drawComposedNote(_ note: PagewrightPinnedNote, element: PagewrightCanvasElement, in canvasRect: CGRect) {
         let width = element.width * canvasRect.width
         let height = max(44, measuredHeight(note.text, font: .serifFont(ofSize: 11, weight: .regular), width: width - 26) + 26)
@@ -7178,7 +8706,7 @@ enum PagewrightPDFWriter {
         UIBezierPath(roundedRect: rect, cornerRadius: 8).fill()
 
         drawText(
-            "Bound by ReEnchanted Pagewright. Shared deliberately: only the selected kept pages are printed here.",
+            "Bound by ReEnchanted Pagewright. Shared deliberately: only the photos, scraps, notes, and marks placed here are printed.",
             font: .systemFont(ofSize: 10, weight: .semibold),
             color: mutedInk,
             rect: rect.insetBy(dx: 14, dy: 14)

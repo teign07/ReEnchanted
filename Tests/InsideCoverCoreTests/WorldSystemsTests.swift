@@ -555,6 +555,8 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(surface?.payload.body.contains("Pattern star") == true)
         XCTAssertTrue(surface?.payload.metadata["fuelPatternDigest"]?.contains("protein anchor") == true)
         XCTAssertTrue(surface?.payload.body.contains("steadiness") == true)
+        XCTAssertTrue(surface?.payload.metadata[CharacterCanonPacket.metadataKey]?.contains("Dr. Elowen Vellum") == true)
+        XCTAssertTrue(surface?.payload.metadata[CharacterCanonPacket.metadataKey]?.contains("Dr. Selene Inkrest") == true)
     }
 
     // MARK: Nocturne Folio
@@ -990,7 +992,7 @@ final class WorldSystemsTests: XCTestCase {
         for genre in StoryFormRegistry.genres {
             XCTAssertFalse(genre.lens.isEmpty)
         }
-        XCTAssertGreaterThanOrEqual(StoryFormRegistry.coreRecipes.count, 21)
+        XCTAssertGreaterThanOrEqual(StoryFormRegistry.coreRecipes.count, 35)
         XCTAssertTrue(StoryFormRegistry.coreRecipes.contains { $0.id == "souvenir-door" })
         XCTAssertTrue(StoryFormRegistry.coreRecipes.contains { $0.id == "forage-day" })
         XCTAssertTrue(StoryFormRegistry.coreRecipes.contains { $0.id == "the-quill-disagrees" })
@@ -999,6 +1001,24 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertFalse(StoryFormRegistry.coreRecipes.contains { recipe in
             recipe.turns.contains { $0.wantTemplate.localizedCaseInsensitiveContains("without turning it into a confrontation") }
         })
+    }
+
+    func testPlayfulStoryRecipesHaveComedyWithoutLosingGrounding() {
+        let playfulIDs: Set<String> = [
+            "wrong-size-emergency",
+            "one-simple-conversation",
+            "rumor-with-good-shoes",
+            "petty-prophecy",
+            "unscheduled-parade",
+            "rule-nobody-read"
+        ]
+        let playful = StoryFormRegistry.coreRecipes.filter { playfulIDs.contains($0.id) }
+
+        XCTAssertEqual(Set(playful.map(\.id)), playfulIDs)
+        XCTAssertTrue(playful.allSatisfy(StoryFormRegistry.recipeIsValid))
+        XCTAssertTrue(playful.allSatisfy { $0.preferredGenreIDs.contains("screwball") })
+        XCTAssertEqual(playful.filter(\.isWorldLed).count, 3)
+        XCTAssertEqual(playful.filter { $0.requirements.contains(.groundedSource) }.count, 3)
     }
 
     func testLegacyStoryFormPackDecodesWithoutRecipes() throws {
@@ -1316,6 +1336,8 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(surface.payload.metadata["playerName"], "Beej")
         XCTAssertTrue(surface.payload.body.contains("Address the player as: Beej"))
         XCTAssertFalse(surface.payload.body.contains("[Player Name]"))
+        XCTAssertTrue(surface.payload.metadata[CharacterCanonPacket.metadataKey]?.contains("Penny Blackletter") == true)
+        XCTAssertTrue(surface.payload.metadata[CharacterCanonPacket.metadataKey]?.contains("one honest detail can save a day") == true)
     }
 
     func testChapterTalismanBeliefMovesTargetOwnAndRivalTalismans() {
@@ -1368,11 +1390,81 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(PlayfulMissionRegistry.missions.contains { $0.id == "strange-technical-miracle" })
     }
 
+    func testRidiculousMissionsWorkAnywhereInThePresentMoment() {
+        let missions = PlayfulMissionRegistry.ridiculousMissions
+
+        XCTAssertEqual(missions.count, 20)
+        XCTAssertEqual(Set(missions.map(\.id)).count, missions.count)
+        XCTAssertTrue(missions.allSatisfy { mission in
+            mission.tags.contains("ridiculous")
+                && mission.tags.contains("anywhere")
+                && mission.tags.contains("present-moment")
+                && mission.allowsPhoto
+                && !mission.prompt.isEmpty
+                && !mission.proofPrompt.isEmpty
+        })
+        XCTAssertTrue(missions.allSatisfy { PlayfulMissionRegistry.missions.contains($0) })
+        XCTAssertTrue(missions.contains { $0.tags.contains("body") })
+        XCTAssertTrue(missions.contains { $0.tags.contains("sound") })
+        XCTAssertTrue(missions.contains { $0.tags.contains("visual") })
+        XCTAssertTrue(missions.contains { $0.tags.contains("touch") })
+    }
+
     func testSharedWonderMissionsJoinPlayfulMissionRegistry() {
         XCTAssertGreaterThanOrEqual(PlayfulMissionRegistry.sharedWonderMissions.count, 10)
         XCTAssertTrue(PlayfulMissionRegistry.missions.contains { $0.id == "shared-no-reply-glint" })
         XCTAssertTrue(PlayfulMissionRegistry.missions.allSatisfy { !$0.prompt.isEmpty && !$0.proofPrompt.isEmpty })
         XCTAssertTrue(PlayfulMissionRegistry.sharedWonderMissions.allSatisfy { $0.tags.contains("shared-wonder") })
+    }
+
+    func testRidiculousPerspectiveQuipsJoinCoreOddities() {
+        let quips = QuipPackRegistry.ridiculousPerspectiveQuips
+        let bundledIDs = Set(QuipPackRegistry.bundledPacks.flatMap(\.quips).map(\.id))
+
+        XCTAssertEqual(quips.count, 40)
+        XCTAssertEqual(Set(quips.map(\.id)).count, quips.count)
+        XCTAssertEqual(Set(quips.map(\.text)).count, quips.count)
+        XCTAssertTrue(quips.allSatisfy { quip in
+            quip.tags.contains("ridiculous")
+                && quip.tags.contains("perspective")
+                && quip.weight >= 2
+                && bundledIDs.contains(quip.id)
+        })
+    }
+
+    func testEverydayEnchantmentsSurfaceAsOneTipPerHelpPage() {
+        let enchantments = HelpTipsCatalog.everydayEnchantmentEntries
+
+        XCTAssertEqual(enchantments.count, 31)
+        XCTAssertEqual(Set(enchantments.map(\.id)).count, enchantments.count)
+        XCTAssertTrue(enchantments.allSatisfy { entry in
+            entry.tags.contains("everyday-enchantment")
+                && entry.tags.contains("wonder-filled")
+                && !entry.title.isEmpty
+                && !entry.prompt.isEmpty
+                && !entry.body.isEmpty
+                && HelpTipsCatalog.entries.contains(entry)
+        })
+
+        let day = BookDay.today()
+        let surfaces = HelpTipsPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: .empty,
+            now: Date(timeIntervalSinceReferenceDate: 987_654)
+        )
+
+        XCTAssertEqual(surfaces.count, 1)
+        XCTAssertFalse(surfaces[0].payload.metadata["tipID"]?.isEmpty ?? true)
+
+        let rotation = (0..<48).map { offset in
+            HelpTipsCatalog.entry(
+                for: day,
+                now: Date(timeIntervalSinceReferenceDate: 987_654 + Double(offset * 6 * 3_600))
+            )
+        }
+        XCTAssertTrue(rotation.contains { $0.tags.contains("everyday-enchantment") })
+        XCTAssertTrue(rotation.contains { !$0.tags.contains("everyday-enchantment") })
     }
 
     func testPlayfulMissionRegistryStillReturnsSenseMission() {
@@ -2340,7 +2432,7 @@ final class WorldSystemsTests: XCTestCase {
             entities: NarrativePackRegistry.entities,
             entityBelief: [:],
             pageBelief: [:],
-            readerBelief: 40,
+            readerBelief: 4,
             events: [event],
             state: BeliefEconomyState()
         ))
@@ -2355,7 +2447,7 @@ final class WorldSystemsTests: XCTestCase {
             entities: NarrativePackRegistry.entities,
             entityBelief: first.entityDeltas,
             pageBelief: [:],
-            readerBelief: 41,
+            readerBelief: 5,
             events: [event],
             state: first.state
         ))
@@ -2365,7 +2457,7 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(second.pageDeltas.isEmpty)
     }
 
-    func testBeliefEconomySettlesHighUntouchedGlow() {
+    func testBeliefEconomyLeavesHighReaderGlowUntilItIsSpent() {
         let now = date(2026, 2, 3, hour: 9, calendar: utcCalendar)
         let source = BookPageSourceRegistry.source(for: .twoReadings)
         let result = BeliefEconomyEngine.dailyTick(BeliefEconomyDailyContext(
@@ -2379,13 +2471,13 @@ final class WorldSystemsTests: XCTestCase {
             state: BeliefEconomyState()
         ))
 
-        XCTAssertEqual(result.readerDelta, -4)
+        XCTAssertEqual(result.readerDelta, 0)
         XCTAssertEqual(result.entityDeltas["zara-finch"], -1)
         XCTAssertEqual(result.pageDeltas[source.id], -2)
-        XCTAssertTrue(result.movements.contains { $0.note == "Excess Glow settled back into the paper overnight." })
+        XCTAssertFalse(result.movements.contains { $0.targetKind == .reader })
     }
 
-    func testBeliefOverflowFeedsRecentlyTouchedCast() {
+    func testHighReaderGlowDoesNotOverflowIntoRecentlyTouchedCast() {
         let now = date(2026, 2, 3, hour: 9, calendar: utcCalendar)
         let event = NarrativeEvent(
             id: "overflow-touch-zara",
@@ -2408,10 +2500,49 @@ final class WorldSystemsTests: XCTestCase {
             state: BeliefEconomyState()
         ))
 
-        XCTAssertEqual(result.readerDelta, -4)
-        XCTAssertEqual(result.entityDeltas["zara-finch"], 3)
-        XCTAssertTrue(result.movements.contains { $0.note == "Unspent Glow overflowed — the paper cannot hold more than a life spends." })
-        XCTAssertTrue(result.movements.contains { $0.note == "Zara Finch caught your overflowing light." })
+        XCTAssertEqual(result.readerDelta, 0)
+        XCTAssertEqual(result.entityDeltas["zara-finch"], 1)
+        XCTAssertFalse(result.movements.contains { $0.targetKind == .reader })
+        XCTAssertFalse(result.movements.contains { $0.note.contains("overflow") })
+    }
+
+    func testBeliefWalletPolicyEarnsFromRealityAndPricesFictionOnce() {
+        func surface(_ type: BookPageType, metadata: [String: String] = [:]) -> SurfacePage {
+            let source = BookPageSourceRegistry.source(for: type)
+            return SurfacePage(
+                id: "belief-policy-\(type.rawValue)",
+                type: type,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .promptCard,
+                score: 50,
+                reason: "test",
+                prompt: "test",
+                detail: "test",
+                payload: BookPagePayload(headline: "Test", body: "Test", metadata: metadata)
+            )
+        }
+
+        XCTAssertEqual(BeliefGenerationKind.storyPage.cost, 5)
+        XCTAssertEqual(BeliefGenerationKind.letter.cost, 3)
+        XCTAssertEqual(BeliefGenerationKind.note.cost, 1)
+        XCTAssertEqual(BeliefGenerationKind.faeParley.cost, 6)
+        XCTAssertEqual(BeliefGenerationKind.gossip.cost, 2)
+        XCTAssertEqual(BeliefGenerationKind.enchantment.cost, 4)
+
+        let storyDraft = surface(.narrativeOS)
+        XCTAssertEqual(BeliefEconomyPolicy.generationKind(for: storyDraft), .storyPage)
+        XCTAssertNil(BeliefEconomyPolicy.generationKind(for: storyDraft.recordingBeliefGenerationPayment(.storyPage)))
+
+        XCTAssertEqual(BeliefEconomyPolicy.keepReward(for: surface(.souvenir)), 1)
+        XCTAssertEqual(BeliefEconomyPolicy.keepReward(for: storyDraft), 0)
+        XCTAssertEqual(BeliefEconomyPolicy.keepReward(for: surface(.souvenir, metadata: ["noBeliefReward": "true"])), 0)
+
+        XCTAssertGreaterThan(BeliefEconomyPolicy.compassRunReward, BeliefEconomyPolicy.electiveCompletionReward)
+        XCTAssertGreaterThan(
+            BeliefEconomyPolicy.compassRunReward,
+            BookJumpEngine.returnReward(depth: BookJumpEngine.maxDepth, hasSouvenir: true)
+        )
     }
 
     func testBeliefEconomyWarmsKeptSourceOncePerDay() {
@@ -3502,6 +3633,19 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(pages.contains { $0.payload.metadata["electiveFlyleaf"] == "true" })
     }
 
+    func testNamedFlyleafDoorAlwaysOpensQuestLedger() {
+        let surface = ElectivePageSourceAdapter().flyleafSurface(
+            for: BookDay.today(),
+            inputs: .empty,
+            now: Date()
+        )
+
+        XCTAssertEqual(surface.prompt, "The Flyleaf")
+        XCTAssertEqual(surface.payload.metadata["electiveFlyleaf"], "true")
+        XCTAssertNil(surface.payload.metadata["electiveOffer"])
+        XCTAssertEqual(surface.payload.metadata["activeCount"], "0")
+    }
+
     // MARK: Literary continuity
 
     func testLiteraryContinuityFindsRepeatedPatternAndAbsence() {
@@ -3742,11 +3886,15 @@ final class WorldSystemsTests: XCTestCase {
     }
 
     func testBookJumpAdvanceCostEscalatesWithDepth() {
-        XCTAssertEqual(BookJumpEngine.advanceCost(depth: 1), 0)
+        XCTAssertEqual(BookJumpEngine.advanceCost(depth: 1), 1)
         XCTAssertEqual(BookJumpEngine.advanceCost(depth: 3), 2)
         XCTAssertEqual(BookJumpEngine.returnReward(depth: 1, hasSouvenir: true), BookJumpEngine.returnReward)
         XCTAssertGreaterThan(BookJumpEngine.returnReward(depth: 4, hasSouvenir: true), BookJumpEngine.returnReward)
-        XCTAssertEqual(BookJumpEngine.returnReward(depth: 4, hasSouvenir: false), 1)
+        XCTAssertEqual(BookJumpEngine.returnReward(depth: 4, hasSouvenir: false), 0)
+        XCTAssertLessThan(
+            BookJumpEngine.returnReward(depth: BookJumpEngine.maxDepth, hasSouvenir: true),
+            BeliefEconomyPolicy.compassRunReward
+        )
     }
 
     func testBookJumpCompanionConstellationFormsOnRepeatVisits() {

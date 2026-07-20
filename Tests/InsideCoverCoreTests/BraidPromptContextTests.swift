@@ -36,9 +36,10 @@ final class BraidPromptContextTests: XCTestCase {
         let prompt = BraidPromptBuilder.prompt(for: day, context: context)
 
         XCTAssertTrue(prompt.contains("Silently choose a short title for the day"))
-        XCTAssertTrue(prompt.contains("Once, Because, Until, And so, Kept"))
-        XCTAssertTrue(prompt.contains("Write the braid in second-person past tense"))
-        XCTAssertTrue(prompt.contains("Do not write second-person present tense"))
+        XCTAssertTrue(prompt.contains("TONIGHT'S TALE READING"))
+        XCTAssertTrue(prompt.contains("Narrative motion:"))
+        XCTAssertTrue(prompt.contains("Write in second-person past tense"))
+        XCTAssertTrue(prompt.contains("Do not force Once/Because/Until beats"))
         XCTAssertTrue(prompt.contains("MONTHLY THEME THREAD"))
         XCTAssertTrue(prompt.contains(theme.promptLine))
         XCTAssertTrue(prompt.contains("CHAPTER WEATHER"))
@@ -65,10 +66,10 @@ final class BraidPromptContextTests: XCTestCase {
 
         let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
 
-        XCTAssertTrue(prompt.contains("THE BOOK'S OWN VOICE"))
         XCTAssertTrue(prompt.contains("child-like animism, never childish"))
-        XCTAssertTrue(prompt.contains("Give objects, rooms, weather, and pages little feelings and wants"))
-        XCTAssertTrue(prompt.contains("The Book may be a little vulnerable"))
+        XCTAssertTrue(prompt.contains("little feelings and wants given to ordinary things"))
+        XCTAssertTrue(prompt.contains("Most objects stay ordinary"))
+        XCTAssertTrue(prompt.contains("selective magic is stronger"))
     }
 
     func testRecentBraidTextsSelectNewestAndOlderEchoWithoutCurrentDay() {
@@ -159,6 +160,262 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertTrue(prompt.contains("reader-endorsed fiction; high gravity - the reader made a real decision here"))
         XCTAssertTrue(prompt.contains("Reader reply: I chose the blue door because it felt honest."))
         XCTAssertTrue(prompt.contains("it may carry the spine when the day's truest turn happened there"))
+    }
+
+    func testDailyLogsStayRequiredButCannotOwnBraidWhenOtherMaterialExists() {
+        let day = BookDay(
+            id: "2026-07-14",
+            date: date("2026-07-14T20:30:00Z"),
+            pages: [
+                BookPage(
+                    type: .weather,
+                    createdAt: date("2026-07-14T07:00:00Z"),
+                    promptText: "Weather Page",
+                    userInput: "Rain leaned on the windows.",
+                    origin: .imported,
+                    privacy: .publicReference
+                ),
+                BookPage(
+                    type: .body,
+                    createdAt: date("2026-07-14T08:00:00Z"),
+                    promptText: "Body Page",
+                    userInput: "Low energy this morning.",
+                    origin: .userAuthored,
+                    privacy: .localSensitive
+                ),
+                BookPage(
+                    type: .mood,
+                    createdAt: date("2026-07-14T09:00:00Z"),
+                    promptText: "Inner Weather",
+                    userInput: "Restless, then clearing.",
+                    origin: .userAuthored,
+                    privacy: .localSensitive
+                ),
+                BookPage(
+                    type: .diary,
+                    createdAt: date("2026-07-14T18:00:00Z"),
+                    promptText: "What happened?",
+                    userInput: "I finally repaired the blue chair by the kitchen door.",
+                    origin: .userAuthored
+                )
+            ]
+        )
+
+        let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
+
+        XCTAssertTrue(prompt.contains("SUPPORTING DAILY LOGS (context, not required prose)"))
+        XCTAssertTrue(prompt.contains("Present tonight: Weather, Body, Inner Weather."))
+        XCTAssertTrue(prompt.contains("notice a log without repeating it"))
+        XCTAssertTrue(prompt.contains("Mention a log only if it materially changes what happened"))
+        XCTAssertTrue(prompt.contains("may not supply the title, spine, turn, or final kept image"))
+        XCTAssertEqual(prompt.components(separatedBy: "supporting daily log; may remain invisible").count - 1, 3)
+        XCTAssertEqual(prompt.components(separatedBy: "supporting context; required but deliberately lower gravity").count - 1, 3)
+        XCTAssertTrue(prompt.contains("spine-eligible kept material"))
+    }
+
+    func testSupportingLogsDoNotEnterMeaningfulPassageCompass() {
+        let day = BookDay(
+            id: "2026-07-14",
+            date: date("2026-07-14T20:30:00Z"),
+            pages: [
+                BookPage(
+                    type: .mood,
+                    createdAt: date("2026-07-14T09:00:00Z"),
+                    promptText: "Inner Weather restless clearing restless clearing",
+                    userInput: "Restless clearing restless clearing, with static under every thought and a long gray pause.",
+                    tags: ["restless", "clearing", "static"],
+                    origin: .userAuthored,
+                    privacy: .localSensitive
+                ),
+                BookPage(
+                    type: .diary,
+                    createdAt: date("2026-07-14T18:00:00Z"),
+                    promptText: "Blue chair kitchen repair",
+                    userInput: "I repaired the blue chair beside the kitchen door and kept the loose brass screw in a saucer.",
+                    tags: ["blue", "chair", "kitchen", "repair"],
+                    origin: .userAuthored
+                )
+            ]
+        )
+
+        let context = BraidPromptBuilder.context(
+            for: day,
+            days: [day],
+            now: date("2026-07-14T21:00:00Z")
+        )
+
+        XCTAssertFalse(context.meaningfulSpinePassages.contains { $0.pageType == .mood })
+        XCTAssertTrue(context.meaningfulSpinePassages.allSatisfy { !BraidPromptBuilder.supportingLogTypes.contains($0.pageType) })
+    }
+
+    func testRoutineLogMotifsDoNotReinforceThemselvesThroughBraidMemory() {
+        let residue = BookOfYouResidue(
+            title: "Rain Again",
+            spineLine: "Rain waited at the glass.",
+            keptLine: "The Book kept the page: the lamp stayed on.",
+            motifs: ["rain", "lamp"],
+            semanticEchoIDs: [],
+            openedQuestion: nil,
+            callbackCandidate: nil
+        )
+        let digest = BindingMemoryDigest(
+            braids: [
+                BindingMemoryDigest.BraidMemory(
+                    pageID: "prior-braid",
+                    date: date("2026-07-13T20:30:00Z"),
+                    residue: residue
+                )
+            ],
+            motifCounts: [
+                BindingMemoryDigest.MotifCount(motif: "rain", count: 7),
+                BindingMemoryDigest.MotifCount(motif: "lamp", count: 2)
+            ],
+            strongestCallback: nil
+        )
+        let day = BookDay(id: "2026-07-14", date: date("2026-07-14T20:30:00Z"), pages: [
+            BookPage(type: .diary, promptText: "Today", userInput: "I fixed the blue chair.", origin: .userAuthored)
+        ])
+
+        let prompt = BraidPromptBuilder.prompt(for: day, context: BraidPromptBuilder.Context(memoryDigest: digest))
+
+        XCTAssertTrue(prompt.contains("Recurring braid motifs: lamp x2"))
+        XCTAssertFalse(prompt.contains("rain x7"))
+        XCTAssertTrue(prompt.contains("Repeated Weather, Body, and Inner Weather readings are routine context, not callbacks"))
+    }
+
+    func testFallbackBraidPartitionKeepsLogsOutOfTheStoryOpeningPool() {
+        let day = BookDay(
+            id: "2026-07-14",
+            date: date("2026-07-14T20:30:00Z"),
+            pages: [
+                BookPage(type: .weather, createdAt: date("2026-07-14T07:00:00Z"), promptText: "Weather", userInput: "rain at the glass", origin: .imported),
+                BookPage(type: .body, createdAt: date("2026-07-14T08:00:00Z"), promptText: "Body", userInput: "heavy shoulders", origin: .userAuthored),
+                BookPage(type: .mood, createdAt: date("2026-07-14T09:00:00Z"), promptText: "Inner Weather", userInput: "restless static", origin: .userAuthored),
+                BookPage(type: .diary, createdAt: date("2026-07-14T18:00:00Z"), promptText: "Today", userInput: "the blue chair was repaired", origin: .userAuthored)
+            ]
+        )
+
+        let partition = BraidPromptBuilder.partitionedPagesForBraid(in: day)
+
+        XCTAssertEqual(partition.story.map(\.type), [.diary])
+        XCTAssertEqual(partition.story.first?.userInput, "the blue chair was repaired")
+        XCTAssertEqual(partition.supportingLogs.map(\.type), [.weather, .body, .mood])
+    }
+
+    func testTaleCabinetReadsRepairAndSelectiveAgencyFromSuppliedDay() {
+        let day = BookDay(
+            id: "2026-07-18",
+            date: date("2026-07-18T20:30:00Z"),
+            pages: [
+                BookPage(
+                    type: .diary,
+                    createdAt: date("2026-07-18T18:00:00Z"),
+                    promptText: "What changed?",
+                    userInput: "I repaired the blue chair by the kitchen door and put its loose brass screw in a saucer.",
+                    origin: .userAuthored
+                )
+            ]
+        )
+
+        let reading = BraidPromptBuilder.taleReading(for: day)
+        let prompt = BraidPromptBuilder.prompt(
+            for: day,
+            context: BraidPromptBuilder.Context(taleReading: reading)
+        )
+
+        XCTAssertEqual(reading.scale, .glimpse)
+        XCTAssertEqual(reading.motion, .repair)
+        XCTAssertEqual(reading.pressure, .agency)
+        XCTAssertTrue(reading.anchor.contains("blue chair"))
+        XCTAssertTrue(reading.turn?.contains("repaired") == true)
+        XCTAssertTrue(prompt.contains("REPAIR — care altered"))
+        XCTAssertTrue(prompt.contains("AGENCY — one supplied ordinary thing"))
+        XCTAssertTrue(prompt.contains("Most things remain ordinary"))
+    }
+
+    func testTaleCabinetTreatsReaderChoiceAsBargainWithoutInventingPrice() {
+        let day = BookDay(
+            id: "2026-07-18",
+            date: date("2026-07-18T20:30:00Z"),
+            pages: [
+                BookPage(
+                    type: .narrativeOS,
+                    createdAt: date("2026-07-18T18:00:00Z"),
+                    promptText: "Three doors waited.",
+                    userInput: "The corridor offered a red door and a blue door.",
+                    playerReply: "I chose the blue door because it felt honest.",
+                    origin: .generated
+                )
+            ]
+        )
+
+        let reading = BraidPromptBuilder.taleReading(for: day)
+
+        XCTAssertEqual(reading.motion, .bargain)
+        XCTAssertEqual(reading.pressure, .debt)
+        XCTAssertEqual(reading.turn, "I chose the blue door because it felt honest.")
+        XCTAssertTrue(reading.promptSection.contains("Never invent the price"))
+        XCTAssertTrue(reading.promptSection.contains("price already present in the evidence"))
+    }
+
+    func testTaleCabinetLetsSparseUnresolvedDayBecomeAGlimpseOrVigil() {
+        let day = BookDay(
+            id: "2026-07-18",
+            date: date("2026-07-18T20:30:00Z"),
+            pages: [
+                BookPage(
+                    type: .note,
+                    createdAt: date("2026-07-18T18:00:00Z"),
+                    promptText: "A note from today",
+                    userInput: "The form stayed unfinished beside the grocery bag.",
+                    origin: .userAuthored
+                )
+            ]
+        )
+
+        let reading = BraidPromptBuilder.taleReading(for: day)
+
+        XCTAssertEqual(reading.scale, .glimpse)
+        XCTAssertEqual(reading.motion, .vigil)
+        XCTAssertEqual(reading.pressure, .absence)
+        XCTAssertNil(reading.turn)
+        XCTAssertTrue(reading.promptSection.contains("Do not manufacture one"))
+    }
+
+    func testSupportingLogsCanShapeTheBraidWithoutVisibleRecital() {
+        let day = BookDay(
+            id: "2026-07-18",
+            date: date("2026-07-18T20:30:00Z"),
+            pages: [
+                BookPage(
+                    type: .weather,
+                    createdAt: date("2026-07-18T08:00:00Z"),
+                    promptText: "Weather",
+                    userInput: "Rain at the glass.",
+                    origin: .imported
+                ),
+                BookPage(
+                    type: .body,
+                    createdAt: date("2026-07-18T12:00:00Z"),
+                    promptText: "Body",
+                    userInput: "Heavy shoulders.",
+                    origin: .userAuthored
+                ),
+                BookPage(
+                    type: .diary,
+                    createdAt: date("2026-07-18T18:00:00Z"),
+                    promptText: "Today",
+                    userInput: "I repaired the blue chair beside the grocery bag.",
+                    origin: .userAuthored
+                )
+            ]
+        )
+
+        let reading = BraidPromptBuilder.taleReading(for: day)
+
+        XCTAssertFalse(reading.visibleSupportingLogs)
+        XCTAssertTrue(reading.promptSection.contains("shape pace or atmosphere invisibly"))
+        XCTAssertTrue(BraidPromptBuilder.prompt(for: day, context: .empty).contains("notice a log without repeating it"))
     }
 
     func testAnnotatedBraidKeepsTitleAndContextTags() {
@@ -533,6 +790,81 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertGreaterThan(subtleScore.themeAndChapter, explicitScore.themeAndChapter)
     }
 
+    func testBraidTastingAllowsEarlierMotifToRemainSilent() {
+        let context = BraidPromptBuilder.Context(
+            recentBraids: ["The brass key waited beside a moth under the moon."]
+        )
+        let silent = BookPage(
+            type: .bookOfYou,
+            promptText: "Book of You",
+            userInput: """
+            Blue Chair
+
+            You repaired the blue chair beside the grocery bag.
+
+            The Book kept the page: the chair held.
+            """
+        )
+        let overEchoed = BookPage(
+            type: .bookOfYou,
+            promptText: "Book of You",
+            userInput: """
+            Brass Key
+
+            The brass key waited beside the moth under the moon.
+
+            The Book kept the page: the brass key, moth, and moon returned.
+            """
+        )
+
+        let silentScore = BraidTastingRoom.score(page: silent, context: context)
+        let overEchoedScore = BraidTastingRoom.score(page: overEchoed, context: context)
+
+        XCTAssertEqual(silentScore.priorEcho, 8)
+        XCTAssertLessThan(overEchoedScore.priorEcho, silentScore.priorEcho)
+    }
+
+    func testBraidTastingPenalizesUnsupportedStockMagicClusters() {
+        let reading = BraidPromptBuilder.TaleReading(
+            scale: .glimpse,
+            motion: .repair,
+            pressure: .agency,
+            anchorPageID: "chair",
+            anchor: "the blue chair and its loose brass screw",
+            turn: "the chair was repaired",
+            visibleSupportingLogs: false
+        )
+        let context = BraidPromptBuilder.Context(taleReading: reading)
+        let restrained = BookPage(
+            type: .bookOfYou,
+            promptText: "Book of You",
+            userInput: """
+            Blue Chair
+
+            You repaired the blue chair. The loose screw refused to leave the saucer until the seat held.
+
+            The Book kept the page: the chair held.
+            """
+        )
+        let stock = BookPage(
+            type: .bookOfYou,
+            promptText: "Book of You",
+            userInput: """
+            Moonlit Threshold
+
+            A glimmering moth crossed the moonlit threshold beside the blue chair.
+
+            The Book kept the page: the lantern glimmered.
+            """
+        )
+
+        let restrainedScore = BraidTastingRoom.score(page: restrained, context: context)
+        let stockScore = BraidTastingRoom.score(page: stock, context: context)
+
+        XCTAssertGreaterThan(stockScore.penalties, restrainedScore.penalties)
+        XCTAssertGreaterThan(restrainedScore.concreteMagic, stockScore.concreteMagic)
+    }
+
     func testBraidLearningLoopTurnsWeakTastingIntoPromptGuidance() {
         let weak = BookPage(
             id: "weak",
@@ -568,8 +900,8 @@ final class BraidPromptContextTests: XCTestCase {
         let notes = guidance.promptLines.joined(separator: "\n")
 
         XCTAssertTrue(notes.contains("The Book kept the page"))
-        XCTAssertTrue(notes.contains("old-tale turn"))
-        XCTAssertTrue(notes.contains("ordinary enchanted objects"))
+        XCTAssertTrue(notes.contains("selected tale motion"))
+        XCTAssertTrue(notes.contains("one supplied ordinary thing"))
         XCTAssertTrue(notes.contains("clinical diction"))
     }
 
@@ -898,8 +1230,8 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertTrue(prompt.contains("SOUVENIR SPINE (required):"))
         XCTAssertTrue(prompt.contains("from Hour Page"))
         XCTAssertTrue(prompt.contains("The lobby clock ticked while I found my coat."))
-        XCTAssertTrue(prompt.contains("must be visible in the braid's opening"))
-        XCTAssertTrue(prompt.contains("must return transformed in \"The Book kept the page:\""))
+        XCTAssertTrue(prompt.contains("govern the braid's emphasis"))
+        XCTAssertTrue(prompt.contains("normally return transformed in \"The Book kept the page:\""))
     }
 
     func testBraidTastingRoomScoresSouvenirSpine() throws {
@@ -983,6 +1315,83 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertTrue(prompt.contains("LEARNED READER CONTEXT:"))
         XCTAssertTrue(prompt.contains("Use them only to choose emphasis, pacing, and restraint."))
         XCTAssertTrue(prompt.contains("One-Sentence Souvenir is warming"))
+    }
+
+    func testBusyDayPromptKeepsEveryPageInsideCompactEvidencePacket() {
+        let pages = (1...15).map { index in
+            BookPage(
+                id: "busy-\(index)",
+                type: .diary,
+                createdAt: date("2026-07-18T\(String(format: "%02d", index + 4)):00:00Z"),
+                promptText: "Notice the concrete hinge on page \(index).",
+                userInput: "detail\(String(format: "%02d", index)) stayed on the table beside a deliberately long sentence that should be compacted without erasing this page.",
+                origin: .userAuthored
+            )
+        }
+        let day = BookDay(id: "busy-day", date: date("2026-07-18T20:30:00Z"), pages: pages)
+
+        let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
+
+        XCTAssertTrue(prompt.contains("COMPLETE COMPACT LEDGER (15 pages)"))
+        for index in 1...15 {
+            XCTAssertTrue(prompt.contains("detail\(String(format: "%02d", index))"), "missing page \(index)")
+        }
+        XCTAssertLessThan(prompt.count, 20_000)
+        XCTAssertTrue(prompt.contains("carry at least three distinct non-log details"))
+    }
+
+    func testBraidAuditRejectsOneParagraphDrizzleForBusyDay() {
+        let objects = [
+            "teacup", "saucer", "scarf", "envelope", "receipt", "boots", "screw", "chair",
+            "seltzer", "notebook", "pencil", "tomato", "keyring", "postcard", "thimble"
+        ]
+        let pages = (1...15).map { index in
+            BookPage(
+                type: .diary,
+                createdAt: date("2026-07-18T\(String(format: "%02d", index + 4)):00:00Z"),
+                promptText: "Today",
+                userInput: "The \(objects[index - 1]) changed position beside the distinct marker\(index) before evening.",
+                origin: .userAuthored
+            )
+        }
+        let day = BookDay(id: "busy-day", date: date("2026-07-18T20:30:00Z"), pages: pages)
+        let context = BraidPromptBuilder.Context(taleReading: BraidPromptBuilder.taleReading(for: day))
+        let draft = "Drizzle worried the glass all evening, and the gray weather made the room feel small. The Book kept the page: the rain stayed."
+
+        let issues = BraidOutputAudit.issues(in: draft, for: day, context: context)
+
+        XCTAssertTrue(issues.contains(.tooShort))
+        XCTAssertTrue(issues.contains(.tooFewParagraphs))
+        XCTAssertTrue(issues.contains(.tooFewEvidenceThreads))
+        XCTAssertTrue(issues.contains(.supportingLogsTookOver))
+    }
+
+    func testBraidAuditAcceptsFullMultiThreadBraid() {
+        let details = [
+            "blue chair and brass screw", "lemon seltzer", "red scarf", "library receipt", "muddy boots", "green envelope"
+        ]
+        let pages = details.enumerated().map { index, detail in
+            BookPage(
+                type: .diary,
+                createdAt: date("2026-07-18T\(String(format: "%02d", index + 9)):00:00Z"),
+                promptText: "What remained?",
+                userInput: "The \(detail) stayed specific while the rest of the afternoon moved around it, and you chose to keep that exact ordinary evidence.",
+                origin: .userAuthored
+            )
+        }
+        let day = BookDay(id: "full-day", date: date("2026-07-18T20:30:00Z"), pages: pages)
+        let context = BraidPromptBuilder.Context(taleReading: BraidPromptBuilder.taleReading(for: day))
+        let paragraph = "You let the blue chair keep its brass screw in a saucer while the lemon seltzer sweated beside it. Nothing announced itself as important, but the red scarf caught on the doorway and made you stop long enough to notice what the room had been carrying without complaint."
+        let draft = [
+            "The Green Envelope",
+            paragraph,
+            "The library receipt waited under the glass while your muddy boots dried near the door. You did not ask these things to become symbols. They only obeyed one quiet rule: anything named exactly could refuse to disappear before evening, and each ordinary object held its small ground.",
+            "By dusk, the green envelope had become the day's last witness. It stayed sealed, not mysterious, simply unfinished. The chair, receipt, scarf, boots, and drink remained separate facts, but the Book set them close enough for the day's movement to become legible without turning into a list.",
+            "You had not solved the room or earned a lesson from it. You had repaired one loose thing, carried several others, and left one envelope unopened. That was enough movement for the page, and enough restraint for the little law to remain strange without asking anyone to believe it.",
+            "The Book kept the page: the green envelope could wait without vanishing."
+        ].joined(separator: "\n\n")
+
+        XCTAssertEqual(BraidOutputAudit.issues(in: draft, for: day, context: context), [])
     }
 
     private func date(_ value: String) -> Date {

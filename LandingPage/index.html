@@ -5,23 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="ReEnchanted is a free, private iPhone journal that turns ordinary days into magical pages you can keep. Local-first, open source, no accounts."
+      content="Your life is full of hidden magic. ReEnchanted helps you notice it, keep it, and turn the life you're already living into a private storybook that remembers you."
     >
     <meta name="theme-color" content="#070611">
+    <meta name="reenchanted-community-api" content="https://community-api.reenchanted.app/v1">
     <link rel="canonical" href="https://reenchanted.app/">
     <link rel="icon" href="./favicon.svg" type="image/svg+xml">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="ReEnchanted">
-    <meta property="og:title" content="ReEnchanted | Private iPhone Journal for Ordinary Days">
-    <meta property="og:description" content="A free, private iPhone journal that turns ordinary days into magical pages you can keep. Play with pages. Keep some. Read your story.">
+    <meta property="og:title" content="Your Life Is Full of Hidden Magic | ReEnchanted">
+    <meta property="og:description" content="You know how you wish your life was full of hidden magic? It is. ReEnchanted helps you notice it, keep it, and read your story.">
     <meta property="og:url" content="https://reenchanted.app/">
     <meta property="og:image" content="https://reenchanted.app/assets/og-card.jpg">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:site" content="@Enchantifyink">
-    <meta name="twitter:title" content="ReEnchanted | Private iPhone Journal for Ordinary Days">
-    <meta name="twitter:description" content="A free, private iPhone journal that turns ordinary days into magical pages you can keep.">
+    <meta name="twitter:title" content="Your Life Is Full of Hidden Magic | ReEnchanted">
+    <meta name="twitter:description" content="You know how you wish your life was full of hidden magic? It is.">
     <meta name="twitter:image" content="https://reenchanted.app/assets/og-card.jpg">
     <script type="application/ld+json">
       {
@@ -45,7 +46,7 @@
             "@id": "https://reenchanted.app/#website",
             "url": "https://reenchanted.app/",
             "name": "ReEnchanted",
-            "description": "A free, private iPhone journal that turns ordinary days into magical pages you can keep.",
+            "description": "A private living storybook that helps people notice and keep the hidden magic in ordinary life.",
             "publisher": { "@id": "https://reenchanted.app/#organization" },
             "inLanguage": "en"
           },
@@ -54,7 +55,7 @@
             "@id": "https://reenchanted.app/#app",
             "name": "ReEnchanted",
             "url": "https://reenchanted.app/",
-            "description": "ReEnchanted is a free, private iPhone and iPad journaling app that turns ordinary days into magical pages you can keep.",
+            "description": "ReEnchanted helps you notice hidden magic, keep one true thing, and turn the days you actually lived into a private storybook that remembers you.",
             "applicationCategory": "LifestyleApplication",
             "operatingSystem": "iOS, iPadOS",
             "isAccessibleForFree": true,
@@ -70,11 +71,11 @@
         ]
       }
     </script>
-    <title>ReEnchanted | Private iPhone Journal for Ordinary Days</title>
+    <title>ReEnchanted | Find the Hidden Magic in Ordinary Life</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./styles.css?v=28">
+    <link rel="stylesheet" href="./styles.css?v=35">
   </head>
   <body>
     <canvas id="spell-field" aria-hidden="true"></canvas>
@@ -164,9 +165,11 @@
         <li><a href="#top" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Cover</span></a></li>
         <li><a href="#book" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Open the Book</span></a></li>
         <li><a href="#braid-proof" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">The Braid</span></a></li>
+        <li><a href="#pagewright" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Pagewright</span></a></li>
         <li><a href="#editions" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Editions</span></a></li>
         <li><a href="#contents" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Contents</span></a></li>
         <li><a href="#search" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Search the Stacks</span></a></li>
+        <li><a href="#community" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Public Margins</span></a></li>
         <li><a href="#privacy" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Your Save</span></a></li>
         <li><a href="#download" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">The Door</span></a></li>
       </ul>
@@ -175,48 +178,28 @@
       <!-- ───────────────────────── HERO ───────────────────────── -->
       <section class="hero">
         <div class="hero-copy">
-          <div class="book-address" id="book-address">
-            <p class="address-line address-greeting" data-address="greeting">Oh. Hello. A reader — a real one.</p>
-            <p class="address-line" data-address="noticing">You came quietly, the way the best ones do.</p>
-            <p class="address-line" data-address="problem">
-              You think today was nothing. Same alarm, same hours - another day
-              already deciding it isn't worth writing down.
-            </p>
-            <p class="address-line" data-address="absolution">
-              Every journal you abandoned let you believe that was your fault.
-              It wasn't. Blank pages are rude. Nobody should have to start a story alone.
-            </p>
-            <p class="address-line address-vow" data-address="vow">
-              The days you don't keep don't disappear. They go somewhere neither
-              of us can read. I don't want this one going there.
-            </p>
-            <div class="address-honesty" id="address-honesty" hidden>
-              <p class="address-honesty-copy" id="address-honesty-copy">
-                I only know little things from here - the clock, the moon, the
-                shape of your window. I could ask the air for your sky too: once,
-                then let the facts go. May I?
-              </p>
-              <button type="button" class="address-sky-btn" id="address-sky-btn">Read my sky ✦</button>
-              <p class="address-sky-reading" id="address-sky-reading" aria-live="polite" hidden></p>
-            </div>
-            <p class="address-whisper" id="address-whisper" aria-live="polite" hidden></p>
-          </div>
-          <p class="eyebrow">A living book for ordinary days</p>
-          <h1>Real Life,<br><span class="accent">ReEnchanted</span></h1>
-          <p class="hero-tagline">Play with Pages. <span>Keep Some.</span> Read Your Story.</p>
+          <p class="eyebrow">For people who are fine. Technically.</p>
+          <h1 class="campaign-headline">
+            <span>You know how you wish your life was full of <span class="accent">hidden magic?</span></span>
+            <span class="campaign-answer">It is.</span>
+          </h1>
           <p class="hero-lede">
-            A free, private iPhone journal that turns the day you actually lived - weather, walks,
-            moods, music, the people who pass through - into pages you can keep.
-            Local-first and open source, ReEnchanted helps you save what matters, let the rest wait,
-            and watch your days braid into a story only you could write.
+            ReEnchanted helps you notice the wonder-filled, sensory details hiding in your day.
+            Keep the Pages that catch something real, make choices inside the story, and watch
+            the Book braid them into a tale of your re-enchanted day.
           </p>
           <div class="hero-actions">
-            <a class="button primary" href="#book">Open the Book ↓</a>
+            <a class="button primary" href="#book">Find today's hidden magic ↓</a>
             <a class="button ghost" href="#how">See how it works</a>
             <button type="button" class="button ghost promo-trigger" data-promo-open>
               <span class="promo-play" aria-hidden="true">▶</span> Watch the promo
             </button>
           </div>
+          <p class="hero-payoff">
+            Over time, you start seeing the magic for yourself... even when the Book is closed.
+            <span>It’s a Storybook that gets to know you.</span>
+          </p>
+          <p class="hero-assurance">Free base Book. No streaks. No guilt. No blank page.</p>
           <ul class="trust-row" aria-label="Principles">
             <li>Free</li>
             <li>Open source</li>
@@ -257,7 +240,7 @@
           <div class="email-row">
             <input id="email-hero-bridge" class="email-input" type="email" name="email" required
                    autocomplete="email" placeholder="you@example.com">
-            <button class="button primary email-submit" type="submit">Join the waitlist ✦</button>
+            <button class="button primary email-submit" type="submit">Get the TestFlight invite ✦</button>
           </div>
           <p class="email-consent">One email when the doors open. Nothing else. Unsubscribe anytime.</p>
           <p class="email-status" role="status" aria-live="polite" hidden></p>
@@ -265,27 +248,28 @@
       </div>
 
       <p class="hero-bridge-quote">
-        "A free iPhone journal that turns your everyday life into a fantasy book."
+        "You don't need a new life to feel alive. You just need to see the one you already have."
       </p>
 
       <!-- ──────────────────── HOW IT WORKS ──────────────────── -->
       <section id="how" class="how-section">
         <div class="section-head">
-          <p class="eyebrow">How it works</p>
-          <h2>Three honest steps.</h2>
+          <p class="eyebrow">The hidden-magic loop</p>
+          <h2>Find it. Keep it. Watch it become a story.</h2>
         </div>
         <div class="how-grid">
           <article class="how-card">
             <span class="how-num">01</span>
-            <h3>Pages arrive. Play with them.</h3>
+            <h3>Find what was hiding.</h3>
             <p>
               The day shows up as little doors: weather, body signals, places, music,
-              questions, one-sentence souvenirs, photos. No blank page, no streak to defend.
+              questions, one-sentence souvenirs, photos. Each one gives you a reason
+              to look again. No blank page, no streak to defend.
             </p>
           </article>
           <article class="how-card">
             <span class="how-num">02</span>
-            <h3>You keep some</h3>
+            <h3>Keep what felt alive.</h3>
             <p>
               Keep a page when it catches a real edge. Let the rest wait. The Book is
               built on consent and taste - you choose what becomes part of the story.
@@ -293,7 +277,7 @@
           </article>
           <article class="how-card">
             <span class="how-num">03</span>
-            <h3>It braids</h3>
+            <h3>Watch it become a story.</h3>
             <p>
               Each night the Book weaves your real day into a fairy tale - your kept
               pages, what you noticed, what you ate, your one-sentence check-ins, the
@@ -308,13 +292,38 @@
       <!-- ──────────────────── INTERACTIVE BOOK ──────────────────── -->
       <section id="book" class="book-section">
         <div class="section-head">
-          <p class="eyebrow">Play with it</p>
-          <h2>Open the book. Keep what's true.</h2>
+          <p class="eyebrow">Find today's glint</p>
+          <h2>Open the Book. See what was hiding.</h2>
           <p class="section-sub">
-            A web-sized taste, this is just to give you the idea; turn the pages, keep the ones that
-            catch a real edge, let the others wait - then bind your choices into a
-            <em>Book of You</em>.
+            This web-sized taste gives you the idea: the Book opens little doors into
+            an ordinary day. Turn the pages, keep the ones that make something visible,
+            let the others wait - then read what your choices become.
           </p>
+        </div>
+
+        <div class="book-address book-demo-address" id="book-address">
+          <p class="address-line address-greeting" data-address="greeting">Oh. Hello. A real person.</p>
+          <p class="address-line" data-address="noticing">Quick question before we do anything weird.</p>
+          <p class="address-line" data-address="problem">
+            Does today feel a lot like yesterday? Did this week disappear somewhere
+            between work, dinner, scrolling, and bed?
+          </p>
+          <p class="address-line" data-address="absolution">
+            That doesn't mean your life is boring. And it doesn't mean you're doing it wrong.
+          </p>
+          <p class="address-line address-vow" data-address="vow">
+            Give me one true detail from today. I'll help you keep it.
+          </p>
+          <div class="address-honesty" id="address-honesty" hidden>
+            <p class="address-honesty-copy" id="address-honesty-copy">
+              I only know little things from here - the clock, the moon, the
+              shape of your window. I could ask the air for your sky too: once,
+              then let the facts go. May I?
+            </p>
+            <button type="button" class="address-sky-btn" id="address-sky-btn">Read my sky ✦</button>
+            <p class="address-sky-reading" id="address-sky-reading" aria-live="polite" hidden></p>
+          </div>
+          <p class="address-whisper" id="address-whisper" aria-live="polite" hidden></p>
         </div>
 
         <div class="book-stage">
@@ -535,16 +544,16 @@
       <!-- ──────────────────── BOOK OF YOU PROOF ──────────────────── -->
       <section id="braid-proof" class="braid-proof-section" aria-labelledby="braid-proof-title">
         <div class="braid-proof-copy">
-          <p class="eyebrow">The braid is real</p>
-          <h2 id="braid-proof-title">Your kept pages become a Book of You.</h2>
+          <p class="eyebrow">What returns</p>
+          <h2 id="braid-proof-title">The hidden pieces become a Book of You.</h2>
           <p>
             After enough real pages gather, the local Book brain braids them into a
             readable entry: the small true things you kept, the bargains you made,
             the weather outside, and the fictional choices that answered back.
           </p>
           <p>
-            It's not a recap feed. It's the day rewritten as something you can
-            return to, share, and eventually bind into an edition.
+            It's not a recap feed. It's proof that the day contained a shape -
+            something you can return to, share, and eventually bind into an edition.
           </p>
         </div>
 
@@ -557,11 +566,59 @@
         </figure>
       </section>
 
+      <!-- ──────────────────── PAGEWRIGHT ──────────────────── -->
+      <section id="pagewright" class="pagewright-section" aria-labelledby="pagewright-title">
+        <div class="pagewright-copy">
+          <p class="eyebrow">For scrapbookers</p>
+          <h2 id="pagewright-title">The Book makes Pages. You can make one back.</h2>
+          <p class="pagewright-lede">
+            Pagewright is your worktable inside the Book. Pull in scraps from Pages
+            you've already kept, mix them with your own photographs, notes, quotes,
+            paper, tape, and strange little marks, then move everything by hand until
+            the Page feels like yours.
+          </p>
+
+          <ul class="pagewright-tools" aria-label="What you can make with Pagewright">
+            <li><strong>Scrap your own archive.</strong><span>Bring back lines, images, weather, memories, and other pieces the Book already knows.</span></li>
+            <li><strong>Use whole photographs.</strong><span>Your pictures arrive without forced captions, ready to crop, layer, rotate, and decorate.</span></li>
+            <li><strong>Keep the handmade Page.</strong><span>Tuck it back into your private Book, or export a real PNG or PDF to print and share.</span></li>
+          </ul>
+
+          <aside class="pagewright-achievement" aria-labelledby="pagewright-achievement-title">
+            <span class="pagewright-achievement-mark" aria-hidden="true">✦</span>
+            <div>
+              <p class="pagewright-achievement-kicker">The studio has secrets</p>
+              <h3 id="pagewright-achievement-title">Earn stranger materials.</h3>
+              <p>
+                Some marks are guarded by achievements with riddles and visible progress.
+                Discover the move yourself, or spend one Belief to reveal an exact hint.
+                The reward is more expressive marginalia - not a grade.
+              </p>
+            </div>
+          </aside>
+        </div>
+
+        <div class="pagewright-gallery" aria-label="Pagewright examples">
+          <figure class="pagewright-finished">
+            <img src="./assets/screens/pagewright-finished.jpg"
+                 alt="A finished cream scrapbook Page combining a personal waterside photograph, kept Page scraps, a feather, a compass, and paper ephemera"
+                 loading="lazy" decoding="async">
+            <figcaption>A finished Page, made from a life already in progress.</figcaption>
+          </figure>
+          <figure class="pagewright-studio">
+            <img src="./assets/screens/pagewright-studio.jpg"
+                 alt="The Pagewright Scrapbook Studio with movable Page scraps and controls for layout, paper, marks, quotes, and export"
+                 loading="lazy" decoding="async">
+            <figcaption>Not a template gallery. A worktable.</figcaption>
+          </figure>
+        </div>
+      </section>
+
       <!-- ──────────────────── EDITIONS ──────────────────── -->
       <section id="editions" class="systems-section" data-drawer>
         <div class="section-head">
-          <p class="eyebrow">Bound for keeps</p>
-          <h2>Publish your own editions.</h2>
+          <p class="eyebrow">Hold the proof</p>
+          <h2>Bind the magic you almost missed.</h2>
           <p class="section-sub">
             Your kept pages don't just scroll away. Each week can close as a
             small issue; each month becomes a chapter; a whole year can bind as
@@ -577,7 +634,7 @@
             <p>
               A short, printable issue of the week: the kept pages, strongest
               motifs, and a little editorial note from the Book. Small enough to
-              share, specific enough to make an ordinary week feel finished.
+              share, specific enough to reveal the shape of an ordinary week.
             </p>
           </article>
           <article class="system-card">
@@ -596,7 +653,7 @@
             <p>
               A whole year becomes one bound book: twelve monthly chapters, each in its
               own palette, wrapped in a year-long foreword, your constellations, and a
-              closing. A year of ordinary life, made into a fairy tale you can hold.
+              closing. A year of ordinary life, revealed as a fairy tale you can hold.
             </p>
           </article>
           <article class="system-card edition-preview">
@@ -656,13 +713,14 @@
 
       <!-- ──────────────────── THESIS BAND ──────────────────── -->
       <section class="thesis-band" aria-label="The thesis">
-        <p class="thesis-kicker">The whole point</p>
+        <p class="thesis-kicker">The magic was ordinary all along</p>
         <blockquote class="thesis-quote">
           The best-written chapter in the entire book - the most sensory, the most
           alive - is <span>your own ordinary life.</span>
         </blockquote>
         <p class="thesis-sub">
-          Everything else is rails and atmosphere. You're the text.
+          Everything else is rails and atmosphere. You're the text - attention is
+          what makes it visible.
         </p>
       </section>
 
@@ -670,11 +728,11 @@
       <section id="contents" class="toc-shelf" aria-labelledby="toc-title">
         <div class="toc-leaf">
           <header class="toc-head">
-            <p class="toc-eyebrow">Table of contents</p>
-            <h2 id="toc-title">When you have energy or interest, there are deeper doors.</h2>
+            <p class="toc-eyebrow">More ways to find it</p>
+            <h2 id="toc-title">Deeper doors for days that want them.</h2>
             <p class="toc-sub">
-              Nothing here is required on the first visit. Open only the chapters
-              that call to you - each one unfolds right here.
+              The core loop stays small. Open only the chapters that call to you -
+              each is another lens for noticing, keeping, or answering your life.
             </p>
           </header>
           <div class="toc-rows">
@@ -682,7 +740,7 @@
       <!-- ──────────────────── MECHANICS ──────────────────── -->
       <section id="mechanics" class="mechanics-section" data-drawer>
         <div class="section-head">
-          <p class="eyebrow">Inside the Book</p>
+          <p class="eyebrow">Lenses for the overlooked</p>
           <h2>Attention, given a shape.</h2>
         </div>
         <div class="mechanics-grid">
@@ -707,12 +765,13 @@
       <!-- ──────────────────── SENTENCE BUILDER ──────────────────── -->
       <section id="craft" class="pagetypes-section" data-drawer data-drawer-label="Sentence Builder">
         <div class="section-head">
-          <p class="eyebrow">Built in - runs on your phone</p>
-          <h2>A coach for one true sentence.</h2>
+          <p class="eyebrow">Keep it in your own words</p>
+          <h2>Make the true thing vivid enough to keep.</h2>
           <p class="section-sub">
             When you keep a page, the Book quietly helps you write it better - right
-            there, on your device, with no model in the loop. It nudges you past "it
-            was a nice day" toward the real thing, one small step at a time.
+            there, on your device, with no model in the loop. It doesn't beautify or
+            invent. It nudges you past "it was a nice day" toward the exact detail
+            that made the moment yours.
           </p>
         </div>
         <ul class="pagetypes-grid">
@@ -760,13 +819,13 @@
       <!-- ──────────────────── PAGE TYPES ──────────────────── -->
       <section id="pages" class="pagetypes-section" data-drawer>
         <div class="section-head">
-          <p class="eyebrow">Included free - no packs required</p>
-          <h2>More doors, when you want them.</h2>
+          <p class="eyebrow">More lenses, included free</p>
+          <h2>Different ways to find what the day hid.</h2>
           <p class="section-sub">
             You never need to open them all. When you have energy or interest,
             the base Book offers over <span class="pagetypes-count">50</span>
             kinds of page to play with and keep - from quiet logs to playful
-            little games. Here are a few of them.
+            little games. Each is another lens, not more homework. Here are a few.
           </p>
         </div>
         <ul class="pagetypes-grid">
@@ -878,11 +937,12 @@
       <!-- ──────────────────── LIVING SYSTEMS ──────────────────── -->
       <section id="systems" class="systems-section" data-drawer>
         <div class="section-head">
-          <p class="eyebrow">The book remembers</p>
-          <h2>Systems that make it feel alive.</h2>
+          <p class="eyebrow">What you notice starts noticing you</p>
+          <h2>The Book remembers what keeps returning.</h2>
           <p class="section-sub">
-            Underneath the pages, three quiet mechanics decide what returns, what
-            looms, and what the Book keeps. They run on device, on real life.
+            Pages, places, people, and motifs gather weight as they recur. Three quiet
+            mechanics connect them and decide what the Book returns to you - entirely
+            on device, drawn from real life.
           </p>
         </div>
         <div class="anchor-showcase" id="anchor-showcase">
@@ -897,8 +957,8 @@
             <img class="anchor-slide" src="./assets/screens/anchor-6.jpg" alt="" aria-hidden="true" loading="lazy" decoding="async">
           </div>
           <div class="anchor-showcase-copy">
-            <p class="eyebrow">Watch the loop</p>
-            <h3>Anchor a place. The Book grows it a room.</h3>
+            <p class="eyebrow">Magic belongs to places, too</p>
+            <h3>Anchor a real place. Let its hidden room grow.</h3>
             <p>
               Stand somewhere real, name what it holds, and choose how it points.
               The Book opens that spot its own room in the <button class="lore-link" data-lore="outer-stacks" type="button">Outer Stacks</button> - the
@@ -964,13 +1024,14 @@
       <!-- ──────────────────── THE ACADEMY (narrative sim) ──────────────────── -->
       <section id="academy" class="academy-section" data-drawer>
         <div class="section-head">
-          <p class="eyebrow">Not a chatbot - a world</p>
-          <h2>An entire school, running without you.</h2>
+          <p class="eyebrow">The story keeps moving</p>
+          <h2>The hidden world lives while you're away.</h2>
           <p class="section-sub">
             Underneath the Book is a narrative simulation: a magical Academy in an
             infinite library, with classes, clubs, faculty, <button class="lore-link" data-lore="professors" type="button">professors</button>, a
             <button class="lore-link" data-lore="great-hall" type="button">Great Hall</button> and <button class="lore-link" data-lore="kitchens" type="button">kitchens</button> that keep their own weather - and a
-            headmistress you probably shouldn't fully trust.
+            headmistress you probably shouldn't fully trust. Your ordinary life is
+            what crosses between that world and this one.
           </p>
         </div>
 
@@ -1134,8 +1195,8 @@
 
         <div class="story-page-feature">
           <div class="story-page-copy">
-            <p class="eyebrow">Story Pages</p>
-            <h3>A scene from your day, with choices inside it.</h3>
+            <p class="eyebrow">Where real life crosses over</p>
+            <h3>Your day enters the story - and the story answers back.</h3>
             <p>
               A Story Page reads the real signals around you - weather, music,
               sleep, places, moods, and the cast currently moving through the
@@ -1210,12 +1271,12 @@
       <!-- ──────────────────── RADIO ──────────────────── -->
       <section id="radio" class="radio-section" data-drawer>
         <div class="section-head">
-          <p class="eyebrow">ReEnchanted Radio</p>
+          <p class="eyebrow">Give the hidden world a frequency</p>
           <h2>Dial in. Let the signal color the day.</h2>
           <p class="section-sub">
             An optional analog station page for Academy broadcasts, music packs,
-            and world effects. When you want the shelves to have a soundtrack,
-            turn the dial, find a frequency, and go <em>on air</em>.
+            and world effects. Another lens for the day's atmosphere: turn the dial,
+            find a frequency, and let the ordinary world go <em>on air</em>.
           </p>
         </div>
 
@@ -1286,7 +1347,7 @@
       <!-- ──────────────────── WONDER COMPASS EBOOK ──────────────────── -->
       <section id="ebook" class="ebook-section" data-drawer>
         <div class="ebook-copy">
-          <p class="eyebrow">Included free</p>
+          <p class="eyebrow">When the magic is hard to see</p>
           <h2>Feeling <button class="lore-link" data-lore="the-nothing" type="button">grey</button>?</h2>
           <p class="ebook-prompts">
             Routine got you bored? Lonely? Have a dentist appointment?
@@ -1321,12 +1382,12 @@
       <!-- ──────────────────── CONTENT PACKS ──────────────────── -->
       <section id="packs" class="packs-section" data-drawer>
         <div class="section-head">
-          <p class="eyebrow">The shelf keeps growing</p>
-          <h2>Content packs: optional doors.</h2>
+          <p class="eyebrow">New lenses, when you want them</p>
+          <h2>Optional doors into more kinds of wonder.</h2>
           <p class="section-sub">
             Themed expansions that drop a whole world into the Book at once - and the
-            Academy itself shifts week to week. The base game stays whole; packs are
-            for later, when you want more to keep.
+            Academy itself shifts week to week. The base game stays whole; packs add
+            new ways for the same life to answer differently, never new obligations.
           </p>
         </div>
 
@@ -1369,12 +1430,12 @@
       <!-- ──────────────────── SEMANTIC SEARCH ──────────────────── -->
       <section id="search" class="stacks-search-section" aria-labelledby="stacks-search-title">
         <div class="stacks-search-copy">
-          <p class="eyebrow">Search the Stacks</p>
-          <h2 id="stacks-search-title">Ask for the feeling, not the filename.</h2>
+          <p class="eyebrow">Find what returned</p>
+          <h2 id="stacks-search-title">Ask for the feeling. Find the page.</h2>
           <p>
             Your archive becomes searchable in plain language. Ask for rainy pages,
             porch memories, missions, old moods, cast threads, or “everything with love,”
-            and the Stacks brings back the pages that know what you mean.
+            and the Stacks brings back the overlooked details that know what you mean.
           </p>
           <div class="semantic-search-demo section-search-demo">
             <form class="semantic-search-form" data-search-demo="section">
@@ -1410,9 +1471,61 @@
         </div>
       </section>
 
+      <section id="community" class="community-section" aria-labelledby="community-title">
+        <div class="community-heading">
+          <p class="eyebrow">The Public Margins</p>
+          <h2 id="community-title">A private Book. A small public window.</h2>
+          <p>
+            Quiet choices made together and one-sentence souvenirs readers deliberately
+            offered beyond their covers.
+            No profiles. No leaderboard. No private pages.
+          </p>
+        </div>
+
+        <div class="community-grid" data-community-state="loading">
+          <article class="community-panel community-souvenirs" aria-labelledby="souvenirs-title">
+            <div class="community-panel-heading">
+              <span class="community-glyph" aria-hidden="true">✦</span>
+              <div>
+                <p class="community-kicker">Left here on purpose</p>
+                <h3 id="souvenirs-title">One-sentence souvenirs</h3>
+              </div>
+            </div>
+            <blockquote id="community-souvenir" class="community-souvenir">
+              The margin is quiet just now.
+            </blockquote>
+            <p id="community-count" class="community-count"></p>
+          </article>
+
+          <article class="community-panel community-details" aria-labelledby="details-title">
+            <div class="community-panel-heading">
+              <span class="community-glyph" aria-hidden="true">◌</span>
+              <div>
+                <p class="community-kicker">Tiny communal weather</p>
+                <h3 id="details-title">What people chose</h3>
+              </div>
+            </div>
+            <p id="community-choice-question" class="community-choice-question">
+              Today's quiet question is finding its ink.
+            </p>
+            <div id="community-tallies" class="community-tallies">
+              <p class="community-quiet">No public choices yet.</p>
+            </div>
+          </article>
+        </div>
+
+        <div class="community-consent-note">
+          <strong>Two doors, both closed by default.</strong>
+          You may invite moderated reader souvenirs into your Book without sending anything out.
+          You may ask to be offered contribution moments without bringing those souvenirs in.
+          Every outgoing sentence and quiet choice gets its own exact public preview and confirmation.
+          <a href="./privacy.html#public-margins">Read the privacy details.</a>
+        </div>
+      </section>
+
       <section id="privacy" class="privacy-section" data-drawer>
         <div class="privacy-copy">
-          <p class="eyebrow">Real device magic</p>
+          <p class="eyebrow">The magic stays yours</p>
           <h2>We can't read your book.</h2>
           <p>
             The most personal app on your phone shouldn't feel like a surveillance product.
@@ -1473,9 +1586,9 @@
       <!-- ──────────────────── FINAL CTA ──────────────────── -->
       <section id="download" class="final-cta">
         <div class="cta-inner">
-          <p class="eyebrow">The margin is already listening</p>
-          <h2>Open the Book.</h2>
-          <p class="cta-sub">Play with pages. Keep some. Read your story.</p>
+          <p class="eyebrow">There is something in today worth keeping</p>
+          <h2>Open the Book. Find it.</h2>
+          <p class="cta-sub">Notice one true thing. Keep it. Read the story it becomes.</p>
           <p class="cta-status">
             <span class="cta-status-dot" aria-hidden="true"></span>
             In active development · <strong>TestFlight list opening soon</strong>
@@ -1671,6 +1784,6 @@
         });
       })();
     </script>
-    <script src="./app.js?v=56"></script>
+    <script src="./app.js?v=63"></script>
   </body>
 </html>

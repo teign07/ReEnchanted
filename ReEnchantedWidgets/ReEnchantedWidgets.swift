@@ -597,7 +597,7 @@ private struct MediumTodayPage: View {
                     ParchmentPanel(accent: .teal) {
                         VStack(alignment: .leading, spacing: 7) {
                             WidgetHeader(title: "Keep One", symbolName: "quote.opening", accent: .teal)
-                            Text(snapshot.compass?.prompt ?? "Bring back one true sentence from today.")
+                            Text(snapshot.bookInterior?.line ?? snapshot.compass?.prompt ?? "Bring back one true sentence from today.")
                                 .font(.system(.callout, design: .serif, weight: .bold))
                                 .foregroundStyle(ReTheme.ink)
                                 .lineLimit(5)
@@ -619,6 +619,12 @@ private struct OpenDesk: View {
                     WidgetHeader(title: greeting, symbolName: "book.closed", accent: .gold)
                     Spacer()
                     GlowPill(text: snapshot.belief?.detail ?? "Glow")
+                }
+                if let interior = snapshot.bookInterior {
+                    Label(interior.line, systemImage: interior.symbolName)
+                        .font(.caption)
+                        .foregroundStyle(ReTheme.paperText)
+                        .lineLimit(2)
                 }
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 9) {
                     DeskTile(title: snapshot.today.title, detail: snapshot.today.body, symbolName: snapshot.today.symbolName, path: snapshot.today.urlPath, tint: .gold)

@@ -1,67 +1,76 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// A tiny deterministic SplitMix64 generator so the probabilistic whisper roll
-/// can be pinned in tests without depending on the system RNG.
-private struct SeededGenerator: RandomNumberGenerator {
-    var state: UInt64
-    init(seed: UInt64) { state = seed }
-    mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        return z ^ (z >> 31)
-    }
-}
-
 final class PartingWhisperTests: XCTestCase {
-    private func surface(_ type: BookPageType) -> SurfacePage {
-        SurfacePage(type: type, prompt: "prompt", detail: "detail")
+    private struct LegacyPocketKeepsake: Codable {
+        let id: String
+        let dayID: String
+        let pageType: BookPageType
+        let object: String
+        let glyph: String
+        let foundAt: Date
     }
 
-    func testWhisperNeverFiresWhenChanceIsZero() {
-        var rng = SeededGenerator(seed: 1)
-        for _ in 0..<200 {
-            let whisper = PartingWhisper.onDismiss(of: surface(.diary), whisperChance: 0, using: &rng)
-            XCTAssertNil(whisper)
-        }
+    private func surface(_ type: BookPageType, id: String = UUID().uuidString) -> SurfacePage {
+        SurfacePage(id: id, type: type, prompt: "prompt", detail: "detail")
     }
 
-    func testWhisperAlwaysFiresWhenChanceIsOne() {
-        var rng = SeededGenerator(seed: 2)
-        for _ in 0..<200 {
-            let whisper = PartingWhisper.onDismiss(of: surface(.diary), whisperChance: 1, using: &rng)
-            XCTAssertNotNil(whisper)
-        }
+    func testDismissalClosingIsDeterministicForTheSamePage() {
+        let leaving = surface(.diary, id: "same-page")
+        XCTAssertEqual(
+            PartingWhisper.closingLine(for: leaving),
+            PartingWhisper.closingLine(for: leaving)
+        )
     }
 
-    func testKeepsakeTierHonoursItsSubChance() {
-        var neverRNG = SeededGenerator(seed: 3)
-        for _ in 0..<200 {
-            let whisper = PartingWhisper.onDismiss(
-                of: surface(.diary),
-                whisperChance: 1,
-                keepsakeChance: 0,
-                using: &neverRNG
+    func testDismissalClosingsVaryAcrossPagesWithoutRandomReward() {
+        let lines = Set((0..<40).compactMap {
+            PartingWhisper.closingLine(for: surface(.diary, id: "page-\($0)"))
+        })
+        XCTAssertGreaterThan(lines.count, 1)
+    }
+
+    func testDismissalClosingFillsThePagePlaceholder() throws {
+        let line = try XCTUnwrap(PartingWhisper.closingLine(for: surface(.souvenir)))
+        XCTAssertFalse(line.contains("{page}"))
+        XCTAssertTrue(line.contains("souvenir"))
+    }
+
+    func testAttentionKeepsakePreservesThePagesRealContentVisualAndEvidence() {
+        let attended = SurfacePage(
+            type: .illustration,
+            prompt: "Look closely",
+            detail: "The smaller mark is the one worth keeping.",
+            payload: BookPagePayload(
+                headline: "Moth at the Reading Lamp",
+                body: "A white moth settled beside the brass switch and made the whole desk look briefly inhabited.",
+                metadata: ["assetName": "MothPlate"]
             )
-            XCTAssertEqual(whisper?.kind, .wink)
-            XCTAssertNil(whisper?.keepsake)
-        }
+        )
+        let keepsake = PartingWhisper.keepsake(
+            from: attended,
+            evidence: "the brass switch"
+        )
 
-        var alwaysRNG = SeededGenerator(seed: 4)
-        for _ in 0..<200 {
-            let whisper = PartingWhisper.onDismiss(
-                of: surface(.diary),
-                whisperChance: 1,
-                keepsakeChance: 1,
-                using: &alwaysRNG
-            )
-            XCTAssertEqual(whisper?.kind, .keepsake)
-            let keepsake = try? XCTUnwrap(whisper?.keepsake)
-            XCTAssertFalse(keepsake?.object.isEmpty ?? true)
-            XCTAssertFalse(keepsake?.glyph.isEmpty ?? true)
+        XCTAssertEqual(keepsake.title, "Moth at the Reading Lamp")
+        XCTAssertEqual(keepsake.object, "Moth at the Reading Lamp")
+        XCTAssertEqual(keepsake.excerpt, "the brass switch")
+        XCTAssertEqual(keepsake.mediaAssets.first?.reference, "MothPlate")
+    }
+
+    func testAttentionKeepsakeRequiresFourDistinctPagesAndResetsAfterAward() {
+        var learning = ReaderLearningModel()
+        for index in 0..<3 {
+            learning.record(event(.acted, surfaceID: "surface-\(index)"))
         }
+        learning.record(event(.acted, surfaceID: "surface-0"))
+        XCTAssertFalse(AttentionKeepsakeGovernor.isEarned(in: learning))
+
+        learning.record(event(.kept, surfaceID: "surface-3"))
+        XCTAssertTrue(AttentionKeepsakeGovernor.isEarned(in: learning))
+
+        learning.record(event(.keepsakeEarned, surfaceID: "surface-3"))
+        XCTAssertFalse(AttentionKeepsakeGovernor.isEarned(in: learning))
     }
 
     func testPocketLedgerKeepsNewestAndHonoursCapacity() {
@@ -95,30 +104,52 @@ final class PartingWhisperTests: XCTestCase {
         XCTAssertEqual(pocket.keepsakes.first?.object, "a coin of lamplight")
     }
 
-    func testWhisperFillsThePagePlaceholderAndDropsTheToken() {
-        var rng = SeededGenerator(seed: 5)
-        let whisper = PartingWhisper.onDismiss(of: surface(.souvenir), whisperChance: 1, using: &rng)
-        let line = try? XCTUnwrap(whisper?.line)
-        XCTAssertNotNil(line)
-        XCTAssertFalse(line?.contains("{page}") ?? true)
-        XCTAssertTrue(line?.contains("souvenir") ?? false)
+    func testPreviouslyStoredDecorativeKeepsakesStillDecode() throws {
+        let old = LegacyPocketKeepsake(
+            id: "old",
+            dayID: "d",
+            pageType: .mood,
+            object: "a pressed petal",
+            glyph: "leaf",
+            foundAt: Date(timeIntervalSince1970: 2_000_000)
+        )
+        let data = try JSONEncoder().encode(old)
+
+        let decoded = try JSONDecoder().decode(PocketKeepsake.self, from: data)
+
+        XCTAssertEqual(decoded.object, "a pressed petal")
+        XCTAssertNil(decoded.sourceSurfaceID)
+        XCTAssertFalse(decoded.isRealPageFragment)
     }
 
-    func testExcludedTypesNeverWhisperEvenAtFullChance() {
+    func testExcludedTypesNeverReceiveAGenericClosing() {
         for type in PartingWhisper.excludedTypes {
-            var rng = SeededGenerator(seed: 6)
-            XCTAssertNil(PartingWhisper.onDismiss(of: surface(type), whisperChance: 1, using: &rng))
+            XCTAssertNil(PartingWhisper.closingLine(for: surface(type)))
         }
     }
 
-    func testPurchaseThankYouSurfaceNeverWhispers() {
+    func testPurchaseThankYouSurfaceNeverReceivesAGenericClosing() {
         let thankYou = SurfacePage(
             type: .diary,
             prompt: "prompt",
             detail: "detail",
             payload: BookPagePayload(headline: "h", body: "b", metadata: ["purchaseThankYou": "true"])
         )
-        var rng = SeededGenerator(seed: 7)
-        XCTAssertNil(PartingWhisper.onDismiss(of: thankYou, whisperChance: 1, using: &rng))
+        XCTAssertNil(PartingWhisper.closingLine(for: thankYou))
+    }
+
+    private func event(
+        _ action: ReaderLearningAction,
+        surfaceID: String
+    ) -> ReaderLearningEvent {
+        ReaderLearningEvent(
+            dayID: "2026-07-18",
+            action: action,
+            surfaceID: surfaceID,
+            sourceID: "test-source",
+            type: .diary,
+            varietyKey: "test",
+            hour: 12
+        )
     }
 }

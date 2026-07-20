@@ -7,6 +7,10 @@ import AudioToolbox
 #if canImport(UIKit)
 import UIKit
 #endif
+#if os(iOS) && canImport(Contacts) && canImport(ContactsUI)
+import Contacts
+import ContactsUI
+#endif
 #if canImport(Photos)
 import Photos
 #endif
@@ -732,6 +736,7 @@ enum GlowMenuAction {
     case openAlmanac
     case openEnchantment(GlowEnchantmentMenuItem)
     case openPage(BookPageType)
+    case openFlyleaf
     case openBookSection(String)
     case openPagewright
     case bindWeeklyIssue
@@ -1179,6 +1184,14 @@ struct GlowCommandMenu: View {
                 }
             }
         case .pages:
+            menuButton(
+                title: "The Flyleaf",
+                detail: "Open the quests tucked into the Book's inside cover.",
+                systemImage: "bookmark",
+                compact: compact
+            ) {
+                onSelectAction(.openFlyleaf)
+            }
             pageBeliefSubmenu(compact: compact)
             menuButton(
                 title: "The Pact Map",
@@ -1770,6 +1783,7 @@ extension Color {
 struct KeepMarginNoteToast: View {
     let note: KeepMarginalia.Note
     var showsPressHint: Bool = false
+    var announcementTitle: String? = nil
 
     private var voice: KeepMarginalia.Voice? { KeepMarginalia.voice(forSlug: note.castSlug) }
     private var accent: Color { voice.map { Color(bookHex: $0.accentHex) } ?? BookPalette.gold }
@@ -1782,6 +1796,13 @@ struct KeepMarginNoteToast: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if let announcementTitle {
+                Label(announcementTitle, systemImage: "theatermasks.fill")
+                    .font(.caption.weight(.black))
+                    .tracking(0.8)
+                    .foregroundStyle(BookPalette.violet)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let findingLine = note.findingLine {
                 VStack(alignment: .leading, spacing: 4) {
                     Label("YOU FOUND IT", systemImage: "sparkles")
@@ -1863,6 +1884,28 @@ struct KeepMarginNoteToast: View {
                 }
                 .padding(.leading, 12)
             }
+            if !note.consequenceLines.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("THE PAGE TOOK HOLD", systemImage: "checkmark.seal.fill")
+                        .font(.caption2.weight(.black))
+                        .tracking(0.65)
+                        .foregroundStyle(BookPalette.teal)
+
+                    ForEach(Array(note.consequenceLines.enumerated()), id: \.offset) { _, line in
+                        HStack(alignment: .firstTextBaseline, spacing: 7) {
+                            Image(systemName: "sparkle")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(BookPalette.lampGold.opacity(0.86))
+                            Text(line)
+                                .font(.caption)
+                                .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(.top, 2)
+                .accessibilityElement(children: .combine)
+            }
             if showsPressHint {
                 Text("Tap to press a souvenir card.")
                     .font(.caption2)
@@ -1870,7 +1913,10 @@ struct KeepMarginNoteToast: View {
             }
         }
         .padding(12)
-        .background(BookPalette.nightPanel.opacity(0.92), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        // This note can land over anything from a quiet desk to a bright Page.
+        // Keep its reading surface opaque so the underlying artwork never
+        // changes the character's legibility.
+        .background(BookPalette.nightPanel, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(BookPalette.gold.opacity(0.2), lineWidth: 1)
@@ -3088,19 +3134,32 @@ struct PactMapSheet: View {
 struct PeopleOfTheBookSheet: View {
     let ledger: PeopleLedger
     let castMemberIDs: Set<String>
+    var days: [BookDay] = []
     var now: Date = Date()
     var onWriteIntoStory: (String) -> Void = { _ in }        // slug
     var onUpdateWords: (String, String) -> Void = { _, _ in } // slug, words
+    var onUpdateRelationship: (String, PersonRelationshipProfile) -> Void = { _, _ in }
     var onRest: (String) -> Void = { _ in }                   // slug
     var onWake: (String) -> Void = { _ in }                   // slug
-    var onIntroduce: (String, String) -> Void = { _, _ in }   // name, words
+    var onIntroduce: (String, String, String?) -> Void = { _, _, _ in } // name, words, contact id
     var onWakeDeclinedName: (String) -> Void = { _ in }       // slug
 
     @Environment(\.dismiss) private var dismiss
     @State private var introduceName = ""
     @State private var introduceWords = ""
+    @State private var introduceContactIdentifier: String?
+    @State private var isContactPickerPresented = false
     @State private var editingSlug: String?
     @State private var editingWords = ""
+    @State private var editingRoles = ""
+    @State private var editingSettings = Set<PersonRelationshipSetting>()
+    @State private var editingChannels = Set<PersonContactChannel>()
+    @State private var editingInterests = ""
+    @State private var editingRituals = ""
+    @State private var editingBoundaries = ""
+    @State private var editingSeason = ""
+    @State private var editingInvitationPermission: PersonInvitationPermission = .playful
+    @State private var isCompanyVolumePresented = false
 
     private var activeThreads: [PersonThread] {
         ledger.threads.filter { !$0.resting }.sorted { $0.name < $1.name }
@@ -3113,6 +3172,10 @@ struct PeopleOfTheBookSheet: View {
         return false
     }
 
+    private var companyVolume: CompanyYouKeptVolume {
+        PeopleOfTheBook.companyYouKept(ledger: ledger, days: days, now: now)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -3123,6 +3186,10 @@ struct PeopleOfTheBookSheet: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     introduceCard
+
+                    if !companyVolume.chapters.isEmpty {
+                        companyVolumeCard
+                    }
 
                     if !activeThreads.isEmpty {
                         sectionTitle("In Your Book")
@@ -3161,7 +3228,55 @@ struct PeopleOfTheBookSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
+            .sheet(isPresented: $isCompanyVolumePresented) {
+                CompanyYouKeptSheet(ledger: ledger, days: days, now: now)
+            }
+            #if os(iOS) && canImport(Contacts) && canImport(ContactsUI)
+            .sheet(isPresented: $isContactPickerPresented) {
+                PeopleContactPicker { name, identifier in
+                    introduceName = name
+                    introduceContactIdentifier = identifier
+                    isContactPickerPresented = false
+                } onCancel: {
+                    isContactPickerPresented = false
+                }
+            }
+            #endif
         }
+    }
+
+    private var companyVolumeCard: some View {
+        Button {
+            BookFeedback.play(.select)
+            isCompanyVolumePresented = true
+        } label: {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack {
+                    Label("The Company You Kept", systemImage: "books.vertical.fill")
+                        .font(.headline)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                }
+                Text("A living volume of \(companyVolume.chapters.count) people and \(companyVolume.entryCount) attributed crossings — never a ranking, never a guessed intimacy.")
+                    .font(.system(.caption, design: .serif))
+                    .fixedSize(horizontal: false, vertical: true)
+                if companyVolume.readerWrittenCount > 0 {
+                    Text("\(companyVolume.readerWrittenCount) are in your own hand.")
+                        .font(.caption2.weight(.bold))
+                        .opacity(0.7)
+                }
+            }
+            .foregroundStyle(BookPalette.nightText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(15)
+            .background(BookPalette.nightPanel, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(BookPalette.lampGold.opacity(0.35), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.bookPress())
     }
 
     private var introduceCard: some View {
@@ -3169,6 +3284,19 @@ struct PeopleOfTheBookSheet: View {
             sectionTitle("Introduce Someone")
             TextField("Their name", text: $introduceName)
                 .textFieldStyle(.roundedBorder)
+            #if os(iOS) && canImport(Contacts) && canImport(ContactsUI)
+            Button {
+                isContactPickerPresented = true
+            } label: {
+                Label(
+                    introduceContactIdentifier == nil ? "Choose one person from Contacts" : "Chosen from Contacts",
+                    systemImage: introduceContactIdentifier == nil ? "person.crop.circle.badge.plus" : "checkmark.circle.fill"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(BookPalette.teal)
+            }
+            .buttonStyle(.bookPress())
+            #endif
             TextField("Who are they, to you? (optional)", text: $introduceWords, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...3)
@@ -3176,9 +3304,10 @@ struct PeopleOfTheBookSheet: View {
                 let name = introduceName.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !name.isEmpty else { return }
                 BookFeedback.play(.select)
-                onIntroduce(name, introduceWords)
+                onIntroduce(name, introduceWords, introduceContactIdentifier)
                 introduceName = ""
                 introduceWords = ""
+                introduceContactIdentifier = nil
             } label: {
                 Text("Add to the Book")
                     .font(.subheadline.weight(.bold))
@@ -3216,29 +3345,20 @@ struct PeopleOfTheBookSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            if let profile = thread.relationship, !profile.isEmpty {
+                Label(relationshipSummary(profile), systemImage: "point.3.connected.trianglepath.dotted")
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.teal.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Text(historyLine(thread))
                 .font(.caption)
                 .foregroundStyle(BookPalette.ink.opacity(0.55))
                 .fixedSize(horizontal: false, vertical: true)
 
             if editingSlug == slug(thread) {
-                VStack(alignment: .leading, spacing: 6) {
-                    TextField("Who are they, to you?", text: $editingWords, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(1...4)
-                    HStack {
-                        Button("Save") {
-                            onUpdateWords(slug(thread), editingWords)
-                            editingSlug = nil
-                        }
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(BookPalette.teal)
-                        Button("Cancel") { editingSlug = nil }
-                            .font(.caption)
-                            .foregroundStyle(BookPalette.ink.opacity(0.5))
-                    }
-                }
-                .padding(.top, 2)
+                relationshipEditor(thread)
             } else {
                 HStack(spacing: 14) {
                     if !inStory {
@@ -3246,9 +3366,8 @@ struct PeopleOfTheBookSheet: View {
                             onWriteIntoStory(slug(thread))
                         }
                     }
-                    cardAction(thread.readerWords.isEmpty ? "Add who they are" : "Edit who", "pencil") {
-                        editingWords = thread.readerWords
-                        editingSlug = slug(thread)
+                    cardAction(thread.relationship == nil ? "Teach the Book" : "Edit relationship", "point.3.connected.trianglepath.dotted") {
+                        beginEditing(thread)
                     }
                     cardAction("Let rest", "moon.zzz") {
                         onRest(slug(thread))
@@ -3263,6 +3382,152 @@ struct PeopleOfTheBookSheet: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke((inStory ? BookPalette.violet : BookPalette.parchmentEdge).opacity(0.2), lineWidth: 1)
         }
+    }
+
+    private func relationshipEditor(_ thread: PersonThread) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("WHO ARE THEY, TO YOU?")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(BookPalette.ink.opacity(0.52))
+            TextField("Your own line about them", text: $editingWords, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1...4)
+
+            TextField("Roles — partner, sister, friend, coworker…", text: $editingRoles, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1...2)
+
+            relationshipChoiceTitle("Where this relationship lives")
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 7)], alignment: .leading, spacing: 7) {
+                ForEach(PersonRelationshipSetting.allCases, id: \.rawValue) { setting in
+                    relationshipChip(setting.label, selected: editingSettings.contains(setting)) {
+                        toggle(setting, in: &editingSettings)
+                    }
+                }
+            }
+
+            relationshipChoiceTitle("How you usually meet")
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 7)], alignment: .leading, spacing: 7) {
+                ForEach(PersonContactChannel.allCases, id: \.rawValue) { channel in
+                    relationshipChip(channel.label, selected: editingChannels.contains(channel)) {
+                        toggle(channel, in: &editingChannels)
+                    }
+                }
+            }
+
+            TextField("Things you share — AI, old movies, gardening…", text: $editingInterests, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1...3)
+            TextField("Ordinary rituals — morning coffee, Tuesday texts…", text: $editingRituals, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1...3)
+            TextField("Boundaries the Book must respect", text: $editingBoundaries, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1...3)
+            TextField("What season is this relationship in?", text: $editingSeason, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1...2)
+
+            Picker("Favors from the Book", selection: $editingInvitationPermission) {
+                ForEach(PersonInvitationPermission.allCases, id: \.rawValue) { permission in
+                    Text(permission.label).tag(permission)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if thread.relationship?.contactIdentifier != nil {
+                Label("Linked to a contact you chose", systemImage: "person.crop.circle.badge.checkmark")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.52))
+            }
+
+            HStack(spacing: 14) {
+                Button("Save what is true") {
+                    onUpdateWords(slug(thread), editingWords)
+                    onUpdateRelationship(slug(thread), editedProfile(for: thread))
+                    editingSlug = nil
+                }
+                .font(.caption.weight(.bold))
+                .foregroundStyle(BookPalette.teal)
+                Button("Cancel") { editingSlug = nil }
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.ink.opacity(0.5))
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private func relationshipChoiceTitle(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(BookPalette.ink.opacity(0.52))
+    }
+
+    private func relationshipChip(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(selected ? BookPalette.page : BookPalette.ink.opacity(0.72))
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 6)
+                .background(selected ? BookPalette.teal : BookPalette.paper.opacity(0.7), in: Capsule())
+                .overlay { Capsule().stroke(BookPalette.teal.opacity(selected ? 0 : 0.24), lineWidth: 1) }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func beginEditing(_ thread: PersonThread) {
+        let profile = thread.relationship ?? PersonRelationshipProfile()
+        editingWords = thread.readerWords
+        editingRoles = profile.roles.joined(separator: ", ")
+        editingSettings = Set(profile.settings)
+        editingChannels = Set(profile.channels)
+        editingInterests = profile.sharedInterests.joined(separator: ", ")
+        editingRituals = profile.ordinaryRituals.joined(separator: ", ")
+        editingBoundaries = profile.boundaries.joined(separator: ", ")
+        editingSeason = profile.season
+        editingInvitationPermission = profile.invitationPermission
+        editingSlug = slug(thread)
+    }
+
+    private func editedProfile(for thread: PersonThread) -> PersonRelationshipProfile {
+        PersonRelationshipProfile(
+            roles: splitList(editingRoles),
+            settings: PersonRelationshipSetting.allCases.filter(editingSettings.contains),
+            channels: PersonContactChannel.allCases.filter(editingChannels.contains),
+            sharedInterests: splitList(editingInterests),
+            ordinaryRituals: splitList(editingRituals),
+            boundaries: splitList(editingBoundaries),
+            season: editingSeason,
+            invitationPermission: editingInvitationPermission,
+            contactIdentifier: thread.relationship?.contactIdentifier,
+            evidence: thread.relationship?.evidence ?? []
+        )
+    }
+
+    private func relationshipSummary(_ profile: PersonRelationshipProfile) -> String {
+        var pieces = profile.roles
+        pieces.append(contentsOf: profile.settings.map(\.label))
+        pieces.append(contentsOf: profile.channels.map(\.label))
+        if !profile.sharedInterests.isEmpty {
+            pieces.append("Shares \(profile.sharedInterests.joined(separator: ", "))")
+        }
+        if !profile.ordinaryRituals.isEmpty {
+            pieces.append("Returns through \(profile.ordinaryRituals.joined(separator: ", "))")
+        }
+        if !profile.season.isEmpty { pieces.append(profile.season) }
+        return pieces.joined(separator: " · ")
+    }
+
+    private func splitList(_ text: String) -> [String] {
+        text.components(separatedBy: CharacterSet(charactersIn: ",;\n"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func toggle<T: Hashable>(_ value: T, in set: inout Set<T>) {
+        if set.contains(value) { set.remove(value) } else { set.insert(value) }
     }
 
     private func restingCard(_ thread: PersonThread) -> some View {
@@ -3352,6 +3617,199 @@ struct PeopleOfTheBookSheet: View {
         return formatter.string(from: date)
     }
 }
+
+/// The long-horizon relational binding. It deliberately reads like a book,
+/// not a contact dashboard: chapters are people, entries are attributed
+/// crossings, and public finds retain their source door.
+private struct CompanyYouKeptSheet: View {
+    let ledger: PeopleLedger
+    let days: [BookDay]
+    var now: Date = Date()
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedYear: Int?
+
+    private var availableYears: [Int] {
+        Array(Set(days.flatMap(\.pages).map { Calendar.current.component(.year, from: $0.createdAt) })).sorted(by: >)
+    }
+
+    private var volume: CompanyYouKeptVolume {
+        let scope = selectedYear.map(CompanyYouKeptVolume.Scope.year) ?? .lifetime
+        return PeopleOfTheBook.companyYouKept(ledger: ledger, days: days, scope: scope, now: now)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(volume.title)
+                            .font(.system(.largeTitle, design: .serif, weight: .bold))
+                            .foregroundStyle(BookPalette.nightText)
+                        Text(volume.subtitle)
+                            .font(.system(.headline, design: .serif).italic())
+                            .foregroundStyle(BookPalette.lampGold)
+                        Text(volume.foreword)
+                            .font(.system(.body, design: .serif))
+                            .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                            .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if !availableYears.isEmpty {
+                        Picker("Binding", selection: $selectedYear) {
+                            Text("All years").tag(Int?.none)
+                            ForEach(availableYears, id: \.self) { year in
+                                Text(String(year)).tag(Optional(year))
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+
+                    if volume.chapters.isEmpty {
+                        Text("This year's signatures are still blank. The Book will not pad them with guesses.")
+                            .font(.system(.callout, design: .serif).italic())
+                            .foregroundStyle(BookPalette.nightText.opacity(0.7))
+                    } else {
+                        ForEach(volume.chapters) { chapter in
+                            companyChapter(chapter)
+                        }
+                    }
+
+                    Text(volume.closing)
+                        .font(.system(.title3, design: .serif, weight: .semibold))
+                        .foregroundStyle(BookPalette.nightText)
+                        .lineSpacing(4)
+                        .padding(.vertical, 8)
+
+                    ShareLink(item: volume.shareText) {
+                        Label("Carry out a copy", systemImage: "square.and.arrow.up")
+                            .font(.subheadline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .foregroundStyle(BookPalette.ink)
+                            .background(BookPalette.lampGold, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    }
+                }
+                .padding(20)
+            }
+            .background(BookPalette.nightPanel.ignoresSafeArea())
+            .navigationTitle("Relational Volume")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(BookPalette.lampGold)
+                }
+            }
+        }
+    }
+
+    private func companyChapter(_ chapter: CompanyYouKeptVolume.Chapter) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(chapter.name)
+                .font(.system(.title, design: .serif, weight: .bold))
+                .foregroundStyle(BookPalette.lampGold)
+            if !chapter.readerWords.isEmpty {
+                Text(chapter.readerWords)
+                    .font(.system(.body, design: .serif).italic())
+                    .foregroundStyle(BookPalette.nightText.opacity(0.9))
+            }
+            let context = chapter.roles + chapter.sharedInterests.map { "shared: \($0)" } + chapter.ordinaryRituals
+            if !context.isEmpty {
+                Text(context.joined(separator: " · "))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.teal)
+            }
+            if chapter.entries.isEmpty {
+                Text("Their thread exists. This binding is waiting for lived pages.")
+                    .font(.caption.italic())
+                    .foregroundStyle(BookPalette.nightText.opacity(0.62))
+            } else {
+                ForEach(chapter.entries.suffix(10)) { entry in
+                    companyEntry(entry)
+                }
+            }
+        }
+        .padding(15)
+        .background(BookPalette.ink.opacity(0.24), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.2), lineWidth: 1)
+        }
+    }
+
+    private func companyEntry(_ entry: CompanyYouKeptVolume.Entry) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(entry.authority.label.uppercased())
+                    .font(.caption2.weight(.black))
+                    .tracking(0.6)
+                    .foregroundStyle(entry.authority == .bookOffer ? BookPalette.violet : BookPalette.teal)
+                Spacer()
+                Text(entry.date.formatted(date: .abbreviated, time: .omitted))
+                    .font(.caption2)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.5))
+            }
+            Text(entry.title)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(BookPalette.nightText)
+            Text(entry.text)
+                .font(.system(.callout, design: .serif))
+                .foregroundStyle(BookPalette.nightText.opacity(0.82))
+                .fixedSize(horizontal: false, vertical: true)
+            if let reference = entry.externalReference,
+               let url = URL(string: reference.url) {
+                Link(destination: url) {
+                    Label("\(reference.sourceName) — open source", systemImage: "arrow.up.right.square")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.lampGold)
+                }
+            }
+        }
+        .padding(.vertical, 5)
+    }
+}
+
+#if os(iOS) && canImport(Contacts) && canImport(ContactsUI)
+/// A deliberately narrow Contacts door. `CNContactPickerViewController` gives
+/// the app only the person's final selection and does not require broad address
+/// book permission; the Book stores the chosen local identifier as a bridge.
+private struct PeopleContactPicker: UIViewControllerRepresentable {
+    var onSelect: (String, String) -> Void
+    var onCancel: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+
+    func makeUIViewController(context: Context) -> CNContactPickerViewController {
+        let picker = CNContactPickerViewController()
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: CNContactPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, CNContactPickerDelegate {
+        let parent: PeopleContactPicker
+        init(parent: PeopleContactPicker) { self.parent = parent }
+
+        func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
+            let formatted = CNContactFormatter.string(from: contact, style: .fullName)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let fallback = [contact.givenName, contact.familyName]
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+            let name = formatted?.nonEmpty ?? fallback
+            guard !name.isEmpty else { parent.onCancel(); return }
+            parent.onSelect(name, contact.identifier)
+        }
+
+        func contactPickerDidCancel(_ picker: CNContactPickerViewController) {
+            parent.onCancel()
+        }
+    }
+}
+#endif
 
 /// The reader rules a contested reading: two Talismans read one real kept page
 /// through opposite philosophies, and the reader decides which is true. Presented

@@ -3166,11 +3166,15 @@ struct UnwrittenElective: Codable, Identifiable, Equatable {
     var targetLatitude: Double? = nil
     var targetLongitude: Double? = nil
     var targetRadiusMeters: Double? = nil
+    /// Present only when the quest is a favor asked by the Book itself. This
+    /// lets the favor's promise resolve from the same proof Page as every other
+    /// flyleaf quest without inventing a parallel quest system.
+    var bookFavorID: String? = nil
 
     var isActive: Bool { completedAt == nil }
 
     static let maxActive = 5
-    static let completionBeliefReward = 4
+    static let completionBeliefReward = BeliefEconomyPolicy.electiveCompletionReward
 }
 
 struct AcademySession: Equatable {
@@ -3349,13 +3353,13 @@ enum AcademyActivityRegistry {
         ),
         "book-jumpers": AcademyActivity(
             id: "book-jumpers-door-protocol", sessionID: "book-jumpers", kind: .doorProtocol,
-            title: "Argue About the Door",
-            invitation: "The club needs one shared definition of door, landing, and return before anybody jumps.",
+            title: "Choose a Spine, Then a Door",
+            invitation: "The club chooses one book from the public stacks, then agrees on its door, landing, and return before anybody jumps.",
             actionTitle: "Put it to the group",
             fields: [
-                .init(id: "door", label: "What counts as the door?", placeholder: "The exact threshold"),
-                .init(id: "landing", label: "Where do you land?", placeholder: "The first safe beat inside"),
-                .init(id: "return", label: "What brings you back?", placeholder: "The return shadow")
+                .init(id: "door", label: "What counts as this book's door?", placeholder: "The exact threshold in the chosen story"),
+                .init(id: "landing", label: "Where do you land in it?", placeholder: "The first safe beat inside the chosen book"),
+                .init(id: "return", label: "What brings everyone back?", placeholder: "The chosen book's return shadow")
             ]
         )
     ]
@@ -3716,17 +3720,18 @@ enum AcademyScheduleRegistry {
         "book-jumpers": AcademyLessonModule(
             id: "book-jumpers-landing-001",
             sessionID: "book-jumpers",
-            title: "Argue About the Door First",
+            title: "Choose the Spine, Then Argue About the Door",
             realSubject: "collaborative planning, genre safety, and controlled imaginative play",
-            concept: "A group jump is safest when everyone agrees what counts as the door, the landing, and the exit before wonder begins.",
+            concept: "A group jump begins with one chosen book and is safest when everyone agrees what counts as its door, landing, and exit before wonder begins.",
             lectureBeats: [
+                "Choose one book; a jump cannot aim at the whole library.",
                 "Excitement is not a landing protocol.",
                 "Every participant needs the same doorway definition.",
                 "A good exit is boring enough to work under pressure."
             ],
-            demonstration: "Professor Permancer lets the club argue over three possible doors until Zara identifies the one with a return shadow.",
-            interactionPrompt: "Choose which doorway has the clearest exit and defend it with evidence.",
-            realWorldPractice: "Before entering any immersive story today, name the door, the landing, and the exit in one line."
+            demonstration: "Professor Permancer makes the club choose one spine from a crowded table, then lets them argue over three possible doors until Zara identifies the one with a return shadow.",
+            interactionPrompt: "Choose the book first, then choose which doorway has the clearest exit and defend it with evidence.",
+            realWorldPractice: "Before entering any immersive story today, name the book, the door, the landing, and the exit in one line."
         )
     ]
 
@@ -7881,6 +7886,8 @@ struct BookGreetingContext: Equatable {
     var keptPageCount: Int
     var quietDays: Int
     var seed: Int
+    var relationship: BookRelationshipSnapshot
+    var interior: BookInteriorState
 
     init(
         name: String,
@@ -7888,7 +7895,9 @@ struct BookGreetingContext: Equatable {
         recentKeptLines: [String] = [],
         keptPageCount: Int = 0,
         quietDays: Int = 0,
-        seed: Int = 0
+        seed: Int = 0,
+        relationship: BookRelationshipSnapshot = .firstOpening,
+        interior: BookInteriorState = .unawakened
     ) {
         self.name = name
         self.rememberedFactLines = rememberedFactLines
@@ -7896,6 +7905,8 @@ struct BookGreetingContext: Equatable {
         self.keptPageCount = keptPageCount
         self.quietDays = quietDays
         self.seed = seed
+        self.relationship = relationship
+        self.interior = interior
     }
 }
 
@@ -7927,6 +7938,8 @@ struct WorldChargeContext: Equatable {
     var relationshipLine: String?
     var beliefMovementLine: String?
     var readerBelief: Int
+    var bookRelationship: BookRelationshipSnapshot
+    var bookInterior: BookInteriorState
 
     init(
         keptToday: Int = 0,
@@ -7950,7 +7963,9 @@ struct WorldChargeContext: Equatable {
         castActionLine: String? = nil,
         relationshipLine: String? = nil,
         beliefMovementLine: String? = nil,
-        readerBelief: Int = 0
+        readerBelief: Int = 0,
+        bookRelationship: BookRelationshipSnapshot = .firstOpening,
+        bookInterior: BookInteriorState = .unawakened
     ) {
         self.keptToday = keptToday
         self.availablePages = availablePages
@@ -7974,6 +7989,8 @@ struct WorldChargeContext: Equatable {
         self.relationshipLine = relationshipLine
         self.beliefMovementLine = beliefMovementLine
         self.readerBelief = readerBelief
+        self.bookRelationship = bookRelationship
+        self.bookInterior = bookInterior
     }
 }
 
@@ -7990,6 +8007,12 @@ struct BookOpenVoice: Equatable {
 
 enum WorldChargeComposer {
     static func compose(_ context: WorldChargeContext) -> String {
+        if let interiorLine = BookInteriorVoice.homeLine(for: context.bookInterior, seed: context.seed) {
+            return interiorLine
+        }
+        if let relationshipLine = BookRelationshipVoice.openingLine(for: context.bookRelationship) {
+            return relationshipLine
+        }
         let liveLines = [
             context.celebrationTitle?.nonEmpty.map { "The Wheel is keeping \($0). Let one ordinary thing answer it." },
             context.relationshipLine?.nonEmpty.map { "The Loom moved: \($0.bookPreviewSentenceLimit(1))" },
@@ -8108,6 +8131,22 @@ enum BookOpenVoiceComposer {
             "Attention is the only ink the Book accepts.",
             "Wonder is a practice, not a weather."
         ]
+        switch context.bookRelationship.stance {
+        case .contrite:
+            lines.insert("A pencil with an eraser is wiser than ink that pretends.", at: 0)
+        case .protective:
+            lines.insert("A boundary is also a kind of binding.", at: 0)
+        case .mischievous:
+            lines.insert("The index is useful and therefore must never hear everything.", at: 0)
+        case .hushed:
+            lines.insert("Some Pages prefer the lamp turned low.", at: 0)
+        case .intent:
+            lines.insert("A returning thread can tug without raising its voice.", at: 0)
+        case .pleased:
+            lines.insert("A correct guess should still sit quietly.", at: 0)
+        case .curious:
+            break
+        }
         if context.relationshipLine?.nonEmpty != nil {
             lines.append("The Loom is never still, only quiet from this side.")
         }
@@ -8130,6 +8169,10 @@ enum BookOpenVoiceComposer {
     }
 
     private static func factLine(for context: WorldChargeContext) -> String {
+        if context.bookRelationship.hasBeenTaught,
+           let firstRule = context.bookRelationship.taughtRules.first {
+            return firstRule.line
+        }
         if let relationship = context.relationshipLine?.nonEmpty {
             return relationship.bookPreviewSentenceLimit(1)
         }
@@ -8177,6 +8220,22 @@ enum BookOpenVoiceComposer {
     }
 
     private static func quip(for context: WorldChargeContext) -> String {
+        switch context.bookRelationship.stance {
+        case .contrite:
+            return "The eraser has requested a seat at the editorial table. Fair."
+        case .protective:
+            return "The Book has locked one door and left six windows open."
+        case .mischievous:
+            return "The index has filed an objection. It was alphabetized beautifully."
+        case .hushed:
+            return "Even the footnotes have taken their shoes off."
+        case .intent:
+            return "A thread is moving. The Book is pretending not to stare."
+        case .pleased:
+            return "The Book is not looking smug. This is a typographical illusion."
+        case .curious:
+            break
+        }
         if context.greyLevel >= 2 {
             return "The grey has been asked to wait outside. It is doing a poor job."
         }
@@ -8214,6 +8273,15 @@ enum BookOpenVoiceComposer {
     }
 
     private static func knockLine(for context: WorldChargeContext) -> String {
+        if let interiorLine = BookInteriorVoice.knockLine(for: context.bookInterior, seed: context.seed) {
+            return interiorLine
+        }
+        if context.bookRelationship != .firstOpening {
+            return BookRelationshipVoice.knockLine(
+                for: context.bookRelationship,
+                seed: context.seed
+            )
+        }
         if let talisman = context.ascendantTalismanName?.nonEmpty, context.seed % 4 == 0 {
             return "\(talisman) knocks back from inside the binding."
         }
@@ -8245,14 +8313,18 @@ enum BookGreetingComposer {
         "Hello, {name} — I'm so glad you're back.",
         "Welcome back, {name}.",
         "There you are, {name}. The Book kept your place.",
-        "{name}. The ink missed you.",
+        "{name}. The ink kept its place for you.",
         "Back again, {name}? Good.",
         "Oh — {name}. Right on time."
     ]
 
     static func compose(_ context: BookGreetingContext) -> BookGreeting {
         let name = context.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "friend" : context.name
-        let opener = openers[abs(context.seed) % openers.count]
+        let opener = BookRelationshipVoice.greetingOpener(
+            name: name,
+            relationship: context.relationship,
+            seed: context.seed
+        ) ?? openers[abs(context.seed) % openers.count]
             .replacingOccurrences(of: "{name}", with: name)
 
         let lines = rememberedLines(for: context)
@@ -8262,6 +8334,12 @@ enum BookGreetingComposer {
 
     private static func rememberedLines(for context: BookGreetingContext) -> [String] {
         var lines: [String] = []
+        if let interiorLine = BookInteriorVoice.homeLine(for: context.interior, seed: context.seed) {
+            lines.append(interiorLine)
+        }
+        if let relationshipLine = BookRelationshipVoice.openingLine(for: context.relationship) {
+            lines.append(relationshipLine)
+        }
         lines.append(contentsOf: context.recentKeptLines.compactMap { line in
             line.nonEmpty.map { "I remember this from your margins: \"\($0.bookPreviewSentenceLimit(1))\"" }
         })
@@ -8404,6 +8482,117 @@ struct BeliefEconomyDailyResult: Equatable {
     }
 }
 
+/// A deliberate request for the local scribe to turn a waiting possibility into
+/// fiction. Costs belong to the whole readable experience, never to individual
+/// model calls inside a Story Page or parley.
+enum BeliefGenerationKind: String, Codable, CaseIterable, Equatable {
+    case storyPage
+    case letter
+    case note
+    case faeParley
+    case gossip
+    case enchantment
+
+    var cost: Int {
+        switch self {
+        case .storyPage: return 5
+        case .letter: return 3
+        case .note: return 1
+        case .faeParley: return 6
+        case .gossip: return 2
+        case .enchantment: return 4
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .storyPage: return "Story Page"
+        case .letter: return "Letter"
+        case .note: return "Note"
+        case .faeParley: return "Fae Parley"
+        case .gossip: return "Gossip Page"
+        case .enchantment: return "Enchantment"
+        }
+    }
+}
+
+/// The reader's wallet policy. Page-source and entity Glow remain separate:
+/// keeping any Page can still teach the curator what the reader wants more of,
+/// even when that keep does not mint spendable Belief.
+enum BeliefEconomyPolicy {
+    static let compassRunReward = 6
+    static let electiveCompletionReward = 3
+
+    static let generationPaidKey = "beliefGenerationPaid"
+    static let generationKindKey = "beliefGenerationKind"
+    static let generationCostKey = "beliefGenerationCost"
+
+    static func generationKind(for surface: SurfacePage) -> BeliefGenerationKind? {
+        let metadata = surface.payload.metadata
+        guard metadata[generationPaidKey] != "true" else { return nil }
+
+        switch surface.type {
+        case .narrativeOS:
+            return metadata["storyScene"]?.nonEmpty == nil ? .storyPage : nil
+        case .letter:
+            return metadata["letterProse"]?.nonEmpty == nil ? .letter : nil
+        case .note:
+            return metadata["noteProse"]?.nonEmpty == nil ? .note : nil
+        case .bookFae:
+            return metadata["storyScene"]?.nonEmpty == nil ? .faeParley : nil
+        case .gossip:
+            return metadata["gossipProse"]?.nonEmpty == nil ? .gossip : nil
+        default:
+            return nil
+        }
+    }
+
+    /// Belief comes from attending to actuality: keeping an outward observation,
+    /// answering a real question, or reading a reflective/nonfiction Page closely
+    /// enough to keep it. Fiction, ceremonies, simulated politics, and utilities
+    /// remain wallet-neutral.
+    static func keepReward(for surface: SurfacePage) -> Int {
+        if surface.payload.metadata["noBeliefReward"] == "true" { return 0 }
+
+        switch surface.type {
+        case .mood, .diary, .souvenir, .body, .fuel, .weather, .todaysSky,
+             .location, .rest, .plainPage, .aboutYou, .wonderCompass,
+             .pactErrand, .illuminatedPhoto, .quotes, .quip, .calendar,
+             .askTheBook, .inkrestOfficeHours, .facultyResearch, .supportGuild,
+             .bookConnections, .bookRemembered, .bookNotices, .marginsAtlas,
+             .bookPocket:
+            return 1
+        default:
+            return 0
+        }
+    }
+}
+
+extension SurfacePage {
+    func recordingBeliefGenerationPayment(_ kind: BeliefGenerationKind) -> SurfacePage {
+        var metadata = payload.metadata
+        metadata[BeliefEconomyPolicy.generationPaidKey] = "true"
+        metadata[BeliefEconomyPolicy.generationKindKey] = kind.rawValue
+        metadata[BeliefEconomyPolicy.generationCostKey] = "\(kind.cost)"
+        return SurfacePage(
+            id: id,
+            type: type,
+            sourceID: sourceID,
+            intent: intent,
+            renderStyle: renderStyle,
+            score: score,
+            reason: reason,
+            prompt: prompt,
+            detail: detail,
+            payload: BookPagePayload(
+                headline: payload.headline,
+                body: payload.body,
+                metadata: metadata
+            )
+        )
+    }
+}
+
 enum BeliefEconomyEngine {
     static let sourceKeepCeiling = 75
     static let pageGlowSettleFloor = 22
@@ -8430,7 +8619,6 @@ enum BeliefEconomyEngine {
         let yesterday = calendar.date(byAdding: .day, value: -1, to: context.now) ?? context.now.addingTimeInterval(-86_400)
         let yesterdayID = BookDay.id(for: yesterday)
         let yesterdayPages = context.days.first { $0.id == yesterdayID }?.pages ?? []
-        let keptYesterday = yesterdayPages.count
         let recentPages = context.days.suffix(7).flatMap(\.pages)
         let recentSourceIDs = Set(recentPages.map(\.sourceID))
         let recentlyTouchedEntityIDs = touchedEntityIDs(events: context.events, since: context.now.addingTimeInterval(-14 * 86_400))
@@ -8448,32 +8636,12 @@ enum BeliefEconomyEngine {
             }
             .prefix(2)
 
-        if keptYesterday > 0, context.readerBelief < 70 {
+        let noticedOutward = yesterdayPages.contains {
+            $0.type.pointsOutward || $0.origin == .userAuthored
+        }
+        if noticedOutward, context.readerBelief < 5 {
             readerDelta += 1
-            let noticedOutward = yesterdayPages.contains {
-                $0.type.pointsOutward || !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            }
-            let note = noticedOutward ? "Your noticing fed the Glow." : "The Book banked a quiet ember."
-            movements.append(movement(.reader, id: "the-reader", name: "You", delta: 1, reason: .dailyTide, now: context.now, note: note))
-        } else if keptYesterday == 0, context.readerBelief < 35 {
-            readerDelta += 1
-            movements.append(movement(.reader, id: "the-reader", name: "You", delta: 1, reason: .dailyTide, now: context.now, note: "The Book set one match beside the margin."))
-        } else if context.readerBelief > readerSoftCeiling {
-            let delta: Int
-            switch context.readerBelief {
-            case 90...: delta = -4
-            case 82...: delta = -2
-            default: delta = -1
-            }
-            readerDelta += delta
-            if let catcher = tideCandidates.first {
-                let caught = min(abs(delta), 2)
-                entityDeltas[catcher.id, default: 0] += caught
-                movements.append(movement(.reader, id: "the-reader", name: "You", delta: delta, reason: .highGlowSettled, now: context.now, note: "Unspent Glow overflowed — the paper cannot hold more than a life spends."))
-                movements.append(movement(.entity, id: catcher.id, name: catcher.name, delta: caught, reason: .dailyTide, now: context.now, note: "\(catcher.name) caught your overflowing light."))
-            } else {
-                movements.append(movement(.reader, id: "the-reader", name: "You", delta: delta, reason: .highGlowSettled, now: context.now, note: "Excess Glow settled back into the paper overnight."))
-            }
+            movements.append(movement(.reader, id: "the-reader", name: "You", delta: 1, reason: .dailyTide, now: context.now, note: "Yesterday's real noticing left one last ember in the margin."))
         }
 
         for entity in tideCandidates {
@@ -8679,6 +8847,10 @@ enum KeepMarginalia {
         /// A quiet daytime cue that today's keeps are gathering toward tonight's
         /// braid — anticipation for the Book of You, not a progress meter.
         var braidThreadLine: String? = nil
+        /// The small, factual receipt folded into the existing character popup.
+        /// These lines explain what the Keep changed without opening a second
+        /// results surface or turning the moment into an XP screen.
+        var consequenceLines: [String] = []
         var rejoinderName: String? = nil
         var rejoinderAsset: String? = nil
         var rejoinderLine: String? = nil
@@ -9088,30 +9260,59 @@ enum KeepMarginalia {
     /// keep of the day (nothing to gather yet) and once the braid is already
     /// available in the evening (the ember and the braid card take over). The
     /// count is how many pages were kept earlier today, before this one.
-    static func braidGatheringLine(keptEarlierToday: Int, now: Date = Date()) -> String? {
+    static func braidGatheringLine(
+        keptEarlierToday: Int,
+        currentInput: String = "",
+        now: Date = Date()
+    ) -> String? {
         guard keptEarlierToday >= 1 else { return nil }
         guard !BookSchedule.isBraidSurfaceTime(now) else { return nil }
         let threadsNow = keptEarlierToday + 1
+        let namedThread = featuredWord(in: currentInput).map { "the \($0)" }
         let options: [String]
         switch threadsNow {
         case 2:
-            options = [
-                "That's two threads today. Tonight I braid them together.",
-                "Two now. I'm keeping them side by side for this evening's braid.",
-                "Second thread caught. The Book of You is starting to gather."
-            ]
+            if let namedThread {
+                options = [
+                    "That makes two threads today. I\u{2019}m keeping \(namedThread) beside the first for tonight.",
+                    "\(namedThread.capitalized) makes two. I\u{2019}ll braid them together this evening.",
+                    "Second thread caught: \(namedThread). The Book of You is starting to gather."
+                ]
+            } else {
+                options = [
+                    "That's two threads today. Tonight I braid them together.",
+                    "Two now. I'm keeping them side by side for this evening's braid.",
+                    "Second thread caught. The Book of You is starting to gather."
+                ]
+            }
         case 3:
-            options = [
-                "Three threads now — enough for a strong braid tonight.",
-                "That's three. Tonight's Book of You will have real weight.",
-                "Third thread. The braid is going to hold beautifully this evening."
-            ]
+            if let namedThread {
+                options = [
+                    "\(namedThread.capitalized) makes three threads now \u{2014} enough for a strong braid tonight.",
+                    "That\u{2019}s three, with \(namedThread) among them. Tonight\u{2019}s Book of You will have real weight.",
+                    "Third thread: \(namedThread). The braid is going to hold beautifully this evening."
+                ]
+            } else {
+                options = [
+                    "Three threads now — enough for a strong braid tonight.",
+                    "That's three. Tonight's Book of You will have real weight.",
+                    "Third thread. The braid is going to hold beautifully this evening."
+                ]
+            }
         default:
-            options = [
-                "That's \(threadsNow) threads gathered for tonight's braid.",
-                "\(threadsNow) now. The Book of You is getting richer by the hour.",
-                "Another thread for the evening braid — \(threadsNow) and counting."
-            ]
+            if let namedThread {
+                options = [
+                    "\(namedThread.capitalized) joins \(threadsNow) threads gathered for tonight\u{2019}s braid.",
+                    "\(threadsNow) now, including \(namedThread). The Book of You is getting richer by the hour.",
+                    "Another thread for the evening braid \u{2014} \(namedThread), and \(threadsNow) in all."
+                ]
+            } else {
+                options = [
+                    "That's \(threadsNow) threads gathered for tonight's braid.",
+                    "\(threadsNow) now. The Book of You is getting richer by the hour.",
+                    "Another thread for the evening braid — \(threadsNow) and counting."
+                ]
+            }
         }
         let index = Int(seed(for: "braid-gathering-\(threadsNow)") % UInt64(options.count))
         return options[index]
@@ -9193,6 +9394,34 @@ enum KeepMarginalia {
     }
 }
 
+/// Plain consequences for a Keep, written to sit underneath the cast's reply.
+/// The character supplies delight; this supplies causal clarity. It remains a
+/// pure shared-core formatter so the receipt can be pinned by focused tests.
+enum KeepConsequenceReceipt {
+    static func lines(
+        beliefDelta: Int,
+        firstReadingAwakened: Bool,
+        keepsakeLine: String? = nil
+    ) -> [String] {
+        var lines = ["This Page is safely inside your Book now."]
+
+        if firstReadingAwakened {
+            lines.append("The Book has enough of your own pages to begin its First Reading.")
+        } else if let keepsakeLine = keepsakeLine?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !keepsakeLine.isEmpty {
+            lines.append(keepsakeLine)
+        }
+
+        if beliefDelta > 0 {
+            lines.append("Your attention kindled \(beliefDelta) Belief.")
+        } else if beliefDelta < 0 {
+            lines.append("\(abs(beliefDelta)) Belief crossed the threshold with this Page.")
+        }
+
+        return Array(lines.prefix(3))
+    }
+}
+
 /// The visible tick when a kept page warms a cast member's Belief — cause and
 /// effect on the relationship layer, at the moment of the cause.
 enum BeliefRipple {
@@ -9227,6 +9456,206 @@ enum BeliefRipple {
 // thread on its own, and a declined name rests permanently unless the reader
 // changes their mind.
 
+/// Where a real relationship ordinarily happens. These are affordances for
+/// attention, not a ranking of importance: a shared home wants different play
+/// than a work friendship or a person known mostly through messages.
+enum PersonRelationshipSetting: String, Codable, CaseIterable, Equatable, Hashable {
+    case sharedHome
+    case family
+    case friendship
+    case work
+    case neighborhood
+    case community
+    case online
+    case elsewhere
+
+    var label: String {
+        switch self {
+        case .sharedHome: return "Shared home"
+        case .family: return "Family life"
+        case .friendship: return "Friendship"
+        case .work: return "Work"
+        case .neighborhood: return "Neighborhood"
+        case .community: return "Community"
+        case .online: return "Online community"
+        case .elsewhere: return "Somewhere else"
+        }
+    }
+}
+
+/// The ordinary channel of a relationship. A person can have several; their
+/// combination matters more than any single label.
+enum PersonContactChannel: String, Codable, CaseIterable, Equatable, Hashable {
+    case together
+    case text
+    case phone
+    case video
+    case onlinePosts
+    case letters
+    case occasional
+
+    var label: String {
+        switch self {
+        case .together: return "Usually together"
+        case .text: return "Text"
+        case .phone: return "Phone"
+        case .video: return "Video calls"
+        case .onlinePosts: return "Online posts"
+        case .letters: return "Letters"
+        case .occasional: return "Occasional meetings"
+        }
+    }
+}
+
+/// How freely the Book may turn its knowledge of a relationship into favors.
+/// Witness-only is a hard boundary: the thread can still be remembered, but
+/// never becomes an instruction to contact, repair, or deepen the relationship.
+enum PersonInvitationPermission: String, Codable, CaseIterable, Equatable, Hashable {
+    case playful
+    case gentle
+    case witnessOnly
+
+    var label: String {
+        switch self {
+        case .playful: return "Invite play"
+        case .gentle: return "Tread gently"
+        case .witnessOnly: return "Witness only"
+        }
+    }
+}
+
+enum PersonRelationshipEvidenceKind: String, Codable, Equatable {
+    case role
+    case setting
+    case channel
+    case sharedInterest
+    case ordinaryRitual
+    case boundary
+    case season
+}
+
+enum PersonRelationshipEvidenceSource: String, Codable, Equatable {
+    case readerConfirmed
+    case readerAuthored
+    case bookInference
+    case bookOffered
+}
+
+/// One attributable relationship fact. Inferences may eventually arrive here,
+/// but must remain visibly different from facts the reader confirmed.
+struct PersonRelationshipEvidence: Identifiable, Codable, Equatable {
+    var id: String
+    var kind: PersonRelationshipEvidenceKind
+    var value: String
+    var source: PersonRelationshipEvidenceSource
+    var recordedDay: String
+}
+
+/// The changing shape of one relationship. No closeness score belongs here.
+/// The purpose of this profile is to make the Book's invitations fitting: home
+/// play at home, asynchronous play across text, work-safe curiosity at work.
+struct PersonRelationshipProfile: Codable, Equatable {
+    var roles: [String] = []
+    var settings: [PersonRelationshipSetting] = []
+    var channels: [PersonContactChannel] = []
+    var sharedInterests: [String] = []
+    var ordinaryRituals: [String] = []
+    var boundaries: [String] = []
+    var season: String = ""
+    var invitationPermission: PersonInvitationPermission = .playful
+    /// An optional local bridge to a contact the reader deliberately selected.
+    /// The Book's own person id remains authoritative if Contacts later merges
+    /// or changes that record.
+    var contactIdentifier: String?
+    var evidence: [PersonRelationshipEvidence] = []
+
+    var isEmpty: Bool {
+        roles.isEmpty && settings.isEmpty && channels.isEmpty &&
+            sharedInterests.isEmpty && ordinaryRituals.isEmpty &&
+            boundaries.isEmpty && season.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            contactIdentifier == nil
+    }
+}
+
+/// The real-life side of the Book's knowledge graph. This is deliberately not
+/// `NarrativeRelationshipEdge`: real people do not acquire simulated warmth,
+/// tension, or trust scores. The graph can share the Atlas renderer while its
+/// nodes, edges, and provenance remain in a separate factual realm.
+enum LifeKnowledgeNodeKind: String, Codable, Equatable {
+    case reader
+    case person
+    case role
+    case setting
+    case channel
+    case interest
+    case ritual
+    case boundary
+    case season
+    case page
+    case place
+    case event
+    case community
+    case artifact
+    case theme
+}
+
+struct LifeKnowledgeNode: Identifiable, Codable, Equatable {
+    var id: String
+    var label: String
+    var kind: LifeKnowledgeNodeKind
+}
+
+struct LifeKnowledgeEdge: Identifiable, Codable, Equatable {
+    var id: String
+    var sourceID: String
+    var targetID: String
+    var label: String
+    var provenance: PersonRelationshipEvidenceSource
+    var evidenceID: String?
+    var recordedDay: String
+}
+
+struct LifeKnowledgeGraph: Codable, Equatable {
+    var nodes: [LifeKnowledgeNode]
+    var edges: [LifeKnowledgeEdge]
+
+    static let empty = LifeKnowledgeGraph(nodes: [], edges: [])
+
+    /// Reuses the existing deterministic Atlas layout without leaking the
+    /// fictional relationship simulation into factual people. Weight here is
+    /// modest visual hierarchy by node type, never importance or closeness.
+    var atlasGraph: NarrativeGraphData {
+        let degree = Dictionary(grouping: edges.flatMap { [$0.sourceID, $0.targetID] }, by: { $0 })
+            .mapValues(\.count)
+        let graphNodes = nodes.map { node in
+            let base: Double
+            switch node.kind {
+            case .reader: base = 28
+            case .person: base = 21
+            default: base = 10
+            }
+            return GraphNode(
+                id: node.id,
+                label: node.label,
+                weight: base + Double(min(8, degree[node.id] ?? 0)),
+                chapterID: nil,
+                kindLabel: node.kind.rawValue
+            )
+        }
+        let graphEdges = edges.map { edge in
+            GraphEdge(
+                id: edge.id,
+                sourceID: edge.sourceID,
+                targetID: edge.targetID,
+                strength: edge.provenance == .readerConfirmed ? 0.72 : 0.42,
+                warmth: 0,
+                label: edge.label
+            )
+        }
+        return NarrativeGraphData(nodes: graphNodes, edges: graphEdges)
+    }
+}
+
 /// One real person the reader has confirmed into the Book's keeping.
 struct PersonThread: Identifiable, Codable, Equatable {
     var id: String                 // "person:<slug>"
@@ -9242,6 +9671,9 @@ struct PersonThread: Identifiable, Codable, Equatable {
     /// linked custom cast member. The crossing is always the reader's act.
     var castMemberID: String?
     var invitedDay: String?        // when the reader opened that door
+    /// Reader-confirmed relationship context. Optional keeps every existing
+    /// vault decodable without pretending the Book already knows these things.
+    var relationship: PersonRelationshipProfile? = nil
 }
 
 /// The reader's people ledger: confirmed threads plus names the reader has
@@ -9599,6 +10031,796 @@ enum PeopleOfTheBook {
 
 // MARK: - The Pre-Meeting Charge
 //
+// MARK: Relationship ecology and ordinary-life play
+
+extension PeopleOfTheBook {
+    enum InvitationFamily: String, Equatable {
+        case sharedHome
+        case asynchronous
+        case workAndInterest
+        case work
+        case community
+        case sharedInterest
+        case gentle
+        case general
+    }
+
+    struct RelationshipInvitation: Equatable {
+        var id: String
+        var personID: String
+        var personName: String
+        var family: InvitationFamily
+        var title: String
+        var body: String
+        var keepPrompt: String
+        var tags: [String]
+    }
+
+    struct RelationshipHypothesis: Equatable {
+        enum Kind: String, Equatable {
+            case role
+            case setting
+            case channel
+            case sharedInterest
+        }
+
+        var id: String
+        var personID: String
+        var personName: String
+        var kind: Kind
+        /// Enum raw value for setting/channel; reader-facing text otherwise.
+        var value: String
+        var displayValue: String
+        var question: String
+        var evidencePageIDs: [String]
+        var evidenceQuote: String
+    }
+
+    private struct InvitationTemplate {
+        var id: String
+        var title: (String, String?) -> String
+        var body: (String, String?) -> String
+        var proof: (String, String?) -> String
+    }
+
+    /// Cleans and attributes a profile saved by the reader. This deliberately
+    /// converts the visible active facts to reader-confirmed evidence; a future
+    /// inference path must use `.bookInference` and ask before calling this.
+    static func readerConfirmedProfile(
+        _ proposed: PersonRelationshipProfile,
+        onDay dayID: String
+    ) -> PersonRelationshipProfile {
+        var profile = proposed
+        profile.roles = cleaned(proposed.roles)
+        profile.settings = unique(proposed.settings)
+        profile.channels = unique(proposed.channels)
+        profile.sharedInterests = cleaned(proposed.sharedInterests)
+        profile.ordinaryRituals = cleaned(proposed.ordinaryRituals)
+        profile.boundaries = cleaned(proposed.boundaries)
+        profile.season = proposed.season.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var evidence: [PersonRelationshipEvidence] = []
+        func append(_ kind: PersonRelationshipEvidenceKind, _ value: String) {
+            let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty else { return }
+            evidence.append(
+                PersonRelationshipEvidence(
+                    id: "\(kind.rawValue):\(normalized.lowercased().stableHash)",
+                    kind: kind,
+                    value: normalized,
+                    source: .readerConfirmed,
+                    recordedDay: dayID
+                )
+            )
+        }
+        profile.roles.forEach { append(.role, $0) }
+        profile.settings.forEach { append(.setting, $0.label) }
+        profile.channels.forEach { append(.channel, $0.label) }
+        profile.sharedInterests.forEach { append(.sharedInterest, $0) }
+        profile.ordinaryRituals.forEach { append(.ordinaryRitual, $0) }
+        profile.boundaries.forEach { append(.boundary, $0) }
+        append(.season, profile.season)
+        profile.evidence = evidence
+        return profile
+    }
+
+    /// Builds the factual human constellation as a derived graph. Shared
+    /// interests, settings, and rituals become common nodes, so two people can
+    /// visibly meet through "AI", "the studio", or "Sunday dinner" without the
+    /// Book inventing a direct relationship between them.
+    static func knowledgeGraph(ledger: PeopleLedger, days: [BookDay] = []) -> LifeKnowledgeGraph {
+        var nodes: [String: LifeKnowledgeNode] = [
+            "life:reader": LifeKnowledgeNode(id: "life:reader", label: "You", kind: .reader)
+        ]
+        var edges: [LifeKnowledgeEdge] = []
+        let graphPages = Dictionary(
+            authoredPages(in: days).map { ($0.id, $0) },
+            uniquingKeysWith: { _, newer in newer }
+        ).values
+        let receiptPages = Dictionary(
+            days.flatMap(\.pages)
+                .filter { $0.relationshipReceipt != nil }
+                .map { ($0.id, $0) },
+            uniquingKeysWith: { _, newer in newer }
+        ).values
+
+        for thread in ledger.threads where !thread.resting {
+            nodes[thread.id] = LifeKnowledgeNode(id: thread.id, label: thread.name, kind: .person)
+            let profile = thread.relationship ?? PersonRelationshipProfile()
+            let readerLabel = profile.roles.first?.nonEmpty ?? "in your book"
+            edges.append(
+                LifeKnowledgeEdge(
+                    id: "life-edge:reader:\(thread.id)",
+                    sourceID: "life:reader",
+                    targetID: thread.id,
+                    label: readerLabel,
+                    provenance: .readerConfirmed,
+                    evidenceID: profile.evidence.first(where: { $0.kind == .role })?.id,
+                    recordedDay: thread.introducedDay
+                )
+            )
+
+            func attach(
+                _ value: String,
+                kind: LifeKnowledgeNodeKind,
+                evidenceKind: PersonRelationshipEvidenceKind,
+                label: String
+            ) {
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return }
+                let token = slug(for: trimmed).nonEmpty ?? String(trimmed.lowercased().stableHash)
+                let nodeID = "life:\(kind.rawValue):\(token)"
+                nodes[nodeID] = LifeKnowledgeNode(id: nodeID, label: trimmed, kind: kind)
+                let evidence = profile.evidence.first {
+                    $0.kind == evidenceKind && $0.value.caseInsensitiveCompare(trimmed) == .orderedSame
+                }
+                edges.append(
+                    LifeKnowledgeEdge(
+                        id: "life-edge:\(thread.id):\(kind.rawValue):\(token)",
+                        sourceID: thread.id,
+                        targetID: nodeID,
+                        label: label,
+                        provenance: evidence?.source ?? .readerConfirmed,
+                        evidenceID: evidence?.id,
+                        recordedDay: evidence?.recordedDay ?? thread.introducedDay
+                    )
+                )
+            }
+
+            profile.roles.forEach { attach($0, kind: .role, evidenceKind: .role, label: "is your") }
+            profile.settings.forEach { attach($0.label, kind: .setting, evidenceKind: .setting, label: "usually in") }
+            profile.channels.forEach { attach($0.label, kind: .channel, evidenceKind: .channel, label: "usually by") }
+            profile.sharedInterests.forEach { attach($0, kind: .interest, evidenceKind: .sharedInterest, label: "shares") }
+            profile.ordinaryRituals.forEach { attach($0, kind: .ritual, evidenceKind: .ordinaryRitual, label: "returns through") }
+            profile.boundaries.forEach { attach($0, kind: .boundary, evidenceKind: .boundary, label: "respects") }
+            attach(profile.season, kind: .season, evidenceKind: .season, label: "now in")
+
+            // A small receipt-bearing bridge into the existing archive graph.
+            // Shared pages naturally connect two people without asserting they
+            // know one another, and the cap keeps the Atlas legible.
+            let mentioningPages = graphPages
+                .filter { containsWholeWord(thread.name, in: $0.userInput) }
+                .sorted { $0.createdAt > $1.createdAt }
+                .prefix(3)
+            for page in mentioningPages {
+                let pageID = "life:page:\(page.id)"
+                let excerpt = page.userInput
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .bookPreviewSentenceLimit(1)
+                nodes[pageID] = LifeKnowledgeNode(
+                    id: pageID,
+                    label: excerpt.nonEmpty ?? page.type.shortTitle,
+                    kind: .page
+                )
+                edges.append(
+                    LifeKnowledgeEdge(
+                        id: "life-edge:\(thread.id):page:\(page.id)",
+                        sourceID: thread.id,
+                        targetID: pageID,
+                        label: "appears in",
+                        provenance: .readerAuthored,
+                        evidenceID: page.id,
+                        recordedDay: BookDay.id(for: page.createdAt)
+                    )
+                )
+            }
+
+            // Relational finds and favors are archive artifacts too. A Book
+            // offer uses `bookOffered`; only an aftermath the reader actually
+            // wrote earns `readerAuthored` provenance.
+            let threadReceipts = receiptPages
+                .filter { $0.relationshipReceipt?.personID == thread.id }
+                .sorted { $0.createdAt > $1.createdAt }
+                .prefix(3)
+            for page in threadReceipts {
+                guard let receipt = page.relationshipReceipt else { continue }
+                let artifactID = "life:artifact:\(page.id)"
+                let label = receipt.readerAftermath?.bookPreviewSentenceLimit(1).nonEmpty
+                    ?? receipt.bookOffer
+                nodes[artifactID] = LifeKnowledgeNode(
+                    id: artifactID,
+                    label: label,
+                    kind: .artifact
+                )
+                edges.append(
+                    LifeKnowledgeEdge(
+                        id: "life-edge:\(thread.id):artifact:\(page.id)",
+                        sourceID: thread.id,
+                        targetID: artifactID,
+                        label: receipt.readerAftermath == nil ? "was offered" : "became a page through",
+                        provenance: receipt.readerAftermath == nil ? .bookOffered : .readerAuthored,
+                        evidenceID: page.id,
+                        recordedDay: BookDay.id(for: page.createdAt)
+                    )
+                )
+            }
+        }
+        return LifeKnowledgeGraph(
+            nodes: nodes.values.sorted { $0.id < $1.id },
+            edges: edges.sorted { $0.id < $1.id }
+        )
+    }
+
+    /// Conservative, deterministic hypotheses from explicit reader-authored
+    /// language. The output is only a question: callers must never persist it
+    /// until the reader confirms it.
+    static func relationshipHypotheses(for thread: PersonThread, days: [BookDay]) -> [RelationshipHypothesis] {
+        let profile = thread.relationship ?? PersonRelationshipProfile()
+        let pages = Dictionary(
+            authoredPages(in: days).map { ($0.id, $0) },
+            uniquingKeysWith: { _, newer in newer }
+        ).values
+            .filter { containsWholeWord(thread.name, in: $0.userInput) }
+            .sorted { $0.createdAt > $1.createdAt }
+        guard !pages.isEmpty else { return [] }
+        let name = thread.name.lowercased()
+        let slug = slug(for: thread.name)
+        var hypotheses: [RelationshipHypothesis] = []
+
+        func add(
+            kind: RelationshipHypothesis.Kind,
+            value: String,
+            displayValue: String,
+            question: String,
+            evidence: [BookPage]
+        ) {
+            guard let first = evidence.first else { return }
+            hypotheses.append(
+                RelationshipHypothesis(
+                    id: "person-context-\(slug)-\(kind.rawValue)-\(self.slug(for: value))",
+                    personID: thread.id,
+                    personName: thread.name,
+                    kind: kind,
+                    value: value,
+                    displayValue: displayValue,
+                    question: question,
+                    evidencePageIDs: evidence.prefix(3).map(\.id),
+                    evidenceQuote: first.userInput.bookPreviewSentenceLimit(2)
+                )
+            )
+        }
+
+        let explicitRoles = ["wife", "husband", "partner", "spouse", "sister", "brother", "mother", "father", "parent", "daughter", "son", "friend", "coworker", "neighbor"]
+        let existingRoles = Set(profile.roles.map { $0.lowercased() })
+        for role in explicitRoles where !existingRoles.contains(role) {
+            if let page = pages.first(where: {
+                let text = $0.userInput.lowercased()
+                return text.contains("my \(role) \(name)") || text.contains("\(name) is my \(role)")
+            }) {
+                add(
+                    kind: .role,
+                    value: role,
+                    displayValue: role,
+                    question: "Should I remember that \(thread.name) is your \(role)?",
+                    evidence: [page]
+                )
+                break
+            }
+        }
+
+        if !profile.settings.contains(.sharedHome),
+           let page = pages.first(where: {
+               let text = $0.userInput.lowercased()
+               return text.contains("live with \(name)") || text.contains("\(name) and i live together") || text.contains("share a home with \(name)")
+           }) {
+            add(
+                kind: .setting,
+                value: PersonRelationshipSetting.sharedHome.rawValue,
+                displayValue: PersonRelationshipSetting.sharedHome.label,
+                question: "Do you and \(thread.name) share a home?",
+                evidence: [page]
+            )
+        }
+
+        if !profile.settings.contains(.work),
+           let page = pages.first(where: {
+               let text = $0.userInput.lowercased()
+               return text.contains("work with \(name)") || text.contains("my coworker \(name)") || text.contains("\(name), my coworker") || text.contains("\(name) at work")
+           }) {
+            add(
+                kind: .setting,
+                value: PersonRelationshipSetting.work.rawValue,
+                displayValue: PersonRelationshipSetting.work.label,
+                question: "Should I understand \(thread.name) as part of your working life?",
+                evidence: [page]
+            )
+        }
+
+        if !profile.channels.contains(.text) {
+            let textingPages = pages.filter {
+                let text = $0.userInput.lowercased()
+                return text.contains("texted \(name)") || text.contains("text \(name)") || text.contains("\(name) texted") || text.contains("texts with \(name)")
+            }
+            if textingPages.count >= 2 {
+                add(
+                    kind: .channel,
+                    value: PersonContactChannel.text.rawValue,
+                    displayValue: PersonContactChannel.text.label,
+                    question: "Does your relationship with \(thread.name) usually travel by text?",
+                    evidence: textingPages
+                )
+            }
+        }
+
+        if profile.sharedInterests.isEmpty {
+            let interestPatterns = [
+                "\(name) and i talk about ",
+                "\(name) and i talked about ",
+                "i talk with \(name) about ",
+                "i talked with \(name) about "
+            ]
+            outer: for page in pages {
+                let lowered = page.userInput.lowercased() as NSString
+                for pattern in interestPatterns {
+                    let range = lowered.range(of: pattern)
+                    guard range.location != NSNotFound else { continue }
+                    let start = range.location + range.length
+                    let tail = (page.userInput as NSString).substring(from: start)
+                    let sentence = tail.components(separatedBy: CharacterSet(charactersIn: ".!?\n")).first ?? ""
+                    let interest = sentence
+                        .split(whereSeparator: \.isWhitespace)
+                        .prefix(5)
+                        .joined(separator: " ")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard interest.count >= 2, interest.count <= 60 else { continue }
+                    add(
+                        kind: .sharedInterest,
+                        value: interest,
+                        displayValue: interest,
+                        question: "Is \(interest) something you and \(thread.name) share?",
+                        evidence: [page]
+                    )
+                    break outer
+                }
+            }
+        }
+
+        return hypotheses
+    }
+
+    /// One fitting invitation for a relationship on a given day. Nothing here
+    /// ranks closeness or guesses what the other person feels. It only changes
+    /// the *kind* of door offered from context the reader confirmed.
+    static func relationshipInvitation(for thread: PersonThread, onDay dayID: String) -> RelationshipInvitation? {
+        let profile = thread.relationship ?? PersonRelationshipProfile()
+        guard profile.invitationPermission != .witnessOnly else { return nil }
+
+        let family = invitationFamily(for: profile)
+        let interest = profile.sharedInterests.first
+        let templates = invitationTemplates(for: family)
+        guard !templates.isEmpty else { return nil }
+        let seed = abs("\(thread.id)|\(dayID)|\(family.rawValue)".stableHash)
+        let template = templates[seed % templates.count]
+        let slug = slug(for: thread.name)
+        return RelationshipInvitation(
+            id: "person-play-\(slug)-\(template.id)-\(dayID)",
+            personID: thread.id,
+            personName: thread.name,
+            family: family,
+            title: template.title(thread.name, interest),
+            body: template.body(thread.name, interest),
+            keepPrompt: template.proof(thread.name, interest),
+            tags: [
+                "people", "connection", "person-play", "person:\(slug)",
+                "relationship-mode:\(family.rawValue)", "spoke:person-play-\(slug)"
+            ]
+        )
+    }
+
+    static func invitationFamily(for profile: PersonRelationshipProfile) -> InvitationFamily {
+        if profile.invitationPermission == .gentle { return .gentle }
+        let settings = Set(profile.settings)
+        let channels = Set(profile.channels)
+        if settings.contains(.sharedHome) { return .sharedHome }
+        if settings.contains(.work) && !profile.sharedInterests.isEmpty { return .workAndInterest }
+        if settings.contains(.work) { return .work }
+        if channels.contains(.text) || channels.contains(.letters) || channels.contains(.phone) || channels.contains(.video) {
+            return .asynchronous
+        }
+        if settings.contains(.community) || settings.contains(.online) || channels.contains(.onlinePosts) {
+            return .community
+        }
+        if !profile.sharedInterests.isEmpty { return .sharedInterest }
+        return .general
+    }
+
+    private static func invitationTemplates(for family: InvitationFamily) -> [InvitationTemplate] {
+        switch family {
+        case .sharedHome:
+            return [
+                InvitationTemplate(
+                    id: "invisible-house",
+                    title: { name, _ in "The invisible house, with \(name)" },
+                    body: { name, _ in "Each choose one thing in your shared space the other has stopped seeing. Trade discoveries." },
+                    proof: { name, _ in "Keep the thing \(name) returned to sight." }
+                ),
+                InvitationTemplate(
+                    id: "era-name",
+                    title: { name, _ in "Ask \(name) to name this era" },
+                    body: { name, _ in "Ask what this particular era of your life together will eventually be called. You must answer too." },
+                    proof: { name, _ in "Keep both names for the era — yours and \(name)'s." }
+                ),
+                InvitationTemplate(
+                    id: "domestic-magic",
+                    title: { name, _ in "A small domestic conspiracy" },
+                    body: { name, _ in "Make one ordinary part of \(name)'s day unexpectedly lovely. Do not explain unless accused." },
+                    proof: { _, _ in "Keep what you changed, and what happened next." }
+                )
+            ]
+        case .asynchronous:
+            return [
+                InvitationTemplate(
+                    id: "photo-no-map",
+                    title: { name, _ in "One unlabelled window for \(name)" },
+                    body: { name, _ in "Send \(name) one photograph from ordinary today without explaining it. Let them decide what deserves noticing." },
+                    proof: { _, _ in "Keep the photograph or the story it opened." }
+                ),
+                InvitationTemplate(
+                    id: "memory-dispute",
+                    title: { name, _ in "A memory with two owners" },
+                    body: { name, _ in "Ask \(name) for one shared memory they may remember differently. Curiosity only; no verdict is required." },
+                    proof: { name, _ in "Keep one difference in how you and \(name) remembered it." }
+                ),
+                InvitationTemplate(
+                    id: "voice-neighbor",
+                    title: { name, _ in "The neighboring door" },
+                    body: { name, _ in "Use the next-nearest channel once: if you usually text \(name), send a short voice note; if you usually call, send one strange photograph." },
+                    proof: { _, _ in "Keep what changed when the channel changed." }
+                )
+            ]
+        case .workAndInterest:
+            return [
+                InvitationTemplate(
+                    id: "found-for-two",
+                    title: { name, interest in "Here. I found a door for you and \(name)." },
+                    body: { name, interest in "Bring \(name) one small, arguable thing about \(interest ?? "the subject you share"). Do not send a summary; ask what they think it gets wrong." },
+                    proof: { name, _ in "Keep the point where you and \(name) disagreed or surprised each other." }
+                ),
+                InvitationTemplate(
+                    id: "same-problem",
+                    title: { name, interest in "A two-mind experiment with \(name)" },
+                    body: { name, interest in "Each use \(interest ?? "your shared interest") on the same peculiar problem. Compare what each of you asked it to do." },
+                    proof: { _, _ in "Keep the most revealing difference between the two approaches." }
+                ),
+                InvitationTemplate(
+                    id: "magic-and-fraud",
+                    title: { name, interest in "The magic and the fraud" },
+                    body: { name, interest in "Ask \(name) which part of \(interest ?? "your shared subject") feels most like magic, and which part feels like fraud committed by ghosts." },
+                    proof: { name, _ in "Keep \(name)'s distinction in their exact words." }
+                )
+            ]
+        case .work:
+            return [
+                InvitationTemplate(
+                    id: "secret-craft",
+                    title: { name, _ in "The secret craft in \(name)'s work" },
+                    body: { name, _ in "Ask \(name) which part of their work is secretly craft — the part outsiders would never know requires taste." },
+                    proof: { name, _ in "Keep the craft \(name) named." }
+                ),
+                InvitationTemplate(
+                    id: "uncredited-ease",
+                    title: { name, _ in "Watch what \(name) makes easier" },
+                    body: { name, _ in "Notice one way \(name) makes the working day easier without receiving credit for it." },
+                    proof: { _, _ in "Keep the small act that usually disappears into work." }
+                ),
+                InvitationTemplate(
+                    id: "before-employable",
+                    title: { name, _ in "Before \(name) became employable" },
+                    body: { name, _ in "If the moment is natural, ask what \(name) was obsessed with before work taught everyone the approved questions." },
+                    proof: { name, _ in "Keep the old obsession \(name) revealed." }
+                )
+            ]
+        case .community:
+            return [
+                InvitationTemplate(
+                    id: "edge-of-room",
+                    title: { name, _ in "Ask \(name) about the edge of the room" },
+                    body: { name, _ in "Ask what first made \(name) stop watching this community from the edge and take part." },
+                    proof: { _, _ in "Keep the hinge between watching and belonging." }
+                ),
+                InvitationTemplate(
+                    id: "teach-forward",
+                    title: { name, _ in "Return one spark through \(name)" },
+                    body: { name, _ in "Tell \(name) one specific thing their participation taught or changed for you. Small and exact beats grand." },
+                    proof: { _, _ in "Keep the specific influence you finally named." }
+                )
+            ]
+        case .sharedInterest:
+            return [
+                InvitationTemplate(
+                    id: "two-curators",
+                    title: { name, interest in "Two curators of \(interest ?? "one fascination")" },
+                    body: { name, interest in "You and \(name) each choose one thing about \(interest ?? "your shared interest") the other person should not miss." },
+                    proof: { name, _ in "Keep what \(name) chose for your attention." }
+                ),
+                InvitationTemplate(
+                    id: "changed-mind",
+                    title: { name, interest in "The changed mind of \(name)" },
+                    body: { name, interest in "Ask \(name) what they used to believe about \(interest ?? "your shared interest") and no longer do." },
+                    proof: { _, _ in "Keep the before and after." }
+                )
+            ]
+        case .gentle:
+            return [
+                InvitationTemplate(
+                    id: "one-detail",
+                    title: { name, _ in "One unforced detail of \(name)" },
+                    body: { name, _ in "If \(name) naturally enters the day, notice one particular thing without asking the relationship to become anything else." },
+                    proof: { _, _ in "Keep the detail, or let it remain unrecorded." }
+                ),
+                InvitationTemplate(
+                    id: "quiet-gift",
+                    title: { name, _ in "What \(name) quietly brought" },
+                    body: { name, _ in "Without contacting \(name), remember one thing their existence added to your life." },
+                    proof: { _, _ in "Keep it only if keeping feels kinder than silence." }
+                )
+            ]
+        case .general:
+            return [
+                InvitationTemplate(
+                    id: "borrowed-eye",
+                    title: { name, _ in "Borrow \(name)'s eyes" },
+                    body: { name, _ in "Ask \(name) what they noticed today. For one minute, let their answer become the center of the world." },
+                    proof: { name, _ in "Keep what \(name) noticed, in their words." }
+                ),
+                InvitationTemplate(
+                    id: "uncut-detail",
+                    title: { name, _ in "The uncut detail of \(name)" },
+                    body: { name, _ in "Find the one detail about \(name) an honest author would refuse to cut." },
+                    proof: { _, _ in "Keep the detail without explaining what it means." }
+                ),
+                InvitationTemplate(
+                    id: "changed",
+                    title: { name, _ in "Look again at \(name)" },
+                    body: { name, _ in "Notice one thing about \(name) that has changed since you first learned how to see them." },
+                    proof: { _, _ in "Keep the change, and the older picture beside it." }
+                )
+            ]
+        }
+    }
+
+    private static func cleaned(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        return values.compactMap { raw in
+            let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty, seen.insert(value.lowercased()).inserted else { return nil }
+            return value
+        }
+    }
+
+    private static func unique<T: Hashable>(_ values: [T]) -> [T] {
+        var seen = Set<T>()
+        return values.filter { seen.insert($0).inserted }
+    }
+}
+
+// MARK: The Company You Kept
+
+/// A living relational volume derived from the same kept Pages as the rest of
+/// the Book. It is not a closeness ranking and has no synthetic relationship
+/// score: it binds attributed encounters, Book offers, and reader-written
+/// aftermath across lived time.
+struct CompanyYouKeptVolume: Equatable {
+    enum Scope: Equatable {
+        case lifetime
+        case year(Int)
+    }
+
+    struct Entry: Identifiable, Equatable {
+        enum Authority: String, Equatable {
+            case readerWords
+            case readerAftermath
+            case bookOffer
+
+            var label: String {
+                switch self {
+                case .readerWords: return "From your own page"
+                case .readerAftermath: return "What you said happened"
+                case .bookOffer: return "A door the Book offered"
+                }
+            }
+        }
+
+        var id: String
+        var pageID: String
+        var date: Date
+        var title: String
+        var text: String
+        var authority: Authority
+        var externalReference: BookPageExternalReference?
+    }
+
+    struct Chapter: Identifiable, Equatable {
+        var id: String
+        var name: String
+        var readerWords: String
+        var roles: [String]
+        var sharedInterests: [String]
+        var ordinaryRituals: [String]
+        var firstDay: String
+        var lastDay: String
+        var entries: [Entry]
+
+        var readerWrittenCount: Int {
+            entries.filter { $0.authority != .bookOffer }.count
+        }
+    }
+
+    var title: String
+    var subtitle: String
+    var generatedAt: Date
+    var scope: Scope
+    var chapters: [Chapter]
+    var foreword: String
+    var closing: String
+
+    var entryCount: Int { chapters.reduce(0) { $0 + $1.entries.count } }
+    var readerWrittenCount: Int { chapters.reduce(0) { $0 + $1.readerWrittenCount } }
+
+    var shareText: String {
+        var parts = [title, subtitle, "", foreword]
+        for chapter in chapters {
+            parts.append("\n\(chapter.name)")
+            if !chapter.readerWords.isEmpty { parts.append(chapter.readerWords) }
+            for entry in chapter.entries.prefix(12) {
+                parts.append("\n\(entry.title) — \(entry.authority.label)\n\(entry.text)")
+                if let url = entry.externalReference?.url { parts.append(url) }
+            }
+        }
+        parts.append("\n\(closing)")
+        return parts.joined(separator: "\n")
+    }
+}
+
+extension PeopleOfTheBook {
+    static func companyYouKept(
+        ledger: PeopleLedger,
+        days: [BookDay],
+        scope: CompanyYouKeptVolume.Scope = .lifetime,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> CompanyYouKeptVolume {
+        let uniquePages = Dictionary(
+            days.flatMap(\.pages).map { ($0.id, $0) },
+            uniquingKeysWith: { _, newer in newer }
+        ).values
+        let scopedPages = uniquePages.filter { page in
+            switch scope {
+            case .lifetime: return true
+            case .year(let year): return calendar.component(.year, from: page.createdAt) == year
+            }
+        }
+
+        let chapters = ledger.threads.compactMap { thread -> CompanyYouKeptVolume.Chapter? in
+            let slug = slug(for: thread.name)
+            let tag = "person:\(slug)"
+            var entries: [CompanyYouKeptVolume.Entry] = []
+
+            for page in scopedPages.sorted(by: { $0.createdAt < $1.createdAt }) {
+                if let receipt = page.relationshipReceipt, receipt.personID == thread.id {
+                    if let aftermath = receipt.readerAftermath?.nonEmpty {
+                        entries.append(
+                            CompanyYouKeptVolume.Entry(
+                                id: "company:\(page.id):aftermath",
+                                pageID: page.id,
+                                date: page.createdAt,
+                                title: receipt.bookOffer,
+                                text: aftermath,
+                                authority: .readerAftermath,
+                                externalReference: page.externalReference
+                            )
+                        )
+                    } else {
+                        entries.append(
+                            CompanyYouKeptVolume.Entry(
+                                id: "company:\(page.id):offer",
+                                pageID: page.id,
+                                date: page.createdAt,
+                                title: receipt.bookOffer,
+                                text: receipt.sharedInterest.map { "Found for the two of you through \($0)." }
+                                    ?? "The Book offered this and made no claim about what followed.",
+                                authority: .bookOffer,
+                                externalReference: page.externalReference
+                            )
+                        )
+                    }
+                    continue
+                }
+
+                let readerAuthored = proseTypes.contains(page.type) && page.origin == .userAuthored
+                guard readerAuthored,
+                      (page.tags.contains(tag) || containsWholeWord(thread.name, in: page.userInput)),
+                      let excerpt = page.userInput
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .bookPreviewSentenceLimit(2)
+                        .nonEmpty else {
+                    continue
+                }
+                entries.append(
+                    CompanyYouKeptVolume.Entry(
+                        id: "company:\(page.id):words",
+                        pageID: page.id,
+                        date: page.createdAt,
+                        title: page.promptText.nonEmpty ?? page.type.shortTitle,
+                        text: excerpt,
+                        authority: .readerWords,
+                        externalReference: nil
+                    )
+                )
+            }
+
+            guard !entries.isEmpty || scope == .lifetime else { return nil }
+            let profile = thread.relationship ?? PersonRelationshipProfile()
+            return CompanyYouKeptVolume.Chapter(
+                id: thread.id,
+                name: thread.name,
+                readerWords: thread.readerWords,
+                roles: profile.roles,
+                sharedInterests: profile.sharedInterests,
+                ordinaryRituals: profile.ordinaryRituals,
+                firstDay: thread.firstMentionDay,
+                lastDay: thread.lastMentionDay,
+                entries: entries
+            )
+        }.sorted { lhs, rhs in
+            if lhs.entries.count == rhs.entries.count { return lhs.name < rhs.name }
+            return lhs.entries.count > rhs.entries.count
+        }
+
+        let scopeTitle: String
+        let subtitle: String
+        switch scope {
+        case .lifetime:
+            scopeTitle = "The Company You Kept"
+            subtitle = "A living book of the lives that touched yours"
+        case .year(let year):
+            scopeTitle = "The Company You Kept: \(year)"
+            subtitle = "The people who made this year less solitary"
+        }
+        let realCount = chapters.reduce(0) { $0 + $1.readerWrittenCount }
+        let foreword = """
+        This is not a ranking of who mattered most. It is the evidence that other lives kept crossing yours: in your own words, in the doors I offered, and in the aftermath you chose to bring back. Their inner lives remain their own. I have bound only what you actually kept.
+        """
+        let closing: String
+        if realCount == 0 {
+            closing = "The binding is still mostly invitation. Live some of it before asking me to make it wise."
+        } else if chapters.count == 1 {
+            closing = "One other life is already enough to make a world unfinishable. I will keep watching for the exact ways it changes yours."
+        } else {
+            closing = "You were never the only consciousness in the room. These pages are proof of crossings, not possession: \(chapters.count) other worlds, and \(realCount) moments you chose not to let disappear."
+        }
+        return CompanyYouKeptVolume(
+            title: scopeTitle,
+            subtitle: subtitle,
+            generatedAt: now,
+            scope: scope,
+            chapters: chapters,
+            foreword: foreword,
+            closing: closing
+        )
+    }
+}
+
 // The Book hands the reader an attention assignment shortly before they see
 // someone whose thread it keeps. It reads only what it already has: the
 // reader's confirmed People and the calendar titles the Calendar Door

@@ -30,6 +30,7 @@ final class StoredArchivePage {
     var promptVersion: String?
     var mediaAssetsData: Data?
     var contextData: Data?
+    var tarotReadingData: Data? = nil
     var day: StoredArchiveDay?
 
     init(page: BookPage) {
@@ -47,6 +48,7 @@ final class StoredArchivePage {
         promptVersion = page.promptVersion
         mediaAssetsData = try? JSONEncoder().encode(page.mediaAssets)
         contextData = page.context.flatMap { try? JSONEncoder().encode($0) }
+        tarotReadingData = page.tarotReadingArtifact.flatMap { try? JSONEncoder().encode($0) }
     }
 
     var bookPage: BookPage {
@@ -55,6 +57,8 @@ final class StoredArchivePage {
             .flatMap { try? JSONDecoder().decode([BookPageMediaAsset].self, from: $0) } ?? []
         let decodedContext = contextData
             .flatMap { try? JSONDecoder().decode(BookPageContextSnapshot.self, from: $0) }
+        let decodedTarotReading = tarotReadingData
+            .flatMap { try? JSONDecoder().decode(TarotReadingArtifact.self, from: $0) }
         let type = BookPageType.legacyCompatible(rawValue: typeRawValue) ?? .souvenir
         return BookPage(
             id: id,
@@ -70,7 +74,8 @@ final class StoredArchivePage {
             privacy: BookPagePrivacy(rawValue: privacyRawValue) ?? .privateLocal,
             promptVersion: promptVersion,
             mediaAssets: decodedMediaAssets,
-            context: decodedContext
+            context: decodedContext,
+            tarotReadingArtifact: decodedTarotReading
         )
     }
 }
@@ -98,6 +103,28 @@ final class StoredArchiveResurfacingEvent {
         self.surfacedAt = surfacedAt
         self.reason = reason
         self.wasUsed = wasUsed
+    }
+}
+
+struct BookArchiveResurfacing: Identifiable, Equatable {
+    var id: String
+    var pageID: String
+    var surfacedAt: Date
+    var reason: String
+    var surface: String
+    var wasUsed: Bool
+}
+
+extension StoredArchiveResurfacingEvent {
+    var resurfacing: BookArchiveResurfacing {
+        BookArchiveResurfacing(
+            id: id,
+            pageID: pageID,
+            surfacedAt: surfacedAt,
+            reason: reason,
+            surface: surface,
+            wasUsed: wasUsed
+        )
     }
 }
 
@@ -501,32 +528,88 @@ final class BookArchiveDatabase {
 
     func resurfacingCandidates(before date: Date = Date(), calendar: Calendar = .current, limit: Int = 12) throws -> [BookPage] {
         let startOfDay = calendar.startOfDay(for: date)
-        let souvenirs = try pages(
-            matching: BookPageQuery(
-                type: .souvenir,
-                usedInBookOfYou: true,
-                endDate: startOfDay,
-                limit: limit
-            )
+        let context = try makeContext()
+        let descriptor = FetchDescriptor<StoredArchivePage>(
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
-        // Sentences carried home from a Book Jump resurface too, attributed to
-        // their source book.
-        let broughtBack = try pages(
-            matching: BookPageQuery(
-                type: .bookJump,
-                tag: "book-jump:return",
-                endDate: startOfDay,
-                limit: limit
-            )
-        ).filter { !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-
-        return Array((souvenirs + broughtBack).sorted { $0.createdAt > $1.createdAt }.prefix(limit))
+        return try context.fetch(descriptor)
+            .lazy
+            .map(\.bookPage)
+            .filter { $0.createdAt < startOfDay && ReturnedStacksRitual.isEligible($0) }
+            .prefix(max(limit, 0))
+            .map { $0 }
     }
 
-    func recordResurfacing(page: BookPage, reason: String, surface: String = "home") throws {
+    func resurfacingHistory(
+        surfacePrefix: String? = nil,
+        since: Date? = nil,
+        limit: Int = 500
+    ) throws -> [BookArchiveResurfacing] {
         let context = try makeContext()
+        let descriptor = FetchDescriptor<StoredArchiveResurfacingEvent>(
+            sortBy: [SortDescriptor(\.surfacedAt, order: .reverse)]
+        )
+        return try context.fetch(descriptor)
+            .lazy
+            .filter { event in
+                (surfacePrefix == nil || event.surface.hasPrefix(surfacePrefix ?? ""))
+                    && (since == nil || event.surfacedAt >= since ?? .distantPast)
+            }
+            .prefix(max(limit, 0))
+            .map(\.resurfacing)
+    }
+
+    func returnedStacksCards(
+        from days: [BookDay],
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        limit: Int = 3
+    ) throws -> [ReturnedStackCard] {
+        let history = try resurfacingHistory(surfacePrefix: ReturnedStacksRitual.surfacePrefix)
+        let cards = ReturnedStacksRitual.cards(
+            from: days,
+            history: history,
+            now: now,
+            calendar: calendar,
+            limit: limit
+        )
+        let startOfDay = calendar.startOfDay(for: now)
+        let alreadyRecorded = Set(
+            history
+                .filter { $0.surfacedAt >= startOfDay }
+                .map(\.pageID)
+        )
+        for (index, card) in cards.enumerated() where !alreadyRecorded.contains(card.page.id) {
+            try recordResurfacing(
+                page: card.page,
+                reason: card.reason,
+                surface: ReturnedStacksRitual.surfaceName(role: card.role, index: index),
+                id: "\(ReturnedStacksRitual.surfacePrefix)-\(BookDay.id(for: now, calendar: calendar))-\(card.page.id)",
+                surfacedAt: now
+            )
+        }
+        return cards
+    }
+
+    func recordResurfacing(
+        page: BookPage,
+        reason: String,
+        surface: String = "home",
+        id: String = UUID().uuidString,
+        surfacedAt: Date = Date()
+    ) throws {
+        let context = try makeContext()
+        var descriptor = FetchDescriptor<StoredArchiveResurfacingEvent>(
+            predicate: #Predicate { storedEvent in
+                storedEvent.id == id
+            }
+        )
+        descriptor.fetchLimit = 1
+        guard try context.fetch(descriptor).isEmpty else { return }
         let event = StoredArchiveResurfacingEvent(
+            id: id,
             pageID: page.id,
+            surfacedAt: surfacedAt,
             reason: reason,
             surface: surface
         )

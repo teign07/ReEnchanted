@@ -356,6 +356,72 @@ final class ReflectiveVarietyTests: XCTestCase {
         XCTAssertFalse(surfaces.contains { $0.payload.metadata["connectionNarrative"] == "true" })
     }
 
+    // MARK: - Returned From the Stacks is a daily ritual
+
+    func testReturnedStacksBuildsThreeDistinctDailyRolesFromTheWholeArchive() throws {
+        let oldPages = [
+            BookPage(
+                id: "lantern-old", type: .souvenir, createdAt: daysAgo(40),
+                promptText: "Souvenir", userInput: "A paper lantern trembled over the wet pavement."
+            ),
+            BookPage(
+                id: "long-memory", type: .plainPage, createdAt: daysAgo(300),
+                promptText: "Plain Page", userInput: "The blue stair kept one square of winter light."
+            ),
+            BookPage(
+                id: "letter-old", type: .letter, createdAt: daysAgo(90),
+                promptText: "A letter", userInput: "Keep the difficult page without making it smaller."
+            ),
+            BookPage(
+                id: "compass-old", type: .wonderCompass, createdAt: daysAgo(70),
+                promptText: "Wonder Compass", userInput: "Turn east at the bakery and notice the red awning."
+            )
+        ]
+        let todayPage = BookPage(
+            id: "today-lantern", type: .diary, createdAt: now.addingTimeInterval(-900),
+            promptText: "Journal", userInput: "A lantern in the window made the whole block feel briefly inhabited."
+        )
+        let archive = oldPages.map { day(pages: [$0]) } + [day(pages: [todayPage])]
+
+        let first = ReturnedStacksRitual.cards(from: archive, history: [], now: now)
+        let reread = ReturnedStacksRitual.cards(from: archive, history: [], now: now)
+
+        XCTAssertEqual(first.map(\.role), [.rhyme, .longMemory, .wildCard])
+        XCTAssertEqual(Set(first.map(\.page.id)).count, 3)
+        XCTAssertEqual(first.first?.page.id, "lantern-old")
+        XCTAssertTrue(first.first?.reason.lowercased().contains("lantern") == true)
+        XCTAssertEqual(first, reread, "The same day's three returns must not reshuffle when the fold opens.")
+    }
+
+    func testReturnedStacksRestsPagesThatRecentlySatOnTheShelf() {
+        let pages = (0..<6).map { index in
+            BookPage(
+                id: "archive-\(index)",
+                type: index.isMultiple(of: 2) ? .souvenir : .diary,
+                createdAt: daysAgo(30 + index * 10),
+                promptText: "Kept page",
+                userInput: "A distinct archive sentence number \(index) waited beside the window."
+            )
+        }
+        let recentlyReturned = BookArchiveResurfacing(
+            id: "recent",
+            pageID: "archive-5",
+            surfacedAt: daysAgo(1),
+            reason: "Recent return",
+            surface: ReturnedStacksRitual.surfaceName(role: .longMemory, index: 1),
+            wasUsed: false
+        )
+
+        let cards = ReturnedStacksRitual.cards(
+            from: pages.map { day(pages: [$0]) },
+            history: [recentlyReturned],
+            now: now
+        )
+
+        XCTAssertEqual(cards.count, 3)
+        XCTAssertFalse(cards.contains { $0.page.id == "archive-5" })
+    }
+
     // MARK: - Book Remembered rests returned pages
 
     func testRememberedPageIDsRecoverFromKeptTags() {

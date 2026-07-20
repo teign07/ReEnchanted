@@ -50,8 +50,47 @@ final class MeaningfulPassageSurfaceTests: XCTestCase {
 
         XCTAssertEqual(surface.payload.metadata["meaningfulSourcePageID"], kept.id)
         XCTAssertTrue(surface.payload.metadata["meaningfulSourcePassage"]?.contains("porch light") == true)
-        XCTAssertTrue(surface.payload.body.contains("the note's concrete hinge"))
+        XCTAssertEqual(surface.payload.metadata["noteSubjectKind"], "the reader's own kept words")
+        XCTAssertEqual(surface.payload.metadata["noteSubjectRequired"], "true")
+        XCTAssertTrue(surface.payload.body.contains("REQUIRED KEPT-PAGE SUBJECT"))
+        XCTAssertTrue(surface.payload.body.contains("the note must plainly be about it"))
         XCTAssertFalse(surface.payload.body.contains("Recent kept pages:"))
+    }
+
+    func testQuickNoteCanUseWhatHappenedInKeptFictionEvenAfterThatPageWasPreviouslyEchoed() throws {
+        let story = BookPage(
+            id: "kept-story",
+            type: .narrativeOS,
+            createdAt: now.addingTimeInterval(-300),
+            promptText: "Story Page",
+            userInput: "Penny caught the runaway index card beneath the west stair and promised not to file its secret name.",
+            tags: ["story-page", "entity:penny-blackletter"],
+            origin: .simulated
+        )
+        let earlierEcho = BookPage(
+            id: "earlier-echo",
+            type: .bookRemembered,
+            createdAt: now.addingTimeInterval(-120),
+            promptText: "The Book Remembered",
+            userInput: "The west stair returned to the margin.",
+            tags: ["meaningful-source:\(story.id)"],
+            origin: .generated
+        )
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [story, earlierEcho])
+        let surface = StudentNotePageGenerator.draftCandidate(
+            for: sender,
+            source: BookPageSourceRegistry.source(for: .note),
+            day: day,
+            inputs: .empty,
+            now: now,
+            semanticScorer: MeaningfulSurfaceTestScorer(phrase: "runaway index card")
+        )
+
+        XCTAssertEqual(surface.payload.metadata["meaningfulSourcePageID"], story.id)
+        XCTAssertEqual(surface.payload.metadata["meaningfulSourcePageType"], BookPageType.narrativeOS.rawValue)
+        XCTAssertEqual(surface.payload.metadata["noteSubjectKind"], "an event from kept fiction")
+        XCTAssertTrue(surface.payload.metadata["meaningfulSourcePassage"]?.contains("runaway index card") == true)
+        XCTAssertTrue(surface.payload.body.contains("speak of what happened in the fiction as an in-world event"))
     }
 
     func testContinuingLetterUsesSelectedPassageButIntroductionDoesNot() {

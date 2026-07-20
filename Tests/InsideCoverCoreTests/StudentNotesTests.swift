@@ -30,6 +30,8 @@ final class StudentNotesTests: XCTestCase {
         XCTAssertEqual(surface.prompt, "Penny Blackletter just slipped you a note.")
         XCTAssertEqual(surface.payload.metadata["placeholder"], "Penny Blackletter just slipped you a note.")
         XCTAssertNil(surface.payload.metadata["noteProse"])
+        XCTAssertTrue(surface.payload.metadata[CharacterCanonPacket.metadataKey]?.contains("Penny Blackletter") == true)
+        XCTAssertTrue(surface.payload.metadata[CharacterCanonPacket.metadataKey]?.contains("honest details matter") == true)
         XCTAssertTrue(SurfaceReadinessState(surface: surface).needsLocalBrainToOpen)
     }
 
@@ -78,5 +80,50 @@ final class StudentNotesTests: XCTestCase {
         XCTAssertTrue(summary.contains("Penny Blackletter"))
         XCTAssertTrue(summary.contains("note passed back"))
         XCTAssertTrue(summary.contains("blue book"))
+    }
+
+    func testDraftBindsWholeCharacterPacketToKeptPageInterpretation() {
+        let now = Date(timeIntervalSince1970: 1_780_000_000)
+        let particularSender = NarrativeWorldEntity(
+            id: "particular-sender",
+            packID: "core",
+            name: "Particular Sender",
+            kind: .character,
+            belief: 40,
+            narrativeWeight: 30,
+            chapter: "Margins",
+            unwrittenInterest: "misfiled promises",
+            traits: ["observant"],
+            quirks: ["counts doors before answering"],
+            faults: ["mistakes caution for certainty"],
+            beliefs: ["promises alter rooms"],
+            goals: ["recover the missing oath"],
+            tags: ["records"]
+        )
+        let kept = BookPage(
+            id: "kept-oath",
+            type: .plainPage,
+            createdAt: now.addingTimeInterval(-60),
+            promptText: "Plain Page",
+            userInput: "I left the brass key beside the blue cup because I promised I would come back.",
+            origin: .userAuthored
+        )
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [kept])
+        let surface = StudentNotePageGenerator.draftCandidate(
+            for: particularSender,
+            source: BookPageSourceRegistry.source(for: .note),
+            day: day,
+            inputs: .empty,
+            now: now
+        )
+        let canon = surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? ""
+
+        XCTAssertTrue(canon.contains("counts doors before answering"))
+        XCTAssertTrue(canon.contains("mistakes caution for certainty"))
+        XCTAssertTrue(canon.contains("promises alter rooms"))
+        XCTAssertTrue(canon.contains("recover the missing oath"))
+        XCTAssertTrue(canon.contains("misfiled promises"))
+        XCTAssertTrue(canon.contains("The kept subject this character is responding to now"))
+        XCTAssertTrue(surface.payload.body.contains("whole binding character packet"))
     }
 }

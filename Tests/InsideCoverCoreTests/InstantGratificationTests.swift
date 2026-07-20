@@ -3,6 +3,31 @@ import XCTest
 
 final class InstantGratificationTests: XCTestCase {
 
+    func testKeepConsequenceReceiptExplainsArchiveBeliefAndFirstReading() {
+        XCTAssertEqual(
+            KeepConsequenceReceipt.lines(
+                beliefDelta: 1,
+                firstReadingAwakened: true,
+                keepsakeLine: "A keepsake also fell loose."
+            ),
+            [
+                "This Page is safely inside your Book now.",
+                "The Book has enough of your own pages to begin its First Reading.",
+                "Your attention kindled 1 Belief."
+            ]
+        )
+    }
+
+    func testKeepConsequenceReceiptStaysQuietWhenOnlyTheArchiveChanged() {
+        XCTAssertEqual(
+            KeepConsequenceReceipt.lines(
+                beliefDelta: 0,
+                firstReadingAwakened: false
+            ),
+            ["This Page is safely inside your Book now."]
+        )
+    }
+
     // MARK: KeepMarginalia
 
     func testMarginNoteIsDeterministicForSamePageID() {
@@ -342,6 +367,8 @@ final class InstantGratificationTests: XCTestCase {
         let line = try XCTUnwrap(EditionCurator.weeklySignatureLine(monthPages: pages, now: now))
         XCTAssertTrue(line.contains("2 pages"))
         XCTAssertTrue(line.contains("June"))
+        XCTAssertTrue(line.contains("all the way to the binding"))
+        XCTAssertTrue(line.contains("parking") || line.contains("window"))
     }
 
     func testWeeklySignatureExcludesOlderThanAWeek() {
@@ -488,6 +515,20 @@ final class InstantGratificationTests: XCTestCase {
         XCTAssertEqual(BraidPageDetails.details(for: stamped).promiseEcho, line)
         // A nil line leaves the page's tags untouched.
         XCTAssertEqual(BraidPageDetails.withPromiseEcho(braid, line: nil).tags, braid.tags)
+    }
+
+    func testDaytimeKeepPromiseNamesTheSpecificNewThread() throws {
+        let noon = Self.date(year: 2026, month: 6, day: 12, hour: 12)
+        let line = try XCTUnwrap(
+            KeepMarginalia.braidGatheringLine(
+                keptEarlierToday: 1,
+                currentInput: "Rain over the harbor.",
+                now: noon
+            )
+        )
+        XCTAssertTrue(line.localizedCaseInsensitiveContains("harbor"))
+        XCTAssertTrue(line.localizedCaseInsensitiveContains("tonight")
+            || line.localizedCaseInsensitiveContains("evening"))
     }
 
     // Use the current calendar throughout: `BookDay.capturedPages` derives its
