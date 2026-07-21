@@ -3990,12 +3990,65 @@ struct BookInitiative: Codable, Equatable, Identifiable {
     var desireConflictID: String? = nil
 }
 
+enum BookDisputeReaderStance: String, Codable, Equatable {
+    case disagrees
+    case partlyAgrees
+    case asksForEvidence
+    case questions
+
+    var plainLanguage: String {
+        switch self {
+        case .disagrees: return "disagreed"
+        case .partlyAgrees: return "thought I was only partly right"
+        case .asksForEvidence: return "asked what evidence could change my mind"
+        case .questions: return "questioned the opinion without granting me an answer"
+        }
+    }
+}
+
+enum BookDisputeStatus: String, Codable, Equatable {
+    case open
+    case newEvidence
+    case revisited
+}
+
+/// One real disagreement in the relationship. Topical vectors and the
+/// Relational Loom may find later evidence that belongs near the argument, but
+/// they are never allowed to infer agreement, contradiction, or who was right.
+/// The reader's words and the Book's claim remain together for the lifetime of
+/// the save so later returns can be specific rather than theatrically familiar.
+struct BookDispute: Codable, Equatable, Identifiable {
+    var id: String
+    var initiativeID: String
+    var opinionID: String
+    var subject: String
+    var bookClaim: String
+    var readerStance: BookDisputeReaderStance
+    var readerLine: String
+    var evidencePageIDs: [String]
+    var semanticEvidencePageIDs: [String]
+    var relationalConnectionIDs: [String]
+    var relationalObservationKeys: [String]
+    var relationReceipts: [String]
+    var openedAt: Date
+    var lastEvolvedAt: Date
+    var firstReturnedAt: Date?
+    var lastReturnedAt: Date?
+    var returnCount: Int
+    var status: BookDisputeStatus
+
+    var hasUnpresentedEvidence: Bool {
+        status == .newEvidence
+            && (lastReturnedAt == nil || lastEvolvedAt > (lastReturnedAt ?? .distantPast))
+    }
+}
+
 /// The irreducible private life of this particular Book. Archive facts,
 /// constellations, corrections, and relationship depth remain derived from
 /// their existing sources; only promises, choices, withheld self-revelations,
 /// and shared running business live here.
 struct BookInteriorState: Codable, Equatable {
-    static let currentVersion = 8
+    static let currentVersion = 9
 
     var version: Int = BookInteriorState.currentVersion
     var awakenedAt: Date
@@ -4035,6 +4088,8 @@ struct BookInteriorState: Codable, Equatable {
     var tensionHistory: [BookInnerTension]
     var currentInitiative: BookInitiative?
     var initiativeHistory: [BookInitiative]
+    var currentDispute: BookDispute?
+    var disputeHistory: [BookDispute]
     var spokenReceiptIDs: [String]
 
     init(
@@ -4075,6 +4130,8 @@ struct BookInteriorState: Codable, Equatable {
         tensionHistory: [BookInnerTension] = [],
         currentInitiative: BookInitiative? = nil,
         initiativeHistory: [BookInitiative] = [],
+        currentDispute: BookDispute? = nil,
+        disputeHistory: [BookDispute] = [],
         spokenReceiptIDs: [String] = []
     ) {
         self.awakenedAt = awakenedAt
@@ -4114,6 +4171,8 @@ struct BookInteriorState: Codable, Equatable {
         self.tensionHistory = tensionHistory
         self.currentInitiative = currentInitiative
         self.initiativeHistory = initiativeHistory
+        self.currentDispute = currentDispute
+        self.disputeHistory = disputeHistory
         self.spokenReceiptIDs = spokenReceiptIDs
     }
 
@@ -4127,6 +4186,7 @@ struct BookInteriorState: Codable, Equatable {
         case privateTraditions, secretLegacies, pendingReminiscence, reminiscenceHistory
         case currentWant, wantHistory, currentTension, tensionHistory
         case currentInitiative, initiativeHistory
+        case currentDispute, disputeHistory
         case spokenReceiptIDs
     }
 
@@ -4173,6 +4233,8 @@ struct BookInteriorState: Codable, Equatable {
         tensionHistory = try values.decodeIfPresent([BookInnerTension].self, forKey: .tensionHistory) ?? []
         currentInitiative = try values.decodeIfPresent(BookInitiative.self, forKey: .currentInitiative)
         initiativeHistory = try values.decodeIfPresent([BookInitiative].self, forKey: .initiativeHistory) ?? []
+        currentDispute = try values.decodeIfPresent(BookDispute.self, forKey: .currentDispute)
+        disputeHistory = try values.decodeIfPresent([BookDispute].self, forKey: .disputeHistory) ?? []
         spokenReceiptIDs = try values.decodeIfPresent([String].self, forKey: .spokenReceiptIDs) ?? []
         version = Self.currentVersion
     }
@@ -4269,6 +4331,9 @@ struct BookInteriorState: Codable, Equatable {
         let initiativeLine = currentInitiative.map {
             "Current self-authored initiative [\($0.status.rawValue), \($0.mode.rawValue)]: \($0.openingLine) Invitation: \($0.invitationLine) Motive: \($0.motive)"
         } ?? "Current self-authored initiative: none."
+        let disputeLine = currentDispute.map {
+            "Current shared disagreement [\($0.status.rawValue)]: I said ‘\($0.bookClaim)’ The reader \($0.readerStance.plainLanguage): ‘\($0.readerLine)’ Later evidence receipts: \($0.relationReceipts.joined(separator: "; ").nonEmpty ?? "none yet"). Do not infer who is right."
+        } ?? "Current shared disagreement: none."
         let businessLine = runningBusiness?.latestLine ?? sharedJoke ?? "none yet"
         return """
         THE BOOK'S PRESENT INNER LIFE:
@@ -4293,6 +4358,7 @@ struct BookInteriorState: Codable, Equatable {
         - \(wantLine)
         - \(tensionLine)
         - \(initiativeLine)
+        - \(disputeLine)
         - Recent surprise: \(recentSurprise?.line ?? "none supplied").
         - Running business: \(businessLine).
 
@@ -4301,7 +4367,7 @@ struct BookInteriorState: Codable, Equatable {
         POSTURE: \(BookLongGame.posture)
         STRATEGIC COVENANT: \(BookLongGame.covenant)
 
-        This is durable character state, not decorative improv. Let it affect what you care about and what you ask. Never invent additional promises, favorites, completed favors, secrets, secret consequences, opinions, revisions, quirks, projects, enacted behaviors, faults, tastes, loyalties, traditions, autobiographical events, wants, desire conflicts, tensions, initiatives, milestones, or memories. A Book-initiated conversation may follow its stated motive, but must treat silence or disagreement as a complete answer. Never use a want to pressure the reader.
+        This is durable character state, not decorative improv. Let it affect what you care about and what you ask. Never invent additional promises, favorites, completed favors, secrets, secret consequences, opinions, revisions, disputes, quirks, projects, enacted behaviors, faults, tastes, loyalties, traditions, autobiographical events, wants, desire conflicts, tensions, initiatives, milestones, or memories. A Book-initiated conversation may follow its stated motive, but must treat silence or disagreement as a complete answer. Semantic similarity means "belongs near," never agreement or contradiction. Never use a want to pressure the reader.
         """
     }
 }
@@ -4339,6 +4405,7 @@ enum BookInteriorEngine {
         reconcileTension(&state, now: now, calendar: calendar)
         reconcileWant(&state, now: now, calendar: calendar)
         reconcileDesireConflict(&state, now: now, calendar: calendar)
+        reconcileDispute(&state, inputs: inputs, now: now, calendar: calendar)
         reconcileInitiative(&state, inputs: inputs, now: now, calendar: calendar)
         state.favorHistory = Array(state.favorHistory.suffix(12))
         state.secretHistory = Array(state.secretHistory.suffix(24))
@@ -4360,6 +4427,7 @@ enum BookInteriorEngine {
         state.wantHistory = Array(state.wantHistory.suffix(24))
         state.tensionHistory = Array(state.tensionHistory.suffix(12))
         state.initiativeHistory = Array(state.initiativeHistory.suffix(32))
+        state.disputeHistory = Array(state.disputeHistory.suffix(24))
         state.spokenReceiptIDs = Array(state.spokenReceiptIDs.suffix(80))
         if state != existing {
             state.lastEvolvedAt = now
@@ -4457,6 +4525,7 @@ enum BookInteriorEngine {
         tasteID: String? = nil,
         reminiscenceID: String? = nil,
         initiativeID: String? = nil,
+        disputeID: String? = nil,
         secretLegacyID: String? = nil,
         now: Date = Date()
     ) -> BookInteriorState {
@@ -4609,6 +4678,16 @@ enum BookInteriorEngine {
            state.secretLegacies[index].hasUnpresentedChange {
             state.secretLegacies[index].lastPresentedStage = state.secretLegacies[index].stage
         }
+        if let disputeID,
+           var dispute = state.currentDispute,
+           dispute.id == disputeID,
+           dispute.hasUnpresentedEvidence {
+            dispute.status = .revisited
+            dispute.firstReturnedAt = dispute.firstReturnedAt ?? now
+            dispute.lastReturnedAt = now
+            dispute.returnCount += 1
+            state.currentDispute = dispute
+        }
         return state
     }
 
@@ -4616,6 +4695,7 @@ enum BookInteriorEngine {
         _ existing: BookInteriorState,
         initiativeID: String,
         readerLine: String,
+        inputs: BookSourceInputs = .empty,
         now: Date = Date()
     ) -> BookInteriorState {
         var state = existing
@@ -4650,7 +4730,181 @@ enum BookInteriorEngine {
             ),
             to: &state
         )
+        if initiative.kind == .friendlyArgument,
+           var opinion = state.opinion {
+            if let current = state.currentDispute {
+                state.disputeHistory.removeAll { $0.id == current.id }
+                state.disputeHistory.append(current)
+            }
+            let seedEvidence = Array(Set(opinion.evidencePageIDs + initiative.evidencePageIDs)).sorted()
+            let receipt = disputeEvidence(
+                inputs: inputs,
+                evidencePageIDs: seedEvidence,
+                observationKeys: []
+            )
+            let stance = explicitDisputeStance(in: readerLine)
+            let dispute = BookDispute(
+                id: "book-dispute-\(initiative.id)",
+                initiativeID: initiative.id,
+                opinionID: opinion.id,
+                subject: opinion.subject,
+                bookClaim: opinion.statement,
+                readerStance: stance,
+                readerLine: clipped(readerLine, limit: 240),
+                evidencePageIDs: Array(Set(seedEvidence + receipt.evidencePageIDs)).sorted(),
+                semanticEvidencePageIDs: receipt.semanticEvidencePageIDs,
+                relationalConnectionIDs: receipt.connectionIDs,
+                relationalObservationKeys: receipt.observationKeys,
+                relationReceipts: receipt.lines,
+                openedAt: now,
+                lastEvolvedAt: now,
+                firstReturnedAt: nil,
+                lastReturnedAt: nil,
+                returnCount: 0,
+                status: .open
+            )
+            state.currentDispute = dispute
+            if opinion.strength != .withdrawn {
+                opinion.strength = .reconsidering
+                opinion.lastRevisedAt = now
+                opinion.firstPresentedAt = nil
+                state.opinion = opinion
+            }
+            appendAutobiographicalMemory(
+                BookAutobiographicalMemory(
+                    id: "book-memory-dispute-\(initiative.id)",
+                    kind: .conversationAnswered,
+                    title: "The Reader Disagreed with the Book",
+                    line: "I said ‘\(clipped(dispute.bookClaim, limit: 140))’ The reader \(stance.plainLanguage): ‘\(clipped(dispute.readerLine, limit: 140))’",
+                    whatItChanged: "The opinion moved under active revision. Later Pages may belong near the argument, but resemblance alone will never decide who was right.",
+                    evidencePageIDs: dispute.evidencePageIDs,
+                    happenedAt: now,
+                    firstRecalledAt: nil,
+                    lastRecalledAt: nil,
+                    recallCount: 0
+                ),
+                to: &state
+            )
+        }
         return state
+    }
+
+    private struct DisputeEvidenceReceipt {
+        var evidencePageIDs: [String]
+        var semanticEvidencePageIDs: [String]
+        var connectionIDs: [String]
+        var observationKeys: [String]
+        var lines: [String]
+    }
+
+    private static func explicitDisputeStance(in line: String) -> BookDisputeReaderStance {
+        let lower = line.lowercased()
+        if lower.contains("partly") || lower.contains("partially") || lower.contains("somewhat") {
+            return .partlyAgrees
+        }
+        if lower.contains("what evidence") || lower.contains("change your mind") || lower.contains("convince you") {
+            return .asksForEvidence
+        }
+        if lower.contains("disagree") || lower.contains("you're wrong") || lower.contains("you are wrong")
+            || lower.contains("not true") || lower.contains("don't think") || lower.contains("do not think") {
+            return .disagrees
+        }
+        return .questions
+    }
+
+    private static func disputeEvidence(
+        inputs: BookSourceInputs,
+        evidencePageIDs: [String],
+        observationKeys: [String],
+        calendar: Calendar = .current
+    ) -> DisputeEvidenceReceipt {
+        let seed = Set(evidencePageIDs)
+        let knownKeys = Set(observationKeys)
+        let connections = RelationalLoom.connections(
+            days: inputs.days,
+            readerLearning: inputs.readerLearning,
+            facultyEntries: inputs.facultyEntries,
+            people: inputs.people,
+            continuity: inputs.continuity,
+            calendar: calendar
+        ).filter { connection in
+            !seed.isDisjoint(with: connection.evidencePageIDs)
+                || knownKeys.contains(connection.observationKey)
+        }
+        let linkedPageIDs = Set(connections.flatMap(\.evidencePageIDs)).union(seed)
+        let semanticKinds: [SensoryVector.Kind] = [
+            .languageSemantic, .visualSemantic, .voiceSemantic, .contextSemantic
+        ]
+        let semanticPageIDs = inputs.days
+            .flatMap(\.capturedPages)
+            .filter { page in
+                linkedPageIDs.contains(page.id)
+                    && page.resolvedSensoryFolio.vectors.contains { semanticKinds.contains($0.kind) }
+            }
+            .map(\.id)
+        let ranked = connections.sorted {
+            if $0.evidenceTier.maturity != $1.evidenceTier.maturity {
+                return $0.evidenceTier.maturity > $1.evidenceTier.maturity
+            }
+            if $0.strength != $1.strength { return $0.strength > $1.strength }
+            return $0.id < $1.id
+        }
+        return DisputeEvidenceReceipt(
+            evidencePageIDs: linkedPageIDs.sorted(),
+            semanticEvidencePageIDs: Array(Set(semanticPageIDs)).sorted(),
+            connectionIDs: ranked.map(\.id),
+            observationKeys: Array(Set(ranked.map(\.observationKey))).sorted(),
+            lines: ranked.prefix(4).map { $0.line }
+        )
+    }
+
+    /// Reopens an argument only when the graph has earned a new relationship
+    /// or attached a genuinely new Page. Similarity supplies vicinity, never a
+    /// verdict: the Book remains under revision until a human or an inspectable
+    /// event actually resolves the claim.
+    private static func reconcileDispute(
+        _ state: inout BookInteriorState,
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar
+    ) {
+        guard var dispute = state.currentDispute else { return }
+        if var opinion = state.opinion,
+           opinion.id == dispute.opinionID,
+           opinion.strength != .withdrawn,
+           opinion.strength != .reconsidering {
+            opinion.strength = .reconsidering
+            opinion.lastRevisedAt = max(opinion.lastRevisedAt, dispute.openedAt)
+            state.opinion = opinion
+        }
+        guard now.timeIntervalSince(dispute.openedAt) >= 6 * 3_600 else { return }
+        let receipt = disputeEvidence(
+            inputs: inputs,
+            evidencePageIDs: dispute.evidencePageIDs,
+            observationKeys: dispute.relationalObservationKeys,
+            calendar: calendar
+        )
+        let newPageIDs = Set(receipt.evidencePageIDs).subtracting(dispute.evidencePageIDs)
+        let newConnectionIDs = Set(receipt.connectionIDs).subtracting(dispute.relationalConnectionIDs)
+        guard !newPageIDs.isEmpty || !newConnectionIDs.isEmpty else { return }
+
+        dispute.evidencePageIDs = Array(Set(dispute.evidencePageIDs + receipt.evidencePageIDs)).sorted()
+        dispute.semanticEvidencePageIDs = Array(Set(dispute.semanticEvidencePageIDs + receipt.semanticEvidencePageIDs)).sorted()
+        dispute.relationalConnectionIDs = Array(Set(dispute.relationalConnectionIDs + receipt.connectionIDs)).sorted()
+        dispute.relationalObservationKeys = Array(Set(dispute.relationalObservationKeys + receipt.observationKeys)).sorted()
+        dispute.relationReceipts = Array(Set(dispute.relationReceipts + receipt.lines)).sorted()
+        dispute.lastEvolvedAt = now
+        dispute.status = .newEvidence
+        state.currentDispute = dispute
+
+        if var opinion = state.opinion,
+           opinion.id == dispute.opinionID,
+           opinion.strength != .withdrawn {
+            opinion.strength = .reconsidering
+            opinion.lastRevisedAt = now
+            opinion.firstPresentedAt = nil
+            state.opinion = opinion
+        }
     }
 
     private static func resolveCurrentWant(
@@ -4805,8 +5059,22 @@ enum BookInteriorEngine {
 
         guard let fascination = state.fascination else { return }
         let evidence = Array(Set(fascination.evidencePageIDs)).sorted()
-        let strength = opinionStrength(evidenceCount: evidence.count)
-        let statement = opinionStatement(for: fascination, strength: strength)
+        let disputeOwnsCurrentOpinion: Bool
+        if let disputeOpinionID = state.currentDispute?.opinionID,
+           let currentOpinionID = state.opinion?.id {
+            disputeOwnsCurrentOpinion = disputeOpinionID == currentOpinionID
+        } else {
+            disputeOwnsCurrentOpinion = false
+        }
+        let strength: BookOpinionStrength = disputeOwnsCurrentOpinion
+            ? .reconsidering
+            : opinionStrength(evidenceCount: evidence.count)
+        // A topical refresh must not silently overwrite the exact proposition
+        // being argued. New evidence is attached by reconcileDispute; only an
+        // inspectable resolution may later replace or withdraw this claim.
+        let statement = disputeOwnsCurrentOpinion
+            ? (state.opinion?.statement ?? opinionStatement(for: fascination, strength: strength))
+            : opinionStatement(for: fascination, strength: strength)
         if var opinion = state.opinion, opinion.subject == fascination.subject {
             guard opinion.evidencePageIDs != evidence || opinion.statement != statement || opinion.strength != strength else { return }
             let previous = opinion.statement
@@ -4831,6 +5099,9 @@ enum BookInteriorEngine {
             return
         }
 
+        if disputeOwnsCurrentOpinion {
+            return
+        }
         if let current = state.opinion,
            now.timeIntervalSince(current.formedAt) < 12 * 86_400,
            current.strength != .withdrawn {
@@ -7653,6 +7924,18 @@ enum BookInteriorAnswerGrounder {
             let revision = opinion.revisions.last.map { " I last revised it because \($0.reason.lowercased())" } ?? ""
             return "\(opinion.statement) This is \(opinion.strength.confidenceLabel), based on \(opinion.evidencePageIDs.count) Page\(opinion.evidencePageIDs.count == 1 ? "" : "s").\(revision) You may disagree."
         }
+        if lower.contains("our argument")
+            || lower.contains("we disagree")
+            || lower.contains("we disagreed")
+            || lower.contains("what did we argue") {
+            guard let dispute = interior.currentDispute ?? interior.disputeHistory.last else {
+                return "I cannot name an argument we actually had. I will not turn ordinary conversation into a feud for atmosphere."
+            }
+            let later = dispute.relationReceipts.last.map {
+                " Since then, this earned a place nearby: \($0) It did not vote."
+            } ?? " No later connection has earned a place beside it yet."
+            return "I said: ‘\(dispute.bookClaim)’ You said: ‘\(dispute.readerLine)’ You \(dispute.readerStance.plainLanguage). I am still treating the opinion as under revision.\(later)"
+        }
         if lower.contains("your quirks")
             || lower.contains("what are you like")
             || lower.contains("pet peeve") {
@@ -7841,6 +8124,10 @@ enum BookInteriorSurfaces {
         if let opinion = inputs.bookInterior.opinion, opinion.firstPresentedAt == nil {
             pages.append(opinionSurface(opinion, day: day))
         }
+        if let dispute = inputs.bookInterior.currentDispute,
+           dispute.hasUnpresentedEvidence {
+            pages.append(disputeSurface(dispute, day: day))
+        }
         if let fault = inputs.bookInterior.currentFault, fault.presentedAt == nil {
             pages.append(faultSurface(fault, day: day))
         }
@@ -7860,6 +8147,41 @@ enum BookInteriorSurfaces {
             pages.append(commissioned)
         }
         return pages
+    }
+
+    private static func disputeSurface(_ dispute: BookDispute, day: BookDay) -> SurfacePage {
+        let receipts = dispute.relationReceipts.suffix(3).map { "• \($0)" }.joined(separator: "\n")
+        let semanticLine = dispute.semanticEvidencePageIDs.isEmpty
+            ? ""
+            : "\n\n\(dispute.semanticEvidencePageIDs.count) of the evidence Pages also carry persisted meaning, image, voice, or context vectors. Those vectors only told me what belongs near the question; they did not vote."
+        return SurfacePage(
+            id: "book-dispute-return-\(dispute.id)-\(Int(dispute.lastEvolvedAt.timeIntervalSinceReferenceDate))",
+            type: .bookRemembered,
+            sourceID: "book-shared-dispute",
+            intent: .reflect,
+            renderStyle: .archiveReturn,
+            score: 89,
+            reason: "New contrast-tested connections touched an argument the reader and Book actually had.",
+            prompt: "The Argument Grew Another Margin",
+            detail: "The Book remembers both positions and still refuses to counterfeit a verdict.",
+            payload: BookPagePayload(
+                headline: "We Were Still Arguing About This",
+                body: "I said: ‘\(dispute.bookClaim)’\n\nYou said: ‘\(dispute.readerLine)’\n\nSince then, some Pages have joined the vicinity of the argument:\n\(receipts.nonEmpty ?? "• A new connection has earned its place beside the original evidence.")\(semanticLine)\n\nI am not calling resemblance agreement, contradiction, or proof. I have not forgotten what you said, and I have not quietly promoted my opinion back to certainty. The pencil remains out.",
+                metadata: [
+                    "source": "book-shared-dispute",
+                    "bookDisputeID": dispute.id,
+                    "bookDisputeOpinionID": dispute.opinionID,
+                    "bookDisputeStatus": dispute.status.rawValue,
+                    "bookDisputeReaderStance": dispute.readerStance.rawValue,
+                    "bookDisputeConnectionIDs": dispute.relationalConnectionIDs.joined(separator: ","),
+                    "bookDisputeObservationKeys": dispute.relationalObservationKeys.joined(separator: ","),
+                    "bookDisputeSemanticEvidencePageIDs": dispute.semanticEvidencePageIDs.joined(separator: ","),
+                    "bookActEvidencePageIDs": dispute.evidencePageIDs.joined(separator: ","),
+                    "bookInteriorSurface": "true",
+                    "tags": "book,disagreement,shared-history,relational-loom,semantic-vectors,correctable"
+                ]
+            )
+        )
     }
 
     private static func initiativeSurface(_ initiative: BookInitiative, day: BookDay) -> SurfacePage {

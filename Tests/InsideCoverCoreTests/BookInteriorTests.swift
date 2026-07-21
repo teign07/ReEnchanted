@@ -1902,6 +1902,150 @@ final class BookInteriorTests: XCTestCase {
         })
     }
 
+    func testFriendlyArgumentKeepsBothPositionsAndSemanticEvidenceWithoutInferringPolarity() throws {
+        let want = bookWant(.testAnOpinion)
+        var initiative = bookInitiative(.friendlyArgument, mode: .conversation, want: want)
+        initiative.status = .opened
+        let opinion = BookOpinion(
+            id: "opinion-blue-cup",
+            subject: "the blue cup",
+            statement: "My present opinion is the blue cup matters because it refuses to become background.",
+            strength: .held,
+            evidencePageIDs: ["kept-1"],
+            formedAt: now.addingTimeInterval(-4 * 86_400),
+            lastRevisedAt: now.addingTimeInterval(-4 * 86_400),
+            revisions: [],
+            firstPresentedAt: now.addingTimeInterval(-3 * 86_400)
+        )
+        var semanticPage = keptPage(1)
+        semanticPage.sensoryFolio = SensoryFolio(vectors: [
+            SensoryVector(kind: .languageSemantic, modelID: "test-semantic-v1", values: [1, 0, 0])
+        ])
+        var inputs = BookSourceInputs.empty
+        inputs.days = [BookDay(id: "argument-day", date: semanticPage.createdAt, pages: [semanticPage])]
+        let state = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-40 * 86_400),
+            opinion: opinion,
+            currentWant: want,
+            currentInitiative: initiative
+        )
+
+        let answered = BookInteriorEngine.recordingInitiativeAnswered(
+            state,
+            initiativeID: initiative.id,
+            readerLine: "I disagree. That cup is ordinary; you are making the light do all the work.",
+            inputs: inputs,
+            now: now
+        )
+
+        let dispute = try XCTUnwrap(answered.currentDispute)
+        XCTAssertEqual(dispute.bookClaim, opinion.statement)
+        XCTAssertEqual(dispute.readerStance, .disagrees)
+        XCTAssertTrue(dispute.readerLine.contains("making the light do all the work"))
+        XCTAssertEqual(dispute.semanticEvidencePageIDs, ["kept-1"])
+        XCTAssertEqual(answered.opinion?.strength, .reconsidering)
+        XCTAssertTrue(answered.autobiography.contains {
+            $0.title == "The Reader Disagreed with the Book"
+                && $0.whatItChanged.contains("resemblance alone")
+        })
+        let recalled = try XCTUnwrap(BookInteriorAnswerGrounder.answer(
+            to: "What did we argue about?",
+            interior: answered
+        ))
+        XCTAssertTrue(recalled.contains(opinion.statement))
+        XCTAssertTrue(recalled.contains("making the light do all the work"))
+    }
+
+    func testNewRelationalEvidenceReturnsToAnOldArgumentWithoutDeclaringAWinner() throws {
+        let want = bookWant(.testAnOpinion)
+        var initiative = bookInitiative(.friendlyArgument, mode: .conversation, want: want)
+        initiative.status = .opened
+        let opinion = BookOpinion(
+            id: "opinion-souvenir",
+            subject: "small souvenirs",
+            statement: "I think small souvenirs tell the truth more readily than summaries.",
+            strength: .leaning,
+            evidencePageIDs: ["argument-pattern-1"],
+            formedAt: now.addingTimeInterval(-2 * 86_400),
+            lastRevisedAt: now.addingTimeInterval(-2 * 86_400),
+            revisions: [],
+            firstPresentedAt: now.addingTimeInterval(-86_400)
+        )
+        let firstPage = BookPage(
+            id: "argument-pattern-1",
+            type: .souvenir,
+            createdAt: now.addingTimeInterval(-8 * 86_400),
+            promptText: "",
+            userInput: "A blue ticket stub under the lamp.",
+            tags: ["genre:slice-of-life"]
+        )
+        var initialInputs = BookSourceInputs.empty
+        initialInputs.days = [BookDay(id: "pattern-day-1", date: firstPage.createdAt, pages: [firstPage])]
+        let initial = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-50 * 86_400),
+            opinion: opinion,
+            currentWant: want,
+            currentInitiative: initiative
+        )
+        let answered = BookInteriorEngine.recordingInitiativeAnswered(
+            initial,
+            initiativeID: initiative.id,
+            readerLine: "I think you're partly right, but summaries can be honest too.",
+            inputs: initialInputs,
+            now: now
+        )
+        XCTAssertTrue(try XCTUnwrap(answered.currentDispute).relationalConnectionIDs.isEmpty)
+
+        let patternPages = (1...8).map { index in
+            BookPage(
+                id: "argument-pattern-\(index)",
+                type: index <= 4 ? .souvenir : .plainPage,
+                createdAt: now.addingTimeInterval(Double(index) * 86_400),
+                promptText: "",
+                userInput: index <= 4 ? "A small object from the day \(index)." : "A broad account of day \(index).",
+                tags: index <= 4 ? ["genre:slice-of-life"] : ["genre:adventure"]
+            )
+        }
+        var matureInputs = BookSourceInputs.empty
+        matureInputs.days = patternPages.map {
+            BookDay(id: BookDay.id(for: $0.createdAt, calendar: calendar), date: $0.createdAt, pages: [$0])
+        }
+        let later = now.addingTimeInterval(10 * 86_400)
+        let evolved = BookInteriorEngine.reconciled(answered, inputs: matureInputs, now: later, calendar: calendar)
+        let dispute = try XCTUnwrap(evolved.currentDispute)
+        XCTAssertEqual(dispute.status, .newEvidence)
+        XCTAssertFalse(dispute.relationalConnectionIDs.isEmpty)
+        XCTAssertTrue(dispute.evidencePageIDs.contains("argument-pattern-4"))
+
+        matureInputs.bookInterior = evolved
+        let surface = try XCTUnwrap(BookInteriorSurfaces.candidates(
+            for: BookDay(id: BookDay.id(for: later), date: later, pages: []),
+            inputs: matureInputs,
+            now: later
+        ).first(where: { $0.payload.metadata["bookDisputeID"] == dispute.id }))
+        XCTAssertTrue(surface.payload.body.contains(opinion.statement))
+        XCTAssertTrue(surface.payload.body.contains("summaries can be honest too"))
+        XCTAssertTrue(surface.payload.body.contains("did not vote") || surface.payload.body.contains("not calling resemblance"))
+
+        let opened = BookInteriorEngine.recordingSurfaceOpened(
+            evolved,
+            disputeID: dispute.id,
+            now: later.addingTimeInterval(60)
+        )
+        XCTAssertEqual(opened.currentDispute?.status, .revisited)
+        XCTAssertEqual(opened.currentDispute?.returnCount, 1)
+
+        let stable = BookInteriorEngine.reconciled(
+            opened,
+            inputs: matureInputs,
+            now: later.addingTimeInterval(3_600),
+            calendar: calendar
+        )
+        XCTAssertEqual(stable.opinion?.strength, .reconsidering)
+        XCTAssertEqual(stable.opinion?.revisions.count, opened.opinion?.revisions.count)
+        XCTAssertEqual(stable.currentDispute?.returnCount, 1)
+    }
+
     func testSilenceReleasesAnOpenedInitiativeWithoutEscalatingOrCallingItRejection() {
         let want = bookWant(.company, bornAt: now.addingTimeInterval(-12 * 86_400))
         var initiative = bookInitiative(

@@ -953,6 +953,7 @@ extension ContentView {
             tasteID: surface.payload.metadata["bookAcquiredTasteID"],
             reminiscenceID: surface.payload.metadata["bookReminiscenceID"],
             initiativeID: surface.payload.metadata["bookInitiativeID"],
+            disputeID: surface.payload.metadata["bookDisputeID"],
             secretLegacyID: surface.payload.metadata["bookSecretLegacyID"],
             now: now
         )
@@ -972,6 +973,7 @@ extension ContentView {
             base,
             initiativeID: initiativeID,
             readerLine: readerLine,
+            inputs: sourceInputs,
             now: now
         )
         guard updated != base else { return }

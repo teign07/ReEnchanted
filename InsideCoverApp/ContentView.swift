@@ -10627,7 +10627,8 @@ struct ContentView: View {
                 faultID: surface.payload.metadata["bookFaultID"],
                 tasteID: surface.payload.metadata["bookAcquiredTasteID"],
                 reminiscenceID: surface.payload.metadata["bookReminiscenceID"],
-                initiativeID: surface.payload.metadata["bookInitiativeID"]
+                initiativeID: surface.payload.metadata["bookInitiativeID"],
+                disputeID: surface.payload.metadata["bookDisputeID"]
             )
             vault.save()
         }

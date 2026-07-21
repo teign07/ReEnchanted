@@ -370,6 +370,7 @@ life to inspectable machinery:
 | Memory | kept Pages, archive database, literary continuity, Stacks graph/search, evidence receipts | Exact callbacks, absences, returns, changed meanings, and old Pages that come back with provenance. |
 | Wants | fascination, favorite, promise, favor, `BookLongGame`, `BookDesireConflict` | The Book pursues unfinished business, admits when two of its own wants collide, and sometimes asks for a small real-world experiment. |
 | Opinions and faults | `BookOpinion`, wagers, corrections, opinion history | It can lean, be wrong, admit the miss, revise, and remember what it used to think. |
+| Shared disagreement | `BookDispute`, persisted sensory folios, `RelationalLoom` receipts | It keeps the exact claim and reply together, moves the opinion under revision, and can return much later when genuinely new connected evidence appears—without treating vector similarity as a verdict. |
 | Quirks and secrets | stable authored quirk catalog, enacted-behavior history, sealed secret families, `BookSecretLegacy` | Familiar habits alter ordinary Pages; revelations belong to the Book or Labyrinth and can produce consequences across years without becoming hidden diagnoses of the reader. |
 | Autobiography | `BookAutobiographicalMemory`, `BookReminiscence` | The Book remembers becoming itself through real state transitions and can let an old truth interrupt a present Page without inventing a childhood. |
 | Taste, loyalties, and traditions | `BookAcquiredTaste`, `BookLoyalty`, `BookPrivateTradition`, `BookTraditionMutation` | Repeated evidence changes what this Book favors; it becomes partial toward particular cast and returned-to places; shared holidays mutate through real observance without becoming a streak. |
@@ -489,6 +490,21 @@ Answered initiatives enter bounded autobiography; unanswered ones rest after a
 week, and unpresented ones after two, without escalation or rejection language.
 An old unanswered favor yields the conversational floor after a short courtesy
 window rather than gagging the Book forever.
+
+A friendly argument now has a durable consequence beyond the chat transcript.
+When the reader answers an opinion-testing initiative, `BookDispute` preserves
+the Book's exact claim, the reader's exact reply, the explicit shape of the
+challenge, and the opinion/evidence IDs that licensed the argument. The opinion
+moves to `reconsidering`; disagreement alone does not reverse it, and the local
+model is not trusted to infer agreement or contradiction from topical
+similarity. The dispute also keeps lightweight receipts pointing to relevant
+persisted semantic, image, voice, and context vectors and to contrast-tested
+Relational Loom connections. If a later Page or newly mature connection joins
+that evidence neighborhood, the existing Book Remembered ceremony can return
+the old argument with both positions intact. Its language says plainly that the
+new evidence has not voted. Opening the return is recorded, so another return
+requires another material change in the graph rather than elapsed time or app
+visits.
 
 The rare `.characteristicSurprise` initiative is the fullest expression of
 this machinery. It is eligible only after ninety lived days and only when real
