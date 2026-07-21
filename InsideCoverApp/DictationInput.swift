@@ -131,7 +131,7 @@ private struct DictationInputModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .padding(.trailing, 34)
+            .padding(.trailing, 38)
             .overlay(alignment: alignment) {
                 Button {
                     if model.isListening {
@@ -142,16 +142,7 @@ private struct DictationInputModifier: ViewModifier {
                         model.start()
                     }
                 } label: {
-                    Image(systemName: model.isListening ? "mic.fill" : "mic")
-                        .font(.caption.weight(.bold))
-                        .symbolEffect(.pulse, isActive: model.isListening && !reduceMotion)
-                        .frame(width: 28, height: 28)
-                        .foregroundStyle(model.isListening ? BookPalette.lampGold : BookPalette.ink.opacity(0.56))
-                        .background(BookPalette.page.opacity(0.72), in: Circle())
-                        .overlay {
-                            Circle()
-                                .stroke(model.isListening ? BookPalette.lampGold.opacity(0.72) : BookPalette.ink.opacity(0.14), lineWidth: 1)
-                        }
+                    DictationVoiceControl(state: model.state, reduceMotion: reduceMotion)
                 }
                 .buttonStyle(.bookPress(scale: 0.9, playsHaptic: false))
                 .accessibilityLabel(model.isListening ? "Stop voice input" : "Start voice input")
@@ -170,6 +161,93 @@ private struct DictationInputModifier: ViewModifier {
         let cleanBase = base.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanBase.isEmpty else { return transcript }
         return "\(cleanBase) \(transcript)"
+    }
+}
+
+/// The microphone changes mode visibly instead of leaving the reader to infer
+/// state from a tiny filled symbol. While listening, a short ink meter occupies
+/// the margin; when speech ends it folds back into the ordinary mic button.
+private struct DictationVoiceControl: View {
+    let state: DictationInputModel.State
+    let reduceMotion: Bool
+
+    private var isListening: Bool { state == .listening }
+    private var isExpanded: Bool { state != .idle }
+
+    private var status: String? {
+        switch state {
+        case .idle: return nil
+        case .requesting: return "Waking…"
+        case .listening: return "Listening"
+        case .unavailable: return "Mic unavailable"
+        }
+    }
+
+    private var symbol: String {
+        switch state {
+        case .idle: return "mic"
+        case .requesting: return "ellipsis"
+        case .listening: return "mic.fill"
+        case .unavailable: return "exclamationmark"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if isExpanded {
+                BookVoiceInkMeter(active: isListening, reduceMotion: reduceMotion)
+                    .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
+
+                if let status {
+                    Text(status)
+                        .font(.caption2.weight(.bold))
+                        .lineLimit(1)
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                }
+            }
+
+            Image(systemName: symbol)
+                .font(.caption.weight(.bold))
+                .symbolEffect(.pulse, isActive: isListening && !reduceMotion)
+                .frame(width: 20, height: 20)
+        }
+        .foregroundStyle(isListening ? BookPalette.lampGold : BookPalette.ink.opacity(0.64))
+        .padding(.horizontal, isExpanded ? 9 : 4)
+        .frame(minWidth: 28, minHeight: 28)
+        .background(BookPalette.page.opacity(0.94), in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(
+                    isListening ? BookPalette.lampGold.opacity(0.78) : BookPalette.ink.opacity(0.16),
+                    lineWidth: 1
+                )
+        }
+        .shadow(
+            color: isListening ? BookPalette.lampGold.opacity(0.22) : .clear,
+            radius: 10
+        )
+        .animation(BookMotion.direct(reduceMotion), value: state)
+    }
+}
+
+struct BookVoiceInkMeter: View {
+    let active: Bool
+    let reduceMotion: Bool
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 0.09, paused: !active || reduceMotion)) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate
+            HStack(alignment: .center, spacing: 2) {
+                ForEach(0..<4, id: \.self) { index in
+                    let wave = abs(sin(time * 7.4 + Double(index) * 1.45))
+                    Capsule()
+                        .frame(width: 2, height: active && !reduceMotion ? 4 + wave * 10 : 5)
+                }
+            }
+            .frame(width: 16, height: 16)
+        }
+        .foregroundStyle(BookPalette.lampGold)
+        .accessibilityHidden(true)
     }
 }
 

@@ -292,9 +292,13 @@ struct ContentView: View {
     @State private var keepInkBurstText = "KEPT"
     @State private var keepMarginNote: KeepMarginalia.Note?
     @State private var keepMarginNoteTicket = 0
+    /// Covers both the ink-burst grace and the visible character note. Achievement
+    /// announcements wait for this whole beat instead of racing its delayed toast.
+    @State var isKeepMarginNotePresentationActive = false
     @State private var shadowWonderUnlockNote: KeepMarginalia.Note?
     @State var marginaliaAchievementUnlockNote: KeepMarginalia.Note?
     @State var marginaliaAchievementUnlockTitle = ""
+    @State var marginaliaAchievementAnnouncementTicket = 0
     @State var didSeedBookwideMarginaliaAchievements = false
     /// The faint echo the retired margin toast leaves tucked at the page edge, so
     /// the settled desk still carries the keep for a breath after the toast lands.
@@ -389,7 +393,6 @@ struct ContentView: View {
     @AppStorage("didRequestFirstDoorAppReview") var didRequestFirstDoorAppReview = false
     @AppStorage("didOfferStandingOrder") var didOfferStandingOrder = false
     @State var showStandingOrderPaywall = false
-    @State var standingOrderHeroArtifact: BookOfYouShareArtifact?
     var marginTutorSeenData: String {
         get { MarginTutorLedger.encode(Set(vault.data.tutorSeen)) }
         nonmutating set {
@@ -482,6 +485,7 @@ struct ContentView: View {
     // only when the underlying data changes (see refreshContinuityCache).
     @State var cachedContinuityDigest: LiteraryContinuityDigest = .empty
     @State var cachedMotifClusters: [BookMotifCluster] = []
+    @State var cachedBookVoicePatina: BookVoicePatina = .unwritten
     @State var continuityCacheSignature = ""
     @State var bookPersistenceRevision: UInt64 = 0
     @State var isGlowMenuPresented = false
@@ -523,6 +527,7 @@ struct ContentView: View {
     @State var didHydrateLaunchState = false
     @State var didRunPostLaunchTasks = false
     @State var didRunIdleLocationRefresh = false
+    @State var didRunSensoryFolioBackfill = false
     @State var surfaceBuildToken = 0
     @State private var isRefreshingSurfaceDesk = false
     @State var isChangingAppLock = false
@@ -672,6 +677,7 @@ struct ContentView: View {
         // Read the cached digest/clusters (refreshed on data change), not a fresh
         // whole-archive recompute on every access.
         inputs.continuity = cachedContinuityDigest
+        inputs.bookVoicePatina = cachedBookVoicePatina
         inputs.constellations = vault.data.constellations ?? []
         inputs.wagers = vault.data.wagers ?? []
         inputs.themes = vault.data.themes ?? []
@@ -751,22 +757,14 @@ struct ContentView: View {
             readerLearning: vault.data.readerLearning ?? ReaderLearningModel()
         )
 
-        if let firstRunSurfaces = FirstRunPageSequence.surfaces(
+        let firstRun = FirstRunPageSequence.surfaces(
             for: today,
             context: CuratorContext.make(for: today),
             inputs: inputs,
             now: now
-        ) {
-            let allowed = firstRunSurfaces.filter { preferences.allows($0) }
-            // Only let the first-run sequence own the desk while it still has a
-            // greeting card to show. The local brain install no longer gates the
-            // desk — it rides beside the ordinary feed below.
-            if !allowed.isEmpty {
-                return allowed
-            }
-        }
+        )?.filter { preferences.allows($0) }
 
-        let feed = BookCurator.surfacedPages(
+        var feed = BookCurator.surfacedPages(
             for: today,
             inputs: inputs,
             now: now,
@@ -775,9 +773,9 @@ struct ContentView: View {
         )
         let upgrade = FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs)
         if let upgrade, preferences.allows(upgrade) {
-            return FirstRunPageSequence.mergingUpgradeRider(upgrade, into: feed, limit: 3)
+            feed = FirstRunPageSequence.mergingUpgradeRider(upgrade, into: feed, limit: 3)
         }
-        return feed
+        return FirstRunPageSequence.mergingCurrentStep(firstRun, into: feed, limit: 3)
     }
 
     var enabledActiveSourceCount: Int {
@@ -902,7 +900,7 @@ struct ContentView: View {
                     VStack {
                         Spacer()
                         MarginTutorNoteCard(note: activeTutorNote) {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) {
+                            withAnimation(BookMotion.retreat(reduceMotion)) {
                                 self.activeTutorNote = nil
                             }
                         }
@@ -994,13 +992,17 @@ struct ContentView: View {
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .ignoresSafeArea()
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.82, anchor: .topTrailing)
-                            .combined(with: .move(edge: .trailing))
-                            .combined(with: .opacity),
-                        removal: .scale(scale: 0.96, anchor: .topTrailing)
-                            .combined(with: .opacity)
-                    ))
+                    .transition(
+                        reduceMotion
+                            ? .opacity
+                            : .asymmetric(
+                                insertion: .scale(scale: 0.82, anchor: .topTrailing)
+                                    .combined(with: .move(edge: .trailing))
+                                    .combined(with: .opacity),
+                                removal: .scale(scale: 0.96, anchor: .topTrailing)
+                                    .combined(with: .opacity)
+                            )
+                    )
                     .zIndex(15)
                 }
 
@@ -1433,6 +1435,9 @@ struct ContentView: View {
                 }
             }
         }
+        .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
+        .animation(BookMotion.pageTurn(reduceMotion), value: selectedSurface?.id)
+        .animation(BookMotion.reveal(reduceMotion), value: padDestination)
         .navigationTitle(padDetailTitle)
         .navigationBarTitleDisplayMode(.inline)
         .overlay(alignment: .leading) {
@@ -1468,9 +1473,11 @@ struct ContentView: View {
 
     private func selectPadDestination(_ destination: BookPadDestination) {
         guard destination != padDestination else { return }
-        padSelectedSurfaceByDestination[padDestination] = selectedSurface
-        padDestination = destination
-        selectedSurface = padSelectedSurfaceByDestination[destination]
+        withAnimation(BookMotion.reveal(reduceMotion)) {
+            padSelectedSurfaceByDestination[padDestination] = selectedSurface
+            padDestination = destination
+            selectedSurface = padSelectedSurfaceByDestination[destination]
+        }
     }
 
     private var padTodayColumn: some View {
@@ -1755,6 +1762,7 @@ struct ContentView: View {
                 handlePendingCompassWidgetCommand()
                 handlePendingWidgetDeepLink()
                 handlePendingSiriCommand()
+                handlePendingPromptWhisperOpen()
             }
             .task(id: generation.isBraiding) {
                 guard generation.isBraiding else { return }
@@ -1835,6 +1843,7 @@ struct ContentView: View {
                         handlePendingCompassWidgetCommand()
                         handlePendingWidgetDeepLink()
                         handlePendingSiriCommand()
+                        handlePendingPromptWhisperOpen()
                     }
                     return
                 }
@@ -1871,6 +1880,7 @@ struct ContentView: View {
                 handlePendingCompassWidgetCommand()
                 handlePendingWidgetDeepLink()
                 handlePendingSiriCommand()
+                handlePendingPromptWhisperOpen()
                 writeWidgetSnapshot()
             }
             .onChange(of: isOpeningMovieVisible) { _, visible in
@@ -1894,6 +1904,9 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: .reEnchantedWidgetDeepLinkReceived)) { _ in
                 handlePendingWidgetDeepLink()
                 handlePendingSiriCommand()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .promptWhisperOpenReceived)) { _ in
+                handlePendingPromptWhisperOpen()
             }
             .onChange(of: surfaceRefreshDate) { _, _ in
                 if suppressNextSurfaceRefresh {
@@ -2072,7 +2085,6 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showStandingOrderPaywall, onDismiss: { firePendingFirstEditionCelebration() }) {
                 StandingOrderSheet(
-                    heroArtifact: standingOrderHeroArtifact,
                     onSubscribed: { packID in unlockPack(packID) },
                     onDismiss: { showStandingOrderPaywall = false }
                 )
@@ -2550,6 +2562,7 @@ struct ContentView: View {
             continuityCacheSignature = result.signature
             cachedContinuityDigest = result.digest
             cachedMotifClusters = result.clusters
+            cachedBookVoicePatina = result.bookVoicePatina
         }
         cachedNarrativeSourceSnapshot = result.narrativeSnapshot
         cachedQuietDayCount = result.quietDayCount
@@ -2714,6 +2727,19 @@ struct ContentView: View {
         // the reader never needs it in the opening moments — defer it to a
         // genuine idle gap so it never competes with launch or an active braid.
         scheduleIdleLocationRefreshIfNeeded()
+        scheduleSensoryFolioBackfillIfNeeded()
+    }
+
+    @MainActor
+    func scheduleSensoryFolioBackfillIfNeeded() {
+        guard !didRunSensoryFolioBackfill else { return }
+        didRunSensoryFolioBackfill = true
+        Task {
+            // Let post-launch ledgers and the first interactive desk settle.
+            try? await Task.sleep(for: .milliseconds(1_500))
+            guard !Task.isCancelled else { return }
+            await backfillSensoryFoliosIfNeeded()
+        }
     }
 
     @MainActor
@@ -2859,6 +2885,42 @@ struct ContentView: View {
         }
     }
 
+    /// Onboarding is presented over a desk that was curated before the reader's
+    /// First Door answers existed. Replace that hidden, pre-onboarding desk as
+    /// soon as those answers are saved so dismissing onboarding reveals the
+    /// Welcome sequence rather than the three ordinary launch cards. A normal
+    /// rebuild deliberately stabilizes visible cards, which is the opposite of
+    /// what this one-time handoff needs.
+    @MainActor
+    func publishPostOnboardingDesk() async {
+        guard didHydrateLaunchState,
+              !isOpeningMovieVisible,
+              !isLaunchDeskCurating,
+              !isRetiringKeptSurface,
+              pendingSurfaceRetirements.isEmpty else { return }
+
+        surfaceBuildToken &+= 1
+        let token = surfaceBuildToken
+        let now = Date()
+        let request = makeSurfaceBuildRequest(now: now, surfaceLimit: 12)
+        let result = await ContentView.computeSurfaceBuild(
+            request,
+            performsHeavyEnrichment: false,
+            priority: .userInitiated
+        )
+        guard !Task.isCancelled, token == surfaceBuildToken else { return }
+
+        applySurfaceBuildMetadata(result)
+        curatedSurfaceBench = result.surfaces
+        let postOnboardingDesk = Array(result.surfaces.prefix(3))
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.28)) {
+            surfacedPages = postOnboardingDesk
+        }
+        suppressNextSurfaceRefresh = true
+        surfaceRefreshDate = now
+        recordServedSurfaces(postOnboardingDesk, now: now)
+    }
+
     /// Pulling from the top is an explicit request to turn over the whole desk,
     /// so it deliberately bypasses the ordinary stability contract that keeps
     /// cards fixed during background refreshes. The new trio is computed off
@@ -2938,6 +3000,7 @@ struct ContentView: View {
     struct SurfaceBuildResult: @unchecked Sendable {
         var digest: LiteraryContinuityDigest
         var clusters: [BookMotifCluster]
+        var bookVoicePatina: BookVoicePatina
         var surfaces: [SurfacePage]
         var narrativeSnapshot: NarrativeSourceSnapshot
         var quietDayCount: Int
@@ -3049,12 +3112,30 @@ struct ContentView: View {
                   keptPageCount: foundation.inputs.keptPageCount,
                   people: foundation.inputs.people,
                   now: request.now
-              ),
-              let thing = await BookFoundGiftFinder.shared.find(for: plan, now: request.now),
-              let gift = BookFoundGiftEngine.surface(for: plan, thing: thing, now: request.now),
+              ) else {
+            return base
+        }
+
+        let gift: SurfacePage?
+        switch plan.realm {
+        case .publicWeb:
+            if let thing = await BookFoundGiftFinder.shared.find(for: plan, now: request.now) {
+                gift = BookFoundGiftEngine.surface(for: plan, thing: thing, now: request.now)
+            } else {
+                gift = nil
+            }
+        case .jSpace:
+            gift = BookFoundGiftEngine.jSpaceSurface(
+                for: plan,
+                interior: foundation.inputs.bookInterior,
+                now: request.now
+            )
+        }
+
+        guard let gift,
               request.preferences.allows(gift),
               CuratorMood.make(
-                inputs: foundation.inputs,
+                  inputs: foundation.inputs,
                 distressActive: false,
                 now: request.now
               ).allows(gift) else {
@@ -3110,6 +3191,7 @@ struct ContentView: View {
     ) -> SurfaceBuildResult {
         let digest: LiteraryContinuityDigest
         let clusters: [BookMotifCluster]
+        let bookVoicePatina: BookVoicePatina
         if performsHeavyEnrichment, request.needsDigest {
             var built = LiteraryContinuityProjector.digest(
                 days: request.days,
@@ -3131,14 +3213,21 @@ struct ContentView: View {
                 themes: request.inputs.themes,
                 now: request.now
             )
+            bookVoicePatina = BookVoicePatina.derive(
+                days: request.days,
+                readerLearning: request.inputs.readerLearning,
+                now: request.now
+            )
         } else {
             digest = request.cachedDigest
             clusters = request.cachedClusters
+            bookVoicePatina = request.inputs.bookVoicePatina
         }
 
         var inputs = foundation.inputs
         inputs.continuity = digest
         inputs.clusters = clusters
+        inputs.bookVoicePatina = bookVoicePatina
         // NLEmbedding is not free. The launch desk first uses the pure fallback,
         // then this enriched continuation adds semantic evidence to the bench.
         if performsHeavyEnrichment {
@@ -3161,32 +3250,37 @@ struct ContentView: View {
             now: request.now
         )
         let allowedFirstRun = firstRun?.filter { request.preferences.allows($0) } ?? []
-        if !allowedFirstRun.isEmpty {
-            surfaces = allowedFirstRun
-        } else {
-            let feed = BookCurator.surfacedPages(
-                for: request.today,
-                inputs: inputs,
-                now: request.now,
-                limit: request.surfaceLimit,
-                preferences: request.preferences
+        var feed = BookCurator.surfacedPages(
+            for: request.today,
+            inputs: inputs,
+            now: request.now,
+            limit: request.surfaceLimit,
+            preferences: request.preferences
+        )
+        let upgrade = FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs)
+        if let upgrade, request.preferences.allows(upgrade) {
+            feed = FirstRunPageSequence.mergingUpgradeRider(
+                upgrade,
+                into: feed,
+                limit: request.surfaceLimit
             )
-            let upgrade = FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs)
-            if let upgrade, request.preferences.allows(upgrade) {
-                surfaces = FirstRunPageSequence.mergingUpgradeRider(
-                    upgrade,
-                    into: feed,
-                    limit: request.surfaceLimit
-                )
-            } else {
-                surfaces = feed
-            }
         }
+        if !allowedFirstRun.isEmpty {
+            surfaces = FirstRunPageSequence.mergingCurrentStep(
+                allowedFirstRun,
+                into: feed,
+                limit: request.surfaceLimit
+            )
+        } else {
+            surfaces = feed
+        }
+        let patinaSurfaces = surfaces.map { bookVoicePatina.applying(to: $0) }
 
         return SurfaceBuildResult(
             digest: digest,
             clusters: clusters,
-            surfaces: surfaces,
+            bookVoicePatina: bookVoicePatina,
+            surfaces: patinaSurfaces,
             narrativeSnapshot: foundation.narrativeSnapshot,
             quietDayCount: foundation.quietDayCount,
             bleedIssueNumber: foundation.bleedIssueNumber,
@@ -3297,6 +3391,7 @@ struct ContentView: View {
                 continuityCacheSignature = result.signature
                 cachedContinuityDigest = result.digest
                 cachedMotifClusters = result.clusters
+                cachedBookVoicePatina = result.bookVoicePatina
             }
             if cacheToken == surfaceBuildToken {
                 cachedNarrativeSourceSnapshot = result.narrativeSnapshot
@@ -3424,9 +3519,16 @@ struct ContentView: View {
     /// Belief-ledger counts are passed in so callers that already decoded the
     /// ledgers (the off-main surface build) don't pay for the decode twice.
     func continuityCacheSignatureString(entityBeliefCount: Int, pageBeliefCount: Int) -> String {
-        [
+        let pages = days.flatMap(\.pages)
+        let recentReaderInk = pages
+            .sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+            .suffix(48)
+            .map { "\($0.id)|\($0.userInput)|\($0.playerReply)" }
+            .joined(separator: "\n")
+        return [
             "\(days.count)",
-            "\(days.last?.pages.count ?? 0)",
+            "\(pages.count)",
+            "\(recentReaderInk.stableHash)",
             "\(narrativeEvents.count)",
             "\(entityMemories.count)",
             "\(entityBeliefCount)",
@@ -3472,6 +3574,11 @@ struct ContentView: View {
             themes: vault.data.themes ?? [],
             now: surfaceRefreshDate
         )
+        cachedBookVoicePatina = BookVoicePatina.derive(
+            days: days,
+            readerLearning: vault.data.readerLearning ?? ReaderLearningModel(),
+            now: surfaceRefreshDate
+        )
     }
 
     /// First-run script steps advance only when the reader engages a card —
@@ -3515,6 +3622,13 @@ struct ContentView: View {
         evidence: String? = nil,
         saveImmediately: Bool = true
     ) {
+        let interactionContext: BookPageContextSnapshot?
+        switch action {
+        case .opened, .acted, .recognized, .followedThread, .keepsakeEarned, .kept, .dismissed, .loved, .missed:
+            interactionContext = pageContextSnapshot(at: now)
+        case .surfaced:
+            interactionContext = nil
+        }
         var learning = vault.data.readerLearning ?? ReaderLearningModel()
         learning.record(
             ReaderLearningEvent(
@@ -3527,7 +3641,8 @@ struct ContentView: View {
                 varietyKey: surface.varietyKey,
                 hour: Calendar.current.component(.hour, from: now),
                 tags: surface.readerLearningTags,
-                evidence: evidence
+                evidence: evidence,
+                context: interactionContext
             )
         )
         vault.data.readerLearning = learning
@@ -3555,7 +3670,8 @@ struct ContentView: View {
                 varietyKey: "source:\(page.sourceID)",
                 hour: Calendar.current.component(.hour, from: page.createdAt),
                 tags: page.tags,
-                evidence: evidence ?? page.userInput
+                evidence: evidence ?? page.userInput,
+                context: page.context
             )
         )
         vault.data.readerLearning = learning
@@ -3563,6 +3679,7 @@ struct ContentView: View {
     }
 
     func recordMomentaryPageOpened(_ surface: SurfacePage, at now: Date) {
+        recordBookInteriorSurfaceOpened(surface, now: now)
         recordReaderLearning(
             surface: surface,
             action: .opened,
@@ -3663,7 +3780,7 @@ struct ContentView: View {
         }
 
         BookFeedback.play(isGlowMenuPresented ? .dismissPage : .sourceRefresh)
-        withAnimation(.spring(response: 0.48, dampingFraction: 0.78)) {
+        withAnimation(BookMotion.reveal(reduceMotion)) {
             isGlowMenuPresented.toggle()
         }
         if isGlowMenuPresented {
@@ -3687,14 +3804,14 @@ struct ContentView: View {
         guard !seen.contains(id), let note = MarginTutorCatalog.note(for: id) else { return }
         seen.insert(id)
         marginTutorSeenData = MarginTutorLedger.encode(seen)
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+        withAnimation(BookMotion.reveal(reduceMotion)) {
             activeTutorNote = note
         }
     }
 
     func closeGlowMenu() {
         BookFeedback.play(.dismissPage)
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
+        withAnimation(BookMotion.retreat(reduceMotion)) {
             isGlowMenuPresented = false
         }
     }
@@ -4346,6 +4463,29 @@ struct ContentView: View {
         }
 
         writeWidgetSnapshot()
+    }
+
+    func handlePendingPromptWhisperOpen() {
+        guard didHydrateLaunchState,
+              let request = PromptWhisperOpenStore.load() else { return }
+
+        let whisper = request.whisper
+        let surface = WonderCompassPageSourceAdapter().promptWhisperSurface(
+            for: whisper,
+            day: today,
+            context: CuratorContext.make(for: today),
+            inputs: sourceInputs,
+            now: request.issuedAt
+        )
+
+        if usesPadWorkspace {
+            selectPadDestination(.today)
+        }
+        selectedSurface = surface
+        PromptWhisperOpenStore.clear(id: request.id)
+        statusMessage = whisper.id.hasPrefix("mission-")
+            ? "The same playful mission is open, ready for its proof."
+            : "The Book opened the prompt that tapped the glass."
     }
 
     func handlePendingSiriCommand() {
@@ -5743,7 +5883,10 @@ struct ContentView: View {
     }
 
     var hero: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        let interior = vault.data.bookInterior ?? .unawakened
+        let stance = BookRelationshipLedger.snapshot(inputs: sourceInputs).stance
+
+        return VStack(alignment: .leading, spacing: 20) {
             ZStack(alignment: .topTrailing) {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Real Life,\nReEnchanted")
@@ -5769,11 +5912,15 @@ struct ContentView: View {
                 .shadow(color: BookPalette.lampGold.opacity(0.18), radius: 10, x: 0, y: 3)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                LivingMarginaliaImage(name: "MarginaliaCompass", width: 42, opacity: 0.42, glow: false, isPaused: shouldPauseAmbientMotion)
-                    .frame(width: 58, height: 58)
+                BookPresenceSilhouette(
+                    stance: stance,
+                    interior: interior,
+                    isPaused: shouldPauseAmbientMotion,
+                    onKnock: knockOnTheCover
+                )
+                    .frame(width: 62, height: 74)
                     .padding(.top, 8)
                     .padding(.trailing, 8)
-                    .accessibilityHidden(true)
             }
 
             if let bookPage = bookOfYouHeroPage {
@@ -5782,6 +5929,7 @@ struct ContentView: View {
                 } onDismiss: {
                     dismissBookOfYouHero(bookPage)
                 }
+                .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
             } else {
                 HStack(spacing: 10) {
                     Label("\(today.capturedPages.count) fragment\(today.capturedPages.count == 1 ? "" : "s") in the margins", systemImage: "tray.full")
@@ -5793,6 +5941,7 @@ struct ContentView: View {
                 .foregroundStyle(BookPalette.ink.opacity(0.68))
                 .padding(14)
                 .background(BookPalette.paper.opacity(0.82), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .transition(BookMotion.foldTransition(reduceMotion: reduceMotion))
             }
 
         }
@@ -5818,6 +5967,7 @@ struct ContentView: View {
                 .offset(x: -2, y: 8)
                 .allowsHitTesting(false)
         }
+        .animation(BookMotion.result(reduceMotion), value: bookOfYouHeroPage?.id)
     }
 
     var bookTodayShelf: some View {
@@ -5845,6 +5995,8 @@ struct ContentView: View {
                 Text(isLaunchDeskCurating ? "choosing" : "\(surfaces.count)/3")
                     .font(.caption.monospacedDigit().weight(.bold))
                     .foregroundStyle(BookPalette.teal)
+                    .contentTransition(.numericText())
+                    .animation(BookMotion.direct(reduceMotion), value: surfaces.count)
             }
 
             if isLaunchDeskCurating {
@@ -5865,12 +6017,13 @@ struct ContentView: View {
                 // makes the pending retirement slot a reliable layout
                 // placeholder and avoids lazy-stack measurement corrections.
                 VStack(spacing: 12) {
-                    ForEach(surfaces) { surface in
+                    ForEach(Array(surfaces.enumerated()), id: \.element.id) { index, surface in
                         SwipeDismissSurfaceCard(
                             surface: surface,
                             isBusy: workBlockingState.surfaceBusyIndicator(for: surface.type),
                             isRetiring: pendingSurfaceRetirements[surface.id] != nil,
-                            animatesArrival: arrivingSurfaceIDs.contains(surface.id)
+                            animatesArrival: arrivingSurfaceIDs.contains(surface.id),
+                            arrivalDelay: Double(index) * 0.07
                         ) {
                             openDeskSurface(surface)
                         } onDismiss: {
@@ -5913,9 +6066,11 @@ struct ContentView: View {
                     actionTitle: statusActionTitle,
                     action: statusAction
                 )
+                .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
             }
         }
         .animation(.easeOut(duration: 0.32), value: isLaunchDeskCurating)
+        .animation(BookMotion.reveal(reduceMotion), value: statusMessage)
     }
 
     private func openDeskSurface(_ surface: SurfacePage) {
@@ -6000,7 +6155,7 @@ struct ContentView: View {
                 BookFeedback.play(.tap)
                 let nextValue = !isExpanded.wrappedValue
                 onToggle?(nextValue)
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                withAnimation(BookMotion.reveal(reduceMotion)) {
                     isExpanded.wrappedValue = nextValue
                 }
             } label: {
@@ -6034,12 +6189,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     content()
                 }
-                .transition(
-                    .asymmetric(
-                        insertion: .move(edge: .top).combined(with: .opacity),
-                        removal: .move(edge: .top).combined(with: .opacity)
-                    )
-                )
+                .transition(BookMotion.foldTransition(reduceMotion: reduceMotion))
             }
         }
         .padding(14)
@@ -7133,6 +7283,11 @@ struct ContentView: View {
     ) {
         keepMarginNoteTicket += 1
         let ticket = keepMarginNoteTicket
+        // Set this before yielding to the delayed presentation task. Keeping a
+        // page also changes the achievement signature immediately, so the
+        // achievement presenter must be able to see that a character note is
+        // already owed even while only the ink burst is onscreen.
+        isKeepMarginNotePresentationActive = true
         keepMarginTrace = nil
         Task { @MainActor in
             var presented = note
@@ -7178,6 +7333,7 @@ struct ContentView: View {
                 keepMarginNote = nil
                 keepMarginTrace = presented
             }
+            isKeepMarginNotePresentationActive = false
             try? await Task.sleep(nanoseconds: 6_000_000_000)
             guard ticket == keepMarginNoteTicket else { return }
             withAnimation(.easeOut(duration: 0.8)) { keepMarginTrace = nil }
@@ -7718,11 +7874,19 @@ struct ContentView: View {
             readerLexicon: activeReaderLexicon,
             bookRelationship: BookRelationshipLedger.snapshot(inputs: sourceInputs, now: Date()),
             bookInterior: sourceInputs.bookInterior,
+            bookVoicePatina: sourceInputs.bookVoicePatina,
             askTheBookMemoryLookup: { query, turns in
                 await AskTheBookArchiveMemoryReader.shared.retrieve(
                     query: query,
                     previousTurns: turns,
                     baseline: stacksSearchDataset
+                )
+            },
+            onBookInitiativeAnswered: { initiativeID, readerLine, answeredAt in
+                recordBookInitiativeAnswered(
+                    initiativeID: initiativeID,
+                    readerLine: readerLine,
+                    now: answeredAt
                 )
             },
             isShadowWonderActive: ShadowWonder.state(inputs: sourceInputs, now: Date()).isActive,
@@ -9515,11 +9679,13 @@ struct ContentView: View {
         else if lowered.contains("success") { outcomeTier = "costly-success" }
         else { outcomeTier = "unresolved" }
         let source = BookPageSourceRegistry.source(for: returnsToAcademy ? .academyClass : .narrativeOS)
+        let priorContext = returnsToAcademy
+            ? "The original \(metadata["academyReturn_lessonTitle"] ?? "lesson") scene and its demonstration have already been read. Do not replay or paraphrase them."
+            : "Previous scene:\n\(priorScene)"
         let continuation = """
-        \(returnsToAcademy ? "An Academy session assigned a field practice." : "A Story Page choice asked for \(mechanic).")
+        \(returnsToAcademy ? "An Academy session assigned a field practice, and the reader has now completed it." : "A Story Page choice asked for \(mechanic).")
 
-        Previous \(returnsToAcademy ? "classroom scene" : "scene"):
-        \(priorScene)
+        \(priorContext)
 
         Chosen \(returnsToAcademy ? "Academy practice" : "story action"):
         \(choiceTitle) — \(choicePrompt)
@@ -9533,7 +9699,7 @@ struct ContentView: View {
         Player-kept result:
         \(outcomeText)
 
-        \(returnsToAcademy ? "Continue the same lesson one beat later. Let the leader receive the evidence, answer it specifically, and give the class a new small social or conceptual turn. Do not restart the lesson or claim any extra real-world action beyond this result." : "Continue the thread from the real completed mechanic. Do not claim any extra real-world action beyond this result.")
+        \(returnsToAcademy ? "Continue one beat later. The submitted result above is the cause of the new scene: let the leader quote or name at least one exact detail from it, apply the lesson to that detail, and give the room a new small social or conceptual turn. Do not restart the lesson, repeat its demonstration, or claim any extra real-world action beyond this result." : "Continue the thread from the real completed mechanic. Do not claim any extra real-world action beyond this result.")
         """
 
         var returnMetadata: [String: String] = [
@@ -10455,7 +10621,13 @@ struct ContentView: View {
                 favoriteID: surface.payload.metadata["bookFavoriteID"],
                 quirkID: surface.payload.metadata["bookQuirkID"],
                 opinionID: surface.payload.metadata["bookOpinionID"],
-                longGamePhase: surface.payload.metadata["bookLongGamePhase"]
+                longGamePhase: surface.payload.metadata["bookLongGamePhase"],
+                behaviorID: surface.payload.metadata["bookBehaviorID"],
+                projectID: surface.payload.metadata["bookProjectID"],
+                faultID: surface.payload.metadata["bookFaultID"],
+                tasteID: surface.payload.metadata["bookAcquiredTasteID"],
+                reminiscenceID: surface.payload.metadata["bookReminiscenceID"],
+                initiativeID: surface.payload.metadata["bookInitiativeID"]
             )
             vault.save()
         }
@@ -10761,7 +10933,11 @@ struct ContentView: View {
                 ),
                 activeWorldEvents: resolvedWorldEvents,
                 readerLexicon: vault.data.readerLexicon ?? ReaderLexicon(),
-                readerLearning: vault.data.readerLearning ?? ReaderLearningModel()
+                readerLearning: vault.data.readerLearning ?? ReaderLearningModel(),
+                facultyEntries: braidInputs.facultyEntries,
+                people: braidInputs.people,
+                continuity: braidInputs.continuity,
+                bookReadingBoundaries: braidInputs.bookReadingBoundaries
             )
             var braid = try await braider.braid(day: braidDay, context: braidContext)
             let headerContext = BraidPageDetails.HeaderContext.make(for: braid, day: braidDay, inputs: braidInputs)
@@ -10769,8 +10945,10 @@ struct ContentView: View {
             braid = BraidPageDetails.withPromiseEcho(braid, line: BraidEmber.keptPromiseLine(for: braidDay))
             braid.mediaAssets = braidDay.capturedPages.flatMap(\.mediaAssets)
             let day = BraidRecoveryState.dayByMarkingCapturedPagesUsed(braidDay, braid: braid)
-            if braid.tags.contains("local-model-missing") {
-                persist(day: day, message: "The Book kept today's page in its fallback hand. The local brain is still waking.")
+            let usedLocalModelFallback = braid.tags.contains("local-model-fallback")
+                || braid.tags.contains("local-model-missing")
+            if usedLocalModelFallback {
+                persist(day: day, message: "The Book kept today's page in its handcrafted fallback. The local brain did not finish this braid.")
             } else if braid.tags.contains("mlx-hook") {
                 persist(day: day, message: "The model doorway answered. On your device, the braid will be local.")
             } else {
@@ -10785,7 +10963,11 @@ struct ContentView: View {
             BookFeedback.play(.braidComplete)
             celebrateBookOfYouCompletion(page: braid)
             modelReport = LocalModelManager.report()
-            localBrainTelemetry.clearError()
+            if usedLocalModelFallback {
+                localBrainTelemetry.recordError("braid: the local model failed; a handcrafted fallback page was kept")
+            } else {
+                localBrainTelemetry.clearError()
+            }
             generation.braidRecovery.recordSuccess()
         } catch {
             BookFeedback.play(.error)
@@ -10918,6 +11100,9 @@ struct ContentView: View {
             if day.pages[index].attentionFingerprint == nil {
                 day.pages[index].attentionFingerprint = AttentionFingerprint.make(from: day.pages[index])
             }
+            if day.pages[index].sensoryFolio == nil {
+                day.pages[index].sensoryFolio = SensoryFolioProjector.structuredFolio(from: day.pages[index])
+            }
         }
 
         let previousDays = days
@@ -10946,9 +11131,16 @@ struct ContentView: View {
         // reverse-geocoding, or weather latency can never swallow the page;
         // then enrich precisely these new pages from one fresh GPS reading.
         // Coordinates remain transient and are never copied into page context.
-        if requestsFreshKeepContext, !newlyKeptPageIDs.isEmpty {
+        if !newlyKeptPageIDs.isEmpty {
             Task {
-                await enrichKeptPagesWithFreshLocation(
+                if requestsFreshKeepContext {
+                    await enrichKeptPagesWithFreshLocation(
+                        pageIDs: newlyKeptPageIDs,
+                        dayID: day.id,
+                        message: message
+                    )
+                }
+                await enrichKeptPagesWithSensoryFolios(
                     pageIDs: newlyKeptPageIDs,
                     dayID: day.id,
                     message: message
@@ -11061,6 +11253,125 @@ struct ContentView: View {
             // retains its time, chart references, and any already-known coarse
             // context, while the next Keep will make a fresh attempt.
             appLog.info("Keep context: fresh location was not available: \(error.localizedDescription, privacy: .private)")
+        }
+    }
+
+    /// Gives newly kept Pages their semantic lanes after the immediate Keep is
+    /// safely visible. NLEmbedding is deliberately kept off MainActor and the
+    /// result is persisted as an ordinary migration-safe archive enrichment.
+    @MainActor
+    func enrichKeptPagesWithSensoryFolios(
+        pageIDs: Set<String>,
+        dayID: String,
+        message: String
+    ) async {
+        guard let sourceDay = days.first(where: { $0.id == dayID }) else { return }
+        let pages = sourceDay.pages.filter { pageIDs.contains($0.id) }
+        guard !pages.isEmpty else { return }
+
+        let foliosByPageID = await Task.detached(priority: .utility) {
+            Dictionary(uniqueKeysWithValues: pages.map { page in
+                (page.id, SensoryFolioProjector.enrichedFolio(from: page))
+            })
+        }.value
+
+        guard let dayIndex = days.firstIndex(where: { $0.id == dayID }) else { return }
+        var enrichedDay = days[dayIndex]
+        var didEnrich = false
+        for pageIndex in enrichedDay.pages.indices {
+            let pageID = enrichedDay.pages[pageIndex].id
+            guard pageIDs.contains(pageID),
+                  let folio = foliosByPageID[pageID],
+                  folio != enrichedDay.pages[pageIndex].sensoryFolio else { continue }
+            enrichedDay.pages[pageIndex].sensoryFolio = folio
+            didEnrich = true
+        }
+        guard didEnrich else { return }
+        persist(day: enrichedDay, message: message)
+    }
+
+    /// Quietly teaches the Loom to read an existing archive rather than making
+    /// a long-time reader wait for only new Keeps. Work is capped per launch,
+    /// performed off MainActor, and committed as one revision-gated archive
+    /// transaction. Original Page fields are never rewritten.
+    @MainActor
+    func backfillSensoryFoliosIfNeeded(maximumPages: Int = 48) async {
+        guard maximumPages > 0 else { return }
+        let candidates = days
+            .flatMap(\.pages)
+            .filter { page in
+                guard page.origin == .userAuthored || page.origin == .imported,
+                      !EditionCurator.defaultPrivateTypes.contains(page.type),
+                      page.sensoryFolio?.schemaVersion != SensoryFolio.currentSchemaVersion else {
+                    return false
+                }
+                let hasWords = !page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || !page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                return hasWords || !page.mediaAssets.isEmpty || page.context != nil
+            }
+            .sorted { left, right in
+                let leftMedia = left.mediaAssets.isEmpty ? 0 : 1
+                let rightMedia = right.mediaAssets.isEmpty ? 0 : 1
+                if leftMedia != rightMedia { return leftMedia > rightMedia }
+                return left.createdAt > right.createdAt
+            }
+        guard !candidates.isEmpty else { return }
+        let batch = Array(candidates.prefix(maximumPages))
+
+        let foliosByPageID = await Task.detached(priority: .background) {
+            var result: [String: SensoryFolio] = [:]
+            for page in batch where !Task.isCancelled {
+                result[page.id] = SensoryFolioProjector.enrichedFolio(from: page)
+            }
+            return result
+        }.value
+        guard !Task.isCancelled, !foliosByPageID.isEmpty else { return }
+
+        // Merge into the *current* archive, not the launch snapshot: a Keep made
+        // while the background embeddings ran must remain authoritative.
+        var enrichedDays = days
+        var enrichedCount = 0
+        for dayIndex in enrichedDays.indices {
+            for pageIndex in enrichedDays[dayIndex].pages.indices {
+                let pageID = enrichedDays[dayIndex].pages[pageIndex].id
+                guard let folio = foliosByPageID[pageID],
+                      folio != enrichedDays[dayIndex].pages[pageIndex].sensoryFolio else { continue }
+                enrichedDays[dayIndex].pages[pageIndex].sensoryFolio = folio
+                enrichedCount += 1
+            }
+        }
+        guard enrichedCount > 0 else { return }
+
+        let previousDays = days
+        let revision = max(
+            bookPersistenceRevision &+ 1,
+            DispatchTime.now().uptimeNanoseconds
+        )
+        bookPersistenceRevision = revision
+        days = enrichedDays
+        continuityCacheSignature = ""
+        rebuildSurfaceCache()
+
+        do {
+            guard let result = try await BookPersistenceWriter.shared.persistArchive(
+                revision: revision,
+                days: enrichedDays
+            ), result.revision == bookPersistenceRevision else { return }
+            days = result.days
+            storeReport = result.storeReport
+            databaseReport = result.databaseReport
+            resurfacedPages = result.resurfacedPages
+            returnedStackCards = result.returnedStackCards
+            continuityCacheSignature = ""
+            rebuildSurfaceCache()
+            writeWidgetSnapshot()
+            appLog.info("Sensory Loom enriched \(enrichedCount, privacy: .public) archived Pages")
+        } catch {
+            guard revision == bookPersistenceRevision else { return }
+            days = previousDays
+            continuityCacheSignature = ""
+            rebuildSurfaceCache()
+            appLog.error("Sensory Loom archive enrichment did not settle: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -11500,6 +11811,14 @@ struct ContentView: View {
                 installProgress = progress.fraction
                 installMessage = "Downloading \(model.label)... \(percent)%"
             }
+            #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+            installProgress = nil
+            installMessage = "Checking that \(model.label) can read and write before it wakes..."
+            try await LocalModelInstallValidator.validate(
+                directory: directory,
+                requiresVision: modelID.contains("gemma-4")
+            )
+            #endif
             try LocalModelManager.activateModel(
                 modelID: modelID,
                 directory: directory
@@ -11514,7 +11833,7 @@ struct ContentView: View {
         } catch {
             appLog.error("Gemma install failed: \(error.localizedDescription, privacy: .public)")
             installProgress = nil
-            installMessage = "Model install failed: \(error.localizedDescription)"
+            installMessage = "The private mind downloaded, but it could not pass the Book’s wake-up check. Nothing was marked ready; try the download again after updating the app."
         }
         #else
         installProgress = nil

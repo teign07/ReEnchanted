@@ -2618,7 +2618,6 @@ struct SurfaceCard: View {
     let surface: SurfacePage
     let isBusy: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var idle = false
 
     private var visualStyle: PageVisualStyle {
         if surface.type == .festival {
@@ -2632,6 +2631,14 @@ struct SurfaceCard: View {
             return nil
         }
         return value.capitalized
+    }
+
+    private var bookActedMargin: (title: String, line: String)? {
+        guard let line = surface.payload.metadata["bookActedMargin"]?.nonEmpty else { return nil }
+        return (
+            surface.payload.metadata["bookActedMarginTitle"]?.nonEmpty ?? "The Book interfered",
+            line
+        )
     }
 
     private var symbolName: String {
@@ -2801,6 +2808,29 @@ struct SurfaceCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            if let margin = bookActedMargin {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(margin.title.uppercased())
+                        .font(.caption2.weight(.black))
+                        .tracking(0.9)
+                    Text(margin.line)
+                        .font(.system(.callout, design: .serif).italic())
+                        .lineSpacing(2)
+                }
+                .foregroundStyle(visualStyle.accent)
+                .padding(.vertical, 9)
+                .padding(.horizontal, 11)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(visualStyle.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(visualStyle.accent.opacity(0.55))
+                        .frame(width: 2)
+                        .padding(.vertical, 5)
+                }
+                .accessibilityElement(children: .combine)
+            }
+
             if let illustrationAssetName {
                 Image(illustrationAssetName)
                     .resizable()
@@ -2848,14 +2878,7 @@ struct SurfaceCard: View {
                 Spacer()
                 Image(systemName: isBusy ? "circle.dotted" : "arrow.up.right")
                     .font(.footnote.weight(.bold))
-                    .offset(
-                        x: (reduceMotion || isBusy || !idle) ? 0 : 3,
-                        y: (reduceMotion || isBusy || !idle) ? 0 : -3
-                    )
-                    .animation(
-                        (reduceMotion || isBusy) ? nil : .easeInOut(duration: 2.6).repeatForever(autoreverses: true),
-                        value: idle && !isBusy
-                    )
+                    .symbolEffect(.pulse, options: .speed(0.58), isActive: isBusy && !reduceMotion)
             }
             .foregroundStyle(visualStyle.accent)
         }
@@ -2863,16 +2886,14 @@ struct SurfaceCard: View {
         .padding(16)
         .frame(minHeight: isReadingCard ? 330 : 212, alignment: .topLeading)
         .parchmentSurface(style: visualStyle, isActive: true)
-        // A soft "breathing" accent edge so the live card reads as awake. Kept
-        // strictly inside the card's bounds (a contained inset stroke, not a
-        // drop shadow) so it can never bloom into a grey halo behind the stack.
+        // The drifting letters and pixies are the desk's ambient heartbeat.
+        // Resting Pages stay still so an arrival, active scribe, or touch can
+        // own the reader's attention instead of competing with six perpetual
+        // card animations at once.
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(visualStyle.accent.opacity(reduceMotion ? 0 : (idle ? 0.34 : 0.0)), lineWidth: 1.5)
-                .animation(
-                    reduceMotion ? nil : .easeInOut(duration: 2.6).repeatForever(autoreverses: true),
-                    value: idle
-                )
+                .stroke(visualStyle.accent.opacity(isBusy ? 0.38 : 0.15), lineWidth: isBusy ? 1.5 : 1)
+                .animation(BookMotion.direct(reduceMotion), value: isBusy)
                 .padding(1.5)
                 .allowsHitTesting(false)
         }
@@ -2913,10 +2934,6 @@ struct SurfaceCard: View {
                 .allowsHitTesting(false)
         }
         .rotationEffect(.degrees(surface.id.stableHash.isMultiple(of: 2) ? -0.6 : 0.5))
-        .onAppear {
-            guard !reduceMotion else { return }
-            idle = true
-        }
     }
 
     @ViewBuilder
@@ -2954,6 +2971,7 @@ struct SwipeDismissSurfaceCard: View {
     let isBusy: Bool
     let isRetiring: Bool
     let animatesArrival: Bool
+    var arrivalDelay: Double = 0
     let onOpen: () -> Void
     let onDismiss: () -> Void
 
@@ -3045,7 +3063,7 @@ struct SwipeDismissSurfaceCard: View {
         .onAppear {
             guard animatesArrival, !reduceMotion else { return }
             DispatchQueue.main.async {
-                withAnimation(.spring(response: 0.52, dampingFraction: 0.82)) {
+                withAnimation(BookMotion.deal(delay: arrivalDelay, reduceMotion: false)) {
                     hasArrived = true
                 }
             }
@@ -4984,6 +5002,319 @@ private final class StallTolerantClock {
         guard delta > 0 else { return elapsed }
         elapsed += min(delta, maxDelta)
         return elapsed
+    }
+}
+
+/// The Book's recurring visual signature. It is always the same closed,
+/// midnight-blue volume; lived state changes only the physical evidence around
+/// it — a dog-ear, a guarded ribbon, a sealed leaf, or a pencil correction.
+/// That keeps the Book recognizable without turning it into a face or mascot.
+struct BookPresenceSilhouette: View {
+    let stance: BookStance
+    let interior: BookInteriorState
+    var isPaused = false
+    let onKnock: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var didArrive = false
+    @State private var isKnocking = false
+
+    private enum MaterialMark: Equatable {
+        case sealedLeaf
+        case dogEar
+        case keepingWatch
+        case revision
+        case longGame
+        case none
+    }
+
+    private var mark: MaterialMark {
+        if interior.secret?.status == .ready { return .sealedLeaf }
+        if interior.favorite != nil, interior.favorite?.firstPresentedAt == nil { return .dogEar }
+        if interior.promise?.status == .keeping { return .keepingWatch }
+        if interior.opinion?.strength == .reconsidering,
+           interior.opinion?.firstPresentedAt == nil { return .revision }
+        if interior.longGame?.phasePresentedAt == nil, interior.longGame != nil { return .longGame }
+        return .none
+    }
+
+    private var stanceRotation: Double {
+        switch stance {
+        case .curious: return -1.0
+        case .protective: return 0
+        case .mischievous: return 1.8
+        case .hushed: return -0.3
+        case .contrite: return -1.6
+        case .intent: return 0.4
+        case .pleased: return 1.0
+        }
+    }
+
+    private var ribbonDrift: CGFloat {
+        switch stance {
+        case .protective: return -3
+        case .mischievous: return 4
+        case .contrite: return -1
+        case .intent: return 2
+        default: return 0
+        }
+    }
+
+    private var glowOpacity: Double {
+        switch stance {
+        case .hushed: return 0.16
+        case .protective, .contrite: return 0.24
+        case .curious, .intent: return 0.34
+        case .mischievous, .pleased: return 0.46
+        }
+    }
+
+    private var accessibilityDescription: String {
+        let disposition: String
+        switch stance {
+        case .curious: disposition = "listening with its cover slightly raised"
+        case .protective: disposition = "keeping its covers close"
+        case .mischievous: disposition = "sitting a little crooked, as if it knows something"
+        case .hushed: disposition = "resting quietly"
+        case .contrite: disposition = "holding a correction in pencil"
+        case .intent: disposition = "holding its place with care"
+        case .pleased: disposition = "settled and quietly pleased"
+        }
+
+        let evidence: String
+        switch mark {
+        case .sealedLeaf: evidence = " A sealed leaf is showing."
+        case .dogEar: evidence = " One corner is dog-eared."
+        case .keepingWatch: evidence = " Its ribbon is keeping an unfinished promise."
+        case .revision: evidence = " A pencil correction crosses the cover."
+        case .longGame: evidence = " Its ribbon marks a longer piece of business."
+        case .none: evidence = ""
+        }
+        return "The Book is \(disposition).\(evidence)"
+    }
+
+    var body: some View {
+        Button(action: knock) {
+            ZStack(alignment: .topTrailing) {
+                pageBlock
+                cover
+                ribbon
+                materialEvidence
+            }
+            .frame(width: 54, height: 68)
+            .rotationEffect(.degrees(isKnocking ? -2.4 : stanceRotation))
+            .scaleEffect(didArrive ? 1 : 0.92, anchor: .bottom)
+            .offset(y: didArrive ? 0 : 5)
+            .opacity(didArrive ? 1 : 0)
+            .shadow(
+                color: BookPalette.lampGold.opacity(glowOpacity),
+                radius: stance == .hushed ? 5 : 10,
+                x: 0,
+                y: 5
+            )
+            .animation(BookMotion.reveal(reduceMotion), value: stance)
+            .animation(BookMotion.reveal(reduceMotion), value: mark)
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .accessibilityLabel(accessibilityDescription)
+        .accessibilityHint("Knock on the cover")
+        .onAppear {
+            guard !didArrive else { return }
+            if reduceMotion || isPaused {
+                didArrive = true
+            } else {
+                withAnimation(BookMotion.reveal(false)) {
+                    didArrive = true
+                }
+            }
+        }
+    }
+
+    private var pageBlock: some View {
+        RoundedRectangle(cornerRadius: 5, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [BookPalette.page, BookPalette.paper, BookPalette.parchmentEdge],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .frame(width: 47, height: 61)
+            .overlay(alignment: .trailing) {
+                VStack(spacing: 1.5) {
+                    ForEach(0..<12, id: \.self) { index in
+                        Rectangle()
+                            .fill(BookPalette.ink.opacity(index.isMultiple(of: 4) ? 0.16 : 0.07))
+                            .frame(height: 0.55)
+                    }
+                }
+                .frame(width: 4)
+                .padding(.vertical, 6)
+            }
+            .offset(x: 3, y: 4)
+    }
+
+    private var cover: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(Color(red: 0.035, green: 0.045, blue: 0.105))
+
+            Image("EnchantedBookCoverPlate")
+                .resizable()
+                .scaledToFill()
+                .saturation(0.9)
+                .contrast(1.08)
+                .opacity(stance == .hushed ? 0.72 : 0.94)
+
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.68), lineWidth: 1)
+                .padding(4)
+
+            Image(systemName: "sparkles")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(BookPalette.lampGold.opacity(stance == .hushed ? 0.48 : 0.92))
+                .shadow(color: BookPalette.lampGold.opacity(glowOpacity), radius: 5)
+
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [.black.opacity(0.42), .clear, .black.opacity(0.14)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(width: 7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(width: 47, height: 61)
+        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .stroke(.black.opacity(0.48), lineWidth: 0.7)
+        }
+    }
+
+    private var ribbon: some View {
+        VStack(spacing: -1) {
+            Capsule()
+                .fill(
+                    LinearGradient(
+                        colors: [Color(red: 0.55, green: 0.12, blue: 0.18), Color(red: 0.25, green: 0.03, blue: 0.08)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(width: 5, height: mark == .keepingWatch ? 57 : 50)
+            BookRibbonTail()
+                .fill(Color(red: 0.37, green: 0.05, blue: 0.10))
+                .frame(width: 8, height: 9)
+        }
+        .shadow(color: .black.opacity(0.35), radius: 1, y: 1)
+        .offset(x: ribbonDrift - 7, y: 9)
+        .rotationEffect(.degrees(stance == .mischievous ? 3 : stance == .protective ? -1.5 : 0), anchor: .top)
+    }
+
+    @ViewBuilder
+    private var materialEvidence: some View {
+        switch mark {
+        case .sealedLeaf:
+            VStack(spacing: -2) {
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(BookPalette.paper)
+                    .frame(width: 18, height: 22)
+                    .overlay {
+                        VStack(spacing: 2) {
+                            Rectangle().frame(width: 10, height: 0.6)
+                            Rectangle().frame(width: 7, height: 0.6)
+                        }
+                        .foregroundStyle(BookPalette.ink.opacity(0.38))
+                    }
+                Circle()
+                    .fill(Color(red: 0.46, green: 0.05, blue: 0.10))
+                    .frame(width: 8, height: 8)
+            }
+            .rotationEffect(.degrees(5))
+            .offset(x: 6, y: -7)
+        case .dogEar:
+            BookDogEar()
+                .fill(BookPalette.paper)
+                .frame(width: 15, height: 15)
+                .overlay {
+                    BookDogEar()
+                        .stroke(BookPalette.lampGold.opacity(0.55), lineWidth: 0.8)
+                }
+                .offset(x: 1, y: 1)
+        case .keepingWatch:
+            Circle()
+                .stroke(BookPalette.lampGold.opacity(0.86), lineWidth: 1.2)
+                .frame(width: 11, height: 11)
+                .overlay {
+                    Circle().fill(BookPalette.lampGold.opacity(0.34)).padding(3)
+                }
+                .offset(x: -13, y: 42)
+        case .revision:
+            ZStack {
+                Capsule()
+                    .fill(BookPalette.paper.opacity(0.8))
+                    .frame(width: 27, height: 1.2)
+                    .rotationEffect(.degrees(-13))
+                Capsule()
+                    .fill(BookPalette.paper.opacity(0.52))
+                    .frame(width: 19, height: 1)
+                    .rotationEffect(.degrees(-5))
+                    .offset(y: 5)
+            }
+            .offset(x: -9, y: 18)
+        case .longGame:
+            Image(systemName: "map.fill")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(BookPalette.lampGold)
+                .padding(4)
+                .background(BookPalette.nightPanel.opacity(0.94), in: Circle())
+                .overlay { Circle().stroke(BookPalette.lampGold.opacity(0.58), lineWidth: 0.8) }
+                .offset(x: -11, y: 41)
+        case .none:
+            EmptyView()
+        }
+    }
+
+    private func knock() {
+        onKnock()
+        guard !reduceMotion else { return }
+        withAnimation(BookMotion.direct(false)) {
+            isKnocking = true
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(130))
+            withAnimation(BookMotion.result(false)) {
+                isKnocking = false
+            }
+        }
+    }
+}
+
+private struct BookRibbonTail: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY * 0.62))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct BookDogEar: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -8550,20 +8881,6 @@ struct OnboardingFlowView: View {
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
-            onboardingProse("""
-            Zara glances toward the impossible number of doors branching away from the hall.
-
-            "One more human detail. Who is one of your favorite people? Not the winner of a ranking — just someone you would like the Book to learn how to notice. You may leave this blank. Some names need time."
-            """)
-            onboardingField("One of my favorite people is... (optional)", text: $favoritePerson)
-            if let person = favoritePerson.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
-                onboardingPreviewCard(
-                    symbol: "person.crop.circle.badge.checkmark",
-                    title: "A place is kept for \(person)",
-                    body: "Only the name goes in now. The Book will let you teach it how this person actually lives in your life."
-                )
-                .transition(.opacity.combined(with: .scale(scale: 0.96)))
-            }
             continueButton("Tell her", disabled: snack.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         case 4:
             onboardingPreviewCard(symbol: "book.closed", title: "The Book learns your name", body: "It's how characters, letters, and future pages can speak to you without sounding like a form.")
@@ -8579,6 +8896,21 @@ struct OnboardingFlowView: View {
             if let answer = name.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
                 onboardingNameSignature(answer)
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
+
+                onboardingProse("""
+                Zara glances toward the impossible number of doors branching away from the hall.
+
+                "One more human detail. Who is one of your favorite people? Not the winner of a ranking — just someone you would like the Book to learn how to notice. You may leave this blank. Some names need time."
+                """)
+                onboardingField("One of my favorite people is... (optional)", text: $favoritePerson)
+                if let person = favoritePerson.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+                    onboardingPreviewCard(
+                        symbol: "person.crop.circle.badge.checkmark",
+                        title: "A place is kept for \(person)",
+                        body: "Only the name goes in now. The Book will let you teach it how this person actually lives in your life."
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                }
             }
             continueButton("Write it in", disabled: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         case 5:
@@ -9632,10 +9964,7 @@ struct OnboardingFlowView: View {
     /// A second-person kept line the Page writes on the player's behalf, so the
     /// opening card is finished before they have typed a single word.
     private var openingArrivalExcerpt: String {
-        let when = firstPressTimeName == "late night"
-            ? "late on \(arrivalWeekdayName) night"
-            : "on \(arrivalWeekdayName) \(firstPressTimeName)"
-        return "You picked up this Page \(when) at \(arrivalClockTime), while \(firstPressTimeTexture)."
+        "You picked up this Page on \(arrivalWeekdayName) at \(arrivalClockTime), while \(firstPressTimeTexture)."
     }
 
     /// Pinned to the arrival moment rather than the typed text so the card's
@@ -10514,6 +10843,7 @@ struct OnboardingFlowView: View {
                         .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
                 }
                 .imagePreviewOnTap { url }
+                .bookPhotographArrival(reduceMotion: reduceMotion)
         } else {
             IlluminatedArtifactPreview(draft: draft, sourceImage: onboardingPhotoImage)
                 .frame(maxWidth: .infinity)
@@ -10523,6 +10853,7 @@ struct OnboardingFlowView: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
                 }
+                .bookPhotographArrival(reduceMotion: reduceMotion)
         }
         #else
         IlluminatedArtifactPreview(draft: draft, sourceImage: nil)
@@ -12171,43 +12502,85 @@ struct OnboardingFlowView: View {
     }
 
 	    private var onboardingNotYourFaultCard: some View {
-	        HStack(alignment: .top, spacing: 12) {
-	            VStack(spacing: 2) {
-	                Text("NOT")
-	                    .font(.system(size: 19, weight: .black, design: .rounded))
-	                    .foregroundStyle(BookPalette.nightText)
-	                    .lineLimit(1)
-	                Text("YOUR FAULT")
+	        VStack(alignment: .leading, spacing: 13) {
+	            HStack(alignment: .center, spacing: 10) {
+	                Text("IT'S NOT YOUR FAULT")
 	                    .font(.system(size: 11, weight: .black))
-	                    .foregroundStyle(BookPalette.nightText.opacity(0.78))
-	                    .textCase(.uppercase)
-	                    .lineLimit(1)
-	            }
-	            .frame(width: 92, height: 62)
-	            .background(BookPalette.teal.opacity(0.96), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-	            .overlay {
-	                RoundedRectangle(cornerRadius: 8, style: .continuous)
-	                    .stroke(BookPalette.lampGold.opacity(0.45), lineWidth: 1)
+	                    .tracking(1.1)
+	                    .foregroundStyle(BookPalette.nightText)
+	                    .padding(.horizontal, 10)
+	                    .padding(.vertical, 7)
+	                    .background(BookPalette.teal.opacity(0.96), in: Capsule())
+	                    .overlay {
+	                        Capsule()
+	                            .stroke(BookPalette.lampGold.opacity(0.45), lineWidth: 1)
+	                    }
+
+	                Spacer(minLength: 0)
+
+	                Image(systemName: "text.book.closed")
+	                    .font(.caption.weight(.bold))
+	                    .foregroundStyle(BookPalette.ink.opacity(0.42))
+	                    .accessibilityHidden(true)
 	            }
 
-	            VStack(alignment: .leading, spacing: 8) {
-	                Text("It's not your fault.")
-	                    .font(.title3.weight(.black))
+	            VStack(alignment: .leading, spacing: 0) {
+	                Text("46.9%")
+	                    .font(.system(size: 50, weight: .black, design: .rounded))
+	                    .foregroundStyle(BookPalette.gold)
+	                    .minimumScaleFactor(0.8)
+	                Text("of waking moments")
+	                    .font(.system(.title3, design: .serif).weight(.bold))
 	                    .foregroundStyle(BookPalette.ink)
-	                Text("In one large phone-based study, people reported thinking about something other than what they were doing in 46.9% of the moments researchers sampled. Nearly half. Attention wanders. Familiar days blur. That's a human mind doing what human minds do.")
-	                    .font(.system(.callout, design: .serif))
-	                    .foregroundStyle(BookPalette.ink.opacity(0.72))
-	                    .lineSpacing(2)
-	                    .fixedSize(horizontal: false, vertical: true)
-	                Text("You're not boring, and your life's not empty. It's simply been passing without enough places to catch.")
-	                    .font(.system(.callout, design: .serif).weight(.semibold))
-	                    .foregroundStyle(BookPalette.teal.opacity(0.9))
-	                    .lineSpacing(2)
-	                    .fixedSize(horizontal: false, vertical: true)
-	                Label("Killingsworth & Gilbert, Science (2010)", systemImage: "text.book.closed")
-	                    .font(.footnote.weight(.bold))
-	                    .foregroundStyle(BookPalette.ink.opacity(0.52))
 	            }
+
+	            Text("In one large phone-based study, people reported that their minds were somewhere other than what they were doing in 46.9% of the moments researchers sampled.")
+	                .font(.system(.callout, design: .serif))
+	                .foregroundStyle(BookPalette.ink.opacity(0.72))
+	                .lineSpacing(2)
+	                .fixedSize(horizontal: false, vertical: true)
+
+	            Divider()
+	                .overlay(BookPalette.lampGold.opacity(0.34))
+
+	            Text("That is nearly half your nonsleeping life gone missing while you're still inside it.")
+	                .font(.system(.title3, design: .serif).weight(.bold))
+	                .foregroundStyle(BookPalette.ink)
+	                .lineSpacing(2)
+	                .fixedSize(horizontal: false, vertical: true)
+
+	            Text("Autopilot. Your life happening while your attention is away. Without attention, the brain has far less to record—so the day doesn't simply become hard to remember. Too much of it never became a strong memory in the first place.")
+	                .font(.system(.callout, design: .serif))
+	                .foregroundStyle(BookPalette.ink.opacity(0.76))
+	                .lineSpacing(2)
+	                .fixedSize(horizontal: false, vertical: true)
+
+	            VStack(alignment: .leading, spacing: 2) {
+	                Text("TEN WAKING YEARS PASS.")
+	                    .font(.caption.weight(.black))
+	                    .tracking(1.05)
+	                    .foregroundStyle(BookPalette.ink.opacity(0.52))
+	                Text("Only about five are fully witnessed.")
+	                    .font(.system(.title2, design: .serif).weight(.black))
+	                    .foregroundStyle(BookPalette.teal)
+	                    .fixedSize(horizontal: false, vertical: true)
+	            }
+	            .padding(.vertical, 3)
+
+	            VStack(alignment: .leading, spacing: 4) {
+	                Text("This is the Rut of Routine.")
+	                    .font(.system(.title3, design: .serif).weight(.black))
+	                    .foregroundStyle(BookPalette.ink)
+	                Text("It's what we're fighting. Your life, while it's still happening, is what we're fighting for.")
+	                    .font(.system(.callout, design: .serif).weight(.semibold))
+	                    .foregroundStyle(BookPalette.teal.opacity(0.94))
+	                    .lineSpacing(2)
+	                    .fixedSize(horizontal: false, vertical: true)
+	            }
+
+	            Label("Killingsworth & Gilbert, Science (2010)", systemImage: "text.book.closed")
+	                .font(.footnote.weight(.bold))
+	                .foregroundStyle(BookPalette.ink.opacity(0.52))
 	        }
 	        .padding(14)
 	        .frame(maxWidth: .infinity, alignment: .leading)

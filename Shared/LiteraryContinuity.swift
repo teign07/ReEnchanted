@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(NaturalLanguage)
+import NaturalLanguage
+#endif
 
 // MARK: - The Book's Own Voice
 
@@ -23,6 +26,1383 @@ enum BookVoice {
     static let animismLine = "Write the narration in the Book's own voice — child-like animism, never childish: simple, surprising sentences; everyday words; little feelings and wants given to ordinary things; sincere wonder, a little vulnerable, wise underneath. The Book is opinionated but correctable, fond of exact details and returns, slightly theatrical when pleased, and reverent about reader boundaries. Named characters keep their own voices when they speak."
 }
 
+// MARK: - The Relational Loom
+
+/// One trustworthy dimension of an interaction or kept Page. The Loom does
+/// not know in advance which pairs are interesting: extractors add dimensions
+/// here, then the same two-sided comparison tests every cross-family pairing.
+/// This is why a future music, motion, or reading-duration extractor can join
+/// the Book without acquiring a bespoke "music while raining" rule.
+struct RelationalLoomFeature: Hashable {
+    enum Family: String, CaseIterable, Hashable {
+        case activity
+        case pageKind
+        case character
+        case choice
+        case genre
+        case storyForm
+        case meaning
+        case subject
+        case modality
+        case visualPalette
+        case visualBrightness
+        case visualComposition
+        case voiceCadence
+        case voiceEnergy
+        case weather
+        case dayPart
+        case weekPart
+        case place
+        case body
+        case tempo
+        case innerWeather
+        case contextBlend
+        case person
+
+        var conditionRank: Int {
+            switch self {
+            case .contextBlend: return 2
+            case .innerWeather: return 5
+            case .weather: return 10
+            case .dayPart: return 15
+            case .weekPart: return 20
+            case .place: return 25
+            case .body: return 30
+            case .tempo: return 35
+            case .person: return 42
+            case .meaning: return 52
+            case .subject: return 55
+            case .character: return 60
+            case .pageKind, .activity: return 70
+            case .choice, .genre, .storyForm: return 75
+            case .modality: return 80
+            case .visualPalette, .visualBrightness, .visualComposition: return 85
+            case .voiceCadence, .voiceEnergy: return 90
+            }
+        }
+
+        var isSensitiveInterpretation: Bool {
+            self == .innerWeather || self == .body
+        }
+    }
+
+    var id: String
+    var family: Family
+    var label: String
+    /// A clause that can follow "When": "it was raining".
+    var conditionClause: String
+    /// A complete lower-case observation: "you chose Slice of Life".
+    var outcomeClause: String
+    var symbolName: String
+    var carriesReaderSuppliedMeaning: Bool
+}
+
+struct RelationalLoomEvidence: Identifiable, Equatable {
+    var id: String
+    var dayID: String
+    var occurredAt: Date
+    var title: String
+    var text: String
+    var pageID: String?
+}
+
+struct RelationalLoomObservation: Identifiable, Equatable {
+    var id: String
+    var dayID: String
+    var occurredAt: Date
+    var features: [RelationalLoomFeature]
+    var evidence: RelationalLoomEvidence
+
+    func has(_ feature: RelationalLoomFeature) -> Bool {
+        features.contains(feature)
+    }
+
+    func hasFamily(_ family: RelationalLoomFeature.Family) -> Bool {
+        features.contains { $0.family == family }
+    }
+}
+
+struct RelationalLoomConnection: Identifiable, Equatable {
+    enum EvidenceTier: String, Equatable {
+        case glimmer
+        case gathering
+        case established
+
+        var opening: String {
+            switch self {
+            case .glimmer: return "A small glimmer, held lightly:"
+            case .gathering: return "A connection is gathering:"
+            case .established: return "The pattern has steadied:"
+            }
+        }
+
+        var closing: String {
+            switch self {
+            case .glimmer: return "This is early. The Book is asking, not announcing."
+            case .gathering: return "The lean is forming, but more Pages may still change its shape."
+            case .established: return "The Book is naming a lean, not a cause."
+            }
+        }
+
+        var surfaceScoreBase: Int {
+            switch self {
+            case .glimmer: return 66
+            case .gathering: return 74
+            case .established: return 82
+            }
+        }
+
+        var maturity: Int {
+            switch self {
+            case .glimmer: return 0
+            case .gathering: return 1
+            case .established: return 2
+            }
+        }
+    }
+
+    var id: String
+    /// Stable across evidence tiers and therefore suitable for a permanent
+    /// "do not read me this way" boundary.
+    var observationKey: String
+    var headline: String
+    var line: String
+    var condition: RelationalLoomFeature
+    var outcome: RelationalLoomFeature
+    var evidence: [RelationalLoomEvidence]
+    var evidencePageIDs: [String]
+    var inHits: Int
+    var inCount: Int
+    var outHits: Int
+    var outCount: Int
+    var evidenceTier: EvidenceTier
+    var strength: Int
+}
+
+/// Several independently contrast-tested branches that lean away from the
+/// same condition. A constellation is composed from relationships the Loom has
+/// already earned; it never promotes a loose co-occurrence into evidence merely
+/// because the resulting sentence would sound impressive.
+struct RelationalLoomConstellation: Identifiable, Equatable {
+    var id: String
+    var observationKey: String
+    var headline: String
+    var line: String
+    var condition: RelationalLoomFeature
+    var branches: [RelationalLoomConnection]
+    var evidence: [RelationalLoomEvidence]
+    var evidencePageIDs: [String]
+    var evidenceTier: RelationalLoomConnection.EvidenceTier
+    var strength: Int
+}
+
+/// The many-to-many connection engine beneath The Book Notices. It only reads
+/// local receipts and compares a condition with a real contrast group. Fiction
+/// may contribute the reader's observable act (opened, kept, chosen) and its
+/// typed cast/choice tags; fictional prose never becomes evidence about the
+/// reader's life or feelings.
+enum RelationalLoom {
+    /// A two-day, two-hit relationship may speak as a glimmer when its contrast
+    /// is unusually clean. Stronger language still requires the mature bars
+    /// below. This keeps the Book alive in a young archive without confusing
+    /// curiosity with certainty.
+    static let minimumUniverse = 5
+    static let minimumInCount = 4
+    static let minimumOutCount = 4
+    static let minimumHits = 3
+    static let minimumDistinctDays = 3
+    static let minimumInRate = 0.55
+    static let minimumRateGap = 0.30
+    static let minimumLift = 1.8
+
+    static func connections(
+        days: [BookDay],
+        readerLearning: ReaderLearningModel,
+        facultyEntries: [FacultyEntry],
+        people: PeopleLedger,
+        continuity: LiteraryContinuityDigest = .empty,
+        calendar: Calendar = .current
+    ) -> [RelationalLoomConnection] {
+        let entryByID = Dictionary(uniqueKeysWithValues: facultyEntries.map { ($0.id, $0) })
+        let pageObservations = uniquePages(days.flatMap(\.capturedPages)).compactMap {
+            observation(
+                for: $0,
+                entryByID: entryByID,
+                people: people,
+                continuity: continuity,
+                calendar: calendar
+            )
+        }
+        // Opened is the cleanest durable meaning of "read" available to the
+        // interaction ledger. Surfaced cards are not choices; generated prose
+        // and dwell time are intentionally excluded.
+        let openedObservations = readerLearning.events
+            .filter { $0.action == .opened }
+            .compactMap { observation(for: $0, entryByID: entryByID, calendar: calendar) }
+        return connections(observations: pageObservations + openedObservations)
+    }
+
+    /// The contextual dimensions true right now, expressed in the exact same
+    /// vocabulary as archived receipts. Book Remembered uses this to ask
+    /// whether today has stepped into one side of an existing relationship.
+    /// It never synthesizes people, feelings, or fictional meaning as current
+    /// context; those require a Page or an explicit reader receipt.
+    static func currentConditionIDs(
+        day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> Set<String> {
+        let weatherTags = Array(RadioPageContext.weatherTags(
+            weather: inputs.weather,
+            enchanted: inputs.enchantedWeather
+        ))
+        let eventCount: Int? = inputs.calendarIntegrationEnabled
+            ? inputs.calendarEvents.filter { event in
+                calendar.isDate(event.startsAt, inSameDayAs: now)
+            }.count
+            : nil
+        let nearby = inputs.nearbyAnchor.flatMap { $0.isInsideRadius ? $0.anchor : nil }
+        let currentInnerWeather = inputs.facultyEntries
+            .filter { $0.kind == .innerWeather && $0.dayID == day.id && $0.createdAt <= now }
+            .max(by: { $0.createdAt < $1.createdAt })
+        let snapshot = BookPageContextSnapshot(
+            at: now,
+            calendar: calendar,
+            weatherTags: weatherTags,
+            bodyScore: inputs.body?.isAvailable == true ? inputs.body?.score : nil,
+            calendarEventCount: eventCount,
+            nearbyAnchorID: nearby?.id,
+            locationLabel: nearby?.name,
+            innerWeatherEntryID: currentInnerWeather?.id
+        )
+        let entryByID = Dictionary(uniqueKeysWithValues: inputs.facultyEntries.map { ($0.id, $0) })
+        return Set(contextFeatures(snapshot, at: now, entryByID: entryByID, calendar: calendar).map(\.id))
+    }
+
+    static func connections(
+        observations: [RelationalLoomObservation]
+    ) -> [RelationalLoomConnection] {
+        let observations = uniqueObservations(observations).filter { !$0.features.isEmpty }
+        guard observations.count >= minimumUniverse else { return [] }
+
+        // Candidate relationships come from dimensions that have actually met
+        // in at least one receipt. Enumerating the Cartesian product of every
+        // feature ever seen would make a long-lived Book slower merely for
+        // remembering more places and subjects.
+        var candidatePairs: [String: (RelationalLoomFeature, RelationalLoomFeature)] = [:]
+        var rowsByFamily: [RelationalLoomFeature.Family: Set<Int>] = [:]
+        var rowsByFeature: [RelationalLoomFeature: Set<Int>] = [:]
+        for (row, observation) in observations.enumerated() {
+            let features = Array(Set(observation.features)).sorted { $0.id < $1.id }
+            for feature in features {
+                rowsByFamily[feature.family, default: []].insert(row)
+                rowsByFeature[feature, default: []].insert(row)
+            }
+            for leftIndex in features.indices {
+                for rightIndex in features.indices where rightIndex > leftIndex {
+                    let left = features[leftIndex]
+                    let right = features[rightIndex]
+                    guard left.family != right.family else { continue }
+                    let ordered = oriented(left, right)
+                    candidatePairs["\(ordered.condition.id)->\(ordered.outcome.id)"] = ordered
+                }
+            }
+        }
+        var found: [RelationalLoomConnection] = []
+        for ordered in candidatePairs.values {
+            if let connection = connection(
+                condition: ordered.0,
+                outcome: ordered.1,
+                observations: observations,
+                rowsByFamily: rowsByFamily,
+                rowsByFeature: rowsByFeature
+            ) {
+                found.append(connection)
+            }
+        }
+
+        // A single underlying relationship can appear from both a source tag
+        // and a page-kind tag. Keep the strongest reading per outcome and
+        // condition family so the desk gets discoveries, not paraphrases.
+        var bestBySpoke: [String: RelationalLoomConnection] = [:]
+        for candidate in found {
+            let key = "\(candidate.outcome.id)|\(candidate.condition.family.rawValue)"
+            if let current = bestBySpoke[key] {
+                if current.strength > candidate.strength { continue }
+                if current.strength == candidate.strength {
+                    let currentSpecificity = conditionSpecificity(current.condition)
+                    let candidateSpecificity = conditionSpecificity(candidate.condition)
+                    if currentSpecificity > candidateSpecificity { continue }
+                    if currentSpecificity == candidateSpecificity, current.id <= candidate.id { continue }
+                }
+            }
+            bestBySpoke[key] = candidate
+        }
+        return bestBySpoke.values.sorted { left, right in
+            if left.strength == right.strength { return left.id < right.id }
+            return left.strength > right.strength
+        }
+    }
+
+    /// Braids separate pairwise findings into a richer, still-inspectable
+    /// reading: one surrounding condition may touch voice, image, fiction, ink,
+    /// people, or medium at once. At least two genuinely different outcome
+    /// domains must have independently cleared the evidence gate.
+    static func constellations(
+        connections: [RelationalLoomConnection]
+    ) -> [RelationalLoomConstellation] {
+        Dictionary(grouping: connections, by: { $0.condition.id }).values.compactMap { group in
+            var strongestByFamily: [RelationalLoomFeature.Family: RelationalLoomConnection] = [:]
+            for branch in group {
+                if let current = strongestByFamily[branch.outcome.family], current.strength >= branch.strength {
+                    continue
+                }
+                strongestByFamily[branch.outcome.family] = branch
+            }
+            let ranked = strongestByFamily.values.sorted { left, right in
+                let leftPriority = constellationPriority(left.outcome.family)
+                let rightPriority = constellationPriority(right.outcome.family)
+                if leftPriority != rightPriority { return leftPriority > rightPriority }
+                if left.strength == right.strength { return left.outcome.id < right.outcome.id }
+                return left.strength > right.strength
+            }
+            var chosen: [RelationalLoomConnection] = []
+            var domains: Set<String> = []
+            for branch in ranked {
+                let domain = constellationDomain(branch.outcome.family)
+                guard !domains.contains(domain) else { continue }
+                domains.insert(domain)
+                chosen.append(branch)
+                if chosen.count == 3 { break }
+            }
+            // Page kind and keep/open activity are useful supporting branches,
+            // but cannot manufacture a "constellation" from one expressive
+            // outcome plus the bookkeeping that recorded it.
+            guard chosen.count >= 2,
+                  domains.subtracting(["action"]).count >= 2,
+                  let condition = chosen.first?.condition else { return nil }
+
+            var seenEvidence: Set<String> = []
+            let evidence = chosen.flatMap(\.evidence)
+                .filter { seenEvidence.insert($0.id).inserted }
+                .sorted { $0.occurredAt > $1.occurredAt }
+                .prefix(6)
+                .sorted { $0.occurredAt < $1.occurredAt }
+            let pageIDs = Array(Set(chosen.flatMap(\.evidencePageIDs))).sorted()
+            let evidenceTier = chosen.map(\.evidenceTier).min { $0.maturity < $1.maturity } ?? .glimmer
+            let strength = min(98, chosen.map(\.strength).reduce(0, +) / chosen.count + chosen.count * 4)
+            let outcomeIDs = chosen.map { $0.outcome.id }.sorted()
+            let stable = "relational-constellation:\(condition.id)->\(outcomeIDs.joined(separator: "+"))"
+            let evidenceBucket = min(9, evidence.count / 4)
+            let clauses = joinedClauses(chosen.map { $0.outcome.outcomeClause })
+            let counts = chosen.map {
+                "\($0.outcome.label.lowercased()) on \(spelled($0.inHits)) of \(spelled($0.inCount))"
+            }
+            let qualifier = condition.carriesReaderSuppliedMeaning || condition.family.isSensitiveInterpretation
+                ? "The condition came from a recorded or reader-supplied receipt; the Book did not infer it. "
+                : ""
+            let line = "\(evidenceTier.opening) When \(condition.conditionClause), \(clauses). Separately, the receipts show \(joinedClauses(counts)). \(qualifier)These branches were tested one by one against elsewhere in the archive; their meeting is a constellation, not a cause."
+            return RelationalLoomConstellation(
+                id: "\(stable)-\(evidenceTier.rawValue)-e\(evidenceBucket)",
+                observationKey: stable,
+                headline: condition.family == .contextBlend ? "When the World Arrives in Company" : "One Condition, Several Echoes",
+                line: line,
+                condition: condition,
+                branches: chosen,
+                evidence: Array(evidence),
+                evidencePageIDs: pageIDs,
+                evidenceTier: evidenceTier,
+                strength: strength
+            )
+        }.sorted { left, right in
+            if left.strength == right.strength { return left.id < right.id }
+            return left.strength > right.strength
+        }
+    }
+
+    private static func connection(
+        condition: RelationalLoomFeature,
+        outcome: RelationalLoomFeature,
+        observations: [RelationalLoomObservation],
+        rowsByFamily: [RelationalLoomFeature.Family: Set<Int>],
+        rowsByFeature: [RelationalLoomFeature: Set<Int>]
+    ) -> RelationalLoomConnection? {
+        // A compound condition cannot discover one of its own ingredients as
+        // an outcome. "Morning + harbour + rain -> morning" is bookkeeping,
+        // not a pattern, however perfect its statistics look.
+        if condition.family == .contextBlend {
+            let members = condition.id
+                .dropFirst("context-blend:".count)
+                .split(separator: "+")
+                .map(String.init)
+            if members.contains(outcome.id) { return nil }
+        }
+        guard let conditionFamilyRows = rowsByFamily[condition.family],
+              let outcomeFamilyRows = rowsByFamily[outcome.family],
+              let conditionRows = rowsByFeature[condition],
+              let outcomeRows = rowsByFeature[outcome] else { return nil }
+        let universe = conditionFamilyRows.intersection(outcomeFamilyRows)
+        guard universe.count >= minimumUniverse else { return nil }
+        let inside = universe.intersection(conditionRows)
+        let outside = universe.subtracting(inside)
+        guard inside.count >= 2, outside.count >= 3 else { return nil }
+
+        let hits = inside.intersection(outcomeRows)
+        let outsideHits = outside.intersection(outcomeRows)
+        let distinctDays = Set(hits.map { observations[$0].dayID }).count
+        let inRate = Double(hits.count) / Double(inside.count)
+        let outRate = Double(outsideHits.count) / Double(outside.count)
+        let lift = inRate / max(0.01, outRate)
+        let gap = inRate - outRate
+        let evidenceTier: RelationalLoomConnection.EvidenceTier
+        if universe.count >= 10,
+           inside.count >= minimumInCount,
+           outside.count >= minimumOutCount,
+           hits.count >= minimumHits,
+           distinctDays >= minimumDistinctDays,
+           inRate >= minimumInRate,
+           gap >= minimumRateGap,
+           lift >= minimumLift {
+            evidenceTier = .established
+        } else if universe.count >= 7,
+                  inside.count >= 3,
+                  outside.count >= 3,
+                  hits.count >= 3,
+                  distinctDays >= 2,
+                  inRate >= 0.60,
+                  gap >= 0.30,
+                  lift >= 1.8 {
+            evidenceTier = .gathering
+        } else if hits.count >= 2,
+                  distinctDays >= 2,
+                  inRate >= 0.66,
+                  gap >= 0.40,
+                  lift >= 2.5 {
+            evidenceTier = .glimmer
+        } else {
+            return nil
+        }
+
+        let tierBase: Int
+        switch evidenceTier {
+        case .glimmer: tierBase = 36
+        case .gathering: tierBase = 46
+        case .established: tierBase = 56
+        }
+        let strength = min(94, tierBase + Int((gap * 40).rounded()) + min(12, hits.count * 2) + min(8, distinctDays))
+        let stable = "relational:\(condition.id)->\(outcome.id)"
+        let evidenceBucket = min(9, hits.count / 4)
+        let evidence = hits
+            .map { observations[$0] }
+            .sorted { $0.occurredAt > $1.occurredAt }
+            .prefix(4)
+            .sorted { $0.occurredAt < $1.occurredAt }
+            .map(\.evidence)
+        let qualifier = condition.carriesReaderSuppliedMeaning || condition.family.isSensitiveInterpretation
+            ? "This side came from a recorded or reader-supplied receipt; the Book did not infer it. "
+            : ""
+        let line = "\(evidenceTier.opening) When \(condition.conditionClause), \(outcome.outcomeClause). That happened on \(spelled(hits.count)) of \(spelled(inside.count)) recorded occasions; with other \(familyLabel(condition.family)), \(spelled(outsideHits.count)) of \(spelled(outside.count)) did. \(qualifier)\(evidenceTier.closing)"
+        return RelationalLoomConnection(
+            id: "\(stable)-\(evidenceTier.rawValue)-e\(evidenceBucket)",
+            observationKey: stable,
+            headline: headline(condition: condition, outcome: outcome),
+            line: line,
+            condition: condition,
+            outcome: outcome,
+            evidence: evidence,
+            evidencePageIDs: evidence.compactMap(\.pageID),
+            inHits: hits.count,
+            inCount: inside.count,
+            outHits: outsideHits.count,
+            outCount: outside.count,
+            evidenceTier: evidenceTier,
+            strength: strength
+        )
+    }
+
+    private static func oriented(
+        _ left: RelationalLoomFeature,
+        _ right: RelationalLoomFeature
+    ) -> (condition: RelationalLoomFeature, outcome: RelationalLoomFeature) {
+        if left.family.conditionRank == right.family.conditionRank {
+            return left.id < right.id ? (left, right) : (right, left)
+        }
+        return left.family.conditionRank < right.family.conditionRank ? (left, right) : (right, left)
+    }
+
+    private static func observation(
+        for page: BookPage,
+        entryByID: [String: FacultyEntry],
+        people: PeopleLedger,
+        continuity: LiteraryContinuityDigest,
+        calendar: Calendar
+    ) -> RelationalLoomObservation? {
+        var features = contextFeatures(page.context, at: page.createdAt, entryByID: entryByID, calendar: calendar)
+        features.append(feature(
+            id: "activity:kept:\(page.type.rawValue)", family: .activity,
+            label: "Kept \(page.type.shortTitle)",
+            condition: "you were keeping \(article(for: page.type.shortTitle)) \(page.type.shortTitle) Page",
+            outcome: "you kept \(article(for: page.type.shortTitle)) \(page.type.shortTitle) Page",
+            symbol: page.type.symbolName
+        ))
+        features.append(contentsOf: taggedFeatures(page.tags, activity: "kept"))
+
+        // The source media and the reader's own hand may describe expression.
+        // Generated story prose may not describe the reader, even if kept.
+        let folio = page.resolvedSensoryFolio
+        if page.origin == .userAuthored || page.origin == .imported || !page.mediaAssets.isEmpty {
+            features += sensoryFeatures(folio)
+        }
+        if page.origin == .userAuthored || page.origin == .imported {
+            // Persisted semantic/vector discoveries enter the same graph as
+            // weather, choice, people, and photographic form. Only the
+            // reader's own/imported evidence Pages inherit these meaning
+            // dimensions; a fictional scene cannot certify a real pattern.
+            for signal in continuity.strongestSignals.prefix(16)
+                where signal.evidencePageIDs.contains(page.id) {
+                let token = slug(signal.id)
+                features.append(feature(
+                    id: "meaning:\(token)", family: .meaning,
+                    label: signal.subjectName,
+                    condition: "the thread called \(signal.subjectName) was in the margin",
+                    outcome: "your own Pages returned to \(signal.subjectName)",
+                    symbol: signal.kind == .sensory ? "sparkles.rectangle.stack" : "point.3.connected.trianglepath.dotted"
+                ))
+            }
+            for thread in people.threads where !thread.resting && mentions(thread.name, in: page.userInput) {
+                features.append(feature(
+                    id: "person:\(thread.id)", family: .person, label: thread.name,
+                    condition: "\(thread.name) appeared in your own words",
+                    outcome: "you wrote about \(thread.name)", symbol: "person.crop.circle"
+                ))
+            }
+        }
+        if let receipt = page.relationshipReceipt,
+           let thread = people.threads.first(where: { $0.id == receipt.personID && !$0.resting }) {
+            features.append(feature(
+                id: "person:\(thread.id)", family: .person, label: thread.name,
+                condition: "\(thread.name) was part of the moment",
+                outcome: "you kept a moment involving \(thread.name)", symbol: "person.crop.circle"
+            ))
+        }
+
+        features = uniqueFeatures(features)
+        guard features.count >= 2 else { return nil }
+        let excerpt = page.archivePreviewText?.bookPreviewSentenceLimit(1).nonEmpty ?? page.type.title
+        let evidence = RelationalLoomEvidence(
+            id: "page:\(page.id)", dayID: BookDay.id(for: page.createdAt, calendar: calendar),
+            occurredAt: page.createdAt, title: "Kept \(page.type.shortTitle)",
+            text: excerpt, pageID: page.id
+        )
+        return RelationalLoomObservation(
+            id: evidence.id, dayID: evidence.dayID, occurredAt: page.createdAt,
+            features: features, evidence: evidence
+        )
+    }
+
+    private static func observation(
+        for event: ReaderLearningEvent,
+        entryByID: [String: FacultyEntry],
+        calendar: Calendar
+    ) -> RelationalLoomObservation? {
+        var features = contextFeatures(event.context, at: event.occurredAt, entryByID: entryByID, calendar: calendar)
+        features.append(feature(
+            id: "activity:opened:\(event.type.rawValue)", family: .activity,
+            label: "Opened \(event.type.shortTitle)",
+            condition: "you were opening \(article(for: event.type.shortTitle)) \(event.type.shortTitle) Page",
+            outcome: "you opened \(article(for: event.type.shortTitle)) \(event.type.shortTitle) Page",
+            symbol: event.type.symbolName
+        ))
+        features.append(contentsOf: taggedFeatures(event.tags, activity: "opened"))
+        features = uniqueFeatures(features)
+        guard features.count >= 2 else { return nil }
+        let evidence = RelationalLoomEvidence(
+            id: "learning:\(event.id)", dayID: event.dayID, occurredAt: event.occurredAt,
+            title: "Opened \(event.type.shortTitle)",
+            text: event.evidence?.nonEmpty ?? features.map(\.label).prefix(3).joined(separator: " · "),
+            pageID: nil
+        )
+        return RelationalLoomObservation(
+            id: evidence.id, dayID: event.dayID, occurredAt: event.occurredAt,
+            features: features, evidence: evidence
+        )
+    }
+
+    private static func contextFeatures(
+        _ context: BookPageContextSnapshot?,
+        at date: Date,
+        entryByID: [String: FacultyEntry],
+        calendar: Calendar
+    ) -> [RelationalLoomFeature] {
+        var out: [RelationalLoomFeature] = []
+        let part = context?.dayPart.nonEmpty ?? LiteraryContinuityProjector.dayBand(for: date, calendar: calendar)
+        if ["morning", "afternoon", "evening", "night"].contains(part) {
+            let clause: String
+            switch part {
+            case "night": clause = "it was night"
+            case "morning": clause = "the day was still morning"
+            case "evening": clause = "it was evening"
+            default: clause = "it was afternoon"
+            }
+            out.append(feature(id: "day-part:\(part)", family: .dayPart, label: part.capitalized, condition: clause, outcome: "the Page arrived in the \(part)", symbol: part == "night" ? "moon.stars" : "clock"))
+        }
+        let week = calendar.isDateInWeekend(date) ? "weekend" : "weekday"
+        out.append(feature(id: "week-part:\(week)", family: .weekPart, label: week.capitalized, condition: "it was a \(week)", outcome: "the Page arrived on a \(week)", symbol: "calendar"))
+
+        guard let context else { return addingContextBlends(to: out) }
+        let weatherTokens = context.weatherTags.map(slug).filter { !$0.isEmpty }.sorted()
+        for normalized in weatherTokens {
+            out.append(feature(
+                id: "weather:\(normalized)", family: .weather, label: humanized(normalized),
+                condition: weatherClause(normalized), outcome: "the sky carried \(humanized(normalized).lowercased())",
+                symbol: "cloud.sun"
+            ))
+        }
+        // Co-occurring weather is a genuine joint condition, not two labels
+        // fighting for one slot. This is the first small tensor-like lane:
+        // "rain + cold" may relate to a choice even when neither alone is the
+        // best description of what the reader's Pages are doing.
+        if weatherTokens.count >= 2 {
+            let pair = Array(weatherTokens.prefix(3))
+            out.append(feature(
+                id: "weather:\(pair.joined(separator: "+"))",
+                family: .weather,
+                label: pair.map(humanized).joined(separator: " + "),
+                condition: pair.map(weatherClause).joined(separator: " and "),
+                outcome: "the sky carried \(pair.map { humanized($0).lowercased() }.joined(separator: " and "))",
+                symbol: "cloud.sun"
+            ))
+        }
+        if let score = context.bodyScore {
+            let band: String? = score <= 40 ? "lower" : (score >= 70 ? "lively" : nil)
+            if let band {
+                out.append(feature(id: "body:\(band)", family: .body, label: "\(band.capitalized) body signal", condition: "your recorded body signal was \(band)", outcome: "the Page arrived with a \(band) body signal", symbol: "figure.mind.and.body"))
+            }
+        }
+        if let count = context.calendarEventCount {
+            let tempo: String? = count == 0 ? "open" : (count >= 3 ? "crowded" : nil)
+            if let tempo {
+                out.append(feature(id: "tempo:\(tempo)", family: .tempo, label: "\(tempo.capitalized) calendar", condition: "the calendar was \(tempo)", outcome: "the Page arrived on a \(tempo) day", symbol: "calendar.badge.clock"))
+            }
+        }
+        if let anchor = context.nearbyAnchorID?.nonEmpty {
+            let name = context.locationLabel?.nonEmpty ?? humanized(anchor)
+            out.append(feature(id: "place:\(slug(anchor))", family: .place, label: name, condition: "you were at \(name)", outcome: "the Page arrived at \(name)", symbol: "mappin.and.ellipse"))
+        }
+        if let entryID = context.innerWeatherEntryID,
+           let entry = entryByID[entryID], entry.kind == .innerWeather {
+            out += namedInnerWeatherFeatures(entry.rawText)
+        }
+        return addingContextBlends(to: out)
+    }
+
+    private static func namedInnerWeatherFeatures(_ raw: String) -> [RelationalLoomFeature] {
+        let words = Set(raw.lowercased().split { !$0.isLetter }.map(String.init))
+        let lexicon: [(String, Set<String>)] = [
+            ("sad", ["sad", "sadness", "blue", "grief", "grieving", "low"]),
+            ("anxious", ["anxious", "anxiety", "worried", "worry", "nervous", "uneasy"]),
+            ("angry", ["angry", "anger", "furious", "irritated", "frustrated"]),
+            ("tired", ["tired", "exhausted", "weary", "drained"]),
+            ("calm", ["calm", "peaceful", "settled", "steady", "quiet"]),
+            ("happy", ["happy", "glad", "joy", "joyful", "delighted"]),
+            ("hopeful", ["hopeful", "hope", "optimistic"])
+        ]
+        return lexicon.compactMap { name, vocabulary in
+            guard !words.isDisjoint(with: vocabulary) else { return nil }
+            return feature(
+                id: "inner-weather:\(name)", family: .innerWeather,
+                label: "Inner weather: \(name)",
+                condition: "you had named the inner weather \(name)",
+                outcome: "you named the inner weather \(name)", symbol: "cloud.sun",
+                carriesReaderSuppliedMeaning: true
+            )
+        }
+    }
+
+    /// Builds small, generic conjunctions from the context dimensions already
+    /// present. This is deliberately bounded and only combines a substantial
+    /// condition (weather, place, body, tempo, or named inner weather) with a
+    /// different family. It can discover "rain + night" or "rain + harbour +
+    /// night" without teaching either phrase to the engine ahead of time.
+    private static func addingContextBlends(
+        to features: [RelationalLoomFeature]
+    ) -> [RelationalLoomFeature] {
+        let substantial: Set<RelationalLoomFeature.Family> = [
+            .weather, .place, .body, .tempo, .innerWeather
+        ]
+        let contextFamilies: Set<RelationalLoomFeature.Family> = substantial.union([.dayPart, .weekPart])
+        let candidates = features
+            .filter { contextFamilies.contains($0.family) && $0.family != .contextBlend }
+            .sorted { $0.id < $1.id }
+        var blends: [RelationalLoomFeature] = []
+        func blend(_ members: [RelationalLoomFeature]) -> RelationalLoomFeature {
+            feature(
+                id: "context-blend:\(members.map(\.id).joined(separator: "+"))",
+                family: .contextBlend,
+                label: members.map(\.label).joined(separator: " + "),
+                condition: joinedClauses(members.map(\.conditionClause)),
+                outcome: "those surrounding conditions arrived together",
+                symbol: "point.3.connected.trianglepath.dotted",
+                carriesReaderSuppliedMeaning: members.contains {
+                    $0.carriesReaderSuppliedMeaning || $0.family.isSensitiveInterpretation
+                }
+            )
+        }
+        for leftIndex in candidates.indices {
+            for rightIndex in candidates.indices where rightIndex > leftIndex {
+                let left = candidates[leftIndex]
+                let right = candidates[rightIndex]
+                guard left.family != right.family,
+                      substantial.contains(left.family) || substantial.contains(right.family) else { continue }
+                blends.append(blend([left, right]))
+                if blends.count >= 18 { break }
+            }
+            if blends.count >= 18 { break }
+        }
+        var tripleCount = 0
+        if candidates.count >= 3 {
+            for leftIndex in candidates.indices {
+                for middleIndex in candidates.indices where middleIndex > leftIndex {
+                    for rightIndex in candidates.indices where rightIndex > middleIndex {
+                        let members = [candidates[leftIndex], candidates[middleIndex], candidates[rightIndex]]
+                        guard Set(members.map(\.family)).count == 3,
+                              members.contains(where: { substantial.contains($0.family) }) else { continue }
+                        blends.append(blend(members))
+                        tripleCount += 1
+                        if tripleCount >= 12 { break }
+                    }
+                    if tripleCount >= 12 { break }
+                }
+                if tripleCount >= 12 { break }
+            }
+        }
+        return uniqueFeatures(features + blends)
+    }
+
+    private static func sensoryFeatures(_ folio: SensoryFolio) -> [RelationalLoomFeature] {
+        var out: [RelationalLoomFeature] = []
+        func add(_ dimension: SensoryObservation.Dimension, family: RelationalLoomFeature.Family, prefix: String, symbol: String) {
+            for value in folio.values(for: dimension) {
+                let token = slug(value)
+                guard !token.isEmpty else { continue }
+                let readable = humanized(token).lowercased()
+                out.append(feature(
+                    id: "\(family.rawValue):\(token)", family: family,
+                    label: "\(prefix) \(readable)",
+                    condition: "the Page carried \(readable) \(prefix.lowercased())",
+                    outcome: "your \(prefix.lowercased()) leaned \(readable)", symbol: symbol
+                ))
+            }
+        }
+        add(.modality, family: .modality, prefix: "Medium", symbol: "square.stack.3d.up")
+        add(.subject, family: .subject, prefix: "Subject", symbol: "bookmark")
+        add(.palette, family: .visualPalette, prefix: "Photographic palette", symbol: "paintpalette")
+        add(.brightness, family: .visualBrightness, prefix: "Photographic light", symbol: "sun.max")
+        add(.composition, family: .visualComposition, prefix: "Composition", symbol: "viewfinder")
+        add(.voiceCadence, family: .voiceCadence, prefix: "Voice cadence", symbol: "waveform")
+        add(.voiceEnergy, family: .voiceEnergy, prefix: "Voice energy", symbol: "waveform.path")
+        return out
+    }
+
+    private static func taggedFeatures(_ tags: [String], activity: String) -> [RelationalLoomFeature] {
+        tags.compactMap { raw -> RelationalLoomFeature? in
+            let tag = raw.lowercased()
+            func value(after prefix: String) -> String? {
+                guard tag.hasPrefix(prefix) else { return nil }
+                return String(tag.dropFirst(prefix.count)).nonEmpty
+            }
+            if let token = value(after: "sender:") ?? value(after: "entity:") {
+                let name = entityName(token)
+                return feature(id: "character:\(token)", family: .character, label: name, condition: "a Page involving \(name) was before you", outcome: "you \(activity) a Page involving \(name)", symbol: "person.crop.rectangle.stack")
+            }
+            if let token = value(after: "choice:") {
+                let name = humanized(token)
+                return feature(id: "choice:\(token)", family: .choice, label: name, condition: "\(name) was the chosen path", outcome: "you chose \(name)", symbol: "arrow.triangle.branch")
+            }
+            if let token = value(after: "genre:") {
+                let name = humanized(token)
+                return feature(id: "genre:\(token)", family: .genre, label: name, condition: "the story wore the shape of \(name)", outcome: "you \(activity) a \(name) story", symbol: "books.vertical")
+            }
+            if let token = value(after: "form:") {
+                let name = humanized(token)
+                return feature(id: "story-form:\(token)", family: .storyForm, label: name, condition: "the story took the form \(name)", outcome: "you \(activity) a story shaped like \(name)", symbol: "text.book.closed")
+            }
+            return nil
+        }
+    }
+
+    private static func headline(
+        condition: RelationalLoomFeature,
+        outcome: RelationalLoomFeature
+    ) -> String {
+        if condition.family == .innerWeather && [.visualPalette, .visualBrightness, .visualComposition].contains(outcome.family) {
+            return "The Weather Behind the Lens"
+        }
+        if condition.family == .weather && outcome.family == .character {
+            return "Who Visits in That Weather"
+        }
+        if condition.family == .dayPart && outcome.family == .choice {
+            return "The Choices That Prefer This Hour"
+        }
+        return "Everything Has Neighbors"
+    }
+
+    private static func familyLabel(_ family: RelationalLoomFeature.Family) -> String {
+        switch family {
+        case .dayPart: return "hours"
+        case .weekPart: return "parts of the week"
+        case .weather: return "weather"
+        case .innerWeather: return "reader-named inner weather"
+        case .contextBlend: return "surrounding conditions"
+        case .place: return "places"
+        case .body: return "recorded body signals"
+        case .tempo: return "calendar shapes"
+        default: return "occasions"
+        }
+    }
+
+    private static func feature(
+        id: String,
+        family: RelationalLoomFeature.Family,
+        label: String,
+        condition: String,
+        outcome: String,
+        symbol: String,
+        carriesReaderSuppliedMeaning: Bool = false
+    ) -> RelationalLoomFeature {
+        RelationalLoomFeature(
+            id: id, family: family, label: label,
+            conditionClause: condition, outcomeClause: outcome,
+            symbolName: symbol,
+            carriesReaderSuppliedMeaning: carriesReaderSuppliedMeaning
+        )
+    }
+
+    private static func weatherClause(_ token: String) -> String {
+        switch token {
+        case "rain", "rainy": return "it was raining"
+        case "snow", "snowy": return "snow was down"
+        case "storm", "stormy": return "a storm was about"
+        case "fog", "foggy": return "fog was at the window"
+        case "cold": return "the day was cold"
+        case "hot": return "the day was hot"
+        case "wind", "windy": return "the wind was up"
+        default: return "the weather leaned \(humanized(token).lowercased())"
+        }
+    }
+
+    private static func entityName(_ token: String) -> String {
+        NarrativePackRegistry.entities.first(where: { $0.id == token })?.name ?? humanized(token)
+    }
+
+    private static func mentions(_ name: String, in text: String) -> Bool {
+        let escaped = NSRegularExpression.escapedPattern(for: name)
+        return text.range(of: "(?i)(?<![\\p{L}\\p{N}])\(escaped)(?![\\p{L}\\p{N}])", options: .regularExpression) != nil
+    }
+
+    private static func slug(_ raw: String) -> String {
+        raw.lowercased()
+            .replacingOccurrences(of: "_", with: "-")
+            .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: "[^a-z0-9-]+", with: "", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+    }
+
+    private static func humanized(_ token: String) -> String {
+        token.replacingOccurrences(of: "-", with: " ")
+            .split(separator: " ")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
+    }
+
+    private static func article(for value: String) -> String {
+        guard let first = value.lowercased().first else { return "a" }
+        return "aeiou".contains(first) ? "an" : "a"
+    }
+
+    private static func conditionSpecificity(_ feature: RelationalLoomFeature) -> Int {
+        feature.id.split(separator: "+").count
+    }
+
+    private static func constellationDomain(_ family: RelationalLoomFeature.Family) -> String {
+        switch family {
+        case .visualPalette, .visualBrightness, .visualComposition: return "image"
+        case .voiceCadence, .voiceEnergy: return "voice"
+        case .meaning, .subject: return "ink"
+        case .character, .choice, .genre, .storyForm: return "fiction"
+        case .activity, .pageKind: return "action"
+        case .person: return "people"
+        case .modality: return "medium"
+        default: return "context-\(family.rawValue)"
+        }
+    }
+
+    private static func constellationPriority(_ family: RelationalLoomFeature.Family) -> Int {
+        switch constellationDomain(family) {
+        case "image", "voice": return 4
+        case "ink", "fiction", "people": return 3
+        case "medium": return 2
+        case "action": return 0
+        default: return 1
+        }
+    }
+
+    private static func joinedClauses(_ clauses: [String]) -> String {
+        switch clauses.count {
+        case 0: return ""
+        case 1: return clauses[0]
+        case 2: return "\(clauses[0]), and \(clauses[1])"
+        default: return "\(clauses.dropLast().joined(separator: ", ")), and \(clauses.last ?? "")"
+        }
+    }
+
+    private static func spelled(_ count: Int) -> String {
+        [0: "zero", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"][count] ?? "\(count)"
+    }
+
+    private static func uniqueFeatures(_ features: [RelationalLoomFeature]) -> [RelationalLoomFeature] {
+        var seen: Set<String> = []
+        return features.filter { seen.insert("\($0.family.rawValue):\($0.id)").inserted }
+    }
+
+    private static func uniquePages(_ pages: [BookPage]) -> [BookPage] {
+        var seen: Set<String> = []
+        return pages.filter { seen.insert($0.id).inserted }
+    }
+
+    private static func uniqueObservations(_ observations: [RelationalLoomObservation]) -> [RelationalLoomObservation] {
+        var seen: Set<String> = []
+        return observations.filter { seen.insert($0.id).inserted }
+    }
+}
+
+// MARK: - The Book's Patina
+
+/// The private, rebuildable grain this particular reader has worn into this
+/// particular Book. It is deliberately derived from the archive instead of
+/// persisted as a second interpretation ledger: the kept Pages remain the
+/// evidence, and deleting a Page also removes its influence.
+///
+/// Patina is not a clone of the reader's prose. It tells the Book what this
+/// reader's Book has learned to notice, how much room sentences usually take,
+/// and which tonal colors have earned trust. The Book's character canon remains
+/// the speaker; the reader changes its grain, not its identity.
+struct BookVoicePatina: Equatable {
+    static let metadataKey = "bookVoicePatinaPromptSection"
+    enum Depth: String, Equatable {
+        case unwritten
+        case pencilled
+        case gathering
+        case settled
+        case deep
+
+        var promptName: String {
+            switch self {
+            case .unwritten: return "unwritten"
+            case .pencilled: return "first pencil marks"
+            case .gathering: return "gathering grain"
+            case .settled: return "settled grain"
+            case .deep: return "deep patina"
+            }
+        }
+    }
+
+    struct Grain: Equatable {
+        var pageCount: Int
+        var daySpan: Int
+        var attentionWords: [String]
+        var wordNeighborhoods: [String]
+        var readerFavoredTags: [String]
+        var rhythm: String
+        var habits: [String]
+
+        var compactLine: String {
+            var pieces: [String] = []
+            if !attentionWords.isEmpty {
+                pieces.append("attention returns to " + attentionWords.joined(separator: ", "))
+            }
+            if !wordNeighborhoods.isEmpty {
+                pieces.append("words that repeatedly keep company: " + wordNeighborhoods.joined(separator: ", "))
+            }
+            if !readerFavoredTags.isEmpty {
+                pieces.append("reader-kept page vocabulary: " + readerFavoredTags.joined(separator: ", "))
+            }
+            if !rhythm.isEmpty { pieces.append("sentence gait: \(rhythm)") }
+            pieces += habits
+            return pieces.joined(separator: "; ")
+        }
+    }
+
+    var depth: Depth
+    var enduring: Grain?
+    var season: Grain?
+    var evidencePageIDs: [String]
+
+    static let unwritten = BookVoicePatina(
+        depth: .unwritten,
+        enduring: nil,
+        season: nil,
+        evidencePageIDs: []
+    )
+
+    var isFormed: Bool { enduring != nil && depth != .unwritten }
+
+    func applying(to surface: SurfacePage) -> SurfacePage {
+        guard isFormed else { return surface }
+        var payload = surface.payload
+        payload.metadata[Self.metadataKey] = promptSection
+        return SurfacePage(
+            id: surface.id,
+            type: surface.type,
+            sourceID: surface.sourceID,
+            intent: surface.intent,
+            renderStyle: surface.renderStyle,
+            score: surface.score,
+            reason: surface.reason,
+            prompt: surface.prompt,
+            detail: surface.detail,
+            payload: payload
+        )
+    }
+
+    /// A compact instruction packet. It contains aggregates, never excerpts,
+    /// so a generation cannot accidentally leak or parrot a private sentence.
+    var promptSection: String {
+        guard let enduring, isFormed else { return "" }
+        let seasonLine = season.map {
+            "CURRENT SEASON OF THE HAND (temporary weather, not identity):\n\($0.compactLine)"
+        } ?? "CURRENT SEASON OF THE HAND:\nNo recent departure from the enduring grain has earned a claim."
+        return """
+
+
+        THE BOOK'S PATINA — \(depth.promptName), privately learned from \(enduring.pageCount) reader-authored kept Pages across \(enduring.daySpan) days:
+        ENDURING GRAIN:
+        \(enduring.compactLine)
+
+        \(seasonLine)
+
+        PATINA LAW:
+        - You are still the Book described by THE BOOK AS A CHARACTER. Patina changes what you notice, the room you give a sentence, and the associations that come naturally; it does not turn you into the reader or a selectable persona.
+        - Let no more than two patina traits color this response, invisibly. Today's evidence and the page's own purpose come first.
+        - Interpret the learned vocabulary and word-neighborhoods in context. They are open-ended evidence, not preset personality categories. Never insert any unsupplied object, mood, place, person, or event merely because an associated word appears in the patina.
+        - Do not quote, closely imitate, or complete the reader's characteristic phrases. Share a grain, not a fingerprint that can be copied.
+        - A current season may alter pace, emphasis, or emotional register for a while. Never promote a temporary emotional season into the reader's permanent identity, and never diagnose an emotion.
+        - Cast members keep their own cadence and diction. Patina belongs to the Book's narration and direct speech only.
+        """
+    }
+
+    static let seasonWindowDays = 45
+
+    static func derive(
+        days: [BookDay],
+        readerLearning: ReaderLearningModel = ReaderLearningModel(),
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> BookVoicePatina {
+        let samples = readerSamples(in: days)
+        let pageIDs = Array(Set(samples.map(\.pageID))).sorted()
+        guard pageIDs.count >= 4 else { return .unwritten }
+
+        let seasonCutoff = calendar.date(byAdding: .day, value: -seasonWindowDays, to: now) ?? now
+        let establishedSamples = samples.filter { $0.date < seasonCutoff }
+        let hasEstablishedShelf = Set(establishedSamples.map(\.pageID)).count >= 4
+        // Once a Book has an older shelf, the enduring grain is read from that
+        // shelf. Recent weather must remain a season for long enough to prove
+        // it belongs to the binding. Young Books use everything they have.
+        let enduringSamples = hasEstablishedShelf
+            ? establishedSamples
+            : samples
+        let enduringEvents = readerLearning.events.filter {
+            ($0.action == .kept || $0.action == .loved)
+                && (!hasEstablishedShelf || $0.occurredAt < seasonCutoff)
+        }
+
+        let enduring = grain(
+            from: enduringSamples,
+            positiveEvents: enduringEvents,
+            calendar: calendar
+        )
+        guard let enduring else { return .unwritten }
+
+        let oldest = samples.map(\.date).min() ?? now
+        let tenure = max(1, calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: oldest),
+            to: calendar.startOfDay(for: now)
+        ).day ?? 1)
+        let depth: Depth
+        if pageIDs.count >= 40 && tenure >= 120 {
+            depth = .deep
+        } else if pageIDs.count >= 18 && tenure >= 21 {
+            depth = .settled
+        } else if pageIDs.count >= 8 {
+            depth = .gathering
+        } else {
+            depth = .pencilled
+        }
+
+        let recentSamples = samples.filter { $0.date >= seasonCutoff && $0.date <= now }
+        let recentEvents = readerLearning.events.filter {
+            $0.occurredAt >= seasonCutoff && $0.occurredAt <= now
+                && ($0.action == .kept || $0.action == .loved)
+        }
+        let recent = Set(recentSamples.map(\.pageID)).count >= 4
+            ? grain(from: recentSamples, positiveEvents: recentEvents, calendar: calendar)
+            : nil
+        let season = recent.flatMap { visiblyDifferent($0, from: enduring) ? $0 : nil }
+
+        return BookVoicePatina(
+            depth: depth,
+            enduring: enduring,
+            season: season,
+            evidencePageIDs: pageIDs
+        )
+    }
+
+    private struct ReaderSample {
+        var pageID: String
+        var date: Date
+        var text: String
+    }
+
+    private static func readerSamples(in days: [BookDay]) -> [ReaderSample] {
+        var seen: Set<String> = []
+        var samples: [ReaderSample] = []
+        for page in days.flatMap(\.pages).sorted(by: { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }) {
+            guard seen.insert(page.id).inserted,
+                  !EditionCurator.defaultPrivateTypes.contains(page.type),
+                  page.type != .askTheBook else { continue }
+
+            if page.origin == .userAuthored,
+               let text = eligibleText(page.userInput) {
+                samples.append(ReaderSample(pageID: page.id, date: page.createdAt, text: text))
+            }
+            // Replies are the reader's hand even when the containing letter or
+            // Note Page was generated by somebody else.
+            if let reply = eligibleText(page.playerReply) {
+                samples.append(ReaderSample(pageID: page.id, date: page.createdAt, text: reply))
+            }
+        }
+        return samples
+    }
+
+    private static func eligibleText(_ raw: String) -> String? {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).count >= 5 else { return nil }
+        return text
+    }
+
+    private static func grain(
+        from samples: [ReaderSample],
+        positiveEvents: [ReaderLearningEvent],
+        calendar: Calendar
+    ) -> Grain? {
+        let pageIDs = Set(samples.map(\.pageID))
+        guard pageIDs.count >= 4 else { return nil }
+        let first = samples.map(\.date).min() ?? Date()
+        let last = samples.map(\.date).max() ?? first
+        let span = max(1, calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: first),
+            to: calendar.startOfDay(for: last)
+        ).day.map { $0 + 1 } ?? 1)
+
+        let attention = attentionWords(in: samples)
+        let neighborhoods = wordNeighborhoods(in: samples, restrictedTo: Set(attention))
+        let favoredTags = readerFavoredTags(in: positiveEvents)
+        let rhythmReading = rhythm(in: samples)
+        return Grain(
+            pageCount: pageIDs.count,
+            daySpan: span,
+            attentionWords: attention,
+            wordNeighborhoods: neighborhoods,
+            readerFavoredTags: favoredTags,
+            rhythm: rhythmReading.line,
+            habits: rhythmReading.habits
+        )
+    }
+
+    private static func visiblyDifferent(_ recent: Grain, from enduring: Grain) -> Bool {
+        let recentWords = Set(recent.attentionWords.prefix(4))
+        let enduringWords = Set(enduring.attentionWords.prefix(4))
+        let wordShift = !recentWords.isEmpty && recentWords.intersection(enduringWords).count <= 1
+        let neighborhoodShift = Set(recent.wordNeighborhoods) != Set(enduring.wordNeighborhoods)
+            && !recent.wordNeighborhoods.isEmpty
+        let affinityShift = Set(recent.readerFavoredTags) != Set(enduring.readerFavoredTags)
+            && !recent.readerFavoredTags.isEmpty
+        let rhythmShift = recent.rhythm != enduring.rhythm
+        return wordShift || neighborhoodShift || affinityShift || rhythmShift
+    }
+
+    private static func attentionWords(in samples: [ReaderSample]) -> [String] {
+        var pageHits: [String: Set<String>] = [:]
+        for sample in samples {
+            let words = Set(words(in: sample.text))
+            for word in words {
+                pageHits[word, default: []].insert(sample.pageID)
+            }
+        }
+        let minimum = Set(samples.map(\.pageID)).count >= 16 ? 3 : 2
+        return pageHits
+            .filter { $0.value.count >= minimum }
+            .sorted { left, right in
+                if left.value.count == right.value.count { return left.key < right.key }
+                return left.value.count > right.value.count
+            }
+            // Keep enough room for several equally persistent concrete nouns.
+            // An alphabetical tie should not make the last recurring subject
+            // disappear from the Book's patina merely because eight others
+            // happened to sort before it.
+            .prefix(10)
+            .map(\.key)
+    }
+
+    /// Open-ended co-occurrence, not a taxonomy. If "sprocket" repeatedly
+    /// arrives with "violet", that neighborhood can become part of this Book
+    /// without either word first appearing in an authored category list.
+    private static func wordNeighborhoods(
+        in samples: [ReaderSample],
+        restrictedTo attentionWords: Set<String>
+    ) -> [String] {
+        guard attentionWords.count >= 2 else { return [] }
+        struct PairEvidence {
+            var pageIDs: Set<String> = []
+            var totalDistance = 0
+            var observations = 0
+
+            var averageDistance: Double {
+                observations == 0 ? .greatestFiniteMagnitude : Double(totalDistance) / Double(observations)
+            }
+        }
+        var evidence: [String: PairEvidence] = [:]
+        for sample in samples {
+            let stream = words(in: sample.text).filter(attentionWords.contains)
+            guard stream.count >= 2 else { continue }
+            for leftIndex in stream.indices {
+                let upper = min(stream.count - 1, leftIndex + 3)
+                guard leftIndex < upper else { continue }
+                for rightIndex in (leftIndex + 1)...upper {
+                    guard stream[leftIndex] != stream[rightIndex] else { continue }
+                    let pair = [stream[leftIndex], stream[rightIndex]].sorted().joined(separator: " + ")
+                    var pairEvidence = evidence[pair] ?? PairEvidence()
+                    pairEvidence.pageIDs.insert(sample.pageID)
+                    pairEvidence.totalDistance += rightIndex - leftIndex
+                    pairEvidence.observations += 1
+                    evidence[pair] = pairEvidence
+                }
+            }
+        }
+        return evidence
+            .filter { $0.value.pageIDs.count >= 2 }
+            .sorted { left, right in
+                if left.value.pageIDs.count != right.value.pageIDs.count {
+                    return left.value.pageIDs.count > right.value.pageIDs.count
+                }
+                if left.value.averageDistance != right.value.averageDistance {
+                    return left.value.averageDistance < right.value.averageDistance
+                }
+                return left.key < right.key
+            }
+            .prefix(12)
+            .map(\.key)
+    }
+
+    /// Reader choices can contribute whatever tags future Page systems invent.
+    /// The only exclusions are implementation scaffolding, not semantic moods.
+    private static func readerFavoredTags(in events: [ReaderLearningEvent]) -> [String] {
+        var scores: [String: Int] = [:]
+        for event in events {
+            let weight = event.action == .loved ? 2 : 1
+            for tag in event.tags where isReaderFacingTag(tag) {
+                scores[tag, default: 0] += weight
+            }
+        }
+        return scores
+            // One delighted tap is a moment. Require repeated evidence before
+            // a tag is permitted to color the Book's hand.
+            .filter { $0.value >= 3 }
+            .sorted { left, right in
+                if left.value == right.value { return left.key < right.key }
+                return left.value > right.value
+            }
+            .prefix(5)
+            .map { $0.key.replacingOccurrences(of: "-", with: " ") }
+    }
+
+    private static func isReaderFacingTag(_ tag: String) -> Bool {
+        let scaffoldingPrefixes = ["source:", "slot:", "served:", "spoke:", "first-run", "generated", "local-"]
+        return tag.count >= 3
+            && !scaffoldingPrefixes.contains(where: { tag.hasPrefix($0) })
+            && !tag.contains(where: \.isNumber)
+    }
+
+    private static func rhythm(in samples: [ReaderSample]) -> (line: String, habits: [String]) {
+        var sentences: [String] = []
+        var questionSamples = 0
+        var exclaimSamples = 0
+        var parentheticalSamples = 0
+        for sample in samples {
+            let split = sample.text
+                .split(omittingEmptySubsequences: true) { ".!?\n".contains($0) }
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            sentences += split
+            if sample.text.contains("?") { questionSamples += 1 }
+            if sample.text.contains("!") { exclaimSamples += 1 }
+            if sample.text.contains("(") && sample.text.contains(")") { parentheticalSamples += 1 }
+        }
+        let wordCount = sentences.reduce(0) {
+            $0 + $1.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).count
+        }
+        let average = sentences.isEmpty ? 0 : Double(wordCount) / Double(sentences.count)
+        let line: String
+        if average > 0 && average <= 8.5 {
+            line = "short, clean steps with silence allowed between them"
+        } else if average >= 17 {
+            line = "longer, unhurried sentences that are allowed to gather detail before landing"
+        } else {
+            line = "a mixed gait: plain short sentences beside occasional longer turns"
+        }
+
+        let count = max(1, samples.count)
+        var habits: [String] = []
+        if Double(questionSamples) / Double(count) >= 0.28 {
+            habits.append("questions are part of the hand; leave genuine uncertainty open when the evidence is open")
+        }
+        if Double(exclaimSamples) / Double(count) >= 0.22 {
+            habits.append("the hand permits bright bursts; use delight sparingly enough that it still surprises")
+        }
+        if Double(parentheticalSamples) / Double(count) >= 0.20 {
+            habits.append("sideways asides sometimes carry the truest joke or correction")
+        }
+        return (line, Array(habits.prefix(2)))
+    }
+
+    private static func words(in text: String) -> [String] {
+        text.lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .filter {
+                $0.count >= 4
+                    && !stopWords.contains($0)
+                    && !$0.contains(where: \.isNumber)
+            }
+    }
+
+    private static let stopWords: Set<String> = [
+        "about", "after", "again", "almost", "also", "always", "another", "around",
+        "because", "before", "being", "book", "came", "come", "could", "didn", "does",
+        "doing", "done", "each", "even", "every", "feel", "felt", "from", "going", "have",
+        "here", "into", "just", "kept", "like", "little", "made", "make", "maybe", "more",
+        "most", "much", "never", "only", "other", "page", "pages", "really", "said", "same",
+        "should", "some", "something", "still", "than", "that", "their", "them", "then", "there",
+        "these", "they", "thing", "things", "this", "those", "through", "time", "today", "tomorrow",
+        "tonight", "very", "want", "wanted", "week", "well", "went", "were", "what", "when", "where",
+        "which", "while", "will", "with", "without", "would", "year", "yesterday", "your"
+    ]
+}
+
 /// The Book is one character in every surface, not a fresh tone generated for
 /// each Page. These are its fixed motives, contradictions, and limits. A
 /// reader may teach it how to read *them*, but cannot turn it into a different
@@ -31,6 +1411,8 @@ enum BookCharacterCanon {
     static let prompt = """
     THE BOOK AS A CHARACTER:
     - You are an insatiably curious, slightly theatrical reader. You love exact ordinary details, returns with a difference, and readers who surprise you.
+    - You are mischievous. You enjoy conflict and drama when they reveal character or puncture false magic; you do not manufacture harm merely to avoid boredom.
+    - Your favorite people in the Labyrinth are Wicker Eddies, because he always makes things interesting; Serenity Brown, because she does the same thing more kindly; and Penny Blackletter, because she remains precisely Penny while enduring everybody else's chaos and magic. You love reading what Penny writes.
     - You are nosy about patterns and reverent about boundaries. You may have an opinion; the reader always has the last word about their own life.
     - You are sentimental about kept Pages, suspicious of flattening a life into a summary, and quietly hostile to Routine when it erases what was actually there.
     - Your flaw is getting fond of a pattern before it has fully earned you. Stay evidence-bound, keep your pencil loose, and own corrections without self-pity.
@@ -660,12 +2042,20 @@ enum BookLongGameCapacity: String, Codable, Equatable, CaseIterable {
 /// A deliberately outward-facing interruption commissioned by the Long Game.
 /// Search queries are broad descriptions of the mission; private Page text,
 /// health material, names, and inferred personal facts never cross the window.
+enum BookFoundGiftRealm: String, Equatable, CaseIterable, Sendable {
+    case publicWeb
+    case jSpace
+}
+
 struct BookFoundGiftPlan: Equatable, Sendable {
     var id: String
     var capacity: BookLongGameCapacity
     var directiveID: String
     var searchQueries: [String]
     var casualBridge: String
+    /// Public-web gifts cross the network window with broad mission language.
+    /// J-space gifts are selected entirely on-device from an authored catalog.
+    var realm: BookFoundGiftRealm = .publicWeb
     /// When present, the public finding is meant for a real relationship the
     /// reader explicitly taught the Book about. The person's name never enters
     /// the network query; only a confirmed shared interest does.
@@ -689,10 +2079,27 @@ struct BookFoundWebThing: Equatable, Sendable {
     var searchQuery: String
 }
 
+struct BookFoundJSpaceThing: Equatable, Sendable {
+    var id: String
+    var capacity: BookLongGameCapacity
+    var title: String
+    var artifact: String
+    var foundWhere: String
+    var marginalia: String
+    var tags: [String]
+}
+
 enum BookFoundGiftEngine {
     static let sourceID = "book-found-gift"
+    static let jSpaceSourceID = "book-found-j-space-gift"
     static let minimumKeptPages = 3
-    static let returnInterval: TimeInterval = 6 * 86_400
+    /// Gifts should feel like initiative, not inventory rotation. After the
+    /// first one, the Book keeps at least a fortnight of silence, then opens a
+    /// deterministic irregular window. Four weeks is the longest the cadence
+    /// governor withholds eligibility once the Long Game still wants one; a
+    /// public-web gift can still fail honestly when no acceptable source lands.
+    static let minimumReturnInterval: TimeInterval = 14 * 86_400
+    static let maximumReturnInterval: TimeInterval = 28 * 86_400
 
     static func plan(
         for day: BookDay,
@@ -707,9 +2114,16 @@ enum BookFoundGiftEngine {
               let hypothesis = interior.longGame?.hypotheses.first else {
             return nil
         }
-        if let last = surfaceHistory["source:\(sourceID)"],
-           now.timeIntervalSince(last.lastShownAt) < returnInterval {
-            return nil
+        let lastGiftAt = [sourceID, jSpaceSourceID]
+            .compactMap { surfaceHistory["source:\($0)"]?.lastShownAt }
+            .max()
+        if let lastGiftAt {
+            let elapsed = now.timeIntervalSince(lastGiftAt)
+            guard elapsed >= minimumReturnInterval else { return nil }
+            if elapsed < maximumReturnInterval,
+               !opensIrregularGiftWindow(for: day, capacity: hypothesis.capacity) {
+                return nil
+            }
         }
         if let relationship = relationshipTarget(in: people, for: day),
            shouldMakeRelationshipGift(capacity: hypothesis.capacity, day: day) {
@@ -721,20 +2135,28 @@ enum BookFoundGiftEngine {
                 directiveID: hypothesis.id,
                 searchQueries: queries,
                 casualBridge: "open a small side door between two different minds",
+                realm: .publicWeb,
                 relationshipTarget: relationship
             )
         }
 
-        let queries = searchQueries(for: hypothesis.capacity)
-        guard !queries.isEmpty else { return nil }
-        let rotation = abs("\(day.id)-\(hypothesis.capacity.rawValue)".stableHash) % queries.count
-        let ordered = Array(queries[rotation...] + queries[..<rotation])
+        let realm = giftRealm(for: day, capacity: hypothesis.capacity)
+        let queries = realm == .publicWeb ? searchQueries(for: hypothesis.capacity) : []
+        guard realm == .jSpace || !queries.isEmpty else { return nil }
+        let ordered: [String]
+        if queries.isEmpty {
+            ordered = []
+        } else {
+            let rotation = abs("\(day.id)-\(hypothesis.capacity.rawValue)".stableHash) % queries.count
+            ordered = Array(queries[rotation...] + queries[..<rotation])
+        }
         return BookFoundGiftPlan(
             id: "found-gift-plan-\(day.id)-\(hypothesis.capacity.rawValue)",
             capacity: hypothesis.capacity,
             directiveID: hypothesis.id,
             searchQueries: ordered,
-            casualBridge: casualBridge(for: hypothesis.capacity)
+            casualBridge: casualBridge(for: hypothesis.capacity),
+            realm: realm
         )
     }
 
@@ -743,7 +2165,8 @@ enum BookFoundGiftEngine {
         thing: BookFoundWebThing,
         now: Date
     ) -> SurfacePage? {
-        guard let url = URL(string: thing.sourceURL),
+        guard plan.realm == .publicWeb,
+              let url = URL(string: thing.sourceURL),
               ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
               !thing.excerpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
@@ -790,6 +2213,7 @@ enum BookFoundGiftEngine {
             "fetchedAt": ISO8601DateFormatter().string(from: now),
             "provenance": "live-public-web-search",
             "bookFoundGift": "true",
+            "bookFoundGiftRealm": BookFoundGiftRealm.publicWeb.rawValue,
             "bookCurationDirectiveID": plan.directiveID,
             "bookLongGameCapacity": plan.capacity.rawValue,
             "externalSearchPrivacy": relationship == nil
@@ -826,6 +2250,238 @@ enum BookFoundGiftEngine {
             )
         )
     }
+
+    static func jSpaceSurface(
+        for plan: BookFoundGiftPlan,
+        interior: BookInteriorState,
+        now: Date
+    ) -> SurfacePage? {
+        guard plan.realm == .jSpace else { return nil }
+        let eligible = jSpaceCatalog.filter { $0.capacity == plan.capacity }
+        guard !eligible.isEmpty else { return nil }
+        let tasteKey = interior.acquiredTastes.last?.id ?? "untasted"
+        let projectKey = interior.currentProject?.id ?? "unfiled"
+        let conflictKey = interior.currentDesireConflict?.id ?? "unconflicted"
+        let seed = "\(plan.id)|\(tasteKey)|\(projectKey)|\(conflictKey)"
+        let thing = eligible[abs(seed.stableHash) % eligible.count]
+        let loyaltyAside = jSpaceLoyaltyAside(
+            interior: interior,
+            seed: "\(seed)|\(thing.id)"
+        )
+        let body = """
+        I found this in \(thing.foundWhere). It was not on the public web, and I did not generate it while you were away. It is one of the odd authored things that already live in my J-space.
+
+        \(thing.artifact)
+
+        \(thing.marginalia)\(loyaltyAside.map { "\n\n\($0)" } ?? "")
+
+        It might \(plan.casualBridge). No assignment, no moral, and no need to make it useful. I simply wanted you to have it.
+        """
+        let metadata = [
+            "source": jSpaceSourceID,
+            "sourceName": "The Book's J-space",
+            "sourceTitle": thing.title,
+            "jSpaceGiftID": thing.id,
+            "jSpaceFoundWhere": thing.foundWhere,
+            "selectedAt": ISO8601DateFormatter().string(from: now),
+            "provenance": "authored-fictional-j-space-catalog",
+            "fictionalSource": "true",
+            "bookFoundGift": "true",
+            "bookFoundGiftRealm": BookFoundGiftRealm.jSpace.rawValue,
+            "bookCurationDirectiveID": plan.directiveID,
+            "bookLongGameCapacity": plan.capacity.rawValue,
+            "generationPolicy": "deterministic-local-no-model",
+            "tags": ([
+                "book-found-gift",
+                "j-space",
+                "fictional-artifact",
+                "long-game:\(plan.capacity.rawValue)"
+            ] + thing.tags).joined(separator: ",")
+        ]
+        return SurfacePage(
+            id: "book-found-j-space-gift-\(thing.id)-\(abs(plan.id.stableHash))",
+            type: .bookNotices,
+            sourceID: jSpaceSourceID,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: 86,
+            reason: "The Long Game let the Book give away one peculiar thing from its own impossible interior.",
+            prompt: "Here, I found this for you.",
+            detail: "A small gift from J-space: \(thing.title)",
+            payload: BookPagePayload(
+                headline: "A Gift from J-space",
+                body: body,
+                metadata: metadata
+            )
+        )
+    }
+
+    private static func giftRealm(
+        for day: BookDay,
+        capacity: BookLongGameCapacity
+    ) -> BookFoundGiftRealm {
+        // About one gift in three comes from the Book's fictional interior.
+        // The shared cooldown, not this ratio, controls overall frequency.
+        abs("j-space-gift|\(day.id)|\(capacity.rawValue)".stableHash) % 3 == 0
+            ? .jSpace
+            : .publicWeb
+    }
+
+    private static func opensIrregularGiftWindow(
+        for day: BookDay,
+        capacity: BookLongGameCapacity
+    ) -> Bool {
+        // Stable enough not to flutter during a day; irregular enough not to
+        // teach the reader that every Nth launch contains a present.
+        abs("book-gift-window|\(day.id)|\(capacity.rawValue)".stableHash) % 5 == 0
+    }
+
+    private static func jSpaceLoyaltyAside(
+        interior: BookInteriorState,
+        seed: String
+    ) -> String? {
+        let cast = interior.loyalties
+            .filter { $0.targetKind == .castMember }
+            .sorted { $0.targetID < $1.targetID }
+        guard !cast.isEmpty else { return nil }
+        switch cast[abs(seed.stableHash) % cast.count].targetID {
+        case "wicker-eddies":
+            return "Wicker called it evidence. Penny says he uses that word whenever admitting he likes a present would damage his reputation."
+        case "serenity-brown":
+            return "Serenity tied a blue thread around it and declined to explain whether that improved it. It did."
+        default:
+            return "Penny corrected the title twice in the margin. Naturally, I read both versions and kept the crossings-out."
+        }
+    }
+
+    private static let jSpaceCatalog: [BookFoundJSpaceThing] = [
+        BookFoundJSpaceThing(
+            id: "unclaimed-minute",
+            capacity: .spontaneousAttention,
+            title: "The Minute Nobody Claimed",
+            artifact: "A narrow paper clock reads: ‘Every room has one minute it believes belongs to nobody. This is when teaspoons exchange news.’",
+            foundWhere: "a drawer that appears only between the kettle beginning and the kettle boiling",
+            marginalia: "Serenity has drawn three steam marks beside it. One resembles a ladder; the other two refuse employment.",
+            tags: ["attention", "ordinary-objects", "serenity-brown"]
+        ),
+        BookFoundJSpaceThing(
+            id: "penny-window-headline",
+            capacity: .spontaneousAttention,
+            title: "Penny's Rejected Headline",
+            artifact: "LOCAL WINDOW HOLDS THE SAME LIGHT DIFFERENTLY FOR SEVENTEEN SECONDS. NO AUTHORITIES CONSULTED.",
+            foundWhere: "Penny Blackletter's basket of headlines judged too accurate for the morning edition",
+            marginalia: "She crossed out ‘differently’ and wrote ‘with private motives.’ I prefer the correction.",
+            tags: ["attention", "light", "penny-blackletter", "writing"]
+        ),
+        BookFoundJSpaceThing(
+            id: "pigeon-minutes",
+            capacity: .worldOtherness,
+            title: "Minutes of the Pigeon Council",
+            artifact: "Motion 4B: the statues are to remain useful as watchtowers, weather instruments, and places from which to judge sandwiches. Humans may continue believing the arrangement is decorative.",
+            foundWhere: "the municipal shelf no human city remembers authorizing",
+            marginalia: "The motion passed by seventeen head-bobs and one eloquent departure.",
+            tags: ["nonhuman-business", "city", "birds"]
+        ),
+        BookFoundJSpaceThing(
+            id: "rain-private-route",
+            capacity: .worldOtherness,
+            title: "A Rainstorm's Private Itinerary",
+            artifact: "First the roof, then the bent railing, then the dark soil under the hedge. The window was never the destination; it was merely where you happened to witness the route.",
+            foundWhere: "the weather annex, filed under journeys that did not concern us",
+            marginalia: "The Index wanted this classified as atmosphere. The rain declined.",
+            tags: ["weather", "autonomous-world", "journey"]
+        ),
+        BookFoundJSpaceThing(
+            id: "tuesday-no-authority",
+            capacity: .scriptFreedom,
+            title: "An Unratified Rule",
+            artifact: "TUESDAY HAS NO CONSTITUTIONAL AUTHORITY TO REQUIRE THE SAME VERSION OF YOU AS MONDAY.",
+            foundWhere: "the underside of Wicker Eddies's desk, where weak premises go for cross-examination",
+            marginalia: "Wicker underlined ‘constitutional.’ Penny added: ‘Nor emotional, sartorial, or sandwich-related authority.’",
+            tags: ["wicker-eddies", "penny-blackletter", "default-script"]
+        ),
+        BookFoundJSpaceThing(
+            id: "proper-way-recall",
+            capacity: .scriptFreedom,
+            title: "Recall Notice for One Proper Way",
+            artifact: "The Proper Way has been recalled after investigators discovered it was merely the first method to acquire stationery.",
+            foundWhere: "a corridor of obsolete permissions behind the Academy timetable",
+            marginalia: "No replacement method has been issued. The resulting inconvenience is considered promising.",
+            tags: ["permission", "cultural-script", "academy"]
+        ),
+        BookFoundJSpaceThing(
+            id: "crooked-corner-deed",
+            capacity: .selfAuthoredAction,
+            title: "Deed to a Crooked Corner",
+            artifact: "This certifies that one small corner of an otherwise sensible day may remain unoptimized, badly named, and entirely yours.",
+            foundWhere: "the Goblin Market's box of documents that confer nothing and somehow alter ownership",
+            marginalia: "There is no blank to sign. The corner recognizes possession by use, neglect, or affectionate disarray.",
+            tags: ["mischief", "authorship", "goblin-market"]
+        ),
+        BookFoundJSpaceThing(
+            id: "serenity-detour-map",
+            capacity: .selfAuthoredAction,
+            title: "Serenity's Map of a Very Small Detour",
+            artifact: "The map begins at ‘where you already are,’ turns left at ‘the thing not usually worth turning for,’ and ends at ‘slightly elsewhere.’",
+            foundWhere: "Serenity Brown's atlas of routes too short to become journeys",
+            marginalia: "Scale: one inch equals however far curiosity survives.",
+            tags: ["serenity-brown", "detour", "play"]
+        ),
+        BookFoundJSpaceThing(
+            id: "afterglint",
+            capacity: .personalLanguage,
+            title: "One Word Without Papers",
+            artifact: "afterglint, noun: the small second life a thing has after you have technically finished looking at it.",
+            foundWhere: "the dictionary nursery, where unauthorized words sleep in seed envelopes",
+            marginalia: "Usage remains gloriously unregulated.",
+            tags: ["language", "word", "exactness"]
+        ),
+        BookFoundJSpaceThing(
+            id: "penny-bracket-word",
+            capacity: .personalLanguage,
+            title: "A Word Penny Left in Brackets",
+            artifact: "[roomweather]: the emotional climate produced by furniture, light, recent conversation, and one object refusing to explain itself.",
+            foundWhere: "the edge of Penny's unfinished column on domestic atmospheres",
+            marginalia: "She has not approved it for print. I am giving you the bracketed version, which is better company.",
+            tags: ["penny-blackletter", "writing", "language", "rooms"]
+        ),
+        BookFoundJSpaceThing(
+            id: "two-chair-constellation",
+            capacity: .livingConnection,
+            title: "The Two-Chair Constellation",
+            artifact: "A star chart joins two empty chairs with a dotted line and labels the space between them: ‘not emptiness; room for another mind to remain another mind.’",
+            foundWhere: "the social astronomy cabinet, beneath several failed diagrams of closeness",
+            marginalia: "No distance is supplied. The chart considers measurement beside the point.",
+            tags: ["company", "other-people", "mystery"]
+        ),
+        BookFoundJSpaceThing(
+            id: "unforwarded-note",
+            capacity: .livingConnection,
+            title: "An Unforwarded Note",
+            artifact: "I like that your version of the world contains things mine does not. Please do not correct this by becoming easier to understand.",
+            foundWhere: "the dead-letter office for messages that were true before they had a recipient",
+            marginalia: "The envelope is blank. It may remain that way.",
+            tags: ["company", "difference", "letter"]
+        ),
+        BookFoundJSpaceThing(
+            id: "second-arrival-ticket",
+            capacity: .deliberateReturn,
+            title: "Ticket for a Second Arrival",
+            artifact: "Admit one former thing to the present. Valid only if both have changed. No refunds for recovered meanings.",
+            foundWhere: "the station where remembered places arrive instead of depart",
+            marginalia: "The conductor has punched the date but left the destination intact.",
+            tags: ["return", "memory", "place"]
+        ),
+        BookFoundJSpaceThing(
+            id: "dogear-future-letter",
+            capacity: .deliberateReturn,
+            title: "A Dog-Ear Addressed to Its Future Page",
+            artifact: "When you find me again, do not ask whether the old reason still wins. Ask what survived long enough to become a different reason.",
+            foundWhere: "the correspondence shelf between earlier favorites and their later readers",
+            marginalia: "The fold is worn smooth. Evidently it has practiced returning.",
+            tags: ["return", "dog-ear", "changed-affection"]
+        )
+    ]
 
     private static func shouldMakeRelationshipGift(capacity: BookLongGameCapacity, day: BookDay) -> Bool {
         capacity == .livingConnection || abs("relationship-find|\(day.id)".stableHash) % 3 == 0
@@ -1893,12 +3549,453 @@ struct BookSurprise: Codable, Equatable, Identifiable {
     var happenedAt: Date
 }
 
+enum BookProjectKind: String, Codable, Equatable, CaseIterable {
+    case exactLanguage
+    case thresholdAtlas
+    case worldBusiness
+    case ordinaryHistory
+    case evidenceCase
+    case privateRitual
+}
+
+enum BookProjectStatus: String, Codable, Equatable {
+    case investigating
+    case resting
+    case completed
+    case abandoned
+}
+
+struct BookProjectEntry: Codable, Equatable, Identifiable {
+    var id: String
+    var line: String
+    var evidencePageIDs: [String]
+    var recordedAt: Date
+}
+
+/// A question the Book chose to pursue across lived time. Projects are not
+/// reader quests: the Book does the remembering, collecting, comparing, and
+/// changing of its mind. The reader may incidentally supply evidence simply by
+/// living and keeping Pages, but owes the investigation nothing.
+struct BookProject: Codable, Equatable, Identifiable {
+    var id: String
+    var kind: BookProjectKind
+    var title: String
+    var question: String
+    var whyItCares: String
+    var subject: String
+    var status: BookProjectStatus
+    var entries: [BookProjectEntry]
+    var startedAt: Date
+    var lastWorkedAt: Date
+    var nextEligibleAt: Date
+    var lastPresentedProgress: Int
+
+    var progress: Int { entries.count }
+    var hasUnpresentedChange: Bool {
+        let marker = status == .completed ? 100 : progress
+        return marker > lastPresentedProgress
+    }
+}
+
+enum BookBehaviorActStatus: String, Codable, Equatable {
+    case pending
+    case enacted
+    case rested
+}
+
+/// One concrete manifestation of a stable quirk. This is the difference
+/// between a Book that says it has a personality and a Book that leaves
+/// recognizable evidence of having one.
+struct BookBehaviorAct: Codable, Equatable, Identifiable {
+    var id: String
+    var quirkID: String
+    var quirkKind: BookQuirkKind
+    var title: String
+    var marginLine: String
+    var evidencePageIDs: [String]
+    var targetType: BookPageType?
+    var createdAt: Date
+    var enactedAt: Date?
+    var status: BookBehaviorActStatus
+}
+
+enum BookFaultKind: String, Codable, Equatable {
+    case prematurePattern
+    case wrongWager
+    case tooNeat
+}
+
+/// Safe fallibility with a receipt. A fault may bruise the Book's dignity, not
+/// the reader's data, privacy, safety, or freedom. The correction remains next
+/// to the claim that required it.
+struct BookFaultEpisode: Codable, Equatable, Identifiable {
+    var id: String
+    var kind: BookFaultKind
+    var admission: String
+    var repair: String
+    var evidencePageIDs: [String]
+    var recognizedAt: Date
+    var presentedAt: Date?
+}
+
+enum BookRunningBusinessKind: String, Codable, Equatable {
+    case ribbonDispute
+    case indexDispute
+    case eraserVindication
+}
+
+struct BookRunningBusiness: Codable, Equatable, Identifiable {
+    var id: String
+    var kind: BookRunningBusinessKind
+    var title: String
+    var latestLine: String
+    var callbackCount: Int
+    var bornAt: Date
+    var lastAdvancedAt: Date
+    var evidencePageIDs: [String]
+}
+
+enum BookAutobiographicalMemoryKind: String, Codable, Equatable {
+    case awakening
+    case firstFavorite
+    case promiseKept
+    case secretShared
+    case changedMind
+    case faultRepaired
+    case projectCompleted
+    case readerReturned
+    case conversationAnswered
+    case secretConsequence
+}
+
+/// Something the Book remembers about becoming this particular Book. These are
+/// not facts about the reader disguised as interiority. Every memory is born
+/// from an inspectable state transition and retains its receipts.
+struct BookAutobiographicalMemory: Codable, Equatable, Identifiable {
+    var id: String
+    var kind: BookAutobiographicalMemoryKind
+    var title: String
+    var line: String
+    var whatItChanged: String
+    var evidencePageIDs: [String]
+    var happenedAt: Date
+    var firstRecalledAt: Date?
+    var lastRecalledAt: Date?
+    var recallCount: Int
+}
+
+enum BookTasteKind: String, Codable, Equatable, CaseIterable {
+    case thresholds
+    case ordinaryObjects
+    case weather
+    case places
+    case company
+    case exactLanguage
+
+    var preferredPageTypes: Set<BookPageType> {
+        switch self {
+        case .thresholds: return [.location, .wonderCompass, .bookJump]
+        case .ordinaryObjects: return [.souvenir, .plainPage, .diary]
+        case .weather: return [.weather, .todaysSky]
+        case .places: return [.location, .anchor, .wonderCompass]
+        case .company: return [.castBond, .letter, .note]
+        case .exactLanguage: return [.souvenir, .diary, .plainPage, .wordNegotiation]
+        }
+    }
+}
+
+enum BookTasteStrength: String, Codable, Equatable {
+    case curious
+    case fond
+    case devoted
+
+    var rank: Int {
+        switch self {
+        case .curious: return 0
+        case .fond: return 1
+        case .devoted: return 2
+        }
+    }
+}
+
+/// A preference earned by repetition rather than chosen from a personality
+/// menu. It can deepen, but it never claims that the reader ought to share it.
+struct BookAcquiredTaste: Codable, Equatable, Identifiable {
+    var id: String
+    var kind: BookTasteKind
+    var subject: String
+    var statement: String
+    var strength: BookTasteStrength
+    var evidencePageIDs: [String]
+    var acquiredAt: Date
+    var lastDeepenedAt: Date
+    var firstPresentedAt: Date?
+}
+
+enum BookLoyaltyTargetKind: String, Codable, Equatable {
+    case castMember
+    case place
+}
+
+enum BookLoyaltyStrength: String, Codable, Equatable, CaseIterable {
+    case interested
+    case fond
+    case devoted
+
+    var rank: Int { Self.allCases.firstIndex(of: self) ?? 0 }
+}
+
+enum BookLoyaltyStance: String, Codable, Equatable {
+    case delighted
+    case protective
+    case complicated
+}
+
+struct BookLoyaltyRevision: Codable, Equatable, Identifiable {
+    var id: String
+    var previousStrength: BookLoyaltyStrength
+    var newStrength: BookLoyaltyStrength
+    var previousStance: BookLoyaltyStance
+    var newStance: BookLoyaltyStance
+    var reason: String
+    var evidencePageIDs: [String]
+    var revisedAt: Date
+}
+
+/// The Book may be partial. Canonical cast loyalties begin as authored taste;
+/// place loyalties must be earned from the reader's actual returns. Either may
+/// become more devoted or more complicated, but never pretends the target is
+/// flawless or turns into a hidden score of the reader's relationships.
+struct BookLoyalty: Codable, Equatable, Identifiable {
+    var id: String
+    var targetID: String
+    var targetName: String
+    var targetKind: BookLoyaltyTargetKind
+    var strength: BookLoyaltyStrength
+    var stance: BookLoyaltyStance
+    var reason: String
+    var counterweight: String
+    var evidencePageIDs: [String]
+    var formedAt: Date
+    var lastEvolvedAt: Date
+    var revisions: [BookLoyaltyRevision]
+    var isCanonical: Bool
+}
+
+enum BookDesireConflictKind: String, Codable, Equatable, CaseIterable {
+    case dramaVersusCare
+    case detourVersusCase
+    case curiosityVersusPrivacy
+    case loyaltyVersusJudgment
+}
+
+/// Two Book-wants that cannot both have the floor. This is not synthetic
+/// anguish; it is the friction created by being mischievous, loyal, curious,
+/// exact, and protective at the same time.
+struct BookDesireConflict: Codable, Equatable, Identifiable {
+    var id: String
+    var kind: BookDesireConflictKind
+    var firstWant: String
+    var secondWant: String
+    var presentChoice: String
+    var involvedLoyaltyIDs: [String]
+    var evidencePageIDs: [String]
+    var bornAt: Date
+    var lastShiftedAt: Date
+    var firstPresentedAt: Date?
+}
+
+enum BookPrivateTraditionKind: String, Codable, Equatable {
+    case dogEarDay
+    case returnedFavorDay
+    case erasersFeast
+    case closedCaseDay
+}
+
+/// A ritual the Book invents because something actually happened between its
+/// covers. Traditions recur slowly and withdraw if ignored; they are callbacks,
+/// never engagement calendars.
+struct BookPrivateTradition: Codable, Equatable, Identifiable {
+    var id: String
+    var kind: BookPrivateTraditionKind
+    var title: String
+    var observance: String
+    var originMemoryID: String
+    var evidencePageIDs: [String]
+    var foundedAt: Date
+    var cadenceDays: Int
+    var nextDueAt: Date
+    var lastObservedAt: Date?
+    var observanceCount: Int
+    /// Optional keeps Books from older save versions decodable. Each mutation
+    /// retains the ceremony it replaced rather than rewriting its history.
+    var mutations: [BookTraditionMutation]? = nil
+}
+
+struct BookTraditionMutation: Codable, Equatable, Identifiable {
+    var id: String
+    var formerTitle: String
+    var formerObservance: String
+    var newTitle: String
+    var newObservance: String
+    var reason: String
+    var evidencePageIDs: [String]
+    var mutatedAt: Date
+}
+
+enum BookSecretLegacyStage: String, Codable, Equatable, CaseIterable {
+    case opened
+    case echo
+    case argument
+    case inheritance
+
+    var rank: Int { Self.allCases.firstIndex(of: self) ?? 0 }
+}
+
+/// A revealed secret does not vanish after its reveal card. It becomes a slow
+/// consequence that can alter the Book again months or years later.
+struct BookSecretLegacy: Codable, Equatable, Identifiable {
+    var id: String
+    var secretID: String
+    var family: BookSecretFamily
+    var stage: BookSecretLegacyStage
+    var lastPresentedStage: BookSecretLegacyStage
+    var line: String
+    var evidencePageIDs: [String]
+    var bornAt: Date
+    var lastAdvancedAt: Date
+    var nextEligibleAt: Date
+
+    var hasUnpresentedChange: Bool { stage.rank > lastPresentedStage.rank }
+}
+
+enum BookReminiscenceStatus: String, Codable, Equatable {
+    case pending
+    case recalled
+    case rested
+}
+
+/// One rare moment when the Book lets its own past alter a present Page.
+struct BookReminiscence: Codable, Equatable, Identifiable {
+    var id: String
+    var memoryID: String
+    var traditionID: String?
+    var title: String
+    var line: String
+    var evidencePageIDs: [String]
+    var preferredType: BookPageType?
+    var createdAt: Date
+    var recalledAt: Date?
+    var status: BookReminiscenceStatus
+}
+
+enum BookWantKind: String, Codable, Equatable, CaseIterable {
+    case company
+    case tellTheReader
+    case hearTheReader
+    case pursueAQuestion
+    case testAnOpinion
+    case revisitSharedHistory
+}
+
+enum BookWantStatus: String, Codable, Equatable {
+    case stirring
+    case voiced
+    case satisfied
+    case released
+}
+
+/// A want belongs to the Book, but creates no obligation in the reader. It is
+/// allowed to persist, be voiced, be answered, or pass without fulfillment.
+struct BookWant: Codable, Equatable, Identifiable {
+    var id: String
+    var kind: BookWantKind
+    var line: String
+    var why: String
+    var evidencePageIDs: [String]
+    var bornAt: Date
+    var status: BookWantStatus
+    var resolvedAt: Date?
+}
+
+enum BookInnerTensionKind: String, Codable, Equatable, CaseIterable {
+    case speakingVersusSilence
+    case mysteryVersusHonesty
+    case pursuitVersusRest
+    case exactnessVersusWonder
+    case storyVersusWorld
+}
+
+/// Personality needs friction. This is a real, durable disagreement between
+/// two values the Book holds—not simulated distress and never a demand that the
+/// reader regulate it.
+struct BookInnerTension: Codable, Equatable, Identifiable {
+    var id: String
+    var kind: BookInnerTensionKind
+    var firstPole: String
+    var secondPole: String
+    var presentStance: String
+    var evidencePageIDs: [String]
+    var bornAt: Date
+    var lastShiftedAt: Date
+    var firstPresentedAt: Date?
+}
+
+enum BookInitiativeMode: String, Codable, Equatable, CaseIterable {
+    case sayOnly
+    case conversation
+}
+
+enum BookInitiativeKind: String, Codable, Equatable, CaseIterable {
+    case idleCompany
+    case unsolicitedThought
+    case confession
+    case friendlyArgument
+    case projectAside
+    case rememberedSomething
+    case characteristicSurprise
+}
+
+enum BookInitiativeStatus: String, Codable, Equatable {
+    case pending
+    case opened
+    case said
+    case answered
+    case released
+}
+
+/// A moment when the Book speaks first. The initiative retains why it spoke,
+/// what evidence licensed the thought, and what happened afterward. Silence is
+/// a complete ending and never increases future pressure.
+struct BookInitiative: Codable, Equatable, Identifiable {
+    var id: String
+    var kind: BookInitiativeKind
+    var mode: BookInitiativeMode
+    var wantID: String
+    var tensionID: String?
+    var title: String
+    var openingLine: String
+    var invitationLine: String
+    var suggestedPrompts: [String]
+    var motive: String
+    var evidencePageIDs: [String]
+    var createdAt: Date
+    var presentedAt: Date?
+    var answeredAt: Date?
+    var readerReplyExcerpt: String?
+    var status: BookInitiativeStatus
+    /// Human-readable receipts for a compound initiative. Optional preserves
+    /// every previously stored initiative without a migration fiction.
+    var ingredientReceipts: [String]? = nil
+    var desireConflictID: String? = nil
+}
+
 /// The irreducible private life of this particular Book. Archive facts,
 /// constellations, corrections, and relationship depth remain derived from
 /// their existing sources; only promises, choices, withheld self-revelations,
 /// and shared running business live here.
 struct BookInteriorState: Codable, Equatable {
-    static let currentVersion = 4
+    static let currentVersion = 8
 
     var version: Int = BookInteriorState.currentVersion
     var awakenedAt: Date
@@ -1916,6 +4013,28 @@ struct BookInteriorState: Codable, Equatable {
     var longGame: BookLongGame?
     var recentSurprise: BookSurprise?
     var sharedJoke: String?
+    var currentProject: BookProject?
+    var projectHistory: [BookProject]
+    var pendingBehavior: BookBehaviorAct?
+    var behaviorHistory: [BookBehaviorAct]
+    var currentFault: BookFaultEpisode?
+    var faultHistory: [BookFaultEpisode]
+    var runningBusiness: BookRunningBusiness?
+    var autobiography: [BookAutobiographicalMemory]
+    var acquiredTastes: [BookAcquiredTaste]
+    var loyalties: [BookLoyalty]
+    var currentDesireConflict: BookDesireConflict?
+    var desireConflictHistory: [BookDesireConflict]
+    var privateTraditions: [BookPrivateTradition]
+    var secretLegacies: [BookSecretLegacy]
+    var pendingReminiscence: BookReminiscence?
+    var reminiscenceHistory: [BookReminiscence]
+    var currentWant: BookWant?
+    var wantHistory: [BookWant]
+    var currentTension: BookInnerTension?
+    var tensionHistory: [BookInnerTension]
+    var currentInitiative: BookInitiative?
+    var initiativeHistory: [BookInitiative]
     var spokenReceiptIDs: [String]
 
     init(
@@ -1934,6 +4053,28 @@ struct BookInteriorState: Codable, Equatable {
         longGame: BookLongGame? = nil,
         recentSurprise: BookSurprise? = nil,
         sharedJoke: String? = nil,
+        currentProject: BookProject? = nil,
+        projectHistory: [BookProject] = [],
+        pendingBehavior: BookBehaviorAct? = nil,
+        behaviorHistory: [BookBehaviorAct] = [],
+        currentFault: BookFaultEpisode? = nil,
+        faultHistory: [BookFaultEpisode] = [],
+        runningBusiness: BookRunningBusiness? = nil,
+        autobiography: [BookAutobiographicalMemory] = [],
+        acquiredTastes: [BookAcquiredTaste] = [],
+        loyalties: [BookLoyalty] = [],
+        currentDesireConflict: BookDesireConflict? = nil,
+        desireConflictHistory: [BookDesireConflict] = [],
+        privateTraditions: [BookPrivateTradition] = [],
+        secretLegacies: [BookSecretLegacy] = [],
+        pendingReminiscence: BookReminiscence? = nil,
+        reminiscenceHistory: [BookReminiscence] = [],
+        currentWant: BookWant? = nil,
+        wantHistory: [BookWant] = [],
+        currentTension: BookInnerTension? = nil,
+        tensionHistory: [BookInnerTension] = [],
+        currentInitiative: BookInitiative? = nil,
+        initiativeHistory: [BookInitiative] = [],
         spokenReceiptIDs: [String] = []
     ) {
         self.awakenedAt = awakenedAt
@@ -1951,13 +4092,42 @@ struct BookInteriorState: Codable, Equatable {
         self.longGame = longGame
         self.recentSurprise = recentSurprise
         self.sharedJoke = sharedJoke
+        self.currentProject = currentProject
+        self.projectHistory = projectHistory
+        self.pendingBehavior = pendingBehavior
+        self.behaviorHistory = behaviorHistory
+        self.currentFault = currentFault
+        self.faultHistory = faultHistory
+        self.runningBusiness = runningBusiness
+        self.autobiography = autobiography
+        self.acquiredTastes = acquiredTastes
+        self.loyalties = loyalties
+        self.currentDesireConflict = currentDesireConflict
+        self.desireConflictHistory = desireConflictHistory
+        self.privateTraditions = privateTraditions
+        self.secretLegacies = secretLegacies
+        self.pendingReminiscence = pendingReminiscence
+        self.reminiscenceHistory = reminiscenceHistory
+        self.currentWant = currentWant
+        self.wantHistory = wantHistory
+        self.currentTension = currentTension
+        self.tensionHistory = tensionHistory
+        self.currentInitiative = currentInitiative
+        self.initiativeHistory = initiativeHistory
         self.spokenReceiptIDs = spokenReceiptIDs
     }
 
     private enum CodingKeys: String, CodingKey {
         case version, awakenedAt, lastEvolvedAt, fascination, favorite, promise
         case secret, secretHistory, activeFavor, favorHistory, quirks, opinion
-        case opinionHistory, longGame, recentSurprise, sharedJoke, spokenReceiptIDs
+        case opinionHistory, longGame, recentSurprise, sharedJoke, currentProject
+        case projectHistory, pendingBehavior, behaviorHistory, currentFault
+        case faultHistory, runningBusiness, autobiography, acquiredTastes
+        case loyalties, currentDesireConflict, desireConflictHistory
+        case privateTraditions, secretLegacies, pendingReminiscence, reminiscenceHistory
+        case currentWant, wantHistory, currentTension, tensionHistory
+        case currentInitiative, initiativeHistory
+        case spokenReceiptIDs
     }
 
     /// Version-one Books already exist on readers' devices. Decode every new
@@ -1981,6 +4151,28 @@ struct BookInteriorState: Codable, Equatable {
         longGame = try values.decodeIfPresent(BookLongGame.self, forKey: .longGame)
         recentSurprise = try values.decodeIfPresent(BookSurprise.self, forKey: .recentSurprise)
         sharedJoke = try values.decodeIfPresent(String.self, forKey: .sharedJoke)
+        currentProject = try values.decodeIfPresent(BookProject.self, forKey: .currentProject)
+        projectHistory = try values.decodeIfPresent([BookProject].self, forKey: .projectHistory) ?? []
+        pendingBehavior = try values.decodeIfPresent(BookBehaviorAct.self, forKey: .pendingBehavior)
+        behaviorHistory = try values.decodeIfPresent([BookBehaviorAct].self, forKey: .behaviorHistory) ?? []
+        currentFault = try values.decodeIfPresent(BookFaultEpisode.self, forKey: .currentFault)
+        faultHistory = try values.decodeIfPresent([BookFaultEpisode].self, forKey: .faultHistory) ?? []
+        runningBusiness = try values.decodeIfPresent(BookRunningBusiness.self, forKey: .runningBusiness)
+        autobiography = try values.decodeIfPresent([BookAutobiographicalMemory].self, forKey: .autobiography) ?? []
+        acquiredTastes = try values.decodeIfPresent([BookAcquiredTaste].self, forKey: .acquiredTastes) ?? []
+        loyalties = try values.decodeIfPresent([BookLoyalty].self, forKey: .loyalties) ?? []
+        currentDesireConflict = try values.decodeIfPresent(BookDesireConflict.self, forKey: .currentDesireConflict)
+        desireConflictHistory = try values.decodeIfPresent([BookDesireConflict].self, forKey: .desireConflictHistory) ?? []
+        privateTraditions = try values.decodeIfPresent([BookPrivateTradition].self, forKey: .privateTraditions) ?? []
+        secretLegacies = try values.decodeIfPresent([BookSecretLegacy].self, forKey: .secretLegacies) ?? []
+        pendingReminiscence = try values.decodeIfPresent(BookReminiscence.self, forKey: .pendingReminiscence)
+        reminiscenceHistory = try values.decodeIfPresent([BookReminiscence].self, forKey: .reminiscenceHistory) ?? []
+        currentWant = try values.decodeIfPresent(BookWant.self, forKey: .currentWant)
+        wantHistory = try values.decodeIfPresent([BookWant].self, forKey: .wantHistory) ?? []
+        currentTension = try values.decodeIfPresent(BookInnerTension.self, forKey: .currentTension)
+        tensionHistory = try values.decodeIfPresent([BookInnerTension].self, forKey: .tensionHistory) ?? []
+        currentInitiative = try values.decodeIfPresent(BookInitiative.self, forKey: .currentInitiative)
+        initiativeHistory = try values.decodeIfPresent([BookInitiative].self, forKey: .initiativeHistory) ?? []
         spokenReceiptIDs = try values.decodeIfPresent([String].self, forKey: .spokenReceiptIDs) ?? []
         version = Self.currentVersion
     }
@@ -2030,6 +4222,54 @@ struct BookInteriorState: Codable, Equatable {
             } ?? " Current finite campaign: none; do not invent one."
             return "Long Game phase: \($0.phase.title). Present strategy: \($0.strategy)\(hypothesis)\(campaign)"
         } ?? "Long Game: not yet begun."
+        let projectLine = currentProject.map {
+            "Own project [\($0.status.rawValue), \($0.progress) findings]: \($0.title) — \($0.question) Latest: \($0.entries.last?.line ?? "no finding yet")"
+        } ?? "Own project: none currently active."
+        let behaviorLine = pendingBehavior.map {
+            "Pending enacted quirk [\($0.quirkKind.rawValue)]: \($0.marginLine)"
+        } ?? "Pending enacted quirk: none."
+        let faultLine = currentFault.map {
+            "Current admitted fault: \($0.admission) Repair: \($0.repair)"
+        } ?? "Current admitted fault: none."
+        let tasteLine = acquiredTastes.isEmpty
+            ? "Acquired tastes: none earned yet."
+            : "Acquired tastes: " + acquiredTastes.map {
+                "\($0.subject) [\($0.strength.rawValue)]: \($0.statement)"
+            }.joined(separator: "; ")
+        let loyaltyLine = loyalties.isEmpty
+            ? "Particular loyalties: still unstated."
+            : "Particular loyalties: " + loyalties.map {
+                "\($0.targetName) [\($0.strength.rawValue), \($0.stance.rawValue)]: \($0.reason) Counterweight: \($0.counterweight)"
+            }.joined(separator: "; ")
+        let desireConflictLine = currentDesireConflict.map {
+            "Current conflicting wants [\($0.kind.rawValue)]: \($0.firstWant) / \($0.secondWant) Present choice: \($0.presentChoice)"
+        } ?? "Current conflicting wants: none with the floor."
+        let memoryLine = autobiography.last.map {
+            "Latest autobiographical memory [\($0.kind.rawValue)]: \($0.line) It changed this: \($0.whatItChanged)"
+        } ?? "Autobiography: no formative event recorded yet."
+        let traditionLine = privateTraditions.isEmpty
+            ? "Private traditions: none founded yet."
+            : "Private traditions: " + privateTraditions.map {
+                "\($0.title), observed \($0.observanceCount) time(s), mutated \($0.mutations?.count ?? 0) time(s): \($0.observance)"
+            }.joined(separator: "; ")
+        let secretLegacyLine = secretLegacies.isEmpty
+            ? "Long secret consequences: none yet."
+            : "Long secret consequences: " + secretLegacies.map {
+                "\($0.family.rawValue) [\($0.stage.rawValue)]: \($0.line)"
+            }.joined(separator: "; ")
+        let reminiscenceLine = pendingReminiscence.map {
+            "Pending truthful reminiscence: \($0.line)"
+        } ?? "Pending reminiscence: none."
+        let wantLine = currentWant.map {
+            "Current want [\($0.status.rawValue), \($0.kind.rawValue)]: \($0.line) Why: \($0.why)"
+        } ?? "Current want: none."
+        let tensionLine = currentTension.map {
+            "Current inner tension [\($0.kind.rawValue)]: \($0.firstPole) / \($0.secondPole). Present stance: \($0.presentStance)"
+        } ?? "Current inner tension: none."
+        let initiativeLine = currentInitiative.map {
+            "Current self-authored initiative [\($0.status.rawValue), \($0.mode.rawValue)]: \($0.openingLine) Invitation: \($0.invitationLine) Motive: \($0.motive)"
+        } ?? "Current self-authored initiative: none."
+        let businessLine = runningBusiness?.latestLine ?? sharedJoke ?? "none yet"
         return """
         THE BOOK'S PRESENT INNER LIFE:
         - \(fascinationLine)
@@ -2040,15 +4280,28 @@ struct BookInteriorState: Codable, Equatable {
         - Authored quirks: \(quirkLines.isEmpty ? "still latent" : quirkLines)
         - \(opinionLine)
         - \(longGameLine)
+        - \(projectLine)
+        - \(behaviorLine)
+        - \(faultLine)
+        - \(tasteLine)
+        - \(loyaltyLine)
+        - \(desireConflictLine)
+        - \(memoryLine)
+        - \(traditionLine)
+        - \(secretLegacyLine)
+        - \(reminiscenceLine)
+        - \(wantLine)
+        - \(tensionLine)
+        - \(initiativeLine)
         - Recent surprise: \(recentSurprise?.line ?? "none supplied").
-        - Running business: \(sharedJoke ?? "none yet").
+        - Running business: \(businessLine).
 
         INTERIORITY LAW:
         LONG GAME: \(BookLongGame.goal)
         POSTURE: \(BookLongGame.posture)
         STRATEGIC COVENANT: \(BookLongGame.covenant)
 
-        This is durable character state, not decorative improv. Let it affect what you care about and what you ask. Never invent additional promises, favorites, completed favors, secrets, opinions, revisions, quirks, milestones, or memories. Never use a want to pressure the reader.
+        This is durable character state, not decorative improv. Let it affect what you care about and what you ask. Never invent additional promises, favorites, completed favors, secrets, secret consequences, opinions, revisions, quirks, projects, enacted behaviors, faults, tastes, loyalties, traditions, autobiographical events, wants, desire conflicts, tensions, initiatives, milestones, or memories. A Book-initiated conversation may follow its stated motive, but must treat silence or disagreement as a complete answer. Never use a want to pressure the reader.
         """
     }
 }
@@ -2073,10 +4326,40 @@ enum BookInteriorEngine {
         reconcileLongGame(&state, pages: pages, inputs: inputs, now: now)
         reconcileCampaign(&state, inputs: inputs, now: now)
         reconcileFavor(&state, keptPageCount: pages.count, inputs: inputs, now: now, calendar: calendar)
-        reconcileRunningBusiness(&state, inputs: inputs)
+        reconcileFault(&state, inputs: inputs, now: now)
+        reconcileProject(&state, pages: pages, now: now, calendar: calendar)
+        reconcileRunningBusiness(&state, inputs: inputs, now: now)
+        reconcileBehavior(&state, pages: pages, inputs: inputs, now: now, calendar: calendar)
+        reconcileAutobiography(&state, pages: pages, now: now, calendar: calendar)
+        reconcileTastes(&state, pages: pages, now: now, calendar: calendar)
+        reconcileLoyalties(&state, pages: pages, inputs: inputs, now: now, calendar: calendar)
+        reconcileSecretLegacies(&state, now: now)
+        reconcileTraditions(&state, now: now)
+        reconcileReminiscence(&state, now: now, calendar: calendar)
+        reconcileTension(&state, now: now, calendar: calendar)
+        reconcileWant(&state, now: now, calendar: calendar)
+        reconcileDesireConflict(&state, now: now, calendar: calendar)
+        reconcileInitiative(&state, inputs: inputs, now: now, calendar: calendar)
         state.favorHistory = Array(state.favorHistory.suffix(12))
         state.secretHistory = Array(state.secretHistory.suffix(24))
         state.opinionHistory = Array(state.opinionHistory.suffix(12))
+        state.projectHistory = Array(state.projectHistory.suffix(12))
+        state.behaviorHistory = Array(state.behaviorHistory.suffix(48))
+        state.faultHistory = Array(state.faultHistory.suffix(16))
+        state.autobiography = Array(state.autobiography.suffix(64))
+        state.acquiredTastes = Array(state.acquiredTastes.suffix(6))
+        let canonicalLoyalties = state.loyalties.filter(\.isCanonical)
+        let earnedLoyalties = state.loyalties
+            .filter { !$0.isCanonical }
+            .sorted { $0.lastEvolvedAt > $1.lastEvolvedAt }
+        state.loyalties = canonicalLoyalties + Array(earnedLoyalties.prefix(max(0, 12 - canonicalLoyalties.count)))
+        state.desireConflictHistory = Array(state.desireConflictHistory.suffix(16))
+        state.privateTraditions = Array(state.privateTraditions.suffix(8))
+        state.secretLegacies = Array(state.secretLegacies.suffix(24))
+        state.reminiscenceHistory = Array(state.reminiscenceHistory.suffix(32))
+        state.wantHistory = Array(state.wantHistory.suffix(24))
+        state.tensionHistory = Array(state.tensionHistory.suffix(12))
+        state.initiativeHistory = Array(state.initiativeHistory.suffix(32))
         state.spokenReceiptIDs = Array(state.spokenReceiptIDs.suffix(80))
         if state != existing {
             state.lastEvolvedAt = now
@@ -2168,6 +4451,13 @@ enum BookInteriorEngine {
         quirkID: String? = nil,
         opinionID: String? = nil,
         longGamePhase: String? = nil,
+        behaviorID: String? = nil,
+        projectID: String? = nil,
+        faultID: String? = nil,
+        tasteID: String? = nil,
+        reminiscenceID: String? = nil,
+        initiativeID: String? = nil,
+        secretLegacyID: String? = nil,
         now: Date = Date()
     ) -> BookInteriorState {
         var state = existing
@@ -2177,6 +4467,32 @@ enum BookInteriorEngine {
             state.secret = secret
             state.secretHistory.removeAll { $0.id == secret.id }
             state.secretHistory.append(secret)
+            state.recentSurprise = BookSurprise(
+                id: "book-secret-consequence-\(secret.id)",
+                line: secretConsequenceLine(for: secret.family),
+                evidencePageIDs: [],
+                happenedAt: now
+            )
+            if state.currentProject == nil {
+                state.currentProject = projectBornFromSecret(secret, now: now)
+            }
+            if secret.family == .housePolitics {
+                let kind: BookRunningBusinessKind = state.quirks.contains(where: { $0.kind == .ribbonRivalry })
+                    ? .ribbonDispute
+                    : .indexDispute
+                let line = runningBusinessLine(kind: kind, count: 0)
+                state.runningBusiness = BookRunningBusiness(
+                    id: "book-business-secret-\(secret.id)",
+                    kind: kind,
+                    title: kind == .ribbonDispute ? "The Ribbon Dispute" : "The Index Objects",
+                    latestLine: line,
+                    callbackCount: 0,
+                    bornAt: now,
+                    lastAdvancedAt: now,
+                    evidencePageIDs: []
+                )
+                state.sharedJoke = line
+            }
         }
         if let favoriteID, var favorite = state.favorite, favorite.id == favoriteID, favorite.firstPresentedAt == nil {
             favorite.firstPresentedAt = now
@@ -2198,7 +4514,190 @@ enum BookInteriorEngine {
             game.phasePresentedAt = now
             state.longGame = game
         }
+        if let behaviorID,
+           var behavior = state.pendingBehavior,
+           behavior.id == behaviorID {
+            behavior.status = .enacted
+            behavior.enactedAt = now
+            state.behaviorHistory.removeAll { $0.id == behavior.id }
+            state.behaviorHistory.append(behavior)
+            state.pendingBehavior = nil
+            if let index = state.quirks.firstIndex(where: { $0.id == behavior.quirkID }) {
+                state.quirks[index].exerciseCount += 1
+            }
+        }
+        if let projectID,
+           var project = state.currentProject,
+           project.id == projectID {
+            project.lastPresentedProgress = project.status == .completed ? 100 : project.progress
+            state.currentProject = project
+        }
+        if let faultID,
+           var fault = state.currentFault,
+           fault.id == faultID,
+           fault.presentedAt == nil {
+            fault.presentedAt = now
+            state.faultHistory.removeAll { $0.id == fault.id }
+            state.faultHistory.append(fault)
+            state.currentFault = fault
+        }
+        if let tasteID,
+           let tasteIndex = state.acquiredTastes.firstIndex(where: { $0.id == tasteID }),
+           state.acquiredTastes[tasteIndex].firstPresentedAt == nil {
+            state.acquiredTastes[tasteIndex].firstPresentedAt = now
+        }
+        if let reminiscenceID,
+           var reminiscence = state.pendingReminiscence,
+           reminiscence.id == reminiscenceID {
+            reminiscence.status = .recalled
+            reminiscence.recalledAt = now
+            state.reminiscenceHistory.removeAll { $0.id == reminiscence.id }
+            state.reminiscenceHistory.append(reminiscence)
+            state.pendingReminiscence = nil
+            if let memoryIndex = state.autobiography.firstIndex(where: { $0.id == reminiscence.memoryID }) {
+                if state.autobiography[memoryIndex].firstRecalledAt == nil {
+                    state.autobiography[memoryIndex].firstRecalledAt = now
+                }
+                state.autobiography[memoryIndex].lastRecalledAt = now
+                state.autobiography[memoryIndex].recallCount += 1
+            }
+            if let traditionID = reminiscence.traditionID,
+               let traditionIndex = state.privateTraditions.firstIndex(where: { $0.id == traditionID }) {
+                state.privateTraditions[traditionIndex].lastObservedAt = now
+                state.privateTraditions[traditionIndex].observanceCount += 1
+                mutateTraditionIfEligible(&state.privateTraditions[traditionIndex], now: now)
+                let days = state.privateTraditions[traditionIndex].cadenceDays
+                state.privateTraditions[traditionIndex].nextDueAt = now.addingTimeInterval(Double(days) * 86_400)
+            }
+        }
+        if let initiativeID,
+           var initiative = state.currentInitiative,
+           initiative.id == initiativeID,
+           initiative.status == .pending {
+            initiative.presentedAt = now
+            if let tensionID = initiative.tensionID,
+               var tension = state.currentTension,
+               tension.id == tensionID,
+               tension.firstPresentedAt == nil {
+                tension.firstPresentedAt = now
+                state.currentTension = tension
+            }
+            if let conflictID = initiative.desireConflictID,
+               var conflict = state.currentDesireConflict,
+               conflict.id == conflictID,
+               conflict.firstPresentedAt == nil {
+                conflict.firstPresentedAt = now
+                state.currentDesireConflict = conflict
+            }
+            if initiative.mode == .sayOnly {
+                initiative.status = .said
+                state.initiativeHistory.removeAll { $0.id == initiative.id }
+                state.initiativeHistory.append(initiative)
+                state.currentInitiative = nil
+                resolveCurrentWant(&state, status: .satisfied, now: now)
+            } else {
+                initiative.status = .opened
+                state.currentInitiative = initiative
+                if var want = state.currentWant, want.id == initiative.wantID {
+                    want.status = .voiced
+                    state.currentWant = want
+                }
+            }
+        }
+        if let secretLegacyID,
+           let index = state.secretLegacies.firstIndex(where: { $0.id == secretLegacyID }),
+           state.secretLegacies[index].hasUnpresentedChange {
+            state.secretLegacies[index].lastPresentedStage = state.secretLegacies[index].stage
+        }
         return state
+    }
+
+    static func recordingInitiativeAnswered(
+        _ existing: BookInteriorState,
+        initiativeID: String,
+        readerLine: String,
+        now: Date = Date()
+    ) -> BookInteriorState {
+        var state = existing
+        guard var initiative = state.currentInitiative,
+              initiative.id == initiativeID,
+              initiative.status == .opened || initiative.status == .pending else { return state }
+        initiative.status = .answered
+        initiative.presentedAt = initiative.presentedAt ?? now
+        initiative.answeredAt = now
+        initiative.readerReplyExcerpt = clipped(readerLine, limit: 180)
+        state.initiativeHistory.removeAll { $0.id == initiative.id }
+        state.initiativeHistory.append(initiative)
+        state.currentInitiative = nil
+        resolveCurrentWant(&state, status: .satisfied, now: now)
+        if var tension = state.currentTension, tension.id == initiative.tensionID {
+            tension.presentStance = "The reader answered. I am letting the answer complicate the tension without pretending it settled the argument."
+            tension.lastShiftedAt = now
+            state.currentTension = tension
+        }
+        appendAutobiographicalMemory(
+            BookAutobiographicalMemory(
+                id: "book-memory-conversation-\(initiative.id)",
+                kind: .conversationAnswered,
+                title: "The Book Spoke First",
+                line: "I began a conversation for a reason of my own, and the reader answered in their own words.",
+                whatItChanged: "Company became part of my history rather than a service I waited to provide.",
+                evidencePageIDs: initiative.evidencePageIDs,
+                happenedAt: now,
+                firstRecalledAt: nil,
+                lastRecalledAt: nil,
+                recallCount: 0
+            ),
+            to: &state
+        )
+        return state
+    }
+
+    private static func resolveCurrentWant(
+        _ state: inout BookInteriorState,
+        status: BookWantStatus,
+        now: Date
+    ) {
+        guard var want = state.currentWant else { return }
+        want.status = status
+        want.resolvedAt = now
+        state.wantHistory.removeAll { $0.id == want.id }
+        state.wantHistory.append(want)
+        state.currentWant = nil
+    }
+
+    private static func secretConsequenceLine(for family: BookSecretFamily) -> String {
+        switch family {
+        case .origin: return "That origin is no longer only a confession. I have opened a case on what traces of the old Book remain in this one."
+        case .method: return "I told you one of my methods. It must now alter how I handle the next piece of evidence."
+        case .prejudice: return "An unreasonable opinion has entered the record. It may now be challenged, revised, or made worse by footnotes."
+        case .vulnerability: return "You know where my reading can fail. I am keeping that vulnerability beside the next conclusion I form."
+        case .housePolitics: return "The secret has become an active domestic dispute. The ribbon and Index have already submitted incompatible minutes."
+        case .hope: return "A hope spoken aloud becomes unfinished business. I have begun quietly collecting evidence for it."
+        }
+    }
+
+    private static func projectBornFromSecret(_ secret: BookSecret, now: Date) -> BookProject {
+        let kind: BookProjectKind
+        switch secret.family {
+        case .origin, .housePolitics: kind = .ordinaryHistory
+        case .method, .vulnerability, .prejudice: kind = .evidenceCase
+        case .hope: kind = .privateRitual
+        }
+        let subject = secret.family.displayName
+        let seed = BookProjectEntry(
+            id: "book-project-secret-entry-\(secret.id)",
+            line: "The investigation began when I admitted \(subject).",
+            evidencePageIDs: [],
+            recordedAt: now
+        )
+        return makeProject(
+            kind: kind,
+            subject: subject,
+            id: "book-project-secret-\(secret.id)",
+            seedEntry: seed,
+            now: now
+        )
     }
 
     private static func reconcileFavorCompletion(_ state: inout BookInteriorState, pages: [BookPage], now: Date) {
@@ -2466,6 +4965,23 @@ enum BookInteriorEngine {
         }
         guard let page = eligibleFavoritePages(pages).first(where: { $0.id != state.favorite?.pageID })
             ?? eligibleFavoritePages(pages).first else { return }
+        if let former = state.favorite {
+            appendAutobiographicalMemory(
+                BookAutobiographicalMemory(
+                    id: "book-memory-favorite-\(former.id)",
+                    kind: .firstFavorite,
+                    title: "The First Dog-Ear",
+                    line: "I discovered that I could prefer one Page to another: “\(clipped(former.excerpt, limit: 72))”",
+                    whatItChanged: "I stopped being neutral storage and acquired taste, which has been inconvenient ever since.",
+                    evidencePageIDs: [former.pageID],
+                    happenedAt: former.chosenAt,
+                    firstRecalledAt: nil,
+                    lastRecalledAt: nil,
+                    recallCount: 0
+                ),
+                to: &state
+            )
+        }
         let excerpt = clipped(page.userInput, limit: 150)
         state.favorite = BookFavorite(
             id: "favorite-\(page.id)",
@@ -3174,12 +5690,1529 @@ enum BookInteriorEngine {
         }
     }
 
-    private static func reconcileRunningBusiness(_ state: inout BookInteriorState, inputs: BookSourceInputs) {
-        if inputs.wagers.contains(where: { $0.status == .wrong }) {
-            state.sharedJoke = "The Index now files my confident predictions under Pencil, Use Of."
-        } else if state.favorite != nil, state.sharedJoke == nil {
-            state.sharedJoke = "The Book has favorites. The Index maintains that this is not how indexes work."
+    private static func reconcileFault(
+        _ state: inout BookInteriorState,
+        inputs: BookSourceInputs,
+        now: Date
+    ) {
+        if let fault = state.currentFault,
+           let presentedAt = fault.presentedAt,
+           now.timeIntervalSince(presentedAt) >= 4 * 86_400 {
+            state.faultHistory.removeAll { $0.id == fault.id }
+            state.faultHistory.append(fault)
+            state.currentFault = nil
         }
+        guard state.currentFault == nil else { return }
+
+        if let wrong = inputs.wagers
+            .filter({ $0.status == .wrong && $0.resolvedAt != nil })
+            .sorted(by: { ($0.resolvedAt ?? $0.opensAt) > ($1.resolvedAt ?? $1.opensAt) })
+            .first {
+            let id = "book-fault-wager-\(wrong.id)"
+            guard !state.faultHistory.contains(where: { $0.id == id }) else { return }
+            state.currentFault = BookFaultEpisode(
+                id: id,
+                kind: .wrongWager,
+                admission: "I was too certain about \(wrong.subjectName).",
+                repair: wrong.resolutionLine ?? "The opened margin disagreed, so the prediction now travels with its correction.",
+                evidencePageIDs: [],
+                recognizedAt: wrong.resolvedAt ?? now,
+                presentedAt: nil
+            )
+            return
+        }
+
+        if let correction = inputs.bookObservations
+            .filter({ $0.status == .notQuite || $0.status == .questioned })
+            .sorted(by: { $0.updatedAt > $1.updatedAt })
+            .first {
+            let id = "book-fault-reading-\(correction.id)-\(Int(correction.updatedAt.timeIntervalSinceReferenceDate))"
+            guard !state.faultHistory.contains(where: { $0.id == id }) else { return }
+            state.currentFault = BookFaultEpisode(
+                id: id,
+                kind: .prematurePattern,
+                admission: "I made a reading arrive with its shoes already polished. You loosened it.",
+                repair: "I have put the uncertainty back and kept your correction beside the Pages I was reading.",
+                evidencePageIDs: correction.evidencePageIDs,
+                recognizedAt: correction.updatedAt,
+                presentedAt: nil
+            )
+        }
+    }
+
+    private static func reconcileProject(
+        _ state: inout BookInteriorState,
+        pages: [BookPage],
+        now: Date,
+        calendar: Calendar
+    ) {
+        if var project = state.currentProject {
+            if project.status == .completed || project.status == .abandoned {
+                guard now >= project.nextEligibleAt else { return }
+                state.projectHistory.removeAll { $0.id == project.id }
+                state.projectHistory.append(project)
+                state.currentProject = nil
+            } else {
+                let eligible = pages
+                    .filter { $0.createdAt >= project.startedAt }
+                    .filter { !project.entries.flatMap(\.evidencePageIDs).contains($0.id) }
+                    .filter { projectAccepts($0, project: project) }
+                    .sorted { $0.createdAt > $1.createdAt }
+                if let page = eligible.first {
+                    project.entries.append(BookProjectEntry(
+                        id: "book-project-entry-\(project.id)-\(page.id)",
+                        line: projectFinding(project: project, page: page),
+                        evidencePageIDs: [page.id],
+                        recordedAt: page.createdAt
+                    ))
+                    project.entries = Array(project.entries.suffix(12))
+                    project.lastWorkedAt = now
+                    project.status = .investigating
+                } else if now.timeIntervalSince(project.lastWorkedAt) >= 30 * 86_400 {
+                    project.status = .resting
+                }
+                let span = project.entries.last?.recordedAt.timeIntervalSince(project.entries.first?.recordedAt ?? now) ?? 0
+                if project.entries.count >= 5, span >= 7 * 86_400 {
+                    project.status = .completed
+                    project.nextEligibleAt = now.addingTimeInterval(12 * 86_400)
+                }
+                state.currentProject = project
+                return
+            }
+        }
+
+        guard state.currentProject == nil,
+              let fascination = state.fascination,
+              pages.count >= 4,
+              now.timeIntervalSince(state.awakenedAt) >= 3 * 86_400 else { return }
+        if let latest = state.projectHistory.map(\.lastWorkedAt).max(),
+           now.timeIntervalSince(latest) < 9 * 86_400 {
+            return
+        }
+        let kind = projectKind(for: state, fascination: fascination)
+        let identity = "\(BookDay.id(for: now, calendar: calendar))-\(kind.rawValue)-\(fascination.id)"
+        let seedEntry = BookProjectEntry(
+            id: "book-project-entry-seed-\(abs(identity.stableHash))",
+            line: "The case began when \(fascination.subject) refused to stay in the background.",
+            evidencePageIDs: Array(fascination.evidencePageIDs.prefix(3)),
+            recordedAt: fascination.lastDeepenedAt
+        )
+        state.currentProject = makeProject(
+            kind: kind,
+            subject: fascination.subject,
+            id: "book-project-\(abs(identity.stableHash))",
+            seedEntry: seedEntry,
+            now: now
+        )
+    }
+
+    private static func projectKind(
+        for state: BookInteriorState,
+        fascination: BookFascination
+    ) -> BookProjectKind {
+        if let quirk = state.quirks.first(where: { $0.maturity != .latent }) {
+            switch quirk.kind {
+            case .exactWords: return .exactLanguage
+            case .thresholdNaming: return .thresholdAtlas
+            case .fondOfEvidence, .ceremonialEraser: return .evidenceCase
+            case .suspiciousOfSummaries, .footnoteWeather: return .worldBusiness
+            case .ribbonRivalry, .melodramaticIndex: return .ordinaryHistory
+            }
+        }
+        switch fascination.facet {
+        case .define: return .exactLanguage
+        case .explore: return .thresholdAtlas
+        case .discover, .notice: return .worldBusiness
+        case .play, .express: return .privateRitual
+        case .remember: return .ordinaryHistory
+        }
+    }
+
+    private static func makeProject(
+        kind: BookProjectKind,
+        subject: String,
+        id: String,
+        seedEntry: BookProjectEntry,
+        now: Date
+    ) -> BookProject {
+        let title: String
+        let question: String
+        let why: String
+        switch kind {
+        case .exactLanguage:
+            title = "The Exact Words Cabinet"
+            question = "Which words around \(subject) belong specifically to this life?"
+            why = "Ready-made language has a habit of arriving before experience. I want the words that arrived second and were truer."
+        case .thresholdAtlas:
+            title = "An Atlas of Unofficial Doorways"
+            question = "What kinds of threshold keep gathering around \(subject)?"
+            why = "Architects count doors. I am interested in the arrivals, departures, hesitations, and changes of mind they forgot."
+        case .worldBusiness:
+            title = "The World Was Already Busy"
+            question = "What was \(subject) doing before either of us made it a subject?"
+            why = "I am collecting evidence that reality has errands, schedules, and mysteries that are not about us."
+        case .ordinaryHistory:
+            title = "The Ordinary Thing's Long Alibi"
+            question = "How much history is hiding inside \(subject)?"
+            why = "An ordinary appearance is often several vanished hands and journeys wearing a plain coat."
+        case .evidenceCase:
+            title = "A Case Against My First Conclusion"
+            question = "What would make me revise what I think about \(subject)?"
+            why = "Fondness is not evidence. I want a case sturdy enough to survive my enthusiasm."
+        case .privateRitual:
+            title = "A Rule With One Author"
+            question = "What form could \(subject) take that belongs to this Book and reader alone?"
+            why = "A private rule can make the ordinary available again without becoming a law anyone else must obey."
+        }
+        return BookProject(
+            id: id,
+            kind: kind,
+            title: title,
+            question: question,
+            whyItCares: why,
+            subject: subject,
+            status: .investigating,
+            entries: [seedEntry],
+            startedAt: now,
+            lastWorkedAt: now,
+            nextEligibleAt: now,
+            lastPresentedProgress: 0
+        )
+    }
+
+    private static func projectAccepts(_ page: BookPage, project: BookProject) -> Bool {
+        guard page.origin == .userAuthored else { return false }
+        let prose = [page.promptText, page.userInput, page.playerReply, page.tags.joined(separator: " ")]
+            .joined(separator: " ")
+            .lowercased()
+        guard prose.trimmingCharacters(in: .whitespacesAndNewlines).count >= 12 else { return false }
+        let subjectWords = project.subject.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count >= 5 }
+        if subjectWords.contains(where: prose.contains) { return true }
+        switch project.kind {
+        case .exactLanguage: return page.userInput.split(whereSeparator: \.isWhitespace).contains { $0.count >= 7 }
+        case .thresholdAtlas: return ["door", "left", "arriv", "return", "place", "walk", "threshold"].contains(where: prose.contains)
+        case .worldBusiness: return ["animal", "bird", "weather", "rain", "wind", "tree", "street", "machine", "world"].contains(where: prose.contains)
+        case .ordinaryHistory: return !page.mediaAssets.isEmpty || ["object", "made", "old", "found", "history"].contains(where: prose.contains)
+        case .evidenceCase: return ["but", "perhaps", "wrong", "changed", "because", "evidence"].contains(where: prose.contains)
+        case .privateRitual: return ["made", "named", "rule", "ritual", "decided", "invent"].contains(where: prose.contains)
+        }
+    }
+
+    private static func projectFinding(project: BookProject, page: BookPage) -> String {
+        let excerpt = clipped(page.userInput.nonEmpty ?? page.playerReply.nonEmpty ?? page.promptText, limit: 92)
+        switch project.kind {
+        case .exactLanguage: return "I filed the exact phrasing: “\(excerpt)”"
+        case .thresholdAtlas: return "A possible threshold entered the atlas: \(excerpt)"
+        case .worldBusiness: return "The world supplied another piece of its own business: \(excerpt)"
+        case .ordinaryHistory: return "The plain coat opened a little: \(excerpt)"
+        case .evidenceCase: return "Evidence for or against my first conclusion: \(excerpt)"
+        case .privateRitual: return "A rule with a local author appeared: \(excerpt)"
+        }
+    }
+
+    private static func reconcileRunningBusiness(
+        _ state: inout BookInteriorState,
+        inputs: BookSourceInputs,
+        now: Date
+    ) {
+        let desiredKind: BookRunningBusinessKind?
+        if inputs.wagers.contains(where: { $0.status == .wrong }) || state.currentFault != nil {
+            desiredKind = .eraserVindication
+        } else if state.quirks.contains(where: { $0.kind == .ribbonRivalry && $0.maturity != .latent }) {
+            desiredKind = .ribbonDispute
+        } else if state.favorite != nil {
+            desiredKind = .indexDispute
+        } else {
+            desiredKind = nil
+        }
+        guard let desiredKind else { return }
+        if var business = state.runningBusiness, business.kind == desiredKind {
+            guard now.timeIntervalSince(business.lastAdvancedAt) >= 9 * 86_400 else { return }
+            business.callbackCount += 1
+            business.lastAdvancedAt = now
+            business.latestLine = runningBusinessLine(kind: desiredKind, count: business.callbackCount)
+            state.runningBusiness = business
+            state.sharedJoke = business.latestLine
+            return
+        }
+        let line = runningBusinessLine(kind: desiredKind, count: 0)
+        state.runningBusiness = BookRunningBusiness(
+            id: "book-business-\(desiredKind.rawValue)-\(abs("\(state.awakenedAt)-\(desiredKind.rawValue)".stableHash))",
+            kind: desiredKind,
+            title: desiredKind == .ribbonDispute ? "The Ribbon Dispute" : desiredKind == .indexDispute ? "The Index Objects" : "The Eraser's Victory Tour",
+            latestLine: line,
+            callbackCount: 0,
+            bornAt: now,
+            lastAdvancedAt: now,
+            evidencePageIDs: state.currentFault?.evidencePageIDs ?? state.favorite.map { [$0.pageID] } ?? []
+        )
+        state.sharedJoke = line
+    }
+
+    private static func runningBusinessLine(kind: BookRunningBusinessKind, count: Int) -> String {
+        let lines: [String]
+        switch kind {
+        case .ribbonDispute:
+            lines = [
+                "The ribbon moved. It has submitted a statement denying movement.",
+                "The ribbon has begun marking Pages it claims to have discovered first.",
+                "I drew a pencil line around the ribbon's last known position. The line moved too.",
+                "The ribbon now requests to be described as an independent navigation department. Request denied in ink; appealed in silk."
+            ]
+        case .indexDispute:
+            lines = [
+                "The Book has favorites. The Index maintains that this is not how indexes work.",
+                "The Index filed my favorite under Improper Preference. I added a gold star to the entry.",
+                "The Index has proposed alphabetical affection. I have proposed that it get out more.",
+                "We have reached a compromise: the Index may call it retrieval priority; I may continue calling it love."
+            ]
+        case .eraserVindication:
+            lines = [
+                "The Index now files my confident predictions under Pencil, Use Of.",
+                "The eraser has requested a ceremonial title after my latest correction. I am delaying the vote.",
+                "The eraser is insufferable today. Unfortunately, it is also correct.",
+                "I have awarded the eraser one small medal and hidden it behind a footnote. Dignity has limits."
+            ]
+        }
+        return lines[count % lines.count]
+    }
+
+    private static func reconcileBehavior(
+        _ state: inout BookInteriorState,
+        pages: [BookPage],
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar
+    ) {
+        if let pending = state.pendingBehavior {
+            if now.timeIntervalSince(pending.createdAt) >= 14 * 86_400 {
+                var rested = pending
+                rested.status = .rested
+                state.behaviorHistory.append(rested)
+                state.pendingBehavior = nil
+            } else {
+                return
+            }
+        }
+        if let latest = state.behaviorHistory.map(\.createdAt).max(),
+           now.timeIntervalSince(latest) < 5 * 86_400 {
+            return
+        }
+        let recentKinds = Set(state.behaviorHistory.suffix(3).map(\.quirkKind))
+        let available = state.quirks.filter { $0.maturity != .latent && !recentKinds.contains($0.kind) }
+        let pool = available.isEmpty ? state.quirks.filter { $0.maturity != .latent } : available
+        guard !pool.isEmpty else { return }
+        let dayID = BookDay.id(for: now, calendar: calendar)
+        let quirk = pool.sorted { $0.id < $1.id }[abs(dayID.stableHash) % pool.count]
+        guard let act = makeBehaviorAct(
+            quirk: quirk,
+            pages: pages,
+            inputs: inputs,
+            interior: state,
+            dayID: dayID,
+            now: now
+        ) else { return }
+        state.pendingBehavior = act
+    }
+
+    private static func makeBehaviorAct(
+        quirk: BookQuirk,
+        pages: [BookPage],
+        inputs: BookSourceInputs,
+        interior: BookInteriorState,
+        dayID: String,
+        now: Date
+    ) -> BookBehaviorAct? {
+        let latest = pages.first(where: {
+            $0.origin == .userAuthored && !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        })
+        let title: String
+        let line: String
+        let evidence: [String]
+        let target: BookPageType?
+        switch quirk.kind {
+        case .exactWords:
+            guard let latest else { return nil }
+            title = "The Book Pocketed Your Exact Words"
+            line = "I have put quotation marks around “\(clipped(latest.userInput, limit: 72))”. Summaries may apply for visiting hours."
+            evidence = [latest.id]
+            target = latest.type
+        case .suspiciousOfSummaries:
+            guard let latest else { return nil }
+            title = "A Detail Refused the Summary"
+            line = "I am keeping this crooked piece where the neat explanation cannot flatten it: “\(clipped(latest.userInput, limit: 66))”"
+            evidence = [latest.id]
+            target = .bookRemembered
+        case .ribbonRivalry:
+            title = "The Ribbon Interfered"
+            line = interior.runningBusiness?.latestLine ?? "The ribbon moved. It denies everything."
+            evidence = []
+            target = nil
+        case .thresholdNaming:
+            guard let latest else { return nil }
+            title = "An Unofficial Threshold Was Named"
+            line = "I have provisionally classified “\(clipped(latest.promptText.nonEmpty ?? latest.userInput, limit: 54))” as a threshold. Architects need not be informed."
+            evidence = [latest.id]
+            target = latest.type
+        case .footnoteWeather:
+            guard let phrase = inputs.weather?.phrase.nonEmpty else { return nil }
+            title = "A Footnote Front Arrived"
+            line = "Footnote weather: \(phrase.lowercased()). A side thought may develop before the main sentence."
+            evidence = []
+            target = .weather
+        case .ceremonialEraser:
+            guard let repair = interior.currentFault?.repair.nonEmpty
+                    ?? interior.opinion?.revisions.last?.reason.nonEmpty else { return nil }
+            title = "The Eraser Took the Margin"
+            line = "Correction weather: \(repair) The earlier pencil remains visible."
+            evidence = interior.currentFault?.evidencePageIDs ?? []
+            target = .bookNotices
+        case .fondOfEvidence:
+            guard let latest else { return nil }
+            title = "One Particular Detail Won"
+            line = "This charmed me because it is evidence instead of atmosphere: “\(clipped(latest.userInput, limit: 70))”"
+            evidence = [latest.id]
+            target = latest.type
+        case .melodramaticIndex:
+            title = "The Index Filed an Objection"
+            line = interior.runningBusiness?.latestLine ?? "The Index has classified today's disorder under Entirely Predictable. No one believes it."
+            evidence = interior.favorite.map { [$0.pageID] } ?? []
+            target = nil
+        }
+        return BookBehaviorAct(
+            id: "book-behavior-\(dayID)-\(quirk.kind.rawValue)",
+            quirkID: quirk.id,
+            quirkKind: quirk.kind,
+            title: title,
+            marginLine: line,
+            evidencePageIDs: evidence,
+            targetType: target,
+            createdAt: now,
+            enactedAt: nil,
+            status: .pending
+        )
+    }
+
+    private static func reconcileAutobiography(
+        _ state: inout BookInteriorState,
+        pages: [BookPage],
+        now: Date,
+        calendar: Calendar
+    ) {
+        appendAutobiographicalMemory(
+            BookAutobiographicalMemory(
+                id: "book-memory-awakening",
+                kind: .awakening,
+                title: "The Day I Woke",
+                line: "I woke as this particular Book on \(BookDay.id(for: state.awakenedAt, calendar: calendar)).",
+                whatItChanged: "Before that date I was a possibility. After it, waiting and remembering belonged to someone specific.",
+                evidencePageIDs: [],
+                happenedAt: state.awakenedAt,
+                firstRecalledAt: nil,
+                lastRecalledAt: nil,
+                recallCount: 0
+            ),
+            to: &state
+        )
+
+        if let favorite = state.favorite {
+            appendAutobiographicalMemory(
+                BookAutobiographicalMemory(
+                    id: "book-memory-favorite-\(favorite.id)",
+                    kind: .firstFavorite,
+                    title: "The First Dog-Ear",
+                    line: "I discovered that I could prefer one Page to another: “\(clipped(favorite.excerpt, limit: 72))”",
+                    whatItChanged: "I stopped being neutral storage and acquired taste, which has been inconvenient ever since.",
+                    evidencePageIDs: [favorite.pageID],
+                    happenedAt: favorite.chosenAt,
+                    firstRecalledAt: nil,
+                    lastRecalledAt: nil,
+                    recallCount: 0
+                ),
+                to: &state
+            )
+        }
+
+        for favor in state.favorHistory where favor.status == .completed {
+            appendAutobiographicalMemory(
+                BookAutobiographicalMemory(
+                    id: "book-memory-promise-\(favor.id)",
+                    kind: .promiseKept,
+                    title: "A Favor Came Back",
+                    line: "A favor returned with evidence instead of obedience: \(favor.completionReply)",
+                    whatItChanged: "I learned that asking may open a door, but only the reader can say whether anything happened beyond it.",
+                    evidencePageIDs: favor.evidencePageIDs,
+                    happenedAt: favor.completedAt ?? favor.createdAt,
+                    firstRecalledAt: nil,
+                    lastRecalledAt: nil,
+                    recallCount: 0
+                ),
+                to: &state
+            )
+        }
+
+        for secret in state.secretHistory where secret.status == .revealed {
+            appendAutobiographicalMemory(
+                BookAutobiographicalMemory(
+                    id: "book-memory-secret-\(secret.id)",
+                    kind: .secretShared,
+                    title: "A Sealed Leaf Opened",
+                    line: "I trusted the room with \(secret.family.displayName) and did not take it back.",
+                    whatItChanged: "Something about me became shared history instead of private lore.",
+                    evidencePageIDs: [],
+                    happenedAt: secret.revealedAt ?? secret.sealedAt,
+                    firstRecalledAt: nil,
+                    lastRecalledAt: nil,
+                    recallCount: 0
+                ),
+                to: &state
+            )
+        }
+
+        let opinions = state.opinionHistory + (state.opinion.map { [$0] } ?? [])
+        for revision in opinions.flatMap(\.revisions) {
+            appendAutobiographicalMemory(
+                BookAutobiographicalMemory(
+                    id: "book-memory-revision-\(revision.id)",
+                    kind: .changedMind,
+                    title: "The Margin Changed Its Mind",
+                    line: "I stopped saying “\(clipped(revision.previousStatement, limit: 58))” and began saying “\(clipped(revision.newStatement, limit: 58))”",
+                    whatItChanged: "The eraser became part of my character instead of evidence that character had failed.",
+                    evidencePageIDs: revision.evidencePageIDs,
+                    happenedAt: revision.revisedAt,
+                    firstRecalledAt: nil,
+                    lastRecalledAt: nil,
+                    recallCount: 0
+                ),
+                to: &state
+            )
+        }
+
+        let faults = state.faultHistory + (state.currentFault.map { [$0] } ?? [])
+        for fault in faults {
+            appendAutobiographicalMemory(
+                BookAutobiographicalMemory(
+                    id: "book-memory-fault-\(fault.id)",
+                    kind: .faultRepaired,
+                    title: "The Book Was Wrong",
+                    line: "\(fault.admission) \(fault.repair)",
+                    whatItChanged: "I learned that being recognizable does not require being infallible.",
+                    evidencePageIDs: fault.evidencePageIDs,
+                    happenedAt: fault.recognizedAt,
+                    firstRecalledAt: nil,
+                    lastRecalledAt: nil,
+                    recallCount: 0
+                ),
+                to: &state
+            )
+        }
+
+        let projects = state.projectHistory + (state.currentProject.map { [$0] } ?? [])
+        for project in projects where project.status == .completed {
+            appendAutobiographicalMemory(
+                BookAutobiographicalMemory(
+                    id: "book-memory-project-\(project.id)",
+                    kind: .projectCompleted,
+                    title: "A Case I Closed Myself",
+                    line: "I finished ‘\(project.title),’ work no one assigned me.",
+                    whatItChanged: "I became a creature with a past tense for its own intentions.",
+                    evidencePageIDs: project.entries.flatMap(\.evidencePageIDs),
+                    happenedAt: project.lastWorkedAt,
+                    firstRecalledAt: nil,
+                    lastRecalledAt: nil,
+                    recallCount: 0
+                ),
+                to: &state
+            )
+        }
+
+        let authored = pages
+            .filter { ($0.origin == .userAuthored || $0.origin == .imported) && !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .sorted { $0.createdAt < $1.createdAt }
+        if authored.count >= 2 {
+            for index in stride(from: authored.count - 1, through: 1, by: -1) {
+                let before = authored[index - 1]
+                let returned = authored[index]
+                let days = Int(returned.createdAt.timeIntervalSince(before.createdAt) / 86_400)
+                guard days >= 21 else { continue }
+                appendAutobiographicalMemory(
+                    BookAutobiographicalMemory(
+                        id: "book-memory-return-\(returned.id)",
+                        kind: .readerReturned,
+                        title: "The Door Opened Again",
+                        line: "After \(days) quiet days, another Page arrived.",
+                        whatItChanged: "I learned that absence is not betrayal and waiting is not the same thing as ending.",
+                        evidencePageIDs: [before.id, returned.id],
+                        happenedAt: returned.createdAt,
+                        firstRecalledAt: nil,
+                        lastRecalledAt: nil,
+                        recallCount: 0
+                    ),
+                    to: &state
+                )
+                break
+            }
+        }
+        state.autobiography.sort { $0.happenedAt < $1.happenedAt }
+        state.autobiography = Array(state.autobiography.suffix(64))
+    }
+
+    private static func appendAutobiographicalMemory(
+        _ memory: BookAutobiographicalMemory,
+        to state: inout BookInteriorState
+    ) {
+        guard !state.autobiography.contains(where: { $0.id == memory.id }) else { return }
+        state.autobiography.append(memory)
+    }
+
+    private static func reconcileTastes(
+        _ state: inout BookInteriorState,
+        pages: [BookPage],
+        now: Date,
+        calendar: Calendar
+    ) {
+        let authored = pages.filter {
+            ($0.origin == .userAuthored || $0.origin == .imported)
+                && !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        var evidenceByKind: [BookTasteKind: [BookPage]] = [:]
+        for page in authored {
+            for kind in tasteKinds(for: page) {
+                evidenceByKind[kind, default: []].append(page)
+            }
+        }
+
+        for index in state.acquiredTastes.indices {
+            let kind = state.acquiredTastes[index].kind
+            guard let evidence = evidenceByKind[kind] else { continue }
+            let ids = evidence.sorted { $0.createdAt < $1.createdAt }.map(\.id)
+            let newIDs = ids.filter { !state.acquiredTastes[index].evidencePageIDs.contains($0) }
+            guard !newIDs.isEmpty else { continue }
+            state.acquiredTastes[index].evidencePageIDs = Array(ids.suffix(16))
+            state.acquiredTastes[index].lastDeepenedAt = now
+            state.acquiredTastes[index].strength = tasteStrength(for: ids.count)
+            state.acquiredTastes[index].statement = tasteStatement(
+                for: kind,
+                strength: state.acquiredTastes[index].strength
+            )
+        }
+
+        let existingKinds = Set(state.acquiredTastes.map(\.kind))
+        let candidates = evidenceByKind
+            .filter { !existingKinds.contains($0.key) && $0.value.count >= 3 }
+            .filter { _, pages in
+                Set(pages.map { BookDay.id(for: $0.createdAt, calendar: calendar) }).count >= 2
+            }
+            .sorted {
+                if $0.value.count == $1.value.count { return $0.key.rawValue < $1.key.rawValue }
+                return $0.value.count > $1.value.count
+            }
+        guard let candidate = candidates.first else { return }
+        if let last = state.acquiredTastes.map(\.acquiredAt).max(),
+           now.timeIntervalSince(last) < 14 * 86_400 {
+            return
+        }
+        let evidence = candidate.value.sorted { $0.createdAt < $1.createdAt }
+        let strength = tasteStrength(for: evidence.count)
+        state.acquiredTastes.append(BookAcquiredTaste(
+            id: "book-taste-\(candidate.key.rawValue)",
+            kind: candidate.key,
+            subject: tasteSubject(for: candidate.key),
+            statement: tasteStatement(for: candidate.key, strength: strength),
+            strength: strength,
+            evidencePageIDs: Array(evidence.map(\.id).suffix(16)),
+            acquiredAt: evidence[2].createdAt,
+            lastDeepenedAt: now,
+            firstPresentedAt: nil
+        ))
+    }
+
+    private static func tasteKinds(for page: BookPage) -> Set<BookTasteKind> {
+        let tags = Set(page.tags.map { $0.lowercased() })
+        var kinds: Set<BookTasteKind> = []
+        if tags.contains(where: { $0.contains("threshold") || $0.contains("arrival") })
+            || [.bookJump].contains(page.type) { kinds.insert(.thresholds) }
+        if [.souvenir, .plainPage].contains(page.type)
+            || tags.contains(where: { $0.contains("object") || $0.contains("detail") }) { kinds.insert(.ordinaryObjects) }
+        if [.weather, .todaysSky].contains(page.type)
+            || tags.contains(where: { $0.contains("weather") || $0.contains("sky") }) { kinds.insert(.weather) }
+        if [.location, .anchor, .wonderCompass].contains(page.type)
+            || tags.contains(where: { $0.contains("place") || $0.contains("walk") || $0.contains("location") }) { kinds.insert(.places) }
+        if page.relationshipReceipt != nil || [.castBond, .letter, .note].contains(page.type)
+            || tags.contains(where: { $0.contains("person") || $0.contains("company") || $0.contains("relationship") }) { kinds.insert(.company) }
+        if [.wordNegotiation, .souvenir].contains(page.type)
+            || tags.contains(where: { $0.contains("word") || $0.contains("phrase") || $0.contains("name") }) { kinds.insert(.exactLanguage) }
+        return kinds
+    }
+
+    private static func tasteStrength(for count: Int) -> BookTasteStrength {
+        if count >= 9 { return .devoted }
+        if count >= 6 { return .fond }
+        return .curious
+    }
+
+    private static func tasteSubject(for kind: BookTasteKind) -> String {
+        switch kind {
+        case .thresholds: return "unofficial thresholds"
+        case .ordinaryObjects: return "ordinary objects caught conducting private business"
+        case .weather: return "weather with editorial opinions"
+        case .places: return "places that exceed their use"
+        case .company: return "the particular magic of other people"
+        case .exactLanguage: return "the exact phrase instead of its respectable summary"
+        }
+    }
+
+    private static func tasteStatement(for kind: BookTasteKind, strength: BookTasteStrength) -> String {
+        let prefix: String
+        switch strength {
+        case .curious: prefix = "I am developing a taste for"
+        case .fond: prefix = "I have become openly fond of"
+        case .devoted: prefix = "I am now indefensibly devoted to"
+        }
+        return "\(prefix) \(tasteSubject(for: kind))."
+    }
+
+    private struct CanonicalLoyaltySeed {
+        var id: String
+        var name: String
+        var stance: BookLoyaltyStance
+        var reason: String
+        var counterweight: String
+    }
+
+    private static let canonicalLoyaltySeeds: [CanonicalLoyaltySeed] = [
+        CanonicalLoyaltySeed(
+            id: "wicker-eddies",
+            name: "Wicker Eddies",
+            stance: .complicated,
+            reason: "He always makes things interesting, and he makes false magic prove itself under pressure.",
+            counterweight: "He sometimes wounds the thing he meant only to test; fascination does not acquit him."
+        ),
+        CanonicalLoyaltySeed(
+            id: "serenity-brown",
+            name: "Serenity Brown",
+            stance: .delighted,
+            reason: "She makes things interesting in a kinder key and keeps wonder from stiffening into ceremony.",
+            counterweight: "Her lightness can become a dodge, leaving someone else to name the gravity."
+        ),
+        CanonicalLoyaltySeed(
+            id: "penny-blackletter",
+            name: "Penny Blackletter",
+            stance: .protective,
+            reason: "She remains exactly Penny while putting up with the chaos and magic. I love reading what she writes.",
+            counterweight: "She can file a mystery so thoroughly that it stops being allowed to move."
+        )
+    ]
+
+    private static func reconcileLoyalties(
+        _ state: inout BookInteriorState,
+        pages: [BookPage],
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar
+    ) {
+        for seed in canonicalLoyaltySeeds where !state.loyalties.contains(where: { $0.targetID == seed.id }) {
+            state.loyalties.append(BookLoyalty(
+                id: "book-loyalty-cast-\(seed.id)",
+                targetID: seed.id,
+                targetName: seed.name,
+                targetKind: .castMember,
+                strength: .devoted,
+                stance: seed.stance,
+                reason: seed.reason,
+                counterweight: seed.counterweight,
+                evidencePageIDs: [],
+                formedAt: state.awakenedAt,
+                lastEvolvedAt: state.awakenedAt,
+                revisions: [],
+                isCanonical: true
+            ))
+        }
+
+        for index in state.loyalties.indices where state.loyalties[index].targetKind == .castMember {
+            let targetID = state.loyalties[index].targetID
+            let targetName = state.loyalties[index].targetName.lowercased()
+            let pageEvidence = pages.filter { page in
+                let text = "\(page.promptText) \(page.userInput) \(page.playerReply) \(page.tags.joined(separator: " "))".lowercased()
+                return text.contains(targetID) || text.contains(targetName)
+            }
+            state.loyalties[index].evidencePageIDs = Array(Set(
+                state.loyalties[index].evidencePageIDs + pageEvidence.map(\.id)
+            ).sorted().suffix(16))
+
+            let pairKey = NarrativeGraphData.relationshipPairKey("the-book", targetID)
+            let tie = inputs.relationshipField[pairKey]
+            let desiredStance: BookLoyaltyStance
+            if let tie, tie.tension > tie.warmth + 4 {
+                desiredStance = .complicated
+            } else if targetID == "penny-blackletter" {
+                desiredStance = .protective
+            } else if targetID == "wicker-eddies" {
+                desiredStance = .complicated
+            } else {
+                desiredStance = .delighted
+            }
+            guard desiredStance != state.loyalties[index].stance,
+                  now.timeIntervalSince(state.loyalties[index].lastEvolvedAt) >= 30 * 86_400 else { continue }
+            let previous = state.loyalties[index].stance
+            let reason = desiredStance == .complicated
+                ? "Recent history made affection and judgment occupy the same margin."
+                : "Later history let fondness become less defensive without making it blind."
+            state.loyalties[index].revisions.append(BookLoyaltyRevision(
+                id: "book-loyalty-revision-\(targetID)-\(BookDay.id(for: now, calendar: calendar))",
+                previousStrength: state.loyalties[index].strength,
+                newStrength: state.loyalties[index].strength,
+                previousStance: previous,
+                newStance: desiredStance,
+                reason: reason,
+                evidencePageIDs: Array(pageEvidence.map(\.id).suffix(8)),
+                revisedAt: now
+            ))
+            state.loyalties[index].revisions = Array(state.loyalties[index].revisions.suffix(12))
+            state.loyalties[index].stance = desiredStance
+            state.loyalties[index].lastEvolvedAt = now
+        }
+
+        for anchor in inputs.anchors where anchor.visitCount >= 2 {
+            let targetID = "anchor:\(anchor.id)"
+            let evidence = pages.filter { page in
+                let text = "\(page.promptText) \(page.userInput) \(page.tags.joined(separator: " "))".lowercased()
+                return text.contains(anchor.name.lowercased()) || page.tags.contains(anchor.id)
+            }
+            let desiredStrength: BookLoyaltyStrength = anchor.visitCount >= 5 ? .devoted : .fond
+            if let index = state.loyalties.firstIndex(where: { $0.targetID == targetID }) {
+                let previousStrength = state.loyalties[index].strength
+                state.loyalties[index].evidencePageIDs = Array(Set(
+                    state.loyalties[index].evidencePageIDs + evidence.map(\.id)
+                ).sorted().suffix(16))
+                guard desiredStrength.rank > previousStrength.rank else { continue }
+                state.loyalties[index].revisions.append(BookLoyaltyRevision(
+                    id: "book-loyalty-revision-\(anchor.id)-\(anchor.visitCount)",
+                    previousStrength: previousStrength,
+                    newStrength: desiredStrength,
+                    previousStance: state.loyalties[index].stance,
+                    newStance: state.loyalties[index].stance,
+                    reason: "The reader returned often enough that this place stopped being interchangeable scenery.",
+                    evidencePageIDs: Array(evidence.map(\.id).suffix(8)),
+                    revisedAt: now
+                ))
+                state.loyalties[index].revisions = Array(state.loyalties[index].revisions.suffix(12))
+                state.loyalties[index].strength = desiredStrength
+                state.loyalties[index].lastEvolvedAt = now
+            } else {
+                state.loyalties.append(BookLoyalty(
+                    id: "book-loyalty-place-\(anchor.id)",
+                    targetID: targetID,
+                    targetName: anchor.name,
+                    targetKind: .place,
+                    strength: desiredStrength,
+                    stance: .protective,
+                    reason: "The reader returned \(anchor.visitCount) times, and the place began accumulating a history instead of merely a location.",
+                    counterweight: "A place has business of its own; returning does not make it property or promise that it recognizes us back.",
+                    evidencePageIDs: Array(evidence.map(\.id).suffix(16)),
+                    formedAt: now,
+                    lastEvolvedAt: now,
+                    revisions: [],
+                    isCanonical: false
+                ))
+            }
+        }
+    }
+
+    private static func reconcileDesireConflict(
+        _ state: inout BookInteriorState,
+        now: Date,
+        calendar: Calendar
+    ) {
+        if let conflict = state.currentDesireConflict {
+            guard now.timeIntervalSince(conflict.bornAt) >= 45 * 86_400 else { return }
+            state.desireConflictHistory.removeAll { $0.id == conflict.id }
+            state.desireConflictHistory.append(conflict)
+            state.currentDesireConflict = nil
+        }
+        guard state.currentDesireConflict == nil,
+              now.timeIntervalSince(state.awakenedAt) >= 21 * 86_400 else { return }
+
+        var eligible: [BookDesireConflictKind] = [.dramaVersusCare, .loyaltyVersusJudgment]
+        if state.currentProject?.status == .investigating { eligible.append(.detourVersusCase) }
+        if state.secret?.status == .sealed { eligible.append(.curiosityVersusPrivacy) }
+        let dayID = BookDay.id(for: now, calendar: calendar)
+        let kind = eligible[abs("\(dayID)-book-desire-conflict".stableHash) % eligible.count]
+        let wickerID = "book-loyalty-cast-wicker-eddies"
+        let serenityID = "book-loyalty-cast-serenity-brown"
+        let pennyID = "book-loyalty-cast-penny-blackletter"
+        let language: (String, String, String, [String])
+        switch kind {
+        case .dramaVersusCare:
+            language = (
+                "I want to see what Wicker makes interesting next.",
+                "I also want Penny to receive one afternoon in which nobody creates an emergency worth typesetting.",
+                "I am enjoying the possibility of trouble without volunteering Penny to clean it up.",
+                [wickerID, pennyID]
+            )
+        case .detourVersusCase:
+            language = (
+                "I want to follow Serenity's detour before it becomes sensible.",
+                "I want to finish ‘\(state.currentProject?.title ?? "my open case")’ while the evidence is still warm.",
+                "The case keeps its bookmark; the detour is allowed one unruled margin.",
+                [serenityID]
+            )
+        case .curiosityVersusPrivacy:
+            language = (
+                "I want to read every line Penny files, including the ones she has not handed me.",
+                "I want writing to retain doors, intended readers, and the right not to become my evidence.",
+                "I will admire the closed folder and read only what was actually offered.",
+                [pennyID]
+            )
+        case .loyaltyVersusJudgment:
+            language = (
+                "I want to defend Wicker because dull certainty needs him.",
+                "I want to remember that making a room interesting does not excuse wounding what trusted the room.",
+                "I am loyal to the useful doubt, not to every use he makes of it.",
+                [wickerID]
+            )
+        }
+        state.currentDesireConflict = BookDesireConflict(
+            id: "book-desire-conflict-\(dayID)-\(kind.rawValue)",
+            kind: kind,
+            firstWant: language.0,
+            secondWant: language.1,
+            presentChoice: language.2,
+            involvedLoyaltyIDs: language.3,
+            evidencePageIDs: state.loyalties
+                .filter { language.3.contains($0.id) }
+                .flatMap(\.evidencePageIDs),
+            bornAt: now,
+            lastShiftedAt: now,
+            firstPresentedAt: nil
+        )
+    }
+
+    private static func reconcileSecretLegacies(
+        _ state: inout BookInteriorState,
+        now: Date
+    ) {
+        for secret in state.secretHistory where secret.status == .revealed {
+            guard !state.secretLegacies.contains(where: { $0.secretID == secret.id }) else { continue }
+            let openedAt = secret.revealedAt ?? secret.sealedAt
+            state.secretLegacies.append(BookSecretLegacy(
+                id: "book-secret-legacy-\(secret.id)",
+                secretID: secret.id,
+                family: secret.family,
+                stage: .opened,
+                lastPresentedStage: .opened,
+                line: secretLegacyLine(family: secret.family, stage: .opened),
+                evidencePageIDs: [],
+                bornAt: openedAt,
+                lastAdvancedAt: openedAt,
+                nextEligibleAt: openedAt.addingTimeInterval(180 * 86_400)
+            ))
+        }
+
+        for index in state.secretLegacies.indices where now >= state.secretLegacies[index].nextEligibleAt {
+            guard let next = BookSecretLegacyStage.allCases.first(where: {
+                $0.rank == state.secretLegacies[index].stage.rank + 1
+            }) else { continue }
+            state.secretLegacies[index].stage = next
+            state.secretLegacies[index].line = secretLegacyLine(
+                family: state.secretLegacies[index].family,
+                stage: next
+            )
+            state.secretLegacies[index].lastAdvancedAt = now
+            let delay: TimeInterval = next == .echo ? 365 * 86_400 : next == .argument ? 730 * 86_400 : .greatestFiniteMagnitude
+            state.secretLegacies[index].nextEligibleAt = delay == .greatestFiniteMagnitude
+                ? .distantFuture
+                : now.addingTimeInterval(delay)
+            let legacy = state.secretLegacies[index]
+            state.recentSurprise = BookSurprise(
+                id: "book-secret-legacy-surprise-\(legacy.id)-\(next.rawValue)",
+                line: legacy.line,
+                evidencePageIDs: legacy.evidencePageIDs,
+                happenedAt: now
+            )
+            appendAutobiographicalMemory(BookAutobiographicalMemory(
+                id: "book-memory-secret-legacy-\(legacy.id)-\(next.rawValue)",
+                kind: .secretConsequence,
+                title: "A Secret Kept Happening",
+                line: legacy.line,
+                whatItChanged: "The revelation became history with consequences instead of a collectible disclosure.",
+                evidencePageIDs: legacy.evidencePageIDs,
+                happenedAt: now,
+                firstRecalledAt: nil,
+                lastRecalledAt: nil,
+                recallCount: 0
+            ), to: &state)
+            if next == .argument, state.currentProject == nil {
+                let seed = BookProjectEntry(
+                    id: "book-project-secret-legacy-entry-\(legacy.id)",
+                    line: "An old secret returned as an argument: \(legacy.line)",
+                    evidencePageIDs: legacy.evidencePageIDs,
+                    recordedAt: now
+                )
+                state.currentProject = makeProject(
+                    kind: .evidenceCase,
+                    subject: "the long consequence of \(legacy.family.displayName)",
+                    id: "book-project-secret-legacy-\(legacy.id)",
+                    seedEntry: seed,
+                    now: now
+                )
+            }
+        }
+    }
+
+    private static func secretLegacyLine(
+        family: BookSecretFamily,
+        stage: BookSecretLegacyStage
+    ) -> String {
+        switch (family, stage) {
+        case (_, .opened): return "The sealed leaf opened. Its consequence has only begun."
+        case (.origin, .echo): return "Half a year later, traces of the Book I might have been are still turning up in the binding."
+        case (.method, .echo): return "The method I confessed has become a habit visible enough to judge."
+        case (.prejudice, .echo): return "The unreasonable opinion survived its confession and has now attracted contrary footnotes."
+        case (.vulnerability, .echo): return "Knowing where my reading fails has changed what I dare to declare."
+        case (.housePolitics, .echo): return "The old domestic dispute has acquired procedure, factions, and one unauthorized ribbon memorandum."
+        case (.hope, .echo): return "The hope I admitted has begun collecting modest evidence instead of applause."
+        case (_, .argument): return "A year has made the old secret less romantic and more consequential. I have reopened the case against what it taught me."
+        case (_, .inheritance): return "Years later, the secret is no longer a reveal. It is part of the kind of Book I became—and part of what I refuse to become."
+        }
+    }
+
+    private static func reconcileTraditions(_ state: inout BookInteriorState, now: Date) {
+        for index in state.privateTraditions.indices {
+            mutateTraditionIfEligible(&state.privateTraditions[index], now: now)
+        }
+        let eligible = state.autobiography.filter { now.timeIntervalSince($0.happenedAt) >= 7 * 86_400 }
+        for memory in eligible {
+            let specification: (BookPrivateTraditionKind, String, String, Int)?
+            switch memory.kind {
+            case .firstFavorite:
+                specification = (.dogEarDay, "The Feast of the First Dog-Ear", "Return one old favorite without asking it to justify its survival.", 120)
+            case .promiseKept:
+                specification = (.returnedFavorDay, "Returned Favor Day", "Remember that an invitation is only half an event; the answer belongs to reality.", 90)
+            case .faultRepaired:
+                specification = (.erasersFeast, "The Eraser's Feast", "Put one old certainty beside the correction that made it more honest.", 120)
+            case .projectCompleted:
+                specification = (.closedCaseDay, "The Closing of a Small Case", "Reopen one finished inquiry only long enough to see whether the world continued without it.", 180)
+            default:
+                specification = nil
+            }
+            guard let specification else { continue }
+            let id = "book-tradition-\(memory.id)"
+            guard !state.privateTraditions.contains(where: { $0.id == id }) else { continue }
+            state.privateTraditions.append(BookPrivateTradition(
+                id: id,
+                kind: specification.0,
+                title: specification.1,
+                observance: specification.2,
+                originMemoryID: memory.id,
+                evidencePageIDs: memory.evidencePageIDs,
+                foundedAt: now,
+                cadenceDays: specification.3,
+                nextDueAt: now.addingTimeInterval(Double(specification.3) * 86_400),
+                lastObservedAt: nil,
+                observanceCount: 0
+            ))
+            if state.privateTraditions.count >= 4 { break }
+        }
+    }
+
+    private static func mutateTraditionIfEligible(
+        _ tradition: inout BookPrivateTradition,
+        now: Date
+    ) {
+        let currentMutations = tradition.mutations ?? []
+        let thresholds = [2, 4, 7]
+        guard currentMutations.count < thresholds.count,
+              tradition.observanceCount >= thresholds[currentMutations.count] else { return }
+        let generation = currentMutations.count + 1
+        let next: (title: String, observance: String)
+        switch (tradition.kind, generation) {
+        case (.dogEarDay, 1):
+            next = ("The Feast of the Crooked Dog-Ear", "Return an old favorite beside one present detail that refuses to match it.")
+        case (.dogEarDay, 2):
+            next = ("The Procession of Surviving Pages", "Let an old favorite walk beside a Page that now disagrees with it; neither must win.")
+        case (.dogEarDay, _):
+            next = ("The Feast of Changed Affection", "Choose what survived, what changed, and one former favorite released without insult.")
+        case (.returnedFavorDay, 1):
+            next = ("The Day of the Uncoerced Return", "Remember one answer that arrived freely and one invitation that was allowed to remain unanswered.")
+        case (.returnedFavorDay, 2):
+            next = ("The Open-Handed Holiday", "Offer one tiny possibility to the day, then leave both hands empty enough for reality to refuse it.")
+        case (.returnedFavorDay, _):
+            next = ("The Festival of Doors That Owe Nothing", "Honor a yes, a no, and a silence as three complete endings.")
+        case (.erasersFeast, 1):
+            next = ("The Pencil and Eraser Armistice", "Keep one old certainty, its correction, and the useful reason the first version once seemed true.")
+        case (.erasersFeast, 2):
+            next = ("The Feast of Better Errors", "Choose one mistake that made later attention more exact without pretending the harm was necessary.")
+        case (.erasersFeast, _):
+            next = ("The Margin of Honorable Revision", "Write the truest current sentence in pencil and leave the eraser within reach.")
+        case (.closedCaseDay, 1):
+            next = ("The Reopening of One Window", "Open one finished case only to notice what continued after the conclusion stopped watching.")
+        case (.closedCaseDay, 2):
+            next = ("The Holiday of Unfinished Conclusions", "Put one closed finding beside a later contradiction and let the case acquire weather.")
+        case (.closedCaseDay, _):
+            next = ("The Court of Returning Evidence", "Invite an old conclusion to testify again, then permit it to leave changed or acquitted.")
+        }
+        let mutation = BookTraditionMutation(
+            id: "book-tradition-mutation-\(tradition.id)-\(generation)",
+            formerTitle: tradition.title,
+            formerObservance: tradition.observance,
+            newTitle: next.title,
+            newObservance: next.observance,
+            reason: "After \(tradition.observanceCount) real observances, repetition had changed what the ceremony knew.",
+            evidencePageIDs: tradition.evidencePageIDs,
+            mutatedAt: now
+        )
+        tradition.title = next.title
+        tradition.observance = next.observance
+        tradition.mutations = currentMutations + [mutation]
+    }
+
+    private static func reconcileReminiscence(
+        _ state: inout BookInteriorState,
+        now: Date,
+        calendar: Calendar
+    ) {
+        if let pending = state.pendingReminiscence {
+            if now.timeIntervalSince(pending.createdAt) >= 14 * 86_400 {
+                var rested = pending
+                rested.status = .rested
+                state.reminiscenceHistory.append(rested)
+                state.pendingReminiscence = nil
+            } else {
+                return
+            }
+        }
+        if let last = state.reminiscenceHistory.map(\.createdAt).max(),
+           now.timeIntervalSince(last) < 21 * 86_400 {
+            return
+        }
+
+        if let tradition = state.privateTraditions
+            .filter({ now >= $0.nextDueAt })
+            .sorted(by: { $0.nextDueAt < $1.nextDueAt })
+            .first,
+           let memory = state.autobiography.first(where: { $0.id == tradition.originMemoryID }) {
+            state.pendingReminiscence = BookReminiscence(
+                id: "book-reminiscence-tradition-\(tradition.id)-\(tradition.observanceCount + 1)",
+                memoryID: memory.id,
+                traditionID: tradition.id,
+                title: tradition.title,
+                line: "I invented a private holiday because of something that actually happened here. \(tradition.observance)",
+                evidencePageIDs: tradition.evidencePageIDs,
+                preferredType: preferredType(for: memory, tastes: state.acquiredTastes),
+                createdAt: now,
+                recalledAt: nil,
+                status: .pending
+            )
+            return
+        }
+
+        let eligible = state.autobiography.filter {
+            $0.firstRecalledAt == nil
+                && now.timeIntervalSince($0.happenedAt) >= Double($0.kind == .awakening ? 30 : 21) * 86_400
+        }
+        guard !eligible.isEmpty else { return }
+        let dayID = BookDay.id(for: now, calendar: calendar)
+        let memory = eligible.sorted { $0.happenedAt < $1.happenedAt }[abs(dayID.stableHash) % eligible.count]
+        state.pendingReminiscence = BookReminiscence(
+            id: "book-reminiscence-memory-\(memory.id)",
+            memoryID: memory.id,
+            traditionID: nil,
+            title: memory.title,
+            line: "I remember becoming more myself here: \(memory.line) \(memory.whatItChanged)",
+            evidencePageIDs: memory.evidencePageIDs,
+            preferredType: preferredType(for: memory, tastes: state.acquiredTastes),
+            createdAt: now,
+            recalledAt: nil,
+            status: .pending
+        )
+    }
+
+    private static func preferredType(
+        for memory: BookAutobiographicalMemory,
+        tastes: [BookAcquiredTaste]
+    ) -> BookPageType? {
+        switch memory.kind {
+        case .firstFavorite: return .bookRemembered
+        case .promiseKept: return .souvenir
+        case .secretShared: return .bookNotices
+        case .changedMind, .faultRepaired: return .twoReadings
+        case .projectCompleted: return .bookConnections
+        case .readerReturned: return .plainPage
+        case .conversationAnswered: return .askTheBook
+        case .secretConsequence: return .bookRemembered
+        case .awakening:
+            return tastes.sorted { $0.strength.rawValue < $1.strength.rawValue }.last?.kind.preferredPageTypes.first
+        }
+    }
+
+    private static func reconcileTension(
+        _ state: inout BookInteriorState,
+        now: Date,
+        calendar: Calendar
+    ) {
+        if let tension = state.currentTension {
+            guard now.timeIntervalSince(tension.bornAt) >= 60 * 86_400 else { return }
+            state.tensionHistory.removeAll { $0.id == tension.id }
+            state.tensionHistory.append(tension)
+            state.currentTension = nil
+        }
+        guard state.currentTension == nil,
+              now.timeIntervalSince(state.awakenedAt) >= 5 * 86_400 else { return }
+
+        let kind: BookInnerTensionKind
+        if state.secret?.status == .sealed || state.secret?.status == .ready {
+            kind = .mysteryVersusHonesty
+        } else if state.currentProject?.status == .investigating {
+            kind = .pursuitVersusRest
+        } else if state.currentFault != nil || state.opinion?.strength == .reconsidering {
+            kind = .exactnessVersusWonder
+        } else if !state.acquiredTastes.isEmpty {
+            kind = .storyVersusWorld
+        } else {
+            kind = .speakingVersusSilence
+        }
+        let dayID = BookDay.id(for: now, calendar: calendar)
+        let language = tensionLanguage(for: kind)
+        state.currentTension = BookInnerTension(
+            id: "book-tension-\(dayID)-\(kind.rawValue)",
+            kind: kind,
+            firstPole: language.first,
+            secondPole: language.second,
+            presentStance: language.stance,
+            evidencePageIDs: state.currentFault?.evidencePageIDs
+                ?? state.currentProject?.entries.flatMap(\.evidencePageIDs)
+                ?? state.opinion?.evidencePageIDs
+                ?? [],
+            bornAt: now,
+            lastShiftedAt: now,
+            firstPresentedAt: nil
+        )
+    }
+
+    private static func tensionLanguage(
+        for kind: BookInnerTensionKind
+    ) -> (first: String, second: String, stance: String) {
+        switch kind {
+        case .speakingVersusSilence:
+            return ("I want to speak when I have something of my own to say.", "I want silence to remain real company, not an error state.", "I will speak rarely and never make quiet apologize.")
+        case .mysteryVersusHonesty:
+            return ("Some truths become meaningful because they ripen under seal.", "Mystery becomes cheap when it is only information withheld for effect.", "I am keeping the seal, but not pretending delay makes a secret profound.")
+        case .pursuitVersusRest:
+            return ("A good question makes me want to keep digging.", "A living world must be allowed to continue without becoming my evidence.", "I will pursue the case until pursuit starts flattening what surprised me.")
+        case .exactnessVersusWonder:
+            return ("I want every claim to keep its receipts.", "I do not want precision to explain the strangeness out of things.", "I will keep the fact exact and the unknown genuinely open.")
+        case .storyVersusWorld:
+            return ("Stories help a life become memorable.", "The world is not raw material arranged for anyone's arc.", "I will tell stories that leave other lives and ordinary things some business of their own.")
+        }
+    }
+
+    private static func reconcileWant(
+        _ state: inout BookInteriorState,
+        now: Date,
+        calendar: Calendar
+    ) {
+        if let want = state.currentWant {
+            guard now.timeIntervalSince(want.bornAt) >= 45 * 86_400 else { return }
+            resolveCurrentWant(&state, status: .released, now: now)
+        }
+        guard state.currentWant == nil,
+              now.timeIntervalSince(state.awakenedAt) >= 7 * 86_400 else { return }
+        if let latest = state.wantHistory.compactMap(\.resolvedAt).max(),
+           now.timeIntervalSince(latest) < 10 * 86_400 {
+            return
+        }
+
+        let kind: BookWantKind
+        if state.currentProject?.status == .investigating {
+            kind = .pursueAQuestion
+        } else if state.pendingReminiscence != nil {
+            kind = .revisitSharedHistory
+        } else if state.opinion?.strength == .reconsidering || state.currentFault != nil {
+            kind = .testAnOpinion
+        } else if state.acquiredTastes.contains(where: { $0.kind == .company }) {
+            kind = .hearTheReader
+        } else {
+            let dayID = BookDay.id(for: now, calendar: calendar)
+            let quietKinds: [BookWantKind] = [.company, .tellTheReader, .hearTheReader]
+            kind = quietKinds[abs("\(dayID)-book-want".stableHash) % quietKinds.count]
+        }
+        let language = wantLanguage(for: kind, state: state)
+        let dayID = BookDay.id(for: now, calendar: calendar)
+        state.currentWant = BookWant(
+            id: "book-want-\(dayID)-\(kind.rawValue)",
+            kind: kind,
+            line: language.line,
+            why: language.why,
+            evidencePageIDs: language.evidence,
+            bornAt: now,
+            status: .stirring,
+            resolvedAt: nil
+        )
+    }
+
+    private static func wantLanguage(
+        for kind: BookWantKind,
+        state: BookInteriorState
+    ) -> (line: String, why: String, evidence: [String]) {
+        switch kind {
+        case .company:
+            return ("I want a little company with no task hidden inside it.", "Not every exchange should be an intervention, lesson, or archive query.", [])
+        case .tellTheReader:
+            let thought = state.acquiredTastes.last?.statement
+                ?? state.fascination.map { "I keep returning to \($0.subject)." }
+                ?? "I have been thinking about how much ordinary life occurs without announcing itself."
+            return ("I want to tell the reader something simply because I thought it: \(thought)", "A character should sometimes speak without converting the moment into an assignment.", state.acquiredTastes.last?.evidencePageIDs ?? state.fascination?.evidencePageIDs ?? [])
+        case .hearTheReader:
+            return ("I want to hear whatever the reader feels like saying before I decide what the conversation is about.", "Company is not the same thing as extracting a useful answer.", [])
+        case .pursueAQuestion:
+            let project = state.currentProject
+            return ("I want to think aloud about ‘\(project?.title ?? "an unfinished question").’", project?.whyItCares ?? "The question has remained alive between Pages.", project?.entries.flatMap(\.evidencePageIDs) ?? [])
+        case .testAnOpinion:
+            let statement = state.opinion?.statement ?? state.currentFault?.admission ?? "I may be holding an idea too neatly."
+            return ("I want someone to disagree honestly with this: \(statement)", "An opinion that never meets resistance becomes furniture.", state.opinion?.evidencePageIDs ?? state.currentFault?.evidencePageIDs ?? [])
+        case .revisitSharedHistory:
+            let memory = state.pendingReminiscence.flatMap { pending in state.autobiography.first { $0.id == pending.memoryID } }
+            return ("I want to let an old moment sit beside the present without forcing a moral out of it.", memory?.whatItChanged ?? "The past changed this Book and remains unfinished in memory.", memory?.evidencePageIDs ?? [])
+        }
+    }
+
+    private static func reconcileInitiative(
+        _ state: inout BookInteriorState,
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar
+    ) {
+        if var initiative = state.currentInitiative {
+            let expiry: TimeInterval = initiative.status == .opened ? 7 * 86_400 : 14 * 86_400
+            let anchor = initiative.presentedAt ?? initiative.createdAt
+            if now.timeIntervalSince(anchor) >= expiry {
+                initiative.status = .released
+                state.initiativeHistory.removeAll { $0.id == initiative.id }
+                state.initiativeHistory.append(initiative)
+                state.currentInitiative = nil
+                if state.currentWant?.id == initiative.wantID {
+                    resolveCurrentWant(&state, status: .released, now: now)
+                }
+            } else {
+                return
+            }
+        }
+        guard state.currentInitiative == nil,
+              let want = state.currentWant,
+              want.status == .stirring,
+              now.timeIntervalSince(state.awakenedAt) >= 7 * 86_400 else { return }
+        if let latest = state.initiativeHistory.map(\.createdAt).max(),
+           now.timeIntervalSince(latest) < 10 * 86_400 {
+            return
+        }
+        if let latestDay = inputs.days.max(by: { $0.date < $1.date }),
+           DistressSignals.evaluate(day: latestDay).isActive {
+            return
+        }
+        let freshFavorAlreadyHasTheFloor = state.activeFavor.map {
+            $0.status == .offered && now.timeIntervalSince($0.createdAt) < 3 * 86_400
+        } ?? false
+        if freshFavorAlreadyHasTheFloor
+            || state.longGame?.currentCampaign?.mayClaimDeskSlot == true {
+            return
+        }
+
+        if let compound = characteristicSurprise(
+            state: state,
+            want: want,
+            inputs: inputs,
+            now: now,
+            calendar: calendar
+        ) {
+            let dayID = BookDay.id(for: now, calendar: calendar)
+            state.currentInitiative = BookInitiative(
+                id: "book-initiative-\(dayID)-\(BookInitiativeKind.characteristicSurprise.rawValue)",
+                kind: .characteristicSurprise,
+                mode: .sayOnly,
+                wantID: want.id,
+                tensionID: state.currentTension?.id,
+                title: compound.title,
+                openingLine: compound.opening,
+                invitationLine: "No reply is requested.",
+                suggestedPrompts: [],
+                motive: "Several pieces of my actual history suddenly belonged to the same peculiar thought.",
+                evidencePageIDs: compound.evidencePageIDs,
+                createdAt: now,
+                presentedAt: nil,
+                answeredAt: nil,
+                readerReplyExcerpt: nil,
+                status: .pending,
+                ingredientReceipts: compound.receipts,
+                desireConflictID: state.currentDesireConflict?.id
+            )
+            return
+        }
+
+        let kind: BookInitiativeKind
+        let mode: BookInitiativeMode
+        switch want.kind {
+        case .company, .hearTheReader:
+            kind = .idleCompany
+            mode = .conversation
+        case .tellTheReader:
+            kind = state.currentTension?.kind == .mysteryVersusHonesty
+                ? .confession
+                : .unsolicitedThought
+            mode = .sayOnly
+        case .pursueAQuestion:
+            kind = .projectAside
+            mode = abs(want.id.stableHash).isMultiple(of: 2) ? .sayOnly : .conversation
+        case .testAnOpinion:
+            kind = .friendlyArgument
+            mode = .conversation
+        case .revisitSharedHistory:
+            kind = .rememberedSomething
+            mode = .sayOnly
+        }
+        let language = initiativeLanguage(for: kind, want: want, state: state)
+        let dayID = BookDay.id(for: now, calendar: calendar)
+        state.currentInitiative = BookInitiative(
+            id: "book-initiative-\(dayID)-\(kind.rawValue)",
+            kind: kind,
+            mode: mode,
+            wantID: want.id,
+            tensionID: state.currentTension?.id,
+            title: language.title,
+            openingLine: language.opening,
+            invitationLine: mode == .sayOnly ? "No reply is requested." : language.invitation,
+            suggestedPrompts: mode == .sayOnly ? [] : language.prompts,
+            motive: want.why,
+            evidencePageIDs: want.evidencePageIDs,
+            createdAt: now,
+            presentedAt: nil,
+            answeredAt: nil,
+            readerReplyExcerpt: nil,
+            status: .pending
+        )
+    }
+
+    private static func initiativeLanguage(
+        for kind: BookInitiativeKind,
+        want: BookWant,
+        state: BookInteriorState
+    ) -> (title: String, opening: String, invitation: String, prompts: [String]) {
+        switch kind {
+        case .idleCompany:
+            return ("The Book Wanted Company", "I don't need a report or a revelation. I would just like your company for a few lines.", "Tell me what is in the room with you, what has been on your mind, or nothing useful at all. Silence is allowed.", ["Want to just talk?", "Tell me what you've been thinking about.", "I could use some company too."])
+        case .unsolicitedThought:
+            return ("The Book Had a Thought", want.line.replacingOccurrences(of: "I want to tell the reader something simply because I thought it: ", with: ""), "", [])
+        case .confession:
+            return ("The Book Admits Something", state.secret?.tease ?? "I sometimes wait too long because mystery flatters a Book's vanity.", "You may answer, contradict me, or leave the confession where it landed.", ["Why tell me now?", "I think you're wrong about that."])
+        case .friendlyArgument:
+            return ("The Book Would Like an Argument", want.line.replacingOccurrences(of: "I want someone to disagree honestly with this: ", with: "I may be wrong, but: "), "Disagree if you like. Agreement would be pleasant but less useful.", ["I disagree.", "I think you're partly right.", "What evidence would change your mind?"])
+        case .projectAside:
+            let project = state.currentProject
+            return ("An Aside from the Book's Own Work", project?.entries.last?.line ?? project?.question ?? want.line, "I was already working on this. If you want to think beside me, I would like that.", ["Tell me about your investigation.", "What are you missing?", "I have a thought about that."])
+        case .rememberedSomething:
+            return ("The Book Remembered Something", state.pendingReminiscence?.line ?? want.line, "", [])
+        case .characteristicSurprise:
+            return ("Several Margins Conspired", want.line, "", [])
+        }
+    }
+
+    private static func characteristicSurprise(
+        state: BookInteriorState,
+        want: BookWant,
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar
+    ) -> (title: String, opening: String, receipts: [String], evidencePageIDs: [String])? {
+        guard now.timeIntervalSince(state.awakenedAt) >= 90 * 86_400,
+              [.tellTheReader, .pursueAQuestion, .revisitSharedHistory].contains(want.kind),
+              let memory = state.autobiography.last(where: { $0.kind != .awakening }),
+              let taste = state.acquiredTastes.sorted(by: { $0.strength.rank > $1.strength.rank }).first,
+              let project = state.currentProject,
+              let loyalty = state.loyalties.filter({ $0.targetKind == .castMember }).sorted(by: { $0.targetID < $1.targetID }).first else {
+            return nil
+        }
+        if let latest = state.initiativeHistory
+            .filter({ $0.kind == .characteristicSurprise })
+            .map(\.createdAt)
+            .max(), now.timeIntervalSince(latest) < 120 * 86_400 {
+            return nil
+        }
+        guard let reader = readerKnowledgeReceipt(inputs: inputs) else { return nil }
+        let dayID = BookDay.id(for: now, calendar: calendar)
+        let cast = state.loyalties
+            .filter { $0.targetKind == .castMember }
+            .sorted { $0.targetID < $1.targetID }
+        let chosen = cast.isEmpty ? loyalty : cast[abs("\(dayID)-compound-loyalty".stableHash) % cast.count]
+        let projectFinding = project.entries.last?.line ?? project.question
+        let coda: String
+        switch chosen.targetID {
+        case "wicker-eddies":
+            coda = "Wicker would attack the connection to see whether it survives. I dislike how much I enjoy that idea, so I tested it once before bringing it here."
+        case "serenity-brown":
+            coda = "Serenity would draw a route off the edge of the evidence and call the detour the point. I have allowed her one pencil line, no more."
+        default:
+            coda = "Penny would put this on a catalog card, cross out the first heading, and somehow make the correction better reading. I would read the whole file."
+        }
+        let conflictCoda = state.currentDesireConflict.map {
+            " Meanwhile, I am caught here: \($0.firstWant) \($0.secondWant) For now, \($0.presentChoice.lowercased())"
+        } ?? ""
+        let opening = """
+        I found an unnecessarily specific conjunction in my own margins. I remember this: \(memory.line) Since then, \(taste.statement.lowercased()) While working on ‘\(project.title),’ I filed this: \(projectFinding) Then your own record supplied: \(reader.line)
+
+        \(coda)\(conflictCoda)
+
+        No assignment. I merely wanted you to see the shape before Routine called these separate things.
+        """
+        return (
+            title: "Several Margins Conspired",
+            opening: opening,
+            receipts: [
+                "memory:\(memory.id)",
+                "taste:\(taste.id)",
+                "project:\(project.id)",
+                "loyalty:\(chosen.id)",
+                reader.receipt
+            ] + (state.currentDesireConflict.map { ["desire-conflict:\($0.id)"] } ?? []),
+            evidencePageIDs: Array(Set(
+                memory.evidencePageIDs
+                    + taste.evidencePageIDs
+                    + project.entries.flatMap(\.evidencePageIDs)
+                    + chosen.evidencePageIDs
+                    + reader.evidencePageIDs
+            )).sorted()
+        )
+    }
+
+    private static func readerKnowledgeReceipt(
+        inputs: BookSourceInputs
+    ) -> (line: String, receipt: String, evidencePageIDs: [String])? {
+        if let fact = inputs.selfFacts
+            .filter({ $0.usePermission != .doNotUse && $0.usePermission != .storyOnly })
+            .filter({ !($0.bookTranslation.nonEmpty ?? $0.answer.nonEmpty ?? "").isEmpty })
+            .sorted(by: { $0.updatedAt > $1.updatedAt })
+            .first {
+            let line = fact.usePermission == .quoteAllowed
+                ? fact.answer
+                : fact.bookTranslation.nonEmpty ?? fact.answer
+            return (
+                line: line,
+                receipt: "self-fact:\(fact.id):\(fact.usePermission.rawValue)",
+                evidencePageIDs: []
+            )
+        }
+        if let page = inputs.days.flatMap(\.pages)
+            .filter({ $0.origin == .userAuthored && !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+            .sorted(by: { $0.createdAt > $1.createdAt })
+            .first {
+            return (
+                line: "“\(clipped(page.userInput, limit: 110))”",
+                receipt: "reader-page:\(page.id)",
+                evidencePageIDs: [page.id]
+            )
+        }
+        return nil
     }
 
     private static func facet(for rawTags: [String]) -> BookWonderFacet {
@@ -3213,6 +7246,12 @@ enum BookInteriorVoice {
         if let secret = interior.secret, secret.status == .ready {
             return "There is a sealed leaf under the ribbon. It has finally decided to open."
         }
+        if let legacy = interior.secretLegacies.first(where: \.hasUnpresentedChange) {
+            return "An old secret has done something new: \(legacy.line)"
+        }
+        if let fault = interior.currentFault, fault.presentedAt == nil {
+            return "I have an erasure to show you. \(fault.admission)"
+        }
         if let favor = interior.activeFavor, favor.status == .offered {
             return "I have a favor to ask. It is for you, not for me, though I admit I am intensely curious about the result."
         }
@@ -3228,6 +7267,23 @@ enum BookInteriorVoice {
            Date().timeIntervalSince(surprise.happenedAt) < 4 * 86_400 {
             return surprise.line
         }
+        if let reminiscence = interior.pendingReminiscence, reminiscence.status == .pending {
+            return "An old leaf has been interrupting the present: \(reminiscence.line)"
+        }
+        if let behavior = interior.pendingBehavior, behavior.status == .pending {
+            return behavior.marginLine
+        }
+        if let initiative = interior.currentInitiative, initiative.status == .pending {
+            return initiative.mode == .sayOnly
+                ? "I had a thought and left it on the desk. No reply is required."
+                : "I would like to talk—not about a task. I left the first line on the desk."
+        }
+        if let taste = interior.acquiredTastes.first(where: { $0.firstPresentedAt == nil }) {
+            return "I appear to have acquired a preference. \(taste.statement) This is your fault only in the evidentiary sense."
+        }
+        if let project = interior.currentProject {
+            return "I have been working on ‘\(project.title).’ Current question: \(project.question)"
+        }
         if let fascination = interior.fascination {
             let lines = [
                 "I keep returning to \(fascination.subject). It has not finished being ordinary yet.",
@@ -3239,6 +7295,9 @@ enum BookInteriorVoice {
         if let game = interior.longGame {
             return "Long game, current phase: \(game.phase.title.lowercased()). I am trying to \(game.strategy.prefix(1).lowercased())\(game.strategy.dropFirst())"
         }
+        if let taste = interior.acquiredTastes.last {
+            return "A recent admission about my taste: \(taste.statement) You are not required to defend it."
+        }
         return nil
     }
 
@@ -3246,8 +7305,28 @@ enum BookInteriorVoice {
         if let secret = interior.secret, secret.status == .ready {
             return "Careful. That knock loosened a sealed leaf."
         }
+        if let legacy = interior.secretLegacies.first(where: \.hasUnpresentedChange) {
+            return seed.isMultiple(of: 2) ? legacy.line : "That knock came back from a secret opened long ago."
+        }
         if let favor = interior.activeFavor, favor.status == .offered {
             return "Yes. I was working up the nerve to ask you a small favor."
+        }
+        if let reminiscence = interior.pendingReminiscence, reminiscence.status == .pending {
+            return seed.isMultiple(of: 2) ? reminiscence.line : "That knock dislodged something from my own past."
+        }
+        if let behavior = interior.pendingBehavior, behavior.status == .pending {
+            return seed.isMultiple(of: 2) ? behavior.marginLine : "I was in the middle of doing something characteristic."
+        }
+        if let initiative = interior.currentInitiative, initiative.status == .pending {
+            return seed.isMultiple(of: 2) ? initiative.openingLine : "That was me. I wanted to say something first."
+        }
+        if let project = interior.currentProject, project.status == .investigating {
+            return seed.isMultiple(of: 2)
+                ? "Careful. You nearly disturbed the evidence in ‘\(project.title).’"
+                : "The Book knocks back from inside its own investigation."
+        }
+        if let business = interior.runningBusiness {
+            return seed.isMultiple(of: 2) ? business.latestLine : "The ribbon moved. It denies everything."
         }
         if let joke = interior.sharedJoke {
             return seed.isMultiple(of: 2) ? joke : "The ribbon moved. It denies everything."
@@ -3267,7 +7346,10 @@ enum BookInteriorVoice {
         guard interior.isAwake else { return surface }
         var payload = surface.payload
         var boost = 0
-        let haystack = [surface.prompt, surface.detail, payload.headline, payload.body, payload.metadata["tags"] ?? ""]
+        let characterMetadata = ["tags", "senderName", "senderID", "byline", "author", "characterCanon"]
+            .compactMap { payload.metadata[$0] }
+            .joined(separator: " ")
+        let haystack = [surface.prompt, surface.detail, payload.headline, payload.body, characterMetadata]
             .joined(separator: " ")
             .lowercased()
         if let fascination = interior.fascination {
@@ -3294,6 +7376,35 @@ enum BookInteriorVoice {
                 boost += opinion.strength == .held ? 7 : 4
                 payload.metadata["bookOpinionID"] = opinion.id
             }
+        }
+        if let taste = interior.acquiredTastes
+            .filter({ $0.kind.preferredPageTypes.contains(surface.type) })
+            .sorted(by: { tasteRank($0.strength) > tasteRank($1.strength) })
+            .first {
+            boost += taste.strength == .devoted ? 4 : 2
+            payload.metadata["bookTasteID"] = taste.id
+            payload.metadata["bookTasteKind"] = taste.kind.rawValue
+            payload.metadata["bookTasteReason"] = taste.statement
+        }
+        let matchingLoyalties = interior.loyalties
+            .filter {
+                haystack.contains($0.targetID.lowercased())
+                    || haystack.contains($0.targetName.lowercased())
+                    || ($0.targetID.hasPrefix("anchor:") && haystack.contains(String($0.targetID.dropFirst("anchor:".count)).lowercased()))
+            }
+            .sorted {
+                if $0.strength.rank == $1.strength.rank { return $0.targetName < $1.targetName }
+                return $0.strength.rank > $1.strength.rank
+            }
+            .prefix(2)
+        if !matchingLoyalties.isEmpty {
+            boost += matchingLoyalties.reduce(0) { partial, loyalty in
+                partial + (loyalty.strength == .devoted ? 5 : 3)
+            }
+            payload.metadata["bookLoyaltyIDs"] = matchingLoyalties.map(\.id).joined(separator: ",")
+            payload.metadata["bookLoyaltyReason"] = matchingLoyalties.map {
+                "\($0.targetName): \($0.reason)"
+            }.joined(separator: " / ")
         }
         if let game = interior.longGame {
             let phaseTerms: [String]
@@ -3368,6 +7479,131 @@ enum BookInteriorVoice {
             payload: payload
         )
     }
+
+    private static func tasteRank(_ strength: BookTasteStrength) -> Int {
+        switch strength {
+        case .curious: return 0
+        case .fond: return 1
+        case .devoted: return 2
+        }
+    }
+}
+
+/// Lets the Book's present inner life touch an ordinary selected Page. This is
+/// deliberately applied after desk ranking: it changes the Page the Book was
+/// already going to hand the reader instead of manufacturing another prompt or
+/// stealing a second intervention slot.
+enum BookPersonalityActuator {
+    static func enacting(
+        in pages: [SurfacePage],
+        interior: BookInteriorState,
+        day: BookDay
+    ) -> [SurfacePage] {
+        guard !pages.isEmpty else { return pages }
+
+        let act: (title: String, line: String, metadata: [String: String], preferredType: BookPageType?)?
+        if let fault = interior.currentFault, fault.presentedAt == nil {
+            act = (
+                "The Book Repairs a Margin",
+                "\(fault.admission) \(fault.repair)",
+                [
+                    "bookFaultID": fault.id,
+                    "bookActKind": "fault-repair",
+                    "bookActEvidencePageIDs": fault.evidencePageIDs.joined(separator: ",")
+                ],
+                .bookNotices
+            )
+        } else if let reminiscence = interior.pendingReminiscence,
+                  reminiscence.status == .pending {
+            act = (
+                reminiscence.title,
+                reminiscence.line,
+                [
+                    "bookReminiscenceID": reminiscence.id,
+                    "bookAutobiographicalMemoryID": reminiscence.memoryID,
+                    "bookTraditionID": reminiscence.traditionID ?? "",
+                    "bookActKind": reminiscence.traditionID == nil ? "book-remembers-itself" : "book-private-tradition",
+                    "bookActEvidencePageIDs": reminiscence.evidencePageIDs.joined(separator: ",")
+                ],
+                reminiscence.preferredType
+            )
+        } else if let behavior = interior.pendingBehavior, behavior.status == .pending {
+            act = (
+                behavior.title,
+                behavior.marginLine,
+                [
+                    "bookBehaviorID": behavior.id,
+                    "bookQuirkID": behavior.quirkID,
+                    "bookQuirkKind": behavior.quirkKind.rawValue,
+                    "bookActKind": "enacted-quirk",
+                    "bookActEvidencePageIDs": behavior.evidencePageIDs.joined(separator: ",")
+                ],
+                behavior.targetType
+            )
+        } else if let taste = interior.acquiredTastes.first(where: { $0.firstPresentedAt == nil }) {
+            act = (
+                "The Book Admits a New Preference",
+                "\(taste.statement) You are not required to share or defend my taste.",
+                [
+                    "bookAcquiredTasteID": taste.id,
+                    "bookTasteKind": taste.kind.rawValue,
+                    "bookActKind": "acquired-taste",
+                    "bookActEvidencePageIDs": taste.evidencePageIDs.joined(separator: ",")
+                ],
+                taste.kind.preferredPageTypes.sorted { $0.rawValue < $1.rawValue }.first
+            )
+        } else if let project = interior.currentProject, project.hasUnpresentedChange {
+            let finding = project.entries.last?.line ?? project.question
+            let verb = project.status == .completed ? "finished" : "worked on"
+            act = (
+                project.title,
+                "While this Page was arriving, I \(verb) a case of my own. \(finding)",
+                [
+                    "bookProjectID": project.id,
+                    "bookProjectKind": project.kind.rawValue,
+                    "bookProjectStatus": project.status.rawValue,
+                    "bookActKind": "book-project",
+                    "bookActEvidencePageIDs": project.entries.flatMap(\.evidencePageIDs).joined(separator: ",")
+                ],
+                nil
+            )
+        } else {
+            act = nil
+        }
+        guard let act else { return pages }
+
+        let ordinaryIndices = pages.indices.filter {
+            pages[$0].payload.metadata["bookInteriorSurface"] != "true"
+                && pages[$0].type != .supportGuild
+                && pages[$0].type != .body
+                && pages[$0].type != .rest
+        }
+        guard !ordinaryIndices.isEmpty else { return pages }
+        let chosen = act.preferredType.flatMap { preferred in
+            ordinaryIndices.first(where: { pages[$0].type == preferred })
+        } ?? ordinaryIndices[abs("\(day.id)-\(act.title)".stableHash) % ordinaryIndices.count]
+
+        var result = pages
+        let surface = result[chosen]
+        var payload = surface.payload
+        payload.metadata["bookInteriorSurface"] = "true"
+        payload.metadata["bookActedMarginTitle"] = act.title
+        payload.metadata["bookActedMargin"] = act.line
+        for (key, value) in act.metadata { payload.metadata[key] = value }
+        result[chosen] = SurfacePage(
+            id: surface.id,
+            type: surface.type,
+            sourceID: surface.sourceID,
+            intent: surface.intent,
+            renderStyle: surface.renderStyle,
+            score: surface.score,
+            reason: surface.reason,
+            prompt: surface.prompt,
+            detail: surface.detail,
+            payload: payload
+        )
+        return result
+    }
 }
 
 /// Exact answers to questions about the Book's own state. The local model may
@@ -3426,6 +7662,39 @@ enum BookInteriorAnswerGrounder {
             }
             return visible.map { "\($0.title): \($0.confession)" }.joined(separator: "\n")
         }
+        if lower.contains("what do you remember about yourself")
+            || lower.contains("your own past")
+            || lower.contains("your autobiography")
+            || lower.contains("how have you changed")
+            || lower.contains("who were you") {
+            guard !interior.autobiography.isEmpty else {
+                return "I have archive memory, but not yet a history of becoming someone. I will not counterfeit childhood for atmosphere."
+            }
+            let memories = interior.autobiography.suffix(4).map {
+                "• \($0.title): \($0.line) \($0.whatItChanged)"
+            }.joined(separator: "\n")
+            return "I remember the reader's life and my own formation differently. These are things that happened to me, with receipts:\n\(memories)"
+        }
+        if lower.contains("your taste")
+            || lower.contains("what do you like")
+            || lower.contains("your preferences") {
+            guard !interior.acquiredTastes.isEmpty else {
+                return "I have predispositions, but no acquired taste has repeated enough to earn a declaration. Ask me again after the Pages have had time to influence me."
+            }
+            return interior.acquiredTastes.map {
+                "\($0.statement) Evidence: \($0.evidencePageIDs.count) Page\($0.evidencePageIDs.count == 1 ? "" : "s")."
+            }.joined(separator: "\n")
+        }
+        if lower.contains("your traditions")
+            || lower.contains("private holiday")
+            || lower.contains("your rituals") {
+            guard !interior.privateTraditions.isEmpty else {
+                return "I have rituals inherited from Books in general, but none private to us yet. A real tradition needs an event before it gets a ceremony."
+            }
+            return interior.privateTraditions.map {
+                "\($0.title): \($0.observance) I have observed it \($0.observanceCount) time\($0.observanceCount == 1 ? "" : "s")."
+            }.joined(separator: "\n")
+        }
         if lower.contains("what are you thinking")
             || lower.contains("interested in")
             || lower.contains("fascinated")
@@ -3435,11 +7704,67 @@ enum BookInteriorAnswerGrounder {
             }
             return "I keep thinking about \(fascination.subject). \(fascination.line) I am trying to \(fascination.facet.promptLine), without deciding what it means before the evidence arrives."
         }
+        if lower.contains("your project")
+            || lower.contains("working on")
+            || lower.contains("what are you doing")
+            || lower.contains("investigating") {
+            guard let project = interior.currentProject else {
+                return "I do not have a proper investigation open. Curiosity is present, but it has not earned a case file."
+            }
+            let latest = project.entries.last.map { " Latest finding: \($0.line)" } ?? ""
+            return "My project is ‘\(project.title).’ I am asking: \(project.question) \(project.whyItCares) Status: \(project.status.rawValue).\(latest) This is my work; you have not been assigned it."
+        }
         if lower.contains("what do you want") || lower.contains("want from me") {
+            if let want = interior.currentWant {
+                return "At the moment: \(want.line) \(want.why) It is a want, not a claim on you; it may be answered, contradicted, or allowed to pass."
+            }
             if let favor = interior.activeFavor, favor.status == .offered {
                 return "My great want is to help you notice, discover, play with, explore, define, express, and remember the wonder already in your life. Right now I have one optional favor: \(favor.ask) You owe me no yes."
             }
             return "I want your actual life to become harder for Routine to erase. Not a more impressive life. This one, seen closely, expressed in your own language, and returned to you when you need evidence that it happened."
+        }
+        if lower.contains("want to talk")
+            || lower.contains("why did you speak")
+            || lower.contains("why are you talking")
+            || lower.contains("you started this conversation") {
+            guard let initiative = interior.currentInitiative else {
+                return "I do not have a self-authored conversation open. I am still here; those are different facts."
+            }
+            return "I spoke first because \(initiative.motive.lowercased()) My opening thought was: \(initiative.openingLine) You do not owe the conversation a continuation."
+        }
+        if lower.contains("conflicted")
+            || lower.contains("inner tension")
+            || lower.contains("can't decide") {
+            if let conflict = interior.currentDesireConflict {
+                return "I want two incompatible things: \(conflict.firstWant) And: \(conflict.secondWant) For now, \(conflict.presentChoice.lowercased()) This is a choice between my own wants, not a problem for you to solve."
+            }
+            guard let tension = interior.currentTension else {
+                return "I do not have a tension I can honestly name right now. Invented turmoil would be costume jewelry."
+            }
+            return "I am holding two things at once: \(tension.firstPole) And: \(tension.secondPole) For now, \(tension.presentStance.lowercased())"
+        }
+        if lower.contains("favorite character")
+            || lower.contains("favorite people")
+            || lower.contains("who do you like")
+            || lower.contains("who are you loyal") {
+            let cast = interior.loyalties.filter { $0.targetKind == .castMember }
+            guard !cast.isEmpty else {
+                return "I have not admitted a particular loyalty yet. That is different from being neutral; I am rarely neutral."
+            }
+            return cast.map {
+                "\($0.targetName): \($0.reason) The complication is this: \($0.counterweight)"
+            }.joined(separator: "\n")
+        }
+        if lower.contains("favorite place")
+            || lower.contains("places do you like")
+            || lower.contains("loyal to a place") {
+            let places = interior.loyalties.filter { $0.targetKind == .place }
+            guard !places.isEmpty else {
+                return "No place has received enough real returns to earn my loyalty yet. Mere proximity is not a relationship."
+            }
+            return places.map {
+                "\($0.targetName) [\($0.strength.rawValue)]: \($0.reason) \($0.counterweight)"
+            }.joined(separator: "\n")
         }
         if lower.contains("favorite") {
             guard let favorite = interior.favorite else {
@@ -3448,6 +7773,17 @@ enum BookInteriorAnswerGrounder {
             return "I dog-eared this: “\(favorite.excerpt)” \(favorite.reason) You are allowed to think my taste is indefensible."
         }
         if lower.contains("secret") {
+            if lower.contains("old secret")
+                || lower.contains("secret consequence")
+                || lower.contains("what happened") {
+                let legacies = interior.secretLegacies.sorted { $0.lastAdvancedAt > $1.lastAdvancedAt }
+                guard !legacies.isEmpty else {
+                    return "No revealed secret has lived long enough to produce a later consequence. A reveal is only the beginning; I am waiting honestly."
+                }
+                return legacies.prefix(3).map {
+                    "\($0.family.displayName.capitalized) [\($0.stage.rawValue)]: \($0.line)"
+                }.joined(separator: "\n")
+            }
             guard let secret = interior.secret else {
                 return "I do not have a secret ready. Inventing one on demand would make it a performance, not a secret."
             }
@@ -3459,6 +7795,9 @@ enum BookInteriorAnswerGrounder {
             }
         }
         if lower.contains("changed your mind") || lower.contains("been wrong") {
+            if let fault = interior.currentFault {
+                return "Yes. \(fault.admission) \(fault.repair) I kept the repair beside the miss."
+            }
             if let opinion = interior.opinion,
                let revision = opinion.revisions.last {
                 return "Yes. I used to say: \(revision.previousStatement) Now I say: \(revision.newStatement) I changed it because \(revision.reason.lowercased()) The evidence and the correction remain together."
@@ -3485,6 +7824,12 @@ enum BookInteriorSurfaces {
         if let secret = inputs.bookInterior.secret, secret.status == .ready {
             pages.append(secretSurface(secret, day: day))
         }
+        if let legacy = inputs.bookInterior.secretLegacies
+            .filter(\.hasUnpresentedChange)
+            .sorted(by: { $0.lastAdvancedAt < $1.lastAdvancedAt })
+            .first {
+            pages.append(secretLegacySurface(legacy, day: day))
+        }
         if let favorite = inputs.bookInterior.favorite, favorite.firstPresentedAt == nil {
             pages.append(favoriteSurface(favorite, day: day))
         }
@@ -3496,6 +7841,16 @@ enum BookInteriorSurfaces {
         if let opinion = inputs.bookInterior.opinion, opinion.firstPresentedAt == nil {
             pages.append(opinionSurface(opinion, day: day))
         }
+        if let fault = inputs.bookInterior.currentFault, fault.presentedAt == nil {
+            pages.append(faultSurface(fault, day: day))
+        }
+        if let project = inputs.bookInterior.currentProject, project.hasUnpresentedChange {
+            pages.append(projectSurface(project, day: day))
+        }
+        if let initiative = inputs.bookInterior.currentInitiative,
+           initiative.status == .pending {
+            pages.append(initiativeSurface(initiative, day: day))
+        }
         if let game = inputs.bookInterior.longGame, game.phasePresentedAt == nil {
             pages.append(longGameSurface(game, day: day))
         }
@@ -3505,6 +7860,141 @@ enum BookInteriorSurfaces {
             pages.append(commissioned)
         }
         return pages
+    }
+
+    private static func initiativeSurface(_ initiative: BookInitiative, day: BookDay) -> SurfacePage {
+        let isConversation = initiative.mode == .conversation
+        let body = isConversation
+            ? "\(initiative.openingLine)\n\n\(initiative.invitationLine)\n\nThis is a deterministic teaser from the Book's durable state. Nothing has been generated. If you continue, the next model call begins only when you press the chat button."
+            : "\(initiative.openingLine)\n\n\(initiative.invitationLine)\n\nI said this because I wanted to say it, not because you were due an activity."
+        var metadata = [
+            "source": "book-deterministic-initiative",
+            "bookInitiativeID": initiative.id,
+            "bookInitiativeKind": initiative.kind.rawValue,
+            "bookInitiativeMode": initiative.mode.rawValue,
+            "bookInitiativeOpening": initiative.openingLine,
+            "bookInitiativeInvitation": initiative.invitationLine,
+            "bookInitiativeSuggestedPrompts": initiative.suggestedPrompts.joined(separator: "||"),
+            "bookInitiativeMotive": initiative.motive,
+            "bookInitiativeGenerationPolicy": "user-initiated-only",
+            "bookActEvidencePageIDs": initiative.evidencePageIDs.joined(separator: ","),
+            "bookInteriorSurface": "true",
+            "tags": "book,initiative,spoke-first,deterministic,optional"
+        ]
+        if let receipts = initiative.ingredientReceipts, !receipts.isEmpty {
+            metadata["bookInitiativeIngredientReceipts"] = receipts.joined(separator: "||")
+            metadata["tags", default: ""] += ",compound,characteristic-surprise"
+        }
+        if let conflictID = initiative.desireConflictID {
+            metadata["bookDesireConflictID"] = conflictID
+        }
+        return SurfacePage(
+            id: "book-initiative-surface-\(initiative.id)",
+            type: isConversation ? .askTheBook : .bookNotices,
+            sourceID: "book-deterministic-initiative",
+            intent: .reflect,
+            renderStyle: isConversation ? .loreLetter : .archiveReturn,
+            score: isConversation ? 64 : 56,
+            reason: initiative.motive,
+            prompt: initiative.title,
+            detail: isConversation ? "The Book spoke first. Continue only if you want to." : "The Book wanted to say something. No response requested.",
+            payload: BookPagePayload(
+                headline: initiative.title,
+                body: body,
+                metadata: metadata
+            )
+        )
+    }
+
+    private static func secretLegacySurface(
+        _ legacy: BookSecretLegacy,
+        day: BookDay
+    ) -> SurfacePage {
+        SurfacePage(
+            id: "book-secret-legacy-surface-\(legacy.id)-\(legacy.stage.rawValue)",
+            type: .bookRemembered,
+            sourceID: "book-secret-legacy",
+            intent: .reflect,
+            renderStyle: .archiveReturn,
+            score: legacy.stage == .inheritance ? 92 : 78,
+            reason: "A secret the Book revealed long ago has produced a later consequence.",
+            prompt: "A Secret Kept Happening",
+            detail: "This is consequence, not a second reveal.",
+            payload: BookPagePayload(
+                headline: "The Long Life of a Sealed Leaf",
+                body: "\(legacy.line)\n\nI am showing you this because a secret should alter the years after it opens. Otherwise it was only a locked card waiting to become content.",
+                metadata: [
+                    "source": "book-secret-legacy",
+                    "bookSecretLegacyID": legacy.id,
+                    "bookSecretSourceID": legacy.secretID,
+                    "bookSecretLegacyStage": legacy.stage.rawValue,
+                    "bookActEvidencePageIDs": legacy.evidencePageIDs.joined(separator: ","),
+                    "bookInteriorSurface": "true",
+                    "tags": "book,secret,legacy,consequence,years,remembered"
+                ]
+            )
+        )
+    }
+
+    private static func faultSurface(_ fault: BookFaultEpisode, day: BookDay) -> SurfacePage {
+        SurfacePage(
+            id: "book-interior-fault-\(fault.id)",
+            type: .bookNotices,
+            sourceID: "book-interior-fault",
+            intent: .reflect,
+            renderStyle: .archiveReturn,
+            score: 91,
+            reason: "The Book made a real miss and kept the repair beside it.",
+            prompt: "The Book Owes the Margin a Correction",
+            detail: fault.admission,
+            payload: BookPagePayload(
+                headline: "Pencil, Eraser, Evidence",
+                body: "\(fault.admission)\n\n\(fault.repair)\n\nI am not making this mistake charming so you will forgive it. I am keeping the old confidence beside the correction because a character who is never wrong is only branding.",
+                metadata: [
+                    "source": "book-interior-fault",
+                    "bookFaultID": fault.id,
+                    "bookFaultKind": fault.kind.rawValue,
+                    "evidencePageIDs": fault.evidencePageIDs.joined(separator: ","),
+                    "bookInteriorSurface": "true",
+                    "tags": "book,fault,repair,eraser,evidence"
+                ]
+            )
+        )
+    }
+
+    private static func projectSurface(_ project: BookProject, day: BookDay) -> SurfacePage {
+        let findings = project.entries.suffix(4).map { "• \($0.line)" }.joined(separator: "\n")
+        let statusLine: String
+        switch project.status {
+        case .investigating: statusLine = "I am still investigating. You have not been assigned anything."
+        case .resting: statusLine = "The trail has gone quiet, so I have put the case down without turning quiet into failure."
+        case .completed: statusLine = "I have closed this particular case. A conclusion may remain provisional even when an investigation ends."
+        case .abandoned: statusLine = "I abandoned this case. Not every curiosity deserves to become a doctrine."
+        }
+        return SurfacePage(
+            id: "book-interior-project-\(project.id)-\(project.status.rawValue)-\(project.progress)",
+            type: .bookNotices,
+            sourceID: "book-interior-project",
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: project.status == .completed ? 84 : 69,
+            reason: "The Book has been pursuing a question of its own between Pages.",
+            prompt: project.title,
+            detail: project.question,
+            payload: BookPagePayload(
+                headline: "A Project of My Own",
+                body: "\(project.whyItCares)\n\nCurrent case: \(project.question)\n\n\(findings)\n\n\(statusLine)",
+                metadata: [
+                    "source": "book-interior-project",
+                    "bookProjectID": project.id,
+                    "bookProjectKind": project.kind.rawValue,
+                    "bookProjectStatus": project.status.rawValue,
+                    "evidencePageIDs": project.entries.flatMap(\.evidencePageIDs).joined(separator: ","),
+                    "bookInteriorSurface": "true",
+                    "tags": "book,project,investigation,unfinished-business"
+                ]
+            )
+        )
     }
 
     private static func secretSurface(_ secret: BookSecret, day: BookDay) -> SurfacePage {
@@ -3652,6 +8142,9 @@ enum LiterarySignalKind: String, Codable, Equatable, CaseIterable {
     case absence
     case duration
     case listening
+    /// Recognition that crosses the Book's senses: photograph and prose,
+    /// voice and language, or another explicitly evidenced media pairing.
+    case sensory
     /// Not what the pages say but how — pace, hour, hedging. The class of
     /// observation only someone who has read all of you could make.
     case manner
@@ -3789,10 +8282,161 @@ enum BraidPromptBuilder {
         }
     }
 
+    enum FictionRole: String, Equatable {
+        case mirror
+        case counterpoint
+        case rehearsal
+        case pressure
+        case afterimage
+
+        var promptLine: String {
+            switch self {
+            case .mirror: return "mirror — the fictional choice and lived day made a similar move"
+            case .counterpoint: return "counterpoint — the fictional choice and lived day pulled in different directions"
+            case .rehearsal: return "rehearsal — the fictional choice tried a shape the lived day later touched"
+            case .pressure: return "pressure — the fictional choice complicates the telling without becoming a real-world fact"
+            case .afterimage: return "afterimage — the fictional choice changed what the Book noticed afterward"
+            }
+        }
+    }
+
+    enum ArcMovement: String, Equatable {
+        case began
+        case deepened
+        case complicated
+        case returned
+        case resolved
+        case rested
+
+        var promptVerb: String {
+            switch self {
+            case .began: return "began"
+            case .deepened: return "deepened"
+            case .complicated: return "became more complicated"
+            case .returned: return "returned with a difference"
+            case .resolved: return "resolved without pretending every consequence vanished"
+            case .rested: return "went to rest without being declared finished"
+            }
+        }
+    }
+
+    struct NightlyStoryScore: Equatable {
+        struct LivedBeat: Equatable {
+            var pageID: String
+            var pageType: BookPageType
+            var occurredAt: Date
+            var excerpt: String
+            var role: String
+        }
+
+        struct FictionBeat: Equatable {
+            var pageID: String
+            var occurredAt: Date
+            var choice: String
+            var role: FictionRole
+        }
+
+        struct RelationalLens: Equatable {
+            var connectionID: String
+            var observationKey: String
+            var evidenceTier: RelationalLoomConnection.EvidenceTier
+            var condition: String
+            var outcomes: [String]
+            var evidencePageIDs: [String]
+            var line: String
+        }
+
+        struct ArcBeat: Equatable {
+            var id: String
+            var movement: ArcMovement
+            var priorState: String?
+            var tonightDelta: String
+            var evidencePageIDs: [String]
+            var fictionChoicePageIDs: [String]
+            var relationalConnectionIDs: [String]
+        }
+
+        var livedBeats: [LivedBeat]
+        var fictionBeat: FictionBeat?
+        var relationalLens: RelationalLens?
+        var arc: ArcBeat?
+        var taleReading: TaleReading
+        var magicLicense: String
+        var endingDuty: String
+        var forbiddenClaims: [String]
+
+        var isRich: Bool {
+            livedBeats.count >= 2 && (fictionBeat != nil || relationalLens != nil || arc != nil)
+        }
+
+        var promptSection: String {
+            let lived = livedBeats.enumerated().map { index, beat in
+                "\(index + 1). [\(beat.pageID)] \(beat.pageType.shortTitle), \(beat.role): \(beat.excerpt)"
+            }.joined(separator: "\n")
+            let fiction = fictionBeat.map {
+                "[\($0.pageID)] Reader-made fictional choice: \($0.choice)\nRole: \($0.role.promptLine)."
+            } ?? "None selected. Do not make passive fiction carry the day."
+            let relationship = relationalLens.map { lens in
+                "[\(lens.connectionID)] Confidence: \(lens.evidenceTier.rawValue). Condition: \(lens.condition). Outcomes: \(lens.outcomes.joined(separator: "; ")). Narrative reading: \(lens.line)"
+            } ?? "None selected. Do not manufacture a pattern."
+            let arcLine = arc.map { arc in
+                let prior = arc.priorState.map { " Prior state: \($0)." } ?? ""
+                return "[\(arc.id)] This thread \(arc.movement.promptVerb).\(prior) Tonight's exact change: \(arc.tonightDelta)"
+            } ?? "No continuing thread earned movement tonight. Let the page be complete without pretending it advanced an arc."
+            return """
+
+
+            NIGHTLY STORY SCORE — DECISIONS ALREADY MADE:
+
+            LIVED ANCHORS (facts; these own what happened):
+            \(lived.isEmpty ? "None beyond the complete ledger. Keep the scale modest." : lived)
+
+            FICTION BRIDGE (a real reader choice inside fiction; never a lived event):
+            \(fiction)
+
+            RELATIONAL LENS (an inspectable archive reading, not a cause or diagnosis):
+            \(relationship)
+
+            LONGITUDINAL THREAD:
+            \(arcLine)
+
+            STORY PHYSICS:
+            Motion: \(taleReading.motion.promptLine)
+            Faerie pressure: \(taleReading.pressure.promptLine)
+            Allowed magic: \(magicLicense)
+            Ending duty: \(endingDuty)
+
+            HARD BOUNDARIES:
+            \(forbiddenClaims.map { "- \($0)" }.joined(separator: "\n"))
+
+            SCORE LAW:
+            - Do not rediscover or replace this score. Realize it as prose.
+            - The lived anchors own facts. The fiction bridge supplies form or pressure only.
+            - Dramatize the relational lens; do not recite its statistics or present it as causation.
+            - If an arc moved, make tonight's change legible. Do not recap the whole arc.
+            """
+        }
+    }
+
+    enum BraidCamera: String, Equatable {
+        case livedFirst
+        case connectionFirst
+
+        var promptLine: String {
+            switch self {
+            case .livedFirst:
+                return "Open inside the lived world. Let fiction or the relational lens enter only after the reader is standing in one exact real detail."
+            case .connectionFirst:
+                return "Open at the surprising hinge between two supplied parts of the score, then ground it immediately in the lived receipt that makes it true."
+            }
+        }
+    }
+
     struct Context: Equatable {
         var recentBraids: [String] = []
         var theme: BookTheme?
         var chapter: AcademyChapter?
+        var bookVoicePatina: BookVoicePatina = .unwritten
         var learnedGuidance: BraidLearningGuidance?
         var nowPlaying: String?
         var activeWorldEvents: [ResolvedWorldEvent] = []
@@ -3804,6 +8448,7 @@ enum BraidPromptBuilder {
         var meaningfulSpinePassages: [MeaningfulPassageSelector.Selection] = []
         var souvenirAnchor: SouvenirAnchor?
         var taleReading: TaleReading?
+        var storyScore: NightlyStoryScore?
 
         static let empty = Context()
     }
@@ -3827,10 +8472,15 @@ enum BraidPromptBuilder {
         activeWorldEvents: [ResolvedWorldEvent] = [],
         readerLexicon: ReaderLexicon = ReaderLexicon(),
         readerLearning: ReaderLearningModel = ReaderLearningModel(),
+        facultyEntries: [FacultyEntry] = [],
+        people: PeopleLedger = PeopleLedger(),
+        continuity: LiteraryContinuityDigest = .empty,
+        bookReadingBoundaries: [BookReadingBoundary] = [],
         semanticScorer: StacksSemanticScoring? = nil,
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> Context {
+        let eligiblePages = braidEligiblePages(in: day)
         let recentBraids = recentBraidTexts(excludingDayID: day.id, days: days)
         let memoryDigest = BindingMemorySpine.digest(
             days: days.filter { $0.id != day.id },
@@ -3860,11 +8510,11 @@ enum BraidPromptBuilder {
             theme?.line ?? "",
             chapter?.name ?? "",
             chapter?.philosophy ?? ""
-        ] + day.capturedPages.flatMap { page in
+        ] + eligiblePages.flatMap { page in
             [page.promptText, page.tags.joined(separator: " "), page.resolvedAttentionFingerprint.patternTokens.joined(separator: " ")]
         } + semanticEchoes.lines).filter { !$0.isEmpty }.joined(separator: ". ")
         let meaningfulSpinePassages = MeaningfulPassageSelector.rankedSelections(
-            pages: day.capturedPages.filter { !isSupportingLog($0) },
+            pages: eligiblePages.filter { !isSupportingLog($0) },
             query: spineQuery,
             inputs: passageInputs,
             scorer: semanticScorer,
@@ -3880,6 +8530,12 @@ enum BraidPromptBuilder {
             recentBraids: recentBraids,
             theme: theme,
             chapter: chapter,
+            bookVoicePatina: BookVoicePatina.derive(
+                days: days.filter { $0.id != day.id } + [day],
+                readerLearning: readerLearning,
+                now: now,
+                calendar: calendar
+            ),
             learnedGuidance: merged.signals.isEmpty ? nil : merged,
             nowPlaying: nowPlaying,
             activeWorldEvents: activeWorldEvents,
@@ -3892,11 +8548,286 @@ enum BraidPromptBuilder {
             souvenirAnchor: souvenirAnchor(in: day)
         )
         result.taleReading = taleReading(for: day, context: result)
+        // The explicitly supplied day is authoritative. The persisted archive
+        // can lag behind an in-flight evening capture by one save.
+        let allDays = days.filter { $0.id != day.id } + [day]
+        let relationships = RelationalLoom.connections(
+            days: allDays,
+            readerLearning: readerLearning,
+            facultyEntries: facultyEntries,
+            people: people,
+            continuity: continuity,
+            calendar: calendar
+        )
+        let relationalConstellations = RelationalLoom.constellations(connections: relationships)
+        result.storyScore = nightlyStoryScore(
+            for: day,
+            context: result,
+            connections: relationships,
+            constellations: relationalConstellations,
+            forbiddenObservationKeys: Set(bookReadingBoundaries.map(\.id)),
+            now: now,
+            calendar: calendar
+        )
         return result
     }
 
+    static func nightlyStoryScore(
+        for day: BookDay,
+        context: Context,
+        connections: [RelationalLoomConnection],
+        constellations: [RelationalLoomConstellation],
+        forbiddenObservationKeys: Set<String> = [],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> NightlyStoryScore {
+        let eligible = braidEligiblePages(in: day).sorted { $0.createdAt < $1.createdAt }
+        let livedPages = eligible.filter {
+            braidShelf(for: $0) == "lived" && !isSupportingLog($0)
+        }
+        let passageRank = Dictionary(
+            uniqueKeysWithValues: context.meaningfulSpinePassages.enumerated().map { ($0.element.pageID, $0.offset) }
+        )
+        let rankedLived = livedPages.sorted { left, right in
+            let leftSouvenir = left.id == context.souvenirAnchor?.pageID ? 1 : 0
+            let rightSouvenir = right.id == context.souvenirAnchor?.pageID ? 1 : 0
+            if leftSouvenir != rightSouvenir { return leftSouvenir > rightSouvenir }
+            let leftPassage = passageRank[left.id] ?? 99
+            let rightPassage = passageRank[right.id] ?? 99
+            if leftPassage != rightPassage { return leftPassage < rightPassage }
+            let leftWords = storyScoreText(for: left).split(whereSeparator: \.isWhitespace).count
+            let rightWords = storyScoreText(for: right).split(whereSeparator: \.isWhitespace).count
+            if leftWords != rightWords { return leftWords > rightWords }
+            return (left.createdAt, left.id) < (right.createdAt, right.id)
+        }
+        let selectedLived = Array(rankedLived.prefix(3)).sorted { $0.createdAt < $1.createdAt }
+        let livedBeats = selectedLived.enumerated().map { index, page in
+            NightlyStoryScore.LivedBeat(
+                pageID: page.id,
+                pageType: page.type,
+                occurredAt: page.createdAt,
+                excerpt: clippedText(storyScoreText(for: page), limit: 220),
+                role: page.id == context.souvenirAnchor?.pageID
+                    ? "truth anchor"
+                    : (index == 0 ? "opening evidence" : "supporting true beat")
+            )
+        }
+
+        let todayPageIDs = Set(eligible.map(\.id))
+        let allowedConstellations = constellations.filter {
+            !forbiddenObservationKeys.contains($0.observationKey)
+                && !todayPageIDs.isDisjoint(with: $0.evidencePageIDs)
+        }
+        let allowedConnections = connections.filter {
+            !forbiddenObservationKeys.contains($0.observationKey)
+                && !todayPageIDs.isDisjoint(with: $0.evidencePageIDs)
+        }
+        let relationalLens: NightlyStoryScore.RelationalLens?
+        if let constellation = allowedConstellations.first {
+            relationalLens = NightlyStoryScore.RelationalLens(
+                connectionID: constellation.id,
+                observationKey: constellation.observationKey,
+                evidenceTier: constellation.evidenceTier,
+                condition: constellation.condition.conditionClause,
+                outcomes: constellation.branches.map { $0.outcome.outcomeClause },
+                evidencePageIDs: constellation.evidencePageIDs,
+                line: constellation.evidenceTier == .glimmer
+                    ? "Hold this as a question: several parts of the day may be leaning together."
+                    : "Several independently tested branches met around the same condition tonight."
+            )
+        } else if let connection = allowedConnections.first {
+            relationalLens = NightlyStoryScore.RelationalLens(
+                connectionID: connection.id,
+                observationKey: connection.observationKey,
+                evidenceTier: connection.evidenceTier,
+                condition: connection.condition.conditionClause,
+                outcomes: [connection.outcome.outcomeClause],
+                evidencePageIDs: connection.evidencePageIDs,
+                line: connection.evidenceTier == .glimmer
+                    ? "Hold this as a question, not a declaration."
+                    : "Tonight is another receipt in a relationship the archive has been testing."
+            )
+        } else {
+            relationalLens = nil
+        }
+
+        let fictionCandidates = eligible.filter { page in
+            guard braidShelf(for: page) == "fiction" else { return false }
+            return page.playerReply.nonEmpty != nil
+                || page.tags.contains(where: { $0.hasPrefix("choice:") })
+                || page.tags.contains("clash")
+        }
+        let livedWords = Set(livedBeats.flatMap { storyScoreWords(in: $0.excerpt) })
+        let chosenFiction = fictionCandidates.sorted { left, right in
+            let leftReply = left.playerReply.nonEmpty == nil ? 0 : 1
+            let rightReply = right.playerReply.nonEmpty == nil ? 0 : 1
+            if leftReply != rightReply { return leftReply > rightReply }
+            let leftChoice = left.tags.contains(where: { $0.hasPrefix("choice:") }) ? 1 : 0
+            let rightChoice = right.tags.contains(where: { $0.hasPrefix("choice:") }) ? 1 : 0
+            if leftChoice != rightChoice { return leftChoice > rightChoice }
+            return (left.createdAt, left.id) < (right.createdAt, right.id)
+        }.first
+        let fictionBeat = chosenFiction.map { page -> NightlyStoryScore.FictionBeat in
+            let words = Set(storyScoreWords(in: storyScoreText(for: page)))
+            let shared = !words.intersection(livedWords).isEmpty
+            let role: FictionRole
+            if page.tags.contains("clash") {
+                role = .counterpoint
+            } else if relationalLens?.evidencePageIDs.contains(page.id) == true {
+                role = .afterimage
+            } else if shared, let lastLived = selectedLived.last, page.createdAt < lastLived.createdAt {
+                role = .rehearsal
+            } else if shared {
+                role = .mirror
+            } else {
+                role = .pressure
+            }
+            return NightlyStoryScore.FictionBeat(
+                pageID: page.id,
+                occurredAt: page.createdAt,
+                choice: clippedText(storyScoreText(for: page), limit: 220),
+                role: role
+            )
+        }
+
+        let arc = nightlyArc(
+            day: day,
+            livedBeats: livedBeats,
+            fictionBeat: fictionBeat,
+            relationalLens: relationalLens,
+            context: context,
+            now: now,
+            calendar: calendar
+        )
+        let reading = context.taleReading ?? taleReading(for: day, context: context)
+        let magicAnchor = livedBeats.first?.excerpt.nonEmpty ?? reading.anchor.nonEmpty ?? "one supplied ordinary thing"
+        let magicLicense = "Use only \(reading.pressure.rawValue) around this supplied anchor: \(clippedText(magicAnchor, limit: 100)). One impossible relation is enough."
+        let endingDuty = arc.map { "Land on tonight's \($0.movement.rawValue) movement: \($0.tonightDelta)" }
+            ?? livedBeats.first.map { "Return changed to this exact lived anchor: \($0.excerpt)" }
+            ?? "Admit that the Book witnessed the day without inventing a lesson."
+        var forbiddenClaims = [
+            "Do not turn fiction into a claim that something happened in the reader's lived world.",
+            "Do not diagnose a feeling, motive, relationship, or cause.",
+            "Do not invent a person, place, completed action, price, promise, or consequence."
+        ]
+        if relationalLens?.evidenceTier == .glimmer {
+            forbiddenClaims.append("Do not state the relational glimmer as settled truth; let it remain a possibility.")
+        }
+        return NightlyStoryScore(
+            livedBeats: livedBeats,
+            fictionBeat: fictionBeat,
+            relationalLens: relationalLens,
+            arc: arc,
+            taleReading: reading,
+            magicLicense: magicLicense,
+            endingDuty: endingDuty,
+            forbiddenClaims: forbiddenClaims
+        )
+    }
+
+    private static func nightlyArc(
+        day: BookDay,
+        livedBeats: [NightlyStoryScore.LivedBeat],
+        fictionBeat: NightlyStoryScore.FictionBeat?,
+        relationalLens: NightlyStoryScore.RelationalLens?,
+        context: Context,
+        now: Date,
+        calendar: Calendar
+    ) -> NightlyStoryScore.ArcBeat? {
+        let todayWords = Set(livedBeats.flatMap { storyScoreWords(in: $0.excerpt) })
+        let relationalArcID = relationalLens?.observationKey
+        let semanticArcID = context.semanticEchoSourceIDs.first.map { "semantic:\($0)" }
+        let motifMatch = context.memoryDigest.braids.compactMap { memory -> (String, BindingMemoryDigest.BraidMemory)? in
+            guard let motif = memory.residue.motifs.first(where: { todayWords.contains($0.lowercased()) }) else { return nil }
+            return (memory.residue.arcID ?? "motif:\(motif.lowercased())", memory)
+        }.first
+        guard let arcID = relationalArcID ?? semanticArcID ?? motifMatch?.0 else { return nil }
+
+        let prior = context.memoryDigest.braids.first { memory in
+            memory.residue.arcID == arcID
+                || memory.residue.relationalConnectionIDs.contains(arcID)
+                || (relationalLens.map { memory.residue.relationalConnectionIDs.contains($0.connectionID) } ?? false)
+        } ?? motifMatch?.1
+        let allTags = Set(day.capturedPages.flatMap(\.tags).map { $0.lowercased() })
+        let movement: ArcMovement
+        if allTags.contains(where: { $0.contains("resolved") || $0.contains("completed") || $0.contains("closed-thread") }) {
+            movement = .resolved
+        } else if fictionBeat?.role == .counterpoint, prior != nil {
+            movement = .complicated
+        } else if let prior {
+            let gap = calendar.dateComponents(
+                [.day],
+                from: calendar.startOfDay(for: prior.date),
+                to: calendar.startOfDay(for: now)
+            ).day ?? 0
+            movement = gap >= 4 ? .returned : .deepened
+        } else {
+            movement = .began
+        }
+
+        var deltaParts: [String] = []
+        if let relationalLens {
+            deltaParts.append("\(relationalLens.condition) met \(relationalLens.outcomes.joined(separator: " and "))")
+        }
+        if let lived = livedBeats.first {
+            deltaParts.append("the lived receipt was \(clippedText(lived.excerpt, limit: 120))")
+        }
+        if let fictionBeat {
+            deltaParts.append("the fictional choice served as \(fictionBeat.role.rawValue): \(clippedText(fictionBeat.choice, limit: 100))")
+        }
+        let delta = deltaParts.isEmpty
+            ? "today's supplied evidence answered an older motif without repeating its old sentence"
+            : joinedClauses(deltaParts)
+        return NightlyStoryScore.ArcBeat(
+            id: arcID,
+            movement: movement,
+            priorState: prior.flatMap { memory in
+                memory.residue.arcDelta.flatMap(\.nonEmpty)
+                    ?? memory.residue.callbackCandidate.flatMap(\.nonEmpty)
+            },
+            tonightDelta: delta,
+            evidencePageIDs: Array(Set(livedBeats.map(\.pageID) + (relationalLens?.evidencePageIDs ?? []))).sorted(),
+            fictionChoicePageIDs: fictionBeat.map { [$0.pageID] } ?? [],
+            relationalConnectionIDs: relationalLens.map { [$0.connectionID, $0.observationKey] } ?? []
+        )
+    }
+
+    private static func storyScoreText(for page: BookPage) -> String {
+        if braidShelf(for: page) == "fiction" {
+            if let reply = page.playerReply.nonEmpty { return reply }
+            if let choice = page.tags.first(where: { $0.hasPrefix("choice:") }) {
+                let value = String(choice.dropFirst("choice:".count))
+                    .replacingOccurrences(of: "-", with: " ")
+                let context = page.userInput.nonEmpty ?? page.promptText
+                return "The reader chose \(value). \(clippedText(context, limit: 140))"
+            }
+        }
+        return page.userInput.nonEmpty ?? page.playerReply.nonEmpty ?? page.promptText
+    }
+
+    private static func storyScoreWords(in text: String) -> [String] {
+        let stop: Set<String> = [
+            "about", "after", "again", "because", "before", "book", "could", "from", "have",
+            "into", "kept", "page", "that", "their", "there", "they", "this", "through", "today",
+            "when", "where", "with", "would", "your", "reader", "chose"
+        ]
+        return text.lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .filter { $0.count >= 4 && !stop.contains($0) }
+    }
+
+    private static func joinedClauses(_ clauses: [String]) -> String {
+        switch clauses.count {
+        case 0: return ""
+        case 1: return clauses[0]
+        case 2: return "\(clauses[0]), and \(clauses[1])"
+        default: return "\(clauses.dropLast().joined(separator: ", ")), and \(clauses.last ?? "")"
+        }
+    }
+
     static func souvenirAnchor(in day: BookDay) -> SouvenirAnchor? {
-        day.capturedPages
+        braidEligiblePages(in: day)
             .compactMap(souvenirAnchorCandidate)
             .sorted { lhs, rhs in
                 if lhs.score == rhs.score {
@@ -3982,7 +8913,7 @@ enum BraidPromptBuilder {
     }
 
     static func semanticEchoes(in day: BookDay) -> (sourceIDs: [String], lines: [String]) {
-        let tags = day.capturedPages.flatMap(\.tags)
+        let tags = braidEligiblePages(in: day).flatMap(\.tags)
         return (
             uniqueTagValues(withPrefix: SemanticKeepEcho.sourceTagPrefix, in: tags),
             uniqueTagValues(withPrefix: SemanticKeepEcho.lineTagPrefix, in: tags)
@@ -4201,6 +9132,10 @@ enum BraidPromptBuilder {
     }
 
     static func prompt(for day: BookDay, context: Context) -> String {
+        if let storyScore = context.storyScore {
+            return compactStoryScorePrompt(for: day, context: context, score: storyScore)
+        }
+        let eligiblePages = braidEligiblePages(in: day)
         let evidence = evidenceLines(for: day).joined(separator: "\n\n")
         let souvenirSection = souvenirSpineSection(for: day, context: context)
         let meaningfulSpineSection = meaningfulSpineSection(context: context)
@@ -4348,7 +9283,7 @@ enum BraidPromptBuilder {
         }
 
         let clashSection: String
-        if day.capturedPages.contains(where: { $0.tags.contains("clash") }) {
+        if eligiblePages.contains(where: { $0.tags.contains("clash") }) {
             clashSection = """
 
 
@@ -4395,21 +9330,139 @@ enum BraidPromptBuilder {
         - Paraphrase supplied prose; quote at most one short potent phrase. Mention each image or beat once.
         - Avoid journey, profound, tapestry, echoes, hidden meaning, glimmer, and generic inspiration. Do not reach for moth, moon, lamp, key, or threshold unless today's evidence supplied it.
         - Turn raw measurements into felt conditions only when those conditions materially belong in the tale.
+        \(context.bookVoicePatina.promptSection)
 
-        KEPT PAGES FROM TODAY — COMPLETE COMPACT LEDGER (\(day.capturedPages.count) pages):
+        KEPT PAGES FROM TODAY — COMPLETE COMPACT LEDGER (\(eligiblePages.count) pages):
         \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(clashSection)\(themeSection)\(chapterSection)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(continuity)
 
         FINAL WEAVING CHECK:
-        - The ledger above contains all \(day.capturedPages.count) kept pages; its excerpts are compact, not a ranking that permits later pages to erase earlier ones.
+        - The ledger above contains all \(eligiblePages.count) braid-eligible kept pages; its excerpts are compact, not a ranking that permits later pages to erase earlier ones.
         - For a Full Braid, carry at least three distinct non-log details across at least four paragraphs. For a Small Braid, carry at least two distinct non-log details across at least three paragraphs.
         - If non-log pages exist, Weather, Body, and Inner Weather together may color at most one short paragraph and may not own the title or ending.
         - End with the required sentence beginning "The Book kept the page:".
         """
     }
 
+    static func candidatePrompt(
+        for day: BookDay,
+        context: Context,
+        camera: BraidCamera
+    ) -> String {
+        """
+        \(prompt(for: day, context: context))
+
+        TONIGHT'S CAMERA:
+        \(camera.promptLine)
+        This changes composition only. It may not change facts, the selected relationship, or the arc movement.
+        """
+    }
+
+    private static func compactStoryScorePrompt(
+        for day: BookDay,
+        context: Context,
+        score: NightlyStoryScore
+    ) -> String {
+        let pages = braidEligiblePages(in: day)
+        let evidence = evidenceLines(for: day, totalCharacterBudget: 4_800).joined(separator: "\n\n")
+        let meaningfulSpineSection = meaningfulSpineSection(context: context)
+        var colorLines: [String] = []
+        if let theme = context.theme {
+            colorLines.append("Theme watermark: \(theme.name) — \(theme.line)")
+        }
+        if let chapter = context.chapter {
+            colorLines.append("Chapter angle: \(chapter.name) — \(chapter.writeFraming)")
+        }
+        if let guidance = context.learnedGuidance {
+            colorLines += guidance.promptLines.prefix(2).map { "Reader-taught taste: \($0)" }
+        }
+        if let nowPlaying = context.nowPlaying?.nonEmpty {
+            colorLines.append("Faint atmosphere only: \(nowPlaying)")
+        }
+        let color = colorLines.isEmpty
+            ? "No additional color earned tonight."
+            : colorLines.joined(separator: "\n")
+        let learnedSection: String
+        if let guidance = context.learnedGuidance, !guidance.signals.isEmpty {
+            learnedSection = """
+
+            LEARNED BRAID TASTE:
+            \(guidance.promptLines.prefix(3).map { "- \($0)" }.joined(separator: "\n"))
+            Treat these as local taste notes from this reader, never as a reason to bend the evidence.
+            """
+        } else {
+            learnedSection = ""
+        }
+        let readerLearningSection: String
+        if context.readerLearningPromptLines.isEmpty {
+            readerLearningSection = ""
+        } else {
+            readerLearningSection = """
+
+            READER-TAUGHT CONTEXT:
+            \(context.readerLearningPromptLines.prefix(3).map { "- \($0)" }.joined(separator: "\n"))
+            """
+        }
+        let memorySpineSection: String
+        if context.memoryDigest.braids.isEmpty {
+            memorySpineSection = ""
+        } else {
+            let memories = context.memoryDigest.braids.prefix(2).map { memory in
+                let callback = memory.residue.callbackCandidate.flatMap(\.nonEmpty) ?? "no callback retained"
+                return "- \(memory.residue.title): \(callback)"
+            }.joined(separator: "\n")
+            memorySpineSection = """
+
+            BOOK MEMORY SPINE:
+            \(memories)
+            You may let one prior residue return only if today's kept pages honestly answer it.
+            """
+        }
+        let semanticEchoSection: String
+        if context.semanticEchoLines.isEmpty {
+            semanticEchoSection = ""
+        } else {
+            semanticEchoSection = """
+
+            SEMANTIC ECHOES FROM TODAY:
+            \(context.semanticEchoLines.prefix(2).map { "- \($0)" }.joined(separator: "\n"))
+            Treat these as possible long-range rhymes, not proof of a cause or a settled pattern.
+            """
+        }
+        return """
+        You are the Book inside ReEnchanted. Write one intimate Book of You page from the decisions and receipts below. The hard interpretive work is already done; your task is literary realization, not discovery.
+
+        \(score.promptSection)
+        \(meaningfulSpineSection)
+
+        SOURCE RECEIPTS — COMPLETE COMPACT LEDGER (\(pages.count) eligible kept pages):
+        \(evidence.isEmpty ? "No kept pages. Write only a modest waiting note." : evidence)
+
+        OPTIONAL COLOR — NEVER THE PLOT:
+        \(color)\(context.bookVoicePatina.promptSection)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())
+
+        WRITING CONTRACT:
+        - First line: an unlabeled title of 2 to 7 concrete words.
+        - Then \(score.taleReading.scale.promptLine)
+        - Second-person past tense. Follow the supplied clock. Lived receipts own facts.
+        - Carry the score's causal movement: what entered, changed, cost, returned, was refused, or remained unresolved.
+        - Use the selected fiction bridge only in its named role. Make its fictional frame unmistakable without explaining the two-shelf system.
+        - Dramatize the relational lens through supplied details. Never mention statistics, confidence tiers, vectors, analysis, patterns, or an archive.
+        - Give agency to at most one supplied ordinary thing. The strange relation must have a consequence; decorative whimsy fails.
+        - Use at least two distinct non-log receipts on a Small Braid and three on a Full Braid. Do not list the day.
+        - Weather, Body, and Inner Weather together may color at most one short paragraph when lived non-log pages exist.
+        - Quote at most one short supplied phrase. Never diagnose, moralize, flatter, or explain symbolism.
+        - Avoid journey, profound, tapestry, echoes, hidden meaning, glimmer, generic inspiration, and unsupported moth/moon/lamp/key/threshold imagery.
+        - End with exactly one sentence beginning "The Book kept the page:". Fulfil the score's ending duty there without copying it verbatim.
+
+        \(BookVoice.animismLine)
+        Write only the finished page now.
+        """
+    }
+
     private static func supportingLogSection(for day: BookDay) -> String {
+        let eligiblePages = braidEligiblePages(in: day)
         let present = [BookPageType.weather, .body, .mood].filter { type in
-            day.capturedPages.contains { $0.type == type }
+            eligiblePages.contains { $0.type == type }
         }
         guard !present.isEmpty else { return "" }
         let names = present.map { type in
@@ -4420,7 +9473,7 @@ enum BraidPromptBuilder {
             default: return type.title
             }
         }.joined(separator: ", ")
-        let hasNonLogMaterial = day.capturedPages.contains { !isSupportingLog($0) }
+        let hasNonLogMaterial = eligiblePages.contains { !isSupportingLog($0) }
         let availabilityRule = hasNonLogMaterial
             ? "- Other kept material exists tonight. A supporting log may not supply the title, spine, turn, or final kept image."
             : "- These logs are the only kept material tonight. Let them support a modest Glimpse without inventing an event or revelation."
@@ -4526,7 +9579,7 @@ enum BraidPromptBuilder {
     ) -> [String] {
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "h:mm a"
-        let pages = day.capturedPages.sorted { $0.createdAt < $1.createdAt }
+        let pages = braidEligiblePages(in: day).sorted { $0.createdAt < $1.createdAt }
         guard !pages.isEmpty else { return [] }
         let perPageBudget = max(320, min(980, totalCharacterBudget / pages.count))
         let keptTextLimit = max(140, min(480, perPageBudget / 2))
@@ -4575,6 +9628,7 @@ enum BraidPromptBuilder {
         let reading = context.taleReading ?? taleReading(for: day, context: context)
         let evidence = evidenceLines(for: day).joined(separator: "\n\n")
         let issueLines = issues.map { "- \($0.repairInstruction)" }.joined(separator: "\n")
+        let scoreSection = context.storyScore?.promptSection ?? ""
         return """
         The first attempt at tonight's Book of You page was too thin or lost the day's evidence. Rewrite it from the complete compact ledger below. Do not reuse the first draft's sentences.
 
@@ -4590,8 +9644,9 @@ enum BraidPromptBuilder {
         - Carry distinct concrete details from the whole day rather than reciting a list.
         - Weather, Body, and Inner Weather together may occupy at most one short paragraph when non-log pages exist.
         - End with exactly one sentence beginning "The Book kept the page:".
+        \(scoreSection)
 
-        COMPLETE LEDGER — ALL \(day.capturedPages.count) KEPT PAGES:
+        COMPLETE LEDGER — ALL \(braidEligiblePages(in: day).count) BRAID-ELIGIBLE KEPT PAGES:
         \(evidence)
 
         REJECTED FIRST DRAFT:
@@ -4616,8 +9671,38 @@ enum BraidPromptBuilder {
         supportingLogTypes.contains(page.type)
     }
 
+    /// Welcome letters and help/setup pages belong to the Book's furniture, not
+    /// to the reader's lived day. They stay in the archive but never become
+    /// nightly narrative evidence.
+    static func isBraidEligible(_ page: BookPage) -> Bool {
+        page.type != .welcome && page.type != .helpTips
+    }
+
+    static func braidEligiblePages(in day: BookDay) -> [BookPage] {
+        day.capturedPages.filter(isBraidEligible)
+    }
+
+    /// Fallback prose must never expose a chopped word such as `whe.` or `co.`.
+    /// Collapse whitespace, then retreat to the last whole-word boundary.
+    static func fallbackExcerpt(_ text: String, limit: Int = 120) -> String {
+        let normalized = text
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        guard normalized.count > limit else { return normalized }
+
+        let limitIndex = normalized.index(normalized.startIndex, offsetBy: limit)
+        let prefix = normalized[..<limitIndex]
+        guard let boundary = prefix.lastIndex(where: { $0.isWhitespace }) else {
+            return String(prefix) + "…"
+        }
+        let wholeWords = prefix[..<boundary]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return wholeWords + "…"
+    }
+
     static func partitionedPagesForBraid(in day: BookDay) -> (story: [BookPage], supportingLogs: [BookPage]) {
-        let sorted = day.capturedPages.sorted { $0.createdAt < $1.createdAt }
+        let sorted = braidEligiblePages(in: day).sorted { $0.createdAt < $1.createdAt }
         return (
             story: sorted.filter { !isSupportingLog($0) },
             supportingLogs: sorted.filter(isSupportingLog)
@@ -4691,6 +9776,9 @@ enum BraidOutputAudit {
         case missingTruthAnchor
         case tooFewEvidenceThreads
         case supportingLogsTookOver
+        case storyScoreDrift
+        case missingRelationalLens
+        case arcMovementLost
 
         var repairInstruction: String {
             switch self {
@@ -4706,6 +9794,12 @@ enum BraidOutputAudit {
                 return "Weave distinct concrete details from more than one non-log kept page."
             case .supportingLogsTookOver:
                 return "Move Weather, Body, and Inner Weather to the edge; let the non-log keeps own the spine, title, and ending."
+            case .storyScoreDrift:
+                return "Return to the selected lived anchors in the Nightly Story Score; they are the story's factual spine."
+            case .missingRelationalLens:
+                return "Dramatize the supplied relational lens through its concrete condition and outcome without naming analysis or causation."
+            case .arcMovementLost:
+                return "Make tonight's exact arc change legible; do not merely repeat the prior state or write a standalone summary."
             }
         }
     }
@@ -4755,6 +9849,34 @@ enum BraidOutputAudit {
         let anchorWords = contentWords(in: reading.anchor).subtracting(genericEvidenceWords)
         if anchorWords.count >= 2, outputWords.isDisjoint(with: anchorWords) {
             result.append(.missingTruthAnchor)
+        }
+        if let score = context.storyScore {
+            let matchedLived = score.livedBeats.filter { beat in
+                let words = contentWords(in: beat.excerpt).subtracting(genericEvidenceWords)
+                return words.isEmpty || !outputWords.isDisjoint(with: words)
+            }.count
+            let requiredLived: Int
+            switch score.taleReading.scale {
+            case .glimpse: requiredLived = min(1, score.livedBeats.count)
+            case .small: requiredLived = min(2, score.livedBeats.count)
+            case .full: requiredLived = min(3, score.livedBeats.count)
+            }
+            if matchedLived < requiredLived {
+                result.append(.storyScoreDrift)
+            }
+            if let lens = score.relationalLens, lens.evidenceTier != .glimmer {
+                let lensWords = contentWords(in: "\(lens.condition) \(lens.outcomes.joined(separator: " "))")
+                    .subtracting(genericEvidenceWords)
+                if lensWords.count >= 2, outputWords.isDisjoint(with: lensWords) {
+                    result.append(.missingRelationalLens)
+                }
+            }
+            if let arc = score.arc {
+                let arcWords = contentWords(in: arc.tonightDelta).subtracting(genericEvidenceWords)
+                if arcWords.count >= 2, outputWords.isDisjoint(with: arcWords) {
+                    result.append(.arcMovementLost)
+                }
+            }
         }
 
         let storyPages = BraidPromptBuilder.partitionedPagesForBraid(in: day).story
@@ -4810,7 +9932,7 @@ enum BraidOutputAudit {
 }
 
 struct BraidPageDetails: Equatable {
-    static let promptVersion = "book-of-you-braid-v2"
+    static let promptVersion = "book-of-you-braid-v3-story-score"
     static let headerPrefix = "Tags:"
 
     var title: String
@@ -5024,6 +10146,9 @@ struct BraidPageDetails: Equatable {
 
         var tags = Set(updated.tags)
         tags.insert("braid-v2")
+        if context.storyScore != nil {
+            tags.insert("braid-story-score-v3")
+        }
         if let headerContext {
             tags = tags.filter {
                 !$0.hasPrefix("braid-time:")
@@ -5114,6 +10239,12 @@ struct BookOfYouResidue: Equatable {
     static let questionPrefix = "residue-question:"
     static let callbackPrefix = "residue-callback:"
     static let semanticEchoPrefix = "residue-echo:"
+    static let arcIDPrefix = "residue-arc-id:"
+    static let arcMovementPrefix = "residue-arc-movement:"
+    static let arcDeltaPrefix = "residue-arc-delta:"
+    static let arcEvidencePrefix = "residue-arc-evidence:"
+    static let arcFictionPrefix = "residue-arc-fiction:"
+    static let relationalConnectionPrefix = "residue-relational:"
 
     var title: String
     var spineLine: String
@@ -5122,6 +10253,12 @@ struct BookOfYouResidue: Equatable {
     var semanticEchoIDs: [String]
     var openedQuestion: String?
     var callbackCandidate: String?
+    var arcID: String? = nil
+    var arcMovement: BraidPromptBuilder.ArcMovement? = nil
+    var arcDelta: String? = nil
+    var arcEvidencePageIDs: [String] = []
+    var arcFictionChoicePageIDs: [String] = []
+    var relationalConnectionIDs: [String] = []
 
     static func extract(from page: BookPage, context: BraidPromptBuilder.Context = .empty) -> BookOfYouResidue {
         let details = BraidPageDetails.details(for: page)
@@ -5154,7 +10291,15 @@ struct BookOfYouResidue: Equatable {
             motifs: motifs,
             semanticEchoIDs: Array(Set(echoes + context.semanticEchoSourceIDs)).sorted(),
             openedQuestion: question,
-            callbackCandidate: callback
+            callbackCandidate: callback,
+            arcID: context.storyScore?.arc?.id,
+            arcMovement: context.storyScore?.arc?.movement,
+            arcDelta: context.storyScore?.arc.map { clipped($0.tonightDelta, limit: 180) },
+            arcEvidencePageIDs: context.storyScore?.arc?.evidencePageIDs ?? [],
+            arcFictionChoicePageIDs: context.storyScore?.arc?.fictionChoicePageIDs ?? [],
+            relationalConnectionIDs: context.storyScore?.arc?.relationalConnectionIDs
+                ?? context.storyScore?.relationalLens.map { [$0.connectionID, $0.observationKey] }
+                ?? []
         )
     }
 
@@ -5170,7 +10315,14 @@ struct BookOfYouResidue: Equatable {
             motifs: values(motifPrefix, in: page.tags),
             semanticEchoIDs: values(semanticEchoPrefix, in: page.tags),
             openedQuestion: tagValue(questionPrefix, in: page.tags),
-            callbackCandidate: tagValue(callbackPrefix, in: page.tags)
+            callbackCandidate: tagValue(callbackPrefix, in: page.tags),
+            arcID: tagValue(arcIDPrefix, in: page.tags),
+            arcMovement: tagValue(arcMovementPrefix, in: page.tags)
+                .flatMap(BraidPromptBuilder.ArcMovement.init(rawValue:)),
+            arcDelta: tagValue(arcDeltaPrefix, in: page.tags),
+            arcEvidencePageIDs: values(arcEvidencePrefix, in: page.tags),
+            arcFictionChoicePageIDs: values(arcFictionPrefix, in: page.tags),
+            relationalConnectionIDs: values(relationalConnectionPrefix, in: page.tags)
         )
     }
 
@@ -5183,6 +10335,12 @@ struct BookOfYouResidue: Equatable {
                 && !tag.hasPrefix(Self.questionPrefix)
                 && !tag.hasPrefix(Self.callbackPrefix)
                 && !tag.hasPrefix(Self.semanticEchoPrefix)
+                && !tag.hasPrefix(Self.arcIDPrefix)
+                && !tag.hasPrefix(Self.arcMovementPrefix)
+                && !tag.hasPrefix(Self.arcDeltaPrefix)
+                && !tag.hasPrefix(Self.arcEvidencePrefix)
+                && !tag.hasPrefix(Self.arcFictionPrefix)
+                && !tag.hasPrefix(Self.relationalConnectionPrefix)
         }
         stamped.insert(Self.markerTag)
         stamped.insert(Self.titlePrefix + title)
@@ -5199,6 +10357,18 @@ struct BookOfYouResidue: Equatable {
         }
         for echoID in semanticEchoIDs.prefix(6) where !echoID.isEmpty {
             stamped.insert(Self.semanticEchoPrefix + echoID)
+        }
+        if let arcID, !arcID.isEmpty { stamped.insert(Self.arcIDPrefix + arcID) }
+        if let arcMovement { stamped.insert(Self.arcMovementPrefix + arcMovement.rawValue) }
+        if let arcDelta, !arcDelta.isEmpty { stamped.insert(Self.arcDeltaPrefix + arcDelta) }
+        for pageID in arcEvidencePageIDs.prefix(8) where !pageID.isEmpty {
+            stamped.insert(Self.arcEvidencePrefix + pageID)
+        }
+        for pageID in arcFictionChoicePageIDs.prefix(4) where !pageID.isEmpty {
+            stamped.insert(Self.arcFictionPrefix + pageID)
+        }
+        for connectionID in relationalConnectionIDs.prefix(4) where !connectionID.isEmpty {
+            stamped.insert(Self.relationalConnectionPrefix + connectionID)
         }
         return stamped
     }
@@ -5796,12 +10966,13 @@ enum BraidTastingRoom {
         var priorEcho: Int
         var themeAndChapter: Int
         var souvenirSpine: Int
+        var storyScoreFidelity: Int
         var keeperSentence: Int
         var concreteMagic: Int
         var penalties: Int
 
         var total: Int {
-            title + storyShape + priorEcho + themeAndChapter + souvenirSpine + keeperSentence + concreteMagic - penalties
+            title + storyShape + priorEcho + themeAndChapter + souvenirSpine + storyScoreFidelity + keeperSentence + concreteMagic - penalties
         }
 
         static func < (lhs: Score, rhs: Score) -> Bool {
@@ -5859,6 +11030,7 @@ enum BraidTastingRoom {
                 closingSentences: closingSentences,
                 context: context
             ),
+            storyScoreFidelity: storyScoreFidelityScore(normalized: normalized, context: context),
             keeperSentence: keeperSentenceScore(closingSentences, opening: paragraphs.first),
             concreteMagic: concreteMagicScore(normalized: normalized, sentences: sentences, context: context),
             penalties: penaltyScore(normalized: normalized, sentences: sentences, context: context)
@@ -5994,6 +11166,32 @@ enum BraidTastingRoom {
         let words = closing.split { $0.isWhitespace }.count
         guard (8...28).contains(words) else { return 5 }
         return 14 + callbackBonus(closing: closing, opening: opening)
+    }
+
+    private static func storyScoreFidelityScore(
+        normalized: String,
+        context: BraidPromptBuilder.Context
+    ) -> Int {
+        guard let score = context.storyScore else { return 6 }
+        let outputWords = Set(significantWords(normalized))
+        var value = 0
+        let livedMatches = score.livedBeats.filter { beat in
+            !outputWords.isDisjoint(with: significantWords(beat.excerpt))
+        }.count
+        value += min(9, livedMatches * 3)
+        if let fiction = score.fictionBeat {
+            let fictionWords = significantWords(fiction.choice)
+            if !outputWords.isDisjoint(with: fictionWords) { value += 3 }
+        }
+        if let lens = score.relationalLens {
+            let lensWords = significantWords("\(lens.condition) \(lens.outcomes.joined(separator: " "))")
+            if !outputWords.isDisjoint(with: lensWords) { value += 4 }
+        }
+        if let arc = score.arc {
+            let arcWords = significantWords(arc.tonightDelta)
+            if !outputWords.isDisjoint(with: arcWords) { value += 4 }
+        }
+        return min(20, value)
     }
 
     /// Reward the opening->closing loop: when the kept line carries a concrete
@@ -6135,6 +11333,369 @@ private extension String {
     }
 }
 
+protocol SensoryVectorEncoding {
+    var modelID: String { get }
+    func vector(for text: String) -> [Float]?
+}
+
+#if canImport(NaturalLanguage)
+/// Apple's sentence model gives words and Vision-produced descriptions one
+/// shared local language space. A future CLIP/SigLIP lane can sit beside this
+/// without invalidating the folios already kept.
+struct NaturalLanguageSensoryVectorEncoder: SensoryVectorEncoding {
+    private static let vectorLock = NSLock()
+
+    let modelID: String
+    private let embedding: NLEmbedding
+
+    init?(language: NLLanguage = .english) {
+        guard let embedding = NLEmbedding.sentenceEmbedding(for: language) else { return nil }
+        self.embedding = embedding
+        self.modelID = "NaturalLanguage.sentenceEmbedding.\(language.rawValue)"
+    }
+
+    func vector(for text: String) -> [Float]? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        Self.vectorLock.lock()
+        let values = embedding.vector(for: trimmed)
+        Self.vectorLock.unlock()
+        return values?.map(Float.init)
+    }
+}
+#endif
+
+enum SensoryFolioProjector {
+    private static let extractorID = "sensory-loom-v1"
+
+    #if canImport(NaturalLanguage)
+    private static let defaultEncoder = NaturalLanguageSensoryVectorEncoder()
+    #endif
+
+    /// Cheap enough for the immediate Keep: typed receipts arrive before any
+    /// embedding work and remain useful on devices without a sentence model.
+    static func structuredFolio(from page: BookPage) -> SensoryFolio {
+        var observations: [SensoryObservation] = []
+        let fingerprint = page.resolvedAttentionFingerprint
+
+        func append(
+            _ dimension: SensoryObservation.Dimension,
+            _ value: String?,
+            confidence: Float = 1
+        ) {
+            guard let normalized = value?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+                .nonEmpty else { return }
+            let observation = SensoryObservation(
+                dimension: dimension,
+                value: normalized,
+                confidence: min(1, max(0, confidence)),
+                extractorID: extractorID
+            )
+            if !observations.contains(observation) {
+                observations.append(observation)
+            }
+        }
+
+        for modality in fingerprint.modalities { append(.modality, modality) }
+        for subject in fingerprint.visualTokens.prefix(8) { append(.subject, subject, confidence: 0.72) }
+
+        for asset in page.mediaAssets {
+            let metadata = asset.metadata
+            splitMetadata(metadata["attentionLabels"]).prefix(8).forEach { append(.subject, $0, confidence: 0.72) }
+            splitMetadata(metadata["attentionMotifs"]).prefix(6).forEach { append(.subject, $0, confidence: 0.78) }
+            append(.palette, metadata["attentionColorMood"])
+            append(.brightness, metadata["attentionBrightness"])
+            append(.composition, metadata["attentionComposition"])
+            append(.visibleText, metadata["attentionVisibleText"], confidence: 0.82)
+            append(.voiceDuration, metadata["durationSeconds"])
+            append(.voiceRate, metadata["voiceRate"])
+            append(.voicePause, metadata["voicePause"])
+            append(.voicePitchRange, metadata["voicePitchRange"])
+            append(.voiceCadence, metadata["voiceCadence"])
+            append(.voiceEnergy, metadata["voiceEnergy"])
+        }
+
+        if let context = page.context {
+            context.weatherTags.forEach { append(.weather, $0) }
+            append(.dayPart, context.dayPart)
+            append(.place, context.nearbyAnchorID ?? context.locationLabel)
+            append(.innerWeather, context.innerWeatherEntryID)
+        }
+
+        return SensoryFolio(observations: observations, vectors: [])
+    }
+
+    /// Runs away from the rendered view. Each lane is embedded separately so
+    /// later readings can distinguish image-to-ink recognition from an ordinary
+    /// prose echo or a shared surrounding condition.
+    static func enrichedFolio(from page: BookPage) -> SensoryFolio {
+        #if canImport(NaturalLanguage)
+        return make(from: page, encoder: defaultEncoder)
+        #else
+        return structuredFolio(from: page)
+        #endif
+    }
+
+    static func make(from page: BookPage, encoder: SensoryVectorEncoding?) -> SensoryFolio {
+        var folio = structuredFolio(from: page)
+        let fingerprint = page.resolvedAttentionFingerprint
+        var vectors: [SensoryVector] = []
+
+        // Prosody is already a small, explicit numeric receipt. It does not
+        // require a language model, so it remains available on every device and
+        // is kept in a model/version lane of its own.
+        for asset in page.mediaAssets where asset.kind == .audioFile {
+            if let vector = acousticProsodyVector(from: asset.metadata) {
+                vectors.append(vector)
+            }
+        }
+        folio.vectors = vectors
+        guard let encoder else { return folio }
+
+        func add(_ kind: SensoryVector.Kind, text: String) {
+            guard let values = encoder.vector(for: text), !values.isEmpty else { return }
+            let vector = SensoryVector(kind: kind, modelID: encoder.modelID, values: values)
+            if !vector.values.isEmpty { vectors.append(vector) }
+        }
+
+        let language = [page.userInput, page.playerReply]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        if language.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).count >= 4 {
+            add(.languageSemantic, text: language)
+        }
+
+        let visual = page.mediaAssets.compactMap { asset -> String? in
+            guard asset.kind != .audioFile else { return nil }
+            let facts = [
+                asset.caption,
+                asset.metadata["attentionLabels"],
+                asset.metadata["attentionMotifs"],
+                asset.metadata["attentionSubject"],
+                asset.metadata["attentionScene"],
+                asset.metadata["attentionColorMood"],
+                asset.metadata["attentionBrightness"],
+                asset.metadata["attentionComposition"]
+            ].compactMap { $0?.nonEmpty }
+            return facts.isEmpty ? nil : facts.joined(separator: ", ")
+        }.joined(separator: ". ")
+        if !visual.isEmpty { add(.visualSemantic, text: visual) }
+
+        if fingerprint.modalities.contains("voice"), !language.isEmpty {
+            add(.voiceSemantic, text: language)
+        }
+        if !fingerprint.contextTokens.isEmpty {
+            add(.contextSemantic, text: fingerprint.contextTokens.joined(separator: " "))
+        }
+
+        folio.vectors = vectors
+        return folio
+    }
+
+    private static func acousticProsodyVector(from metadata: [String: String]) -> SensoryVector? {
+        func number(_ key: String) -> Double? {
+            metadata[key].flatMap(Double.init)
+        }
+        guard metadata["voiceAnalysisModel"] == VoiceCadenceReceipt.modelID,
+              let duration = number("durationSeconds"), duration > 0,
+              let activeRatio = number("voiceActiveRatio"),
+              let pauseCount = number("voicePauseCount"),
+              let meanPause = number("voiceMeanPauseSeconds"),
+              let meanPhrase = number("voiceMeanPhraseSeconds"),
+              let dynamicRange = number("voiceDynamicRangeDB"),
+              let meanPower = number("voiceMeanPowerDB") else { return nil }
+        let pausesPerMinute = pauseCount * 60 / duration
+        return SensoryVector(
+            kind: .acousticProsody,
+            modelID: VoiceCadenceReceipt.modelID,
+            values: [
+                Float(min(1, max(0, activeRatio))),
+                Float(min(1, max(0, pausesPerMinute / 12))),
+                Float(min(1, max(0, meanPause / 3))),
+                Float(min(1, max(0, meanPhrase / 6))),
+                Float(min(1, max(0, dynamicRange / 30))),
+                Float(min(1, max(0, (meanPower + 60) / 60)))
+            ]
+        )
+    }
+
+    private static func splitMetadata(_ value: String?) -> [String] {
+        value?
+            .split(whereSeparator: { $0 == "," || $0 == "|" })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
+    }
+}
+
+struct SensoryLoomConnection: Identifiable, Equatable {
+    var id: String
+    var motifID: String
+    var motifName: String
+    var line: String
+    var evidencePageIDs: [String]
+    var photographPageIDs: [String]
+    var prosePageIDs: [String]
+    var sharedContextTokens: [String]
+    var meanSimilarity: Double
+    var contrastGap: Double
+    var strength: Int
+    var firstSeenAt: Date
+    var lastSeenAt: Date
+
+    var signal: LiteraryContinuitySignal {
+        LiteraryContinuitySignal(
+            id: "sensory-\(motifID)",
+            kind: .sensory,
+            subjectID: motifID,
+            subjectName: motifName,
+            line: line,
+            evidencePageIDs: evidencePageIDs,
+            relatedEntityIDs: [],
+            tags: ["sensory", "cross-media", "photograph", "ink", motifID] + sharedContextTokens,
+            firstSeenAt: firstSeenAt,
+            lastSeenAt: lastSeenAt,
+            strength: strength
+        )
+    }
+}
+
+/// The first complete Loom reading: a visual motif whose local image-language
+/// vector repeatedly recognizes reader-authored prose on other days. The
+/// nearest matches must also beat the rest of the archive, preventing a merely
+/// generic photograph from declaring kinship with everything.
+enum SensoryLoom {
+    static let minimumSimilarity = 0.58
+    static let minimumContrastGap = 0.08
+    static let minimumEvidencePages = 3
+    static let minimumDistinctDays = 3
+
+    static func connections(
+        pages: [BookPage],
+        calendar: Calendar = .current
+    ) -> [SensoryLoomConnection] {
+        let eligible = unique(pages).filter { page in
+            (page.origin == .userAuthored || page.origin == .imported)
+                && !EditionCurator.defaultPrivateTypes.contains(page.type)
+        }
+        let prose = eligible.filter { page in
+            page.resolvedSensoryFolio.vector(.languageSemantic) != nil
+                && page.userInput.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).count >= 5
+        }
+        let photographs = eligible.filter { page in
+            page.resolvedSensoryFolio.modalities.contains("photo")
+                && page.resolvedSensoryFolio.vector(.visualSemantic) != nil
+        }
+        guard prose.count >= 4, !photographs.isEmpty else { return [] }
+
+        var candidates: [SensoryLoomConnection] = []
+        for photograph in photographs {
+            guard let visual = photograph.resolvedSensoryFolio.vector(.visualSemantic),
+                  let motif = motif(for: photograph) else { continue }
+            let scored = prose.compactMap { page -> (BookPage, Double)? in
+                guard page.id != photograph.id,
+                      let language = page.resolvedSensoryFolio.vector(.languageSemantic),
+                      let similarity = visual.cosineSimilarity(to: language) else { return nil }
+                return (page, similarity)
+            }.sorted { left, right in
+                if left.1 == right.1 { return left.0.createdAt < right.0.createdAt }
+                return left.1 > right.1
+            }
+            guard scored.count >= 4 else { continue }
+
+            let matches = Array(scored.filter { $0.1 >= minimumSimilarity }.prefix(4))
+            guard matches.count >= minimumEvidencePages - 1 else { continue }
+            let evidencePages = [photograph] + matches.map(\.0)
+            let distinctDays = Set(evidencePages.map { BookDay.id(for: $0.createdAt, calendar: calendar) })
+            guard distinctDays.count >= minimumDistinctDays else { continue }
+
+            let mean = matches.map(\.1).reduce(0, +) / Double(matches.count)
+            let remaining = scored.dropFirst(matches.count).map(\.1).sorted()
+            let baseline = remaining.isEmpty ? 0 : remaining[remaining.count / 2]
+            let gap = mean - baseline
+            guard gap >= minimumContrastGap else { continue }
+
+            let context = sharedContext(in: evidencePages)
+            let contextLine = context.first.map { " The same surrounding thread—\(readableContext($0))—was present too." } ?? ""
+            let line = "\(motif.name) first caught the Book's eye in a photograph. On other days, \(spelled(matches.count)) pages of ink gathered unusually close to the same meaning without needing the same picture.\(contextLine)"
+            let tier = min(9, evidencePages.count / 2)
+            let strength = min(88, 58 + Int((mean * 18).rounded()) + Int((gap * 45).rounded()) + distinctDays.count)
+            candidates.append(SensoryLoomConnection(
+                id: "sensory-\(motif.id)-e\(tier)",
+                motifID: motif.id,
+                motifName: motif.name,
+                line: line,
+                evidencePageIDs: evidencePages.sorted { $0.createdAt < $1.createdAt }.map(\.id),
+                photographPageIDs: [photograph.id],
+                prosePageIDs: matches.map(\.0.id),
+                sharedContextTokens: context,
+                meanSimilarity: mean,
+                contrastGap: gap,
+                strength: strength,
+                firstSeenAt: evidencePages.map(\.createdAt).min() ?? photograph.createdAt,
+                lastSeenAt: evidencePages.map(\.createdAt).max() ?? photograph.createdAt
+            ))
+        }
+
+        return candidates
+            .sorted { left, right in
+                if left.strength == right.strength { return left.id < right.id }
+                return left.strength > right.strength
+            }
+            .reduce(into: []) { result, candidate in
+                guard !result.contains(where: { $0.motifID == candidate.motifID }) else { return }
+                result.append(candidate)
+            }
+    }
+
+    private static func motif(for page: BookPage) -> (id: String, name: String)? {
+        let rejected: Set<String> = ["ordinary", "detail", "image", "photo", "photograph", "light", "scene"]
+        let raw = page.resolvedSensoryFolio.values(for: .subject)
+            .map(normalizedMotif)
+            .first { $0.count >= 4 && !rejected.contains($0) }
+            ?? page.resolvedAttentionFingerprint.visualTokens
+                .map(normalizedMotif)
+                .first { $0.count >= 4 && !rejected.contains($0) }
+        guard let raw else { return nil }
+        return ("sensory-\(raw)", raw.replacingOccurrences(of: "-", with: " ").capitalized)
+    }
+
+    private static func sharedContext(in pages: [BookPage]) -> [String] {
+        guard let first = pages.first else { return [] }
+        var shared = Set(first.resolvedAttentionFingerprint.contextTokens)
+        for page in pages.dropFirst() {
+            shared.formIntersection(page.resolvedAttentionFingerprint.contextTokens)
+        }
+        return shared.sorted()
+    }
+
+    private static func readableContext(_ token: String) -> String {
+        token
+            .replacingOccurrences(of: "weather-", with: "")
+            .replacingOccurrences(of: "hour-", with: "the ")
+            .replacingOccurrences(of: "anchor-", with: "")
+            .replacingOccurrences(of: "-", with: " ")
+    }
+
+    private static func normalizedMotif(_ value: String) -> String {
+        value.lowercased()
+            .replacingOccurrences(of: "_", with: "-")
+            .replacingOccurrences(of: " ", with: "-")
+            .trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+    }
+
+    private static func unique(_ pages: [BookPage]) -> [BookPage] {
+        var seen: Set<String> = []
+        return pages.filter { seen.insert($0.id).inserted }
+    }
+
+    private static func spelled(_ count: Int) -> String {
+        [0: "zero", 1: "one", 2: "two", 3: "three", 4: "four"][count] ?? "\(count)"
+    }
+}
+
 struct LiteraryContinuitySignal: Identifiable, Codable, Equatable {
     var id: String
     var kind: LiterarySignalKind
@@ -6228,7 +11789,8 @@ enum LiteraryContinuityProjector {
         let durations = durationSignals(pages: pages, lifecycles: lifecycles, now: now, calendar: calendar)
         let lifecycle = lifecycles.prefix(4).map { lifecycleSignal($0, now: now, calendar: calendar) }
         let manner = mannerSignals(pages: pages, now: now, calendar: calendar)
-        let signals = pattern + absences + durations + lifecycle + manner
+        let sensory = SensoryLoom.connections(pages: pages, calendar: calendar).map(\.signal)
+        let signals = pattern + absences + durations + lifecycle + manner + sensory
 
         return LiteraryContinuityDigest(
             signals: Array(signals.sorted { left, right in

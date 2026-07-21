@@ -31,12 +31,18 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertEqual(faeFi.assetName, "RadioFaeFiFaeFi")
         XCTAssertEqual(faeFi.durationSeconds, 185)
 
+        let lookTwice = try XCTUnwrap(station.tracks.first { $0.id == "fae-fi-look-twice" })
+        XCTAssertEqual(lookTwice.title, "Look Twice")
+        XCTAssertEqual(lookTwice.assetName, "RadioFaeFiLookTwice")
+        XCTAssertEqual(lookTwice.durationSeconds, 249)
+
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFaeFiInkHands.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFaeFiArtOfTheGlint.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFaeFiCrushedPixies.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFaeFiFaeFi.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFaeFiLookTwice.m4a").path))
     }
 
     func testFaeFiIncludesImportedPennyBanterBatch() throws {

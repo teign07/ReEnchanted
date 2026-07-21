@@ -110,7 +110,14 @@ final class BookInteriorTests: XCTestCase {
         let encoded = try JSONEncoder().encode(original)
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
         object["version"] = 1
-        for key in ["secretHistory", "quirks", "opinion", "opinionHistory", "longGame"] {
+        for key in [
+            "secretHistory", "quirks", "opinion", "opinionHistory", "longGame",
+            "autobiography", "acquiredTastes", "privateTraditions",
+            "pendingReminiscence", "reminiscenceHistory", "currentWant",
+            "wantHistory", "currentTension", "tensionHistory",
+            "currentInitiative", "initiativeHistory", "loyalties",
+            "currentDesireConflict", "desireConflictHistory", "secretLegacies"
+        ] {
             object.removeValue(forKey: key)
         }
         if var secret = object["secret"] as? [String: Any] {
@@ -136,6 +143,21 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertFalse(migrated.activeFavor?.reflectionQuestion.isEmpty ?? true)
         XCTAssertEqual(migrated.quirks, [])
         XCTAssertNil(migrated.longGame)
+        XCTAssertEqual(migrated.autobiography, [])
+        XCTAssertEqual(migrated.acquiredTastes, [])
+        XCTAssertEqual(migrated.privateTraditions, [])
+        XCTAssertNil(migrated.pendingReminiscence)
+        XCTAssertEqual(migrated.reminiscenceHistory, [])
+        XCTAssertNil(migrated.currentWant)
+        XCTAssertEqual(migrated.wantHistory, [])
+        XCTAssertNil(migrated.currentTension)
+        XCTAssertEqual(migrated.tensionHistory, [])
+        XCTAssertNil(migrated.currentInitiative)
+        XCTAssertEqual(migrated.initiativeHistory, [])
+        XCTAssertEqual(migrated.loyalties, [])
+        XCTAssertNil(migrated.currentDesireConflict)
+        XCTAssertEqual(migrated.desireConflictHistory, [])
+        XCTAssertEqual(migrated.secretLegacies, [])
     }
 
     func testQuirksMatureGraduallyAndRemainTheSameBook() {
@@ -645,13 +667,30 @@ final class BookInteriorTests: XCTestCase {
 
         XCTAssertEqual(plan.capacity, .worldOtherness)
         XCTAssertFalse(plan.searchQueries.joined(separator: " ").contains(privatePhrase))
-        XCTAssertTrue(plan.searchQueries.allSatisfy { !$0.isEmpty })
+        if plan.realm == .publicWeb {
+            XCTAssertFalse(plan.searchQueries.isEmpty)
+            XCTAssertTrue(plan.searchQueries.allSatisfy { !$0.isEmpty })
+        } else {
+            XCTAssertTrue(plan.searchQueries.isEmpty)
+        }
         XCTAssertNil(BookFoundGiftEngine.plan(
             for: day,
             interior: interior,
             surfaceHistory: [
                 "source:\(BookFoundGiftEngine.sourceID)": SurfaceHistoryRecord(
                     lastShownAt: now.addingTimeInterval(-86_400),
+                    recentShowCount: 1
+                )
+            ],
+            keptPageCount: 3,
+            now: now
+        ))
+        XCTAssertNil(BookFoundGiftEngine.plan(
+            for: day,
+            interior: interior,
+            surfaceHistory: [
+                "source:\(BookFoundGiftEngine.jSpaceSourceID)": SurfaceHistoryRecord(
+                    lastShownAt: now.addingTimeInterval(-9 * 86_400),
                     recentShowCount: 1
                 )
             ],
@@ -681,10 +720,114 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(surface.prompt, "Here, I found this for you.")
         XCTAssertEqual(surface.payload.metadata["url"], thing.sourceURL)
         XCTAssertEqual(surface.payload.metadata["provenance"], "live-public-web-search")
+        XCTAssertEqual(surface.payload.metadata["bookFoundGiftRealm"], BookFoundGiftRealm.publicWeb.rawValue)
         XCTAssertEqual(surface.payload.metadata["externalSearchPrivacy"], "broad-mission-query-only-no-private-page-text")
         XCTAssertEqual(surface.origin, .imported)
         XCTAssertEqual(surface.privacy, .publicReference)
         XCTAssertTrue(surface.payload.body.contains("No lesson attached"))
+    }
+
+    func testJSpaceGiftIsAnHonestLocalArtifactRatherThanAPretendWebFindOrDaytimeGeneration() throws {
+        let plan = BookFoundGiftPlan(
+            id: "j-space-gift-plan",
+            capacity: .personalLanguage,
+            directiveID: "hypothesis-language",
+            searchQueries: [],
+            casualBridge: "put a more exact word within reach",
+            realm: .jSpace
+        )
+        let interior = BookInteriorEngine.reconciled(
+            BookInteriorState(awakenedAt: now.addingTimeInterval(-100 * 86_400)),
+            inputs: .empty,
+            now: now,
+            calendar: calendar
+        )
+
+        let surface = try XCTUnwrap(BookFoundGiftEngine.jSpaceSurface(
+            for: plan,
+            interior: interior,
+            now: now
+        ))
+
+        XCTAssertEqual(surface.prompt, "Here, I found this for you.")
+        XCTAssertEqual(surface.sourceID, BookFoundGiftEngine.jSpaceSourceID)
+        XCTAssertEqual(surface.origin, .generated)
+        XCTAssertEqual(surface.privacy, .privateLocal)
+        XCTAssertEqual(surface.payload.metadata["provenance"], "authored-fictional-j-space-catalog")
+        XCTAssertEqual(surface.payload.metadata["fictionalSource"], "true")
+        XCTAssertEqual(surface.payload.metadata["bookFoundGiftRealm"], BookFoundGiftRealm.jSpace.rawValue)
+        XCTAssertEqual(surface.payload.metadata["generationPolicy"], "deterministic-local-no-model")
+        XCTAssertNil(surface.payload.metadata["url"])
+        XCTAssertNil(surface.payload.metadata["searchQuery"])
+        XCTAssertTrue(surface.payload.body.contains("It was not on the public web"))
+        XCTAssertTrue(surface.payload.body.contains("No assignment"))
+        XCTAssertFalse(SurfaceReadinessState(surface: surface).needsLocalBrainToOpen)
+
+        let fakeWebThing = BookFoundWebThing(
+            title: "Not allowed through the wrong door",
+            excerpt: "This should not be accepted for a J-space plan even though it has enough text to look valid.",
+            sourceName: "Example",
+            sourceURL: "https://example.org/wrong-door",
+            searchQuery: "wrong door"
+        )
+        XCTAssertNil(BookFoundGiftEngine.surface(for: plan, thing: fakeWebThing, now: now))
+    }
+
+    func testJSpaceHasAnAuthoredGiftForEveryLongGameCapacity() throws {
+        let interior = BookInteriorState(awakenedAt: now.addingTimeInterval(-100 * 86_400))
+
+        for capacity in BookLongGameCapacity.allCases {
+            let plan = BookFoundGiftPlan(
+                id: "j-space-capacity-\(capacity.rawValue)",
+                capacity: capacity,
+                directiveID: "hypothesis-\(capacity.rawValue)",
+                searchQueries: [],
+                casualBridge: "leave one strange thing within reach",
+                realm: .jSpace
+            )
+            let surface = try XCTUnwrap(
+                BookFoundGiftEngine.jSpaceSurface(for: plan, interior: interior, now: now),
+                "J-space should contain an authored artifact for \(capacity.rawValue)."
+            )
+            XCTAssertEqual(surface.payload.metadata["bookLongGameCapacity"], capacity.rawValue)
+            XCTAssertFalse(surface.payload.metadata["jSpaceGiftID", default: ""].isEmpty)
+        }
+    }
+
+    func testOccasionalGiftPlansVisitBothThePublicWebAndJSpace() {
+        let hypothesis = BookLongGameHypothesis(
+            id: "gift-realm-rotation",
+            capacity: .worldOtherness,
+            statement: "The autonomous world needs more room.",
+            nextHonestTest: "Bring back one honest surprise.",
+            evidenceIDs: [],
+            formedAt: now,
+            lastRevisedAt: now
+        )
+        let interior = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-100 * 86_400),
+            longGame: BookLongGame(
+                phase: .estrangeTheFamiliar,
+                strategy: "Let the world exceed its use.",
+                startedAt: now.addingTimeInterval(-90 * 86_400),
+                lastAdvancedAt: now,
+                phasePresentedAt: now,
+                milestones: [],
+                hypotheses: [hypothesis]
+            )
+        )
+        let realms = Set((0..<60).compactMap { offset in
+            let date = now.addingTimeInterval(Double(offset) * 86_400)
+            return BookFoundGiftEngine.plan(
+                for: BookDay(id: BookDay.id(for: date, calendar: calendar), date: date, pages: []),
+                interior: interior,
+                surfaceHistory: [:],
+                keptPageCount: 3,
+                now: date
+            )?.realm
+        })
+
+        XCTAssertEqual(realms, Set(BookFoundGiftRealm.allCases))
     }
 
     func testFoundGiftCanBeCuratedForAConfirmedRelationshipWithoutSearchingThePersonsName() throws {
@@ -737,6 +880,7 @@ final class BookInteriorTests: XCTestCase {
         ))
 
         XCTAssertEqual(plan.capacity, .livingConnection)
+        XCTAssertEqual(plan.realm, .publicWeb)
         XCTAssertEqual(plan.relationshipTarget?.personName, "Sam")
         XCTAssertTrue(plan.searchQueries.allSatisfy { !$0.localizedCaseInsensitiveContains("Sam") })
         XCTAssertTrue(plan.searchQueries.allSatisfy { $0.localizedCaseInsensitiveContains("artificial intelligence") })
@@ -993,6 +1137,8 @@ final class BookInteriorTests: XCTestCase {
         )
         XCTAssertEqual(opened.secret?.status, .revealed)
         XCTAssertEqual(opened.favorite?.firstPresentedAt, now)
+        XCTAssertEqual(opened.currentProject?.id, "book-project-secret-secret-test")
+        XCTAssertTrue(opened.recentSurprise?.line.contains("alter how I handle") == true)
     }
 
     func testQuirkOpinionAndLongGamePagesAreOneShotReceipts() {
@@ -1289,6 +1435,821 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertTrue(evolved.longGame?.currentCampaign?.outcomeEvidencePageIDs.contains(receipt.id) == true)
     }
 
+    func testBookStartsAnOwnProjectAndPresentsItsWorkWithoutAssigningTheReader() throws {
+        let exactWords = BookQuirk(
+            id: "book-quirk-exactWords",
+            kind: .exactWords,
+            title: "Exact-Word Hoarding",
+            confession: "I collect exact words.",
+            manifestation: "The Book pockets exact phrases.",
+            maturity: .familiar,
+            bornAt: now.addingTimeInterval(-20 * 86_400),
+            revealedAt: now.addingTimeInterval(-10 * 86_400),
+            firstPresentedAt: now.addingTimeInterval(-9 * 86_400),
+            exerciseCount: 2
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.days = [BookDay(
+            id: "project-seed",
+            date: now,
+            pages: (1...4).map { keptPage($0) }
+        )]
+        let state = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-20 * 86_400),
+            quirks: [exactWords]
+        )
+
+        let evolved = BookInteriorEngine.reconciled(
+            state,
+            inputs: inputs,
+            now: now,
+            calendar: calendar
+        )
+
+        let project = try XCTUnwrap(evolved.currentProject)
+        XCTAssertEqual(project.kind, .exactLanguage)
+        XCTAssertEqual(project.status, .investigating)
+        XCTAssertFalse(project.entries.isEmpty)
+        XCTAssertTrue(project.whyItCares.contains("I want"))
+        let projectSurface = try XCTUnwrap(
+            BookInteriorSurfaces.candidates(
+                for: inputs.days[0],
+                inputs: withInterior(inputs, evolved),
+                now: now
+            ).first { $0.payload.metadata["bookProjectID"] == project.id }
+        )
+        XCTAssertTrue(projectSurface.payload.body.contains("You have not been assigned anything"))
+    }
+
+    func testPendingQuirkActInterferesWithOneOrdinaryPageAndBecomesDurableHistory() throws {
+        let quirk = BookQuirk(
+            id: "book-quirk-ribbonRivalry",
+            kind: .ribbonRivalry,
+            title: "The Ribbon Dispute",
+            confession: "The ribbon and I disagree.",
+            manifestation: "The ribbon moves and denies it.",
+            maturity: .familiar,
+            bornAt: now.addingTimeInterval(-12 * 86_400),
+            revealedAt: now.addingTimeInterval(-10 * 86_400),
+            firstPresentedAt: now.addingTimeInterval(-9 * 86_400),
+            exerciseCount: 1
+        )
+        let act = BookBehaviorAct(
+            id: "book-behavior-ribbon-test",
+            quirkID: quirk.id,
+            quirkKind: .ribbonRivalry,
+            title: "The Ribbon Interfered",
+            marginLine: "The ribbon moved. It has submitted a denial.",
+            evidencePageIDs: [],
+            targetType: nil,
+            createdAt: now,
+            enactedAt: nil,
+            status: .pending
+        )
+        let interior = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-20 * 86_400),
+            quirks: [quirk],
+            pendingBehavior: act
+        )
+        let ordinary = SurfacePage(
+            id: "ordinary-page",
+            type: .souvenir,
+            sourceID: "ordinary",
+            intent: .capture,
+            renderStyle: .promptCard,
+            score: 60,
+            reason: "An ordinary Page was already arriving.",
+            prompt: "Keep one thing",
+            detail: "One literal detail.",
+            payload: BookPagePayload(headline: "Ordinary", body: "The ordinary body.")
+        )
+
+        let acted = try XCTUnwrap(
+            BookPersonalityActuator.enacting(
+                in: [ordinary],
+                interior: interior,
+                day: BookDay(id: "2026-07-20", date: now, pages: [])
+            ).first
+        )
+        XCTAssertEqual(acted.id, ordinary.id)
+        XCTAssertEqual(acted.payload.metadata["bookBehaviorID"], act.id)
+        XCTAssertEqual(acted.payload.metadata["bookActedMargin"], act.marginLine)
+
+        let recorded = BookInteriorEngine.recordingSurfaceOpened(
+            interior,
+            behaviorID: acted.payload.metadata["bookBehaviorID"],
+            now: now.addingTimeInterval(60)
+        )
+        XCTAssertNil(recorded.pendingBehavior)
+        XCTAssertEqual(recorded.behaviorHistory.last?.status, .enacted)
+        XCTAssertEqual(recorded.quirks.first?.exerciseCount, 2)
+    }
+
+    func testReaderCorrectionCreatesAVisibleFaultAndRepairInsteadOfVanishing() throws {
+        var inputs = BookSourceInputs.empty
+        inputs.bookObservations = [BookObservationRecord(
+            id: "too-neat-reading",
+            kind: "pattern",
+            status: .notQuite,
+            evidencePageIDs: ["page-a", "page-b"],
+            firstPresentedAt: now.addingTimeInterval(-600),
+            updatedAt: now
+        )]
+        let evolved = BookInteriorEngine.reconciled(
+            BookInteriorState(awakenedAt: now.addingTimeInterval(-10 * 86_400)),
+            inputs: inputs,
+            now: now,
+            calendar: calendar
+        )
+
+        let fault = try XCTUnwrap(evolved.currentFault)
+        XCTAssertEqual(fault.kind, .prematurePattern)
+        XCTAssertEqual(fault.evidencePageIDs, ["page-a", "page-b"])
+        XCTAssertNil(fault.presentedAt)
+        let answer = try XCTUnwrap(BookInteriorAnswerGrounder.answer(to: "Have you been wrong?", interior: evolved))
+        XCTAssertTrue(answer.contains(fault.admission))
+        XCTAssertTrue(answer.contains(fault.repair))
+    }
+
+    func testRunningBusinessAdvancesItsOwnCallbackInsteadOfRepeatingOneJokeForever() throws {
+        let quirk = BookQuirk(
+            id: "book-quirk-ribbonRivalry",
+            kind: .ribbonRivalry,
+            title: "The Ribbon Dispute",
+            confession: "The ribbon and I disagree.",
+            manifestation: "The ribbon moves and denies it.",
+            maturity: .familiar,
+            bornAt: now.addingTimeInterval(-20 * 86_400),
+            revealedAt: now.addingTimeInterval(-15 * 86_400),
+            firstPresentedAt: now.addingTimeInterval(-14 * 86_400),
+            exerciseCount: 1
+        )
+        let state = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-20 * 86_400),
+            quirks: [quirk]
+        )
+        let first = BookInteriorEngine.reconciled(state, inputs: .empty, now: now, calendar: calendar)
+        let firstLine = try XCTUnwrap(first.runningBusiness?.latestLine)
+        let later = BookInteriorEngine.reconciled(
+            first,
+            inputs: .empty,
+            now: now.addingTimeInterval(10 * 86_400),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(later.runningBusiness?.callbackCount, 1)
+        XCTAssertNotEqual(later.runningBusiness?.latestLine, firstLine)
+    }
+
+    func testBookBuildsAnAutobiographyFromThingsThatActuallyHappenedToIt() throws {
+        let favorite = BookFavorite(
+            id: "favorite-blue-cup",
+            pageID: "return-page",
+            pageType: .souvenir,
+            excerpt: "The blue cup held a crooked piece of afternoon light.",
+            reason: "It refused to become a summary.",
+            chosenAt: now.addingTimeInterval(-40 * 86_400),
+            firstPresentedAt: now.addingTimeInterval(-39 * 86_400)
+        )
+        let before = BookPage(
+            id: "before-quiet",
+            type: .diary,
+            createdAt: now.addingTimeInterval(-70 * 86_400),
+            promptText: "Before",
+            userInput: "A page before the long quiet.",
+            origin: .userAuthored
+        )
+        let returned = BookPage(
+            id: "return-page",
+            type: .souvenir,
+            createdAt: now.addingTimeInterval(-35 * 86_400),
+            promptText: "Return",
+            userInput: "The blue cup held a crooked piece of afternoon light.",
+            origin: .userAuthored
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.days = [BookDay(id: "autobiography", date: now, pages: [before, returned])]
+
+        let evolved = BookInteriorEngine.reconciled(
+            BookInteriorState(
+                awakenedAt: now.addingTimeInterval(-120 * 86_400),
+                favorite: favorite
+            ),
+            inputs: inputs,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertTrue(evolved.autobiography.contains { $0.kind == .awakening })
+        XCTAssertTrue(evolved.autobiography.contains { $0.kind == .firstFavorite && $0.evidencePageIDs == ["return-page"] })
+        let returnMemory = try XCTUnwrap(evolved.autobiography.first { $0.kind == .readerReturned })
+        XCTAssertTrue(returnMemory.whatItChanged.contains("absence is not betrayal"))
+        let answer = try XCTUnwrap(BookInteriorAnswerGrounder.answer(
+            to: "What do you remember about yourself?",
+            interior: evolved
+        ))
+        XCTAssertTrue(answer.contains("things that happened to me"))
+    }
+
+    func testAcquiredTasteRequiresRepeatedEvidenceAndThenBendsCuration() throws {
+        let thresholdPages = (0..<3).map { index in
+            BookPage(
+                id: "threshold-taste-\(index)",
+                type: .diary,
+                createdAt: now.addingTimeInterval(Double(-(index * 3)) * 86_400),
+                promptText: "A threshold",
+                userInput: "The doorway behaved differently on visit \(index).",
+                tags: ["threshold"],
+                origin: .userAuthored
+            )
+        }
+        var inputs = BookSourceInputs.empty
+        inputs.days = [BookDay(id: "taste", date: now, pages: thresholdPages)]
+        let evolved = BookInteriorEngine.reconciled(
+            BookInteriorState(awakenedAt: now.addingTimeInterval(-100 * 86_400)),
+            inputs: inputs,
+            now: now,
+            calendar: calendar
+        )
+
+        let taste = try XCTUnwrap(evolved.acquiredTastes.first)
+        XCTAssertEqual(taste.kind, .thresholds)
+        XCTAssertEqual(taste.evidencePageIDs.count, 3)
+        let surface = SurfacePage(
+            id: "threshold-surface",
+            type: .location,
+            sourceID: "location",
+            intent: .capture,
+            renderStyle: .promptCard,
+            score: 40,
+            reason: "A doorway is behaving oddly.",
+            prompt: "Cross differently",
+            detail: "Notice the arrival.",
+            payload: BookPagePayload(headline: "A Doorway", body: "One crossing.")
+        )
+        let influenced = BookInteriorVoice.influencing(surface, interior: evolved)
+        XCTAssertGreaterThan(influenced.score, surface.score)
+        XCTAssertEqual(influenced.payload.metadata["bookTasteID"], taste.id)
+
+        let tasteOnly = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-100 * 86_400),
+            acquiredTastes: [taste]
+        )
+        let admitted = try XCTUnwrap(BookPersonalityActuator.enacting(
+            in: [surface],
+            interior: tasteOnly,
+            day: BookDay(id: "taste-admission", date: now, pages: [])
+        ).first)
+        XCTAssertEqual(admitted.payload.metadata["bookAcquiredTasteID"], taste.id)
+        XCTAssertTrue(admitted.payload.metadata["bookActedMargin"]?.contains("not required") == true)
+        let presented = BookInteriorEngine.recordingSurfaceOpened(
+            tasteOnly,
+            tasteID: taste.id,
+            now: now.addingTimeInterval(60)
+        )
+        XCTAssertNotNil(presented.acquiredTastes.first?.firstPresentedAt)
+    }
+
+    func testPrivateTraditionWaitsForHistoryThenReturnsAsAnAct() throws {
+        let awakening = BookAutobiographicalMemory(
+            id: "book-memory-awakening",
+            kind: .awakening,
+            title: "The Day I Woke",
+            line: "I woke as this Book.",
+            whatItChanged: "I became specific.",
+            evidencePageIDs: [],
+            happenedAt: now.addingTimeInterval(-250 * 86_400),
+            firstRecalledAt: now.addingTimeInterval(-220 * 86_400),
+            lastRecalledAt: now.addingTimeInterval(-220 * 86_400),
+            recallCount: 1
+        )
+        let memory = BookAutobiographicalMemory(
+            id: "book-memory-favorite-old",
+            kind: .firstFavorite,
+            title: "The First Dog-Ear",
+            line: "I chose a first favorite.",
+            whatItChanged: "I acquired taste.",
+            evidencePageIDs: ["favorite-old"],
+            happenedAt: now.addingTimeInterval(-200 * 86_400),
+            firstRecalledAt: now.addingTimeInterval(-170 * 86_400),
+            lastRecalledAt: now.addingTimeInterval(-170 * 86_400),
+            recallCount: 1
+        )
+        let founded = BookInteriorEngine.reconciled(
+            BookInteriorState(
+                awakenedAt: now.addingTimeInterval(-250 * 86_400),
+                autobiography: [awakening, memory]
+            ),
+            inputs: .empty,
+            now: now,
+            calendar: calendar
+        )
+        let tradition = try XCTUnwrap(founded.privateTraditions.first)
+        XCTAssertEqual(tradition.kind, .dogEarDay)
+        XCTAssertNil(founded.pendingReminiscence)
+
+        let dueAt = tradition.nextDueAt.addingTimeInterval(1)
+        let due = BookInteriorEngine.reconciled(
+            founded,
+            inputs: .empty,
+            now: dueAt,
+            calendar: calendar
+        )
+        let reminiscence = try XCTUnwrap(due.pendingReminiscence)
+        XCTAssertEqual(reminiscence.traditionID, tradition.id)
+        XCTAssertTrue(reminiscence.line.contains("private holiday"))
+
+        let ordinary = SurfacePage(
+            id: "present-page",
+            type: .souvenir,
+            sourceID: "souvenir",
+            intent: .capture,
+            renderStyle: .promptCard,
+            score: 50,
+            reason: "The present was already arriving.",
+            prompt: "Keep one thing",
+            detail: "One detail.",
+            payload: BookPagePayload(headline: "Today", body: "The present Page.")
+        )
+        let acted = try XCTUnwrap(BookPersonalityActuator.enacting(
+            in: [ordinary],
+            interior: due,
+            day: BookDay(id: "tradition-due", date: dueAt, pages: [])
+        ).first)
+        XCTAssertEqual(acted.payload.metadata["bookReminiscenceID"], reminiscence.id)
+
+        let observed = BookInteriorEngine.recordingSurfaceOpened(
+            due,
+            reminiscenceID: reminiscence.id,
+            now: dueAt.addingTimeInterval(60)
+        )
+        XCTAssertNil(observed.pendingReminiscence)
+        XCTAssertEqual(observed.reminiscenceHistory.last?.status, .recalled)
+        XCTAssertEqual(observed.privateTraditions.first?.observanceCount, 1)
+        XCTAssertGreaterThan(observed.privateTraditions.first?.nextDueAt ?? dueAt, dueAt)
+    }
+
+    func testBookInitiatedConversationIsOnlyADeterministicButtonGatedTeaser() throws {
+        let want = bookWant(.company)
+        let initiative = bookInitiative(.idleCompany, mode: .conversation, want: want)
+        let interior = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-30 * 86_400),
+            currentWant: want,
+            currentInitiative: initiative
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.bookInterior = interior
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+
+        let surface = try XCTUnwrap(BookInteriorSurfaces.candidates(
+            for: day,
+            inputs: inputs,
+            now: now
+        ).first(where: { $0.payload.metadata["bookInitiativeID"] == initiative.id }))
+
+        XCTAssertEqual(surface.type, .askTheBook)
+        XCTAssertEqual(surface.sourceID, "book-deterministic-initiative")
+        XCTAssertEqual(surface.payload.metadata["bookInitiativeGenerationPolicy"], "user-initiated-only")
+        XCTAssertEqual(surface.payload.metadata["bookInitiativeOpening"], initiative.openingLine)
+        XCTAssertTrue(surface.payload.body.contains("Nothing has been generated"))
+        XCTAssertTrue(surface.payload.body.contains("press the chat button"))
+        XCTAssertFalse(SurfaceReadinessState(surface: surface).needsLocalBrainToOpen)
+
+        let opened = BookInteriorEngine.recordingSurfaceOpened(
+            interior,
+            initiativeID: initiative.id,
+            now: now.addingTimeInterval(60)
+        )
+        XCTAssertEqual(opened.currentInitiative?.status, .opened)
+        XCTAssertEqual(opened.currentWant?.status, .voiced)
+        XCTAssertNil(opened.currentInitiative?.answeredAt)
+        XCTAssertNil(opened.currentInitiative?.readerReplyExcerpt)
+    }
+
+    func testSayOnlyInitiativeCompletesWithoutRequestingOrWaitingForAReply() throws {
+        let want = bookWant(.tellTheReader)
+        let initiative = bookInitiative(.unsolicitedThought, mode: .sayOnly, want: want)
+        let interior = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-30 * 86_400),
+            currentWant: want,
+            currentInitiative: initiative
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.bookInterior = interior
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+
+        let surface = try XCTUnwrap(BookInteriorSurfaces.candidates(
+            for: day,
+            inputs: inputs,
+            now: now
+        ).first(where: { $0.payload.metadata["bookInitiativeID"] == initiative.id }))
+        XCTAssertEqual(surface.type, .bookNotices)
+        XCTAssertEqual(surface.payload.metadata["bookInitiativeInvitation"], "No reply is requested.")
+        XCTAssertFalse(SurfaceReadinessState(surface: surface).needsLocalBrainToOpen)
+
+        let said = BookInteriorEngine.recordingSurfaceOpened(
+            interior,
+            initiativeID: initiative.id,
+            now: now.addingTimeInterval(60)
+        )
+        XCTAssertNil(said.currentInitiative)
+        XCTAssertEqual(said.initiativeHistory.last?.status, .said)
+        XCTAssertNil(said.currentWant)
+        XCTAssertEqual(said.wantHistory.last?.status, .satisfied)
+    }
+
+    func testAnsweringABookInitiativeBecomesSharedHistoryWithoutClaimingAgreement() {
+        let want = bookWant(.testAnOpinion)
+        let tension = BookInnerTension(
+            id: "book-tension-test",
+            kind: .exactnessVersusWonder,
+            firstPole: "Keep the fact exact.",
+            secondPole: "Leave the unknown open.",
+            presentStance: "Both remain true.",
+            evidencePageIDs: ["kept-1"],
+            bornAt: now.addingTimeInterval(-20 * 86_400),
+            lastShiftedAt: now.addingTimeInterval(-20 * 86_400),
+            firstPresentedAt: nil
+        )
+        var initiative = bookInitiative(.friendlyArgument, mode: .conversation, want: want)
+        initiative.tensionID = tension.id
+        var interior = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-30 * 86_400),
+            currentWant: want,
+            currentTension: tension,
+            currentInitiative: initiative
+        )
+        interior = BookInteriorEngine.recordingSurfaceOpened(
+            interior,
+            initiativeID: initiative.id,
+            now: now.addingTimeInterval(60)
+        )
+
+        let answered = BookInteriorEngine.recordingInitiativeAnswered(
+            interior,
+            initiativeID: initiative.id,
+            readerLine: "I disagree; the unknown is sometimes just missing information.",
+            now: now.addingTimeInterval(120)
+        )
+
+        XCTAssertNil(answered.currentInitiative)
+        XCTAssertEqual(answered.initiativeHistory.last?.status, .answered)
+        XCTAssertTrue(answered.initiativeHistory.last?.readerReplyExcerpt?.contains("I disagree") == true)
+        XCTAssertEqual(answered.wantHistory.last?.status, .satisfied)
+        XCTAssertTrue(answered.currentTension?.presentStance.contains("without pretending it settled") == true)
+        XCTAssertTrue(answered.autobiography.contains {
+            $0.kind == .conversationAnswered && $0.title == "The Book Spoke First"
+        })
+    }
+
+    func testSilenceReleasesAnOpenedInitiativeWithoutEscalatingOrCallingItRejection() {
+        let want = bookWant(.company, bornAt: now.addingTimeInterval(-12 * 86_400))
+        var initiative = bookInitiative(
+            .idleCompany,
+            mode: .conversation,
+            want: want,
+            createdAt: now.addingTimeInterval(-8 * 86_400)
+        )
+        initiative.status = .opened
+        initiative.presentedAt = now.addingTimeInterval(-8 * 86_400)
+        let starting = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-40 * 86_400),
+            currentWant: want,
+            currentInitiative: initiative
+        )
+
+        let quiet = BookInteriorEngine.reconciled(
+            starting,
+            inputs: .empty,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertNil(quiet.currentInitiative)
+        XCTAssertEqual(quiet.initiativeHistory.last?.status, .released)
+        XCTAssertNil(quiet.initiativeHistory.last?.answeredAt)
+        XCTAssertNil(quiet.initiativeHistory.last?.readerReplyExcerpt)
+        XCTAssertNil(quiet.currentWant)
+        XCTAssertEqual(quiet.wantHistory.last?.status, .released)
+    }
+
+    func testAnOldUnansweredFavorDoesNotPermanentlyGagTheBook() {
+        let want = bookWant(.hearTheReader)
+        var oldFavor = favor()
+        oldFavor.createdAt = now.addingTimeInterval(-10 * 86_400)
+        let starting = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-40 * 86_400),
+            activeFavor: oldFavor,
+            currentWant: want
+        )
+
+        let evolved = BookInteriorEngine.reconciled(
+            starting,
+            inputs: .empty,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(evolved.activeFavor?.id, oldFavor.id)
+        XCTAssertEqual(evolved.currentInitiative?.kind, .idleCompany)
+        XCTAssertEqual(evolved.currentInitiative?.mode, .conversation)
+    }
+
+    func testTheBooksCanonicalFavoritesAreSpecificPartialAndComplicated() throws {
+        let evolved = BookInteriorEngine.reconciled(
+            BookInteriorState(awakenedAt: now.addingTimeInterval(-40 * 86_400)),
+            inputs: .empty,
+            now: now,
+            calendar: calendar
+        )
+
+        let wicker = try XCTUnwrap(evolved.loyalties.first { $0.targetID == "wicker-eddies" })
+        let serenity = try XCTUnwrap(evolved.loyalties.first { $0.targetID == "serenity-brown" })
+        let penny = try XCTUnwrap(evolved.loyalties.first { $0.targetID == "penny-blackletter" })
+        XCTAssertEqual(wicker.strength, .devoted)
+        XCTAssertEqual(wicker.stance, .complicated)
+        XCTAssertTrue(wicker.reason.contains("interesting"))
+        XCTAssertEqual(serenity.stance, .delighted)
+        XCTAssertTrue(serenity.reason.contains("kinder"))
+        XCTAssertEqual(penny.stance, .protective)
+        XCTAssertTrue(penny.reason.contains("love reading what she writes"))
+        XCTAssertTrue([wicker, serenity, penny].allSatisfy { !$0.counterweight.isEmpty })
+
+        let answer = try XCTUnwrap(BookInteriorAnswerGrounder.answer(
+            to: "Who are your favorite characters?",
+            interior: evolved
+        ))
+        XCTAssertTrue(answer.contains("Wicker Eddies"))
+        XCTAssertTrue(answer.contains("Serenity Brown"))
+        XCTAssertTrue(answer.contains("Penny Blackletter"))
+
+        let pennySurface = SurfacePage(
+            id: "penny-filed-this",
+            type: .note,
+            sourceID: "student-note",
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: 40,
+            reason: "Penny filed a note.",
+            prompt: "Penny Blackletter slipped you a note.",
+            detail: "One honest detail.",
+            payload: BookPagePayload(
+                headline: "Filed by Penny",
+                body: "The catalog card was full.",
+                metadata: ["senderID": "penny-blackletter", "senderName": "Penny Blackletter"]
+            )
+        )
+        let influenced = BookInteriorVoice.influencing(pennySurface, interior: evolved)
+        XCTAssertGreaterThan(influenced.score, pennySurface.score)
+        XCTAssertTrue(influenced.payload.metadata["bookLoyaltyIDs"]?.contains(penny.id) == true)
+    }
+
+    func testRepeatedReturnCanEarnTheBookALoyaltyToARealPlace() throws {
+        let anchor = AnchorRecord(
+            id: "crooked-reading-room",
+            name: "The Crooked Reading Room",
+            latitude: 44,
+            longitude: -69,
+            radiusMeters: 80,
+            kind: .notice,
+            belief: 9,
+            created: "2026-01-01",
+            weather: "rain",
+            moon: "Waxing Moon",
+            season: "Summer",
+            playerWords: "The chairs never quite face the same direction twice.",
+            academyEcho: "",
+            outerStacksRoom: "",
+            fae: "",
+            miniStory: "",
+            localRule: "",
+            visitCount: 6,
+            lastVisited: "2026-07-19"
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.anchors = [anchor]
+
+        let evolved = BookInteriorEngine.reconciled(
+            BookInteriorState(awakenedAt: now.addingTimeInterval(-100 * 86_400)),
+            inputs: inputs,
+            now: now,
+            calendar: calendar
+        )
+
+        let loyalty = try XCTUnwrap(evolved.loyalties.first { $0.targetID == "anchor:\(anchor.id)" })
+        XCTAssertEqual(loyalty.targetKind, .place)
+        XCTAssertEqual(loyalty.strength, .devoted)
+        XCTAssertTrue(loyalty.reason.contains("returned 6 times"))
+        XCTAssertTrue(loyalty.counterweight.contains("business of its own"))
+    }
+
+    func testARepeatedTraditionMutatesWithoutErasingItsFormerCeremony() throws {
+        let memory = BookAutobiographicalMemory(
+            id: "book-memory-tradition-mutation",
+            kind: .firstFavorite,
+            title: "The First Dog-Ear",
+            line: "A Page survived preference.",
+            whatItChanged: "The Book became partial.",
+            evidencePageIDs: ["kept-1"],
+            happenedAt: now.addingTimeInterval(-300 * 86_400),
+            firstRecalledAt: now.addingTimeInterval(-200 * 86_400),
+            lastRecalledAt: now.addingTimeInterval(-100 * 86_400),
+            recallCount: 1
+        )
+        let tradition = BookPrivateTradition(
+            id: "book-tradition-mutation",
+            kind: .dogEarDay,
+            title: "The Feast of the First Dog-Ear",
+            observance: "Return one old favorite.",
+            originMemoryID: memory.id,
+            evidencePageIDs: ["kept-1"],
+            foundedAt: now.addingTimeInterval(-250 * 86_400),
+            cadenceDays: 120,
+            nextDueAt: now,
+            lastObservedAt: now.addingTimeInterval(-120 * 86_400),
+            observanceCount: 1
+        )
+        let reminiscence = BookReminiscence(
+            id: "book-reminiscence-mutation",
+            memoryID: memory.id,
+            traditionID: tradition.id,
+            title: tradition.title,
+            line: tradition.observance,
+            evidencePageIDs: tradition.evidencePageIDs,
+            preferredType: .bookRemembered,
+            createdAt: now,
+            recalledAt: nil,
+            status: .pending
+        )
+        let state = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-400 * 86_400),
+            autobiography: [memory],
+            privateTraditions: [tradition],
+            pendingReminiscence: reminiscence
+        )
+
+        let observed = BookInteriorEngine.recordingSurfaceOpened(
+            state,
+            reminiscenceID: reminiscence.id,
+            now: now.addingTimeInterval(60)
+        )
+        let changed = try XCTUnwrap(observed.privateTraditions.first)
+        let mutation = try XCTUnwrap(changed.mutations?.first)
+        XCTAssertEqual(changed.observanceCount, 2)
+        XCTAssertEqual(changed.title, "The Feast of the Crooked Dog-Ear")
+        XCTAssertEqual(mutation.formerTitle, "The Feast of the First Dog-Ear")
+        XCTAssertEqual(mutation.formerObservance, "Return one old favorite.")
+        XCTAssertTrue(mutation.reason.contains("2 real observances"))
+    }
+
+    func testARevealedSecretKeepsProducingVisibleConsequencesAcrossYears() throws {
+        let openedAt = now.addingTimeInterval(-200 * 86_400)
+        let secret = BookSecret(
+            id: "long-secret",
+            family: .method,
+            tease: "I have a method I do not entirely trust.",
+            revelation: "I arrange evidence until it starts arguing back.",
+            sealedAt: openedAt.addingTimeInterval(-30 * 86_400),
+            status: .revealed,
+            revealedAt: openedAt
+        )
+        var state = BookInteriorEngine.reconciled(
+            BookInteriorState(
+                awakenedAt: now.addingTimeInterval(-500 * 86_400),
+                secretHistory: [secret]
+            ),
+            inputs: .empty,
+            now: now,
+            calendar: calendar
+        )
+        var legacy = try XCTUnwrap(state.secretLegacies.first)
+        XCTAssertEqual(legacy.stage, .echo)
+        XCTAssertTrue(legacy.hasUnpresentedChange)
+
+        var inputs = BookSourceInputs.empty
+        inputs.bookInterior = state
+        let surface = try XCTUnwrap(BookInteriorSurfaces.candidates(
+            for: BookDay(id: BookDay.id(for: now), date: now, pages: []),
+            inputs: inputs,
+            now: now
+        ).first(where: { $0.payload.metadata["bookSecretLegacyID"] == legacy.id }))
+        XCTAssertEqual(surface.type, .bookRemembered)
+        state = BookInteriorEngine.recordingSurfaceOpened(
+            state,
+            secretLegacyID: legacy.id,
+            now: now.addingTimeInterval(60)
+        )
+        XCTAssertFalse(state.secretLegacies[0].hasUnpresentedChange)
+
+        let aYearLater = now.addingTimeInterval(366 * 86_400)
+        state = BookInteriorEngine.reconciled(state, inputs: .empty, now: aYearLater, calendar: calendar)
+        legacy = try XCTUnwrap(state.secretLegacies.first)
+        XCTAssertEqual(legacy.stage, .argument)
+        XCTAssertTrue(state.autobiography.contains { $0.kind == .secretConsequence })
+
+        let yearsLater = aYearLater.addingTimeInterval(731 * 86_400)
+        state = BookInteriorEngine.reconciled(state, inputs: .empty, now: yearsLater, calendar: calendar)
+        XCTAssertEqual(state.secretLegacies.first?.stage, .inheritance)
+        XCTAssertTrue(state.secretLegacies.first?.line.contains("kind of Book I became") == true)
+    }
+
+    func testRareCharacteristicSurpriseBraidsHistoryTasteProjectLoyaltyAndReaderKnowledge() throws {
+        let memory = BookAutobiographicalMemory(
+            id: "book-memory-compound",
+            kind: .conversationAnswered,
+            title: "The Book Spoke First",
+            line: "I asked for company and received an answer about the kitchen light.",
+            whatItChanged: "Company became history.",
+            evidencePageIDs: ["kept-compound"],
+            happenedAt: now.addingTimeInterval(-100 * 86_400),
+            firstRecalledAt: nil,
+            lastRecalledAt: nil,
+            recallCount: 0
+        )
+        let taste = BookAcquiredTaste(
+            id: "book-taste-compound",
+            kind: .exactLanguage,
+            subject: "exact language",
+            statement: "I have become openly fond of the exact phrase instead of its respectable summary.",
+            strength: .fond,
+            evidencePageIDs: ["kept-compound"],
+            acquiredAt: now.addingTimeInterval(-90 * 86_400),
+            lastDeepenedAt: now.addingTimeInterval(-20 * 86_400),
+            firstPresentedAt: now.addingTimeInterval(-19 * 86_400)
+        )
+        let project = BookProject(
+            id: "book-project-compound",
+            kind: .exactLanguage,
+            title: "The Exact Words Cabinet",
+            question: "Which words belong specifically to this life?",
+            whyItCares: "Ready-made language arrives too early.",
+            subject: "the kitchen light",
+            status: .investigating,
+            entries: [BookProjectEntry(
+                id: "project-entry-compound",
+                line: "The kitchen light was described as tired gold.",
+                evidencePageIDs: ["kept-compound"],
+                recordedAt: now.addingTimeInterval(-20 * 86_400)
+            )],
+            startedAt: now.addingTimeInterval(-50 * 86_400),
+            lastWorkedAt: now,
+            nextEligibleAt: now.addingTimeInterval(30 * 86_400),
+            lastPresentedProgress: 1
+        )
+        let want = bookWant(.tellTheReader)
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = [SelfFact(
+            id: "reader-fact-compound",
+            questionID: "favorite-hour",
+            question: "Which hour feels most yours?",
+            answer: "The blue hour after dinner.",
+            bookTranslation: "The reader keeps a private fondness for the blue hour after dinner.",
+            sensitivity: .delight,
+            usePermission: .privateContext,
+            tags: ["time", "delight"],
+            createdAt: now.addingTimeInterval(-30 * 86_400),
+            updatedAt: now.addingTimeInterval(-10 * 86_400)
+        )]
+        let starting = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-200 * 86_400),
+            currentProject: project,
+            autobiography: [memory],
+            acquiredTastes: [taste],
+            currentWant: want
+        )
+
+        let evolved = BookInteriorEngine.reconciled(starting, inputs: inputs, now: now, calendar: calendar)
+        let initiative = try XCTUnwrap(evolved.currentInitiative)
+        XCTAssertEqual(initiative.kind, .characteristicSurprise)
+        XCTAssertEqual(initiative.mode, .sayOnly)
+        XCTAssertTrue(initiative.openingLine.contains("The Book Spoke First") == false)
+        XCTAssertTrue(initiative.openingLine.contains(memory.line))
+        XCTAssertTrue(initiative.openingLine.contains(taste.statement.lowercased()))
+        XCTAssertTrue(initiative.openingLine.contains(project.title))
+        XCTAssertTrue(initiative.openingLine.contains("blue hour after dinner"))
+        XCTAssertTrue(initiative.openingLine.contains("No assignment"))
+        XCTAssertEqual(initiative.ingredientReceipts?.count, 6)
+        XCTAssertTrue(initiative.ingredientReceipts?.contains("memory:\(memory.id)") == true)
+        XCTAssertTrue(initiative.ingredientReceipts?.contains("self-fact:reader-fact-compound:privateContext") == true)
+
+        inputs.bookInterior = evolved
+        let surface = try XCTUnwrap(BookInteriorSurfaces.candidates(
+            for: BookDay(id: BookDay.id(for: now), date: now, pages: []),
+            inputs: inputs,
+            now: now
+        ).first(where: { $0.payload.metadata["bookInitiativeID"] == initiative.id }))
+        XCTAssertEqual(surface.type, .bookNotices)
+        XCTAssertEqual(surface.payload.metadata["bookInitiativeGenerationPolicy"], "user-initiated-only")
+        XCTAssertTrue(surface.payload.metadata["bookInitiativeIngredientReceipts"]?.contains("project:\(project.id)") == true)
+        XCTAssertFalse(SurfaceReadinessState(surface: surface).needsLocalBrainToOpen)
+    }
+
+    private func withInterior(_ inputs: BookSourceInputs, _ interior: BookInteriorState) -> BookSourceInputs {
+        var copy = inputs
+        copy.bookInterior = interior
+        return copy
+    }
+
     private func campaignGame() -> BookLongGame {
         BookLongGame(
             phase: .wakeTheSenses,
@@ -1315,5 +2276,47 @@ final class BookInteriorTests: XCTestCase {
         var game = campaignGame()
         BookReenchantmentDirector.reconcile(&game, inputs: safeInputs, now: now)
         return try XCTUnwrap(game.currentCampaign)
+    }
+
+    private func bookWant(
+        _ kind: BookWantKind,
+        bornAt: Date? = nil
+    ) -> BookWant {
+        BookWant(
+            id: "book-want-test-\(kind.rawValue)",
+            kind: kind,
+            line: "The Book wants something of its own.",
+            why: "A character may speak for a reason of its own without creating an obligation.",
+            evidencePageIDs: ["kept-1"],
+            bornAt: bornAt ?? now.addingTimeInterval(-4 * 86_400),
+            status: .stirring,
+            resolvedAt: nil
+        )
+    }
+
+    private func bookInitiative(
+        _ kind: BookInitiativeKind,
+        mode: BookInitiativeMode,
+        want: BookWant,
+        createdAt: Date? = nil
+    ) -> BookInitiative {
+        BookInitiative(
+            id: "book-initiative-test-\(kind.rawValue)",
+            kind: kind,
+            mode: mode,
+            wantID: want.id,
+            tensionID: nil,
+            title: mode == .conversation ? "The Book Wanted Company" : "The Book Had a Thought",
+            openingLine: "I wanted to say this before you asked me anything.",
+            invitationLine: mode == .conversation ? "Answer only if you feel like it." : "No reply is requested.",
+            suggestedPrompts: mode == .conversation ? ["Want to just talk?"] : [],
+            motive: want.why,
+            evidencePageIDs: want.evidencePageIDs,
+            createdAt: createdAt ?? now,
+            presentedAt: nil,
+            answeredAt: nil,
+            readerReplyExcerpt: nil,
+            status: .pending
+        )
     }
 }

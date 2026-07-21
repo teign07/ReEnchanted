@@ -35,4 +35,52 @@ final class KeptVoiceTests: XCTestCase {
         let audio = rehomed[0].pages[0].mediaAssets.first { $0.kind == .audioFile }
         XCTAssertEqual(audio?.reference, "/new/kept-voice.m4a")
     }
+
+    func testCadenceReceiptDistinguishesBurstsFromContinuousFlow() throws {
+        let bursts = try XCTUnwrap(VoiceCadenceReceipt.analyze(
+            decibels: [-60, -14, -12, -60, -60, -16, -13, -60, -60, -15, -11, -60],
+            sampleInterval: 0.5,
+            duration: 6
+        ))
+        let flow = try XCTUnwrap(VoiceCadenceReceipt.analyze(
+            decibels: [-22, -21, -20, -19, -21, -20, -18, -20],
+            sampleInterval: 0.5,
+            duration: 4
+        ))
+
+        XCTAssertEqual(bursts.cadenceLabel, "short bursts")
+        XCTAssertEqual(bursts.pauseLabel, "clear pauses")
+        XCTAssertEqual(flow.cadenceLabel, "continuous flow")
+        XCTAssertEqual(flow.pauseLabel, "nearly continuous")
+        XCTAssertGreaterThan(flow.activeRatio, bursts.activeRatio)
+    }
+
+    func testCadenceReceiptBecomesInspectableAcousticVector() throws {
+        let receipt = try XCTUnwrap(VoiceCadenceReceipt.analyze(
+            decibels: [-60, -18, -16, -60, -60, -17, -15, -60],
+            sampleInterval: 0.5,
+            duration: 4
+        ))
+        let page = BookPage(
+            id: "voice-folio",
+            type: .diary,
+            promptText: "",
+            origin: .userAuthored,
+            mediaAssets: [
+                BookPageMediaAsset(
+                    kind: .audioFile,
+                    reference: "/tmp/voice.m4a",
+                    metadata: receipt.metadata.merging(["keptVoice": "true"]) { measured, _ in measured }
+                )
+            ]
+        )
+
+        let folio = SensoryFolioProjector.make(from: page, encoder: nil)
+
+        XCTAssertEqual(folio.values(for: .voiceCadence), [receipt.cadenceLabel])
+        XCTAssertEqual(folio.values(for: .voicePause), [receipt.pauseLabel])
+        XCTAssertEqual(folio.values(for: .voiceEnergy), [receipt.energyLabel])
+        XCTAssertEqual(folio.vector(.acousticProsody)?.modelID, VoiceCadenceReceipt.modelID)
+        XCTAssertEqual(folio.vector(.acousticProsody)?.values.count, 6)
+    }
 }

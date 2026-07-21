@@ -146,13 +146,39 @@ extension ContentView {
             line: line,
             carryOutLine: "Earned marks stay open. The ledger does not ask twice."
         )
-        marginaliaAchievementUnlockTitle = additionalCount > 0
+        let announcementTitle = additionalCount > 0
             ? "\(newlyCompleted.count) MARGINALIA ACHIEVEMENTS"
             : first.name.uppercased()
-        withAnimation(.spring(response: 0.48, dampingFraction: 0.8)) {
-            marginaliaAchievementUnlockNote = note
+        marginaliaAchievementAnnouncementTicket += 1
+        let ticket = marginaliaAchievementAnnouncementTicket
+        Task { @MainActor in
+            var waitedForKeepNote = false
+            repeat {
+                while isKeepMarginNotePresentationActive {
+                    waitedForKeepNote = true
+                    try? await Task.sleep(for: .milliseconds(150))
+                    guard !Task.isCancelled,
+                          ticket == marginaliaAchievementAnnouncementTicket else { return }
+                }
+
+                if waitedForKeepNote {
+                    // Let the character note finish its exit before the Marginalia
+                    // Goblin enters. This keeps both messages at the readable bottom
+                    // position without stacking one card over the other.
+                    try? await Task.sleep(for: .milliseconds(700))
+                    guard !Task.isCancelled,
+                          ticket == marginaliaAchievementAnnouncementTicket else { return }
+                }
+                // A quick second keep may begin during the breathing room. If it
+                // does, hear that whole note and give its exit a fresh gap too.
+            } while isKeepMarginNotePresentationActive
+
+            marginaliaAchievementUnlockTitle = announcementTitle
+            withAnimation(.spring(response: 0.48, dampingFraction: 0.8)) {
+                marginaliaAchievementUnlockNote = note
+            }
+            BookFeedback.play(.braidComplete)
         }
-        BookFeedback.play(.braidComplete)
     }
 
     @MainActor
@@ -564,6 +590,14 @@ extension ContentView {
         withAnimation(.easeInOut(duration: 0.4)) {
             didCompleteStoryOnboarding = true
         }
+        // The launch curator may already have served a Welcome underneath the
+        // onboarding cover. Establish the engagement ledger before saving the
+        // answers so that hidden service can never be mistaken for having read
+        // the card on a later launch.
+        if vault.data.firstRunEngaged == nil {
+            vault.data.firstRunEngaged = []
+            vault.save()
+        }
         saveOnboardingFact(
             questionID: "onboarding-snack",
             question: "What is your favorite snack to eat while reading?",
@@ -669,6 +703,14 @@ extension ContentView {
                 startingGlow: 34
             ))
         }
+
+        // The launch desk was built underneath onboarding, before these answers
+        // existed. Recurate after saving them so the first revealed home frame
+        // begins with the Welcome sequence without requiring an app restart.
+        Task { @MainActor in
+            await publishPostOnboardingDesk()
+        }
+
         statusMessage = result.name.isEmpty
             ? "The Academy doors are open."
             : "The Academy doors are open, \(result.name)."
@@ -679,15 +721,6 @@ extension ContentView {
         let willOfferStandingOrder = !didOfferStandingOrder && !PackEntitlements.hasStandingOrder
         if willOfferStandingOrder {
             didOfferStandingOrder = true
-            // Illustrate the pitch with the reader's own first-edition cover.
-            standingOrderHeroArtifact = BookOfYouShareArtifact(
-                title: "The First Door",
-                excerpt: result.firstSouvenir.nonEmpty ?? "One true thing, kept before anyone explained keeping.",
-                dateLine: Date().formatted(date: .abbreviated, time: .omitted),
-                themeName: "Ordinary life",
-                chapterName: result.name.nonEmpty.map { "\($0)'s first edition" } ?? "Your first edition",
-                seed: (result.name + "|" + result.belief).stableHash
-            )
             // Celebration is owed after the paywall dismisses.
             pendingFirstEditionReaderName = result.name
             showStandingOrderPaywall = true
@@ -914,6 +947,31 @@ extension ContentView {
             quirkID: surface.payload.metadata["bookQuirkID"],
             opinionID: surface.payload.metadata["bookOpinionID"],
             longGamePhase: surface.payload.metadata["bookLongGamePhase"],
+            behaviorID: surface.payload.metadata["bookBehaviorID"],
+            projectID: surface.payload.metadata["bookProjectID"],
+            faultID: surface.payload.metadata["bookFaultID"],
+            tasteID: surface.payload.metadata["bookAcquiredTasteID"],
+            reminiscenceID: surface.payload.metadata["bookReminiscenceID"],
+            initiativeID: surface.payload.metadata["bookInitiativeID"],
+            secretLegacyID: surface.payload.metadata["bookSecretLegacyID"],
+            now: now
+        )
+        guard updated != base else { return }
+        vault.data.bookInterior = updated
+        vault.save()
+    }
+
+    @MainActor
+    func recordBookInitiativeAnswered(
+        initiativeID: String,
+        readerLine: String,
+        now: Date = Date()
+    ) {
+        let base = vault.data.bookInterior ?? BookInteriorState(awakenedAt: now)
+        let updated = BookInteriorEngine.recordingInitiativeAnswered(
+            base,
+            initiativeID: initiativeID,
+            readerLine: readerLine,
             now: now
         )
         guard updated != base else { return }
@@ -2765,6 +2823,7 @@ extension ContentView {
         guard !DistressSignals.evaluate(day: today).isActive else {
             return BraidLearningLoop.publicLesson(for: page)
         }
+        let inputs = sourceInputs
         let context = LocalModelManager.braidContext(
             for: day,
             days: days,
@@ -2772,7 +2831,11 @@ extension ContentView {
             entityBeliefOffsets: entityBeliefLedger,
             learnedNotes: vault.data.learnedBraidNotes ?? [],
             readerLexicon: vault.data.readerLexicon ?? ReaderLexicon(),
-            readerLearning: vault.data.readerLearning ?? ReaderLearningModel()
+            readerLearning: vault.data.readerLearning ?? ReaderLearningModel(),
+            facultyEntries: inputs.facultyEntries,
+            people: inputs.people,
+            continuity: inputs.continuity,
+            bookReadingBoundaries: inputs.bookReadingBoundaries
         )
         let weak = BraidLearningLoop.weakDimensionNotes(for: page, context: context)
         let prompt = LocalModelManager.braidTasteNotePrompt(
@@ -2808,6 +2871,7 @@ extension ContentView {
         guard !DistressSignals.evaluate(day: today).isActive else {
             return "Not tonight. The Book is keeping the day gently and left the page as it is."
         }
+        let inputs = sourceInputs
         let context = LocalModelManager.braidContext(
             for: day0,
             days: days,
@@ -2815,7 +2879,11 @@ extension ContentView {
             entityBeliefOffsets: entityBeliefLedger,
             learnedNotes: vault.data.learnedBraidNotes ?? [],
             readerLexicon: vault.data.readerLexicon ?? ReaderLexicon(),
-            readerLearning: vault.data.readerLearning ?? ReaderLearningModel()
+            readerLearning: vault.data.readerLearning ?? ReaderLearningModel(),
+            facultyEntries: inputs.facultyEntries,
+            people: inputs.people,
+            continuity: inputs.continuity,
+            bookReadingBoundaries: inputs.bookReadingBoundaries
         )
         let weak = BraidLearningLoop.weakDimensionNotes(for: page, context: context)
         let prompt = LocalModelManager.braidRewritePrompt(
@@ -3194,7 +3262,8 @@ extension ContentView {
             from: base,
             proseKey: "packProse",
             prompt: base.payload.metadata["packPrompt"] ?? "",
-            instructions: base.payload.metadata["packInstructions"] ?? "You are the Book inside ReEnchanted. \(BookVoice.animismLine) Write the requested page in prose only.",
+            instructions: (base.payload.metadata["packInstructions"] ?? "You are the Book inside ReEnchanted. \(BookVoice.animismLine) Write the requested page in prose only.")
+                + (base.payload.metadata[BookVoicePatina.metadataKey] ?? sourceInputs.bookVoicePatina.promptSection),
             maxTokens: Int(base.payload.metadata["packMaxTokens"] ?? "") ?? 420,
             sourceID: "pack-page",
             tags: ["pack-page", base.payload.metadata["packArchetypeID"] ?? "unknown"]
@@ -5844,6 +5913,7 @@ struct PagewrightSheet: View {
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(BookPalette.nightText.opacity(0.58))
                         .fixedSize()
+                        .contentTransition(.numericText())
                 }
             }
 
@@ -5851,8 +5921,10 @@ struct PagewrightSheet: View {
                 Text(personalPhotoImportMessage)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(BookPalette.nightText.opacity(0.58))
+                    .bookResultArrival(reduceMotion: reduceMotion)
             }
         }
+        .animation(BookMotion.result(reduceMotion), value: personalPhotos.count)
         #else
         EmptyView()
         #endif
@@ -8842,6 +8914,7 @@ struct PlainPageSheet: View {
     let onKeep: (String, [BookPageMediaAsset]) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var recorder = KeptVoiceRecorder()
     @State private var text = ""
     @State private var voiceAsset: BookPageMediaAsset?
@@ -8869,22 +8942,37 @@ struct PlainPageSheet: View {
                         .scrollContentBackground(.hidden)
                         .focused($isWriting)
                 }
+                .opacity(recorder.isRecording ? 0.44 : 1)
+                .scaleEffect(recorder.isRecording && !reduceMotion ? 0.985 : 1, anchor: .top)
+                .allowsHitTesting(!recorder.isRecording)
+
+                if recorder.isRecording {
+                    PlainVoiceRecordingCard(elapsed: recorder.elapsed, reduceMotion: reduceMotion)
+                        .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
+                }
 
                 if let voiceMessage {
                     Label(voiceMessage, systemImage: "waveform")
                         .font(.footnote)
                         .foregroundStyle(BookPalette.teal)
+                        .bookResultArrival(reduceMotion: reduceMotion)
                 }
 
                 HStack(spacing: 12) {
                     Button {
                         toggleRecording()
                     } label: {
-                        Label(
-                            recorder.isRecording ? "Stop (\(Self.duration(recorder.elapsed)))" : "Speak",
-                            systemImage: recorder.isRecording ? "stop.circle.fill" : "mic.circle"
-                        )
+                        HStack(spacing: 8) {
+                            if recorder.isRecording {
+                                BookVoiceInkMeter(active: true, reduceMotion: reduceMotion)
+                            }
+                            Image(systemName: recorder.isRecording ? "stop.circle.fill" : "mic.circle")
+                                .symbolEffect(.pulse, isActive: recorder.isRecording && !reduceMotion)
+                            Text(recorder.isRecording ? "Stop" : "Speak")
+                        }
+                        .font(.subheadline.weight(.bold))
                     }
+                    .buttonStyle(.bordered)
                     .tint(recorder.isRecording ? BookPalette.lampGold : BookPalette.teal)
 
                     Spacer()
@@ -8912,6 +9000,8 @@ struct PlainPageSheet: View {
                 }
             }
         }
+        .animation(BookMotion.reveal(reduceMotion), value: recorder.isRecording)
+        .animation(BookMotion.result(reduceMotion), value: voiceAsset?.reference)
         .onAppear {
             if autoRecord {
                 toggleRecording()
@@ -8939,6 +9029,7 @@ struct PlainPageSheet: View {
         } else {
             voiceAsset = nil
             voiceMessage = nil
+            isWriting = false
             BookFeedback.play(.tap)
             if !recorder.start() {
                 voiceMessage = "The microphone could not start."
@@ -8946,8 +9037,51 @@ struct PlainPageSheet: View {
         }
     }
 
-    private static func duration(_ seconds: TimeInterval) -> String {
+    fileprivate static func duration(_ seconds: TimeInterval) -> String {
         let total = Int(seconds.rounded())
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+private struct PlainVoiceRecordingCard: View {
+    let elapsed: TimeInterval
+    let reduceMotion: Bool
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(BookPalette.lampGold.opacity(0.14))
+                Circle()
+                    .stroke(BookPalette.lampGold.opacity(0.42), lineWidth: 1)
+                Image(systemName: "quote.opening")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold)
+            }
+            .frame(width: 42, height: 42)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("The page is listening")
+                    .font(.system(.headline, design: .serif, weight: .bold))
+                    .foregroundStyle(BookPalette.ink)
+                HStack(spacing: 8) {
+                    BookVoiceInkMeter(active: true, reduceMotion: reduceMotion)
+                    Text(PlainPageSheet.duration(elapsed))
+                        .font(.caption.monospacedDigit().weight(.bold))
+                    Text("Speak naturally. Silence can stay in the recording.")
+                        .font(.caption)
+                        .lineLimit(1)
+                }
+                .foregroundStyle(BookPalette.ink.opacity(0.62))
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(BookPalette.lampGold.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.34), lineWidth: 1)
+        }
+        .shadow(color: BookPalette.lampGold.opacity(0.10), radius: 14, y: 6)
     }
 }

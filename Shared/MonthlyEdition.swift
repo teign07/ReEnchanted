@@ -676,6 +676,8 @@ enum MonthlyEditionBuilder {
             return signal.line
         case .listening:
             return signal.line
+        case .sensory:
+            return signal.line
         case .manner:
             return signal.line
         }

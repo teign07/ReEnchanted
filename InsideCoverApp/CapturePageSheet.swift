@@ -1079,9 +1079,15 @@ struct CapturePageSheet: View {
     /// Durable wants, promises, favorites, fascinations, and self-secrets for
     /// this particular Book. Chat receives the same inner life as the cover.
     var bookInterior: BookInteriorState = .unawakened
+    /// The private archive-derived grain of this reader's Book. This is a
+    /// read-only projection, not a persona setting and not model training.
+    var bookVoicePatina: BookVoicePatina = .unwritten
     /// Whole-archive, permission-aware retrieval for Chat with the Book.
     /// Previews keep the empty default; the live Book supplies the durable store.
     var askTheBookMemoryLookup: (String, [AskTheBookTurn]) async -> AskTheBookMemoryPacket = { _, _ in .empty }
+    /// Records only a reader-initiated reply to a deterministic Book teaser.
+    /// Creating or opening the teaser never invokes the local model.
+    var onBookInitiativeAnswered: (String, String, Date) -> Void = { _, _, _ in }
     var isShadowWonderActive: Bool = false
     var isEmbedded = false
     var onDismissRequest: (() -> Void)? = nil
@@ -1233,6 +1239,8 @@ struct CapturePageSheet: View {
     @State private var didCorrectBookNotice = false
     @State private var didPlayCeremonyOpen = false
     @State private var didRevealCeremony = false
+    @State private var didRevealOpenedPage = false
+    @State private var openedPageTurnProgress = 1.0
     @State private var loosePageTurns: [String: Int] = [:]
     @State private var tarotReading: TarotReadingArtifact?
     @AppStorage("tarotReadingDraftV1") private var tarotReadingDraftData = ""
@@ -1668,7 +1676,7 @@ struct CapturePageSheet: View {
         guard !seen.contains(id), let note = MarginTutorCatalog.note(for: id) else { return }
         seen.insert(id)
         marginTutorSeenData = MarginTutorLedger.encode(seen)
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+        withAnimation(BookMotion.reveal(reduceMotion)) {
             activeTutorNote = note
         }
     }
@@ -2282,6 +2290,7 @@ struct CapturePageSheet: View {
             presentation: presentation
         )
         .id(Self.localBrainStatusScrollID)
+        .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
     }
 
     private func scrollToLocalBrainStatus(_ scrollProxy: ScrollViewProxy) {
@@ -2645,9 +2654,18 @@ struct CapturePageSheet: View {
                         .transition(.opacity)
                         .allowsHitTesting(false)
                 }
+
+                if openedPageTurnProgress > 0.001 {
+                    PageTurnWipe(progress: openedPageTurnProgress)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                        .zIndex(30)
+                }
             }
             .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.72), value: isCommittingKeep)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: isTuckingPage)
+            .animation(BookMotion.result(reduceMotion), value: pageOwnedScribeLabel)
             .sheet(isPresented: $isPublicMarginsContributionPresented) {
                 PublicMarginsContributionSheet(
                     eventID: "page-souvenir",
@@ -2674,6 +2692,9 @@ struct CapturePageSheet: View {
                     }
                 }
             }
+            .toolbarBackground(BookPalette.nightPanel.opacity(0.98), for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             #if canImport(PhotosUI)
             .onChange(of: selectedPhotoItem) { _, newValue in
                 guard let newValue else { return }
@@ -2790,6 +2811,7 @@ struct CapturePageSheet: View {
                 tutorTouchForThisPage()
                 seedInkrestIntakeIfNeeded()
                 playCeremonyOpenCueIfNeeded()
+                revealOpenedPageIfNeeded()
             }
             .onChange(of: tarotReading) { _, reading in
                 persistTarotDraft(reading)
@@ -2797,7 +2819,7 @@ struct CapturePageSheet: View {
             .overlay(alignment: .bottom) {
                 if let activeTutorNote {
                     MarginTutorNoteCard(note: activeTutorNote) {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) {
+                        withAnimation(BookMotion.retreat(reduceMotion)) {
                             self.activeTutorNote = nil
                         }
                     }
@@ -2830,6 +2852,26 @@ struct CapturePageSheet: View {
             onDismissRequest()
         } else {
             dismiss()
+        }
+    }
+
+    private func revealOpenedPageIfNeeded() {
+        guard !didRevealOpenedPage else { return }
+        didRevealOpenedPage = true
+        guard !reduceMotion else {
+            openedPageTurnProgress = 0
+            return
+        }
+        openedPageTurnProgress = 1
+        Task { @MainActor in
+            // Let the sheet or iPad reading stand commit its first frame under
+            // opaque paper, then turn that paper away in one uninterrupted beat.
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(55))
+            guard !Task.isCancelled else { return }
+            withAnimation(BookMotion.pageTurn(false)) {
+                openedPageTurnProgress = 0
+            }
         }
     }
 
@@ -3042,6 +3084,33 @@ struct CapturePageSheet: View {
                     .font(.body)
                     .foregroundStyle(openPageSecondaryText)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let actedMargin = surface.payload.metadata["bookActedMargin"]?.nonEmpty {
+                VStack(alignment: .leading, spacing: 7) {
+                    Label(
+                        surface.payload.metadata["bookActedMarginTitle"]?.nonEmpty ?? "The Book interfered",
+                        systemImage: "pencil.and.scribble"
+                    )
+                    .font(.caption.weight(.black))
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+                    Text(actedMargin)
+                        .font(.system(.body, design: .serif).italic())
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .foregroundStyle(BookPalette.lampGold)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(BookPalette.lampGold.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(BookPalette.lampGold.opacity(0.72))
+                        .frame(width: 2)
+                        .padding(.vertical, 6)
+                }
+                .accessibilityElement(children: .combine)
             }
 
             if isMoonwriteSouvenirPage {
@@ -4071,6 +4140,110 @@ struct CapturePageSheet: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
+    private var isWelcomeIntroductionPage: Bool {
+        surface.payload.metadata["welcomePage"] == "true"
+    }
+
+    private var welcomeIntroductionParagraphs: [String] {
+        surface.payload.body
+            .components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    @ViewBuilder
+    private var welcomeIntroductionBody: some View {
+        let paragraphs = welcomeIntroductionParagraphs
+        if paragraphs.count >= 14 {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(paragraphs[0])
+                    .font(.system(.title3, design: .serif).weight(.semibold))
+                    .foregroundStyle(BookPalette.ink)
+
+                VStack(alignment: .leading, spacing: 13) {
+                    Text(paragraphs[1])
+                    Text(paragraphs[2])
+                }
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.82))
+
+                Text(paragraphs[3])
+                    .font(.system(.title2, design: .serif).weight(.bold))
+                    .foregroundStyle(BookPalette.gold)
+                    .padding(.vertical, 2)
+
+                VStack(alignment: .leading, spacing: 13) {
+                    Text(paragraphs[4])
+                    Text(paragraphs[5])
+                        .fontWeight(.semibold)
+                }
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+                .lineSpacing(3)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(paragraphs[6])
+                        .font(.caption.weight(.black))
+                        .tracking(1.1)
+                        .foregroundStyle(BookPalette.gold)
+
+                    HStack(alignment: .firstTextBaseline, spacing: 9) {
+                        Image(systemName: "brain.head.profile")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(BookPalette.teal)
+                            .accessibilityHidden(true)
+                        Text(paragraphs[7])
+                            .font(.system(.title2, design: .serif).weight(.bold))
+                            .foregroundStyle(BookPalette.ink)
+                    }
+
+                    Text(paragraphs[8])
+                    Text(paragraphs[9])
+                }
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.86))
+                .lineSpacing(3)
+                .padding(14)
+                .background(BookPalette.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(BookPalette.teal.opacity(0.22), lineWidth: 1)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(paragraphs[10])
+                        .foregroundStyle(BookPalette.ink.opacity(0.70))
+                    Text(paragraphs[11])
+                        .fontWeight(.bold)
+                        .foregroundStyle(BookPalette.ink)
+                }
+                .font(.system(.title3, design: .serif))
+                .italic()
+                .padding(.leading, 13)
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(BookPalette.lampGold.opacity(0.78))
+                        .frame(width: 3)
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(paragraphs[12])
+                        .font(.system(.title3, design: .serif).weight(.semibold))
+                    Text(paragraphs[13])
+                        .font(.system(.title2, design: .serif).weight(.bold))
+                }
+                .foregroundStyle(BookPalette.ink)
+                .padding(.top, 2)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text(surface.payload.body)
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     /// True on pages that talk about the private local mind while it isn't yet
     /// installed — the welcome letter, the optional install rider, and any
     /// local-brain issue page. These get an inline download button so the reader
@@ -4102,7 +4275,7 @@ struct CapturePageSheet: View {
                     BookFeedback.play(.openPage)
                     onInstallLocalBrain()
                 } label: {
-                    Label("Download the private mind", systemImage: "brain.head.profile")
+                    Label(isWelcomeIntroductionPage ? "Wake the Book’s Brain" : "Download the private mind", systemImage: "brain.head.profile")
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -4238,6 +4411,33 @@ struct CapturePageSheet: View {
 
     private var askTheBookConversationView: some View {
         VStack(alignment: .leading, spacing: 14) {
+            if askTurns.isEmpty, let opening = bookInitiativeOpening {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("THE BOOK SPOKE FIRST", systemImage: "bookmark.fill")
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(BookPalette.teal)
+                    Text(opening)
+                        .font(.system(.body, design: .serif).italic())
+                        .foregroundStyle(BookPalette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let invitation = surface.payload.metadata["bookInitiativeInvitation"]?.nonEmpty {
+                        Text(invitation)
+                            .font(.callout)
+                            .foregroundStyle(openPageSecondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Text("Nothing further is written until you choose to continue below.")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(openPageSecondaryText.opacity(0.82))
+                }
+                .padding(14)
+                .background(BookPalette.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(BookPalette.teal.opacity(0.24), lineWidth: 1)
+                }
+            }
+
             if !askTurns.isEmpty {
                 ForEach(Array(askTurns.enumerated()), id: \.element.id) { index, turn in
                     askTurnCard(
@@ -4252,7 +4452,7 @@ struct CapturePageSheet: View {
             if askTurns.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach([
+                        ForEach((bookInitiativeSuggestedPrompts + [
                             "What are you thinking about?",
                             "What do you want from me?",
                             "Which Page is your favorite?",
@@ -4261,7 +4461,7 @@ struct CapturePageSheet: View {
                             "What is your long-term goal?",
                             "What opinion do you hold?",
                             "What are your quirks?"
-                        ], id: \.self) { question in
+                        ]), id: \.self) { question in
                             Button(question) { askPrompt = question }
                                 .font(.caption.weight(.semibold))
                                 .buttonStyle(.bordered)
@@ -4273,7 +4473,7 @@ struct CapturePageSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(askTurns.isEmpty ? "What do you want to say?" : "Continue the chat")
+                Text(askTurns.isEmpty && bookInitiativeOpening != nil ? "Say something back—or don't" : (askTurns.isEmpty ? "What do you want to say?" : "Continue the chat"))
                     .font(.caption.weight(.bold))
                     .foregroundStyle(openPageSecondaryText)
                 TextEditor(text: $askPrompt)
@@ -4293,7 +4493,7 @@ struct CapturePageSheet: View {
             Button {
                 Task { await askTheBook() }
             } label: {
-                Label(isAskingTheBook ? "The Book is replying" : "Chat with the Book", systemImage: isAskingTheBook ? "pencil.and.scribble" : "text.bubble")
+                Label(isAskingTheBook ? "The Book is replying" : (bookInitiativeOpening == nil ? "Chat with the Book" : "Continue with the Book"), systemImage: isAskingTheBook ? "pencil.and.scribble" : "text.bubble")
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -4318,6 +4518,18 @@ struct CapturePageSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private var bookInitiativeOpening: String? {
+        guard surface.payload.metadata["bookInitiativeMode"] == BookInitiativeMode.conversation.rawValue,
+              surface.payload.metadata["bookInitiativeGenerationPolicy"] == "user-initiated-only" else { return nil }
+        return surface.payload.metadata["bookInitiativeOpening"]?.nonEmpty
+    }
+
+    private var bookInitiativeSuggestedPrompts: [String] {
+        surface.payload.metadata["bookInitiativeSuggestedPrompts"]?
+            .components(separatedBy: "||")
+            .compactMap(\.nonEmpty) ?? []
     }
 
     private func askTurnCard(
@@ -4403,6 +4615,7 @@ struct CapturePageSheet: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
         }
+        .bookResultArrival(reduceMotion: reduceMotion)
     }
 
     private func askEvidenceDetailView(_ evidence: AskTheBookEvidence) -> some View {
@@ -5751,6 +5964,7 @@ struct CapturePageSheet: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
         }
+        .bookResultArrival(reduceMotion: reduceMotion)
     }
 
     private var everythingSpeaksConversationView: some View {
@@ -6130,10 +6344,14 @@ struct CapturePageSheet: View {
             }
 
             if !surface.isStoryPlayablePage && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && surface.type != .bookRemembered && surface.type != .bookNotices && surface.type != .bookPocket && !isQuillChoosingPage && surface.payload.metadata["weeklyIssue"] != "true" && !isCompassPracticePage && !isPennySentenceMasteryPage && surface.type != .supportGuild && surface.type != .note && !isPendingLetterPage {
-                Text(surface.payload.body)
-                    .font(.system(.body, design: .serif))
-                    .foregroundStyle(BookPalette.ink)
-                    .fixedSize(horizontal: false, vertical: true)
+                if isWelcomeIntroductionPage {
+                    welcomeIntroductionBody
+                } else {
+                    Text(surface.payload.body)
+                        .font(.system(.body, design: .serif))
+                        .foregroundStyle(BookPalette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             if showsLocalBrainInstallControl {
@@ -9039,12 +9257,36 @@ struct CapturePageSheet: View {
                 }
                 Spacer(minLength: 0)
             }
+
+            if let pressedPhotoAsset,
+               let preview = UIImage(contentsOfFile: pressedPhotoAsset.reference) {
+                HStack(spacing: 10) {
+                    Image(uiImage: preview)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 58, height: 46)
+                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .stroke(BookPalette.paper.opacity(0.92), lineWidth: 2)
+                        }
+                        .bookPhotographArrival(reduceMotion: reduceMotion)
+
+                    Text("This exact photograph will travel into the archive with the page.")
+                        .font(.caption2)
+                        .foregroundStyle(BookPalette.ink.opacity(0.62))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
+            }
             if let message = pressedPhotoMessage {
                 Text(message)
                     .font(.caption2)
                     .foregroundStyle(BookPalette.ink.opacity(0.6))
+                    .transition(.opacity)
             }
         }
+        .animation(BookMotion.reveal(reduceMotion), value: pressedPhotoAsset?.reference)
             #else
         EmptyView()
         #endif
@@ -9095,16 +9337,20 @@ struct CapturePageSheet: View {
                 Button {
                     toggleKeptVoice()
                 } label: {
-                    Label(
-                        keptVoiceRecorder.isRecording
-                            ? "Stop (\(Self.voiceDuration(keptVoiceRecorder.elapsed)))"
-                            : (keptVoiceAsset == nil ? "Keep your voice" : "Voice kept"),
-                        systemImage: keptVoiceRecorder.isRecording
+                    HStack(spacing: 7) {
+                        if keptVoiceRecorder.isRecording {
+                            BookVoiceInkMeter(active: true, reduceMotion: reduceMotion)
+                                .transition(.scale.combined(with: .opacity))
+                        }
+                        Image(systemName: keptVoiceRecorder.isRecording
                             ? "stop.circle.fill"
-                            : (keptVoiceAsset == nil ? "waveform" : "checkmark.circle.fill")
-                    )
+                            : (keptVoiceAsset == nil ? "waveform" : "checkmark.circle.fill"))
+                            .symbolEffect(.pulse, isActive: keptVoiceRecorder.isRecording && !reduceMotion)
+                        Text(keptVoiceRecorder.isRecording
+                            ? "Stop (\(Self.voiceDuration(keptVoiceRecorder.elapsed)))"
+                            : (keptVoiceAsset == nil ? "Keep your voice" : "Voice kept"))
+                    }
                     .font(.caption.weight(.bold))
-                    .symbolEffect(.pulse, isActive: keptVoiceRecorder.isRecording)
                 }
                 .buttonStyle(.bordered)
                 .tint(keptVoiceRecorder.isRecording ? BookPalette.lampGold : BookPalette.teal)
@@ -9124,12 +9370,22 @@ struct CapturePageSheet: View {
                 }
                 Spacer(minLength: 0)
             }
+
+            if keptVoiceRecorder.isRecording {
+                Label("The page is listening. Tap Stop when the thought is whole.", systemImage: "quote.opening")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(BookPalette.lampGold.opacity(0.82))
+                    .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
+            }
             if let message = keptVoiceMessage {
                 Text(message)
                     .font(.caption2)
                     .foregroundStyle(BookPalette.ink.opacity(0.6))
+                    .bookResultArrival(reduceMotion: reduceMotion)
             }
         }
+        .animation(BookMotion.direct(reduceMotion), value: keptVoiceRecorder.isRecording)
+        .animation(BookMotion.result(reduceMotion), value: keptVoiceAsset?.reference)
     }
 
     private func toggleKeptVoice() {
@@ -9137,17 +9393,23 @@ struct CapturePageSheet: View {
             keptVoiceMessage = nil
             let duration = keptVoiceRecorder.elapsed
             if let url = keptVoiceRecorder.stop() {
+                var metadata = [
+                    "keptVoice": "true",
+                    "durationSeconds": "\(Int(duration.rounded()))"
+                ]
+                if let cadence = keptVoiceRecorder.lastCadenceReceipt {
+                    metadata.merge(cadence.metadata) { _, measured in measured }
+                }
                 keptVoiceAsset = BookPageMediaAsset(
                     kind: .audioFile,
                     reference: url.path,
                     caption: "",
                     sourceID: surface.sourceID,
-                    metadata: [
-                        "keptVoice": "true",
-                        "durationSeconds": "\(Int(duration.rounded()))"
-                    ]
+                    metadata: metadata
                 )
-                keptVoiceMessage = "Your voice is kept."
+                keptVoiceMessage = keptVoiceRecorder.lastCadenceReceipt == nil
+                    ? "Your voice is kept."
+                    : "Your voice is kept, pauses and all."
                 BookFeedback.play(.keepPage)
             } else {
                 keptVoiceMessage = "Nothing was recorded."
@@ -9205,6 +9467,7 @@ struct CapturePageSheet: View {
                             .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
                     }
                     .accessibilityLabel("Playful mission proof photo")
+                    .bookPhotographArrival(reduceMotion: reduceMotion)
             }
 
             HStack(spacing: 10) {
@@ -9238,6 +9501,7 @@ struct CapturePageSheet: View {
                 Text(proofPhotoMessage)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.58))
+                    .bookResultArrival(reduceMotion: reduceMotion)
             }
         }
         .padding(12)
@@ -9419,6 +9683,7 @@ struct CapturePageSheet: View {
                             .stroke(BookPalette.gold.opacity(0.28), lineWidth: 1)
                     }
                     .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .bottom)))
+                    .bookResultArrival(reduceMotion: reduceMotion)
                 } else {
                     storyMechanicActionCard(choice: selectedStoryChoice, draft: draft)
                 }
@@ -10196,6 +10461,7 @@ struct CapturePageSheet: View {
                             .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
                     }
                     .accessibilityLabel("Captured photo")
+                    .bookPhotographArrival(reduceMotion: reduceMotion)
             }
 
             if isWorking {
@@ -10213,7 +10479,7 @@ struct CapturePageSheet: View {
                     .foregroundStyle(BookPalette.ink.opacity(0.62))
 
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 146), spacing: 10)], spacing: 10) {
-                    ForEach(StoryEnchantmentCatalog.spells) { spell in
+                    ForEach(Array(StoryEnchantmentCatalog.spells.enumerated()), id: \.element.id) { index, spell in
                         Button {
                             selectedEnchantmentID = spell.id
                             BookFeedback.play(.openPage)
@@ -10239,8 +10505,10 @@ struct CapturePageSheet: View {
                         }
                         .buttonStyle(.bookPress())
                         .disabled(isCastingEnchantment || isLocalBrainWorking)
+                        .bookResultArrival(reduceMotion: reduceMotion, delay: Double(index) * 0.045)
                     }
                 }
+                .animation(BookMotion.direct(reduceMotion), value: selectedEnchantmentID)
 
                 Button {
                     BookFeedback.play(.select)
@@ -10252,6 +10520,7 @@ struct CapturePageSheet: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(isWorking)
+                .transition(BookMotion.foldTransition(reduceMotion: reduceMotion))
             } else {
                 if enchantmentResult == nil && manualPhotoDraft == nil {
                     HStack(spacing: 10) {
@@ -10330,6 +10599,7 @@ struct CapturePageSheet: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.58))
                     .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
             }
         }
         .padding(12)
@@ -10338,6 +10608,8 @@ struct CapturePageSheet: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(BookPalette.teal.opacity(0.24), lineWidth: 1)
         }
+        .animation(BookMotion.reveal(reduceMotion), value: isChoosingCameraEnchantment)
+        .animation(BookMotion.result(reduceMotion), value: cameraCaptureStatusMessage)
     }
 
     private var cameraPostCaptureChoiceCard: some View {
@@ -10568,6 +10840,16 @@ struct CapturePageSheet: View {
         guard let cgImage = image.cgImage else {
             return ["attentionModality": "photo"]
         }
+        let brightness = Self.attentionBrightnessLabel(for: image)
+        let colorMood = Self.attentionColorMood(for: image)
+        let orientation: String
+        if image.size.width > image.size.height * 1.12 {
+            orientation = "landscape"
+        } else if image.size.height > image.size.width * 1.12 {
+            orientation = "portrait"
+        } else {
+            orientation = "square"
+        }
         return await Task.detached(priority: .utility) {
             var labels: [String] = []
             let classification = VNClassifyImageRequest { request, _ in
@@ -10594,20 +10876,56 @@ struct CapturePageSheet: View {
             }
             textRequest.recognitionLevel = .fast
 
-            try? VNImageRequestHandler(cgImage: cgImage).perform([classification, textRequest])
+            var peopleCount = 0
+            let peopleRequest = VNDetectHumanRectanglesRequest { request, _ in
+                peopleCount = (request.results as? [VNHumanObservation] ?? []).count
+            }
+
+            try? VNImageRequestHandler(cgImage: cgImage).perform([classification, textRequest, peopleRequest])
             let motifs = Array(labels.prefix(5))
             var metadata = [
                 "attentionModality": "photo",
                 "attentionLabels": labels.joined(separator: ","),
                 "attentionMotifs": motifs.joined(separator: ","),
                 "attentionSubject": labels.first ?? "",
-                "attentionScene": labels.prefix(3).joined(separator: ",")
+                "attentionScene": labels.prefix(3).joined(separator: ","),
+                "attentionBrightness": brightness,
+                "attentionColorMood": colorMood,
+                "attentionComposition": "\(orientation), people-\(peopleCount)",
+                "attentionPeopleCount": "\(peopleCount)"
             ]
             if !visibleText.isEmpty {
                 metadata["attentionVisibleText"] = visibleText
             }
             return metadata
         }.value
+    }
+
+    private static func attentionBrightnessLabel(for image: UIImage) -> String {
+        guard let components = attentionPixelComponents(for: image) else { return "soft light" }
+        let brightness = (Double(components.red) + Double(components.green) + Double(components.blue)) / 3
+        if brightness < 80 { return "low light" }
+        if brightness > 185 { return "bright light" }
+        return "soft light"
+    }
+
+    private static func attentionColorMood(for image: UIImage) -> String {
+        guard let components = attentionPixelComponents(for: image) else { return "muted" }
+        if components.blue > components.red + 20 && components.blue > components.green { return "blue" }
+        if components.green > components.red && components.green > components.blue { return "green" }
+        if components.red > components.blue + 18 { return "warm" }
+        return "muted"
+    }
+
+    private static func attentionPixelComponents(for image: UIImage) -> (red: Int, green: Int, blue: Int)? {
+        guard let cgImage = image.cgImage else { return nil }
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1))
+        let sample = renderer.image { _ in
+            UIImage(cgImage: cgImage).draw(in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
+        guard let pixel = sample.cgImage?.dataProvider?.data,
+              let bytes = CFDataGetBytePtr(pixel) else { return nil }
+        return (Int(bytes[0]), Int(bytes[1]), Int(bytes[2]))
     }
 
     private func illuminatePendingCameraPhoto() async {
@@ -10694,9 +11012,10 @@ struct CapturePageSheet: View {
             }
         } catch {
             onRefundBeliefForGeneration(.enchantment)
+            appLog.error("Enchantment cast failed: \(error.localizedDescription, privacy: .public)")
             await MainActor.run {
                 BookFeedback.play(.error)
-                enchantmentMessage = "\(spell.title) did not finish: \(error.localizedDescription)"
+                enchantmentMessage = "\(spell.title) did not finish. The local brain dropped its pencil, and your Belief was returned."
             }
         }
     }
@@ -12432,6 +12751,7 @@ struct CapturePageSheet: View {
     private func askTheBook() async {
         let prompt = askPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !prompt.isEmpty, !isAskingTheBook else { return }
+        let isFirstTurn = askTurns.isEmpty
         isAskingTheBook = true
         askTheBookMessage = "The Book is opening the Stacks."
         do {
@@ -12460,7 +12780,8 @@ struct CapturePageSheet: View {
                 readerLexicon: readerLexicon,
                 memory: memory,
                 relationship: bookRelationship,
-                interior: bookInterior
+                interior: bookInterior,
+                bookVoicePatina: bookVoicePatina
             )
             appLog.info("Chat with the Book Gemma reply returned; reply characters: \(generated.count, privacy: .public)")
         #else
@@ -12472,7 +12793,8 @@ struct CapturePageSheet: View {
                 readerLexicon: readerLexicon,
                 memory: memory,
                 relationship: bookRelationship,
-                interior: bookInterior
+                interior: bookInterior,
+                bookVoicePatina: bookVoicePatina
             )
             #endif
                 answer = AskTheBookAnswerGrounder.finalizeGenerated(
@@ -12483,6 +12805,11 @@ struct CapturePageSheet: View {
             }
             let turn = AskTheBookTurn(prompt: prompt, answer: answer)
             askTurns.append(turn)
+            if isFirstTurn,
+               let initiativeID = surface.payload.metadata["bookInitiativeID"]?.nonEmpty,
+               surface.payload.metadata["bookInitiativeGenerationPolicy"] == "user-initiated-only" {
+                onBookInitiativeAnswered(initiativeID, prompt, Date())
+            }
             askEvidenceByTurnID[turn.id] = memory.evidence
             askSearchCountByTurnID[turn.id] = memory.searchedRecordCount
             askPrompt = ""
@@ -14089,6 +14416,16 @@ enum StoryRecipeValidator {
             failures.append("Attach the binding character canon packet before generating prose.")
             score -= 45
         }
+        if let debrief = AcademyActivityDebrief(metadata: metadata),
+           !debrief.isAcknowledged(in: prose.scene) {
+            let anchors = debrief.anchorTerms.prefix(6).joined(separator: ", ")
+            failures.append(
+                "This is an Academy practice return. Respond to the reader's submitted answer by naming at least one exact detail"
+                    + (anchors.isEmpty ? "." : " (for example: \(anchors)).")
+                    + " Do not replay the original lesson."
+            )
+            score -= 60
+        }
 
         guard let blueprint = draft.blueprint else {
             return StoryRecipeValidation(score: score, failures: failures)
@@ -14295,7 +14632,7 @@ enum GossipPagePromptBuilder {
         \(metadata["realInterestClippings"] ?? "none")
 
         Real-world sources, for grounding only:
-        \(metadata["realInterestSources"] ?? "none")\(RadioAtmosphere.promptSection(nowPlaying))\(metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
+        \(metadata["realInterestSources"] ?? "none")\(RadioAtmosphere.promptSection(nowPlaying))\(metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(metadata[BookVoicePatina.metadataKey]?.nonEmpty.map { "\n\n\($0)" } ?? "")
 
         Return only the finished Gossip Page text.
         """
@@ -14418,7 +14755,7 @@ enum StoryPageResultPromptBuilder {
         \(context.selectedChoice.effectLine)\(inkbonesBlock)
 
         RECENT THREAD MEMORY:
-        \(prior.isEmpty ? "No prior turns." : prior)\(context.draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(context.draft.surface.payload.metadata["storyQuillDirective"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
+        \(prior.isEmpty ? "No prior turns." : prior)\(context.draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(context.draft.surface.payload.metadata["storyQuillDirective"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(context.draft.surface.payload.metadata[BookVoicePatina.metadataKey]?.nonEmpty.map { "\n\n\($0)" } ?? "")
 
         REQUIREMENTS:
         - Return only the result prose.
@@ -14603,7 +14940,7 @@ enum StoryPagePromptBuilder {
         \(setting)
 
         REAL MATERIAL:
-        \(signals)\(pressures)\(memories)\(talismanMoves)\(faeDirective)\(RadioAtmosphere.promptSection(nowPlaying))\(draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(draft.surface.payload.metadata["storyQuillDirective"]?.nonEmpty.map { "\n\n\($0)" } ?? "")
+        \(signals)\(pressures)\(memories)\(talismanMoves)\(faeDirective)\(RadioAtmosphere.promptSection(nowPlaying))\(draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(draft.surface.payload.metadata["storyQuillDirective"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(draft.surface.payload.metadata[BookVoicePatina.metadataKey]?.nonEmpty.map { "\n\n\($0)" } ?? "")
         \(continuation)\(mechanicPlan)
 
         OUTPUT FORMAT, EXACTLY:
@@ -14637,6 +14974,7 @@ enum StoryPagePromptBuilder {
     private static func academyLessonPrompt(for draft: StoryPageSceneDraft) -> String {
         let metadata = draft.surface.payload.metadata
         let isClub = metadata["sessionKind"] == "club"
+        let debrief = AcademyActivityDebrief(metadata: metadata)
         let leader = metadata["sessionLeader"] ?? "the professor"
         let lessonTitle = metadata["lessonTitle"]?.nonEmpty ?? metadata["sessionName"] ?? "The Lesson"
         let lectureBeats = metadata["lessonLectureBeats"]?.nonEmpty ?? metadata["sessionTeaches"] ?? "Teach the day's subject concretely."
@@ -14658,11 +14996,48 @@ enum StoryPagePromptBuilder {
         Let \(draft.turnCharacter) and the students be people with a small stake, not mouthpieces — but the lesson's concept still lands fully. The turn is the warmth around the teaching, never instead of it.
         """
         let mechanicPlan = mechanicPlanPrompt(for: draft.mechanicMandate)
+        let pagePurpose = debrief == nil
+            ? "This page is a compact lesson first and a vignette second. It should read like the reader has actually stepped into a useful class, not like a teaser for one. Define the idea plainly, let a student test it aloud, use one brief demonstration, and leave the reader with one concrete practice."
+            : "This page is the debrief after the reader completed the class practice. Their submitted answer—not the original demonstration—is the subject of this new beat. The lesson advances by receiving and interpreting what they actually wrote."
+        let debriefSection = debrief.map { "\n\n\($0.promptSection)" } ?? ""
+        let outputSceneContract = debrief == nil
+            ? """
+            220-320 words. A living classroom scene with the lesson already underway, the required leader visibly teaching, and the reader invited into the exercise.
+            Structure the SCENE as 3 short paragraphs, with no headings:
+            1. The lesson already underway, one vivid classroom detail, and the leader's spoken thesis.
+            2. The leader's mini-lecture using two supplied lecture beats, one concrete example, and a student's spoken test or mistake.
+            3. The leader's correction, the reader's direct question, and one real-world practice invitation for later.
+            """
+            : """
+            150-240 words in 2-3 short paragraphs. Begin with the submitted practice already in the leader's hands.
+            1. The leader quotes or names one exact detail from the reader's answer and responds to what that detail changes.
+            2. Apply the lesson's concept to the answer; let one companion react or revise their own understanding.
+            3. End on one new, answer-shaped observation or question. Do not repeat the old lecture, demonstration, practice invitation, or classroom entrance.
+            """
+        let hardRules = debrief == nil
+            ? """
+            - \(leader) must be physically present, must teach, and must speak at least twice.
+            - Most of SCENE should be dialogue: lecture lines, student answers, corrections, and the reader-facing question.
+            - This must teach the real subject, not merely mention it. Include two accurate mini-lecture beats and one demonstrated example.
+            - Use the first two supplied lecture beats in order. Do not skip the lesson just to reach the choices.
+            - Spend most of SCENE on the class exchange: explanation, student response, correction, and reader question. Keep arrival/setup to one sentence.
+            - The professor or leader asks the reader one direct, answerable classroom question.
+            - Do not claim the reader completed the practice, attended earlier, or did any real-world task.
+            - Complete every sentence. If space gets tight, shorten description before cutting the lesson, question, or practice invitation.
+            """
+            : """
+            - \(leader) must be physically present, speak at least twice, and receive the submitted answer before doing anything else.
+            - Name or quote at least one exact submitted detail in the first paragraph. A generic “good work” does not count.
+            - Teach by applying the core concept to the reader's detail. Do not recite the lecture beats or repeat the demonstration.
+            - The completed practice is already real because the reader submitted it. Do not question whether they did it, invent anything beyond it, or assign it again.
+            - The final question must follow from the submitted detail and must differ from the original Reader interaction.
+            - Complete every sentence. If space gets tight, preserve the exact detail and the leader's response before anything else.
+            """
 
         return """
         Write one ReEnchanted Academy \(isClub ? "Club Page" : "Class Page") using the Story Page format.
 
-        This page is a compact lesson first and a vignette second. It should read like the reader has actually stepped into a useful class, not like a teaser for one. Define the idea plainly, let a student test it aloud, use one brief demonstration, and leave the reader with one concrete practice.
+        \(pagePurpose)\(debriefSection)
 
         SESSION:
         \(isClub ? "Club" : "Class"): \(metadata["sessionName"] ?? "an Academy session")
@@ -14686,28 +15061,18 @@ enum StoryPagePromptBuilder {
         \(continuation)\(metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(mechanicPlan)
 
         HARD RULES:
-        - \(leader) must be physically present, must teach, and must speak at least twice.
-        - Most of SCENE should be dialogue: lecture lines, student answers, corrections, and the reader-facing question.
-        - This must teach the real subject, not merely mention it. Include two accurate mini-lecture beats and one demonstrated example.
-        - Use the first two supplied lecture beats in order. Do not skip the lesson just to reach the choices.
-        - Spend most of SCENE on the class exchange: explanation, student response, correction, and reader question. Keep arrival/setup to one sentence.
-        - The professor or leader asks the reader one direct, answerable classroom question.
+        \(hardRules)
         - At least one companion reacts in a small characterful way.
         - Include only one room texture detail total.
         - Do not build the scene around moving classroom props. One demonstration object is allowed; repeated handling is not.
-        - Do not claim the reader completed the practice, attended earlier, or did any real-world task.
-        - Complete every sentence. If space gets tight, shorten description before cutting the lesson, question, or practice invitation.
         - If CONTINUATION MEMORY is present, everything in it has already been read. Continue from the consequence; do not repeat the previous classroom scene, opening setup, image, dialogue, or chosen action.
         - A continued class scene must start one beat later: the lesson has advanced, or someone has visibly changed their answer.
+        - If READER'S COMPLETED PRACTICE is present, it outranks the generic lesson structure. Use at least one exact submitted detail in SCENE, and never give the same assignment again.
         - Simple concrete sentences. No assistant language, no headings or labels inside SCENE.
 
         OUTPUT FORMAT, EXACTLY:
         SCENE:
-        220-320 words. A living classroom scene with the lesson already underway, the required leader visibly teaching, and the reader invited into the exercise.
-        Structure the SCENE as 3 short paragraphs, with no headings:
-        1. The lesson already underway, one vivid classroom detail, and the leader's spoken thesis.
-        2. The leader's mini-lecture using two supplied lecture beats, one concrete example, and a student's spoken test or mistake.
-        3. The leader's correction, the reader's direct question, and one real-world practice invitation for later.
+        \(outputSceneContract)
 
         SLICE_OF_LIFE_CHOICE:
         Button title, 2-5 words: staying with one ordinary classroom detail.
@@ -15514,6 +15879,22 @@ struct StoryPageSceneDraft: Equatable {
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .first(where: { !$0.isEmpty }) ?? "one student"
+
+        if let debrief = AcademyActivityDebrief(metadata: metadata) {
+            let firstDetail = debrief.outcome
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .first(where: { !$0.isEmpty }) ?? debrief.outcome
+            return """
+            The returned page is already open in \(room). Under “\(debrief.activityTitle),” it carries your answer exactly as you left it:
+
+            \(debrief.outcome)
+
+            \(leader) does not begin \(sessionName) again. “I heard this: \(firstDetail),” they say. “Now the lesson has something real to answer.” They apply \(concept.lowercased()) to that detail, making the distinction smaller and more exact instead of repeating the demonstration. \(companion) looks back at their own answer and changes one word.
+
+            “Keep the part of your answer that only you could have supplied,” \(leader) says. “What does that exact detail let you notice next?” The room waits at this new place in the lesson; the old assignment is not given again.
+            """
+        }
 
         return """
         The door to \(room) is already open, and \(sessionName) is underway. Chalk dust smells faintly mineral. A chair leg ticks against the floor while the light leans across the desks. \(leader) taps the board and says, "\(title) begins here: \(concept)"

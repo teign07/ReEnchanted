@@ -1,5 +1,8 @@
 import SwiftUI
 import PhotosUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - CapturePageSheet sections as standalone views.
 //
@@ -662,6 +665,30 @@ struct ElectiveFlyleafListView: View {
                         .disabled(elective.targetLatitude == nil || verifyingLocationIDs.contains(elective.id))
                     }
 
+                    #if canImport(UIKit)
+                    if let rawURL = proofPhotoURLs[elective.id],
+                       let url = URL(string: rawURL),
+                       let image = UIImage(contentsOfFile: url.path) {
+                        HStack(spacing: 10) {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 64, height: 50)
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .stroke(BookPalette.paper.opacity(0.9), lineWidth: 2)
+                                }
+                                .bookPhotographArrival(reduceMotion: reduceMotion)
+
+                            Label("Evidence placed in the flyleaf", systemImage: "checkmark.seal")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(BookPalette.teal)
+                        }
+                        .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
+                    }
+                    #endif
+
                     if let message = proofMessages[elective.id] {
                         Text(message)
                             .font(.caption2.weight(.semibold))
@@ -716,6 +743,7 @@ struct ElectiveFlyleafListView: View {
                 }
                 .opacity(completedElectiveIDs.contains(elective.id) && !reduceMotion ? 0.82 : 1)
                 .scaleEffect(completedElectiveIDs.contains(elective.id) && !reduceMotion ? 0.985 : 1)
+                .animation(BookMotion.result(reduceMotion), value: proofPhotoURLs[elective.id])
             }
         }
     }
@@ -739,8 +767,11 @@ struct ElectiveFlyleafListView: View {
         do {
             let url = try saveQuestProofPhotoData(data)
             await MainActor.run {
-                proofPhotoURLs[electiveID] = url.absoluteString
-                proofMessages[electiveID] = "Photo proof ready."
+                withAnimation(BookMotion.result(reduceMotion)) {
+                    proofPhotoURLs[electiveID] = url.absoluteString
+                    proofMessages[electiveID] = "Photo proof ready."
+                }
+                BookFeedback.play(.openPage)
             }
         } catch {
             await setProofMessage("The photo could not be saved.", electiveID: electiveID)

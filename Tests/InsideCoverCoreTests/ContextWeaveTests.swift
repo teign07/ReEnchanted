@@ -286,4 +286,410 @@ final class ContextWeaveTests: XCTestCase {
         XCTAssertEqual(decoded.bodyScore, 74)
         XCTAssertEqual(decoded.calendarEventCount, 3)
     }
+
+    // MARK: - Relational Loom: every dimension may meet every other
+
+    private func storyChoicePage(id: String, at date: Date, choice: String) -> BookPage {
+        BookPage(
+            id: id,
+            type: .narrativeOS,
+            createdAt: date,
+            promptText: "A Story Page",
+            userInput: "Chosen path: \(choice.replacingOccurrences(of: "-", with: " "))",
+            tags: ["choice:\(choice)"],
+            sourceID: "narrative-os",
+            origin: .simulated,
+            context: BookPageContextSnapshot(at: date)
+        )
+    }
+
+    private func photographicPage(
+        id: String,
+        at date: Date,
+        palette: String,
+        innerWeatherEntryID: String
+    ) -> BookPage {
+        BookPage(
+            id: id,
+            type: .plainPage,
+            createdAt: date,
+            promptText: "Original photograph",
+            tags: ["plain-photo"],
+            sourceID: "plain-page",
+            origin: .userAuthored,
+            context: BookPageContextSnapshot(at: date, innerWeatherEntryID: innerWeatherEntryID),
+            sensoryFolio: SensoryFolio(observations: [
+                SensoryObservation(dimension: .modality, value: "photo", confidence: 1, extractorID: "test"),
+                SensoryObservation(dimension: .palette, value: palette, confidence: 1, extractorID: "test")
+            ])
+        )
+    }
+
+    private func crossMediaPage(
+        id: String,
+        at date: Date,
+        weather: String,
+        anchorID: String,
+        anchorName: String,
+        palette: String,
+        cadence: String
+    ) -> BookPage {
+        BookPage(
+            id: id,
+            type: .plainPage,
+            createdAt: date,
+            promptText: "A photograph and a voice note",
+            userInput: "A kept cross-media receipt.",
+            tags: ["plain-photo"],
+            sourceID: "plain-page",
+            origin: .userAuthored,
+            context: BookPageContextSnapshot(
+                at: date,
+                weatherTags: [weather],
+                nearbyAnchorID: anchorID,
+                locationLabel: anchorName
+            ),
+            sensoryFolio: SensoryFolio(observations: [
+                SensoryObservation(dimension: .modality, value: "photo-and-voice", confidence: 1, extractorID: "test"),
+                SensoryObservation(dimension: .palette, value: palette, confidence: 1, extractorID: "test"),
+                SensoryObservation(dimension: .voiceCadence, value: cadence, confidence: 1, extractorID: "test")
+            ])
+        )
+    }
+
+    func testRelationalLoomFindsNightChoosingSliceOfLifeWithoutABespokeRule() throws {
+        let night = (0..<5).map { index in
+            storyChoicePage(id: "night-slice-\(index)", at: daysAgo(1 + index * 2, hour: 23), choice: "slice-of-life")
+        }
+        let daylight = (0..<8).map { index in
+            storyChoicePage(id: "day-progress-\(index)", at: daysAgo(2 + index * 2, hour: 11), choice: "progress-arc")
+        }
+        let connections = RelationalLoom.connections(
+            days: days(from: night + daylight),
+            readerLearning: ReaderLearningModel(),
+            facultyEntries: [],
+            people: PeopleLedger()
+        )
+        let found = try XCTUnwrap(connections.first {
+            $0.condition.id == "day-part:night" && $0.outcome.id == "choice:slice-of-life"
+        })
+        XCTAssertEqual(found.inHits, 5)
+        XCTAssertEqual(found.outHits, 0)
+        XCTAssertTrue(found.line.contains("you chose Slice Of Life"), found.line)
+        XCTAssertTrue(found.line.contains("not a cause"), found.line)
+    }
+
+    func testRelationalLoomLetsATwoDayCleanLeanSpeakAsAGlimmer() throws {
+        let night = (0..<2).map { index in
+            storyChoicePage(id: "young-night-slice-\(index)", at: daysAgo(1 + index * 2, hour: 23), choice: "slice-of-life")
+        }
+        let daylight = (0..<3).map { index in
+            storyChoicePage(id: "young-day-progress-\(index)", at: daysAgo(2 + index * 2, hour: 11), choice: "progress-arc")
+        }
+        let connections = RelationalLoom.connections(
+            days: days(from: night + daylight),
+            readerLearning: ReaderLearningModel(), facultyEntries: [], people: PeopleLedger()
+        )
+        let glimmer = try XCTUnwrap(connections.first {
+            $0.condition.id == "day-part:night" && $0.outcome.id == "choice:slice-of-life"
+        })
+        XCTAssertEqual(glimmer.evidenceTier, .glimmer)
+        XCTAssertTrue(glimmer.line.contains("asking, not announcing"), glimmer.line)
+    }
+
+    func testRelationalLoomBuildsAThreeSignalCrossMediaConstellationWithoutABespokeRule() throws {
+        let stormHarborNights = (0..<5).map { index in
+            crossMediaPage(
+                id: "storm-harbor-\(index)", at: daysAgo(1 + index * 2, hour: 23),
+                weather: "rain", anchorID: "harbor", anchorName: "Harbor",
+                palette: "slate-dark", cadence: "rapid-paused"
+            )
+        }
+        let brightLibraryDays = (0..<8).map { index in
+            crossMediaPage(
+                id: "bright-library-\(index)", at: daysAgo(2 + index * 2, hour: 11),
+                weather: "bright", anchorID: "library", anchorName: "Library",
+                palette: "amber-light", cadence: "fluid-slow"
+            )
+        }
+        let connections = RelationalLoom.connections(
+            days: days(from: stormHarborNights + brightLibraryDays),
+            readerLearning: ReaderLearningModel(), facultyEntries: [], people: PeopleLedger()
+        )
+        let conditionID = "context-blend:day-part:night+place:harbor+weather:rain"
+        let constellations = RelationalLoom.constellations(connections: connections)
+        let constellation = try XCTUnwrap(constellations.first { $0.condition.id == conditionID })
+
+        let outcomeFamilies = Set(constellation.branches.map { $0.outcome.family })
+        XCTAssertTrue(outcomeFamilies.contains(.visualPalette))
+        XCTAssertTrue(outcomeFamilies.contains(.voiceCadence))
+        XCTAssertTrue(constellation.line.contains("photographic palette leaned slate dark"), constellation.line)
+        XCTAssertTrue(constellation.line.contains("voice cadence leaned rapid paused"), constellation.line)
+        XCTAssertTrue(constellation.line.contains("tested one by one"), constellation.line)
+        XCTAssertEqual(constellation.evidenceTier, .established)
+    }
+
+    func testBookNoticesSurfacesTheCrossMediaConstellationWithInspectableBranches() throws {
+        let stormHarborNights = (0..<5).map { index in
+            crossMediaPage(
+                id: "notice-storm-\(index)", at: daysAgo(1 + index * 2, hour: 23),
+                weather: "rain", anchorID: "harbor", anchorName: "Harbor",
+                palette: "slate-dark", cadence: "rapid-paused"
+            )
+        }
+        let brightLibraryDays = (0..<8).map { index in
+            crossMediaPage(
+                id: "notice-bright-\(index)", at: daysAgo(2 + index * 2, hour: 11),
+                weather: "bright", anchorID: "library", anchorName: "Library",
+                palette: "amber-light", cadence: "fluid-slow"
+            )
+        }
+        let today = BookDay(id: BookDay.id(for: now), date: Calendar.current.startOfDay(for: now), pages: [])
+        let surfaces = BookNoticesPageSourceAdapter().candidates(
+            for: today,
+            context: CuratorContext.make(for: today),
+            inputs: noticeInputs(days: days(from: stormHarborNights + brightLibraryDays)),
+            now: now
+        )
+        let surface = try XCTUnwrap(surfaces.first {
+            $0.payload.metadata["connectionKind"] == "relational-constellation"
+        })
+
+        let branchCount = try XCTUnwrap(Int(surface.payload.metadata["relationalBranchCount"] ?? ""))
+        let outcomes = surface.payload.metadata["relationalOutcomes"] ?? ""
+        XCTAssertGreaterThanOrEqual(branchCount, 2)
+        XCTAssertTrue(outcomes.contains("Photographic palette"), outcomes)
+        XCTAssertTrue(outcomes.contains("Voice cadence"), outcomes)
+        XCTAssertFalse((surface.payload.metadata["tinyPatternCards"] ?? "").isEmpty)
+        XCTAssertEqual(surface.payload.metadata["feedbackPrompt"], "Do these parts of your Book truly meet here?")
+    }
+
+    func testRelationalLoomStillKeepsOneCoincidenceQuiet() {
+        let oneNight = [storyChoicePage(id: "one-night", at: daysAgo(1, hour: 23), choice: "slice-of-life")]
+        let daylight = (0..<4).map { index in
+            storyChoicePage(id: "one-day-\(index)", at: daysAgo(2 + index, hour: 11), choice: "progress-arc")
+        }
+        let connections = RelationalLoom.connections(
+            days: days(from: oneNight + daylight),
+            readerLearning: ReaderLearningModel(), facultyEntries: [], people: PeopleLedger()
+        )
+        XCTAssertFalse(connections.contains {
+            $0.condition.id == "day-part:night" && $0.outcome.id == "choice:slice-of-life"
+        })
+    }
+
+    func testRelationalLoomConnectsPhotographicFormOnlyToReaderNamedFeeling() throws {
+        let sadEntries = (0..<5).map { index in
+            FacultyEntry(
+                id: "sad-entry-\(index)", kind: .innerWeather,
+                dayID: BookDay.id(for: daysAgo(1 + index * 2)),
+                createdAt: daysAgo(1 + index * 2, hour: 8),
+                windowID: "morning", windowName: "Morning", rawText: "Sad and low"
+            )
+        }
+        let calmEntries = (0..<8).map { index in
+            FacultyEntry(
+                id: "calm-entry-\(index)", kind: .innerWeather,
+                dayID: BookDay.id(for: daysAgo(2 + index * 2)),
+                createdAt: daysAgo(2 + index * 2, hour: 8),
+                windowID: "morning", windowName: "Morning", rawText: "Calm and steady"
+            )
+        }
+        let sadPhotos = sadEntries.enumerated().map { index, entry in
+            photographicPage(id: "sad-photo-\(index)", at: daysAgo(1 + index * 2, hour: 9), palette: "muted", innerWeatherEntryID: entry.id)
+        }
+        let calmPhotos = calmEntries.enumerated().map { index, entry in
+            photographicPage(id: "calm-photo-\(index)", at: daysAgo(2 + index * 2, hour: 9), palette: "vivid", innerWeatherEntryID: entry.id)
+        }
+        let connections = RelationalLoom.connections(
+            days: days(from: sadPhotos + calmPhotos),
+            readerLearning: ReaderLearningModel(),
+            facultyEntries: sadEntries + calmEntries,
+            people: PeopleLedger()
+        )
+        let found = try XCTUnwrap(connections.first {
+            $0.condition.id == "inner-weather:sad" && $0.outcome.id == "visualPalette:muted"
+        })
+        XCTAssertEqual(found.headline, "The Weather Behind the Lens")
+        XCTAssertTrue(found.line.contains("reader-supplied receipt"), found.line)
+    }
+
+    func testRelationalLoomNeverInventsFeelingFromPhotographs() {
+        let photos = (0..<13).map { index in
+            photographicPage(
+                id: "unlinked-photo-\(index)",
+                at: daysAgo(index + 1, hour: 9),
+                palette: index < 5 ? "muted" : "vivid",
+                innerWeatherEntryID: "missing-\(index)"
+            )
+        }
+        let connections = RelationalLoom.connections(
+            days: days(from: photos),
+            readerLearning: ReaderLearningModel(),
+            facultyEntries: [],
+            people: PeopleLedger()
+        )
+        XCTAssertFalse(connections.contains { $0.condition.family == .innerWeather || $0.outcome.family == .innerWeather })
+    }
+
+    func testRelationalLoomUsesOpenedInteractionContextForCharacterWeatherConnections() throws {
+        var learning = ReaderLearningModel()
+        for index in 0..<5 {
+            let date = daysAgo(1 + index * 2, hour: 20)
+            learning.record(ReaderLearningEvent(
+                id: "wicker-open-\(index)", dayID: BookDay.id(for: date), occurredAt: date,
+                action: .opened, surfaceID: "wicker-letter-\(index)", sourceID: "letter",
+                type: .letter, varietyKey: "sender:wicker-eddies", hour: 20,
+                tags: ["sender:wicker-eddies"], evidence: "The letter became readable.",
+                context: BookPageContextSnapshot(at: date, weatherTags: ["rain", "cold"])
+            ))
+        }
+        for index in 0..<8 {
+            let date = daysAgo(2 + index * 2, hour: 20)
+            learning.record(ReaderLearningEvent(
+                id: "penny-open-\(index)", dayID: BookDay.id(for: date), occurredAt: date,
+                action: .opened, surfaceID: "penny-letter-\(index)", sourceID: "letter",
+                type: .letter, varietyKey: "sender:penny-blackletter", hour: 20,
+                tags: ["sender:penny-blackletter"], evidence: "The letter became readable.",
+                context: BookPageContextSnapshot(at: date, weatherTags: ["bright"])
+            ))
+        }
+        let connections = RelationalLoom.connections(
+            days: [], readerLearning: learning, facultyEntries: [], people: PeopleLedger()
+        )
+        let found = try XCTUnwrap(connections.first {
+            $0.condition.id == "weather:cold+rain" && $0.outcome.id == "character:wicker-eddies"
+        })
+        XCTAssertTrue(found.line.contains("Wicker Eddies"), found.line)
+        XCTAssertTrue(found.line.contains("it was raining"), found.line)
+    }
+
+    func testRelationalLoomUsesOnlyConfirmedPeopleAsDimensions() throws {
+        let samPages = (0..<5).map { index in
+            page("Sam and I walked past the harbor and talked for an hour.", at: daysAgo(1 + index * 2), id: "sam-\(index)", weather: ["rain"])
+        }
+        let alexPages = (0..<8).map { index in
+            page("Alex and I made coffee and compared our ridiculous notes.", at: daysAgo(2 + index * 2), id: "alex-\(index)", weather: ["bright"])
+        }
+        let people = PeopleLedger(threads: [
+            PersonThread(id: "person:sam", name: "Sam", introducedDay: "2026-01-01", readerWords: "My friend", firstMentionDay: "2026-01-01", lastMentionDay: "2026-07-01", mentionPageCount: 5),
+            PersonThread(id: "person:alex", name: "Alex", introducedDay: "2026-01-01", readerWords: "My friend", firstMentionDay: "2026-01-01", lastMentionDay: "2026-07-01", mentionPageCount: 8)
+        ])
+        let connections = RelationalLoom.connections(
+            days: days(from: samPages + alexPages),
+            readerLearning: ReaderLearningModel(), facultyEntries: [], people: people
+        )
+        let found = try XCTUnwrap(connections.first {
+            $0.condition.id == "weather:rain" && $0.outcome.id == "person:person:sam"
+        })
+        XCTAssertTrue(found.line.contains("Sam"), found.line)
+
+        let unconfirmed = RelationalLoom.connections(
+            days: days(from: samPages + alexPages),
+            readerLearning: ReaderLearningModel(), facultyEntries: [], people: PeopleLedger()
+        )
+        XCTAssertFalse(unconfirmed.contains { $0.condition.family == .person || $0.outcome.family == .person })
+    }
+
+    func testRelationalLoomLetsPersistedVectorMeaningMeetEveryOtherDimension() throws {
+        let rain = (0..<5).map { index in
+            page("A different sentence with enough exact words to remain reader evidence.", at: daysAgo(1 + index * 2), id: "threshold-\(index)", weather: ["rain"])
+        }
+        let dry = (0..<8).map { index in
+            page("Another distinct sentence with enough exact words to remain reader evidence.", at: daysAgo(2 + index * 2), id: "garden-\(index)", weather: ["bright"])
+        }
+        let threshold = LiteraryContinuitySignal(
+            id: "sensory-threshold", kind: .sensory, subjectID: "threshold",
+            subjectName: "Thresholds", line: "A local vector joined these Pages.",
+            evidencePageIDs: rain.map(\.id), relatedEntityIDs: [], tags: ["sensory"],
+            firstSeenAt: rain.first!.createdAt, lastSeenAt: rain.last!.createdAt, strength: 80
+        )
+        let garden = LiteraryContinuitySignal(
+            id: "sensory-garden", kind: .sensory, subjectID: "garden",
+            subjectName: "Gardens", line: "Another local vector joined these Pages.",
+            evidencePageIDs: dry.map(\.id), relatedEntityIDs: [], tags: ["sensory"],
+            firstSeenAt: dry.first!.createdAt, lastSeenAt: dry.last!.createdAt, strength: 80
+        )
+        let digest = LiteraryContinuityDigest(signals: [threshold, garden], beliefLifecycles: [])
+        let connections = RelationalLoom.connections(
+            days: days(from: rain + dry),
+            readerLearning: ReaderLearningModel(), facultyEntries: [], people: PeopleLedger(),
+            continuity: digest
+        )
+        let found = try XCTUnwrap(connections.first {
+            $0.condition.id == "weather:rain" && $0.outcome.id == "meaning:sensory-threshold"
+        })
+        XCTAssertTrue(found.line.contains("Thresholds"), found.line)
+    }
+
+    func testBookRememberedReturnsAReceiptWhenTodayMatchesEvenAGlimmer() throws {
+        let rememberedNow = Calendar.current.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 23))!
+        let night = [1, 3].enumerated().map { index, back in
+            storyChoicePage(id: "remember-night-\(index)", at: daysAgo(back, hour: 23), choice: "slice-of-life")
+        }
+        let daylight = [2, 4, 5].enumerated().map { index, back in
+            storyChoicePage(id: "remember-day-\(index)", at: daysAgo(back, hour: 11), choice: "progress-arc")
+        }
+        var inputs = BookSourceInputs.empty
+        inputs.days = days(from: night + daylight)
+        inputs.resurfacingCandidates = [night[0]]
+        let today = BookDay(
+            id: BookDay.id(for: rememberedNow),
+            date: Calendar.current.startOfDay(for: rememberedNow),
+            pages: []
+        )
+
+        let visitation = try XCTUnwrap(BookRememberedEngine.visitation(
+            from: inputs.resurfacingCandidates,
+            day: today,
+            inputs: inputs,
+            now: rememberedNow
+        ))
+        XCTAssertEqual(visitation.page.id, night[0].id)
+        XCTAssertTrue(visitation.reason.contains("early connection"), visitation.reason)
+        XCTAssertTrue(visitation.reason.contains("Slice Of Life"), visitation.reason)
+    }
+
+    func testBookRememberedReturnsAReceiptFromAWholeCrossMediaConstellation() throws {
+        let rememberedNow = Calendar.current.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 23))!
+        let night = (0..<5).map { index in
+            crossMediaPage(
+                id: "remember-constellation-night-\(index)", at: daysAgo(1 + index * 2, hour: 23),
+                weather: "rain", anchorID: "harbor", anchorName: "Harbor",
+                palette: "slate-dark", cadence: "rapid-paused"
+            )
+        }
+        let dayPages = (0..<8).map { index in
+            crossMediaPage(
+                id: "remember-constellation-day-\(index)", at: daysAgo(2 + index * 2, hour: 11),
+                weather: "bright", anchorID: "library", anchorName: "Library",
+                palette: "amber-light", cadence: "fluid-slow"
+            )
+        }
+        var inputs = BookSourceInputs.empty
+        inputs.days = days(from: night + dayPages)
+        let today = BookDay(
+            id: BookDay.id(for: rememberedNow),
+            date: Calendar.current.startOfDay(for: rememberedNow),
+            pages: []
+        )
+
+        let visitation = try XCTUnwrap(BookRememberedEngine.visitation(
+            from: [night[0]], day: today, inputs: inputs, now: rememberedNow
+        ))
+        XCTAssertEqual(visitation.page.id, night[0].id)
+        XCTAssertTrue(visitation.reason.contains("constellation"), visitation.reason)
+        XCTAssertTrue(visitation.reason.contains("photographic palette slate dark"), visitation.reason)
+        XCTAssertTrue(visitation.reason.contains("voice cadence rapid paused"), visitation.reason)
+    }
+
+    func testReaderLearningEventWithoutContextStillDecodes() throws {
+        let json = """
+        {"id":"old","dayID":"2026-01-01","occurredAt":0,"action":"opened","surfaceID":"s","sourceID":"letter","type":"letter","varietyKey":"sender:wicker-eddies","hour":22,"tags":["sender:wicker-eddies"]}
+        """.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        let event = try decoder.decode(ReaderLearningEvent.self, from: json)
+        XCTAssertNil(event.context)
+    }
 }

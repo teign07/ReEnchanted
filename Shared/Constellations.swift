@@ -216,6 +216,13 @@ enum ConstellationKeeper {
                 "%@ After Midnight",
                 "Tuned to %@"
             ]
+        case .sensory:
+            templates = [
+                "The %@ Between",
+                "Where %@ Crossed the Page",
+                "The Many Senses of %@",
+                "%@, in Image and Ink"
+            ]
         case .manner:
             templates = [
                 "The Way %@ Arrives",

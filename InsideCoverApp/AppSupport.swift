@@ -65,6 +65,42 @@ let appLog = Logger(subsystem: "com.openclaw.enchantify.insidecover", category: 
 extension Notification.Name {
     static let bookAppLockAuthorized = Notification.Name("bookAppLockAuthorized")
     static let promptWhisperKept = Notification.Name("promptWhisperKept")
+    static let promptWhisperOpenReceived = Notification.Name("promptWhisperOpenReceived")
+}
+
+/// A notification may wake the process before `ContentView` exists, or while
+/// the Book is still behind its app lock. Persist the exact prompt snapshot and
+/// let the first ready Book view consume it.
+struct PromptWhisperOpenRequest: Codable, Equatable {
+    var id: UUID
+    var whisper: PromptWhisper
+    var issuedAt: Date
+}
+
+enum PromptWhisperOpenStore {
+    static let requestKey = "promptWhisperOpenRequest"
+
+    @discardableResult
+    static func enqueue(_ whisper: PromptWhisper, now: Date = Date()) -> PromptWhisperOpenRequest? {
+        let request = PromptWhisperOpenRequest(id: UUID(), whisper: whisper, issuedAt: now)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(request) else { return nil }
+        UserDefaults.standard.set(data, forKey: requestKey)
+        return request
+    }
+
+    static func load() -> PromptWhisperOpenRequest? {
+        guard let data = UserDefaults.standard.data(forKey: requestKey) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode(PromptWhisperOpenRequest.self, from: data)
+    }
+
+    static func clear(id: UUID? = nil) {
+        if let id, load()?.id != id { return }
+        UserDefaults.standard.removeObject(forKey: requestKey)
+    }
 }
 
 // MARK: - Public Margins network doorway
@@ -2017,6 +2053,34 @@ actor BookPersistenceWriter {
         }
     }
 
+    /// Commits a migration/enrichment snapshot in one archive transaction.
+    /// This avoids rewriting the whole JSON archive once per Page while still
+    /// sharing the same monotonic revision gate as ordinary Keeps.
+    func persistArchive(
+        revision: UInt64,
+        days: [BookDay]
+    ) throws -> BookPersistenceWriteResult? {
+        guard revision > latestAcceptedRevision else { return nil }
+        latestAcceptedRevision = revision
+
+        do {
+            try database.saveDays(days)
+            try BookStore.saveDays(days)
+            return result(
+                revision: revision,
+                days: days,
+                usedFallbackStore: false
+            )
+        } catch {
+            try BookStore.saveDays(days)
+            return result(
+                revision: revision,
+                days: days,
+                usedFallbackStore: true
+            )
+        }
+    }
+
     private func result(
         revision: UInt64,
         days: [BookDay],
@@ -3026,19 +3090,71 @@ extension Notification.Name {
 
 #if canImport(UIKit)
 /// Shared full-screen camera capture used by any page that can take a photo
-/// instead of choosing one from the library.
-struct BookCameraCaptureView: UIViewControllerRepresentable {
+/// instead of choosing one from the library. The system camera remains the
+/// trustworthy capture surface; the Book owns the threshold around it so the
+/// lens opens like an iris instead of arriving as an unrelated black screen.
+struct BookCameraCaptureView: View {
     let onImageData: (Data) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var captureFlashOpacity = 0.0
 
     static var isCameraAvailable: Bool {
         UIImagePickerController.isSourceTypeAvailable(.camera)
     }
 
+    var body: some View {
+        ZStack {
+            BookSystemCameraController(
+                onImageData: capture,
+                onCancel: { dismiss() }
+            )
+            .ignoresSafeArea()
+
+            CameraIrisArrivalOverlay()
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+
+            Color.white
+                .opacity(captureFlashOpacity)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .background(Color.black.ignoresSafeArea())
+    }
+
+    private func capture(_ data: Data) {
+        guard !reduceMotion else {
+            onImageData(data)
+            dismiss()
+            return
+        }
+
+        withAnimation(.easeOut(duration: 0.045)) {
+            captureFlashOpacity = 0.88
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(85))
+            withAnimation(.easeIn(duration: 0.10)) {
+                captureFlashOpacity = 0
+            }
+            try? await Task.sleep(for: .milliseconds(95))
+            onImageData(data)
+            dismiss()
+        }
+    }
+}
+
+private struct BookSystemCameraController: UIViewControllerRepresentable {
+    let onImageData: (Data) -> Void
+    let onCancel: () -> Void
+
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
         picker.sourceType = .camera
         picker.cameraCaptureMode = .photo
+        picker.modalPresentationStyle = .fullScreen
         picker.delegate = context.coordinator
         return picker
     }
@@ -3046,33 +3162,87 @@ struct BookCameraCaptureView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onImageData: onImageData) {
-            dismiss()
-        }
+        Coordinator(onImageData: onImageData, onCancel: onCancel)
     }
 
     final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
         let onImageData: (Data) -> Void
-        let dismiss: () -> Void
+        let onCancel: () -> Void
 
-        init(onImageData: @escaping (Data) -> Void, dismiss: @escaping () -> Void) {
+        init(onImageData: @escaping (Data) -> Void, onCancel: @escaping () -> Void) {
             self.onImageData = onImageData
-            self.dismiss = dismiss
+            self.onCancel = onCancel
         }
 
         func imagePickerController(
             _ picker: UIImagePickerController,
             didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
         ) {
-            if let image = info[.originalImage] as? UIImage,
-               let data = image.jpegData(compressionQuality: 0.86) {
-                onImageData(data)
+            guard let image = info[.originalImage] as? UIImage,
+                  let data = image.jpegData(compressionQuality: 0.86) else {
+                onCancel()
+                return
             }
-            dismiss()
+            onImageData(data)
         }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            dismiss()
+            onCancel()
+        }
+    }
+}
+
+/// A single threshold animation, not an always-on camera ornament. Six faint
+/// aperture marks fold out while the live view is uncovered, then disappear so
+/// nothing competes with the subject the reader is actually trying to see.
+private struct CameraIrisArrivalOverlay: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var openingProgress: CGFloat = 0
+
+    var body: some View {
+        GeometryReader { proxy in
+            let diagonal = hypot(proxy.size.width, proxy.size.height)
+
+            ZStack {
+                Color.black.opacity(0.98)
+
+                Circle()
+                    .frame(
+                        width: diagonal * max(openingProgress, 0.002),
+                        height: diagonal * max(openingProgress, 0.002)
+                    )
+                    .blendMode(.destinationOut)
+
+                Circle()
+                    .stroke(BookPalette.lampGold.opacity(0.68 * (1 - openingProgress)), lineWidth: 1.5)
+                    .frame(
+                        width: diagonal * max(openingProgress, 0.04),
+                        height: diagonal * max(openingProgress, 0.04)
+                    )
+
+                ForEach(0..<6, id: \.self) { index in
+                    Capsule()
+                        .fill(BookPalette.paper.opacity(0.30 * (1 - openingProgress)))
+                        .frame(width: 1, height: min(proxy.size.width, proxy.size.height) * 0.22)
+                        .offset(y: -min(proxy.size.width, proxy.size.height) * (0.10 + openingProgress * 0.28))
+                        .rotationEffect(.degrees(Double(index) * 60 + Double(openingProgress) * 24))
+                }
+            }
+            .compositingGroup()
+            .opacity(openingProgress >= 0.995 ? 0 : 1)
+        }
+        .ignoresSafeArea()
+        .onAppear {
+            guard !reduceMotion else {
+                openingProgress = 1
+                return
+            }
+            Task { @MainActor in
+                await Task.yield()
+                withAnimation(.easeInOut(duration: 0.54)) {
+                    openingProgress = 1
+                }
+            }
         }
     }
 }
@@ -3431,7 +3601,8 @@ enum BookWhispers {
                     "title": whisper.title,
                     "body": whisper.body,
                     "tags": whisper.tags.joined(separator: ","),
-                    "kind": whisper.kind.rawValue
+                    "kind": whisper.kind.rawValue,
+                    "allowsPhoto": whisper.allowsPhoto ?? false
                 ]
                 center.add(UNNotificationRequest(
                     identifier: "\(promptIdentifierPrefix)\(scheduledDay.id)-\(slotIndex)",
@@ -3466,9 +3637,22 @@ final class BookWhisperPresenter: NSObject, UNUserNotificationCenterDelegate {
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         guard response.notification.request.content.categoryIdentifier == BookWhispers.promptCategoryIdentifier,
-              response.actionIdentifier == BookWhispers.promptReplyActionIdentifier,
-              let textResponse = response as? UNTextInputNotificationResponse,
               let whisper = Self.promptWhisper(from: response.notification.request.content.userInfo) else {
+            completionHandler()
+            return
+        }
+
+        if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
+            _ = PromptWhisperOpenStore.enqueue(whisper)
+            Task { @MainActor in
+                NotificationCenter.default.post(name: .promptWhisperOpenReceived, object: nil)
+            }
+            completionHandler()
+            return
+        }
+
+        guard response.actionIdentifier == BookWhispers.promptReplyActionIdentifier,
+              let textResponse = response as? UNTextInputNotificationResponse else {
             completionHandler()
             return
         }
@@ -3499,7 +3683,17 @@ final class BookWhisperPresenter: NSObject, UNUserNotificationCenterDelegate {
             .split(separator: ",")
             .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        return PromptWhisper(id: id, kind: kind, title: title, body: body, keepPrompt: keepPrompt, tags: tags)
+        let allowsPhoto = (userInfo["allowsPhoto"] as? NSNumber)?.boolValue
+            ?? (userInfo["allowsPhoto"] as? Bool)
+        return PromptWhisper(
+            id: id,
+            kind: kind,
+            title: title,
+            body: body,
+            keepPrompt: keepPrompt,
+            tags: tags,
+            allowsPhoto: allowsPhoto
+        )
     }
 
     @MainActor
@@ -3803,7 +3997,7 @@ enum WeatherBell {
             content.body = whisper.body
             content.sound = .default
             content.categoryIdentifier = BookWhispers.promptCategoryIdentifier
-            content.userInfo = ["promptWhisperID": whisper.id, "keepPrompt": whisper.keepPrompt, "title": whisper.title, "body": whisper.body, "tags": whisper.tags.joined(separator: ","), "kind": whisper.kind.rawValue]
+            content.userInfo = ["promptWhisperID": whisper.id, "keepPrompt": whisper.keepPrompt, "title": whisper.title, "body": whisper.body, "tags": whisper.tags.joined(separator: ","), "kind": whisper.kind.rawValue, "allowsPhoto": whisper.allowsPhoto ?? false]
             try await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "book-whisper-weather-bell", content: content, trigger: nil))
             #endif
             UserDefaults.standard.set(now, forKey: "weatherBellLastFired")
@@ -3920,9 +4114,19 @@ final class PlayerVault {
             // alone. Anyone already served a step under that rule counts as
             // engaged, so onboarding never replays for existing readers.
             if decoded.firstRunEngaged == nil {
-                decoded.firstRunEngaged = FirstRunPageSequence.seededEngagementKeys(
-                    fromServedHistory: decoded.surfaceHistory ?? [:]
-                )
+                // A launch desk is curated underneath the First Door. If the app
+                // was interrupted mid-onboarding, its hidden Welcome may already
+                // be in served history even though the reader never saw it. Only
+                // use the legacy served-history migration for Books whose story
+                // onboarding was already complete; an in-progress First Door
+                // starts an explicit empty engagement ledger instead.
+                if UserDefaults.standard.bool(forKey: "didCompleteStoryOnboarding") {
+                    decoded.firstRunEngaged = FirstRunPageSequence.seededEngagementKeys(
+                        fromServedHistory: decoded.surfaceHistory ?? [:]
+                    )
+                } else {
+                    decoded.firstRunEngaged = []
+                }
             }
             data = decoded
             return
@@ -3985,6 +4189,9 @@ final class PlayerVault {
            let seen = try? decoder.decode([String].self, from: raw) {
             migrated.tutorSeen = seen
         }
+        // A newly created vault must never look eligible for the legacy
+        // served-history migration on its second launch.
+        migrated.firstRunEngaged = []
         return migrated
     }
 }
@@ -4738,6 +4945,123 @@ enum VellumNutritionist {
             return nil
         }
         return FoodDataCentralNutritionParser.bestMatch(in: parsed.foods, for: food)
+    }
+}
+
+/// The Book's small shared motion vocabulary. Views choose the meaning of a
+/// change rather than inventing another spring, and Reduced Motion gets a quiet
+/// crossfade instead of a spatial imitation of the full choreography.
+enum BookMotion {
+    static func direct(_ reduceMotion: Bool) -> Animation? {
+        reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.26, dampingFraction: 0.78)
+    }
+
+    static func reveal(_ reduceMotion: Bool) -> Animation? {
+        reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.46, dampingFraction: 0.86)
+    }
+
+    static func result(_ reduceMotion: Bool) -> Animation? {
+        reduceMotion ? .easeOut(duration: 0.18) : .spring(response: 0.52, dampingFraction: 0.84)
+    }
+
+    static func retreat(_ reduceMotion: Bool) -> Animation? {
+        reduceMotion ? .easeOut(duration: 0.14) : .easeInOut(duration: 0.24)
+    }
+
+    static func pageTurn(_ reduceMotion: Bool) -> Animation? {
+        reduceMotion ? .easeOut(duration: 0.16) : .easeInOut(duration: 0.48)
+    }
+
+    static func deal(delay: Double = 0, reduceMotion: Bool) -> Animation? {
+        reduceMotion
+            ? .easeOut(duration: 0.16)
+            : .spring(response: 0.54, dampingFraction: 0.84).delay(delay)
+    }
+
+    static func riseTransition(reduceMotion: Bool) -> AnyTransition {
+        reduceMotion
+            ? .opacity
+            : .opacity.combined(with: .move(edge: .bottom)).combined(with: .scale(scale: 0.985))
+    }
+
+    static func foldTransition(reduceMotion: Bool) -> AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top))
+    }
+}
+
+/// A generated answer should not pop into the layout like a refreshed label.
+/// It settles as ink: a short lift, focus, and extinguishing gilt glow. This is
+/// intentionally a one-shot arrival, not another perpetual ambient animation.
+private struct BookResultArrivalModifier: ViewModifier {
+    let reduceMotion: Bool
+    var delay: Double
+
+    @State private var didSettle = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(reduceMotion || didSettle ? 1 : 0)
+            .offset(y: reduceMotion || didSettle ? 0 : 14)
+            .scaleEffect(reduceMotion || didSettle ? 1 : 0.985, anchor: .top)
+            .blur(radius: reduceMotion || didSettle ? 0 : 3)
+            .shadow(
+                color: BookPalette.lampGold.opacity(reduceMotion || didSettle ? 0 : 0.30),
+                radius: reduceMotion || didSettle ? 0 : 18,
+                y: 6
+            )
+            .onAppear {
+                guard !didSettle else { return }
+                if reduceMotion {
+                    didSettle = true
+                } else {
+                    withAnimation(BookMotion.result(false)?.delay(delay)) {
+                        didSettle = true
+                    }
+                }
+            }
+    }
+}
+
+/// A photograph is treated as an object placed on the page: it lands a little
+/// askew, finds focus, and settles flat. The movement happens once on insertion;
+/// photographs do not hover or breathe after the reader has chosen them.
+private struct BookPhotographArrivalModifier: ViewModifier {
+    let reduceMotion: Bool
+    var delay: Double
+    @State private var didLand = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(reduceMotion || didLand ? 1 : 0)
+            .scaleEffect(reduceMotion || didLand ? 1 : 0.91)
+            .rotationEffect(.degrees(reduceMotion || didLand ? 0 : -2.6))
+            .offset(y: reduceMotion || didLand ? 0 : 18)
+            .blur(radius: reduceMotion || didLand ? 0 : 2.2)
+            .shadow(
+                color: BookPalette.ink.opacity(reduceMotion || didLand ? 0.12 : 0.28),
+                radius: reduceMotion || didLand ? 4 : 16,
+                y: reduceMotion || didLand ? 2 : 10
+            )
+            .onAppear {
+                guard !didLand else { return }
+                if reduceMotion {
+                    didLand = true
+                } else {
+                    withAnimation(BookMotion.deal(delay: delay, reduceMotion: false)) {
+                        didLand = true
+                    }
+                }
+            }
+    }
+}
+
+extension View {
+    func bookResultArrival(reduceMotion: Bool, delay: Double = 0) -> some View {
+        modifier(BookResultArrivalModifier(reduceMotion: reduceMotion, delay: delay))
+    }
+
+    func bookPhotographArrival(reduceMotion: Bool, delay: Double = 0) -> some View {
+        modifier(BookPhotographArrivalModifier(reduceMotion: reduceMotion, delay: delay))
     }
 }
 

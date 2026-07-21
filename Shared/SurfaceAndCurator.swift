@@ -1240,9 +1240,14 @@ enum BookCurator {
             }
         }
 
-        return picked
+        let framed = picked
             .map { PactWarEffects.framed($0, state: inputs.pactWar) }
             .map { $0.withReaderLexiconLanguageLaw(inputs.readerLexicon) }
+        return BookPersonalityActuator.enacting(
+            in: framed,
+            interior: inputs.bookInterior,
+            day: day
+        )
     }
 
     /// The slot a guaranteed injection (sovereign shelf, evening braid) may
@@ -1339,6 +1344,8 @@ enum BookCurator {
         var pickedTypes: Set<BookPageType> = []
         var compositionCount = 0
         var debutCount = 0
+        var actionCommissionCount = 0
+        let visibleLimit = min(3, max(0, limit))
         // One blank-page prompt per three-slot desk: the home shelf (limit 3)
         // shows at most one, while wider introspection queries still surface the
         // full set of composition cards.
@@ -1347,6 +1354,7 @@ enum BookCurator {
         // single felt reveal rather than a wall of novelty. Wider queries
         // (limit > 3) scale the allowance instead of starving.
         let debutLimit = max(1, limit / 3)
+        let actionCommissionLimit = max(1, limit / 3)
 
         func isDebut(_ page: SurfacePage) -> Bool {
             page.payload.metadata["firstReading"] == "true"
@@ -1356,46 +1364,48 @@ enum BookCurator {
         func canAdd(_ page: SurfacePage) -> Bool {
             guard picked.count < limit else { return false }
             guard !pickedTypes.contains(page.type) else { return false }
-            if page.type.isCompositionPrompt, compositionCount >= compositionLimit { return false }
-            if isDebut(page), debutCount >= debutLimit { return false }
+            let isBuildingVisibleDesk = picked.count < visibleLimit
+            let currentCompositionLimit = isBuildingVisibleDesk ? 1 : compositionLimit
+            let currentDebutLimit = isBuildingVisibleDesk ? 1 : debutLimit
+            let currentActionLimit = isBuildingVisibleDesk ? 1 : actionCommissionLimit
+            if page.type.isCompositionPrompt, compositionCount >= currentCompositionLimit { return false }
+            if isDebut(page), debutCount >= currentDebutLimit { return false }
+            if page.isReaderActionCommission, actionCommissionCount >= currentActionLimit { return false }
             return true
         }
         func add(_ page: SurfacePage) {
             if isDebut(page) { debutCount += 1 }
             if page.type.isCompositionPrompt { compositionCount += 1 }
+            if page.isReaderActionCommission { actionCommissionCount += 1 }
             picked.append(page)
             pickedTypes.insert(page.type)
         }
 
-        // The home desk (limit 3) is balanced across three lanes so the loudest
-        // world-sim pages can't take every slot: one page that reads the
-        // reader's real life, one from the living Academy world, one from
-        // everything else. Milestones are pinned above the lanes and never
-        // evicted. Distress still shapes scoring and eligibility, but never
-        // permits the world-sim to crowd the reader's real life off a complete
-        // three-slot home desk. Wider introspection queries keep plain ranking.
-        let laneBalanced = limit == 3
+        // The visible three-card prefix is balanced across lanes even when the
+        // caller asks for a deeper refill bench. Previously `limit: 12` bypassed
+        // this branch and the UI then displayed an unbalanced `prefix(3)`.
+        let balancesVisibleDesk = limit >= 3
         // Milestones are promises the Book has already earned the right to
-        // fulfill. Pin them for every shelf width, not only the three-card home
-        // desk; otherwise a six-card reading can paradoxically hide the First
-        // Reading behind several cards from its own source family.
-        for page in deduped where page.isDeskMilestone && canAdd(page) { add(page) }
-        if laneBalanced {
+        // fulfill. Give them first claim on the visible prefix; additional
+        // milestones remain first in the deeper selection order below.
+        for page in deduped where page.isDeskMilestone && picked.count < visibleLimit && canAdd(page) {
+            add(page)
+        }
+        if balancesVisibleDesk {
             for lane in DeskLane.allCases {
-                guard picked.count < limit else { break }
+                guard picked.count < visibleLimit else { break }
                 guard !picked.contains(where: { $0.type.deskLane == lane }) else { continue }
                 if let page = deduped.first(where: { $0.type.deskLane == lane && canAdd($0) }) {
                     add(page)
                 }
             }
-            for page in deduped where canAdd(page) { add(page) }
-            // Restore score order for display/stability; lane coverage is a
-            // membership guarantee, not a reordering.
+            for page in deduped where picked.count < visibleLimit && canAdd(page) { add(page) }
+            // Restore score order inside the visible trio, then append the deep
+            // bench in rank order without allowing it to displace that trio.
             let rank = Dictionary(uniqueKeysWithValues: deduped.enumerated().map { ($0.element.id, $0.offset) })
             picked.sort { (rank[$0.id] ?? 0) < (rank[$1.id] ?? 0) }
-        } else {
-            for page in deduped where canAdd(page) { add(page) }
         }
+        for page in deduped where canAdd(page) { add(page) }
 
         return picked
             .enumerated()
@@ -1902,6 +1912,11 @@ struct ReaderLearningEvent: Identifiable, Codable, Equatable {
     var hour: Int
     var tags: [String]
     var evidence: String?
+    /// Coarse context captured at the interaction itself. This lets the Book
+    /// compare what the reader actually opened or chose with weather, hour,
+    /// place, and reader-named inner weather later. Older ledgers decode with
+    /// no snapshot, and coordinates/calendar titles are never stored here.
+    var context: BookPageContextSnapshot?
 
     init(
         id: String = UUID().uuidString,
@@ -1914,7 +1929,8 @@ struct ReaderLearningEvent: Identifiable, Codable, Equatable {
         varietyKey: String,
         hour: Int,
         tags: [String] = [],
-        evidence: String? = nil
+        evidence: String? = nil,
+        context: BookPageContextSnapshot? = nil
     ) {
         self.id = id
         self.dayID = dayID
@@ -1929,6 +1945,7 @@ struct ReaderLearningEvent: Identifiable, Codable, Equatable {
         self.evidence = evidence?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty.map {
             String($0.prefix(160))
         }
+        self.context = context
     }
 }
 
@@ -2624,6 +2641,23 @@ extension SurfacePage {
         "\(sourceID)|\(type.rawValue)"
     }
 
+    /// Pages that commission a concrete action from the reader. This is wider
+    /// than `isCompositionPrompt`: a mission and an apprenticeship can otherwise
+    /// stack despite asking for two different kinds of effort.
+    var isReaderActionCommission: Bool {
+        if payload.metadata["curatorActionCommission"] == "true"
+            || payload.metadata["playfulMissionID"]?.nonEmpty != nil
+            || payload.metadata["calendarDoorPreview"] == "true" {
+            return true
+        }
+        switch payload.metadata["firstRunStep"] {
+        case "calendar-door", "compass-run", "first-mission", "local-brain-setup":
+            return true
+        default:
+            return false
+        }
+    }
+
     /// True when only the id differs — the card the reader sees is unchanged.
     func contentMatches(_ other: SurfacePage) -> Bool {
         type == other.type
@@ -3027,6 +3061,71 @@ enum IntroductionCurriculum {
     }
 }
 
+/// A small, explicit promise that onboarding choices can tip close curation
+/// calls without becoming permanent filters. Kept behavior and learned Belief
+/// remain stronger evidence; this only gives the first desk a recognizable
+/// accent from the shelf the reader asked for.
+enum FirstDoorCurationAffinity {
+    static func boost(
+        for page: SurfacePage,
+        taste: String?,
+        chapter: String?,
+        comfort: String?
+    ) -> Int {
+        var value = tasteBoost(for: page.type, taste: taste)
+        value += chapterBoost(for: page.type, chapter: chapter)
+        value += comfortBoost(for: page.type, comfort: comfort)
+        return value
+    }
+
+    private static func tasteBoost(for type: BookPageType, taste: String?) -> Int {
+        switch taste?.lowercased() {
+        case "letters":
+            return [.letter, .gossip, .illustration, .castBond, .supportGuild].contains(type) ? 6 : 0
+        case "errands":
+            return [.wonderCompass, .enchantment, .pactErrand, .bookJump].contains(type) ? 6 : 0
+        case "cozy":
+            return [.mood, .souvenir, .rest, .weather].contains(type) ? 6 : 0
+        case "weather-place":
+            return [.weather, .todaysSky, .location, .anchor].contains(type) ? 6 : 0
+        case "eerie":
+            return [.narrativeOS, .bookFae, .theBleed, .letter].contains(type) ? 6 : 0
+        case "oddities":
+            return [.quip, .lore, .wonderCompass, .wordNegotiation].contains(type) ? 6 : 0
+        default:
+            return 0
+        }
+    }
+
+    private static func chapterBoost(for type: BookPageType, chapter: String?) -> Int {
+        switch chapter?.lowercased() {
+        case "emberheart":
+            return [.diary, .aboutYou, .narrativeOS, .enchantment].contains(type) ? 3 : 0
+        case "mossbloom":
+            return [.weather, .rest, .souvenir, .wonderCompass].contains(type) ? 3 : 0
+        case "tidecrest":
+            return [.wonderCompass, .quip, .enchantment].contains(type) ? 3 : 0
+        case "riddlewind":
+            return [.letter, .gossip, .castBond, .supportGuild].contains(type) ? 3 : 0
+        case "duskthorn":
+            return [.narrativeOS, .bookFae, .theBleed, .wordNegotiation].contains(type) ? 3 : 0
+        default:
+            return 0
+        }
+    }
+
+    private static func comfortBoost(for type: BookPageType, comfort: String?) -> Int {
+        switch comfort?.lowercased() {
+        case "gentle":
+            return [.rest, .mood, .souvenir].contains(type) ? 2 : 0
+        case "strange":
+            return [.narrativeOS, .lore, .wonderCompass, .bookFae].contains(type) ? 2 : 0
+        default:
+            return 0
+        }
+    }
+}
+
 /// Everything the curator should feel before ranking: the clock, the
 /// narrative temperature, what was recently served, and the shape of the
 /// real day's calendar.
@@ -3045,6 +3144,9 @@ struct CuratorMood {
     var keptPageCount: Int = 0
     var composedTypesToday: Set<BookPageType> = []
     var earnedWonderTitle: WonderTitle?
+    var onboardingTaste: String?
+    var onboardingChapter: String?
+    var onboardingComfort: String?
 
     static let neutral = CuratorMood()
 
@@ -3085,8 +3187,17 @@ struct CuratorMood {
             isFirstHours: firstHoursActive(inputs: inputs, now: now),
             keptPageCount: inputs.keptPageCount,
             composedTypesToday: composedCompositionTypes(in: inputs.days, on: now, calendar: calendar),
-            earnedWonderTitle: WonderTitleRegistry.earnedTitle(from: inputs.selfFacts)
+            earnedWonderTitle: WonderTitleRegistry.earnedTitle(from: inputs.selfFacts),
+            onboardingTaste: onboardingAnswer("onboarding-taste", in: inputs.selfFacts),
+            onboardingChapter: onboardingAnswer("onboarding-drawn-chapter", in: inputs.selfFacts),
+            onboardingComfort: onboardingAnswer("onboarding-comfort-boundary", in: inputs.selfFacts)
         )
+    }
+
+    private static func onboardingAnswer(_ questionID: String, in facts: [SelfFact]) -> String? {
+        facts.first {
+            $0.questionID == questionID && $0.usePermission != .doNotUse
+        }?.answer.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
     }
 
     /// Which blank-page prompts the reader has already answered today — so the
@@ -3184,6 +3295,12 @@ struct CuratorMood {
         delta += almanacBoosts[page.type] ?? 0
         delta += wonderCompassFocusBoost(for: page)
         delta += WonderTitleRegistry.scoreBoost(for: page, title: earnedWonderTitle)
+        delta += FirstDoorCurationAffinity.boost(
+            for: page,
+            taste: onboardingTaste,
+            chapter: onboardingChapter,
+            comfort: onboardingComfort
+        )
 
         // Narrative heat: a field full of fresh events favors story-bearing
         // pages; a cold field favors pages that gather new material.

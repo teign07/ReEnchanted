@@ -169,6 +169,77 @@ final class MagicMomentTests: XCTestCase {
         XCTAssertEqual(Set(fingerprint.modalities), Set(["words", "photo", "voice"]))
     }
 
+    func testSensoryFolioKeepsTypedReceiptsAndSeparateSemanticLanes() throws {
+        let page = BookPage(
+            id: "sensory-page",
+            type: .souvenir,
+            promptText: "",
+            userInput: "The harbor waited behind the rain-dark glass.",
+            origin: .userAuthored,
+            mediaAssets: [
+                BookPageMediaAsset(
+                    kind: .renderedImageFile,
+                    reference: "/tmp/window.jpg",
+                    caption: "Rain on a harbor window",
+                    metadata: [
+                        "attentionLabels": "window, harbor, water",
+                        "attentionColorMood": "blue",
+                        "attentionBrightness": "low light",
+                        "attentionComposition": "landscape, people-0"
+                    ]
+                )
+            ],
+            context: BookPageContextSnapshot(weatherTags: ["rain"])
+        )
+        let folio = SensoryFolioProjector.make(from: page, encoder: TestSensoryEncoder())
+
+        XCTAssertEqual(folio.schemaVersion, SensoryFolio.currentSchemaVersion)
+        XCTAssertTrue(folio.modalities.contains("photo"))
+        XCTAssertTrue(folio.values(for: .subject).contains("window"))
+        XCTAssertTrue(folio.values(for: .palette).contains("blue"))
+        XCTAssertNotNil(folio.vector(.languageSemantic))
+        XCTAssertNotNil(folio.vector(.visualSemantic))
+        XCTAssertNotNil(folio.vector(.contextSemantic))
+
+        let encoded = try JSONEncoder().encode(folio)
+        XCTAssertEqual(try JSONDecoder().decode(SensoryFolio.self, from: encoded), folio)
+    }
+
+    func testSensoryLoomFindsPhotographToInkThreadOnlyWhenItBeatsArchiveBaseline() throws {
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        let photo = sensoryPage(
+            id: "photo-window",
+            date: base.addingTimeInterval(-8 * 86_400),
+            text: "",
+            modality: "photo",
+            subject: "window",
+            vectorKind: .visualSemantic,
+            vector: [1, 0]
+        )
+        let near = [
+            sensoryPage(id: "ink-a", date: base.addingTimeInterval(-6 * 86_400), text: "I waited beside the rain until the room changed shape.", vector: [0.99, 0.03]),
+            sensoryPage(id: "ink-b", date: base.addingTimeInterval(-4 * 86_400), text: "The glass held one world apart from another for me.", vector: [0.97, -0.04]),
+            sensoryPage(id: "ink-c", date: base.addingTimeInterval(-2 * 86_400), text: "Something beyond the room kept asking to be noticed.", vector: [0.96, 0.08])
+        ]
+        let far = (0..<5).map { index in
+            sensoryPage(
+                id: "other-\(index)",
+                date: base.addingTimeInterval(TimeInterval(-20 - index) * 86_400),
+                text: "Bread apples errands and an ordinary crowded table today.",
+                vector: [0.02, 0.99]
+            )
+        }
+
+        let connection = try XCTUnwrap(SensoryLoom.connections(pages: [photo] + near + far).first)
+
+        XCTAssertEqual(connection.motifID, "sensory-window")
+        XCTAssertEqual(connection.photographPageIDs, [photo.id])
+        XCTAssertGreaterThanOrEqual(connection.prosePageIDs.count, 2)
+        XCTAssertGreaterThan(connection.contrastGap, SensoryLoom.minimumContrastGap)
+        XCTAssertEqual(connection.signal.kind, .sensory)
+        XCTAssertEqual(Set(connection.signal.evidencePageIDs), Set(connection.evidencePageIDs))
+    }
+
     func testOvernightConnectionReviewAcceptsOnlyFrozenCandidateEvidence() throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let candidate = overnightCandidate()
@@ -310,5 +381,55 @@ final class MagicMomentTests: XCTestCase {
             evidencePageIDs: ["page-rain", "page-clear"],
             evidenceCards: "June 1\u{1F}The harbor light doubled itself in the rain.\u{1F}book.closed\nJune 7\u{1F}The harbor looked newly unlatched after the storm.\u{1F}book.pages"
         )
+    }
+
+    private func sensoryPage(
+        id: String,
+        date: Date,
+        text: String,
+        modality: String = "words",
+        subject: String? = nil,
+        vectorKind: SensoryVector.Kind = .languageSemantic,
+        vector: [Float]
+    ) -> BookPage {
+        var observations = [SensoryObservation(
+            dimension: .modality,
+            value: modality,
+            confidence: 1,
+            extractorID: "test"
+        )]
+        if let subject {
+            observations.append(SensoryObservation(
+                dimension: .subject,
+                value: subject,
+                confidence: 1,
+                extractorID: "test"
+            ))
+        }
+        return BookPage(
+            id: id,
+            type: .souvenir,
+            createdAt: date,
+            promptText: "",
+            userInput: text,
+            origin: .userAuthored,
+            sensoryFolio: SensoryFolio(
+                observations: observations,
+                vectors: [SensoryVector(kind: vectorKind, modelID: "test-shared-space", values: vector)]
+            )
+        )
+    }
+}
+
+private struct TestSensoryEncoder: SensoryVectorEncoding {
+    let modelID = "test-sensory"
+
+    func vector(for text: String) -> [Float]? {
+        let lowered = text.lowercased()
+        return [
+            lowered.contains("harbor") || lowered.contains("window") ? 1 : 0.2,
+            lowered.contains("rain") ? 0.7 : 0.1,
+            lowered.contains("blue") ? 0.5 : 0.05
+        ]
     }
 }

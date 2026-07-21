@@ -2770,7 +2770,7 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(choice.evidenceLines.contains { $0.contains("difficult") || $0.contains("protection") })
     }
 
-    func testWelcomePageGreetsNamedReaderBeforeChapterBinding() {
+    func testWelcomePageCarriesNamedReaderIntoFirstGreeting() {
         let day = BookDay.today()
         var inputs = BookSourceInputs.empty
         inputs.selfFacts = [
@@ -2797,9 +2797,11 @@ final class WorldSystemsTests: XCTestCase {
 
         XCTAssertEqual(welcome?.type, .welcome)
         XCTAssertEqual(welcome?.payload.metadata["playerName"], "Beej")
-        XCTAssertTrue(welcome?.payload.body.contains("Hello, Beej") == true)
-        XCTAssertTrue(welcome?.payload.body.contains("Pages will surface") == true)
-        XCTAssertTrue(welcome?.payload.body.contains("Chapter Binding can wait") == true)
+        XCTAssertEqual(welcome?.payload.headline, "Oh. There You Are.")
+        XCTAssertTrue(welcome?.payload.body.contains("I have your name now") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("I don’t have a brain yet") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("Let’s find out what kind of story this is") == true)
+        XCTAssertTrue(welcome?.payload.metadata["tags"]?.contains("local-brain") == true)
         XCTAssertGreaterThan(welcome?.score ?? 0, 80)
     }
 
@@ -2876,20 +2878,27 @@ final class WorldSystemsTests: XCTestCase {
             now: startedAt
         )
 
-        XCTAssertEqual(pages?.map(\.sourceID), ["labyrinth-welcome", "first-door-origin"])
+        XCTAssertEqual(pages?.map(\.sourceID), ["first-door-origin"])
 
         inputs.firstRunEngagedKeys.insert("first-door-origin")
 
-        // With the greeting shown and the local brain not yet installed, the
-        // first-run sequence stops owning the desk so the ordinary feed can flow
-        // immediately (deterministic-first).
+        // The local-brain introduction gets one uncrowded First Door turn before
+        // the ordinary deterministic feed begins.
         let followUp = FirstRunPageSequence.surfaces(
             for: day,
             context: CuratorContext.make(for: day),
             inputs: inputs,
             now: startedAt
         )
-        XCTAssertNil(followUp)
+        XCTAssertEqual(followUp?.map(\.sourceID), [FirstRunPageSequence.localBrainSetupSourceID])
+
+        inputs.firstRunEngagedKeys.insert("source:\(FirstRunPageSequence.localBrainSetupSourceID)")
+        XCTAssertNil(FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: startedAt
+        ))
 
         // The local-brain install is offered as a rider beside the real feed.
         let upgrade = FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs)
@@ -2943,7 +2952,7 @@ final class WorldSystemsTests: XCTestCase {
             now: Date()
         )
 
-        XCTAssertEqual(afterWelcomeAndBrain?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", FirstRunPageSequence.enchantmentIntroSourceID])
+        XCTAssertEqual(afterWelcomeAndBrain?.map(\.sourceID), [FirstRunPageSequence.enchantmentIntroSourceID])
         let enchantment = afterWelcomeAndBrain?.last
         XCTAssertEqual(enchantment?.type, .enchantment)
         XCTAssertEqual(enchantment?.payload.metadata["firstRunStep"], "enchantment-intro")
@@ -2956,7 +2965,7 @@ final class WorldSystemsTests: XCTestCase {
             inputs: inputs,
             now: Date()
         )
-        XCTAssertEqual(afterEnchantmentBeforeCompassWindow?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", FirstRunPageSequence.firstMissionSourceID])
+        XCTAssertEqual(afterEnchantmentBeforeCompassWindow?.map(\.sourceID), [FirstRunPageSequence.firstMissionSourceID])
         XCTAssertFalse(afterEnchantmentBeforeCompassWindow?.last?.payload.body.lowercased().contains("one true sentence") ?? true)
 
         // Once the mission has been engaged with, the first run is complete.
@@ -2997,7 +3006,7 @@ final class WorldSystemsTests: XCTestCase {
             now: Date()
         )
 
-        XCTAssertEqual(pages?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", FirstRunPageSequence.enchantmentIntroSourceID])
+        XCTAssertEqual(pages?.map(\.sourceID), [FirstRunPageSequence.enchantmentIntroSourceID])
 
         inputs.firstRunEngagedKeys.insert("source:\(FirstRunPageSequence.enchantmentIntroSourceID)")
         let afterEnchantment = FirstRunPageSequence.surfaces(
@@ -3006,7 +3015,7 @@ final class WorldSystemsTests: XCTestCase {
             inputs: inputs,
             now: Date()
         )
-        XCTAssertEqual(afterEnchantment?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", "calendar-page"])
+        XCTAssertEqual(afterEnchantment?.map(\.sourceID), ["calendar-page"])
         XCTAssertEqual(afterEnchantment?.last?.payload.metadata["calendarDoorPreview"], "true")
 
         inputs.firstRunEngagedKeys.insert("source:calendar-page")
@@ -3017,7 +3026,7 @@ final class WorldSystemsTests: XCTestCase {
             now: Date()
         )
 
-        XCTAssertEqual(afterCalendarDoor?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", FirstRunPageSequence.firstMissionSourceID])
+        XCTAssertEqual(afterCalendarDoor?.map(\.sourceID), [FirstRunPageSequence.firstMissionSourceID])
     }
 
     func testFirstRunSequenceOffersMissionWhenOnboardingSkippedSouvenirAfterFeatureIntros() {
@@ -3083,7 +3092,7 @@ final class WorldSystemsTests: XCTestCase {
             inputs: inputs,
             now: brainShownAt.addingTimeInterval(45 * 60)
         )
-        XCTAssertEqual(inWindow?.map(\.sourceID), ["labyrinth-welcome", "local-brain-awake", FirstRunPageSequence.compassRunIntroSourceID])
+        XCTAssertEqual(inWindow?.map(\.sourceID), [FirstRunPageSequence.compassRunIntroSourceID])
         XCTAssertEqual(inWindow?.last?.type, .wonderCompass)
         XCTAssertEqual(inWindow?.last?.payload.metadata["firstRunStep"], "compass-run")
 
@@ -3103,6 +3112,118 @@ final class WorldSystemsTests: XCTestCase {
             now: brainShownAt.addingTimeInterval(60 * 60)
         )
         XCTAssertEqual(afterCompass?.last?.sourceID, FirstRunPageSequence.firstMissionSourceID)
+    }
+
+    func testFirstRunCurrentStepOwnsDeskWithoutRepeatingCompletedCards() throws {
+        let now = date(2026, 6, 1, hour: 13, calendar: utcCalendar)
+        let day = BookDay(id: "2026-06-01", date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = firstDoorFacts(startedAt: now)
+        inputs.firstRunEngagedKeys = ["source:labyrinth-welcome"]
+
+        let current = try XCTUnwrap(FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        ))
+        let feed = [
+            SurfacePage(type: .lore, sourceID: "test-lore", prompt: "Lore", detail: "One strange fact."),
+            SurfacePage(type: .mood, sourceID: "test-mood", prompt: "Mood", detail: "One feeling."),
+            SurfacePage(type: .narrativeOS, sourceID: "test-story", prompt: "Story", detail: "One living scene."),
+            SurfacePage(type: .quip, sourceID: "test-quip", prompt: "Quip", detail: "One joke.")
+        ]
+
+        let merged = FirstRunPageSequence.mergingCurrentStep(current, into: feed, limit: 3)
+
+        XCTAssertEqual(merged.map(\.sourceID), ["first-door-origin"])
+        XCTAssertFalse(merged.contains { $0.sourceID == "labyrinth-welcome" })
+    }
+
+    func testRealFirstCuratorFeedWaitsBehindOriginWithoutDuplicateAsk() throws {
+        let now = date(2026, 6, 1, hour: 13, calendar: utcCalendar)
+        let day = BookDay(id: "2026-06-01", date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.days = [day]
+        inputs.selfFacts = firstDoorFacts(startedAt: now)
+        inputs.localBrainIsReady = true
+        inputs.firstRunEngagedKeys = ["source:labyrinth-welcome"]
+        inputs.surfaceHistory["source:labyrinth-welcome"] = SurfaceHistoryRecord(
+            lastShownAt: now.addingTimeInterval(-60),
+            recentShowCount: 1
+        )
+
+        let current = try XCTUnwrap(FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        ))
+        let feed = BookCurator.surfacedPages(
+            for: day,
+            inputs: inputs,
+            now: now,
+            limit: 12
+        )
+        let merged = FirstRunPageSequence.mergingCurrentStep(current, into: feed, limit: 12)
+
+        XCTAssertEqual(merged.first?.sourceID, "first-door-origin")
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertFalse(merged.prefix(3).contains { $0.sourceID == "labyrinth-welcome" })
+        XCTAssertFalse(merged.prefix(3).contains { $0.sourceID == "first-door-apprenticeship" })
+        XCTAssertLessThanOrEqual(merged.prefix(3).filter(\.isReaderActionCommission).count, 1)
+    }
+
+    func testFirstWelcomeRemainsASinglePageCeremony() throws {
+        let now = date(2026, 6, 1, hour: 13, calendar: utcCalendar)
+        let day = BookDay(id: "2026-06-01", date: now, pages: [])
+        let welcome = try XCTUnwrap(FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: .empty,
+            now: now
+        ))
+        let feed = [SurfacePage(type: .mood, sourceID: "test-mood", prompt: "Mood", detail: "One feeling.")]
+
+        XCTAssertEqual(
+            FirstRunPageSequence.mergingCurrentStep(welcome, into: feed, limit: 3).map(\.sourceID),
+            ["labyrinth-welcome"]
+        )
+    }
+
+    func testDayZeroApprenticeshipDoesNotRepeatTheOnboardingSouvenirAsk() {
+        let now = date(2026, 6, 1, hour: 13, calendar: utcCalendar)
+        let day = BookDay(id: "2026-06-01", date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = firstDoorFacts(startedAt: now)
+
+        let pages = FirstDoorApprenticeshipPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertTrue(pages.isEmpty)
+    }
+
+    func testDayZeroApprenticeshipStillOffersAFirstKeepWhenOnboardingHasNone() {
+        let now = date(2026, 6, 1, hour: 13, calendar: utcCalendar)
+        let day = BookDay(id: "2026-06-01", date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = firstDoorFacts(startedAt: now).filter {
+            $0.questionID != "onboarding-first-souvenir"
+        }
+
+        let pages = FirstDoorApprenticeshipPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertEqual(pages.first?.payload.metadata["firstDoorApprenticeshipDay"], "0")
+        XCTAssertEqual(pages.first?.payload.metadata["curatorActionCommission"], "true")
     }
 
     func testFirstDoorApprenticeshipSurfacesOneDailyPageDuringFirstWeek() {
@@ -3992,5 +4113,46 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(activity.kind, .enchantmentCasting)
         XCTAssertTrue(activity.fields.isEmpty)
         XCTAssertEqual(StoryEnchantmentCatalog.spells.count, 14)
+    }
+
+    func testEveryAcademyActivityCanBuildAnAnswerLedDebriefContract() throws {
+        let sessions = Array(AcademyScheduleRegistry.classes.values) + AcademyScheduleRegistry.clubs.values
+
+        for session in sessions {
+            let activity = try XCTUnwrap(AcademyActivityRegistry.activity(for: session.id))
+            let submittedDetail = "reader-specific-\(session.id)"
+            let debrief = try XCTUnwrap(AcademyActivityDebrief(metadata: [
+                "academyActivityTitle": activity.title,
+                "academyActivityOutcome": "Submitted detail: \(submittedDetail)"
+            ]))
+
+            XCTAssertTrue(debrief.promptSection.contains(submittedDetail), session.id)
+            XCTAssertTrue(debrief.promptSection.lowercased().contains("not a repeated lesson"), session.id)
+            XCTAssertTrue(debrief.isAcknowledged(in: "The professor answers \(submittedDetail) directly."), session.id)
+            XCTAssertFalse(debrief.isAcknowledged(in: "The professor repeats the old demonstration."), session.id)
+        }
+    }
+
+    func testSynestheticResonanceDebriefRequiresTheReadersSensoryAnswer() throws {
+        let debrief = try XCTUnwrap(AcademyActivityDebrief(metadata: [
+            "academyActivityTitle": "Score the Room",
+            "academyActivityOutcome": """
+            One sound: the radiator ticking twice
+            Its color: bruised apricot
+            One body sensation: warmth behind my knees
+            """
+        ]))
+
+        XCTAssertTrue(debrief.promptSection.contains("the radiator ticking twice"))
+        XCTAssertTrue(debrief.anchorTerms.contains("radiator"))
+        XCTAssertTrue(debrief.isAcknowledged(in: "Euphony repeats 'bruised apricot' before answering it."))
+        XCTAssertFalse(debrief.isAcknowledged(in: "Euphony rings the glass bell and teaches the same scene again."))
+    }
+
+    func testAcademyDebriefRequiresANonemptySubmittedOutcome() {
+        XCTAssertNil(AcademyActivityDebrief(metadata: [
+            "academyActivityTitle": "Score the Room",
+            "academyActivityOutcome": "   "
+        ]))
     }
 }

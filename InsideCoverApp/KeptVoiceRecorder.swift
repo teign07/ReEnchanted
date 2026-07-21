@@ -9,10 +9,13 @@ import SwiftUI
 final class KeptVoiceRecorder: NSObject, ObservableObject {
     @Published private(set) var isRecording = false
     @Published private(set) var elapsed: TimeInterval = 0
+    private(set) var lastCadenceReceipt: VoiceCadenceReceipt?
 
     private var recorder: AVAudioRecorder?
     private var timer: Timer?
     private var currentURL: URL?
+    private var powerSamples: [Float] = []
+    private let meterInterval: TimeInterval = 0.2
 
     /// Begin recording. Returns false if the recorder could not start.
     @discardableResult
@@ -34,14 +37,19 @@ final class KeptVoiceRecorder: NSObject, ObservableObject {
             try session.setCategory(.playAndRecord, mode: .default, options: .duckOthers)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
             let recorder = try AVAudioRecorder(url: url, settings: settings)
+            recorder.isMeteringEnabled = true
             guard recorder.record() else { return false }
             self.recorder = recorder
             self.currentURL = url
+            self.lastCadenceReceipt = nil
+            self.powerSamples = []
             isRecording = true
             elapsed = 0
-            timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
+            timer = Timer.scheduledTimer(withTimeInterval: meterInterval, repeats: true) { [weak self] _ in
                 Task { @MainActor in
                     guard let self, let recorder = self.recorder else { return }
+                    recorder.updateMeters()
+                    self.powerSamples.append(recorder.averagePower(forChannel: 0))
                     self.elapsed = recorder.currentTime
                 }
             }
@@ -61,7 +69,15 @@ final class KeptVoiceRecorder: NSObject, ObservableObject {
             isRecording = false
             return nil
         }
+        recorder.updateMeters()
+        powerSamples.append(recorder.averagePower(forChannel: 0))
+        let duration = max(elapsed, recorder.currentTime)
         recorder.stop()
+        lastCadenceReceipt = VoiceCadenceReceipt.analyze(
+            decibels: powerSamples,
+            sampleInterval: meterInterval,
+            duration: duration
+        )
         self.recorder = nil
         isRecording = false
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -76,5 +92,7 @@ final class KeptVoiceRecorder: NSObject, ObservableObject {
         }
         currentURL = nil
         elapsed = 0
+        powerSamples = []
+        lastCadenceReceipt = nil
     }
 }

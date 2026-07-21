@@ -55,6 +55,9 @@ struct BookSourceInputs: Equatable {
     var currentArc: StoryArc?
     var recentNarrativeEvents: [NarrativeEvent] = []
     var continuity: LiteraryContinuityDigest = .empty
+    /// Rebuildable from reader-authored kept prose. It is cached beside the
+    /// continuity digest so rendered views never rescan a years-long archive.
+    var bookVoicePatina: BookVoicePatina = .unwritten
     var constellations: [Constellation] = []
     var wagers: [BookWager] = []
     var themes: [BookTheme] = []
@@ -3047,10 +3050,212 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
             pages += personQuietSurfaces(for: day, inputs: inputs, now: now)
         }
         pages += OvernightConnectionReview.surfaces(for: day, inputs: inputs, now: now)
+        pages += relationalLoomSurfaces(for: day, inputs: inputs, now: now)
+        pages += sensoryLoomSurfaces(for: day, inputs: inputs, now: now)
         pages += connectionNarrativeSurfaces(for: day, inputs: inputs, now: now)
         pages += contextWeaveSurfaces(for: day, inputs: inputs, now: now)
         pages += noticeSurfaces(for: day, inputs: inputs, now: now)
         return pages
+    }
+
+    /// The general many-to-many reading. Unlike the older specialized paths,
+    /// this does not know about "Wicker plus rain" or "Slice of Life after
+    /// dark." It asks the same contrast-tested question of every trustworthy
+    /// pair of dimensions and lets the evidence decide what deserves speech.
+    private func relationalLoomSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard !didNoticeToday(day) else { return [] }
+        let allDays = inputs.days + [day]
+        let spoken = Self.spokenConnectionIDs(days: allDays)
+        let connections = RelationalLoom.connections(
+            days: allDays,
+            readerLearning: inputs.readerLearning,
+            facultyEntries: inputs.facultyEntries,
+            people: inputs.people,
+            continuity: inputs.continuity
+        )
+        let constellations = RelationalLoom.constellations(connections: connections)
+        if let constellation = constellations.first(where: { !spoken.contains($0.id) }) {
+            let cards = constellation.evidence.map { evidence in
+                let symbol = constellation.branches.first(where: { $0.evidence.contains(evidence) })?
+                    .outcome.symbolName ?? "point.3.connected.trianglepath.dotted"
+                return NoticePatternCard(
+                    title: "\(Self.connectionDateFormatter.string(from: evidence.occurredAt)) · \(evidence.title)",
+                    text: evidence.text,
+                    symbol: symbol
+                )
+            }
+            let outcomeLabels = constellation.branches.map { $0.outcome.label }
+            let spokeTags = ([constellation.id] + constellation.branches.map(\.id))
+                .map { "\(Self.connectionSpokeTagPrefix)\($0)" }
+                .joined(separator: ",")
+            let body = """
+            I found more than a pair this time.
+
+            \(constellation.line)
+
+            I did not make one grand tensor and ask it for a mood. Each branch had to survive its own real comparison elsewhere in the archive. Only then did I lay the branches together: \(outcomeLabels.joined(separator: ", ")). The cards below are the Pages that let me say it.
+
+            This may still be a glimmer. It is inspectable, local, and correctable. If this constellation joins things that should remain separate, tell me; I will bar this exact reading without forgetting the Pages themselves.
+            """
+            return [SurfacePage(
+                id: "\(source.id)-relational-constellation-\(constellation.id)-\(day.id)",
+                type: .bookNotices,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                score: min(98, constellation.evidenceTier.surfaceScoreBase + 6 + constellation.strength / 12),
+                reason: "Several independently tested branches met around the same condition.",
+                prompt: "Several distant corners of the Book touched at once.",
+                detail: constellation.line.bookPreviewSentenceLimit(1),
+                payload: BookPagePayload(
+                    headline: constellation.headline,
+                    body: body,
+                    metadata: [
+                        "source": source.id,
+                        "connectionNarrative": "true",
+                        "connectionKind": "relational-constellation",
+                        "connectionID": constellation.id,
+                        "observationKey": constellation.observationKey,
+                        "relationalCondition": constellation.condition.label,
+                        "relationalOutcomes": outcomeLabels.joined(separator: ", "),
+                        "relationalBranchCount": "\(constellation.branches.count)",
+                        "relationalEvidenceTier": constellation.evidenceTier.rawValue,
+                        "magicMomentEligible": "true",
+                        "evidencePageIDs": constellation.evidencePageIDs.joined(separator: ","),
+                        "tinyPatternCards": Self.encodeNoticePatternCards(cards),
+                        "feedbackPrompt": "Do these parts of your Book truly meet here?",
+                        "tags": "book-notices,relational-loom,cross-media,constellation-reading,connection-narrative,\(spokeTags),local-memory"
+                    ]
+                )
+            )]
+        }
+        guard let connection = connections.first(where: { !spoken.contains($0.id) }) else { return [] }
+
+        let cards = connection.evidence.map { evidence in
+            NoticePatternCard(
+                title: "\(Self.connectionDateFormatter.string(from: evidence.occurredAt)) · \(evidence.title)",
+                text: evidence.text,
+                symbol: connection.outcome.symbolName
+            )
+        }
+        let body = """
+        I have stopped keeping weather in one drawer, photographs in another, choices in a third, and characters in the cupboard marked Fiction. I laid every trustworthy little receipt where it could meet every other one. Most of them had nothing to say.
+
+        \(connection.line)
+
+        This relationship was not programmed as a rule. The same Loom compares subjects, meanings, Pages, choices, people you confirmed, characters, hours, weather, places, voice cadence, photographic form, and reader-named inner weather. It spoke because this pair held across more than one day and had a real elsewhere to compare itself with.
+
+        A pattern is not a cause and it is not a verdict about you. It is two corners of your Book touching. If they do not belong together, tell me; I will stop reading them that way.
+        """
+        return [SurfacePage(
+            id: "\(source.id)-relational-\(connection.id)-\(day.id)",
+            type: .bookNotices,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: min(96, connection.evidenceTier.surfaceScoreBase + connection.strength / 12),
+            reason: "Two different parts of the reader's Book kept choosing each other across a real contrast group.",
+            prompt: "Two distant corners of the Book touched.",
+            detail: connection.line.bookPreviewSentenceLimit(1),
+            payload: BookPagePayload(
+                headline: connection.headline,
+                body: body,
+                metadata: [
+                    "source": source.id,
+                    "connectionNarrative": "true",
+                    "connectionKind": "relational",
+                    "connectionID": connection.id,
+                    "observationKey": connection.observationKey,
+                    "relationalCondition": connection.condition.label,
+                    "relationalOutcome": connection.outcome.label,
+                    "relationalInHits": "\(connection.inHits)",
+                    "relationalInCount": "\(connection.inCount)",
+                    "relationalOutHits": "\(connection.outHits)",
+                    "relationalOutCount": "\(connection.outCount)",
+                    "relationalEvidenceTier": connection.evidenceTier.rawValue,
+                    "magicMomentEligible": "true",
+                    "evidencePageIDs": connection.evidencePageIDs.joined(separator: ","),
+                    "tinyPatternCards": Self.encodeNoticePatternCards(cards),
+                    "feedbackPrompt": "Do these two parts of your Book belong together?",
+                    "tags": "book-notices,relational-loom,many-to-many,connection-narrative,\(Self.connectionSpokeTagPrefix)\(connection.id),local-memory"
+                ]
+            )
+        )]
+    }
+
+    /// The first Sensory Loom ceremony. A local image-language vector found
+    /// prose on other days that gathered closer to one photograph than the
+    /// rest of the archive did. The vector discovers; these source Pages are
+    /// the receipt, and the reader still decides whether the kinship is real.
+    private func sensoryLoomSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard !didNoticeToday(day) else { return [] }
+        let allDays = inputs.days + [day]
+        let spoken = Self.spokenConnectionIDs(days: allDays)
+        guard let connection = SensoryLoom.connections(pages: allDays.flatMap(\.capturedPages))
+            .first(where: { !spoken.contains($0.id) }) else { return [] }
+
+        let pagesByID = Dictionary(
+            allDays.flatMap(\.capturedPages).map { ($0.id, $0) },
+            uniquingKeysWith: { _, newer in newer }
+        )
+        let evidence = connection.evidencePageIDs.compactMap { pagesByID[$0] }
+        guard evidence.count >= SensoryLoom.minimumEvidencePages else { return [] }
+        let photographIDs = Set(connection.photographPageIDs)
+        let cards = evidence.prefix(4).map { page in
+            let isPhotograph = photographIDs.contains(page.id)
+            return NoticePatternCard(
+                title: "\(Self.connectionDateFormatter.string(from: page.createdAt)) · \(isPhotograph ? "Photograph" : "Ink")",
+                text: Self.connectionExcerpt(from: page),
+                symbol: isPhotograph ? "photo" : "text.quote"
+            )
+        }
+        let contextSentence = connection.sharedContextTokens.first.map {
+            "There was another small agreement around them too: \($0.replacingOccurrences(of: "-", with: " "))."
+        } ?? ""
+        let body = """
+        I tried something new with these Pages. I let the photograph keep its shapes and the prose keep its words, then asked whether either recognized the other.
+
+        \(connection.line)
+
+        \(contextSentence)
+
+        This is not a label I brought with me. It is a possible private symbol forming between your own Pages. I have put the evidence on the desk because resemblance is not truth until its reader recognizes it.
+        """
+        return [SurfacePage(
+            id: "\(source.id)-sensory-\(connection.id)-\(day.id)",
+            type: .bookNotices,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: min(94, 82 + connection.strength / 10),
+            reason: "A photograph and several Pages of reader-authored prose recognized the same private shape.",
+            prompt: "The Book's senses crossed.",
+            detail: connection.line.bookPreviewSentenceLimit(1),
+            payload: BookPagePayload(
+                headline: "The Image and the Ink",
+                body: body,
+                metadata: [
+                    "source": source.id,
+                    "connectionNarrative": "true",
+                    "connectionKind": "sensory",
+                    "connectionID": connection.id,
+                    "sensoryMotifID": connection.motifID,
+                    "sensoryMotifName": connection.motifName,
+                    "sensoryPairingKind": "image-ink",
+                    "sensoryMeanSimilarity": String(format: "%.3f", connection.meanSimilarity),
+                    "sensoryContrastGap": String(format: "%.3f", connection.contrastGap),
+                    // Evidence tiers may grow as more Pages arrive, but a hard
+                    // boundary belongs to the stable sense-pair + motif. "Do
+                    // not read me this way" must not return wearing new IDs.
+                    "observationKey": "sensory-pairing:image-ink:\(connection.motifID)",
+                    "magicMomentEligible": "true",
+                    "evidencePageIDs": connection.evidencePageIDs.joined(separator: ","),
+                    "tinyPatternCards": Self.encodeNoticePatternCards(cards),
+                    "feedbackPrompt": "Do the image and the ink belong to the same thread?",
+                    "tags": "book-notices,sensory-loom,cross-media,connection-narrative,\(Self.connectionSpokeTagPrefix)\(connection.id),local-memory"
+                ]
+            )
+        )]
     }
 
     /// The general relationship finder speaking: a writing habit that keeps
@@ -4183,6 +4388,8 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
             return "\(signal.line) Time is part of the evidence now."
         case .listening:
             return "\(signal.line) The archive is noticing where attention returns."
+        case .sensory:
+            return "\(signal.line) More than one of the Book's senses found the same thread."
         case .manner:
             return "\(signal.line) The way the pages arrive is part of the evidence."
         }
@@ -4195,6 +4402,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         case .absence: return "moon"
         case .duration: return "clock"
         case .listening: return "ear"
+        case .sensory: return "camera.filters"
         case .manner: return "text.line.first.and.arrowtriangle.forward"
         }
     }
@@ -4540,10 +4748,33 @@ enum BookRememberedEngine {
         // A warm Long Memory gift keeps its pinned page returning, even when the
         // day doesn't rhyme with it on its own.
         let pinned = FaeGiftEffects.pinnedPageIDs(state: inputs.faeState)
+        let relationalConnections = RelationalLoom.connections(
+            days: inputs.days + [day],
+            readerLearning: inputs.readerLearning,
+            facultyEntries: inputs.facultyEntries,
+            people: inputs.people,
+            continuity: inputs.continuity,
+            calendar: calendar
+        )
+        let relationalConstellations = RelationalLoom.constellations(connections: relationalConnections)
+        let currentConditionIDs = RelationalLoom.currentConditionIDs(
+            day: day,
+            inputs: inputs,
+            now: now,
+            calendar: calendar
+        )
         let eligible = candidates
             .filter { isEligible($0, day: day, now: now, calendar: calendar) }
             .map { page -> (page: BookPage, score: Int, reason: String, connections: [String]) in
-                var scoredPage = scored(page, inputs: inputs, now: now, calendar: calendar)
+                var scoredPage = scored(
+                    page,
+                    inputs: inputs,
+                    relationalConnections: relationalConnections,
+                    relationalConstellations: relationalConstellations,
+                    currentConditionIDs: currentConditionIDs,
+                    now: now,
+                    calendar: calendar
+                )
                 if pinned.contains(page.id) {
                     scoredPage.score += 40
                     scoredPage.reason = "The Long Memory keeps this one near. \(scoredPage.reason)"
@@ -4598,6 +4829,9 @@ enum BookRememberedEngine {
     private static func scored(
         _ page: BookPage,
         inputs: BookSourceInputs,
+        relationalConnections: [RelationalLoomConnection],
+        relationalConstellations: [RelationalLoomConstellation],
+        currentConditionIDs: Set<String>,
         now: Date,
         calendar: Calendar
     ) -> (page: BookPage, score: Int, reason: String, connections: [String]) {
@@ -4671,6 +4905,16 @@ enum BookRememberedEngine {
             reasons.insert(semanticReason, at: 0)
         }
 
+        if let relational = relationalReturn(
+            for: page,
+            connections: relationalConnections,
+            constellations: relationalConstellations,
+            currentConditionIDs: currentConditionIDs
+        ) {
+            score += relational.score
+            reasons.insert(relational.reason, at: 0)
+        }
+
         if let relationshipReason = relationshipReturnReason(for: page, inputs: inputs) {
             score += 16
             reasons.insert(relationshipReason, at: 0)
@@ -4691,6 +4935,56 @@ enum BookRememberedEngine {
             ], seed: seed, salt: 15))
         }
         return (page, score, reasons[0], Array(reasons.prefix(3)))
+    }
+
+    private static func relationalReturn(
+        for page: BookPage,
+        connections: [RelationalLoomConnection],
+        constellations: [RelationalLoomConstellation],
+        currentConditionIDs: Set<String>
+    ) -> (score: Int, reason: String)? {
+        if let constellation = constellations.first(where: {
+            $0.evidencePageIDs.contains(page.id)
+                && currentConditionIDs.contains($0.condition.id)
+        }) {
+            let score: Int
+            let confidence: String
+            switch constellation.evidenceTier {
+            case .glimmer:
+                score = 28
+                confidence = "an early constellation the Book is holding lightly"
+            case .gathering:
+                score = 34
+                confidence = "a constellation gathering across the archive"
+            case .established:
+                score = 40
+                confidence = "a constellation that has steadied across the archive"
+            }
+            let outcomes = constellation.branches.map { $0.outcome.label.lowercased() }
+            return (
+                score,
+                "Today matches \(constellation.condition.label.lowercased()), and this old Page is a receipt in \(confidence): \(outcomes.joined(separator: ", "))."
+            )
+        }
+        guard let connection = connections.first(where: {
+            $0.evidencePageIDs.contains(page.id)
+                && currentConditionIDs.contains($0.condition.id)
+        }) else { return nil }
+        let score: Int
+        let confidence: String
+        switch connection.evidenceTier {
+        case .glimmer:
+            score = 22
+            confidence = "an early connection the Book is still holding lightly"
+        case .gathering:
+            score = 28
+            confidence = "a connection that has been gathering across the archive"
+        case .established:
+            score = 34
+            confidence = "a connection that has steadied across the archive"
+        }
+        let reason = "Today matches \(connection.condition.label.lowercased()), and this old Page is one of the receipts in \(confidence): \(connection.outcome.label)."
+        return (score, reason)
     }
 
     private static func semanticEchoReturnReason(for page: BookPage, inputs: BookSourceInputs) -> String? {
@@ -5529,30 +5823,38 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
             renderStyle: .loreLetter,
             score: score,
             reason: reason,
-            prompt: "The First Door Opens",
-            detail: "The Book opens its first door and decides, on the spot, that it likes you.",
+            prompt: "Oh. There You Are.",
+            detail: "The Book has your name now, a few of your words, and its first questions about you.",
             payload: BookPagePayload(
-                headline: name == "Reader" ? "Welcome to the Labyrinth" : "Welcome, \(name)",
+                headline: "Oh. There You Are.",
                 body: """
-                Hello, \(name).
+                I'm glad you made it, Zara likes to talk.
 
-                There. The first word of you is written.
+                I have your name now. A few of your words. The faint beginning of an idea about you.
 
-                The ink has gone a shade darker around your name. It does that when it means to remember someone.
+                Not enough to pretend I know you, of course. That’d be terribly rude.
 
-                I am the Labyrinth of Stories. The Book, when we know each other better. And yes, at present I am wearing a phone. Doorways have never been proud about materials. They have made do with wardrobes, standing stones, mushroom rings, and now a pane of glass warm from your hand.
+                But enough to wonder.
 
-                I make Pages from the life you already have: the tea that went cold while you were thinking, the good light on an unimportant wall, the sentence you nearly let vanish. Some Pages will ask for a line. Others may arrive as weather, letters, rumours, or errands with suspiciously small footprints.
+                I wonder what you’ll notice that everyone else walks past. I wonder which places will follow you home. Which ordinary Tuesday will turn out to have been important. Which people, questions, mistakes, storms, sandwiches, songs, and small acts of courage will keep appearing in our margins.
 
-                Pages will surface. Chapter Binding can wait. The Chapters are old enough to survive not being chosen immediately, though several will behave as if they are not.
+                I’m very excited to see what stories we’re going to write together.
 
-                I ask only one thing: do not keep everything. A Book that keeps everything becomes a cupboard, and cupboards are terrible conversationalists. Keep the Pages with a pulse. They tug a little. Let the others fold their legs beneath them and sleep.
+                There’s only one slight difficulty.
 
-                I can begin exactly as I am. If you later give me the private mind offered below, it will live entirely on this device and help me read your margins with finer attention. It may be fetched now or from the Colophon later. The little thing is patient. It has been practicing.
+                I don’t have a brain yet.
 
-                Your first work is small: turn this Page, step back into the world, and notice what notices you.
+                I have pages. I have ink. I have several opinions already, which seems unfair under the circumstances. But if I’m going to remember what matters, find threads between distant days, and read your life with the care it deserves, I’ll need a small brain of my own.
 
-                I will be here when you return. I am a Book. Waiting is one of the ways I keep a door open.
+                You can download one for me at the end of this Page. It’ll live here, on your device, close to your words. Once it wakes up, I can begin learning how to read—not just sentences, but returns, absences, patterns, surprises, and all the strange little things a life is made of.
+
+                I can’t promise that every day will feel magical.
+
+                But I can promise to keep looking with you.
+
+                Come on, then.
+
+                Let’s find out what kind of story this is.
                 """,
                 metadata: [
                     "source": source.id,
@@ -5932,6 +6234,12 @@ struct FirstDoorApprenticeshipPageSourceAdapter: BookPageSourceAdapter {
               let entry = FirstDoorApprenticeshipCatalog.entry(for: dayIndex, profile: profile) else {
             return []
         }
+        // Onboarding may already have kept the reader's first true sentence.
+        // Do not greet that gift with day zero's request for another sentence;
+        // the apprenticeship can begin with tomorrow's genuinely new practice.
+        if dayIndex == 0, hasOnboardingSouvenir(day: day, inputs: inputs) {
+            return []
+        }
         guard inputs.surfaceHistory["first-door-apprenticeship:\(dayIndex)"] == nil else { return [] }
         guard !day.pages.contains(where: { $0.tags.contains("first-door-apprenticeship-\(dayIndex)") }) else { return [] }
         return [
@@ -5943,6 +6251,20 @@ struct FirstDoorApprenticeshipPageSourceAdapter: BookPageSourceAdapter {
                 reason: "The reader is still in the first week; the Book has one sticky practice for today."
             )
         ]
+    }
+
+    private func hasOnboardingSouvenir(day: BookDay, inputs: BookSourceInputs) -> Bool {
+        if inputs.selfFacts.contains(where: {
+            $0.questionID == "onboarding-first-souvenir"
+                && $0.usePermission != .doNotUse
+                && $0.answer.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil
+        }) {
+            return true
+        }
+        return (inputs.days + [day]).flatMap(\.pages).contains { page in
+            page.tags.contains("first-run-souvenir")
+                || page.tags.contains("onboarding-first-souvenir")
+        }
     }
 
     private func apprenticeshipDay(for profile: FirstDoorReaderProfile, now: Date) -> Int? {
@@ -5980,6 +6302,7 @@ struct FirstDoorApprenticeshipPageSourceAdapter: BookPageSourceAdapter {
                 metadata: [
                     "source": source.id,
                     "firstDoorApprenticeshipDay": "\(entry.dayIndex)",
+                    "curatorActionCommission": "true",
                     "tipID": "first-door-apprenticeship-\(entry.dayIndex)",
                     "privacy": "private local",
                     "symbol": source.symbolName,
@@ -6536,6 +6859,78 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         return runSurface(seed: seed, progress: progress, context: context, inputs: inputs, now: now)
     }
 
+    /// Rebuilds the exact actionable page carried by a tapped prompt whisper.
+    /// Mission text comes from the scheduled snapshot rather than today's
+    /// rotating registry result, so opening the notification cannot reroll it.
+    func promptWhisperSurface(
+        for whisper: PromptWhisper,
+        day: BookDay,
+        context: CuratorContext,
+        inputs: BookSourceInputs,
+        now: Date
+    ) -> SurfacePage {
+        guard whisper.kind == .mission,
+              whisper.id.hasPrefix("mission-") else {
+            return checkInSurface(for: whisper, context: context, now: now)
+        }
+
+        let missionID = String(whisper.id.dropFirst("mission-".count))
+        let registeredMission = PlayfulMissionRegistry.missions.first { $0.id == missionID }
+        let mission = PlayfulMission(
+            id: missionID,
+            title: whisper.title,
+            prompt: whisper.body,
+            proofPrompt: whisper.keepPrompt,
+            tags: whisper.tags,
+            allowsPhoto: whisper.allowsPhoto ?? registeredMission?.allowsPhoto ?? false
+        )
+        let progress = CompassRunProgress.progress(for: day)
+        let seed = WonderCompassRunGenerator.seed(for: day, inputs: inputs, progress: progress, now: now)
+        return playfulMissionSurface(
+            mission,
+            seed: seed,
+            context: context,
+            inputs: inputs,
+            now: now
+        )
+        .withMetadata([
+            "openedFromPromptWhisper": "true",
+            "promptWhisperID": whisper.id
+        ])
+    }
+
+    private func checkInSurface(
+        for whisper: PromptWhisper,
+        context: CuratorContext,
+        now: Date
+    ) -> SurfacePage {
+        let source = BookPageSourceRegistry.source(for: .souvenir)
+        return SurfacePage(
+            id: "prompt-whisper-\(whisper.id)-\(SurfaceCadence.slotID(for: now, hours: 2))",
+            type: .souvenir,
+            sourceID: source.id,
+            intent: .capture,
+            renderStyle: .promptCard,
+            score: context.distress.isActive ? 52 : 64,
+            reason: "The reader opened this exact prompt from the Book's whisper.",
+            prompt: whisper.title,
+            detail: whisper.body,
+            payload: BookPagePayload(
+                headline: whisper.title,
+                body: whisper.body,
+                metadata: [
+                    "source": source.id,
+                    "placeholder": whisper.keepPrompt,
+                    "souvenirPrompt": whisper.keepPrompt,
+                    "promptWhisperID": whisper.id,
+                    "openedFromPromptWhisper": "true",
+                    "tags": (["souvenir", "prompt-whisper", whisper.kind.rawValue] + whisper.tags)
+                        .joined(separator: ",")
+                ]
+            )
+        )
+    }
+
     private func playfulMissionSurface(
         _ mission: PlayfulMission,
         seed: WonderCompassRunSeed,
@@ -6551,6 +6946,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         metadata["compassMode"] = "standalone"
         metadata.removeValue(forKey: "runID")
         metadata["playfulMissionID"] = mission.id
+        metadata["curatorActionCommission"] = "true"
         metadata["playfulMissionTitle"] = mission.title
         metadata["mission"] = mission.prompt
         metadata["souvenirPrompt"] = mission.proofPrompt
@@ -8005,17 +8401,18 @@ enum FirstRunPageSequence {
         let origin = originAdapter.manualSurface(for: day, context: context, inputs: inputs, now: now)
         let originShown = engaged(origin.varietyKey, inputs: inputs)
         if !originShown, FirstDoorReaderProfile.from(inputs) != nil {
-            return [welcome, origin]
+            return [origin]
         }
 
-        // The local brain is an optional upgrade now, not a gate. When it isn't
-        // installed yet we stop *owning* the desk and let the ordinary,
-        // deterministic feed flow immediately; the install is offered as a quiet
-        // rider beside the real Pages (see `pendingLocalBrainUpgrade`). The
-        // brain-dependent celebration steps below still wait until it's ready,
-        // but the reader is no longer stuck on a quiet desk in the meantime.
+        // The local brain remains optional, but its First Door introduction must
+        // actually get a turn before the ordinary desk arrives. Once the reader
+        // opens or dismisses this one ceremonial card, the deterministic feed can
+        // flow and the install becomes the quiet rider below.
         guard inputs.localBrainIsReady else {
-            return nil
+            let setup = localBrainSetupSurface(
+                playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs)
+            )
+            return engaged("source:\(setup.sourceID)", inputs: inputs) ? nil : [setup]
         }
 
         let brainAdapter = LocalBrainAwakePageSourceAdapter()
@@ -8023,30 +8420,45 @@ enum FirstRunPageSequence {
         let brainShown = engaged("source:\(brain.sourceID)", inputs: inputs)
 
         guard brainShown else {
-            return [welcome, brain]
+            return [brain]
         }
 
         if !engaged("source:\(enchantmentIntroSourceID)", inputs: inputs),
            !day.pages.contains(where: { $0.tags.contains("first-run-enchantment-intro") }) {
-            return [welcome, brain, enchantmentIntroSurface(for: day, context: context, inputs: inputs, now: now)]
+            return [enchantmentIntroSurface(for: day, context: context, inputs: inputs, now: now)]
         }
 
         let calendarAdapter = CalendarPageSourceAdapter()
         let calendarDoor = calendarAdapter.previewSurface(for: day)
         let calendarDoorShown = engaged(calendarDoor.varietyKey, inputs: inputs)
         if !inputs.calendarIntegrationEnabled, !calendarDoorShown {
-            return [welcome, brain, calendarDoor]
+            return [calendarDoor]
         }
 
         if shouldSurfaceCompassRunAfterBrain(inputs: inputs, day: day, now: now) {
-            return [welcome, brain, compassRunIntroSurface(for: day, context: context, inputs: inputs, now: now)]
+            return [compassRunIntroSurface(for: day, context: context, inputs: inputs, now: now)]
         }
 
         guard !engaged("source:\(firstMissionSourceID)", inputs: inputs),
               !day.pages.contains(where: { $0.tags.contains("first-run-mission") }) else {
             return nil
         }
-        return [welcome, brain, firstMissionSurface(playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs))]
+        return [firstMissionSurface(playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs))]
+    }
+
+    /// Every active First Door beat is a deliberate single-page ceremony. It
+    /// owns Pages Rising until the reader opens or dismisses it; ordinary cards
+    /// cannot bury the introduction beneath a busier desk. Completed Welcome and
+    /// Brain cards still do not follow later steps around the desk.
+    static func mergingCurrentStep(
+        _ firstRun: [SurfacePage]?,
+        into feed: [SurfacePage],
+        limit: Int
+    ) -> [SurfacePage] {
+        guard limit > 0, let current = firstRun?.last else {
+            return Array(feed.prefix(max(0, limit)))
+        }
+        return [current]
     }
 
     /// Every engagement key the first-run script consults, in step order.
@@ -8057,6 +8469,7 @@ enum FirstRunPageSequence {
         [
             "source:\(BookPageSourceRegistry.source(for: .welcome).id)",
             "first-door-origin",
+            "source:\(localBrainSetupSourceID)",
             "source:local-brain-awake",
             "source:\(enchantmentIntroSourceID)",
             "source:\(BookPageSourceRegistry.source(for: .calendar).id)",
@@ -8118,7 +8531,10 @@ enum FirstRunPageSequence {
     /// welcome has been seen, so it never crowds the first greeting).
     static func pendingLocalBrainUpgrade(inputs: BookSourceInputs) -> SurfacePage? {
         guard !inputs.localBrainIsReady else { return nil }
-        guard inputs.surfaceHistory["source:\(BookPageSourceRegistry.source(for: .welcome).id)"] != nil else { return nil }
+        guard engaged(
+            "source:\(BookPageSourceRegistry.source(for: .welcome).id)",
+            inputs: inputs
+        ) else { return nil }
         return localBrainSetupSurface(playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs))
     }
 

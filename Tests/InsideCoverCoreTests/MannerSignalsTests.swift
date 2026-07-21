@@ -153,4 +153,132 @@ final class MannerSignalsTests: XCTestCase {
         )
         XCTAssertTrue(digest.signals.contains { $0.kind == .manner })
     }
+
+    // MARK: - The Book's Patina
+
+    func testPatinaLearnsOpenEndedWordNeighborhoodsAndReaderInventedTags() throws {
+        let pages = (0..<8).map { index in
+            page(
+                "The violet sprocket turned beside the copper observatory while the paper comet refused its appointment!",
+                at: daysAgo(60 + index * 4),
+                id: "patina-\(index)"
+            )
+        }
+        var learning = ReaderLearningModel()
+        for index in 0..<2 {
+            learning.record(ReaderLearningEvent(
+                dayID: "liked-\(index)",
+                occurredAt: daysAgo(70 + index),
+                action: .loved,
+                surfaceID: "surface-\(index)",
+                sourceID: "invented-source",
+                type: .diary,
+                varietyKey: "invented",
+                hour: 20,
+                tags: ["clockwork-comedy"]
+            ))
+        }
+        let patina = BookVoicePatina.derive(
+            days: [BookDay(id: "patina", date: now, pages: pages)],
+            readerLearning: learning,
+            now: now
+        )
+        let grain = try XCTUnwrap(patina.enduring)
+
+        XCTAssertEqual(patina.depth, .gathering)
+        XCTAssertTrue(grain.attentionWords.contains("violet"))
+        XCTAssertTrue(grain.attentionWords.contains("sprocket"))
+        XCTAssertTrue(
+            grain.wordNeighborhoods.contains("sprocket + violet"),
+            "Open-ended neighborhoods were: \(grain.wordNeighborhoods)"
+        )
+        XCTAssertTrue(grain.readerFavoredTags.contains("clockwork comedy"))
+        XCTAssertTrue(patina.promptSection.contains("open-ended evidence, not preset personality categories"))
+        XCTAssertTrue(patina.promptSection.contains("Share a grain, not a fingerprint"))
+    }
+
+    func testPatinaKeepsAnyRecentVocabularyShiftSeasonalUntilItEarnsTheBinding() throws {
+        let enduring = (0..<8).map { index in
+            page(
+                "The copper observatory kept a violet sprocket beside the paper comet every afternoon.",
+                at: daysAgo(70 + index * 7),
+                id: "old-\(index)"
+            )
+        }
+        let recent = (0..<4).map { index in
+            page(
+                "The velvet orchestra left a silver kettle beside the crooked metronome after rehearsal.",
+                at: daysAgo(1 + index * 3),
+                id: "recent-\(index)"
+            )
+        }
+        let patina = BookVoicePatina.derive(
+            days: [BookDay(id: "seasons", date: now, pages: enduring + recent)],
+            now: now
+        )
+        let enduringGrain = try XCTUnwrap(patina.enduring)
+        let season = try XCTUnwrap(patina.season)
+
+        XCTAssertTrue(enduringGrain.attentionWords.contains("sprocket"))
+        XCTAssertFalse(enduringGrain.attentionWords.contains("orchestra"))
+        XCTAssertTrue(season.attentionWords.contains("orchestra"))
+        XCTAssertTrue(season.wordNeighborhoods.contains { $0.contains("orchestra") })
+        XCTAssertTrue(patina.promptSection.contains("temporary weather, not identity"))
+        XCTAssertTrue(patina.promptSection.contains("Never promote a temporary emotional season"))
+    }
+
+    func testPatinaExcludesGeneratedProsePrivateLogsAndChatTranscripts() throws {
+        let safe = (0..<4).map { index in
+            page(
+                "The garden gate clicked while the rosemary leaned over the path.",
+                at: daysAgo(60 + index),
+                id: "safe-\(index)"
+            )
+        }
+        let generated = BookPage(
+            id: "generated",
+            type: .bookOfYou,
+            createdAt: daysAgo(70),
+            promptText: "Braid",
+            userInput: "Obsidianpassword obsidianpassword obsidianpassword obsidianpassword obsidianpassword."
+        )
+        let privateLog = page(
+            "Obsidianpassword obsidianpassword obsidianpassword obsidianpassword obsidianpassword.",
+            at: daysAgo(65),
+            id: "private",
+            type: .fuel
+        )
+        let chat = page(
+            "Obsidianpassword obsidianpassword obsidianpassword obsidianpassword obsidianpassword.",
+            at: daysAgo(64),
+            id: "chat",
+            type: .askTheBook
+        )
+        let patina = BookVoicePatina.derive(
+            days: [BookDay(id: "private", date: now, pages: safe + [generated, privateLog, chat])],
+            now: now
+        )
+        let grain = try XCTUnwrap(patina.enduring)
+
+        XCTAssertFalse(grain.attentionWords.contains("obsidianpassword"))
+        XCTAssertFalse(patina.promptSection.contains("obsidianpassword"))
+        XCTAssertEqual(patina.evidencePageIDs.count, 4)
+    }
+
+    func testPatinaWaitsForEnoughReaderAuthoredPages() {
+        let pages = (0..<3).map { index in
+            page(
+                "The river crossed the trail beside one patient stone.",
+                at: daysAgo(index + 1),
+                id: "young-\(index)"
+            )
+        }
+        let patina = BookVoicePatina.derive(
+            days: [BookDay(id: "young", date: now, pages: pages)],
+            now: now
+        )
+
+        XCTAssertEqual(patina, .unwritten)
+        XCTAssertEqual(patina.promptSection, "")
+    }
 }

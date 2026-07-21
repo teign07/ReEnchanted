@@ -163,26 +163,27 @@ struct BookShopSheet: View {
                                 ForEach(BookShopCatalog.freeGifts) { gift in freeGiftCard(gift) }
                             }
                             if isLoading {
-                                ProgressView("The Goblins are unlocking the till...")
-                                    .tint(BookPalette.lampGold)
-                                    .foregroundStyle(BookPalette.nightText.opacity(0.7))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 16)
+                                GoblinTillWakeView()
+                                    .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
                             } else {
-                                let purchasable = offers.filter {
-                                    $0.listing.family != .standingOrder && !PackEntitlements.isUnlocked($0.listing.packID)
+                                Group {
+                                    let purchasable = offers.filter {
+                                        $0.listing.family != .standingOrder && !PackEntitlements.isUnlocked($0.listing.packID)
+                                    }
+                                    ForEach(purchasable) { offer in offerCard(offer) }
+                                    if !ownedListings.isEmpty {
+                                        subsectionLabel("Already Bound to You")
+                                        ForEach(ownedListings) { boundCard($0) }
+                                    }
+                                    if !comingSoon.isEmpty {
+                                        subsectionLabel("Being Printed")
+                                        ForEach(comingSoon) { printingCard($0) }
+                                    }
                                 }
-                                ForEach(purchasable) { offer in offerCard(offer) }
-                                if !ownedListings.isEmpty {
-                                    subsectionLabel("Already Bound to You")
-                                    ForEach(ownedListings) { boundCard($0) }
-                                }
-                                if !comingSoon.isEmpty {
-                                    subsectionLabel("Being Printed")
-                                    ForEach(comingSoon) { printingCard($0) }
-                                }
+                                .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
                             }
                         }
+                        .animation(BookMotion.result(reduceMotion), value: isLoading)
 
                         ledgerActions
 
@@ -3128,9 +3129,6 @@ private extension UIViewController {
 /// a cancel path, and Restore. Reuses `BookShopTill`/`StoreKitMerchant` so a tap
 /// runs the same purchase + entitlement path as the goblin market.
 struct StandingOrderSheet: View {
-    /// Optional hero: the reader's own first-edition cover, shown on page 2 so
-    /// the pitch is illustrated with something they just made.
-    var heroArtifact: BookOfYouShareArtifact? = nil
     /// Persist the granted packID (always the Standing Order pack).
     var onSubscribed: (String) -> Void
     var onDismiss: () -> Void
@@ -3320,24 +3318,72 @@ struct StandingOrderSheet: View {
 
     private var addsPage: some View {
         VStack(alignment: .leading, spacing: 14) {
-            pageTitle("The Standing Order adds the extras.", subtitle: "One line in the ledger, and every printed folio walks itself to your shelf.")
+            pageTitle(
+                "Keep the Book Growing",
+                subtitle: "Your subscription opens the ongoing world of ReEnchanted—and everything new that is added to it."
+            )
 
-            if let heroArtifact {
-                BookOfYouShareCard(artifact: heroArtifact)
-                    .frame(width: BookOfYouShareCard.renderSize.width, height: BookOfYouShareCard.renderSize.height)
-                    .scaleEffect(0.26, anchor: .center)
-                    .frame(width: BookOfYouShareCard.renderSize.width * 0.26, height: BookOfYouShareCard.renderSize.height * 0.26)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .frame(maxWidth: .infinity)
-                    .rotationEffect(.degrees(-2))
-                    .shadow(color: BookPalette.lampGold.opacity(0.3), radius: 16, y: 8)
-                    .padding(.vertical, 4)
+            benefitRow(
+                "book.pages.fill",
+                "A living story that changes each month",
+                "Follow an unfolding narrative told through the whole Book, with new events, conflicts, mysteries, characters, and consequences developing from month to month.",
+                emphasized: true
+            )
+            benefitRow(
+                "shippingbox.fill",
+                "Every monthly content pack",
+                "Each chapter of the living story arrives with the Pages, encounters, sounds, words, and other additions that let it spread throughout the Book."
+            )
+            benefitRow(
+                "rectangle.stack.badge.plus",
+                "New Pages to discover",
+                "Open new Page types, rituals, games, reflections, creative tools, and strange little doors for the Book to place in your path."
+            )
+            benefitRow(
+                "sparkles",
+                "More ways to play with everyday life",
+                "Existing Pages keep growing too—with new playful missions, noticing experiments, questions, prompts, challenges, and ways to bring the ordinary world back into the Book."
+            )
+            benefitRow(
+                "person.3.fill",
+                "New characters and voices",
+                "Meet new students, faculty, creatures, rivals, correspondents, merchants, and other inhabitants of the Academy and the wider Labyrinth."
+            )
+            benefitRow(
+                "radio.fill",
+                "An expanding Radio",
+                "Hear new songs, radio stations, station events, DJ banter, unauthorized broadcasts, questionable goblin advertisements, and interruptions from beyond the margins."
+            )
+            benefitRow(
+                "textformat.abc",
+                "More words for your Book",
+                "Receive new quotes, quips, prompts, sentence-building words and chips, transmutations, and fresh marginalia for Illuminated Photos and Pagewright scrapbooks."
+            )
+            benefitRow(
+                "questionmark.diamond.fill",
+                "New mysteries in the margins",
+                "Discover fresh secrets, hidden broadcasts, lore, letters, encounters, side stories, and details that make the Book feel deeper the longer you keep it."
+            )
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("A Book That Never Finishes Becoming")
+                    .font(.system(.title3, design: .serif).weight(.bold))
+                    .foregroundStyle(BookPalette.nightText)
+                Text("ReEnchanted is built to expand—from its stories and Pages to its characters, music, writing tools, missions, events, and hidden corners.")
+                    .font(.system(.callout, design: .serif))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.76))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Subscribe to keep the whole living Book open.")
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(BookPalette.lampGold)
+                    .padding(.top, 2)
             }
-
-            benefitRow("square.grid.2x2", "Every content pack", "Word hoards, world events, sound bindings — every paid pack today and every new one the Bindery prints while your order stands.")
-            benefitRow("paintbrush.pointed", "Premium bindery covers", "Cloth, foil, and illustrated cover treatments for your bound editions.")
-            benefitRow("person.2", "Cast expansions & voices", "New characters to meet and extra local Gemma voices for the Book's prose.")
-            benefitRow("printer", "Print credits", "Toward physical hardcover editions from the Bindery.")
+            .padding(14)
+            .background(BookPalette.nightPanel.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(BookPalette.lampGold.opacity(0.36), lineWidth: 1)
+            }
         }
     }
 
@@ -3557,6 +3603,94 @@ struct StandingOrderSheet: View {
     }
 }
 
+private struct GoblinTillWakeView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var counted = false
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                ForEach(0..<3, id: \.self) { index in
+                    ZStack {
+                        Circle()
+                            .fill(index == 1 ? BookPalette.teal.opacity(0.18) : BookPalette.lampGold.opacity(0.18))
+                        Image(systemName: index == 1 ? "key.fill" : "seal.fill")
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(index == 1 ? BookPalette.teal : BookPalette.lampGold)
+                    }
+                    .frame(width: 38, height: 38)
+                    .rotationEffect(.degrees(reduceMotion || counted ? Double(index - 1) * 4 : -16))
+                    .offset(y: reduceMotion || counted ? 0 : 12)
+                    .opacity(reduceMotion || counted ? 1 : 0)
+                    .animation(
+                        BookMotion.deal(delay: Double(index) * 0.09, reduceMotion: reduceMotion),
+                        value: counted
+                    )
+                }
+            }
+
+            Text("The Goblins are unlocking the till…")
+                .font(.system(.callout, design: .serif).weight(.semibold))
+                .foregroundStyle(BookPalette.nightText.opacity(0.76))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .onAppear { counted = true }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A compact working bindery: loose folios gather, the needle traverses their
+/// spine, and the wax seal holds. Unlike a generic spinner, every moving part
+/// describes the work the reader is waiting for.
+private struct BindingFolioGlyph: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var stitching = false
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<3, id: \.self) { index in
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(BookPalette.page)
+                    .frame(width: 62, height: 76)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .stroke(BookPalette.parchmentEdge.opacity(0.72), lineWidth: 1)
+                    }
+                    .rotationEffect(.degrees(Double(index - 1) * (stitching && !reduceMotion ? 1.2 : 4.6)))
+                    .offset(x: CGFloat(index - 1) * (stitching && !reduceMotion ? 4 : 11))
+                    .shadow(color: .black.opacity(0.18), radius: 5, y: 3)
+            }
+
+            Capsule()
+                .fill(BookPalette.lampGold.opacity(0.72))
+                .frame(width: 2, height: 58)
+                .offset(x: -26)
+
+            Image(systemName: "needle")
+                .font(.system(size: 16, weight: .black))
+                .foregroundStyle(BookPalette.lampGold)
+                .rotationEffect(.degrees(28))
+                .offset(x: -26, y: reduceMotion ? 0 : (stitching ? 24 : -24))
+
+            Image(systemName: "seal.fill")
+                .font(.system(size: 22, weight: .black))
+                .foregroundStyle(BookPalette.lampGold)
+                .scaleEffect(reduceMotion ? 1 : (stitching ? 1.08 : 0.88))
+                .offset(x: 25, y: 25)
+                .shadow(color: BookPalette.lampGold.opacity(0.32), radius: 8)
+        }
+        .frame(width: 112, height: 92)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+                stitching = true
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 // MARK: - Weekly Issue reader
 
 /// A full-screen binding desk shown while Gemma writes and the PDF/card files
@@ -3565,20 +3699,15 @@ struct StandingOrderSheet: View {
 struct WeeklyIssueBindingOverlay: View {
     let note: String
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         ZStack {
             Color.black.opacity(0.48)
                 .ignoresSafeArea()
 
             VStack(spacing: 16) {
-                ZStack {
-                    Circle()
-                        .fill(BookPalette.lampGold.opacity(0.14))
-                        .frame(width: 72, height: 72)
-                    Image(systemName: "book.closed.fill")
-                        .font(.system(size: 30, weight: .semibold))
-                        .foregroundStyle(BookPalette.lampGold)
-                }
+                BindingFolioGlyph()
 
                 VStack(spacing: 7) {
                     Text("Binding the week")
@@ -3590,9 +3719,6 @@ struct WeeklyIssueBindingOverlay: View {
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-
-                ProgressView()
-                    .tint(BookPalette.lampGold)
 
                 Text("The issue will open when the ink is dry.")
                     .font(.caption.weight(.semibold))
@@ -3608,6 +3734,7 @@ struct WeeklyIssueBindingOverlay: View {
             }
             .shadow(color: .black.opacity(0.38), radius: 28, y: 12)
         }
+        .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Binding the weekly issue. (note)")
         .accessibilityAddTraits(.updatesFrequently)

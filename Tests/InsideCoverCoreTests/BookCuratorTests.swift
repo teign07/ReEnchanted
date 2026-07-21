@@ -21,6 +21,145 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(pages.contains { $0.type == .bookOfYou } == false)
     }
 
+    func testDeepBenchKeepsItsVisiblePrefixBalancedAcrossLanes() {
+        let candidates = [
+            rankedCandidate(.weather, score: 100),
+            rankedCandidate(.fuel, score: 99),
+            rankedCandidate(.lore, score: 98),
+            rankedCandidate(.quip, score: 97),
+            rankedCandidate(.narrativeOS, score: 50)
+        ]
+        var mood = CuratorMood.neutral
+        mood.keptPageCount = 30
+
+        let pages = BookCurator.rankedPages(
+            from: candidates,
+            limit: 12,
+            mood: mood,
+            now: localDate(hour: 13)
+        ).map(\.page)
+
+        XCTAssertEqual(Set(pages.prefix(3).map { $0.type.deskLane }), Set(DeskLane.allCases))
+        XCTAssertGreaterThan(pages.count, 3)
+    }
+
+    func testVisibleDeskAllowsOnlyOneReaderActionCommission() {
+        let firstAction = SurfacePage(
+            id: "action-apprenticeship",
+            type: .helpTips,
+            sourceID: "action-apprenticeship",
+            score: 100,
+            prompt: "Try this",
+            detail: "One assignment.",
+            payload: BookPagePayload(
+                headline: "Try this",
+                body: "One assignment.",
+                metadata: ["curatorActionCommission": "true"]
+            )
+        )
+        let secondAction = SurfacePage(
+            id: "action-compass",
+            type: .wonderCompass,
+            sourceID: "action-compass",
+            score: 99,
+            prompt: "Try that",
+            detail: "A second assignment.",
+            payload: BookPagePayload(
+                headline: "Try that",
+                body: "A second assignment.",
+                metadata: ["curatorActionCommission": "true"]
+            )
+        )
+        let candidates = [
+            firstAction,
+            secondAction,
+            rankedCandidate(.narrativeOS, score: 80),
+            rankedCandidate(.lore, score: 70),
+            rankedCandidate(.weather, score: 60)
+        ]
+        var mood = CuratorMood.neutral
+        mood.keptPageCount = 30
+
+        let pages = BookCurator.rankedPages(
+            from: candidates,
+            limit: 12,
+            mood: mood,
+            now: localDate(hour: 13)
+        ).map(\.page)
+
+        XCTAssertEqual(pages.prefix(3).filter(\.isReaderActionCommission).count, 1)
+        XCTAssertEqual(pages.filter(\.isReaderActionCommission).count, 2, "The second mission may remain in the refill bench.")
+    }
+
+    func testOnboardingShelfChoicesProvideMildExplicitCurationAffinity() {
+        let now = localDate(hour: 13)
+        let facts = [
+            SelfFact(
+                id: "onboarding:onboarding-taste",
+                questionID: "onboarding-taste",
+                question: "What should the Book bring you more of?",
+                answer: "weather-place",
+                bookTranslation: "weather-place",
+                sensitivity: .delight,
+                usePermission: .privateContext,
+                tags: ["taste", "curation", "onboarding"],
+                createdAt: now,
+                updatedAt: now
+            ),
+            SelfFact(
+                id: "onboarding:onboarding-drawn-chapter",
+                questionID: "onboarding-drawn-chapter",
+                question: "Which Chapter tugged first?",
+                answer: "Mossbloom",
+                bookTranslation: "Mossbloom",
+                sensitivity: .delight,
+                usePermission: .privateContext,
+                tags: ["chapter", "onboarding"],
+                createdAt: now,
+                updatedAt: now
+            ),
+            SelfFact(
+                id: "onboarding:onboarding-comfort-boundary",
+                questionID: "onboarding-comfort-boundary",
+                question: "How sharp should the Book get?",
+                answer: "gentle",
+                bookTranslation: "gentle",
+                sensitivity: .delight,
+                usePermission: .privateContext,
+                tags: ["comfort", "onboarding"],
+                createdAt: now,
+                updatedAt: now
+            )
+        ]
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = facts
+        let mood = CuratorMood.make(inputs: inputs, now: now)
+        let weather = rankedCandidate(.weather, score: 50)
+        let quip = rankedCandidate(.quip, score: 50)
+
+        XCTAssertEqual(mood.onboardingTaste, "weather-place")
+        XCTAssertEqual(mood.onboardingChapter, "Mossbloom")
+        XCTAssertEqual(mood.onboardingComfort, "gentle")
+        XCTAssertEqual(
+            FirstDoorCurationAffinity.boost(
+                for: weather,
+                taste: mood.onboardingTaste,
+                chapter: mood.onboardingChapter,
+                comfort: mood.onboardingComfort
+            ),
+            9
+        )
+        XCTAssertEqual(
+            FirstDoorCurationAffinity.boost(
+                for: quip,
+                taste: mood.onboardingTaste,
+                chapter: mood.onboardingChapter,
+                comfort: mood.onboardingComfort
+            ),
+            0
+        )
+    }
+
     func testDismissingTopSurfaceRefillsFromNextRankedCandidate() throws {
         let day = emptyDay()
         let firstPass = BookCurator.surfacedPages(

@@ -616,6 +616,14 @@ enum RadioStationRegistry {
                     assetName: "RadioFaeFiPagesRising",
                     durationSeconds: 94,
                     moodTags: ["bright", "playful", "pages"]
+                ),
+                RadioTrack(
+                    id: "fae-fi-look-twice",
+                    title: "Look Twice",
+                    artist: "Fae-Fi",
+                    assetName: "RadioFaeFiLookTwice",
+                    durationSeconds: 249,
+                    moodTags: ["bright", "playful", "wonder", "ordinary"]
                 )
             ],
             interludeTitles: [
@@ -3366,6 +3374,73 @@ enum AcademyActivityRegistry {
 
     static func activity(for sessionID: String) -> AcademyActivity? {
         activities[sessionID]
+    }
+}
+
+/// The contract for the page that receives a completed Academy practice.
+/// Keeping this separate from the original lesson prompt prevents a return
+/// from becoming a second performance of the same classroom scene.
+struct AcademyActivityDebrief: Equatable {
+    var activityTitle: String
+    var outcome: String
+
+    init?(metadata: [String: String]) {
+        let outcome = (metadata["academyActivityOutcome"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !outcome.isEmpty else { return nil }
+        self.activityTitle = (metadata["academyActivityTitle"] ?? "the Academy practice")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        self.outcome = outcome
+    }
+
+    var promptSection: String {
+        """
+        THIS IS A PRACTICE RETURN, NOT A REPEATED LESSON.
+        The reader completed “\(activityTitle)” and submitted the following answer. This answer is source-of-truth:
+
+        READER'S COMPLETED PRACTICE:
+        \(outcome)
+
+        RESPONSE CONTRACT:
+        - Begin after the original classroom scene. Do not restage its entrance, demonstration, lecture, or question.
+        - The leader must respond to at least one exact word, image, choice, or sensory detail from the submitted answer. Quote or name that detail so the reader can tell their answer was read.
+        - Let the lesson advance by applying its concept to that exact detail. Do not merely praise, summarize, or repeat the form labels.
+        - A companion may react, but the reader's submitted answer remains the cause of this new beat.
+        - End with one genuinely new observation or question shaped by the answer. Do not assign the same practice again.
+        """
+    }
+
+    /// A small lexical gate for generated debriefs. The prompt requires one
+    /// exact detail, so a response with no overlap has not yet received the
+    /// reader's work and should be repaired before it is shown.
+    func isAcknowledged(in prose: String) -> Bool {
+        let haystack = prose.lowercased()
+        let anchors = anchorTerms
+        guard !anchors.isEmpty else { return true }
+        return anchors.contains { haystack.contains($0) }
+    }
+
+    var anchorTerms: [String] {
+        let generic = Set([
+            "about", "after", "and", "answer", "became", "before", "book", "chosen", "class",
+            "color", "completed", "detail", "evidence", "field", "lesson", "moment", "one",
+            "practice", "reader", "response", "room", "same", "sentence", "sound", "stance", "the",
+            "thing", "this", "three", "what", "when", "where", "with", "your"
+        ])
+        let values = outcome
+            .components(separatedBy: .newlines)
+            .map { line in
+                line.split(separator: ":", maxSplits: 1).last.map(String.init) ?? line
+            }
+            .joined(separator: " ")
+        let terms = values.lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .filter { $0.count >= 3 && !generic.contains($0) }
+        return Array(Set(terms)).sorted { left, right in
+            if left.count == right.count { return left < right }
+            return left.count > right.count
+        }
     }
 }
 
@@ -10783,8 +10858,11 @@ extension PeopleOfTheBook {
                 entries: entries
             )
         }.sorted { lhs, rhs in
-            if lhs.entries.count == rhs.entries.count { return lhs.name < rhs.name }
-            return lhs.entries.count > rhs.entries.count
+            // A volume that promises not to rank people must not quietly use
+            // entry volume as an importance proxy. Let lived chronology order
+            // the chapters; use the reader's spelling only as a stable tie-break.
+            if lhs.firstDay == rhs.firstDay { return lhs.name < rhs.name }
+            return lhs.firstDay < rhs.firstDay
         }
 
         let scopeTitle: String

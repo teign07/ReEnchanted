@@ -72,6 +72,47 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertTrue(prompt.contains("selective magic is stronger"))
     }
 
+    func testBookOfYouBraidCarriesThisReadersPatinaWithoutReplacingBookCanon() {
+        let now = date("2026-07-20T20:00:00Z")
+        let pages = (0..<8).map { index in
+            BookPage(
+                id: "patina-\(index)",
+                type: .souvenir,
+                createdAt: now.addingTimeInterval(TimeInterval(-(60 + index * 4) * 86_400)),
+                promptText: "Keep one true thing.",
+                userInput: "The violet sprocket turned beside the copper observatory while the paper comet refused its appointment!"
+            )
+        }
+        let patina = BookVoicePatina.derive(
+            days: [BookDay(id: "archive", date: now, pages: pages)],
+            now: now
+        )
+        let tonight = BookDay(
+            id: "tonight",
+            date: now,
+            pages: [
+                BookPage(
+                    type: .souvenir,
+                    createdAt: now,
+                    promptText: "One true thing",
+                    userInput: "A red cup waited beside the open window."
+                )
+            ]
+        )
+
+        let prompt = BraidPromptBuilder.prompt(
+            for: tonight,
+            context: BraidPromptBuilder.Context(bookVoicePatina: patina)
+        )
+
+        XCTAssertTrue(prompt.contains("THE BOOK'S PATINA"))
+        XCTAssertTrue(prompt.contains("attention returns to"))
+        XCTAssertTrue(prompt.contains("sprocket"))
+        XCTAssertTrue(prompt.contains("words that repeatedly keep company"))
+        XCTAssertTrue(prompt.contains("You are still the Book described by THE BOOK AS A CHARACTER"))
+        XCTAssertTrue(prompt.contains("Never insert any unsupplied object"))
+    }
+
     func testRecentBraidTextsSelectNewestAndOlderEchoWithoutCurrentDay() {
         let currentDay = BookDay(id: "2026-06-16", date: date("2026-06-16T12:00:00Z"), pages: [])
         let days = (1...6).map { index in
@@ -300,6 +341,54 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertEqual(partition.story.map(\.type), [.diary])
         XCTAssertEqual(partition.story.first?.userInput, "the blue chair was repaired")
         XCTAssertEqual(partition.supportingLogs.map(\.type), [.weather, .body, .mood])
+    }
+
+    func testBraidEvidenceExcludesWelcomeAndHelpFurniture() {
+        let day = BookDay(
+            id: "2026-07-14",
+            date: date("2026-07-14T20:30:00Z"),
+            pages: [
+                BookPage(
+                    type: .welcome,
+                    createdAt: date("2026-07-14T07:00:00Z"),
+                    promptText: "Welcome",
+                    userInput: "Hello, bj. The Labyrinth explains the Book.",
+                    origin: .generated
+                ),
+                BookPage(
+                    type: .helpTips,
+                    createdAt: date("2026-07-14T08:00:00Z"),
+                    promptText: "How the Book works",
+                    userInput: "A useful setup margin note.",
+                    origin: .generated
+                ),
+                BookPage(
+                    type: .souvenir,
+                    createdAt: date("2026-07-14T18:00:00Z"),
+                    promptText: "Keep one sentence",
+                    userInput: "I should have gone to the lake with her.",
+                    origin: .userAuthored
+                )
+            ]
+        )
+
+        let partition = BraidPromptBuilder.partitionedPagesForBraid(in: day)
+        let evidence = BraidPromptBuilder.evidenceLines(for: day).joined(separator: "\n")
+
+        XCTAssertEqual(partition.story.map(\.type), [.souvenir])
+        XCTAssertFalse(evidence.contains("The Labyrinth explains"))
+        XCTAssertFalse(evidence.contains("setup margin note"))
+        XCTAssertTrue(evidence.contains("I should have gone to the lake"))
+    }
+
+    func testFallbackExcerptRetreatsToAWholeWordBoundary() {
+        let excerpt = BraidPromptBuilder.fallbackExcerpt(
+            "the labyrinth welcoming the reader into the Book",
+            limit: 20
+        )
+
+        XCTAssertEqual(excerpt, "the labyrinth…")
+        XCTAssertFalse(excerpt.contains("welcom…"))
     }
 
     func testTaleCabinetReadsRepairAndSelectiveAgencyFromSuppliedDay() {
@@ -1392,6 +1481,274 @@ final class BraidPromptContextTests: XCTestCase {
         ].joined(separator: "\n\n")
 
         XCTAssertEqual(BraidOutputAudit.issues(in: draft, for: day, context: context), [])
+    }
+
+    func testNightlyStoryScoreKeepsLivedFactsAboveReaderChosenFiction() throws {
+        let lived = BookPage(
+            id: "lived-kettle",
+            type: .souvenir,
+            createdAt: date("2026-07-18T08:00:00Z"),
+            promptText: "One true thing",
+            userInput: "The blue kettle clicked off while the unopened letter waited beside it.",
+            origin: .userAuthored
+        )
+        let fiction = BookPage(
+            id: "fiction-choice",
+            type: .narrativeOS,
+            createdAt: date("2026-07-18T09:00:00Z"),
+            promptText: "A Story Page",
+            userInput: "The orchard door offered three paths.",
+            tags: ["choice:stay-and-listen"],
+            sourceID: "narrative-os",
+            origin: .simulated
+        )
+        let day = BookDay(
+            id: "2026-07-18",
+            date: date("2026-07-18T20:30:00Z"),
+            pages: [lived, fiction]
+        )
+
+        let score = BraidPromptBuilder.nightlyStoryScore(
+            for: day,
+            context: .empty,
+            connections: [],
+            constellations: [],
+            now: day.date
+        )
+        var context = BraidPromptBuilder.Context()
+        context.storyScore = score
+        context.taleReading = score.taleReading
+        let prompt = BraidPromptBuilder.prompt(for: day, context: context)
+
+        XCTAssertEqual(score.livedBeats.map(\.pageID), ["lived-kettle"])
+        XCTAssertEqual(score.fictionBeat?.pageID, "fiction-choice")
+        XCTAssertTrue(prompt.contains("LIVED ANCHORS (facts; these own what happened)"))
+        XCTAssertTrue(prompt.contains("Reader-made fictional choice"))
+        XCTAssertTrue(prompt.contains("never a lived event"))
+        XCTAssertTrue(prompt.contains("The blue kettle clicked off"))
+        XCTAssertTrue(prompt.contains("stay and listen"))
+    }
+
+    func testNightlyStoryScoreHonorsRelationalBoundaryAndKeepsGlimmerTentative() throws {
+        let page = BookPage(
+            id: "rain-letter-tonight",
+            type: .souvenir,
+            createdAt: date("2026-07-18T20:00:00Z"),
+            promptText: "One true thing",
+            userInput: "Cold rain tapped the glass while I opened Wicker's letter.",
+            origin: .userAuthored
+        )
+        let day = BookDay(id: "2026-07-18", date: date("2026-07-18T21:00:00Z"), pages: [page])
+        let connection = relationalConnection(
+            tier: .glimmer,
+            evidencePageID: page.id,
+            observationKey: "weather-rain-wicker"
+        )
+
+        let allowed = BraidPromptBuilder.nightlyStoryScore(
+            for: day,
+            context: .empty,
+            connections: [connection],
+            constellations: [],
+            now: day.date
+        )
+        let refused = BraidPromptBuilder.nightlyStoryScore(
+            for: day,
+            context: .empty,
+            connections: [connection],
+            constellations: [],
+            forbiddenObservationKeys: [connection.observationKey],
+            now: day.date
+        )
+
+        XCTAssertEqual(allowed.relationalLens?.connectionID, connection.id)
+        XCTAssertTrue(allowed.relationalLens?.line.contains("question") == true)
+        XCTAssertTrue(allowed.forbiddenClaims.contains { $0.contains("settled truth") })
+        XCTAssertNil(refused.relationalLens)
+        XCTAssertNil(refused.arc)
+    }
+
+    func testNightlyArcPersistsReceiptsAndDeepensOnTheNextNight() throws {
+        let firstPage = BookPage(
+            id: "first-rain-letter",
+            type: .souvenir,
+            createdAt: date("2026-07-18T20:00:00Z"),
+            promptText: "One true thing",
+            userInput: "Cold rain tapped the glass while I opened Wicker's letter.",
+            origin: .userAuthored
+        )
+        let firstDay = BookDay(id: "2026-07-18", date: date("2026-07-18T21:00:00Z"), pages: [firstPage])
+        let firstConnection = relationalConnection(
+            tier: .gathering,
+            evidencePageID: firstPage.id,
+            observationKey: "weather-rain-wicker"
+        )
+        let firstScore = BraidPromptBuilder.nightlyStoryScore(
+            for: firstDay,
+            context: .empty,
+            connections: [firstConnection],
+            constellations: [],
+            now: firstDay.date
+        )
+        var firstContext = BraidPromptBuilder.Context()
+        firstContext.storyScore = firstScore
+        firstContext.taleReading = firstScore.taleReading
+        let firstBraid = BraidPageDetails.annotated(
+            BookPage(
+                id: "first-braid",
+                type: .bookOfYou,
+                createdAt: date("2026-07-18T22:00:00Z"),
+                promptText: "Book of You",
+                userInput: "Rain Read The Letter\n\nThe cold glass waited beside Wicker's opened letter.\n\nThe Book kept the page: rain had found one letter worth reading.",
+                tags: ["braid"]
+            ),
+            context: firstContext
+        )
+        let restored = try XCTUnwrap(BookOfYouResidue.fromTags(in: firstBraid))
+        XCTAssertTrue(firstBraid.tags.contains("braid-story-score-v3"))
+        XCTAssertEqual(restored.arcID, "weather-rain-wicker")
+        XCTAssertEqual(restored.arcMovement, .began)
+        XCTAssertTrue(restored.arcEvidencePageIDs.contains(firstPage.id))
+        XCTAssertTrue(restored.relationalConnectionIDs.contains(firstConnection.id))
+
+        let firstArchiveDay = BookDay(id: firstDay.id, date: firstDay.date, pages: [firstPage, firstBraid])
+        let secondPage = BookPage(
+            id: "second-rain-letter",
+            type: .souvenir,
+            createdAt: date("2026-07-19T20:00:00Z"),
+            promptText: "One true thing",
+            userInput: "Rain returned and I saved Wicker's last paragraph for after dinner.",
+            origin: .userAuthored
+        )
+        let secondDay = BookDay(id: "2026-07-19", date: date("2026-07-19T21:00:00Z"), pages: [secondPage])
+        var secondContext = BraidPromptBuilder.Context()
+        secondContext.memoryDigest = BindingMemorySpine.digest(
+            days: [firstArchiveDay],
+            now: secondDay.date
+        )
+        let secondScore = BraidPromptBuilder.nightlyStoryScore(
+            for: secondDay,
+            context: secondContext,
+            connections: [relationalConnection(
+                tier: .gathering,
+                evidencePageID: secondPage.id,
+                observationKey: "weather-rain-wicker"
+            )],
+            constellations: [],
+            now: secondDay.date
+        )
+
+        XCTAssertEqual(secondScore.arc?.id, firstScore.arc?.id)
+        XCTAssertEqual(secondScore.arc?.movement, .deepened)
+        XCTAssertNotNil(secondScore.arc?.priorState)
+        XCTAssertTrue(secondScore.arc?.evidencePageIDs.contains(secondPage.id) == true)
+    }
+
+    func testTastingRoomRewardsStoryScoreFidelity() throws {
+        let lived = BraidPromptBuilder.NightlyStoryScore.LivedBeat(
+            pageID: "kettle-page",
+            pageType: .souvenir,
+            occurredAt: date("2026-07-18T08:00:00Z"),
+            excerpt: "The blue kettle clicked beside the unopened letter.",
+            role: "truth anchor"
+        )
+        let lens = BraidPromptBuilder.NightlyStoryScore.RelationalLens(
+            connectionID: "rain-wicker-gathering",
+            observationKey: "weather-rain-wicker",
+            evidenceTier: .gathering,
+            condition: "it was cold and raining",
+            outcomes: ["you opened Wicker Eddies letters"],
+            evidencePageIDs: ["kettle-page"],
+            line: "Tonight is another receipt."
+        )
+        let day = BookDay(
+            id: "2026-07-18",
+            date: date("2026-07-18T20:30:00Z"),
+            pages: [BookPage(
+                id: lived.pageID,
+                type: .souvenir,
+                createdAt: lived.occurredAt,
+                promptText: "One true thing",
+                userInput: lived.excerpt,
+                origin: .userAuthored
+            )]
+        )
+        let reading = BraidPromptBuilder.taleReading(for: day)
+        let score = BraidPromptBuilder.NightlyStoryScore(
+            livedBeats: [lived],
+            fictionBeat: nil,
+            relationalLens: lens,
+            arc: .init(
+                id: lens.observationKey,
+                movement: .deepened,
+                priorState: "rain first gathered around one Wicker letter",
+                tonightDelta: "the blue kettle waited beside a second Wicker letter in cold rain",
+                evidencePageIDs: [lived.pageID],
+                fictionChoicePageIDs: [],
+                relationalConnectionIDs: [lens.connectionID]
+            ),
+            taleReading: reading,
+            magicLicense: "Let the kettle wait.",
+            endingDuty: "Return to the kettle and letter.",
+            forbiddenClaims: []
+        )
+        var context = BraidPromptBuilder.Context()
+        context.storyScore = score
+        context.taleReading = reading
+        let generic = BookPage(
+            type: .bookOfYou,
+            promptText: "Book of You",
+            userInput: "A Quiet Evening\n\nYou moved through a pleasant evening and noticed many things.\n\nThe Book kept the page: the day had hidden meaning."
+        )
+        let faithful = BookPage(
+            type: .bookOfYou,
+            promptText: "Book of You",
+            userInput: "Kettle Beside The Letter\n\nCold rain touched the window while the blue kettle clicked beside Wicker's second unopened letter.\n\nThe Book kept the page: the kettle waited until Wicker's letter was ready."
+        )
+
+        let genericScore = BraidTastingRoom.score(page: generic, context: context)
+        let faithfulScore = BraidTastingRoom.score(page: faithful, context: context)
+        XCTAssertGreaterThan(faithfulScore.storyScoreFidelity, genericScore.storyScoreFidelity)
+        XCTAssertEqual(BraidTastingRoom.taste([generic, faithful], context: context).winner?.page, faithful)
+    }
+
+    private func relationalConnection(
+        tier: RelationalLoomConnection.EvidenceTier,
+        evidencePageID: String,
+        observationKey: String
+    ) -> RelationalLoomConnection {
+        RelationalLoomConnection(
+            id: "\(observationKey)-\(tier.rawValue)",
+            observationKey: observationKey,
+            headline: "Rain and Wicker",
+            line: "When it was cold and raining, you opened Wicker Eddies letters.",
+            condition: RelationalLoomFeature(
+                id: "weather:cold+rain",
+                family: .weather,
+                label: "cold rain",
+                conditionClause: "it was cold and raining",
+                outcomeClause: "cold rain arrived",
+                symbolName: "cloud.rain",
+                carriesReaderSuppliedMeaning: false
+            ),
+            outcome: RelationalLoomFeature(
+                id: "character:wicker-eddies",
+                family: .character,
+                label: "Wicker Eddies",
+                conditionClause: "Wicker Eddies was present",
+                outcomeClause: "you opened Wicker Eddies letters",
+                symbolName: "envelope.open",
+                carriesReaderSuppliedMeaning: true
+            ),
+            evidence: [],
+            evidencePageIDs: [evidencePageID],
+            inHits: tier == .glimmer ? 2 : 4,
+            inCount: tier == .glimmer ? 2 : 5,
+            outHits: 0,
+            outCount: tier == .glimmer ? 3 : 5,
+            evidenceTier: tier,
+            strength: tier == .glimmer ? 55 : 78
+        )
     }
 
     private func date(_ value: String) -> Date {

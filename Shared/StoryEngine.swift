@@ -5507,8 +5507,8 @@ struct PlayfulMission: Identifiable, Equatable {
     var allowsPhoto: Bool = true
 }
 
-struct PromptWhisper: Identifiable, Equatable {
-    enum Kind: String {
+struct PromptWhisper: Identifiable, Equatable, Codable {
+    enum Kind: String, Codable {
         case checkIn
         case mission
     }
@@ -5519,6 +5519,9 @@ struct PromptWhisper: Identifiable, Equatable {
     var body: String
     var keepPrompt: String
     var tags: [String]
+    /// `nil` means this is a one-line prompt rather than a photographic
+    /// mission. Kept optional so older queued whispers decode unchanged.
+    var allowsPhoto: Bool? = nil
 }
 
 enum PlayfulMissionRegistry {
@@ -5969,7 +5972,8 @@ enum PromptWhisperRegistry {
             title: mission.title,
             body: mission.prompt,
             keepPrompt: mission.proofPrompt,
-            tags: mission.tags
+            tags: mission.tags,
+            allowsPhoto: mission.allowsPhoto
         )
     }
 

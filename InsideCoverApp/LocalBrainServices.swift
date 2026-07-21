@@ -105,6 +105,51 @@ actor LocalBrainModelCache {
     }
 }
 
+/// A downloaded checkpoint is not ready merely because its files exist. Load
+/// every model path the app will use and ask the text model for one token before
+/// the installer writes the active marker. This catches architecture/weight
+/// mismatches at the Welcome or Colophon instead of on the reader's first Page.
+enum LocalModelInstallValidator {
+    static func validate(directory: URL, requiresVision: Bool) async throws {
+        try await validateTextModel(in: directory)
+        Memory.clearCache()
+
+        if requiresVision {
+            try await validateVisionModel(in: directory)
+            Memory.clearCache()
+        }
+    }
+
+    private static func validateTextModel(in directory: URL) async throws {
+        try await Device.withDefaultDevice(.gpu) {
+            let container = try await LLMModelFactory.shared.loadContainer(
+                from: directory,
+                using: TokenizersLoader()
+            )
+            let session = ChatSession(
+                container,
+                instructions: "Reply with one short word.",
+                generateParameters: GenerateParameters(
+                    maxTokens: 1,
+                    maxKVSize: 128,
+                    temperature: 0,
+                    prefillStepSize: 64
+                )
+            )
+            _ = try await session.respond(to: "Ready?")
+        }
+    }
+
+    private static func validateVisionModel(in directory: URL) async throws {
+        try await Device.withDefaultDevice(.gpu) {
+            _ = try await VLMModelFactory.shared.loadContainer(
+                from: directory,
+                using: TokenizersLoader()
+            )
+        }
+    }
+}
+
 #if canImport(UIKit)
 @MainActor
 private final class LocalBrainBackgroundTask {
@@ -309,6 +354,14 @@ struct MLXBookBraider: Braider {
             // Braids already run off the main actor; the archive read stays
             // here with them so generation never stalls the desk.
             let days = BookDatabase.loadDaysDetached()
+            let database = BookDatabase.detachedDatabase()
+            let events = (try? database.narrativeEvents(limit: 160)) ?? []
+            let memories = (try? database.entityMemories(entityIDs: nil, limit: 240)) ?? []
+            let continuity = LiteraryContinuityProjector.digest(
+                days: days,
+                events: events,
+                entityMemories: memories
+            )
             var inputs = BookSourceInputs.empty
             inputs.days = days
             let activeWorldEvents = WorldEventResolver.activeEvents(now: Date(), day: day, inputs: inputs)
@@ -323,6 +376,10 @@ struct MLXBookBraider: Braider {
                 activeWorldEvents: activeWorldEvents,
                 readerLexicon: PlayerVault.shared.data.readerLexicon ?? ReaderLexicon(),
                 readerLearning: PlayerVault.shared.data.readerLearning ?? ReaderLearningModel(),
+                facultyEntries: (try? database.facultyEntries(kind: nil, dayIDs: nil, since: nil, limit: 160)) ?? [],
+                people: PlayerVault.shared.data.people ?? PeopleLedger(),
+                continuity: continuity,
+                bookReadingBoundaries: PlayerVault.shared.data.bookReadingBoundaries ?? [],
                 semanticScorer: SemanticKeepEcho.keepTimeScorer
             )
         case .task:
@@ -332,69 +389,123 @@ struct MLXBookBraider: Braider {
     }
 
     func braid(day: BookDay, context: BraidPromptBuilder.Context) async throws -> BookPage {
-        let prompt: String
-        switch mode {
-        case .bookOfYou:
-            prompt = LocalModelManager.bookOfYouBraidPrompt(for: day, context: context)
-        case .task:
-            prompt = LocalModelManager.taskPrompt(for: day)
+        if mode == .task {
+            let response = try await MLXLocalTextGenerator.run(
+                prompt: LocalModelManager.taskPrompt(for: day),
+                instructions: instructions,
+                maxTokens: maxTokens,
+                label: "braid-task",
+                tags: ["braid", "task"],
+                temperature: 0.68,
+                topP: 0.9,
+                maxKVSize: 2_048
+            )
+            return BookPage(
+                type: .bookOfYou,
+                promptText: "The local Book brain completed a task.",
+                userInput: response,
+                tags: ["braid", "local-model", "mlx", "gemma", "task"],
+                usedInBookOfYou: true
+            )
         }
 
-        let response = try await MLXLocalTextGenerator.run(
-            prompt: prompt,
-            instructions: instructions,
-            maxTokens: maxTokens,
-            label: "braid",
-            tags: mode == .bookOfYou ? ["braid", "book-of-you"] : ["braid", "task"],
-            temperature: 0.68,
-            topP: 0.9,
-            // The old 2k rotating window could silently forget the opening
-            // rules and early keeps on a busy day. The prompt now compacts all
-            // pages into a bounded ledger; 4k keeps that ledger and the output
-            // resident together.
-            maxKVSize: mode == .bookOfYou ? 4_096 : 2_048
-        )
-        var polishedResponse = BraidTextPolisher.polishedBookOfYou(response)
+        func generate(
+            prompt: String,
+            label: String,
+            temperature: Float,
+            topP: Float
+        ) async throws -> String {
+            let response = try await MLXLocalTextGenerator.run(
+                prompt: prompt,
+                instructions: instructions,
+                maxTokens: maxTokens,
+                label: label,
+                tags: ["braid", "book-of-you", label],
+                temperature: temperature,
+                topP: topP,
+                // The Story Score keeps interpretation compact; 4k leaves the
+                // complete evidence ledger and the finished page resident.
+                maxKVSize: 4_096
+            )
+            return BraidTextPolisher.polishedBookOfYou(response)
+        }
 
-        guard !polishedResponse.isEmpty else {
+        let basePrompt = LocalModelManager.bookOfYouBraidPrompt(for: day, context: context)
+        let firstPrompt = context.storyScore == nil
+            ? basePrompt
+            : BraidPromptBuilder.candidatePrompt(for: day, context: context, camera: .livedFirst)
+        let first = try await generate(
+            prompt: firstPrompt,
+            label: "braid-lived-camera",
+            temperature: 0.66,
+            topP: 0.88
+        )
+        guard !first.isEmpty else {
             throw LocalModelError.missingModel(LocalModelManager.report())
         }
 
-        if mode == .bookOfYou {
-            let firstIssues = BraidOutputAudit.issues(
+        var drafts = [first]
+        if context.storyScore?.isRich == true {
+            let secondPrompt = BraidPromptBuilder.candidatePrompt(
+                for: day,
+                context: context,
+                camera: .connectionFirst
+            )
+            if let second = try? await generate(
+                prompt: secondPrompt,
+                label: "braid-connection-camera",
+                temperature: 0.74,
+                topP: 0.92
+            ), !second.isEmpty, second != first {
+                drafts.append(second)
+            }
+        }
+
+        let draftPages = drafts.map { draft in
+            BookPage(
+                type: .bookOfYou,
+                promptText: "The local Book brain braided today.",
+                userInput: draft,
+                tags: ["braid", "local-model", "mlx", "gemma"],
+                usedInBookOfYou: true
+            )
+        }
+        let cleanPages = draftPages.filter {
+            BraidOutputAudit.issues(in: $0.userInput, for: day, context: context).isEmpty
+        }
+        let tastingPool = cleanPages.isEmpty ? draftPages : cleanPages
+        guard let tasted = BraidTastingRoom.taste(tastingPool, context: context).winner else {
+            throw LocalModelError.missingModel(LocalModelManager.report())
+        }
+        var polishedResponse = tasted.page.userInput
+        let firstIssues = BraidOutputAudit.issues(
+            in: polishedResponse,
+            for: day,
+            context: context
+        )
+        if !firstIssues.isEmpty {
+            appLog.error(
+                "Braid quality repair requested: \(firstIssues.map(\.rawValue).joined(separator: ","), privacy: .public)"
+            )
+            let repairPrompt = BraidPromptBuilder.qualityRepairPrompt(
+                for: day,
+                context: context,
+                priorDraft: polishedResponse,
+                issues: firstIssues
+            )
+            polishedResponse = try await generate(
+                prompt: repairPrompt,
+                label: "braid-quality-repair",
+                temperature: 0.60,
+                topP: 0.86
+            )
+            let remainingIssues = BraidOutputAudit.issues(
                 in: polishedResponse,
                 for: day,
                 context: context
             )
-            if !firstIssues.isEmpty {
-                appLog.error(
-                    "Braid quality repair requested: \(firstIssues.map(\.rawValue).joined(separator: ","), privacy: .public)"
-                )
-                let repairPrompt = BraidPromptBuilder.qualityRepairPrompt(
-                    for: day,
-                    context: context,
-                    priorDraft: polishedResponse,
-                    issues: firstIssues
-                )
-                let repaired = try await MLXLocalTextGenerator.run(
-                    prompt: repairPrompt,
-                    instructions: instructions,
-                    maxTokens: maxTokens,
-                    label: "braid-repair",
-                    tags: ["braid", "book-of-you", "quality-repair"],
-                    temperature: 0.62,
-                    topP: 0.88,
-                    maxKVSize: 4_096
-                )
-                polishedResponse = BraidTextPolisher.polishedBookOfYou(repaired)
-                let remainingIssues = BraidOutputAudit.issues(
-                    in: polishedResponse,
-                    for: day,
-                    context: context
-                )
-                guard !polishedResponse.isEmpty, remainingIssues.isEmpty else {
-                    throw BraidGenerationQualityError(issues: remainingIssues.isEmpty ? firstIssues : remainingIssues)
-                }
+            guard !polishedResponse.isEmpty, remainingIssues.isEmpty else {
+                throw BraidGenerationQualityError(issues: remainingIssues.isEmpty ? firstIssues : remainingIssues)
             }
         }
 
@@ -402,7 +513,7 @@ struct MLXBookBraider: Braider {
             type: .bookOfYou,
             promptText: "The local Book brain braided today.",
             userInput: polishedResponse,
-            tags: ["braid", "local-model", "mlx", "gemma"],
+            tags: ["braid", "local-model", "mlx", "gemma"] + (drafts.count > 1 ? ["braid-tasted"] : []),
             usedInBookOfYou: true
         )
     }
@@ -673,7 +784,8 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
         readerLexicon: ReaderLexicon = ReaderLexicon(),
         memory: AskTheBookMemoryPacket = .empty,
         relationship: BookRelationshipSnapshot = .firstOpening,
-        interior: BookInteriorState = .unawakened
+        interior: BookInteriorState = .unawakened,
+        bookVoicePatina: BookVoicePatina = .unwritten
     ) async throws -> String {
         let taskPrompt = LocalModelManager.askTheBookPrompt(
             prompt: prompt,
@@ -682,7 +794,8 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
             readerLexicon: readerLexicon,
             memory: memory,
             relationship: relationship,
-            interior: interior
+            interior: interior,
+            bookVoicePatina: bookVoicePatina
         )
 
         return try await MLXLocalTextGenerator.run(
@@ -2552,6 +2665,7 @@ actor BookFoundGiftFinder {
     private var cache: [String: CacheEntry] = [:]
 
     func find(for plan: BookFoundGiftPlan, now: Date = Date()) async -> BookFoundWebThing? {
+        guard plan.realm == .publicWeb, !plan.searchQueries.isEmpty else { return nil }
         // Relationship plans can share the same Long Game capacity while
         // carrying entirely different public queries. Key by the inspectable
         // plan, never merely by capacity, or one person's find can leak into

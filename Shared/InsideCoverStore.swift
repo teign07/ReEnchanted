@@ -109,7 +109,8 @@ protocol AskTheBookAnswering {
         readerLexicon: ReaderLexicon,
         memory: AskTheBookMemoryPacket,
         relationship: BookRelationshipSnapshot,
-        interior: BookInteriorState
+        interior: BookInteriorState,
+        bookVoicePatina: BookVoicePatina
     ) async throws -> String
 }
 
@@ -312,7 +313,8 @@ enum LocalModelManager {
         label: "Gemma 3 1B 4-bit",
         minimumMemoryGB: 0,
         sourceURL: "https://huggingface.co/mlx-community/gemma-3-1b-it-4bit",
-        reason: "smallest local brain, best for standard iPhones"
+        reason: "smallest local brain, best for standard iPhones",
+        revision: "2d44e83dc9e80843d22fb941d3d699a0b1351aa6"
     )
     static let balancedModel = ModelChoice(
         modelID: "mlx-community/gemma-4-e2b-it-4bit",
@@ -320,6 +322,7 @@ enum LocalModelManager {
         minimumMemoryGB: 6,
         sourceURL: "https://huggingface.co/mlx-community/gemma-4-e2b-it-4bit",
         reason: "recommended local brain for iPhone 15-class devices; this is the Gemma 4 E2B checkpoint shipped in the current MLX Swift model catalog",
+        revision: "238767527555cb75a05732a84dff5d6ba0dd6809",
         supersedes: [
             "mlx-community/gemma-4-e2b-it-OptiQ-4bit"
         ]
@@ -330,6 +333,7 @@ enum LocalModelManager {
         minimumMemoryGB: 8,
         sourceURL: "https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit",
         reason: "larger local brain for iPhone 17-class devices and high-memory iPads; this is the Gemma 4 E4B checkpoint shipped in the current MLX Swift model catalog",
+        revision: "475b9088d29754a3379866cf5aeb6b41acd313c2",
         supersedes: [
             "mlx-community/gemma-4-e4b-it-OptiQ-4bit"
         ]
@@ -642,7 +646,8 @@ enum LocalModelManager {
         readerLexicon: ReaderLexicon = ReaderLexicon(),
         memory: AskTheBookMemoryPacket = .empty,
         relationship: BookRelationshipSnapshot = .firstOpening,
-        interior: BookInteriorState = .unawakened
+        interior: BookInteriorState = .unawakened,
+        bookVoicePatina: BookVoicePatina = .unwritten
     ) -> String {
         let recentPages = memory.searchedWholeBook
             ? ""
@@ -702,6 +707,8 @@ enum LocalModelManager {
         \(relationship.promptSection)
 
         \(interior.promptSection)
+
+        \(bookVoicePatina.promptSection)
 
         RULES:
         - Talk naturally, with contractions. Use everyday words and short sentences. Say "the lamp looks sleepy," not "the luminescent fixture rests."
@@ -1303,6 +1310,10 @@ enum LocalModelManager {
         activeWorldEvents: [ResolvedWorldEvent] = [],
         readerLexicon: ReaderLexicon = ReaderLexicon(),
         readerLearning: ReaderLearningModel = ReaderLearningModel(),
+        facultyEntries: [FacultyEntry] = [],
+        people: PeopleLedger = PeopleLedger(),
+        continuity: LiteraryContinuityDigest = .empty,
+        bookReadingBoundaries: [BookReadingBoundary] = [],
         semanticScorer: StacksSemanticScoring? = nil,
         now: Date = Date(),
         calendar: Calendar = .current
@@ -1317,6 +1328,10 @@ enum LocalModelManager {
             activeWorldEvents: activeWorldEvents,
             readerLexicon: readerLexicon,
             readerLearning: readerLearning,
+            facultyEntries: facultyEntries,
+            people: people,
+            continuity: continuity,
+            bookReadingBoundaries: bookReadingBoundaries,
             semanticScorer: semanticScorer,
             now: now,
             calendar: calendar
@@ -1677,7 +1692,8 @@ struct FakeBraider: Braider {
     func braid(day: BookDay) async throws -> BookPage {
         try await Task.sleep(nanoseconds: 900_000_000)
 
-        let fragments = day.capturedPages.sorted { $0.createdAt < $1.createdAt }
+        let fragments = BraidPromptBuilder.braidEligiblePages(in: day)
+            .sorted { $0.createdAt < $1.createdAt }
         let partition = BraidPromptBuilder.partitionedPagesForBraid(in: day)
         let storyFragments = partition.story
         let supportingLogs = partition.supportingLogs
@@ -1745,16 +1761,8 @@ struct FakeBraider: Braider {
     }
 
     private func narrativeHint(for page: BookPage) -> String {
-        let text = page.userInput
-            .replacingOccurrences(of: "\n", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let clipped: String
-        if text.count > 120 {
-            let end = text.index(text.startIndex, offsetBy: 120)
-            clipped = text[..<end].trimmingCharacters(in: .whitespacesAndNewlines) + "..."
-        } else {
-            clipped = text
-        }
+        let source = page.playerReply.nonEmpty ?? page.userInput.nonEmpty ?? page.promptText
+        let clipped = BraidPromptBuilder.fallbackExcerpt(source)
 
         switch page.type {
         case .mood:
@@ -1940,7 +1948,8 @@ struct FakeAskTheBookAnswerer: AskTheBookAnswering {
         readerLexicon: ReaderLexicon = ReaderLexicon(),
         memory: AskTheBookMemoryPacket = .empty,
         relationship: BookRelationshipSnapshot = .firstOpening,
-        interior: BookInteriorState = .unawakened
+        interior: BookInteriorState = .unawakened,
+        bookVoicePatina: BookVoicePatina = .unwritten
     ) async throws -> String {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let message = trimmed.isEmpty ? "the blank place on the page" : trimmed

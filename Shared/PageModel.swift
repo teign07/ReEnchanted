@@ -858,6 +858,18 @@ enum BookPageSourceRegistry {
             note: "A sourced public-web finding selected for the re-enchantment mission. Private Page text is never used as its search query."
         ),
         BookPageSource(
+            id: BookFoundGiftEngine.jSpaceSourceID,
+            type: .bookNotices,
+            title: "Found in J-space",
+            shortTitle: "A Strange Gift",
+            symbolName: "shippingbox.and.arrow.backward.fill",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: false,
+            cadence: "occasionally, sharing a fourteen-to-twenty-eight-day irregular window with public-web finds",
+            note: "A deterministic fictional artifact from the Book's authored J-space catalog. It uses no network request and no daytime model call."
+        ),
+        BookPageSource(
             id: "book-reenchantment-director",
             type: .bookNotices,
             title: "The Book's Long Game",
@@ -2032,6 +2044,275 @@ struct AttentionFingerprint: Codable, Equatable {
     }
 }
 
+// MARK: - The Sensory Loom
+
+/// One typed, inspectable fact the Book learned while a Page was being kept.
+/// Observations remain beside the vectors so a similarity can always be
+/// translated back into a human-readable receipt.
+struct SensoryObservation: Codable, Equatable, Hashable {
+    enum Dimension: String, Codable, Equatable {
+        case modality
+        case subject
+        case palette
+        case brightness
+        case composition
+        case visibleText
+        case voiceDuration
+        case voiceRate
+        case voicePause
+        case voicePitchRange
+        case voiceCadence
+        case voiceEnergy
+        case weather
+        case dayPart
+        case place
+        case innerWeather
+    }
+
+    var dimension: Dimension
+    var value: String
+    var confidence: Float
+    var extractorID: String
+}
+
+/// A vector kept in its own semantic lane. The Loom deliberately does not
+/// flatten image, language, voice, and context into one number-cloud: the Book
+/// must be able to say which senses recognized each other.
+struct SensoryVector: Codable, Equatable {
+    enum Kind: String, Codable, Equatable {
+        case languageSemantic
+        case visualSemantic
+        case voiceSemantic
+        case contextSemantic
+        case visualFeaturePrint
+        case acousticProsody
+    }
+
+    var kind: Kind
+    var modelID: String
+    var values: [Float]
+
+    init(kind: Kind, modelID: String, values: [Float]) {
+        self.kind = kind
+        self.modelID = modelID
+        self.values = Self.normalized(values)
+    }
+
+    func cosineSimilarity(to other: SensoryVector) -> Double? {
+        guard kind != .visualFeaturePrint,
+              modelID == other.modelID,
+              values.count == other.values.count,
+              !values.isEmpty else { return nil }
+        let dot = zip(values, other.values).reduce(Float.zero) { $0 + $1.0 * $1.1 }
+        guard dot.isFinite else { return nil }
+        return Double(max(-1, min(1, dot)))
+    }
+
+    private static func normalized(_ input: [Float]) -> [Float] {
+        let magnitudeSquared = input.reduce(Float.zero) { $0 + $1 * $1 }
+        guard magnitudeSquared.isFinite, magnitudeSquared > 0 else { return [] }
+        let magnitude = sqrt(magnitudeSquared)
+        return input.map { $0 / magnitude }
+    }
+}
+
+/// The durable multi-vector folio attached to a kept Page. Extractor/model IDs
+/// make re-embedding explicit when the Loom improves; older saves simply have
+/// no folio and continue to decode normally.
+struct SensoryFolio: Codable, Equatable {
+    static let currentSchemaVersion = 2
+
+    var schemaVersion: Int
+    var observations: [SensoryObservation]
+    var vectors: [SensoryVector]
+
+    init(
+        schemaVersion: Int = currentSchemaVersion,
+        observations: [SensoryObservation] = [],
+        vectors: [SensoryVector] = []
+    ) {
+        self.schemaVersion = schemaVersion
+        self.observations = observations
+        self.vectors = vectors
+    }
+
+    func vector(_ kind: SensoryVector.Kind) -> SensoryVector? {
+        vectors.first { $0.kind == kind }
+    }
+
+    func values(for dimension: SensoryObservation.Dimension) -> [String] {
+        observations
+            .filter { $0.dimension == dimension }
+            .map(\.value)
+    }
+
+    var modalities: Set<String> {
+        Set(values(for: .modality))
+    }
+}
+
+/// A compact, inspectable reading of the amplitude envelope captured while a
+/// kept voice note is recorded. It is deliberately not speech recognition and
+/// never attempts to infer emotion: it records only audible activity, pauses,
+/// phrase shape, and dynamic range. The human-readable labels travel beside
+/// the scalar receipt in the Page's media metadata.
+struct VoiceCadenceReceipt: Codable, Equatable {
+    static let modelID = "sensory-loom-prosody-v1"
+
+    var durationSeconds: Double
+    var sampleCount: Int
+    var activeRatio: Double
+    var pauseCount: Int
+    var meanPauseSeconds: Double
+    var meanPhraseSeconds: Double
+    var meanPowerDB: Double
+    var dynamicRangeDB: Double
+    var cadenceLabel: String
+    var pauseLabel: String
+    var energyLabel: String
+
+    static func analyze(
+        decibels: [Float],
+        sampleInterval: TimeInterval,
+        duration: TimeInterval
+    ) -> VoiceCadenceReceipt? {
+        let samples = decibels.filter(\.isFinite).map { min(0, max(-80, Double($0))) }
+        guard samples.count >= 4, sampleInterval > 0, duration > 0 else { return nil }
+
+        let sorted = samples.sorted()
+        let noiseFloor = sorted[min(sorted.count - 1, sorted.count / 5)]
+        // An adaptive floor tolerates a fan or a café, while the caps keep a
+        // very quiet room from treating recorder hiss as a spoken phrase.
+        let activeThreshold = min(-30, max(-48, noiseFloor + 8))
+        let active = samples.map { $0 >= activeThreshold }
+        let activeSamples = zip(samples, active).compactMap { value, isActive in isActive ? value : nil }
+        guard !activeSamples.isEmpty else { return nil }
+
+        let runs = booleanRuns(active)
+        let phraseDurations = runs
+            .filter(\.value)
+            .map { Double($0.count) * sampleInterval }
+        let pauseDurations = runs.enumerated().compactMap { index, run -> Double? in
+            guard !run.value, index > 0, index < runs.count - 1 else { return nil }
+            let seconds = Double(run.count) * sampleInterval
+            return seconds >= 0.35 ? seconds : nil
+        }
+
+        let activeRatio = Double(active.filter { $0 }.count) / Double(active.count)
+        let meanPause = mean(pauseDurations)
+        let meanPhrase = mean(phraseDurations)
+        let meanPower = mean(activeSamples)
+        let lower = percentile(activeSamples, fraction: 0.15)
+        let upper = percentile(activeSamples, fraction: 0.85)
+        let dynamicRange = max(0, upper - lower)
+
+        let cadence: String
+        if activeRatio < 0.28 {
+            cadence = "sparse fragments"
+        } else if phraseDurations.count >= 3, meanPhrase < 1.4 {
+            cadence = "short bursts"
+        } else if meanPause >= 1.2 {
+            cadence = "long-paused phrases"
+        } else if meanPhrase >= 3.0, activeRatio >= 0.62 {
+            cadence = "continuous flow"
+        } else {
+            cadence = "measured phrases"
+        }
+
+        let pause: String
+        if pauseDurations.isEmpty {
+            pause = "nearly continuous"
+        } else if meanPause >= 1.2 {
+            pause = "long pauses"
+        } else if meanPause >= 0.6 {
+            pause = "clear pauses"
+        } else {
+            pause = "brief pauses"
+        }
+
+        let energy: String
+        if meanPower < -30 {
+            energy = "hushed"
+        } else if dynamicRange >= 16 {
+            energy = "high contrast"
+        } else if dynamicRange >= 8 {
+            energy = "varied"
+        } else {
+            energy = "even"
+        }
+
+        return VoiceCadenceReceipt(
+            durationSeconds: duration,
+            sampleCount: samples.count,
+            activeRatio: activeRatio,
+            pauseCount: pauseDurations.count,
+            meanPauseSeconds: meanPause,
+            meanPhraseSeconds: meanPhrase,
+            meanPowerDB: meanPower,
+            dynamicRangeDB: dynamicRange,
+            cadenceLabel: cadence,
+            pauseLabel: pause,
+            energyLabel: energy
+        )
+    }
+
+    var metadata: [String: String] {
+        [
+            "voiceAnalysisModel": Self.modelID,
+            "durationSeconds": String(format: "%.3f", durationSeconds),
+            "voiceCadence": cadenceLabel,
+            "voicePause": pauseLabel,
+            "voiceEnergy": energyLabel,
+            "voiceActiveRatio": String(format: "%.3f", activeRatio),
+            "voicePauseCount": "\(pauseCount)",
+            "voiceMeanPauseSeconds": String(format: "%.3f", meanPauseSeconds),
+            "voiceMeanPhraseSeconds": String(format: "%.3f", meanPhraseSeconds),
+            "voiceMeanPowerDB": String(format: "%.3f", meanPowerDB),
+            "voiceDynamicRangeDB": String(format: "%.3f", dynamicRangeDB)
+        ]
+    }
+
+    var vectorValues: [Float] {
+        let pausesPerMinute = durationSeconds > 0 ? Double(pauseCount) * 60 / durationSeconds : 0
+        return [
+            Float(min(1, max(0, activeRatio))),
+            Float(min(1, pausesPerMinute / 12)),
+            Float(min(1, meanPauseSeconds / 3)),
+            Float(min(1, meanPhraseSeconds / 6)),
+            Float(min(1, dynamicRangeDB / 30)),
+            Float(min(1, max(0, (meanPowerDB + 60) / 60)))
+        ]
+    }
+
+    private struct BooleanRun {
+        var value: Bool
+        var count: Int
+    }
+
+    private static func booleanRuns(_ values: [Bool]) -> [BooleanRun] {
+        var result: [BooleanRun] = []
+        for value in values {
+            if result.last?.value == value {
+                result[result.count - 1].count += 1
+            } else {
+                result.append(BooleanRun(value: value, count: 1))
+            }
+        }
+        return result
+    }
+
+    private static func mean(_ values: [Double]) -> Double {
+        values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count)
+    }
+
+    private static func percentile(_ values: [Double], fraction: Double) -> Double {
+        guard !values.isEmpty else { return 0 }
+        let sorted = values.sorted()
+        let index = Int((Double(sorted.count - 1) * min(1, max(0, fraction))).rounded())
+        return sorted[index]
+    }
+}
+
 /// A public source that entered a kept Page through an explicit Book window.
 /// Keeping this as typed provenance prevents later bindings from presenting a
 /// generated summary as if it were the source itself.
@@ -2134,6 +2415,10 @@ struct BookPage: Codable, Identifiable, Equatable {
     var mediaAssets: [BookPageMediaAsset]
     var context: BookPageContextSnapshot?
     var attentionFingerprint: AttentionFingerprint?
+    /// The richer, versioned successor to `attentionFingerprint`. The compact
+    /// fingerprint remains for migration and cheap lexical fallbacks; this
+    /// folio preserves separate semantic lanes for the Sensory Loom.
+    var sensoryFolio: SensoryFolio?
     /// Legacy save-file field. New pages leave this nil.
     var hiddenMagicFinding: HiddenMagicFinding?
     /// Present when this archive page is a fully-bound weekly issue. Optional
@@ -2167,6 +2452,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         mediaAssets: [BookPageMediaAsset] = [],
         context: BookPageContextSnapshot? = nil,
         attentionFingerprint: AttentionFingerprint? = nil,
+        sensoryFolio: SensoryFolio? = nil,
         hiddenMagicFinding: HiddenMagicFinding? = nil,
         weeklyIssueArtifact: KeptWeeklyIssueArtifact? = nil,
         monthlyEditionArtifact: KeptMonthlyEditionArtifact? = nil,
@@ -2189,6 +2475,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         self.mediaAssets = mediaAssets
         self.context = context
         self.attentionFingerprint = attentionFingerprint
+        self.sensoryFolio = sensoryFolio
         self.hiddenMagicFinding = hiddenMagicFinding
         self.weeklyIssueArtifact = weeklyIssueArtifact
         self.monthlyEditionArtifact = monthlyEditionArtifact
@@ -2213,6 +2500,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         case mediaAssets
         case context
         case attentionFingerprint
+        case sensoryFolio
         case hiddenMagicFinding
         case weeklyIssueArtifact
         case monthlyEditionArtifact
@@ -2238,6 +2526,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         mediaAssets = try container.decodeIfPresent([BookPageMediaAsset].self, forKey: .mediaAssets) ?? []
         context = try container.decodeIfPresent(BookPageContextSnapshot.self, forKey: .context)
         attentionFingerprint = try container.decodeIfPresent(AttentionFingerprint.self, forKey: .attentionFingerprint)
+        sensoryFolio = try container.decodeIfPresent(SensoryFolio.self, forKey: .sensoryFolio)
         hiddenMagicFinding = try container.decodeIfPresent(HiddenMagicFinding.self, forKey: .hiddenMagicFinding)
         weeklyIssueArtifact = try container.decodeIfPresent(KeptWeeklyIssueArtifact.self, forKey: .weeklyIssueArtifact)
         monthlyEditionArtifact = try container.decodeIfPresent(KeptMonthlyEditionArtifact.self, forKey: .monthlyEditionArtifact)
@@ -2250,6 +2539,10 @@ struct BookPage: Codable, Identifiable, Equatable {
 extension BookPage {
     var resolvedAttentionFingerprint: AttentionFingerprint {
         attentionFingerprint ?? AttentionFingerprint.make(from: self)
+    }
+
+    var resolvedSensoryFolio: SensoryFolio {
+        sensoryFolio ?? SensoryFolioProjector.structuredFolio(from: self)
     }
 
     /// The meaningful text archive previews should begin with. A kept letter's

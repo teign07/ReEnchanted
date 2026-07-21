@@ -23,6 +23,7 @@ struct CustomCastMemberSheet: View {
     let onSave: (CustomCastMemberDraft) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var name = ""
     @State private var kind: NarrativeEntityKind = .object
     @State private var meaning = ""
@@ -34,6 +35,7 @@ struct CustomCastMemberSheet: View {
     @State private var imageData: Data?
     @State private var imageMessage = "Optional. A photo can make this Cast Member easier for the Book to remember."
     @State private var isCameraPresented = false
+    @State private var photoRevision = 0
     #if canImport(PhotosUI)
     @State private var selectedPhotoItem: PhotosPickerItem?
     #endif
@@ -178,6 +180,7 @@ struct CustomCastMemberSheet: View {
                     #if canImport(UIKit)
                     if UIImagePickerController.isSourceTypeAvailable(.camera) {
                         Button {
+                            BookFeedback.play(.openPage)
                             isCameraPresented = true
                         } label: {
                             Label(imageData == nil ? "Take photo" : "Retake photo", systemImage: "camera")
@@ -192,11 +195,15 @@ struct CustomCastMemberSheet: View {
         }
         .padding(12)
         .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .animation(BookMotion.reveal(reduceMotion), value: photoRevision)
         #if canImport(UIKit)
         .fullScreenCover(isPresented: $isCameraPresented) {
             BookCameraCaptureView { data in
-                imageData = data
-                imageMessage = "Photo taken. The Book will keep a private local copy."
+                withAnimation(BookMotion.result(reduceMotion)) {
+                    imageData = data
+                    imageMessage = "Photo taken. The Book will keep a private local copy."
+                    photoRevision += 1
+                }
             }
             .ignoresSafeArea()
         }
@@ -211,6 +218,12 @@ struct CustomCastMemberSheet: View {
                 .scaledToFill()
                 .frame(width: 82, height: 82)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.paper.opacity(0.72), lineWidth: 2)
+                }
+                .bookPhotographArrival(reduceMotion: reduceMotion)
+                .id(photoRevision)
         } else {
             ZStack {
                 BookPalette.paper.opacity(0.18)
@@ -285,8 +298,11 @@ struct CustomCastMemberSheet: View {
             imageMessage = "The photo did not open. Try another one."
             return
         }
-        imageData = data
-        imageMessage = "Photo chosen. The Book will keep a private local copy."
+        withAnimation(BookMotion.result(reduceMotion)) {
+            imageData = data
+            imageMessage = "Photo chosen. The Book will keep a private local copy."
+            photoRevision += 1
+        }
     }
     #endif
 }

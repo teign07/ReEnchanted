@@ -208,7 +208,7 @@ final class ThreeLaneDeskTests: XCTestCase {
 
     // MARK: - Wide queries
 
-    func testWideQueryKeepsPlainRankedBehavior() {
+    func testWideQueryBalancesVisiblePrefixThenKeepsADeepBench() {
         let types: [BookPageType] = [
             .letter, .gossip, .narrativeOS, .castBond, .twoReadings, .lore, .quip, .fuel
         ]
@@ -230,10 +230,12 @@ final class ThreeLaneDeskTests: XCTestCase {
             now: fixedDate(hour: 12)
         ).map(\.page)
 
-        // limit > 3 is not the home desk: it keeps plain score ranking, so the
-        // low-scored outward page is excluded — no lane is forced.
+        // Launch asks for a deep bench and then displays prefix(3), so the
+        // visible prefix must honor the home-desk contract even though later
+        // candidates continue in ordinary rank order.
         XCTAssertEqual(pages.count, 6)
-        XCTAssertFalse(pages.contains { $0.type.deskLane == .outward })
+        XCTAssertEqual(Set(pages.prefix(3).map { $0.type.deskLane }), Set(DeskLane.allCases))
+        XCTAssertTrue(pages.dropFirst(3).contains { $0.type == .gossip })
     }
 
     // MARK: - Determinism
