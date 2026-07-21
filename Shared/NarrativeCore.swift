@@ -3937,6 +3937,78 @@ enum NarrativeEntityMemoryConsolidator {
 // 2. It never guilts and never punishes. It makes STORY, not shame.
 // 3. It is never defeated, only understood — and held back by keeping pages.
 enum NothingTide {
+    struct RutAssessment: Equatable {
+        /// 0 is kindness under distress; ordinary life otherwise begins at 1.
+        var pressure: Int
+        /// Naming the Rut aloud requires more than the Book's standing prior.
+        var mayNameRut: Bool
+        var evidence: [String]
+    }
+
+    /// The curator assumes Routine is ordinary weather, not a failure that
+    /// begins only after the reader stops using the app. Baseline pressure
+    /// silently favors perspective-changing Pages. The Book may name the Rut
+    /// only when a current reader report, or a recognized Rut signal plus
+    /// corroborating quiet days, gives the hunch something firmer than absence.
+    static func rutAssessment(
+        inputs: BookSourceInputs,
+        distressActive: Bool,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> RutAssessment {
+        guard !distressActive else {
+            return RutAssessment(pressure: 0, mayNameRut: false, evidence: ["distress-silence"])
+        }
+
+        let usableFacts = inputs.selfFacts.filter { $0.usePermission != .doNotUse }
+        let depth = usableFacts
+            .filter { $0.questionID == "rut-depth" && now.timeIntervalSince($0.updatedAt) <= 30 * 86_400 }
+            .max(by: { $0.updatedAt < $1.updatedAt })
+        let depthAnswer = depth?.answer.lowercased() ?? ""
+        let reportedPressure: Int
+        if depthAnswer.contains("8-10")
+            || depthAnswer.contains("11-12")
+            || depthAnswer.contains("whirlpool")
+            || depthAnswer.contains("deep water") {
+            reportedPressure = 3
+        } else if depthAnswer.contains("4-7") || depthAnswer.contains("in the rut") {
+            reportedPressure = 2
+        } else {
+            reportedPressure = depth == nil ? 0 : 1
+        }
+
+        let hasKeptHistory = inputs.days.contains { !$0.capturedPages.isEmpty }
+        let archiveQuietDays = hasKeptHistory
+            ? NothingTide.quietDays(
+                in: inputs.days,
+                today: BookDay.id(for: now, calendar: calendar),
+                calendar: calendar,
+                now: now
+            )
+            : 0
+        let quietDays = max(inputs.quietDays, archiveQuietDays)
+        let quietPressure: Int
+        switch quietDays {
+        case 5...: quietPressure = 3
+        case 2...4: quietPressure = 2
+        default: quietPressure = 1
+        }
+        let recognizedRut = usableFacts.contains {
+            $0.questionID == "rut-signal" || $0.questionID == "rut-season"
+        }
+
+        var evidence = ["ordinary-life-prior"]
+        if depth != nil { evidence.append("current-reader-rut-report") }
+        if recognizedRut { evidence.append("reader-recognized-rut-signal") }
+        if quietDays >= 2 { evidence.append("quiet-days:\(quietDays)") }
+
+        return RutAssessment(
+            pressure: max(1, max(reportedPressure, quietPressure)),
+            mayNameRut: reportedPressure >= 2 || (recognizedRut && quietDays >= 2),
+            evidence: evidence
+        )
+    }
+
     /// 0 = quiet (pages are being kept; the grey stays in the deep stacks),
     /// 1 = at the edges, 2 = in the margins, 3 = at the desk.
     static func greyLevel(

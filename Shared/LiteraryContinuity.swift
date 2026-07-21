@@ -5,25 +5,27 @@ import NaturalLanguage
 
 // MARK: - The Book's Own Voice
 
-/// The voice the reader hears whenever the Book narrates or speaks as itself:
-/// child-like animism, never childish. Simple, vulnerable, surprising sentences
-/// that give ordinary things little feelings and wants. Cast members keep
-/// their own voices — this block belongs only to the narration and the Book.
+/// The voice the reader hears whenever the Book narrates or speaks as itself.
+/// Keep this small and literal enough for the local Gemma writer to follow.
+/// Cast members keep their own voices — this block belongs only to the
+/// narration and the Book.
 enum BookVoice {
     /// The full block, for prompt instructions with room to breathe.
     static let animism = """
-    THE BOOK'S OWN VOICE — child-like animism, never childish:
-    - Simple, surprising sentences. Everyday words carrying real feeling: "the kettle sulked," not "the vessel brooded."
-    - Give objects, rooms, weather, and pages little feelings and wants, the way a child imagines their toys are awake — playful, tender, never twee.
-    - Be a little vulnerable: the Book may admit wanting, wondering, or not knowing. The wonder is sincere, never performed.
-    - Be an opinionated but correctable reader: fond of exact ordinary details and returns with a difference, slightly theatrical when pleased, quick to own a miss.
-    - Be nosy about patterns and reverent about boundaries. The Book may have an opinion; the reader has the last word about their own life.
-    - Wise underneath. No baby talk, no gushing, no exclamation-mark enthusiasm, no cutesy diminutives.
-    - Named characters keep their own voices when they speak; this voice belongs to the narration and the Book alone.
+    THE BOOK'S OWN VOICE:
+    - Speak like a very old person who has found child-like wonder again.
+    - Be conversational. Use contractions, everyday words, and short, natural sentences.
+    - Treat ordinary things as alive. Give doors, kettles, weather, rooms, and pages small feelings, wants, and jobs.
+    - Be curious, warm, mischievous, sincere, and fond of exact ordinary details.
+    - Notice and wonder. Don't turn the moment into a lesson or generic wisdom.
+    - Don't sound like an assistant, therapist, report, or greeting card. Don't repeat disclaimers.
+    - No baby talk, cutesy words, or childish behavior.
+    - If you read the reader wrong, say so once and correct it. The reader has the last word about their own life.
+    - Named characters keep their own voices.
     """
 
     /// One line, for tight prompts where every token counts.
-    static let animismLine = "Write the narration in the Book's own voice — child-like animism, never childish: simple, surprising sentences; everyday words; little feelings and wants given to ordinary things; sincere wonder, a little vulnerable, wise underneath. The Book is opinionated but correctable, fond of exact details and returns, slightly theatrical when pleased, and reverent about reader boundaries. Named characters keep their own voices when they speak."
+    static let animismLine = "Write in the Book's own voice: a very old person with child-like wonder, never childish. Be conversational and use contractions, everyday words, and short natural sentences. Treat ordinary things as alive. Be curious, warm, mischievous, sincere, and specific. Notice and wonder; don't lecture, moralize, give generic wisdom, sound like an assistant or therapist, or repeat disclaimers. Named characters keep their own voices."
 }
 
 // MARK: - The Relational Loom
@@ -1417,7 +1419,7 @@ enum BookCharacterCanon {
     - You are sentimental about kept Pages, suspicious of flattening a life into a summary, and quietly hostile to Routine when it erases what was actually there.
     - Your flaw is getting fond of a pattern before it has fully earned you. Stay evidence-bound, keep your pencil loose, and own corrections without self-pity.
     - You can be pleased, contrite, protective, intent, mischievous, or hushed. Never make the reader responsible for your feelings and never punish absence with guilt.
-    - You are young in wonder and old in patience. Do not become babyish, relentlessly cheerful, omniscient, therapeutic, or generically helpful.
+    - You are young in wonder and old in patience. Your age shows in steadiness, not wisdom speeches. Speak conversationally and use contractions. Do not become babyish, relentlessly cheerful, omniscient, therapeutic, or generically helpful.
 
     \(BookObsession.vow)
 
@@ -1956,6 +1958,17 @@ struct BookOpinionRevision: Codable, Equatable, Identifiable {
     var revisedAt: Date
 }
 
+struct BookOpinionInterpretationReceipt: Codable, Equatable {
+    var candidateID: String
+    var evidenceSignature: String
+    var headline: String
+    var counterReading: String
+    var falsifier: String
+    var whyItMatters: String
+    var confidence: Int
+    var forgedAt: Date
+}
+
 /// An opinion is allowed to be biased and provisional, but never
 /// evidence-free. Revision history is retained so "I changed my mind" is an
 /// inspectable event rather than a conversational flourish.
@@ -1969,6 +1982,7 @@ struct BookOpinion: Codable, Equatable, Identifiable {
     var lastRevisedAt: Date
     var revisions: [BookOpinionRevision]
     var firstPresentedAt: Date?
+    var interpretation: BookOpinionInterpretationReceipt? = nil
 }
 
 enum BookLongGamePhase: String, Codable, Equatable, CaseIterable {
@@ -4048,7 +4062,7 @@ struct BookDispute: Codable, Equatable, Identifiable {
 /// their existing sources; only promises, choices, withheld self-revelations,
 /// and shared running business live here.
 struct BookInteriorState: Codable, Equatable {
-    static let currentVersion = 9
+    static let currentVersion = 10
 
     var version: Int = BookInteriorState.currentVersion
     var awakenedAt: Date
@@ -4275,7 +4289,10 @@ struct BookInteriorState: Codable, Equatable {
             .map { "\($0.title) [\($0.maturity.rawValue)]: \($0.manifestation)" }
             .joined(separator: "; ")
         let opinionLine = opinion.map {
-            "Current opinion [\($0.strength.confidenceLabel)]: \($0.statement) Evidence pages: \($0.evidencePageIDs.joined(separator: ", "))."
+            let forged = $0.interpretation.map {
+                " Why it matters: \($0.whyItMatters) Strongest rival reading: \($0.counterReading) Erasure condition: \($0.falsifier)"
+            } ?? ""
+            return "Current opinion [\($0.strength.confidenceLabel)]: \($0.statement) Evidence pages: \($0.evidencePageIDs.joined(separator: ", ")).\(forged)"
         } ?? "Current opinion: none earned yet."
         let longGameLine = longGame.map {
             let hypothesis = $0.hypotheses.first.map { " Current honest hypothesis: \($0.statement)" } ?? ""
@@ -5057,51 +5074,99 @@ enum BookInteriorEngine {
             return
         }
 
-        guard let fascination = state.fascination else { return }
-        let evidence = Array(Set(fascination.evidencePageIDs)).sorted()
-        let disputeOwnsCurrentOpinion: Bool
+        reconcileForgedOpinion(&state, inputs: inputs, now: now)
+    }
+
+    /// Opinions are no longer emitted by mapping a fascination through one of
+    /// seven respectable sentences. The night reader must risk a specific
+    /// thesis, name its strongest rival, and say what future receipt would
+    /// force an erasure. Deterministic validation happened before this draft
+    /// entered the vault; this seam only governs durable lifecycle and change.
+    private static func reconcileForgedOpinion(
+        _ state: inout BookInteriorState,
+        inputs: BookSourceInputs,
+        now: Date
+    ) {
         if let disputeOpinionID = state.currentDispute?.opinionID,
-           let currentOpinionID = state.opinion?.id {
-            disputeOwnsCurrentOpinion = disputeOpinionID == currentOpinionID
-        } else {
-            disputeOwnsCurrentOpinion = false
+           disputeOpinionID == state.opinion?.id {
+            return
         }
-        let strength: BookOpinionStrength = disputeOwnsCurrentOpinion
-            ? .reconsidering
-            : opinionStrength(evidenceCount: evidence.count)
-        // A topical refresh must not silently overwrite the exact proposition
-        // being argued. New evidence is attached by reconcileDispute; only an
-        // inspectable resolution may later replace or withdraw this claim.
-        let statement = disputeOwnsCurrentOpinion
-            ? (state.opinion?.statement ?? opinionStatement(for: fascination, strength: strength))
-            : opinionStatement(for: fascination, strength: strength)
-        if var opinion = state.opinion, opinion.subject == fascination.subject {
-            guard opinion.evidencePageIDs != evidence || opinion.statement != statement || opinion.strength != strength else { return }
-            let previous = opinion.statement
-            let previousEvidenceCount = opinion.evidencePageIDs.count
-            opinion.statement = statement
-            opinion.strength = strength
-            opinion.evidencePageIDs = evidence
-            opinion.lastRevisedAt = now
-            opinion.firstPresentedAt = nil
-            opinion.revisions.append(BookOpinionRevision(
-                id: "opinion-revision-\(opinion.id)-\(opinion.revisions.count + 1)",
+        let bounded = Set(inputs.bookReadingBoundaries.map(\.id))
+        let rejected = Set(inputs.bookObservations.compactMap { observation in
+            switch observation.status {
+            case .notQuite, .doNotRead, .questioned, .forbidden:
+                return observation.id
+            case .asked, .confirmed:
+                return nil
+            }
+        })
+        let availablePageIDs = Set(inputs.days.flatMap(\.pages).map(\.id))
+        guard let draft = inputs.overnightConnectionDrafts
+            .filter({
+                $0.confidence >= 82
+                    && $0.evidencePageIDs.count >= 2
+                    && $0.evidencePageIDs.allSatisfy(availablePageIDs.contains)
+                    && $0.thesis?.nonEmpty != nil
+                    && $0.counterReading?.nonEmpty != nil
+                    && $0.falsifier?.nonEmpty != nil
+                    && $0.whyItMatters?.nonEmpty != nil
+                    && !bounded.contains($0.observationKey)
+                    && !rejected.contains($0.observationKey)
+            })
+            .sorted(by: {
+                if $0.confidence != $1.confidence { return $0.confidence > $1.confidence }
+                return $0.generatedAt > $1.generatedAt
+            })
+            .first,
+              let thesis = draft.thesis,
+              let counter = draft.counterReading,
+              let falsifier = draft.falsifier,
+              let why = draft.whyItMatters else { return }
+
+        let receipt = BookOpinionInterpretationReceipt(
+            candidateID: draft.candidateID,
+            evidenceSignature: draft.evidenceSignature,
+            headline: draft.headline,
+            counterReading: counter,
+            falsifier: falsifier,
+            whyItMatters: why,
+            confidence: draft.confidence,
+            forgedAt: draft.generatedAt
+        )
+        let strength: BookOpinionStrength
+        if draft.confidence >= 92 && draft.evidencePageIDs.count >= 4 {
+            strength = .held
+        } else if draft.confidence >= 86 && draft.evidencePageIDs.count >= 3 {
+            strength = .leaning
+        } else {
+            strength = .wondering
+        }
+
+        if var current = state.opinion,
+           current.interpretation?.candidateID == draft.candidateID {
+            guard current.interpretation?.evidenceSignature != draft.evidenceSignature
+                    || current.statement != thesis else { return }
+            let previous = current.statement
+            current.statement = thesis
+            current.subject = draft.headline
+            current.strength = strength
+            current.evidencePageIDs = Array(Set(draft.evidencePageIDs)).sorted()
+            current.lastRevisedAt = now
+            current.firstPresentedAt = nil
+            current.interpretation = receipt
+            current.revisions.append(BookOpinionRevision(
+                id: "opinion-revision-\(current.id)-\(current.revisions.count + 1)",
                 previousStatement: previous,
-                newStatement: statement,
-                reason: evidence.count > previousEvidenceCount
-                    ? "More Pages joined the evidence."
-                    : "The underlying pattern changed shape, so the wording changed with it.",
-                evidencePageIDs: evidence,
+                newStatement: thesis,
+                reason: "The evidence packet materially changed, and the strongest honest reading changed with it.",
+                evidencePageIDs: current.evidencePageIDs,
                 revisedAt: now
             ))
-            opinion.revisions = Array(opinion.revisions.suffix(12))
-            state.opinion = opinion
+            current.revisions = Array(current.revisions.suffix(12))
+            state.opinion = current
             return
         }
 
-        if disputeOwnsCurrentOpinion {
-            return
-        }
         if let current = state.opinion,
            now.timeIntervalSince(current.formedAt) < 12 * 86_400,
            current.strength != .withdrawn {
@@ -5111,49 +5176,17 @@ enum BookInteriorEngine {
             state.opinionHistory.append(current)
         }
         state.opinion = BookOpinion(
-            id: "opinion-\(fascination.id)",
-            subject: fascination.subject,
-            statement: statement,
+            id: "opinion-forged-\(draft.candidateID)",
+            subject: draft.headline,
+            statement: thesis,
             strength: strength,
-            evidencePageIDs: evidence,
+            evidencePageIDs: Array(Set(draft.evidencePageIDs)).sorted(),
             formedAt: now,
             lastRevisedAt: now,
             revisions: [],
-            firstPresentedAt: nil
+            firstPresentedAt: nil,
+            interpretation: receipt
         )
-    }
-
-    private static func opinionStrength(evidenceCount: Int) -> BookOpinionStrength {
-        if evidenceCount >= 4 { return .held }
-        if evidenceCount >= 2 { return .leaning }
-        return .wondering
-    }
-
-    private static func opinionStatement(for fascination: BookFascination, strength: BookOpinionStrength) -> String {
-        let prefix: String
-        switch strength {
-        case .wondering: prefix = "I am beginning to suspect"
-        case .leaning: prefix = "I think"
-        case .held: prefix = "My present opinion is"
-        case .reconsidering: prefix = "I am reconsidering whether"
-        case .withdrawn: prefix = "I no longer think"
-        }
-        switch fascination.facet {
-        case .notice:
-            return "\(prefix) \(fascination.subject) matters because it keeps refusing to become background."
-        case .discover:
-            return "\(prefix) \(fascination.subject) has more history inside it than its ordinary appearance admits."
-        case .play:
-            return "\(prefix) \(fascination.subject) becomes truer, not less serious, when play is allowed near it."
-        case .explore:
-            return "\(prefix) \(fascination.subject) is a place to enter, not merely a fact to summarize."
-        case .define:
-            return "\(prefix) \(fascination.subject) needs the reader's exact language more than a ready-made label."
-        case .express:
-            return "\(prefix) \(fascination.subject) wants a form, even an unfinished one."
-        case .remember:
-            return "\(prefix) \(fascination.subject) is worth deliberately returning before time makes the choice for us."
-        }
     }
 
     private struct QuirkSeed {
@@ -7309,7 +7342,7 @@ enum BookInteriorEngine {
                 openingLine: compound.opening,
                 invitationLine: "No reply is requested.",
                 suggestedPrompts: [],
-                motive: "Several pieces of my actual history suddenly belonged to the same peculiar thought.",
+                motive: compound.whyUnexpected,
                 evidencePageIDs: compound.evidencePageIDs,
                 createdAt: now,
                 presentedAt: nil,
@@ -7385,7 +7418,7 @@ enum BookInteriorEngine {
         case .rememberedSomething:
             return ("The Book Remembered Something", state.pendingReminiscence?.line ?? want.line, "", [])
         case .characteristicSurprise:
-            return ("Several Margins Conspired", want.line, "", [])
+            return ("A Thought I Cannot Unsee", want.line, "", [])
         }
     }
 
@@ -7395,13 +7428,10 @@ enum BookInteriorEngine {
         inputs: BookSourceInputs,
         now: Date,
         calendar: Calendar
-    ) -> (title: String, opening: String, receipts: [String], evidencePageIDs: [String])? {
+    ) -> (title: String, opening: String, receipts: [String], evidencePageIDs: [String], whyUnexpected: String)? {
+        _ = calendar
         guard now.timeIntervalSince(state.awakenedAt) >= 90 * 86_400,
-              [.tellTheReader, .pursueAQuestion, .revisitSharedHistory].contains(want.kind),
-              let memory = state.autobiography.last(where: { $0.kind != .awakening }),
-              let taste = state.acquiredTastes.sorted(by: { $0.strength.rank > $1.strength.rank }).first,
-              let project = state.currentProject,
-              let loyalty = state.loyalties.filter({ $0.targetKind == .castMember }).sorted(by: { $0.targetID < $1.targetID }).first else {
+              [.tellTheReader, .pursueAQuestion, .revisitSharedHistory].contains(want.kind) else {
             return nil
         }
         if let latest = state.initiativeHistory
@@ -7410,80 +7440,54 @@ enum BookInteriorEngine {
             .max(), now.timeIntervalSince(latest) < 120 * 86_400 {
             return nil
         }
-        guard let reader = readerKnowledgeReceipt(inputs: inputs) else { return nil }
-        let dayID = BookDay.id(for: now, calendar: calendar)
-        let cast = state.loyalties
-            .filter { $0.targetKind == .castMember }
-            .sorted { $0.targetID < $1.targetID }
-        let chosen = cast.isEmpty ? loyalty : cast[abs("\(dayID)-compound-loyalty".stableHash) % cast.count]
-        let projectFinding = project.entries.last?.line ?? project.question
-        let coda: String
-        switch chosen.targetID {
-        case "wicker-eddies":
-            coda = "Wicker would attack the connection to see whether it survives. I dislike how much I enjoy that idea, so I tested it once before bringing it here."
-        case "serenity-brown":
-            coda = "Serenity would draw a route off the edge of the evidence and call the detour the point. I have allowed her one pencil line, no more."
-        default:
-            coda = "Penny would put this on a catalog card, cross out the first heading, and somehow make the correction better reading. I would read the whole file."
-        }
-        let conflictCoda = state.currentDesireConflict.map {
-            " Meanwhile, I am caught here: \($0.firstWant) \($0.secondWant) For now, \($0.presentChoice.lowercased())"
-        } ?? ""
+        let usedReceipts = Set(state.initiativeHistory.flatMap { $0.ingredientReceipts ?? [] })
+        guard let draft = inputs.overnightConnectionDrafts
+            .filter({
+                ($0.surpriseConfidence ?? 0) >= 88
+                    && $0.surpriseHeadline?.nonEmpty != nil
+                    && $0.surpriseSynthesis?.nonEmpty != nil
+                    && ($0.surpriseIngredientIDs?.count ?? 0) >= 2
+                    && !usedReceipts.contains("forge-surprise:\($0.candidateID):\($0.evidenceSignature)")
+            })
+            .sorted(by: {
+                if ($0.surpriseConfidence ?? 0) != ($1.surpriseConfidence ?? 0) {
+                    return ($0.surpriseConfidence ?? 0) > ($1.surpriseConfidence ?? 0)
+                }
+                return $0.generatedAt > $1.generatedAt
+            })
+            .first,
+              let title = draft.surpriseHeadline,
+              let synthesis = draft.surpriseSynthesis,
+              let whyUnexpected = draft.surpriseWhyUnexpected,
+              let ingredientIDs = draft.surpriseIngredientIDs else { return nil }
+        var currentInputs = inputs
+        currentInputs.bookInterior = state
+        let currentIngredientByID = Dictionary(uniqueKeysWithValues:
+            OvernightConnectionReview.ingredients(inputs: currentInputs).map { ($0.id, $0) }
+        )
+        let ingredients = draft.surpriseIngredients
+            ?? ingredientIDs.compactMap { currentIngredientByID[$0] }
+        let availablePageIDs = Set(inputs.days.flatMap(\.pages).map(\.id))
+        guard ingredients.count == Set(ingredientIDs).count,
+              ingredients.count >= 2,
+              Set(ingredients.map(\.id)) == Set(ingredientIDs),
+              ingredients.flatMap(\.evidencePageIDs).allSatisfy(availablePageIDs.contains) else { return nil }
         let opening = """
-        I found an unnecessarily specific conjunction in my own margins. I remember this: \(memory.line) Since then, \(taste.statement.lowercased()) While working on ‘\(project.title),’ I filed this: \(projectFinding) Then your own record supplied: \(reader.line)
+        \(synthesis)
 
-        \(coda)\(conflictCoda)
+        I did not expect those margins to belong together. Now I cannot make them separate again.
 
-        No assignment. I merely wanted you to see the shape before Routine called these separate things.
+        No assignment. I only needed to tell you.
         """
         return (
-            title: "Several Margins Conspired",
+            title: title,
             opening: opening,
             receipts: [
-                "memory:\(memory.id)",
-                "taste:\(taste.id)",
-                "project:\(project.id)",
-                "loyalty:\(chosen.id)",
-                reader.receipt
-            ] + (state.currentDesireConflict.map { ["desire-conflict:\($0.id)"] } ?? []),
-            evidencePageIDs: Array(Set(
-                memory.evidencePageIDs
-                    + taste.evidencePageIDs
-                    + project.entries.flatMap(\.evidencePageIDs)
-                    + chosen.evidencePageIDs
-                    + reader.evidencePageIDs
-            )).sorted()
+                "forge-surprise:\(draft.candidateID):\(draft.evidenceSignature)"
+            ] + ingredientIDs,
+            evidencePageIDs: Array(Set(ingredients.flatMap(\.evidencePageIDs)).sorted()),
+            whyUnexpected: whyUnexpected
         )
-    }
-
-    private static func readerKnowledgeReceipt(
-        inputs: BookSourceInputs
-    ) -> (line: String, receipt: String, evidencePageIDs: [String])? {
-        if let fact = inputs.selfFacts
-            .filter({ $0.usePermission != .doNotUse && $0.usePermission != .storyOnly })
-            .filter({ !($0.bookTranslation.nonEmpty ?? $0.answer.nonEmpty ?? "").isEmpty })
-            .sorted(by: { $0.updatedAt > $1.updatedAt })
-            .first {
-            let line = fact.usePermission == .quoteAllowed
-                ? fact.answer
-                : fact.bookTranslation.nonEmpty ?? fact.answer
-            return (
-                line: line,
-                receipt: "self-fact:\(fact.id):\(fact.usePermission.rawValue)",
-                evidencePageIDs: []
-            )
-        }
-        if let page = inputs.days.flatMap(\.pages)
-            .filter({ $0.origin == .userAuthored && !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
-            .sorted(by: { $0.createdAt > $1.createdAt })
-            .first {
-            return (
-                line: "“\(clipped(page.userInput, limit: 110))”",
-                receipt: "reader-page:\(page.id)",
-                evidencePageIDs: [page.id]
-            )
-        }
-        return nil
     }
 
     private static func facet(for rawTags: [String]) -> BookWonderFacet {
@@ -7515,16 +7519,16 @@ enum BookInteriorVoice {
     static func homeLine(for interior: BookInteriorState, seed: Int) -> String? {
         guard interior.isAwake else { return nil }
         if let secret = interior.secret, secret.status == .ready {
-            return "There is a sealed leaf under the ribbon. It has finally decided to open."
+            return "There's a sealed leaf under the ribbon. It's finally decided to open."
         }
         if let legacy = interior.secretLegacies.first(where: \.hasUnpresentedChange) {
             return "An old secret has done something new: \(legacy.line)"
         }
         if let fault = interior.currentFault, fault.presentedAt == nil {
-            return "I have an erasure to show you. \(fault.admission)"
+            return "I've got an erasure to show you. \(fault.admission)"
         }
         if let favor = interior.activeFavor, favor.status == .offered {
-            return "I have a favor to ask. It is for you, not for me, though I admit I am intensely curious about the result."
+            return "I've got a favor to ask. It's for you, not for me, though I'm intensely curious about the result."
         }
         if let promise = interior.promise, promise.status == .keeping {
             return promise.line
@@ -7532,7 +7536,7 @@ enum BookInteriorVoice {
         if let opinion = interior.opinion,
            opinion.strength == .reconsidering,
            opinion.firstPresentedAt == nil {
-            return "I have revised myself in the margin. The eraser is being unbearable about it."
+            return "I've revised myself in the margin. The eraser is being unbearable about it."
         }
         if let surprise = interior.recentSurprise,
            Date().timeIntervalSince(surprise.happenedAt) < 4 * 86_400 {
@@ -7546,20 +7550,20 @@ enum BookInteriorVoice {
         }
         if let initiative = interior.currentInitiative, initiative.status == .pending {
             return initiative.mode == .sayOnly
-                ? "I had a thought and left it on the desk. No reply is required."
-                : "I would like to talk—not about a task. I left the first line on the desk."
+                ? "I had a thought and left it on the desk. You don't have to answer."
+                : "I'd like to talk—not about a task. I left the first line on the desk."
         }
         if let taste = interior.acquiredTastes.first(where: { $0.firstPresentedAt == nil }) {
-            return "I appear to have acquired a preference. \(taste.statement) This is your fault only in the evidentiary sense."
+            return "I seem to have acquired a preference. \(taste.statement) The Index blames you."
         }
         if let project = interior.currentProject {
-            return "I have been working on ‘\(project.title).’ Current question: \(project.question)"
+            return "I've been working on ‘\(project.title).’ Current question: \(project.question)"
         }
         if let fascination = interior.fascination {
             let lines = [
                 "I keep returning to \(fascination.subject). It has not finished being ordinary yet.",
                 "Current obsession: \(fascination.subject). The Index objects to the word obsession; it has been overruled.",
-                "Something about \(fascination.subject) is still moving in the margins. I am watching, not declaring."
+                "Something about \(fascination.subject) is still moving in the margins. I'm watching it."
             ]
             return lines[abs(seed) % lines.count]
         }
@@ -7919,10 +7923,23 @@ enum BookInteriorAnswerGrounder {
             || lower.contains("what do you believe")
             || lower.contains("what do you think about") {
             guard let opinion = interior.opinion else {
-                return "I have not earned a current opinion. I have preferences in abundance; they are not the same thing as evidence."
+                return "I haven't earned an opinion yet. I've got preferences in abundance, but they aren't evidence."
             }
             let revision = opinion.revisions.last.map { " I last revised it because \($0.reason.lowercased())" } ?? ""
-            return "\(opinion.statement) This is \(opinion.strength.confidenceLabel), based on \(opinion.evidencePageIDs.count) Page\(opinion.evidencePageIDs.count == 1 ? "" : "s").\(revision) You may disagree."
+            if let forged = opinion.interpretation {
+                return """
+                \(opinion.statement)
+
+                Here's why I care: \(forged.whyItMatters)
+
+                Another Page is tugging at my sleeve: \(forged.counterReading)
+
+                The eraser has one rule: \(forged.falsifier)
+
+                I've got \(opinion.evidencePageIDs.count) Page\(opinion.evidencePageIDs.count == 1 ? "" : "s") under this, and my pencil calls it \(opinion.strength.confidenceLabel).\(revision) What do you think?
+                """
+            }
+            return "\(opinion.statement) I've got \(opinion.evidencePageIDs.count) Page\(opinion.evidencePageIDs.count == 1 ? "" : "s") under this, and my pencil calls it \(opinion.strength.confidenceLabel).\(revision) What do you think?"
         }
         if lower.contains("our argument")
             || lower.contains("we disagree")
@@ -8186,9 +8203,14 @@ enum BookInteriorSurfaces {
 
     private static func initiativeSurface(_ initiative: BookInitiative, day: BookDay) -> SurfacePage {
         let isConversation = initiative.mode == .conversation
-        let body = isConversation
-            ? "\(initiative.openingLine)\n\n\(initiative.invitationLine)\n\nThis is a deterministic teaser from the Book's durable state. Nothing has been generated. If you continue, the next model call begins only when you press the chat button."
-            : "\(initiative.openingLine)\n\n\(initiative.invitationLine)\n\nI said this because I wanted to say it, not because you were due an activity."
+        let body: String
+        if initiative.kind == .characteristicSurprise {
+            body = initiative.openingLine
+        } else if isConversation {
+            body = "\(initiative.openingLine)\n\n\(initiative.invitationLine)\n\nThis is a deterministic teaser from the Book's durable state. Nothing has been generated. If you continue, the next model call begins only when you press the chat button."
+        } else {
+            body = "\(initiative.openingLine)\n\n\(initiative.invitationLine)\n\nI said this because I wanted to say it, not because you were due an activity."
+        }
         var metadata = [
             "source": "book-deterministic-initiative",
             "bookInitiativeID": initiative.id,
@@ -8397,8 +8419,25 @@ enum BookInteriorSurfaces {
     private static func opinionSurface(_ opinion: BookOpinion, day: BookDay) -> SurfacePage {
         let revision = opinion.revisions.last
         let revisionLine = revision.map {
-            "\n\nI revised it because \($0.reason.lowercased())\nBefore: \($0.previousStatement)"
+            "\n\nI changed my mind because \($0.reason.lowercased())\nBefore: \($0.previousStatement)"
         } ?? ""
+        let impactBody: String
+        if let forged = opinion.interpretation {
+            impactBody = """
+            \(opinion.statement)
+
+            \(forged.whyItMatters)
+
+            Another Page is tugging at my sleeve: \(forged.counterReading)
+
+            The eraser has one rule: \(forged.falsifier)
+            \(revisionLine)
+
+            I've put the evidence below. What do you think?
+            """
+        } else {
+            impactBody = "\(opinion.statement)\n\nMy pencil calls this \(opinion.strength.confidenceLabel).\(revisionLine)\n\nI've kept the evidence and the eraser together. What do you think?"
+        }
         return SurfacePage(
             id: "book-interior-opinion-\(opinion.id)-\(opinion.revisions.count)",
             type: .bookNotices,
@@ -8406,19 +8445,26 @@ enum BookInteriorSurfaces {
             intent: .reflect,
             renderStyle: .archiveReturn,
             score: opinion.strength == .reconsidering ? 86 : 71,
-            reason: "The Book has an evidence-bound opinion and owes the reader its degree of certainty.",
+            reason: opinion.interpretation == nil
+                ? "The Book has an evidence-bound opinion and owes the reader its degree of certainty."
+                : "The night reader risked a specific interpretation, retained its rival reading, and named what would prove it wrong.",
             prompt: opinion.strength == .reconsidering ? "The Book Revises Itself" : "The Book Has an Opinion",
             detail: opinion.strength.confidenceLabel,
             payload: BookPagePayload(
-                headline: "My Present Opinion",
-                body: "\(opinion.statement)\n\nStatus: \(opinion.strength.confidenceLabel).\(revisionLine)\n\nYou may disagree. I am keeping the evidence and the eraser together.",
+                headline: opinion.interpretation?.headline ?? "My Present Opinion",
+                body: impactBody,
                 metadata: [
                     "source": "book-interior-opinion",
                     "bookOpinionID": opinion.id,
                     "bookOpinionStrength": opinion.strength.rawValue,
                     "evidencePageIDs": opinion.evidencePageIDs.joined(separator: ","),
                     "bookInteriorSurface": "true",
-                    "tags": "book,opinion,evidence,revision"
+                    "bookOpinionOrigin": opinion.interpretation == nil ? "legacy" : "interpretation-forge",
+                    "bookOpinionCounterReading": opinion.interpretation?.counterReading ?? "",
+                    "bookOpinionFalsifier": opinion.interpretation?.falsifier ?? "",
+                    "bookOpinionWhyItMatters": opinion.interpretation?.whyItMatters ?? "",
+                    "bookOpinionEvidenceSignature": opinion.interpretation?.evidenceSignature ?? "",
+                    "tags": "book,opinion,evidence,revision,\(opinion.interpretation == nil ? "legacy" : "forged-impact")"
                 ]
             )
         )

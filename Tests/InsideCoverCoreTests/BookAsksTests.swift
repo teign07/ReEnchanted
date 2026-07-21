@@ -112,7 +112,7 @@ final class BookAsksTests: XCTestCase {
         let body = BookAsks.body(for: question)
         XCTAssertTrue(body.contains("The boxes are finally out of the hallway"))
         XCTAssertTrue(body.contains("the waiting"))
-        XCTAssertTrue(body.contains("Pencil questions do not rust."))
+        XCTAssertTrue(body.contains("Pencil questions don't rust."))
     }
 
     func testClippingKeepsWordBoundary() {

@@ -2800,7 +2800,7 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(welcome?.payload.headline, "Oh. There You Are.")
         XCTAssertTrue(welcome?.payload.body.contains("I have your name now") == true)
         XCTAssertTrue(welcome?.payload.body.contains("I don’t have a brain yet") == true)
-        XCTAssertTrue(welcome?.payload.body.contains("Let’s find out what kind of story this is") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("I want to see what your Tuesdays are hiding") == true)
         XCTAssertTrue(welcome?.payload.metadata["tags"]?.contains("local-brain") == true)
         XCTAssertGreaterThan(welcome?.score ?? 0, 80)
     }

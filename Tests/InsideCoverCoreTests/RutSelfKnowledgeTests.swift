@@ -226,6 +226,123 @@ final class RutSelfKnowledgeTests: XCTestCase {
         )
     }
 
+    func testCuratorAssumesRoutineAtTheEdgesAndFightsItBeforeNamingIt() {
+        let now = Date(timeIntervalSince1970: 1_783_484_800)
+        let assessment = NothingTide.rutAssessment(
+            inputs: .empty,
+            distressActive: false,
+            now: now
+        )
+        XCTAssertEqual(assessment.pressure, 1)
+        XCTAssertFalse(assessment.mayNameRut)
+
+        var mood = CuratorMood.make(inputs: .empty, now: now)
+        mood.isFirstHours = false
+        mood.keptPageCount = 100
+        let warning = rutWarningSurface()
+        let smallDoor = SurfacePage(
+            type: .anchor,
+            prompt: "A nearby door",
+            detail: "Change scale for ten minutes."
+        )
+
+        XCTAssertFalse(mood.allows(warning))
+        XCTAssertGreaterThan(
+            mood.adjustment(for: smallDoor, now: now),
+            CuratorMood.neutral.adjustment(for: smallDoor, now: now)
+        )
+    }
+
+    func testCurrentReaderRutReportAllowsOneProvisionalWarning() throws {
+        let now = Date(timeIntervalSince1970: 1_783_484_800)
+        let depth = try XCTUnwrap(SelfKnowledgePackRegistry.question(id: "rut-depth"))
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = [selfFact(for: depth, answer: "4-7: in the rut", now: now)]
+
+        let assessment = NothingTide.rutAssessment(
+            inputs: inputs,
+            distressActive: false,
+            now: now
+        )
+        XCTAssertEqual(assessment.pressure, 2)
+        XCTAssertTrue(assessment.mayNameRut)
+
+        var mood = CuratorMood.make(inputs: inputs, now: now)
+        mood.isFirstHours = false
+        mood.keptPageCount = 100
+        XCTAssertTrue(mood.allows(rutWarningSurface()))
+    }
+
+    func testQuietAloneShapesTheDeskButDoesNotAccuseTheReader() {
+        let now = Date(timeIntervalSince1970: 1_783_484_800)
+        var inputs = BookSourceInputs.empty
+        inputs.quietDays = 4
+
+        let assessment = NothingTide.rutAssessment(
+            inputs: inputs,
+            distressActive: false,
+            now: now
+        )
+
+        XCTAssertEqual(assessment.pressure, 2)
+        XCTAssertFalse(assessment.mayNameRut)
+    }
+
+    func testAntiRutCurationUsesTheReadersLowFrictionWonderDoor() {
+        let pocketDoor = SurfacePage(
+            type: .anchor,
+            prompt: "A nearby door",
+            detail: "A pocket-sized outing."
+        )
+        let genericOddity = SurfacePage(
+            type: .quip,
+            prompt: "An oddity",
+            detail: "One strange sentence."
+        )
+
+        XCTAssertGreaterThan(
+            RutInterventionPolicy.scoreBoost(
+                for: pocketDoor,
+                pressure: 2,
+                preferredDoor: "A pocket adventure"
+            ),
+            RutInterventionPolicy.scoreBoost(
+                for: genericOddity,
+                pressure: 2,
+                preferredDoor: "A pocket adventure"
+            )
+        )
+    }
+
+    func testDistressSilencesBothRutWarningAndAntiRutPressure() throws {
+        let now = Date(timeIntervalSince1970: 1_783_484_800)
+        let depth = try XCTUnwrap(SelfKnowledgePackRegistry.question(id: "rut-depth"))
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = [selfFact(for: depth, answer: "8-10: whirlpool", now: now)]
+
+        let assessment = NothingTide.rutAssessment(
+            inputs: inputs,
+            distressActive: true,
+            now: now
+        )
+
+        XCTAssertEqual(assessment.pressure, 0)
+        XCTAssertFalse(assessment.mayNameRut)
+    }
+
+    private func rutWarningSurface() -> SurfacePage {
+        SurfacePage(
+            type: .bookNotices,
+            prompt: "The Book Suspects the Rut",
+            detail: "A hunch with an eraser.",
+            payload: BookPagePayload(
+                headline: "The Book Suspects the Rut",
+                body: "I may be wrong.",
+                metadata: ["packArchetypeID": "the-nothing-stirs"]
+            )
+        )
+    }
+
     private func selfFact(for question: AboutYouQuestion, answer: String, now: Date) -> SelfFact {
         SelfFact(
             id: "\(question.packID):\(question.id)",

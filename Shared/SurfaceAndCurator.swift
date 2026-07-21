@@ -3137,6 +3137,10 @@ struct CuratorMood {
     var minutesToNextCalendarEvent: Int?
     var distressActive: Bool = false
     var greyLevel: Int = 0
+    /// Routine is presumed to be ordinary weather. This pressure can shape the
+    /// desk silently even when there is not enough evidence to warn the reader.
+    var rutPressure: Int = 0
+    var mayNameRut: Bool = false
     var reshelvedSourceIDs: Set<String> = []
     var pactWar: PactWarState = PactWarState()
     var almanacBoosts: [BookPageType: Int] = [:]
@@ -3144,6 +3148,7 @@ struct CuratorMood {
     var keptPageCount: Int = 0
     var composedTypesToday: Set<BookPageType> = []
     var earnedWonderTitle: WonderTitle?
+    var rutWonderEntry: String?
     var onboardingTaste: String?
     var onboardingChapter: String?
     var onboardingComfort: String?
@@ -3158,6 +3163,21 @@ struct CuratorMood {
             .filter { !$0.isAllDay && $0.startsAt > now }
             .map { Int($0.startsAt.timeIntervalSince(now) / 60) }
             .min()
+        let rut = NothingTide.rutAssessment(
+            inputs: inputs,
+            distressActive: distressActive,
+            now: now,
+            calendar: calendar
+        )
+        let absenceGrey = NothingTide.greyLevel(
+            quietDays: inputs.quietDays,
+            narrativeHeat: recentEvents,
+            distressActive: distressActive,
+            celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: inputs.hemisphere)
+                + BookJumpEngine.greyShift(state: inputs.bookJump, now: now)
+                + RadioStationRegistry.greyShift(state: inputs.radio, now: now)
+                + inputs.nothingGreyOffset
+        )
         return CuratorMood(
             hour: calendar.component(.hour, from: now),
             surfaceHistory: inputs.surfaceHistory,
@@ -3165,15 +3185,9 @@ struct CuratorMood {
             hasFreshEntityMemory: freshMemory,
             minutesToNextCalendarEvent: nextEventMinutes,
             distressActive: distressActive,
-            greyLevel: NothingTide.greyLevel(
-                quietDays: inputs.quietDays,
-                narrativeHeat: recentEvents,
-                distressActive: distressActive,
-                celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: inputs.hemisphere)
-                    + BookJumpEngine.greyShift(state: inputs.bookJump, now: now)
-                    + RadioStationRegistry.greyShift(state: inputs.radio, now: now)
-                    + inputs.nothingGreyOffset
-            ),
+            greyLevel: max(absenceGrey, rut.mayNameRut ? rut.pressure : 0),
+            rutPressure: rut.pressure,
+            mayNameRut: rut.mayNameRut,
             reshelvedSourceIDs: FaeGiftEffects.reshelvedSourceIDs(
                 state: inputs.faeState,
                 surfaceHistory: inputs.surfaceHistory,
@@ -3188,6 +3202,7 @@ struct CuratorMood {
             keptPageCount: inputs.keptPageCount,
             composedTypesToday: composedCompositionTypes(in: inputs.days, on: now, calendar: calendar),
             earnedWonderTitle: WonderTitleRegistry.earnedTitle(from: inputs.selfFacts),
+            rutWonderEntry: onboardingAnswer("wonder-entry", in: inputs.selfFacts),
             onboardingTaste: onboardingAnswer("onboarding-taste", in: inputs.selfFacts),
             onboardingChapter: onboardingAnswer("onboarding-drawn-chapter", in: inputs.selfFacts),
             onboardingComfort: onboardingAnswer("onboarding-comfort-boundary", in: inputs.selfFacts)
@@ -3215,6 +3230,9 @@ struct CuratorMood {
     }
 
     func allows(_ page: SurfacePage) -> Bool {
+        if RutInterventionPolicy.namesTheRut(page), !mayNameRut {
+            return false
+        }
         if IntroductionCurriculum.locks(page.type, keptPageCount: keptPageCount, surfaceHistory: surfaceHistory) {
             // The First Reading is a deliberately early Book Notices milestone:
             // it fires at three kept pages as proof the Book has started reading
@@ -3300,6 +3318,11 @@ struct CuratorMood {
             taste: onboardingTaste,
             chapter: onboardingChapter,
             comfort: onboardingComfort
+        )
+        delta += RutInterventionPolicy.scoreBoost(
+            for: page,
+            pressure: rutPressure,
+            preferredDoor: rutWonderEntry
         )
 
         // Narrative heat: a field full of fresh events favors story-bearing
@@ -3422,5 +3445,57 @@ struct CuratorMood {
             penalty += 8
         }
         return penalty
+    }
+}
+
+/// The curator fights Routine mainly by changing what it offers, not by
+/// repeatedly telling the reader they are in trouble. Naming Pages require
+/// corroboration; small doors into attention get a standing quiet advantage.
+enum RutInterventionPolicy {
+    private static let namingArchetypes: Set<String> = [
+        "the-nothing-stirs", "grey-margin"
+    ]
+
+    static func namesTheRut(_ page: SurfacePage) -> Bool {
+        guard let id = page.payload.metadata["packArchetypeID"] else { return false }
+        return namingArchetypes.contains(id)
+    }
+
+    static func scoreBoost(
+        for page: SurfacePage,
+        pressure: Int,
+        preferredDoor: String? = nil
+    ) -> Int {
+        guard pressure > 0 else { return 0 }
+        if namesTheRut(page) {
+            return pressure >= 2 ? 4 + pressure * 2 : 0
+        }
+        var isPerspectiveDoor = page.type == .wonderCompass
+            || page.type == .anchor
+            || page.type == .quip
+            || page.type == .todaysSky
+            || page.type == .enchantment
+            || page.payload.metadata["playfulMissionID"]?.nonEmpty != nil
+            || page.payload.metadata["variant"] == "grey-edge"
+        let preference = preferredDoor?.lowercased() ?? ""
+        let matchesPreferredDoor: Bool
+        if preference.contains("pocket") || preference.contains("adventure") {
+            matchesPreferredDoor = page.type == .anchor || page.type == .wonderCompass
+        } else if preference.contains("making") || preference.contains("make") {
+            matchesPreferredDoor = page.type == .enchantment || page.type == .wonderCompass
+        } else if preference.contains("people") {
+            matchesPreferredDoor = page.type == .letter || page.type == .castBond
+        } else if preference.contains("color") {
+            matchesPreferredDoor = page.type == .enchantment || page.type == .todaysSky || page.type == .wonderCompass
+        } else if preference.contains("quiet") || preference.contains("looking out") {
+            matchesPreferredDoor = page.type == .todaysSky || page.type == .anchor || page.type == .wonderCompass
+        } else if preference.contains("odd") || preference.contains("detail") {
+            matchesPreferredDoor = page.type == .quip || page.type == .wonderCompass
+        } else {
+            matchesPreferredDoor = false
+        }
+        isPerspectiveDoor = isPerspectiveDoor || matchesPreferredDoor
+        guard isPerspectiveDoor else { return 0 }
+        return min(12, 2 + pressure * 2 + (matchesPreferredDoor ? 3 : 0))
     }
 }

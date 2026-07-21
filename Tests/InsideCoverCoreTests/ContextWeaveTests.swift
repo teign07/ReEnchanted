@@ -210,7 +210,7 @@ final class ContextWeaveTests: XCTestCase {
         )
         let surface = try XCTUnwrap(surfaces.first { $0.payload.metadata["connectionKind"] == "context" })
         XCTAssertTrue(surface.payload.body.contains("while it was raining"), surface.payload.body)
-        XCTAssertTrue(surface.payload.body.contains("not diagnosing"), "Observation, never a verdict: \(surface.payload.body)")
+        XCTAssertTrue(surface.payload.body.contains("What do you think was tugging on the words?"), "The Book should offer its evidence as a question, never a verdict: \(surface.payload.body)")
         let tags = try XCTUnwrap(surface.payload.metadata["tags"])
         XCTAssertTrue(tags.contains("connection-spoke:context-weather:rain-heavy-ink"), tags)
         XCTAssertNotNil(surface.payload.metadata["tinyPatternCards"], "Evidence cards travel with the claim.")

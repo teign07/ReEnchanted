@@ -3861,7 +3861,7 @@ struct PlayfulMissionWriter {
         guard let response = await LocalBrainProse.write(
             prompt: prompt(for: surface),
             instructions: """
-            You are The Wonder Compass inside ReEnchanted. Generate one tiny Playful Mission for South = Sense. Write the title and prompt in the Book's own voice — child-like animism, never childish: simple surprising sentences, everyday words, sincere wonder. Return compact strict JSON only.
+            You are The Wonder Compass inside ReEnchanted. Generate one tiny Playful Mission for South = Sense. \(BookVoice.animismLine) Return compact strict JSON only.
             """,
             maxTokens: 240,
             sourceID: "wonder-compass-playful-mission",

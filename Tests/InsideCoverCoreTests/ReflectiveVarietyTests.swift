@@ -122,7 +122,7 @@ final class ReflectiveVarietyTests: XCTestCase {
             extraPages: [spokenLongAgo]
         )
         let surface = try XCTUnwrap(noticeSurface(inputs: inputs))
-        let continuationMarkers = ["I have said this before", "repeating on purpose", "Still true, still gathering"]
+        let continuationMarkers = ["I have said this before", "repeating on purpose", "Still true, still gathering", "repeating myself because they won't sit down"]
         XCTAssertTrue(
             continuationMarkers.contains { surface.payload.body.contains($0) },
             "A respoken signal must own that it was said before: \(surface.payload.body)"
@@ -318,7 +318,7 @@ final class ReflectiveVarietyTests: XCTestCase {
         XCTAssertEqual(connection.payload.metadata["evidencePageIDs"], "older-weather,newer-weather")
         XCTAssertTrue(connection.payload.body.contains(older.userInput))
         XCTAssertTrue(connection.payload.body.contains(newer.userInput))
-        XCTAssertTrue(connection.payload.body.contains("I will not name the feeling on your behalf"))
+        XCTAssertTrue(connection.payload.body.contains("I won't name the feeling for you"))
         XCTAssertTrue(surfaces.contains { $0.payload.metadata["connectionNarrative"] == nil && $0.payload.metadata["continuitySignals"] != nil })
     }
 

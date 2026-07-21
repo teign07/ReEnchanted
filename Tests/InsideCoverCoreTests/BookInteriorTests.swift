@@ -89,7 +89,7 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(state.activeFavor?.status, .offered)
         XCTAssertEqual(state.secret?.status, .sealed)
         XCTAssertFalse(state.quirks.isEmpty)
-        XCTAssertNotNil(state.opinion)
+        XCTAssertNil(state.opinion, "Archive volume alone must not manufacture a tasteful opinion.")
         XCTAssertNotNil(state.longGame)
         XCTAssertTrue(BookObsession.vow.contains("notice it, discover it, play with it"))
     }
@@ -202,26 +202,57 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertTrue(evolved.secretHistory.contains { $0.id == revealed.id })
     }
 
-    func testOpinionStrengthensWithEvidenceAndKeepsItsRevision() {
-        let fascination = BookFascination(
-            id: "fascination-light",
-            facet: .notice,
-            subject: "afternoon light",
-            line: "Light keeps entering through ordinary objects.",
-            evidencePageIDs: ["kept-1"],
-            bornAt: now.addingTimeInterval(-20 * 86_400),
-            lastDeepenedAt: now
-        )
-        let inputs = BookSourceInputs.empty
+    func testForgedOpinionRisksAThesisKeepsItsRivalAndRevisesOnlyWhenEvidenceChanges() throws {
+        var inputs = BookSourceInputs.empty
+        inputs.days = [BookDay(
+            id: BookDay.id(for: now),
+            date: now,
+            pages: (1...4).map { keptPage($0) }
+        )]
+        inputs.overnightConnectionDrafts = [forgedDraft(
+            signature: "packet-one",
+            thesis: "I think afternoon light is not decoration here; it keeps giving ordinary objects permission to become events.",
+            evidencePageIDs: ["kept-1", "kept-2", "kept-3"],
+            confidence: 88
+        )]
         var state = BookInteriorEngine.reconciled(
-            BookInteriorState(awakenedAt: now.addingTimeInterval(-40 * 86_400), fascination: fascination),
+            BookInteriorState(awakenedAt: now.addingTimeInterval(-40 * 86_400)),
             inputs: inputs,
             now: now,
             calendar: calendar
         )
-        XCTAssertEqual(state.opinion?.strength, .wondering)
+        let first = try XCTUnwrap(state.opinion)
+        XCTAssertEqual(first.strength, .leaning)
+        XCTAssertEqual(first.interpretation?.counterReading, "The light may recur simply because the room and camera angle recur.")
+        XCTAssertTrue(first.interpretation?.falsifier.hasPrefix("If ") == true)
+        XCTAssertTrue(first.interpretation?.whyItMatters.contains("ordinary room") == true)
+        inputs.bookInterior = state
+        let surface = try XCTUnwrap(BookInteriorSurfaces.candidates(
+            for: BookDay(id: BookDay.id(for: now), date: now, pages: []),
+            inputs: inputs,
+            now: now
+        ).first(where: { $0.payload.metadata["bookOpinionID"] == first.id }))
+        XCTAssertTrue(surface.payload.body.hasPrefix(first.statement))
+        XCTAssertTrue(surface.payload.body.contains("Another Page is tugging at my sleeve"))
+        XCTAssertTrue(surface.payload.body.contains("The eraser has one rule"))
+        XCTAssertTrue(surface.payload.body.contains("What do you think?"))
+        XCTAssertFalse(surface.payload.body.contains("You may disagree"))
+        XCTAssertEqual(surface.payload.metadata["bookOpinionOrigin"], "interpretation-forge")
+        let answer = try XCTUnwrap(BookInteriorAnswerGrounder.answer(
+            to: "What is your opinion?",
+            interior: state
+        ))
+        XCTAssertTrue(answer.contains("Here's why I care"))
+        XCTAssertTrue(answer.contains("Another Page is tugging at my sleeve"))
+        XCTAssertTrue(answer.contains("The eraser has one rule"))
+        XCTAssertTrue(answer.contains("I've got 3 Pages under this"))
 
-        state.fascination?.evidencePageIDs = ["kept-1", "kept-2", "kept-3", "kept-4"]
+        inputs.overnightConnectionDrafts = [forgedDraft(
+            signature: "packet-two",
+            thesis: "I think afternoon light does more than decorate the room; it keeps turning overlooked objects into small appointments.",
+            evidencePageIDs: ["kept-1", "kept-2", "kept-3", "kept-4"],
+            confidence: 94
+        )]
         state = BookInteriorEngine.reconciled(
             state,
             inputs: inputs,
@@ -231,8 +262,37 @@ final class BookInteriorTests: XCTestCase {
 
         XCTAssertEqual(state.opinion?.strength, .held)
         XCTAssertEqual(state.opinion?.revisions.count, 1)
-        XCTAssertEqual(state.opinion?.revisions.last?.reason, "More Pages joined the evidence.")
+        XCTAssertEqual(state.opinion?.interpretation?.evidenceSignature, "packet-two")
+        XCTAssertTrue(state.opinion?.revisions.last?.reason.contains("materially changed") == true)
         XCTAssertNil(state.opinion?.firstPresentedAt)
+    }
+
+    func testRejectedOvernightReadingCannotQuietlyBecomeAnOpinion() {
+        var inputs = BookSourceInputs.empty
+        inputs.days = [BookDay(
+            id: BookDay.id(for: now),
+            date: now,
+            pages: (1...3).map { keptPage($0) }
+        )]
+        let draft = forgedDraft()
+        inputs.overnightConnectionDrafts = [draft]
+        inputs.bookObservations = [BookObservationRecord(
+            id: draft.observationKey,
+            kind: draft.kind,
+            status: .notQuite,
+            evidencePageIDs: draft.evidencePageIDs,
+            firstPresentedAt: now.addingTimeInterval(-3_600),
+            updatedAt: now
+        )]
+
+        let state = BookInteriorEngine.reconciled(
+            BookInteriorState(awakenedAt: now.addingTimeInterval(-40 * 86_400)),
+            inputs: inputs,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertNil(state.opinion)
     }
 
     func testWrongWagerForcesAVisibleChangeOfMind() {
@@ -2297,7 +2357,7 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertTrue(state.secretLegacies.first?.line.contains("kind of Book I became") == true)
     }
 
-    func testRareCharacteristicSurpriseBraidsHistoryTasteProjectLoyaltyAndReaderKnowledge() throws {
+    func testRareCharacteristicSurpriseDeliversAValidatedCrossHistoryReframe() throws {
         let memory = BookAutobiographicalMemory(
             id: "book-memory-compound",
             kind: .conversationAnswered,
@@ -2342,6 +2402,18 @@ final class BookInteriorTests: XCTestCase {
         )
         let want = bookWant(.tellTheReader)
         var inputs = BookSourceInputs.empty
+        let compoundPage = BookPage(
+            id: "kept-compound",
+            type: .plainPage,
+            createdAt: now.addingTimeInterval(-5 * 3_600),
+            promptText: "",
+            userInput: "The kitchen light looked like tired gold while I wanted company."
+        )
+        inputs.days = [BookDay(
+            id: BookDay.id(for: now),
+            date: now,
+            pages: [compoundPage]
+        )]
         inputs.selfFacts = [SelfFact(
             id: "reader-fact-compound",
             questionID: "favorite-hour",
@@ -2354,6 +2426,29 @@ final class BookInteriorTests: XCTestCase {
             createdAt: now.addingTimeInterval(-30 * 86_400),
             updatedAt: now.addingTimeInterval(-10 * 86_400)
         )]
+        var surpriseDraft = forgedDraft(
+            signature: "surprise-packet-one",
+            surpriseHeadline: "The Kitchen Light Was Company",
+            surpriseSynthesis: "You asked for company by the kitchen light, but the Exact Words Cabinet later filed that same light as tired gold. Perhaps company was never the subject; perhaps exact language is how this Book learned to sit beside you without filling the room.",
+            surpriseWhyUnexpected: "A conversation about company and a later filing about tired gold become the same lesson in how to be present.",
+            surpriseIngredientIDs: ["memory:\(memory.id)", "project:\(project.id)"],
+            surpriseConfidence: 94
+        )
+        surpriseDraft.surpriseIngredients = [
+            BookInterpretationIngredient(
+                id: "memory:\(memory.id)",
+                kind: "book-memory",
+                line: memory.line,
+                evidencePageIDs: memory.evidencePageIDs
+            ),
+            BookInterpretationIngredient(
+                id: "project:\(project.id)",
+                kind: "book-project",
+                line: project.entries[0].line,
+                evidencePageIDs: project.entries[0].evidencePageIDs
+            )
+        ]
+        inputs.overnightConnectionDrafts = [surpriseDraft]
         let starting = BookInteriorState(
             awakenedAt: now.addingTimeInterval(-200 * 86_400),
             currentProject: project,
@@ -2366,15 +2461,14 @@ final class BookInteriorTests: XCTestCase {
         let initiative = try XCTUnwrap(evolved.currentInitiative)
         XCTAssertEqual(initiative.kind, .characteristicSurprise)
         XCTAssertEqual(initiative.mode, .sayOnly)
-        XCTAssertTrue(initiative.openingLine.contains("The Book Spoke First") == false)
-        XCTAssertTrue(initiative.openingLine.contains(memory.line))
-        XCTAssertTrue(initiative.openingLine.contains(taste.statement.lowercased()))
-        XCTAssertTrue(initiative.openingLine.contains(project.title))
-        XCTAssertTrue(initiative.openingLine.contains("blue hour after dinner"))
+        XCTAssertEqual(initiative.title, "The Kitchen Light Was Company")
+        XCTAssertTrue(initiative.openingLine.contains("company was never the subject"))
+        XCTAssertTrue(initiative.openingLine.contains("sit beside you without filling the room"))
         XCTAssertTrue(initiative.openingLine.contains("No assignment"))
-        XCTAssertEqual(initiative.ingredientReceipts?.count, 6)
+        XCTAssertEqual(initiative.ingredientReceipts?.count, 3)
+        XCTAssertTrue(initiative.ingredientReceipts?.contains("forge-surprise:forged-candidate-light:surprise-packet-one") == true)
         XCTAssertTrue(initiative.ingredientReceipts?.contains("memory:\(memory.id)") == true)
-        XCTAssertTrue(initiative.ingredientReceipts?.contains("self-fact:reader-fact-compound:privateContext") == true)
+        XCTAssertTrue(initiative.ingredientReceipts?.contains("project:\(project.id)") == true)
 
         inputs.bookInterior = evolved
         let surface = try XCTUnwrap(BookInteriorSurfaces.candidates(
@@ -2384,7 +2478,9 @@ final class BookInteriorTests: XCTestCase {
         ).first(where: { $0.payload.metadata["bookInitiativeID"] == initiative.id }))
         XCTAssertEqual(surface.type, .bookNotices)
         XCTAssertEqual(surface.payload.metadata["bookInitiativeGenerationPolicy"], "user-initiated-only")
-        XCTAssertTrue(surface.payload.metadata["bookInitiativeIngredientReceipts"]?.contains("project:\(project.id)") == true)
+        XCTAssertTrue(surface.payload.metadata["bookInitiativeIngredientReceipts"]?.contains("forge-surprise:") == true)
+        XCTAssertEqual(surface.payload.body, initiative.openingLine)
+        XCTAssertFalse(surface.payload.body.contains("due an activity"))
         XCTAssertFalse(SurfaceReadinessState(surface: surface).needsLocalBrainToOpen)
     }
 
@@ -2461,6 +2557,41 @@ final class BookInteriorTests: XCTestCase {
             answeredAt: nil,
             readerReplyExcerpt: nil,
             status: .pending
+        )
+    }
+
+    private func forgedDraft(
+        signature: String = "forged-packet",
+        thesis: String = "I think afternoon light is not decoration here; it keeps giving ordinary objects permission to become events.",
+        evidencePageIDs: [String] = ["kept-1", "kept-2", "kept-3"],
+        confidence: Int = 88,
+        surpriseHeadline: String? = nil,
+        surpriseSynthesis: String? = nil,
+        surpriseWhyUnexpected: String? = nil,
+        surpriseIngredientIDs: [String]? = nil,
+        surpriseConfidence: Int? = nil
+    ) -> OvernightConnectionDraft {
+        OvernightConnectionDraft(
+            observationKey: "forged-observation-light",
+            candidateID: "forged-candidate-light",
+            evidenceSignature: signature,
+            kind: "relational",
+            headline: "What the Afternoon Light Is Doing",
+            interpretation: "Several kept pages place exact ordinary objects inside recurring afternoon light.",
+            question: "Is the light changing what earns the dignity of an event?",
+            confidence: confidence,
+            evidencePageIDs: evidencePageIDs,
+            evidenceCards: "Afternoon light · ordinary objects",
+            generatedAt: now,
+            thesis: thesis,
+            counterReading: "The light may recur simply because the room and camera angle recur.",
+            falsifier: "If later objects remain equally vivid without the afternoon light, then I should revise this opinion.",
+            whyItMatters: "It could make an ordinary room feel less like background and more like a place that keeps appointments.",
+            surpriseHeadline: surpriseHeadline,
+            surpriseSynthesis: surpriseSynthesis,
+            surpriseWhyUnexpected: surpriseWhyUnexpected,
+            surpriseIngredientIDs: surpriseIngredientIDs,
+            surpriseConfidence: surpriseConfidence
         )
     }
 }

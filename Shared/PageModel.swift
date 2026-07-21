@@ -1785,6 +1785,37 @@ struct OvernightConnectionDraft: Codable, Equatable {
     var evidencePageIDs: [String]
     var evidenceCards: String
     var generatedAt: Date
+    /// A Book-sized claim, not a restatement of the deterministic finding.
+    /// Optional preserves every draft written before the interpretation forge.
+    var thesis: String? = nil
+    /// The strongest honest rival reading supplied in the same model turn.
+    var counterReading: String? = nil
+    /// One observable future receipt that would make the Book revise.
+    var falsifier: String? = nil
+    /// The human stakes: why this might alter how the reader sees the life,
+    /// without diagnosing what the reader feels or who they are.
+    var whyItMatters: String? = nil
+    /// A rare cross-history reframe composed overnight from exact supplied
+    /// ingredients. The prose may surprise; the IDs are the receipts.
+    var surpriseHeadline: String? = nil
+    var surpriseSynthesis: String? = nil
+    var surpriseWhyUnexpected: String? = nil
+    var surpriseIngredientIDs: [String]? = nil
+    /// Frozen exact ingredients that passed the synthesis audit. Keeping the
+    /// snapshot prevents a delayed surprise from losing its receipts merely
+    /// because the Book acquired a newer memory before the Page surfaced.
+    var surpriseIngredients: [BookInterpretationIngredient]? = nil
+    var surpriseConfidence: Int? = nil
+}
+
+/// One compact, attributable piece of shared history offered to the overnight
+/// interpretation forge. The local model may connect these pieces; it may not
+/// invent an extra ingredient or rewrite their source authority.
+struct BookInterpretationIngredient: Codable, Equatable, Identifiable {
+    var id: String
+    var kind: String
+    var line: String
+    var evidencePageIDs: [String]
 }
 
 /// A deliberately coarse snapshot of the real-world context in which a page

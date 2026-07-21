@@ -251,15 +251,39 @@ final class MagicMomentTests: XCTestCase {
               "confidence": 86,
               "headline": "The Harbor After Rain",
               "interpretation": "Both pages place the harbor beside a changed sky, but one watches it arrive and the other watches it clear.",
-              "question": "Does the harbor become a threshold for you when the weather changes?"
+              "question": "Does the harbor become a threshold for you when the weather changes?",
+              "thesis": "I think the harbor is not scenery here; it is where change becomes visible before you are required to name it.",
+              "counterReading": "The harbor may simply recur because it is familiar and photographically generous after difficult weather.",
+              "falsifier": "If later harbor pages stay unchanged across sharply different moments, then I should revise this opinion.",
+              "whyItMatters": "It turns a familiar place from backdrop into a private instrument for noticing when the world has shifted.",
+              "surpriseHeadline": "The Harbor Was a Verb",
+              "surpriseSynthesis": "The rain doubled the harbor light, but the later storm left the same harbor unlatched. Perhaps this place is not where you go after change; it is one of the ways change becomes legible.",
+              "surpriseWhyUnexpected": "A weather detail and a repeated place become one instrument rather than two recurring subjects.",
+              "surpriseIngredientIDs": ["page:rain", "memory:clear"],
+              "surpriseConfidence": 93
             }
           ]
         }
         """
 
+        let ingredients = [
+            BookInterpretationIngredient(
+                id: "page:rain",
+                kind: "reader-page",
+                line: "The harbor light doubled itself in the rain.",
+                evidencePageIDs: ["page-rain"]
+            ),
+            BookInterpretationIngredient(
+                id: "memory:clear",
+                kind: "book-memory",
+                line: "After the storm, the harbor looked newly unlatched.",
+                evidencePageIDs: ["page-clear"]
+            )
+        ]
         let draft = try XCTUnwrap(OvernightConnectionReview.drafts(
             from: response,
             candidates: [candidate],
+            ingredients: ingredients,
             now: now
         ).first)
 
@@ -268,6 +292,63 @@ final class MagicMomentTests: XCTestCase {
         XCTAssertEqual(draft.evidenceCards, candidate.evidenceCards)
         XCTAssertEqual(draft.confidence, 86)
         XCTAssertTrue(draft.question.hasSuffix("?"))
+        XCTAssertTrue(draft.thesis?.contains("not scenery") == true)
+        XCTAssertTrue(draft.counterReading?.contains("photographically generous") == true)
+        XCTAssertEqual(draft.surpriseIngredientIDs, ["memory:clear", "page:rain"])
+        XCTAssertEqual(draft.surpriseIngredients, ingredients.sorted { $0.id < $1.id })
+        XCTAssertEqual(draft.surpriseConfidence, 93)
+    }
+
+    func testInterpretationForgeRejectsRespectableFogWithoutDiscardingTheGroundedNotice() throws {
+        let candidate = overnightCandidate()
+        let response = """
+        {"connections":[{
+          "candidateID":"semantic-harbor-rain","confidence":90,
+          "headline":"A Meaningful Pattern",
+          "interpretation":"Both pages place the harbor beside changing weather and ask a careful question.",
+          "question":"Could this be meaningful?",
+          "thesis":"This may suggest that your unique tapestry deeply resonates in many ways.",
+          "counterReading":"There may be another interpretation of this meaningful and important personal journey.",
+          "falsifier":"More evidence might change this reading at some point in the future.",
+          "whyItMatters":"It is important to remember that patterns can be meaningful and deeply resonant."
+        }]}
+        """
+
+        let draft = try XCTUnwrap(OvernightConnectionReview.drafts(
+            from: response,
+            candidates: [candidate]
+        ).first)
+
+        XCTAssertNil(draft.thesis)
+        XCTAssertNil(draft.counterReading)
+        XCTAssertNil(draft.falsifier)
+    }
+
+    func testPreForgeOvernightDraftStillDecodesWithoutImpactFields() throws {
+        let candidate = overnightCandidate()
+        let current = OvernightConnectionDraft(
+            observationKey: candidate.observationKey,
+            candidateID: candidate.id,
+            evidenceSignature: "old-packet",
+            kind: candidate.kind,
+            headline: "The Harbor After Rain",
+            interpretation: "The two pages seem to place the harbor beside changing weather.",
+            question: "Do these pages belong together?",
+            confidence: 84,
+            evidencePageIDs: candidate.evidencePageIDs,
+            evidenceCards: candidate.evidenceCards,
+            generatedAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        let encoded = try JSONEncoder().encode(current)
+        let decoded = try JSONDecoder().decode(OvernightConnectionDraft.self, from: encoded)
+
+        XCTAssertNil(decoded.thesis)
+        XCTAssertNil(decoded.counterReading)
+        XCTAssertNil(decoded.falsifier)
+        XCTAssertNil(decoded.whyItMatters)
+        XCTAssertNil(decoded.surpriseSynthesis)
+        XCTAssertNil(decoded.surpriseIngredientIDs)
+        XCTAssertNil(decoded.surpriseIngredients)
     }
 
     func testOvernightConnectionReviewRejectsInventedLowConfidenceAndClinicalClaims() {
@@ -341,6 +422,10 @@ final class MagicMomentTests: XCTestCase {
         XCTAssertEqual(surface.payload.metadata["overnightConnection"], "true")
         XCTAssertEqual(surface.payload.metadata["magicMomentEligible"], "true")
         XCTAssertEqual(surface.payload.metadata["evidencePageIDs"], candidate.evidencePageIDs.joined(separator: ","))
+        XCTAssertTrue(surface.payload.body.contains("they were still leaning together"))
+        XCTAssertTrue(surface.payload.body.contains("don't belong together"))
+        XCTAssertFalse(surface.payload.body.contains("reading, not a verdict"))
+        XCTAssertFalse(surface.payload.body.contains("you may correct me"))
 
         inputs.bookReadingBoundaries = [BookReadingBoundary(id: candidate.observationKey, createdAt: now)]
         XCTAssertFalse(BookObservationLedger.allows(

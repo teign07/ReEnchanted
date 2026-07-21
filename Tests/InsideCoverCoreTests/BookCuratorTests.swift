@@ -3189,9 +3189,9 @@ final class BookCuratorTests: XCTestCase {
         let learningNotice = try XCTUnwrap(notices.first { $0.payload.metadata["bookLearning"] == "true" })
 
         XCTAssertEqual(learningNotice.payload.headline, "The Book Learns")
-        XCTAssertTrue(learningNotice.payload.body.contains("I should show my work."))
+        XCTAssertTrue(learningNotice.payload.body.contains("I've put my pencil marks on the table."))
         XCTAssertTrue(learningNotice.payload.body.contains("Short summary:"))
-        XCTAssertTrue(learningNotice.payload.body.contains("not a diagnosis"))
+        XCTAssertTrue(learningNotice.payload.body.contains("isn't a secret profile"))
         XCTAssertTrue(learningNotice.payload.metadata["learningInsights"]?.contains("Souvenir") == true)
         XCTAssertTrue(learningNotice.payload.metadata["learningSummary"]?.contains("Souvenir") == true)
         XCTAssertTrue(learningNotice.payload.metadata["tinyPatternCards"]?.contains("Prompt memory") == true)

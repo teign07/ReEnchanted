@@ -2695,6 +2695,7 @@ struct ContentView: View {
             )
             vault.save()
             surfaceRefreshDate = Date()
+            refreshBookInterior(now: surfaceRefreshDate)
         }
         loadAnchorLedger()
         if didCompleteStoryOnboarding {

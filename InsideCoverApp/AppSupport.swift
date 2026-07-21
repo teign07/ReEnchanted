@@ -3750,8 +3750,9 @@ extension BookWhispers {
 import BackgroundTasks
 #endif
 
-/// The overnight reader: while the phone charges, the Book may ask its local
-/// model to interpret a small packet of newly proven connections.
+/// The overnight interpretation forge: while the phone charges, the Book may
+/// ask its local model to risk a correctable opinion or rare reframe from a
+/// small packet of newly proven connections and exact shared-history lines.
 enum OvernightScribe {
     static let taskIdentifier = "com.openclaw.enchantify.insidecover.overnight-scribe"
     static let freshnessWindow: TimeInterval = 18 * 3600
@@ -3825,7 +3826,11 @@ enum OvernightScribe {
         #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
         guard LocalModelManager.report().state == .ready else { return false }
 
-        let prepared: (story: SurfacePage, connections: [OvernightConnectionCandidate]) = await MainActor.run {
+        let prepared: (
+            story: SurfacePage,
+            connections: [OvernightConnectionCandidate],
+            ingredients: [BookInterpretationIngredient]
+        ) = await MainActor.run {
             let days = BookDatabase.loadDays(migratingFrom: BookStore.loadDays())
             let day = BookStore.today(from: days)
             let priorDays = days.filter { $0.id != day.id }
@@ -3841,6 +3846,7 @@ enum OvernightScribe {
             inputs.bookObservations = vault.bookObservations ?? []
             inputs.bookReadingBoundaries = vault.bookReadingBoundaries ?? []
             inputs.readerLearning = vault.readerLearning ?? ReaderLearningModel()
+            inputs.bookInterior = vault.bookInterior ?? BookInteriorState(awakenedAt: now)
             inputs.constellations = vault.constellations ?? []
             inputs.wagers = vault.wagers ?? []
             inputs.themes = vault.themes ?? []
@@ -3851,9 +3857,11 @@ enum OvernightScribe {
             )
             inputs.overnightConnectionDrafts = vault.overnightConnectionDrafts ?? []
             inputs.chosenQuill = vault.chosenQuill
+            let connections = OvernightConnectionReview.candidates(for: day, inputs: inputs, now: now)
             return (
                 NarrativeOSPageSourceAdapter.draftCandidate(for: day, inputs: inputs, now: now),
-                OvernightConnectionReview.candidates(for: day, inputs: inputs, now: now)
+                connections,
+                OvernightConnectionReview.ingredients(inputs: inputs)
             )
         }
 
@@ -3877,29 +3885,37 @@ enum OvernightScribe {
 
         if !prepared.connections.isEmpty,
            let packet = try? JSONEncoder().encode(prepared.connections),
-           let candidateJSON = String(data: packet, encoding: .utf8) {
+           let candidateJSON = String(data: packet, encoding: .utf8),
+           let ingredientPacket = try? JSONEncoder().encode(prepared.ingredients),
+           let ingredientJSON = String(data: ingredientPacket, encoding: .utf8) {
             do {
                 let response = try await MLXLocalTextGenerator.run(
                     prompt: """
-                    Review only these frozen, deterministic connection candidates:
+                    CONNECTION CANDIDATES — frozen deterministic findings:
                     \(candidateJSON)
 
+                    SHARED-HISTORY INGREDIENTS — exact lines and IDs:
+                    \(ingredientJSON)
+
                     Return strict JSON with this exact shape:
-                    {"connections":[{"candidateID":"exact supplied id","confidence":70,"headline":"short","interpretation":"at least eight words, grounded only in supplied evidence","question":"one curious question?"}]}
-                    Omit weak candidates. Never add an ID or fact. Never diagnose the reader.
+                    {"connections":[{"candidateID":"exact supplied id","confidence":84,"headline":"short","interpretation":"one Book-voiced connection grounded in the evidence","question":"one curious question?","thesis":"a specific first-person Book opinion of 12-60 words that changes the angle","counterReading":"the strongest honest rival explanation in plain spoken language","falsifier":"If ... then I should revise this opinion.","whyItMatters":"why this could change how the reader sees an ordinary part of their life","surpriseHeadline":"optional short title","surpriseSynthesis":"optional 18-95 word Book-voiced reframe joining at least two supplied shared-history ingredients; deliver the insight, do not explain the machinery","surpriseWhyUnexpected":"why these exact pieces do not obviously belong together","surpriseIngredientIDs":["exact supplied ingredient id","another exact supplied ingredient id"],"surpriseConfidence":90}]}
+
+                    Omit a candidate when you only have a paraphrase. A thesis must contain tension, stakes, or a changed angle—not merely say that a pattern exists. A surprise must make the ordinary life look different after reading it. Use exact supplied details. Never add an ID, event, motive, feeling, diagnosis, or biographical fact. Silence is better than a respectable observation.
                     """,
-                    instructions: "You are the Book's careful night reader. You may phrase an evidence-backed connection more beautifully, but you may not discover beyond the supplied candidates. Return strict JSON only.",
-                    maxTokens: 620,
-                    label: "overnight-connections",
-                    tags: ["overnight", "connections", "hidden-magic"],
-                    temperature: 0.42,
-                    topP: 0.82,
+                    instructions: "You are the Book at its most perceptive. \(BookVoice.animismLine) Stay inside the supplied evidence. Write the connection with confidence; keep the counter-reading and erasure rule plain and short. Return strict JSON only.",
+                    maxTokens: 1_180,
+                    label: "overnight-interpretation-forge",
+                    tags: ["overnight", "opinions", "surprise", "hidden-magic"],
+                    temperature: 0.56,
+                    topP: 0.88,
+                    maxKVSize: 4_096,
                     presentation: .readingRoom,
                     publishesProgress: false
                 )
                 let drafts = OvernightConnectionReview.drafts(
                     from: response,
                     candidates: prepared.connections,
+                    ingredients: prepared.ingredients,
                     now: now
                 )
                 if !drafts.isEmpty {
@@ -3930,7 +3946,7 @@ enum OvernightScribe {
         return draft.surface
     }
 
-    /// Adopts the night reader's grounded connection drafts. The file is
+    /// Adopts the interpretation forge's grounded connection drafts. The file is
     /// consumed even when stale so yesterday's surprise cannot masquerade as
     /// a fresh noticing after its evidence has moved on.
     static func adoptConnectionDrafts(now: Date = Date()) -> [OvernightConnectionDraft] {

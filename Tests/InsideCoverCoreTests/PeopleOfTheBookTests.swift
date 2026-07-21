@@ -482,7 +482,7 @@ final class PeopleOfTheBookTests: XCTestCase {
         )
         let question = try XCTUnwrap(pages.first { $0.payload.metadata["personContextHypothesisID"] != nil })
         XCTAssertEqual(question.type, .bookNotices)
-        XCTAssertTrue(question.payload.body.contains("Until then it remains a question"))
+        XCTAssertTrue(question.payload.body.contains("I won't write it into their chapter until you say yes"))
         XCTAssertEqual(question.payload.metadata["personContextKind"], PeopleOfTheBook.RelationshipHypothesis.Kind.setting.rawValue)
         XCTAssertEqual(question.payload.metadata["personContextValue"], PersonRelationshipSetting.sharedHome.rawValue)
         XCTAssertTrue(question.payload.metadata["adaptiveActions"]?.contains("confirmPersonContext") == true)

@@ -114,7 +114,10 @@ final class FirstReadingTests: XCTestCase {
         ], now: date(1, hour: 20))
         XCTAssertEqual(reflection?.threadWord, "rain")
         XCTAssertEqual(reflection?.threadCount, 2)
-        XCTAssertTrue(FirstReading.body(for: reflection!).contains("pencil"))
+        let body = FirstReading.body(for: reflection!)
+        XCTAssertTrue(body.contains("I've circled it in pencil"))
+        XCTAssertTrue(body.contains("It seems pleased"))
+        XCTAssertFalse(body.contains("Books should be careful with certainty"))
     }
 
     func testInventsNoThreadWhenNoneRecurs() {
@@ -125,6 +128,20 @@ final class FirstReadingTests: XCTestCase {
         ], now: date(1, hour: 20))
         XCTAssertNil(reflection?.threadWord)
         XCTAssertFalse(FirstReading.body(for: reflection!).contains("pencil"))
+    }
+
+    func testFirstReadingSoundsSpokenWithoutApologizingForReading() throws {
+        let reflection = try XCTUnwrap(FirstReading.reflection(for: [
+            souvenir("The kitchen window held the last of the gold light.", on: 1),
+            souvenir("Rain all afternoon, and I didn't mind it once.", on: 1),
+            souvenir("A quiet mug of coffee before anyone else woke.", on: 1)
+        ], now: date(1, hour: 20)))
+
+        let body = FirstReading.body(for: reflection)
+        XCTAssertTrue(body.hasPrefix("I've read what you kept"))
+        XCTAssertTrue(body.contains("That'd be rude"))
+        XCTAssertFalse(body.contains("I will not pretend"))
+        XCTAssertFalse(body.contains("Not a life yet"))
     }
 
     // MARK: - Reaches the shelf (end-to-end through the curator)

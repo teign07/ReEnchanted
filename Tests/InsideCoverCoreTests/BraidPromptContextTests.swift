@@ -66,8 +66,11 @@ final class BraidPromptContextTests: XCTestCase {
 
         let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
 
-        XCTAssertTrue(prompt.contains("child-like animism, never childish"))
-        XCTAssertTrue(prompt.contains("little feelings and wants given to ordinary things"))
+        XCTAssertTrue(prompt.contains("child-like wonder, never childish"))
+        XCTAssertTrue(prompt.contains("Be conversational and use contractions"))
+        XCTAssertTrue(prompt.contains("Treat ordinary things as alive"))
+        XCTAssertTrue(prompt.contains("don't lecture, moralize, give generic wisdom"))
+        XCTAssertFalse(prompt.contains("wise underneath"))
         XCTAssertTrue(prompt.contains("Most objects stay ordinary"))
         XCTAssertTrue(prompt.contains("selective magic is stronger"))
     }

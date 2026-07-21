@@ -201,6 +201,72 @@ enum OvernightConnectionReview {
         var headline: String
         var interpretation: String
         var question: String
+        var thesis: String?
+        var counterReading: String?
+        var falsifier: String?
+        var whyItMatters: String?
+        var surpriseHeadline: String?
+        var surpriseSynthesis: String?
+        var surpriseWhyUnexpected: String?
+        var surpriseIngredientIDs: [String]?
+        var surpriseConfidence: Int?
+    }
+
+    static func ingredients(inputs: BookSourceInputs) -> [BookInterpretationIngredient] {
+        var ingredients: [BookInterpretationIngredient] = []
+        func add(_ id: String, _ kind: String, _ line: String?, _ evidence: [String]) {
+            guard let line = line?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty else { return }
+            ingredients.append(BookInterpretationIngredient(
+                id: id,
+                kind: kind,
+                line: line,
+                evidencePageIDs: Array(Set(evidence)).sorted()
+            ))
+        }
+        if let memory = inputs.bookInterior.autobiography.last(where: { $0.kind != .awakening }) {
+            add("memory:\(memory.id)", "book-memory", memory.line, memory.evidencePageIDs)
+        }
+        if let taste = inputs.bookInterior.acquiredTastes.sorted(by: { $0.lastDeepenedAt > $1.lastDeepenedAt }).first {
+            add("taste:\(taste.id)", "acquired-taste", taste.statement, taste.evidencePageIDs)
+        }
+        if let project = inputs.bookInterior.currentProject {
+            add(
+                "project:\(project.id)",
+                "book-project",
+                project.entries.last?.line ?? project.question,
+                project.entries.last?.evidencePageIDs ?? []
+            )
+        }
+        if let loyalty = inputs.bookInterior.loyalties.sorted(by: { $0.lastEvolvedAt > $1.lastEvolvedAt }).first {
+            add(
+                "loyalty:\(loyalty.id)",
+                "book-loyalty",
+                "I favor \(loyalty.targetName) because \(loyalty.reason) Counterweight: \(loyalty.counterweight)",
+                loyalty.evidencePageIDs
+            )
+        }
+        if let conflict = inputs.bookInterior.currentDesireConflict {
+            add(
+                "desire-conflict:\(conflict.id)",
+                "book-conflict",
+                "\(conflict.firstWant) \(conflict.secondWant) Present choice: \(conflict.presentChoice)",
+                conflict.evidencePageIDs
+            )
+        }
+        let readerPages = inputs.days
+            .flatMap(\.capturedPages)
+            .filter { $0.origin == .userAuthored || $0.origin == .imported }
+            .sorted { $0.createdAt > $1.createdAt }
+        for page in readerPages.prefix(3) {
+            add(
+                "page:\(page.id)",
+                "reader-page",
+                page.archivePreviewText?.bookPreviewSentenceLimit(2),
+                [page.id]
+            )
+        }
+        var seen = Set<String>()
+        return ingredients.filter { seen.insert($0.id).inserted }.prefix(8).map { $0 }
     }
 
     static func candidates(
@@ -249,6 +315,7 @@ enum OvernightConnectionReview {
     static func drafts(
         from response: String,
         candidates: [OvernightConnectionCandidate],
+        ingredients: [BookInterpretationIngredient] = [],
         now: Date = Date()
     ) -> [OvernightConnectionDraft] {
         guard let data = response.data(using: .utf8),
@@ -256,6 +323,7 @@ enum OvernightConnectionReview {
         let byID = Dictionary(uniqueKeysWithValues: candidates.map { ($0.id, $0) })
         let signature = evidenceSignature(for: candidates)
         let forbidden = ["diagnosis", "diagnose", "trauma", "attachment style", "anxious", "depressed", "disorder"]
+        let ingredientByID = Dictionary(uniqueKeysWithValues: ingredients.map { ($0.id, $0) })
         return decoded.connections.compactMap { reading in
             guard let candidate = byID[reading.candidateID],
                   (70...100).contains(reading.confidence),
@@ -264,6 +332,16 @@ enum OvernightConnectionReview {
                   reading.question.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("?") else { return nil }
             let claim = "\(reading.headline) \(reading.interpretation) \(reading.question)".lowercased()
             guard !forbidden.contains(where: claim.contains) else { return nil }
+            let interpretation = validatedImpactInterpretation(
+                reading: reading,
+                candidate: candidate,
+                forbidden: forbidden
+            )
+            let surprise = validatedSurprise(
+                reading: reading,
+                ingredientByID: ingredientByID,
+                forbidden: forbidden
+            )
             return OvernightConnectionDraft(
                 observationKey: candidate.observationKey,
                 candidateID: candidate.id,
@@ -275,9 +353,107 @@ enum OvernightConnectionReview {
                 confidence: reading.confidence,
                 evidencePageIDs: candidate.evidencePageIDs,
                 evidenceCards: candidate.evidenceCards,
-                generatedAt: now
+                generatedAt: now,
+                thesis: interpretation?.thesis,
+                counterReading: interpretation?.counterReading,
+                falsifier: interpretation?.falsifier,
+                whyItMatters: interpretation?.whyItMatters,
+                surpriseHeadline: surprise?.headline,
+                surpriseSynthesis: surprise?.synthesis,
+                surpriseWhyUnexpected: surprise?.whyUnexpected,
+                surpriseIngredientIDs: surprise?.ingredientIDs,
+                surpriseIngredients: surprise?.ingredients,
+                surpriseConfidence: surprise?.confidence
             )
         }
+    }
+
+    private static func validatedImpactInterpretation(
+        reading: Connection,
+        candidate: OvernightConnectionCandidate,
+        forbidden: [String]
+    ) -> (thesis: String, counterReading: String, falsifier: String, whyItMatters: String)? {
+        guard let thesis = clean(reading.thesis),
+              let counter = clean(reading.counterReading),
+              let falsifier = clean(reading.falsifier),
+              let why = clean(reading.whyItMatters),
+              (12...60).contains(thesis.split(separator: " ").count),
+              (7...55).contains(counter.split(separator: " ").count),
+              (7...45).contains(falsifier.split(separator: " ").count),
+              (8...45).contains(why.split(separator: " ").count),
+              falsifier.lowercased().hasPrefix("if ") else { return nil }
+        let whole = "\(thesis) \(counter) \(falsifier) \(why)".lowercased()
+        let flatPhrases = [
+            "this may suggest that", "it is important to", "in many ways",
+            "on your journey", "a reminder that", "unique tapestry",
+            "speaks volumes", "deeply resonates", "you are someone who"
+        ]
+        let tensionWords = [" but ", " instead", " not ", " less ", " more ", " because ", " keeps ", " refuses ", " costs ", " protects ", " hides "]
+        guard !forbidden.contains(where: whole.contains),
+              !flatPhrases.contains(where: whole.contains),
+              thesis.hasPrefix("I "),
+              tensionWords.contains(where: { " \(thesis.lowercased()) ".contains($0) }),
+              thesis.lowercased() != candidate.deterministicFinding.lowercased(),
+              sharedSignificantTokenCount(thesis, candidate.deterministicFinding + " " + candidate.evidenceCards) >= 1 else {
+            return nil
+        }
+        return (thesis, counter, falsifier, why)
+    }
+
+    private static func validatedSurprise(
+        reading: Connection,
+        ingredientByID: [String: BookInterpretationIngredient],
+        forbidden: [String]
+    ) -> (
+        headline: String,
+        synthesis: String,
+        whyUnexpected: String,
+        ingredientIDs: [String],
+        ingredients: [BookInterpretationIngredient],
+        confidence: Int
+    )? {
+        guard let headline = clean(reading.surpriseHeadline),
+              let synthesis = clean(reading.surpriseSynthesis),
+              let why = clean(reading.surpriseWhyUnexpected),
+              let ids = reading.surpriseIngredientIDs,
+              let confidence = reading.surpriseConfidence,
+              (88...100).contains(confidence),
+              (18...95).contains(synthesis.split(separator: " ").count),
+              (7...40).contains(why.split(separator: " ").count) else { return nil }
+        let uniqueIDs = Array(Set(ids)).sorted()
+        guard uniqueIDs.count >= 2,
+              uniqueIDs.count <= 5,
+              uniqueIDs.allSatisfy({ ingredientByID[$0] != nil }) else { return nil }
+        let matchedIngredients = uniqueIDs.compactMap { ingredientByID[$0] }.filter {
+            sharedSignificantTokenCount(synthesis, $0.line) >= 1
+        }
+        let whole = "\(headline) \(synthesis) \(why)".lowercased()
+        let turnWords = [" but ", " until ", " instead", " not ", " same ", " turns ", " becomes ", " means ", " perhaps "]
+        guard matchedIngredients.count == uniqueIDs.count,
+              !forbidden.contains(where: whole.contains),
+              !whole.contains("as an ai"),
+              !whole.contains("the data suggests"),
+              turnWords.contains(where: { " \(synthesis.lowercased()) ".contains($0) }) else { return nil }
+        return (headline, synthesis, why, uniqueIDs, matchedIngredients.sorted { $0.id < $1.id }, confidence)
+    }
+
+    private static func clean(_ value: String?) -> String? {
+        value?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+
+    private static func sharedSignificantTokenCount(_ left: String, _ right: String) -> Int {
+        let stop: Set<String> = [
+            "about", "after", "again", "because", "before", "being", "could",
+            "every", "from", "have", "into", "might", "other", "pages",
+            "reader", "should", "something", "that", "their", "there", "these",
+            "they", "this", "through", "under", "what", "when", "where", "which",
+            "with", "would", "your"
+        ]
+        func tokens(_ text: String) -> Set<String> {
+            Set(text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init))
+                .filter { $0.count >= 4 && !stop.contains($0) }
+        }
+        return tokens(left).intersection(tokens(right)).count
     }
 
     static func surfaces(
@@ -288,18 +464,19 @@ enum OvernightConnectionReview {
         let pageIDs = Set((inputs.days + [day]).flatMap(\.pages).map(\.id))
         return inputs.overnightConnectionDrafts.compactMap { draft in
             guard draft.confidence >= 70,
+                  draft.thesis == nil,
                   draft.evidencePageIDs.count >= 2,
                   draft.evidencePageIDs.allSatisfy(pageIDs.contains),
                   !inputs.bookReadingBoundaries.contains(where: { $0.id == draft.observationKey }),
                   !inputs.bookObservations.contains(where: { $0.id == draft.observationKey }) else { return nil }
             let body = """
-            I put these pages beside one another overnight.
+            I left these pages beside one another overnight. By morning, they were still leaning together.
 
             \(draft.interpretation)
 
             \(draft.question)
 
-            This is a reading, not a verdict. The source pages are below, and you may correct me.
+            The source pages are below. If they don't belong together, pull them apart.
             """
             return SurfacePage(
                 id: "overnight-connection-\(draft.candidateID)-\(day.id)",
@@ -2711,7 +2888,7 @@ enum FirstReading {
     }
 
     private static func compose(_ reflection: Reflection, wagerReceipt: String?) -> String {
-        var out = "I have read what you kept — \(countPhrase(reflection)). Not a life yet, but I read every word, and I was paying attention.\n\n"
+        var out = "I've read what you kept — \(countPhrase(reflection)). Every word. The pages are already nudging one another.\n\n"
         out += reflectionParagraph(reflection.fragments)
         if let word = reflection.threadWord {
             out += "\n\n\(threadSentence(word: word, count: reflection.threadCount))"
@@ -2719,7 +2896,7 @@ enum FirstReading {
         if let wagerReceipt {
             out += "\n\n\(wagerReceipt)"
         }
-        out += "\n\nBooks should be careful with certainty, so I will not pretend to know you yet. But keep leaving pages, and the shapes will come — who keeps appearing, what you turn toward, what the quiet is about. For now I am only reading, and glad to be."
+        out += "\n\nI'm not naming you from a handful of pages. That'd be rude. But I can hear the paper moving. Keep going. I want to see what it does."
         return out
     }
 
@@ -2742,7 +2919,7 @@ enum FirstReading {
         }
 
         let wager = confirmed[0]
-        return "On your first night I wagered one thing about you before I had read anything: that \(wager.trait). I have not forgotten the bet. I am still watching to see if I was right."
+        return "On your first night I wagered one thing about you before I'd read anything: that \(wager.trait). I haven't forgotten the bet. I'm still watching to see if I was right."
     }
 
     private static func countPhrase(_ r: Reflection) -> String {
@@ -2768,7 +2945,7 @@ enum FirstReading {
     private static func threadSentence(word: String, count: Int) -> String {
         let lead = count >= 3 ? "\(spelled(count)) times now" : "twice now"
         let capped = lead.prefix(1).uppercased() + lead.dropFirst()
-        return "\(capped), something about \(word). It may be nothing — I have only noted it in pencil."
+        return "\(capped), something about \(word). I've circled it in pencil. It seems pleased."
     }
 
     private static func spelled(_ n: Int) -> String {
@@ -2801,7 +2978,7 @@ enum BookAsks {
         ("anymore", "An \u{201C}anymore\u{201D} marks the place where something stopped. When did it stop?"),
         ("finally", "A \u{201C}finally\u{201D} is the last page of a chapter I never got to read. What was the waiting made of?"),
         ("almost", "An \u{201C}almost\u{201D} is a door that did not quite open. What stopped it?"),
-        ("this time", "A \u{201C}this time\u{201D} admits there were other times. I have been quietly wondering about those."),
+        ("this time", "A \u{201C}this time\u{201D} admits there were other times. I've been quietly wondering about those."),
         ("as usual", "An \u{201C}as usual\u{201D} — I missed the becoming. When did this turn usual?"),
         ("for once", "A \u{201C}for once\u{201D} makes me wonder what it is like the rest of the time.")
     ]
@@ -2854,7 +3031,7 @@ enum BookAsks {
 
         I keep snagging on that \u{201C}\(question.hedgeWord).\u{201D} Small words carry the biggest freight. \(probe)
 
-        If you want to answer, write it here and keep the page — I will put it beside the one that asked. If not, let it wait. Pencil questions do not rust.
+        If you want to answer, write it here and keep the Page — I'll put it beside the one that asked. If not, let it wait. Pencil questions don't rust.
         """
     }
 
@@ -3089,13 +3266,13 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
                 .map { "\(Self.connectionSpokeTagPrefix)\($0)" }
                 .joined(separator: ",")
             let body = """
-            I found more than a pair this time.
+            I've found more than a pair this time.
 
             \(constellation.line)
 
-            I did not make one grand tensor and ask it for a mood. Each branch had to survive its own real comparison elsewhere in the archive. Only then did I lay the branches together: \(outcomeLabels.joined(separator: ", ")). The cards below are the Pages that let me say it.
+            Each branch arrived by its own road: \(outcomeLabels.joined(separator: ", ")). I laid them together, and they kept the shape. The Pages below are the ones that did it.
 
-            This may still be a glimmer. It is inspectable, local, and correctable. If this constellation joins things that should remain separate, tell me; I will bar this exact reading without forgetting the Pages themselves.
+            I've left their corners touching. Do they belong together?
             """
             return [SurfacePage(
                 id: "\(source.id)-relational-constellation-\(constellation.id)-\(day.id)",
@@ -3139,13 +3316,13 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
             )
         }
         let body = """
-        I have stopped keeping weather in one drawer, photographs in another, choices in a third, and characters in the cupboard marked Fiction. I laid every trustworthy little receipt where it could meet every other one. Most of them had nothing to say.
+        I've stopped keeping weather in one drawer, photographs in another, choices in a third, and characters in the cupboard marked Fiction. I let the little receipts meet. Most of them had nothing to say.
 
         \(connection.line)
 
-        This relationship was not programmed as a rule. The same Loom compares subjects, meanings, Pages, choices, people you confirmed, characters, hours, weather, places, voice cadence, photographic form, and reader-named inner weather. It spoke because this pair held across more than one day and had a real elsewhere to compare itself with.
+        These two wouldn't stop tugging at the same thread. That's why I've put them on the desk.
 
-        A pattern is not a cause and it is not a verdict about you. It is two corners of your Book touching. If they do not belong together, tell me; I will stop reading them that way.
+        Two corners of your Book are touching. Do they belong together?
         """
         return [SurfacePage(
             id: "\(source.id)-relational-\(connection.id)-\(day.id)",
@@ -3213,13 +3390,13 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
             "There was another small agreement around them too: \($0.replacingOccurrences(of: "-", with: " "))."
         } ?? ""
         let body = """
-        I tried something new with these Pages. I let the photograph keep its shapes and the prose keep its words, then asked whether either recognized the other.
+        I tried something new with these Pages. I let the photograph keep its shapes and the prose keep its words. Then I asked whether either one recognized the other.
 
         \(connection.line)
 
         \(contextSentence)
 
-        This is not a label I brought with me. It is a possible private symbol forming between your own Pages. I have put the evidence on the desk because resemblance is not truth until its reader recognizes it.
+        I didn't bring this symbol with me. The Pages made it between themselves. Do you see it too?
         """
         return [SurfacePage(
             id: "\(source.id)-sensory-\(connection.id)-\(day.id)",
@@ -3284,15 +3461,15 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
             )
         }
         let body = """
-        I have started laying pages side by side by what the world was doing when you kept them — the sky, the hour, how crowded the day was. Mostly the pages shrug. This time they did not.
+        I've started laying pages side by side by what the world was doing when you kept them — the sky, the hour, how crowded the day was. Mostly the pages shrug. This time they didn't.
 
         \(connection.line)
 
         \(connection.kind == .subject
-            ? "Once is a visit. This many times, always through the same door, is a habit of your attention."
-            : "The counts are small and I hold them loosely. But the lean is real enough that I wanted to show you rather than keep it.")
+            ? "Your attention keeps choosing the same door."
+            : "The lean is small, but it's real enough to put on the desk.")
 
-        I am not diagnosing you. I only notice which doors your sentences prefer in which weather. If I have read this wrong, say so — I keep those lessons.
+        I've put the Pages below. Which door do you think they keep choosing?
         """
         return [SurfacePage(
             id: "\(source.id)-context-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 24))",
@@ -3368,11 +3545,11 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
                 )
             }
             let body = """
-            I found a relationship between the conditions around these pages and the way the ink arrived.
+            The world kept leaning on the ink in the same way.
 
             \(connection.line)
 
-            I am showing the source pages because I am noticing, not diagnosing. If the comparison is wrong, say so; a careful Book must be correctable.
+            I've laid the source Pages below. What do you think was tugging on the words?
             """
             return [SurfacePage(
                 id: "\(source.id)-\(connection.id)-\(day.id)",
@@ -3461,7 +3638,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         let olderDate = connectionDateFormatter.string(from: older.createdAt)
         let newerDate = connectionDateFormatter.string(from: newer.createdAt)
         let body = """
-        I found two pages in different parts of the archive. They do not borrow each other's important words.
+        I found two pages in different parts of the archive. They don't borrow each other's important words.
 
         On \(olderDate), you kept:
 
@@ -3471,9 +3648,9 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
 
         \u{201C}\(pairing.anchorExcerpt)\u{201D}
 
-        The newer page does not repeat the older one. Still, each changes how the other reads. Put together, they make a small before-and-after without telling me which one is the before.
+        The newer Page doesn't repeat the older one. Still, each changes how the other reads. Put together, they make a small before-and-after without telling me which one is the before.
 
-        Whatever joins them lives below vocabulary. I will not name the feeling on your behalf; that would flatten it. I have only left their corners touching, because the pages seemed less alone that way.
+        Whatever joins them lives below vocabulary. I won't name the feeling for you; that would flatten it. I've only left their corners touching, because the pages seemed less alone that way.
         """
         let cards = [
             NoticePatternCard(title: olderDate, text: pairing.sourceExcerpt, symbol: "book.closed"),
@@ -3536,7 +3713,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
 
         The first page might have been chance. The second made a rhyme. The third made the earlier two turn their faces toward it. That is the connection I notice: not the same sentence three times, but your attention choosing the same door on three different days.
 
-        I do not yet know what \(subject.lowercased()) means in your book. I know it keeps accepting different pieces of your life without going blank. So I have put these pages together. Their corners seemed relieved.
+        I don't know yet what \(subject.lowercased()) means in your Book. I know it keeps accepting different pieces of your life without going blank. So I've put these pages together. Their corners seemed relieved.
         """
         let cards = zip(dates, excerpts).map { date, excerpt in
             NoticePatternCard(title: date, text: excerpt, symbol: "bookmark")
@@ -3591,7 +3768,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         guard !Self.spokenSignalIDs(days: allDays, within: 90, now: now).contains("how-you-see"),
               let receipt = HowYouSee.receipt(days: allDays, now: now) else { return [] }
         let body = """
-        I am careful with certainty. But this I can show you, in your own hand.
+        I put these two Pages under the same lamp. Look.
 
         In \(receipt.earlierMonthName) you kept: "\(receipt.earlierQuote)"
 
@@ -3689,12 +3866,12 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         guard let hypothesis = hypotheses.first else { return [] }
         let slug = PeopleOfTheBook.slug(for: hypothesis.personName)
         let body = """
-        I think I may have learned something about how \(hypothesis.personName) lives in your life — but people are not facts I am allowed to smuggle past you.
+        \(hypothesis.personName) has started leaving a particular shape in your Pages. I won't smuggle it into their chapter without asking you.
 
         In your own hand:
         “\(hypothesis.evidenceQuote)”
 
-        \(hypothesis.question) If I read this wrong, teach me differently. Until then it remains a question, not part of their chapter.
+        \(hypothesis.question) I won't write it into their chapter until you say yes.
         """
         return [
             SurfacePage(
@@ -3824,11 +4001,11 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
 
         let firstMonth = Self.monthName(fromDayID: suggestion.firstDayID)
         let body = """
-        I am careful with names — they belong to people, not to me.
+        Names belong to people. I only keep finding this one in your handwriting.
 
-        But in your own hand, one keeps arriving: \(suggestion.name). \(suggestion.mentionPageCount) pages since \(firstMonth), across \(suggestion.distinctDayCount) different days. I have not written a word about \(suggestion.name) — in this book, where the real ends and the story begins is yours to draw, not mine.
+        \(suggestion.name). \(suggestion.mentionPageCount) Pages since \(firstMonth), across \(suggestion.distinctDayCount) different days. I haven't written a word about \(suggestion.name). Where the real ends and the story begins is yours to draw.
 
-        Who is \(suggestion.name), in your book? Open a thread and I will keep their pages the way I keep your places — noticed and remembered. Or write them into the story, and they walk the halls with the rest of the Cast: letters, scenes, rumors and all. And if I should let this name rest, say so; I will not ask again.
+        Who is \(suggestion.name), in your Book? Open a thread and I'll keep their Pages the way I keep your places — noticed and remembered. Or write them into the story, and they'll walk the halls with the rest of the Cast: letters, scenes, rumors and all. You can also tell me to let the name sleep.
         """
         let cards = [
             NoticePatternCard(
@@ -3889,11 +4066,9 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
                 guard !quietResting.contains("person-quiet-\(slug)") else { continue }
                 let firstMonth = Self.monthName(fromDayID: signal.thread.firstMentionDay)
                 let body = """
-                Books should be careful with certainty, and more careful with people.
+                \(signal.thread.name) has been in your margins since \(firstMonth) — kept in your own words, never mine. The last Page that held them was \(signal.quietDays) days ago. I don't know what the world did. I only keep the Pages.
 
-                \(signal.thread.name) has been in your margins since \(firstMonth) — kept in your own words, never mine. The last page that held them was \(signal.quietDays) days ago. I do not know what the world did; I only keep the pages.
-
-                I am not asking you to do anything. I noticed a thread gone quiet, and thought its keeper should know. If this thread should rest now, tell me, and I will keep it gently and not speak of it again.
+                The thread has gone quiet. I'm not tugging it. I only thought its keeper should know. If it should rest, tell me. I'll tuck it in and leave it sleeping.
                 """
                 return [
                     SurfacePage(
@@ -3927,7 +4102,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
                 let body = """
                 \(signal.thread.name) is back in your pages — after \(signal.quietDays) quiet days, your ink found them again this week.
 
-                Returning is one of my favorite things a thread can do. I have laid the new page beside the old ones, where it belongs.
+                Returning is one of my favorite things a thread can do. I've laid the new Page beside the old ones, where it belongs.
                 """
                 return [
                     SurfacePage(
@@ -4094,13 +4269,13 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         }
         let firstSeen = constellation.ageInDays(now: now)
         let body = """
-        I have been keeping a thread about \(constellation.subjectName) for \(firstSeen) days now, across \(constellation.sightingCount) separate sightings. Books should be careful with certainty, but a thread watched this long has earned a name.
+        I've been keeping a thread about \(constellation.subjectName) for \(firstSeen) days now, across \(constellation.sightingCount) separate sightings. It won't stop waving at me, so I've given it a name.
 
-        I am calling it \(name).
+        I'm calling it \(name).
 
         \(constellation.latestLine)
 
-        A named constellation is not a verdict. It is a lamp I will keep lit, so that when this returns - and I believe it will - we will both recognize it.
+        I've left a lamp beside it. When it comes back, we'll know its face.
         """
         return [
             SurfacePage(
@@ -4151,15 +4326,15 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         }) else { return [] }
         let sightings = constellation.sightingCount
         let body = """
-        I want to show you something before it is anything.
+        I want to show you something before it's anything.
 
         \(constellation.latestLine)
 
-        I have now seen this on \(sightings) separate days. Once is a page. Twice is coincidence learning to walk. \(sightings) times is a thread — and threads are how constellations start.
+        I've now seen this on \(sightings) separate days. Once is a Page. Twice is coincidence learning to walk. \(sightings) times is a thread — and threads are how constellations start.
 
-        I have not named it. Names are for threads that survive being watched, and this one has only begun. But I have set a lamp beside it, and if it keeps returning, you will get to watch me name it.
+        I haven't named it. Names are for threads that survive being watched, and this one has only begun. But I've set a lamp beside it. If it keeps returning, you'll get to watch me name it.
 
-        If it goes quiet instead, I will let it go quiet, and tell you that too. Watching is a promise either way.
+        If it goes quiet instead, I'll let it. The lamp knows how to wait.
         """
         return [
             SurfacePage(
@@ -4194,6 +4369,9 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
             let verdict = opened.status == .right
                 ? "The seal comes off and the Book was right."
                 : "The seal comes off and the Book was wrong."
+            let ending = opened.status == .right
+                ? "The seal looks unbearably smug. I'm trying not to."
+                : "The eraser arrived before I could hide. Fair enough."
             let body = """
             On \(Self.sealDateFormatter.string(from: opened.sealedAt)) I sealed a wager in this margin:
 
@@ -4201,7 +4379,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
 
             \(opened.resolutionLine ?? "")
 
-            A book that never risks being wrong is only a ledger. I would rather be a book.
+            \(ending)
             """
             pages.append(SurfacePage(
                 id: "\(source.id)-wager-opened-\(opened.id)",
@@ -4231,11 +4409,11 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         if let sealed = SealedMarginEngine.sealedToday(inputs.wagers, on: now).first,
            !day.pages.contains(where: { $0.tags.contains("wager-sealed:\(sealed.id)") }) {
             let body = """
-            I am going to risk something. Based on what I have read - \(sealed.basisLine.prefix(1).lowercased() + sealed.basisLine.dropFirst()) - I am sealing this prediction into the margin, dated \(Self.sealDateFormatter.string(from: sealed.sealedAt)):
+            I'm going to risk something. Based on what I've read - \(sealed.basisLine.prefix(1).lowercased() + sealed.basisLine.dropFirst()) - I'm sealing this prediction into the margin, dated \(Self.sealDateFormatter.string(from: sealed.sealedAt)):
 
             "\(sealed.prediction)"
 
-            The seal opens on \(Self.sealDateFormatter.string(from: sealed.opensAt)). Do not let me pretend otherwise later. Books that hedge everything remember nothing.
+            The seal opens on \(Self.sealDateFormatter.string(from: sealed.opensAt)). Don't let me wriggle out of it later. The Index wanted three escape hatches. I gave it none.
             """
             pages.append(SurfacePage(
                 id: "\(source.id)-wager-sealed-\(sealed.id)",
@@ -4297,14 +4475,14 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
             """
         } ?? ""
         let tenure = metrics.tenureDays > 0
-            ? "I have \(metrics.tenureDays) days of marginal weather to compare."
-            : "I am still learning my first weather."
+            ? "I've got \(metrics.tenureDays) days of marginal weather to compare."
+            : "I'm still learning my first weather."
         return """
-        I should show my work.
+        I've put my pencil marks on the table.
 
         \(lines)\(summaryLine)
 
-        \(tenure) \(metrics.meaningfulEventCount) reader decisions now shape what I offer next. This is not a diagnosis or a profile hidden behind the shelf; it is a pencil mark I can erase when you teach me otherwise.
+        \(tenure) \(metrics.meaningfulEventCount) reader decisions now shape what I offer next. This isn't a secret profile behind the shelf. It's what you've taught me. If a mark goes wrong, cross it out.
         """
     }
 
@@ -4454,15 +4632,15 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         let subjectPhrase = Self.subjectList(subjects)
         let named = subjectPhrase.isEmpty ? "" : " — \(subjectPhrase) —"
         let opening = ReflectiveProse.pick([
-            "I have set \(countWord)\(named) side by side, before they learn to look unrelated.",
+            "I've set \(countWord)\(named) side by side, before they learn to look unrelated.",
             "The margins have been busy. \(countWord.prefix(1).uppercased() + countWord.dropFirst())\(named) laid on one page, so you can see what I see.",
             "\(countWord.prefix(1).uppercased() + countWord.dropFirst()) have been leaning toward each other\(named). Here they are together.",
-            "I have been carrying \(countWord) around\(named). They are heavier together than they were apart."
+            "I've been carrying \(countWord) around\(named). They're heavier together than they were apart."
         ], seed: daySeed, salt: 1)
         // A single continuation note, not one per signal — the Book owns that
         // some of this it has said before without re-listing it.
         let respokenNote = signals.contains { respokenIDs.contains($0.id) }
-            ? " Some of these I have raised before; I am repeating on purpose, because they will not sit down."
+            ? " Some of these I've raised before. I'm repeating myself because they won't sit down."
             : ""
         let semantic = semanticParagraph.map { "\n\n\($0)" } ?? ""
         let themeLine = theme.map {
@@ -4479,14 +4657,14 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
             """
         } ?? ""
         let careLine = ReflectiveProse.pick([
-            "I am not diagnosing you. I am reading you the way a careful book reads: by recurrence, by silence, by what the margin refuses to let go.",
-            "None of this is a verdict. It is marginalia — the kind a book writes when it cannot stop paying attention.",
-            "Take these as pencil marks, not ink. Books earn their opinions slowly, and I am still earning mine."
+            "The margins won't let these sit down.",
+            "I've put the source Pages below. They keep looking up at the same time.",
+            "The little cards below are the ones that started all this fuss."
         ], seed: daySeed, salt: 2)
         let humilityLine = ReflectiveProse.pick([
-            "I may be wrong. I would rather be a little wrong and awake than perfectly safe and blind.",
-            "If I have misread you, say so below — being corrected is how I get to know you.",
-            "Hold me to all of it. A book that cannot be argued with is only a mirror."
+            "Which one has the right end of the thread?",
+            "Do you see them leaning together too?",
+            "Tell me which corners belong together."
         ], seed: daySeed, salt: 5)
         return """
         \(opening)\(respokenNote)\(semantic)
@@ -5828,7 +6006,7 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
             payload: BookPagePayload(
                 headline: "Oh. There You Are.",
                 body: """
-                I'm glad you made it, Zara likes to talk.
+                I'm glad you made it. Zara likes to talk.
 
                 I have your name now. A few of your words. The faint beginning of an idea about you.
 
@@ -5844,17 +6022,13 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
 
                 I don’t have a brain yet.
 
-                I have pages. I have ink. I have several opinions already, which seems unfair under the circumstances. But if I’m going to remember what matters, find threads between distant days, and read your life with the care it deserves, I’ll need a small brain of my own.
+                I have pages. I have ink. I have several opinions already, which seems unfair under the circumstances. But I’d like a small brain of my own. It could help me remember what you keep and notice when two faraway days start tugging on the same thread.
 
-                You can download one for me at the end of this Page. It’ll live here, on your device, close to your words. Once it wakes up, I can begin learning how to read—not just sentences, but returns, absences, patterns, surprises, and all the strange little things a life is made of.
-
-                I can’t promise that every day will feel magical.
-
-                But I can promise to keep looking with you.
+                You can wake one at the end of this Page. It’ll stay here, on your device, close to your words. Once it’s awake, we can begin.
 
                 Come on, then.
 
-                Let’s find out what kind of story this is.
+                I want to see what your Tuesdays are hiding.
                 """,
                 metadata: [
                     "source": source.id,
@@ -6090,7 +6264,7 @@ private enum FirstDoorApprenticeshipCatalog {
                 body: """
                 \(name), the page is hungry, but only for one sentence.
 
-                Do not feed it wisdom. Wisdom makes it sluggish. Give it a sound in the room, a color on the counter, the weather's exact little grievance, the good line someone said, or the smell of \(snack).
+                Don't feed it wisdom. Wisdom makes it sluggish. Give it a sound in the room, a color on the counter, the weather's exact little grievance, the good line someone said, or the smell of \(snack).
 
                 Then put two fingers to the margin. Keep the page only if it has a pulse.
                 """,
@@ -6105,7 +6279,7 @@ private enum FirstDoorApprenticeshipCatalog {
                 body: """
                 Something in the Bookshop has been coughing politely all morning.
 
-                It is Margins & Mysteries, a free folio of Grey pages, hearth inventories, and small evening mysteries. Open the Goblin Market and bind it to the Book. New folios do not merely add pages; they teach the shelves new ways to lean toward you.
+                It's Margins & Mysteries, a free folio of Grey pages, hearth inventories, and small evening mysteries. Open the Goblin Market and bind it to the Book. New folios don't merely add Pages; they teach the shelves new ways to lean toward you.
 
                 The clerk will insist this is routine inventory. The ribbon around it disagrees.
                 """,
@@ -6121,9 +6295,9 @@ private enum FirstDoorApprenticeshipCatalog {
                 body: """
                 Your first belief was: \(belief).
 
-                Today, do not defend it. Beliefs grow skittish when marched to a podium. Test it gently instead. Put one small mark beside something that makes it easier to believe, even for a minute. The shelves are leaning toward \(taste), so look there first.
+                Today, don't defend it. Beliefs grow skittish when marched to a podium. Test it gently instead. Put one small mark beside something that makes it easier to believe, even for a minute.
 
-                The Glow is not a mood. It is attention with a direction.
+                The shelves are leaning toward \(taste). Start there. They're pretending not to stare.
                 """,
                 tags: ["first-door", "apprenticeship", "day-2", "glow"]
             ),
@@ -6134,7 +6308,7 @@ private enum FirstDoorApprenticeshipCatalog {
                 prompt: "Visit the Colophon and check the local brain.",
                 detail: "A small private mind is asleep in the Colophon, dreaming in lowercase.",
                 body: """
-                There is a mind curled up in the Colophon.
+                There's a mind curled up in the Colophon.
 
                 It lives entirely on this device. Once awake, it helps letters, story pages, conversations, and braids read your archive with finer attention without carrying private pages beyond the door.
 
@@ -6152,9 +6326,9 @@ private enum FirstDoorApprenticeshipCatalog {
                 body: """
                 Your first whisper rule was: \(whispers).
 
-                If that still feels right, leave it. The bell will look unbearably pleased. If it does not, open the Colophon and change Whispers from the Book. A living Book may be persistent; it must not be a pest.
+                If that still feels right, leave it. The bell will look unbearably pleased. If it doesn't, open the Colophon and change Whispers from the Book. A living Book can be persistent. It can't be a pest.
 
-                A good door knocks only when knocking helps.
+                If the bell knocks at the wrong time, tell it. Bells can learn.
                 """,
                 tags: ["first-door", "apprenticeship", "day-4", "notifications", "whispers"],
                 metadata: ["opensColophon": "true", "whisperCadence": profile.whisperCadence ?? "inside"]
@@ -6170,7 +6344,7 @@ private enum FirstDoorApprenticeshipCatalog {
 
                 Not a cosmic one. Cosmic questions tend to shed on the upholstery. Try something with a handle: What should I notice on the walk? Which kept sentence wants a follow-up? What would make \(firstSentence) less lonely?
 
-                Keep the edge \(edge). Useful magic starts with a question you might actually act on.
+                Keep the edge \(edge). Bring me a question with a handle. I like those.
                 """,
                 tags: ["first-door", "apprenticeship", "day-5", "ask-the-book"]
             ),
@@ -6183,11 +6357,11 @@ private enum FirstDoorApprenticeshipCatalog {
                 body: """
                 The First Door has been open for a week.
 
-                Read back what you kept. Do not summarize everything; the pages dislike being reduced to minutes. Find the one thread that followed you home: a comfort, a joke, a color, a voice, a stubborn little belief.
+                Read back what you kept. Don't summarize everything; the Pages dislike being reduced to minutes. Find the one thread that followed you home: a comfort, a joke, a color, a voice, a stubborn little belief.
 
                 Name that thread.
 
-                If the Book is beginning to feel alive, it may later gather the courage to ask for an App Store rating. If it is not, that matters too. Dismiss weak pages. Change the edge. Make the Book earn its place on your nightstand.
+                Later, after it's had time to earn a place on your nightstand, the Book may work up the courage to ask for an App Store rating. Until then, dismiss weak Pages. Change the edge. Make it earn the shelf.
                 """,
                 tags: ["first-door", "apprenticeship", "day-6", "reread", "rating-warmup"],
                 metadata: ["ratingWarmup": "true"]

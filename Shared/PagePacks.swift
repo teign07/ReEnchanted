@@ -535,22 +535,17 @@ enum PageArchetypePackRegistry {
             archetypes: [
                 PageArchetype(
                     id: "the-nothing-stirs",
-                    title: "The Rut of Routine Stirs",
-                    headline: "A Grey Page",
-                    detail: "Something got quietly rubbed out, and the Book wants to write it back.",
-                    reason: "At night, Routine sneaks around the edges of your kept days.",
-                    bodyTemplate: "Late {timeOfDay}, under a {moon}. Somewhere in today's margins, one small detail has gone grey and silent — Routine has been chewing at it. Open this page and the Book will try to write it back before it fades.",
+                    title: "The Book Suspects the Rut",
+                    headline: "A Hunch, with an Eraser",
+                    detail: "The margins look a little too smooth. The Book might be wrong.",
+                    reason: "The Book has enough current evidence to risk one gentle warning about Routine.",
+                    bodyTemplate: "I may be wrong, but the margins have begun to look too smooth. That can mean Routine is rubbing the texture off ordinary days — or only that life is busy. Do not overhaul anything for me. Catch one true detail tonight: the object nearest your hand, the sound beyond the room, the exact color of the light. If the day still has texture, I will erase the warning.",
                     score: 48,
                     cadenceHours: 24,
                     activeHours: [21, 22, 23],
                     renderStyleRaw: "loreLetter",
                     symbolName: "circle.dotted",
-                    tags: ["nothing", "night", "fourth-wall"],
-                    generation: PageArchetype.GenerationSpec(
-                        instructions: "You are the Book inside ReEnchanted, writing against Routine — the grey, silent force that erases unnoticed details. Quiet, a little eerie, finally warm. \(BookVoice.animismLine) Prose only.",
-                        promptTemplate: "The player's day so far: {lastKeptPage}. The weather: {weather}. {moonLine} Write 2 short paragraphs: first, name one small, plausible detail of such a day that Routine has almost erased (be specific but invent nothing impossible); second, write it back into the margins so it is kept. End with one sentence addressed directly to {playerName}: something true about why noticing matters tonight.",
-                        maxTokens: 300
-                    )
+                    tags: ["nothing", "night", "fourth-wall", "rut-warning"]
                 ),
                 PageArchetype(
                     id: "grey-margin",

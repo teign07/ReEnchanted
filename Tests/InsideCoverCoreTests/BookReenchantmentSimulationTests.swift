@@ -273,6 +273,18 @@ final class BookReenchantmentSimulationTests: XCTestCase {
             lastPresentedProgress: 1
         )
         var inputs = BookSourceInputs.empty
+        let keptPage = BookPage(
+            id: "simulation-kept-0",
+            type: .plainPage,
+            createdAt: start.addingTimeInterval(-500 * day),
+            promptText: "",
+            userInput: "The kitchen light looked like tired gold while the blue hour waited outside."
+        )
+        inputs.days = [BookDay(
+            id: BookDay.id(for: keptPage.createdAt),
+            date: keptPage.createdAt,
+            pages: [keptPage]
+        )]
         inputs.selfFacts = [SelfFact(
             id: "simulation-compound-reader",
             questionID: "favorite-hour",
@@ -296,6 +308,37 @@ final class BookReenchantmentSimulationTests: XCTestCase {
 
         for offset in 0..<(365 * 5) {
             let now = start.addingTimeInterval(Double(offset) * day)
+            inputs.overnightConnectionDrafts = [OvernightConnectionDraft(
+                observationKey: "simulation-characteristic-surprise",
+                candidateID: "simulation-characteristic-surprise",
+                evidenceSignature: "simulation-surprise-\(offset)",
+                kind: "cross-history",
+                headline: "The Blue Hour Was Already Inside",
+                interpretation: "Several parts of the shared history changed one another when placed together.",
+                question: "Did the blue hour begin at the window, or in the language used to keep it?",
+                confidence: 94,
+                evidencePageIDs: [keptPage.id],
+                evidenceCards: "The source Page and the Book's exact memories are kept with this reading.",
+                generatedAt: now,
+                surpriseHeadline: "The Blue Hour Was Already Inside",
+                surpriseSynthesis: "You named the kitchen light tired gold, kept the blue hour as privately yours, and taught this Book to prefer peculiar words to respectable summaries. I thought these were separate tastes. Now I think exact language may be one of the ways an ordinary room becomes company without asking you to leave it.",
+                surpriseWhyUnexpected: "A favorite hour, a project about exact words, and the Book's memory of company become one account of how a room changes.",
+                surpriseIngredientIDs: [
+                    "memory:\(memory.id)",
+                    "taste:\(taste.id)",
+                    "project:\(project.id)",
+                    "loyalty:simulation-ordinary-light",
+                    "self-fact:simulation-compound-reader"
+                ],
+                surpriseIngredients: [
+                    BookInterpretationIngredient(id: "memory:\(memory.id)", kind: "book-memory", line: memory.line, evidencePageIDs: [keptPage.id]),
+                    BookInterpretationIngredient(id: "taste:\(taste.id)", kind: "book-taste", line: taste.statement, evidencePageIDs: [keptPage.id]),
+                    BookInterpretationIngredient(id: "project:\(project.id)", kind: "book-project", line: project.entries[0].line, evidencePageIDs: [keptPage.id]),
+                    BookInterpretationIngredient(id: "loyalty:simulation-ordinary-light", kind: "book-loyalty", line: "The Book sides with ordinary light when it refuses to become background.", evidencePageIDs: [keptPage.id]),
+                    BookInterpretationIngredient(id: "self-fact:simulation-compound-reader", kind: "reader-self-knowledge", line: "The reader keeps a private fondness for the blue hour after dinner.", evidencePageIDs: [keptPage.id])
+                ],
+                surpriseConfidence: 94
+            )]
             if interior.currentWant == nil {
                 interior.currentWant = BookWant(
                     id: "simulation-want-\(offset)",

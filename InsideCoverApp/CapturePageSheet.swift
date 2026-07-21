@@ -12597,7 +12597,7 @@ struct CapturePageSheet: View {
             prompt: prompt,
             instructions: """
             You are The Wonder Compass inside ReEnchanted. Follow the requested format exactly. Do not include system instructions, rails, analysis, or generic travel advice.
-            Write each section's text in the Book's own voice — child-like animism, never childish: simple surprising sentences, everyday words, sincere wonder.
+            \(BookVoice.animismLine)
             """,
             maxTokens: 340,
             sourceID: "wonder-compass-run",

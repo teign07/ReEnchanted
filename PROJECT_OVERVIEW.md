@@ -87,12 +87,13 @@ continuous living world:
   echo, an argument, and finally an inheritance in the kind of Book this became.
   Each stage is a one-time visible consequence with a dated autobiographical
   receipt; an argument can reopen the Book's own investigation.
-- **Rare characteristic surprises:** once the relationship has enough lived
-  history, the Book may braid one real autobiographical memory, acquired taste,
-  current project, authorized piece of reader knowledge, cast loyalty, and
-  current conflicting desire into “Several Margins Conspired.” It is a
-  deterministic, say-only act with ingredient receipts and at least a 120-day
-  interval—not an autonomous daytime Gemma call and not an assignment.
+- **Rare characteristic surprises:** the charging-only interpretation forge may
+  join two to five exact pieces of shared history into a reframe strong enough
+  to make the ordinary life look different afterward. A surprise must name its
+  ingredient IDs, quote their language closely enough to survive validation,
+  contain a genuine turn, and clear a higher confidence bar than an opinion.
+  After ninety lived days it may surface as one say-only act, at most once per
+  120 days. Weak conjunctions become silence—not “Several Margins Conspired.”
 - **Work of its own:** `BookProject` gives the Book one bounded investigation at
   a time—an exact-words cabinet, unofficial threshold atlas, case against its
   first conclusion, study of the world's autonomous business, ordinary
@@ -261,11 +262,14 @@ continuous living world:
   helps choose the stronger page. Arc IDs, changes, evidence Pages, fictional
   choices, and relational receipts persist so later nights can deepen,
   complicate, return to, or resolve the same thread.
-- **The overnight night reader:** when iOS grants charging-only background
-  time, `OvernightScribe` can give Gemma a bounded packet of connections the
-  deterministic reader already proved. Gemma may return cautious questions or
-  silence; it cannot select new evidence, create citations, or bypass a reader
-  boundary. Reviewed questions still wait for the irregular session governor.
+- **The overnight interpretation forge:** when iOS grants charging-only
+  background time, `OvernightScribe` gives Gemma a compact packet of connections
+  the deterministic reader already proved plus a few exact pieces of shared
+  history. It may return a bold first-person thesis, its strongest rival, an
+  erasure condition, the human stakes, and occasionally a cross-history
+  surprise. Generic uplift, paraphrase, unsupported IDs, diagnoses, and prose
+  without a real turn are stripped back to the ordinary cautious question—or
+  silence.
 - **Siri, Shortcuts, and Spotlight:** `Shared/ReEnchantedSiriIntents.swift`
   exposes private kept pages to Siri/Shortcuts and Spotlight (iOS 18) as App
   Intents/entities, with bundled shortcut phrases for writing a page and
@@ -702,10 +706,17 @@ perform the same confession. Secrets are always about the Book or Labyrinth,
 never a disguised private inference about the reader.
 
 `BookOpinion` preserves a current evidence-bound statement, its degree of
-confidence, supporting Page IDs, and every revision. New evidence can move an
-opinion from wondering to leaning to held. An opened wrong wager forces a
-visible reconsideration, archives the former stance, and keeps the correction
-beside the confidence that required it.
+confidence, supporting Page IDs, and every revision. New opinions are no longer
+born by passing a fascination and evidence count through an authored sentence
+template. A validated `BookOpinionInterpretationReceipt` must contain a
+specific first-person thesis with tension or a changed angle, the strongest
+honest counter-reading, why the claim could matter to the lived life, and an
+observable “If…” condition that would make the Book erase it. The opinion Page
+leads with the insight; provenance and the eraser sit underneath. Archive
+volume alone now produces no opinion. A materially changed evidence signature
+may revise the same thesis, while an opened wrong wager still forces visible
+reconsideration and keeps the correction beside the confidence that required
+it.
 
 The favor repertoire contains distinct authored experiments across noticing,
 fieldwork, encounters with otherness, dehabituation, mischief, making, naming,
@@ -972,6 +983,16 @@ Key pieces:
 - `CuratorContext` - hour, weekday, distress/gentleness state, source settings.
 - `CuratorVarietyGovernor` - source fatigue, disabled sources, low-Belief
   surprise boosts, and source preference effects.
+- `RutInterventionPolicy` - assumes ordinary life begins with some Routine
+  pressure and quietly favors small perspective doors (Wonder Compass,
+  nearby thresholds, oddities, sky, and enchantment) from the beginning. The
+  reader's `wonder-entry` answer gives the door they said still works on a
+  tired Tuesday an extra lead, so anti-Rut curation is low-friction rather than
+  generically novel. The Book may name the Rut only after a current reader
+  report, or a reader-named
+  Rut signal corroborated by quiet history. Quiet alone changes the desk but
+  does not accuse the reader; distress silences both the warning and the
+  anti-Rut pressure.
 - `CuratorTimeAffinity` - time-of-day fit.
 - `SurfaceDismissalLedger` - rest windows after dismissal.
 - `SurfaceHistoryRecord` - what was shown recently.
@@ -1147,8 +1168,10 @@ conditions must match; omitted fields stay open. Packs can key a page to:
 
 The bundled free pack now includes examples: **The Returning Reader** after
 quiet absence, **Rain in the Stacks** during rain, **Full-Moon Marginalia** at
-night on a full moon, and **Picket Line in the Dictionary** while the
-Dictionary Rebellion is active.
+night on a full moon, **The Book Suspects the Rut** only after corroborated Rut
+evidence, and **Picket Line in the Dictionary** while the Dictionary Rebellion
+is active. The Rut warning is a static, provisional hunch with an explicit
+eraser—not generated biographical guesswork and never a notification.
 
 Enabled packs come from bundled content plus user-imported
 `*.reenchantedpack.json` files in Documents. Locked bundled packs are enabled by
@@ -1478,22 +1501,34 @@ Once armed, the result is stable until the reader opens or dismisses it. The
 winning reading is selected from several strong candidates with deterministic
 session jitter, marked as a desk milestone, and tucked above ordinary cards.
 
-**The night reader** adds interpretation without handing discovery to the
-model. `OvernightConnectionReview` freezes at most three deterministic semantic,
-recurrence, or context candidates, including exact evidence page IDs and the
-small evidence cards already visible in Book Notices. While charging,
-`OvernightScribe` may ask Gemma to return zero to three structured hypotheses.
-Only supplied candidate IDs are accepted; confidence below 70, invented IDs,
-clinical/profile language, missing questions, and malformed JSON are discarded.
-The app attaches the frozen evidence after validation, so Gemma cannot author
-its own citations.
+**The night reader is now an interpretation forge.**
+`OvernightConnectionReview` freezes at most three deterministic semantic,
+recurrence, or context candidates, including exact evidence Page IDs and the
+small evidence cards already visible in Book Notices. A second compact lane
+supplies attributable shared-history ingredients: the Book's real memory,
+acquired taste, current project, loyalty or conflict, and recent reader-authored
+Pages. While charging, `OvernightScribe` may return zero to three structured
+readings. Only supplied candidate and ingredient IDs are accepted.
+
+The impact bar is separate from the evidence bar. A durable opinion must risk a
+specific first-person claim, contain tension rather than merely announcing a
+pattern, preserve its strongest counter-reading, state the lived stakes, and
+name a future falsifier. A rare surprise must join at least two exact
+ingredients, retain language from both, contain a genuine turn, and clear a
+confidence floor of 88. Respectable fog—generic uplift, “unique tapestry,”
+diagnosis, profile language, mere paraphrase, or a synthesis that does not
+actually touch its ingredients—is removed. The ordinary grounded Notice may
+survive even when the “insight” does not.
 
 The evidence packet has a stable signature. The same packet is never reread on
 following nights, including when Gemma correctly returns silence. The overnight
 task spends no model turn unless that evidence packet has materially changed;
-it does not pre-write Story Pages. Accepted drafts persist as non-canonical
-questions, remain subject to `BookObservationLedger` and
-`BookReadingBoundary`, and surface only through `MagicMomentGovernor`.
+it does not pre-write Story Pages. Accepted cautious readings remain
+non-canonical questions subject to `BookObservationLedger`,
+`BookReadingBoundary`, and `MagicMomentGovernor`. Only the stricter
+interpretation receipt may become durable Book opinion state; only the stricter
+cross-history receipt may become a rare characteristic surprise. Neither causes
+a daytime model call.
 
 **The Thread Between** is an additional, higher-evidence Book Notices page. It
 does not replace the general notice. It quotes and narrates either a strong
@@ -4190,9 +4225,9 @@ and versioned multi-vector Sensory Folios feed literary continuity; Book
 Remembered can show Then / Today;
 observations persist as conversations with exact hard boundaries; and an
 irregular session governor gives earned readings privileged, non-clockwork
-arrival on the desk. The charging-only night reader can now add cautious local
-Gemma interpretations to frozen evidence packets without inventing citations or
-showing them outside that same governor.
+arrival on the desk. The charging-only interpretation forge can now turn frozen
+evidence packets into correctable opinions and rare cross-history reframes,
+while cautious questions still remain inside that same governor.
 
 That reader layer now connects across media and across time rather than merely
 retrieving adjacent pages. `SensoryLoom` can recognize when a photograph's

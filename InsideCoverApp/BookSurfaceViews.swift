@@ -9722,7 +9722,13 @@ struct OnboardingFlowView: View {
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            TextField("The mug looked offended by the cold coffee...", text: firstPressTextBinding, axis: .vertical)
+            TextField(
+                "",
+                text: firstPressTextBinding,
+                prompt: Text("The mug looked offended by the cold coffee...")
+                    .foregroundStyle(BookPalette.ink.opacity(0.52)),
+                axis: .vertical
+            )
                 .font(.system(.title3, design: .serif).weight(.semibold))
                 .foregroundStyle(BookPalette.ink)
                 .textFieldStyle(.plain)
@@ -12351,7 +12357,13 @@ struct OnboardingFlowView: View {
     }
 
 	    private func onboardingField(_ placeholder: String, text: Binding<String>) -> some View {
-	        TextField(placeholder, text: text, axis: .vertical)
+	        TextField(
+                "",
+                text: text,
+                prompt: Text(placeholder)
+                    .foregroundStyle(BookPalette.ink.opacity(0.52)),
+                axis: .vertical
+            )
 	            .font(.system(.title3, design: .serif))
 	            .foregroundStyle(BookPalette.ink)
 	            .textFieldStyle(.plain)
