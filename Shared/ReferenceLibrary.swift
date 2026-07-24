@@ -211,8 +211,11 @@ struct SelfKnowledgePack: Identifiable, Codable, Equatable {
 
 enum SelfKnowledgePackRegistry {
     static let corePackID = "core-self-knowledge"
-    static let maxAboutYouFactsPerDay = 3
-    static let minimumHoursBetweenAboutYouFacts = 3
+    /// You Pages are voluntary conversation, so the ceiling can be generous
+    /// without turning them into onboarding. The Curator still decides whether
+    /// an About You Page belongs on the desk at all.
+    static let maxAboutYouFactsPerDay = 5
+    static let minimumHoursBetweenAboutYouFacts = 1
     static let maxInterestFacts = 7
 
     static let bundledPacks: [SelfKnowledgePack] = [
@@ -239,14 +242,11 @@ enum SelfKnowledgePackRegistry {
     }
 
     static func exampleLines(for question: AboutYouQuestion) -> [String] {
-        guard question.id == "rut-signal" else { return [] }
-        return [
-            "Whole weeks are happening, but I couldn't tell you what I did.",
-            "I keep opening my phone without knowing why.",
-            "Figuring out dinner feels like a major administrative task.",
-            "When plans get canceled, relief arrives before disappointment.",
-            "Things I usually like feel weirdly flavorless."
-        ]
+        suggestedAnswers[question.id] ?? []
+    }
+
+    static func choicePrompt(for question: AboutYouQuestion) -> String {
+        question.id == "rut-signal" ? "WHICH LINE FOUND YOU?" : "A FEW ANSWERS TO TRY ON"
     }
 
     static func packName(for packID: String) -> String {
@@ -308,6 +308,15 @@ enum SelfKnowledgePackRegistry {
         if question.tags.contains("wonder-entry") {
             return "The Book will start near \(trimmed) when wonder needs to feel easy."
         }
+        if question.tags.contains("boundary") || question.tags.contains("constraint") {
+            return "The Book will treat this as a real edge, not a challenge to overcome: \(trimmed)."
+        }
+        if question.tags.contains("rhythm") || question.tags.contains("energy-window") {
+            return "The Book will keep this rhythm in mind when deciding what kind of Page can honestly fit: \(trimmed)."
+        }
+        if question.tags.contains("people") || question.tags.contains("company") {
+            return "The Book will use this to shape invitations involving other people without turning it into a rule: \(trimmed)."
+        }
         switch question.sensitivity {
         case .identity:
             return "The Book may call you \(trimmed) when the page needs to remember who is holding it."
@@ -345,7 +354,59 @@ enum SelfKnowledgePackRegistry {
         question("belief", "What do you believe in, even on tired days?", "One sturdy sentence for the shelf.", "Kindness, curiosity, making things, second chances...", .values, .storyOnly, ["values", "belief"], 68),
         question("protect", "What do you protect?", "The Story Page will need to know what has weight.", "People, time, wonder, honesty, softness, the work...", .values, .storyOnly, ["values", "protection"], 62),
         question("becoming", "What kind of person are you trying to become?", "Not as homework. As a north star.", "Braver, gentler, more alive, less hidden...", .values, .storyOnly, ["growth", "values"], 58),
-        question("story-role", "What role do you usually play in a group?", "Every story field has patterns. This one can learn yours gently.", "Guide, comic relief, caretaker, scout, skeptic...", .story, .storyOnly, ["story", "role"], 52)
+        question("story-role", "What role do you usually play in a group?", "Every story field has patterns. This one can learn yours gently.", "Guide, comic relief, caretaker, scout, skeptic...", .story, .storyOnly, ["story", "role"], 52),
+        question("favorite-weather", "What weather makes you more yourself?", "Not the weather you think you should admire. The one that changes the flavor of being alive.", "Cold sun. Thunder. First snow. Rain against a window...", .delight, .privateContext, ["weather", "delight", "wonder-affinity"], 75)
+        ,question("sensory-door", "Which sense finds wonder first for you?", "The Book can knock on the door that already has a loose hinge.", "Sound. Color. Texture. Smell. Taste. Movement...", .delight, .privateContext, ["sense", "wonder-affinity", "curation"], 74)
+        ,question("best-time", "What part of the day still feels like yours?", "The clock and your life are not always telling the same story.", "Early morning. Lunch. Dusk. After everyone sleeps...", .comfort, .privateContext, ["rhythm", "energy-window", "time"], 73)
+        ,question("energy-window", "When does a little adventure feel easiest?", "The Curator would rather meet an open door than push on a locked one.", "Before work. On lunch. After dinner. Weekends. It changes...", .comfort, .privateContext, ["rhythm", "energy-window", "curation"], 72)
+        ,question("ordinary-ritual", "What tiny ritual already makes a day feel like yours?", "The Book is very interested in ceremonies nobody else knows are ceremonies.", "A certain mug. Music while cooking. Walking the long way...", .delight, .storyOnly, ["ritual", "delight", "daily-life"], 71)
+        ,question("comfort-object", "Which ordinary object has quietly joined your side?", "Objects are allowed to become characters here. Some have already been auditioning.", "A blanket. A pen. A battered pan. The chair by the window...", .delight, .storyOnly, ["object", "comfort", "animism", "story-seed"], 70)
+        ,question("small-luxury", "What tiny luxury works embarrassingly well on you?", "No defense is required. Delight has terrible taste and excellent instincts.", "Fancy soap. The good cup. Hotel sheets. Fries in the car...", .delight, .privateContext, ["delight", "comfort", "low-friction"], 69)
+        ,question("tiny-mischief", "What harmless rule do you most enjoy bending?", "The Book needs to know where your grin keeps its spare key.", "Dessert first. Taking the scenic route. Reading past bedtime...", .story, .storyOnly, ["mischief", "play", "dehabituation", "story-seed"], 68)
+        ,question("secret-skill", "What are you oddly good at?", "Not résumé good. The peculiar competency friends discover by accident.", "Packing a car. Finding the best thing on a menu. Naming dogs...", .delight, .storyOnly, ["skill", "identity", "story-seed"], 67)
+        ,question("unfinished-curiosity", "What question has followed you for years?", "An unanswered question can be a room rather than a problem.", "A family mystery. How birds navigate. What makes a place feel sacred...", .story, .storyOnly, ["curiosity", "question", "story-seed"], 66)
+        ,question("favorite-kind-of-place", "What kind of place makes you look up?", "The Curator wants the shape, not an address.", "Old libraries. Diners. Harbors. Hardware stores. Deep woods...", .delight, .privateContext, ["place", "wonder-affinity", "curation"], 65)
+        ,question("place-to-return", "Where would you happily go for no efficient reason?", "A useful place gets errands. A beloved place is allowed to get returns.", "A bench. A bookstore. A neighborhood. A stretch of water...", .delight, .privateContext, ["place", "return", "delight"], 64)
+        ,question("person-laugh", "Who changes the sound of your laugh?", "The Book does not need their whole biography. Just the kind of gravity they alter.", "A friend. A sibling. A coworker. Someone no longer nearby...", .identity, .privateContext, ["people", "relationship", "delight"], 63)
+        ,question("person-adventure", "Who would understand a very small adventure?", "Company changes what a door costs to open.", "Someone specific. Whoever is free. Nobody—I like going alone...", .identity, .privateContext, ["people", "company", "wonder-compass"], 62)
+        ,question("care-language", "How can someone make you feel cared for without making a speech?", "Small evidence is often more legible than declarations.", "Bring food. Remember a detail. Sit nearby. Make me laugh...", .comfort, .storyOnly, ["people", "care", "relationship"], 61)
+        ,question("social-energy", "When wonder appears, do you want company?", "The honest answer may change by day. Give the Book the usual weather.", "Usually alone. One person. A small group. Whoever is already there...", .comfort, .privateContext, ["people", "company", "social", "curation"], 60)
+        ,question("alone-shape", "What kind of being alone feels good?", "Solitude and isolation wear similar coats. The Book should learn the difference.", "Making something. Wandering. Reading near other people. Complete quiet...", .comfort, .storyOnly, ["solitude", "comfort", "rest"], 59)
+        ,question("weekend-texture", "What should a good free afternoon feel like?", "Not what it should accomplish. What texture tells you it belonged to you?", "Spacious. Playful. Unplanned. Productive in a satisfying way...", .delight, .privateContext, ["rhythm", "weekend", "delight"], 58)
+        ,question("transition-hard", "Which ordinary transition steals the most color?", "The Book can make smaller asks near a difficult hinge.", "Waking up. Leaving work. Starting dinner. Sunday evening...", .comfort, .privateContext, ["rhythm", "transition", "constraint", "curation"], 57)
+        ,question("leaving-home", "How should the Book treat leaving home?", "An outward door is not automatically the right door.", "Usually welcome. Ask gently. Only when I choose it. Keep wonder indoors...", .comfort, .privateContext, ["boundary", "constraint", "home", "curation"], 56)
+        ,question("movement-access", "What should physical invitations understand about you?", "Give the Book a practical edge. It will not turn access into atmosphere.", "Short distances. Seated options. No stairs. Movement is welcome. Ask each time...", .comfort, .privateContext, ["boundary", "constraint", "access", "curation"], 55)
+        ,question("time-budget", "How much time can a tiny adventure usually borrow?", "The Book would rather fit inside ten honest minutes than invent an imaginary afternoon.", "One minute. Ten minutes. Half an hour. It depends on the day...", .comfort, .privateContext, ["boundary", "constraint", "time", "curation"], 54)
+        ,question("money-boundary", "How should invitations treat spending money?", "Wonder does not get to disguise shopping as medicine.", "Free by default. A few dollars is fine. Ask first. Spending is welcome...", .comfort, .privateContext, ["boundary", "constraint", "budget", "curation"], 53)
+        ,question("story-no", "What should never become story material?", "A closed door is useful knowledge. The Book does not need to rattle it.", "Work. Family. Health. A person. Nothing comes to mind yet...", .comfort, .doNotUse, ["boundary", "story", "privacy"], 52)
+        ,question("childhood-wonder", "What fascinated you before usefulness got involved?", "Childhood is not automatically truer, but it remembers some doors adulthood painted over.", "Rocks. Ghost stories. Trains. Drawing maps. Taking things apart...", .story, .storyOnly, ["childhood", "wonder", "story-seed"], 51)
+        ,question("lost-interest", "What did you once love that has gone quiet?", "The Book may remember it without assigning you a resurrection project.", "A craft. A game. A subject. A place. A version of going out...", .story, .storyOnly, ["interest", "return", "memory"], 50)
+        ,question("desired-surprise", "What kind of surprise almost always works on you?", "Surprise is not one flavor. The Curator should stop pretending it is.", "A strange fact. A beautiful place. A joke. A message. A tiny challenge...", .delight, .privateContext, ["surprise", "wonder-affinity", "curation"], 49)
+        ,question("current-question", "What are you quietly trying to understand lately?", "It does not need to become a goal. Questions can simply tint the margins.", "A relationship. A decision. A craft. My own attention. Something unnamed...", .story, .storyOnly, ["question", "current-season", "story-seed"], 48)
+        ,question("life-chapter", "If this stretch of life had a chapter title, what would it be?", "Working title only. The Book owns an eraser.", "The Rebuilding. Too Many Tabs. Learning the Coastline. Intermission...", .story, .storyOnly, ["current-season", "story", "state-not-identity"], 47)
+        ,question("thing-not-to-optimize", "What part of life do you refuse to optimize?", "Excellent. Efficiency has been getting above itself.", "Cooking. Friendship. Reading. Wandering. The way I make coffee...", .values, .storyOnly, ["values", "dehabituation", "protection"], 46)
+        ,question("favorite-object", "What object would you save for sentimental reasons?", "The answer tells stories utility cannot tell.", "A letter. A chipped bowl. A coat. A tool. Something ridiculous...", .story, .storyOnly, ["object", "memory", "story-seed"], 45)
+    ]
+
+    private static let suggestedAnswers: [String: [String]] = [
+        "rut-signal": [
+            "Whole weeks are happening, but I couldn't tell you what I did.",
+            "I keep opening my phone without knowing why.",
+            "Figuring out dinner feels like a major administrative task.",
+            "When plans get canceled, relief arrives before disappointment.",
+            "Things I usually like feel weirdly flavorless."
+        ],
+        "wonder-entry": ["Odd details", "A pocket adventure", "Making something", "People", "Quiet"],
+        "favorite-weather": ["Cold bright sun", "Rain against a window", "A thunderstorm", "The first real snow", "Warm wind after dark"],
+        "sensory-door": ["Sound", "Color", "Texture", "Smell", "Movement"],
+        "best-time": ["Early morning", "The middle of the day", "Dusk", "Late night", "It changes"],
+        "energy-window": ["Before work", "At lunch", "After dinner", "Weekends", "It changes too much to name"],
+        "social-energy": ["Usually alone", "With one person", "With a small group", "Whoever is already there", "Ask me that day"],
+        "leaving-home": ["Usually welcome", "Ask gently", "Only when I choose it", "Keep wonder indoors", "It depends on the day"],
+        "movement-access": ["Short distances", "Seated options", "No stairs", "Movement is welcome", "Ask me each time"],
+        "time-budget": ["One minute", "Ten minutes", "Half an hour", "A whole afternoon", "Ask me that day"],
+        "money-boundary": ["Free by default", "A few dollars is fine", "Ask first", "Spending is welcome", "It depends"],
+        "desired-surprise": ["A strange fact", "A beautiful place", "A joke", "A message from someone", "A tiny challenge"]
     ]
 
     private static func question(
@@ -588,13 +649,23 @@ enum QuipPackRegistry {
     }
 
     static func quip(for day: BookDay, now: Date, tags: [String] = []) -> QuipEntry {
+        rankedQuips(for: day, now: now, tags: tags, limit: 1).first
+            ?? QuipEntry(id: "fallback", text: "The Book found a small bright thing and kept it.", title: "Filed Under Wonder", tags: ["wonder"], packID: corePackID, weight: 1)
+    }
+
+    static func rankedQuips(
+        for day: BookDay,
+        now: Date,
+        tags: [String] = [],
+        limit: Int = 4
+    ) -> [QuipEntry] {
         let tagSet = Set(tags.map { $0.lowercased() })
         let wantsShadow = tagSet.contains("shadow-wonder") || tagSet.contains("shadow")
         let quips = enabledPacks.flatMap(\.quips).filter { quip in
             wantsShadow || !quip.tags.map { $0.lowercased() }.contains("shadow-wonder")
         }
         guard !quips.isEmpty else {
-            return QuipEntry(id: "fallback", text: "The Book found a small bright thing and kept it.", title: "Filed Under Wonder", tags: ["wonder"], packID: corePackID, weight: 1)
+            return [QuipEntry(id: "fallback", text: "The Book found a small bright thing and kept it.", title: "Filed Under Wonder", tags: ["wonder"], packID: corePackID, weight: 1)]
         }
         let slot = SurfaceCadence.slotID(for: now, hours: 3)
         let seed = abs("\(day.id)-\(slot)-\(tags.joined(separator: ","))".stableHash)
@@ -608,11 +679,11 @@ enum QuipPackRegistry {
                 let tags = Set($0.0.tags.map { $0.lowercased() })
                 return !tags.intersection(["shadow-wonder", "shadow", "night", "old", "history"]).isEmpty
             }
-            if let pick = shadowQuips.sorted(by: { $0.1 > $1.1 }).first?.0 {
-                return pick
+            if !shadowQuips.isEmpty {
+                return shadowQuips.sorted(by: { $0.1 > $1.1 }).prefix(max(1, limit)).map(\.0)
             }
         }
-        return ranked.sorted { $0.1 > $1.1 }.first?.0 ?? quips[seed % quips.count]
+        return ranked.sorted { $0.1 > $1.1 }.prefix(max(1, limit)).map(\.0)
     }
 
     private static let coreQuips: [QuipEntry] = [
@@ -762,9 +833,8 @@ enum QuoteLibraryRegistry {
     }
 
     static func quote(for day: BookDay, now: Date, tags: [String] = []) -> QuoteEntry {
-        let quotes = allQuotes
-        guard !quotes.isEmpty else {
-            return QuoteEntry(
+        rankedQuotes(for: day, now: now, tags: tags, limit: 1).first
+            ?? QuoteEntry(
                 id: "fallback",
                 text: "Attention is the beginning of devotion.",
                 author: "Mary Oliver",
@@ -774,6 +844,26 @@ enum QuoteLibraryRegistry {
                 packID: corePackID,
                 weight: 1
             )
+    }
+
+    static func rankedQuotes(
+        for day: BookDay,
+        now: Date,
+        tags: [String] = [],
+        limit: Int = 4
+    ) -> [QuoteEntry] {
+        let quotes = allQuotes
+        guard !quotes.isEmpty else {
+            return [QuoteEntry(
+                id: "fallback",
+                text: "Attention is the beginning of devotion.",
+                author: "Mary Oliver",
+                source: "Upstream",
+                theme: "Attention",
+                tags: ["attention", "wonder"],
+                packID: corePackID,
+                weight: 1
+            )]
         }
         let tagSet = Set(tags.map { $0.lowercased() })
         // Rotate a few times a day, but slower than quips: a good line wants to be
@@ -785,7 +875,7 @@ enum QuoteLibraryRegistry {
             let jitter = abs((seed &+ index &* 2971).stableScramble % 1000)
             return (quote, overlap * 22 + quote.weight * 4 + jitter)
         }
-        return ranked.sorted { $0.1 > $1.1 }.first?.0 ?? quotes[seed % quotes.count]
+        return ranked.sorted { $0.1 > $1.1 }.prefix(max(1, limit)).map(\.0)
     }
 
     static func quote(id: String) -> QuoteEntry? {
@@ -918,9 +1008,8 @@ enum AffirmationLibraryRegistry {
     }
 
     static func affirmation(for day: BookDay, now: Date, tags: [String] = []) -> AffirmationEntry {
-        let affirmations = allAffirmations
-        guard !affirmations.isEmpty else {
-            return AffirmationEntry(
+        rankedAffirmations(for: day, now: now, tags: tags, limit: 1).first
+            ?? AffirmationEntry(
                 id: "fallback",
                 text: "You opened the Book today. That already counts.",
                 aside: "It counts double on the days it was hard to.",
@@ -931,6 +1020,27 @@ enum AffirmationLibraryRegistry {
                 packID: corePackID,
                 weight: 1
             )
+    }
+
+    static func rankedAffirmations(
+        for day: BookDay,
+        now: Date,
+        tags: [String] = [],
+        limit: Int = 4
+    ) -> [AffirmationEntry] {
+        let affirmations = allAffirmations
+        guard !affirmations.isEmpty else {
+            return [AffirmationEntry(
+                id: "fallback",
+                text: "You opened the Book today. That already counts.",
+                aside: "It counts double on the days it was hard to.",
+                countersigns: ["Ok.", "Taken to heart."],
+                placeholder: "One line back, if you'd like. The margin listens.",
+                theme: "Enough",
+                tags: ["gentle", "enough"],
+                packID: corePackID,
+                weight: 1
+            )]
         }
         let tagSet = Set(tags.map { $0.lowercased() })
         // A hard day gets a gift, never homework disguised as encouragement.
@@ -951,8 +1061,7 @@ enum AffirmationLibraryRegistry {
             let jitter = abs((seed &+ index &* 3517).stableScramble % 17)
             return (entry, overlap * 22 + entry.weight * 4 + jitter)
         }
-        return ranked.sorted { $0.1 > $1.1 }.first?.0
-            ?? eligibleAffirmations[seed % eligibleAffirmations.count]
+        return ranked.sorted { $0.1 > $1.1 }.prefix(max(1, limit)).map(\.0)
     }
 
     static func affirmation(id: String) -> AffirmationEntry? {
@@ -2001,20 +2110,41 @@ struct QuipPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
-        var pages = [quipSurface(for: day, context: context, inputs: inputs, now: now, manual: false)]
-        if ShadowWonder.state(inputs: inputs, now: now).isActive {
-            pages.append(
+        let baseTags = referenceTags(inputs: inputs)
+        let shadowActive = ShadowWonder.state(inputs: inputs, now: now).isActive
+        let brightLimit = shadowActive ? 2 : 4
+        var pages = QuipPackRegistry.rankedQuips(
+            for: day,
+            now: now,
+            tags: baseTags,
+            limit: brightLimit
+        ).map {
+            quipSurface(for: day, context: context, inputs: inputs, now: now, manual: false, selectedQuip: $0)
+        }
+        if shadowActive {
+            let brightID = pages.first?.id
+            pages += QuipPackRegistry.rankedQuips(
+                for: day,
+                now: now,
+                tags: baseTags + ShadowWonder.tags(inputs: inputs, now: now),
+                limit: 2
+            ).map {
                 quipSurface(
                     for: day,
                     context: context,
                     inputs: inputs,
                     now: now,
                     manual: false,
-                    shadowVariantOf: pages[0].id
+                    selectedQuip: $0,
+                    shadowVariantOf: brightID
                 )
-            )
+            }
         }
-        return pages
+        var seen = Set<String>()
+        return pages.filter { page in
+            guard let id = page.payload.metadata["quipID"] else { return true }
+            return seen.insert(id).inserted
+        }
     }
 
     private func quipSurface(
@@ -2023,6 +2153,7 @@ struct QuipPageSourceAdapter: BookPageSourceAdapter {
         inputs: BookSourceInputs,
         now: Date,
         manual: Bool,
+        selectedQuip: QuipEntry? = nil,
         shadowVariantOf: String? = nil
     ) -> SurfacePage {
         let isShadowVariant = shadowVariantOf != nil
@@ -2035,7 +2166,7 @@ struct QuipPageSourceAdapter: BookPageSourceAdapter {
             .compactMap(\.self)
             .flatMap { $0.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init) }
             + (isShadowVariant ? ShadowWonder.tags(inputs: inputs, now: now) : [])
-        let quip = QuipPackRegistry.quip(
+        let quip = selectedQuip ?? QuipPackRegistry.quip(
             for: day,
             now: manual ? now.addingTimeInterval(Double(Int.random(in: 1...10_000))) : now,
             tags: tags
@@ -2072,6 +2203,16 @@ struct QuipPageSourceAdapter: BookPageSourceAdapter {
             )
         )
     }
+
+    private func referenceTags(inputs: BookSourceInputs) -> [String] {
+        [
+            inputs.weather?.phrase,
+            inputs.body?.status,
+            inputs.selectedWonderCompass?.tags.joined(separator: ",")
+        ]
+            .compactMap(\.self)
+            .flatMap { $0.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init) }
+    }
 }
 
 struct QuotesPageSourceAdapter: BookPageSourceAdapter {
@@ -2083,7 +2224,17 @@ struct QuotesPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
-        return [quoteSurface(for: day, context: context, inputs: inputs, now: now, manual: false)]
+        let tags = referenceTags(inputs: inputs)
+        return QuoteLibraryRegistry.rankedQuotes(for: day, now: now, tags: tags, limit: 4).map {
+            quoteSurface(
+                for: day,
+                context: context,
+                inputs: inputs,
+                now: now,
+                manual: false,
+                selectedQuote: $0
+            )
+        }
     }
 
     private func quoteSurface(
@@ -2091,7 +2242,8 @@ struct QuotesPageSourceAdapter: BookPageSourceAdapter {
         context: CuratorContext,
         inputs: BookSourceInputs,
         now: Date,
-        manual: Bool
+        manual: Bool,
+        selectedQuote: QuoteEntry? = nil
     ) -> SurfacePage {
         let tags = [
             inputs.weather?.phrase,
@@ -2100,7 +2252,7 @@ struct QuotesPageSourceAdapter: BookPageSourceAdapter {
         ]
             .compactMap(\.self)
             .flatMap { $0.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init) }
-        let quote = QuoteLibraryRegistry.quote(
+        let quote = selectedQuote ?? QuoteLibraryRegistry.quote(
             for: day,
             now: manual ? now.addingTimeInterval(Double(Int.random(in: 1...10_000))) : now,
             tags: tags
@@ -2139,6 +2291,16 @@ struct QuotesPageSourceAdapter: BookPageSourceAdapter {
             )
         )
     }
+
+    private func referenceTags(inputs: BookSourceInputs) -> [String] {
+        [
+            inputs.weather?.phrase,
+            inputs.body?.status,
+            inputs.selectedWonderCompass?.tags.joined(separator: ",")
+        ]
+            .compactMap(\.self)
+            .flatMap { $0.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init) }
+    }
 }
 
 struct AffirmationsPageSourceAdapter: BookPageSourceAdapter {
@@ -2150,7 +2312,22 @@ struct AffirmationsPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
-        return [affirmationSurface(for: day, context: context, inputs: inputs, now: now, manual: false)]
+        let tags = referenceTags(inputs: inputs, distressActive: context.distress.isActive)
+        return AffirmationLibraryRegistry.rankedAffirmations(
+            for: day,
+            now: now,
+            tags: tags,
+            limit: 4
+        ).map {
+            affirmationSurface(
+                for: day,
+                context: context,
+                inputs: inputs,
+                now: now,
+                manual: false,
+                selectedAffirmation: $0
+            )
+        }
     }
 
     private func affirmationSurface(
@@ -2158,7 +2335,8 @@ struct AffirmationsPageSourceAdapter: BookPageSourceAdapter {
         context: CuratorContext,
         inputs: BookSourceInputs,
         now: Date,
-        manual: Bool
+        manual: Bool,
+        selectedAffirmation: AffirmationEntry? = nil
     ) -> SurfacePage {
         var tags = [
             inputs.weather?.phrase,
@@ -2172,7 +2350,7 @@ struct AffirmationsPageSourceAdapter: BookPageSourceAdapter {
         if context.distress.isActive {
             tags += ["gentle", "hard-day", "rest", "gift"]
         }
-        let entry = AffirmationLibraryRegistry.affirmation(
+        let entry = selectedAffirmation ?? AffirmationLibraryRegistry.affirmation(
             for: day,
             now: manual ? now.addingTimeInterval(Double(Int.random(in: 1...10_000))) : now,
             tags: tags
@@ -2208,6 +2386,20 @@ struct AffirmationsPageSourceAdapter: BookPageSourceAdapter {
                 ]
             )
         )
+    }
+
+    private func referenceTags(inputs: BookSourceInputs, distressActive: Bool) -> [String] {
+        var tags = [
+            inputs.weather?.phrase,
+            inputs.body?.status,
+            inputs.selectedWonderCompass?.tags.joined(separator: ",")
+        ]
+            .compactMap(\.self)
+            .flatMap { $0.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init) }
+        if distressActive {
+            tags += ["gentle", "hard-day", "rest", "gift"]
+        }
+        return tags
     }
 }
 

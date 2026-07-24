@@ -32,6 +32,28 @@ final class OnboardingLoopTests: XCTestCase {
         XCTAssertTrue(BookSchedule.shouldAutoBraid(date(1, hour: 22)))
     }
 
+    func testAutomaticBraidClockTargetsTonightBeforeThreshold() {
+        let next = BookSchedule.nextAutoBraidDate(after: date(1, hour: 18))
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: next)
+
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 7)
+        XCTAssertEqual(components.day, 1)
+        XCTAssertEqual(components.hour, 21)
+        XCTAssertEqual(components.minute, 30)
+    }
+
+    func testAutomaticBraidClockTargetsTomorrowAfterThreshold() {
+        let next = BookSchedule.nextAutoBraidDate(after: date(1, hour: 22))
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: next)
+
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 7)
+        XCTAssertEqual(components.day, 2)
+        XCTAssertEqual(components.hour, 21)
+        XCTAssertEqual(components.minute, 30)
+    }
+
     // MARK: - First-braid session-one exception
 
     func testFirstEverBraidMayCloseTheLoopInSessionOne() {

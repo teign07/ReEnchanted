@@ -18,14 +18,15 @@ final class QuillCompanionTests: XCTestCase {
     }
 
     private func hedgingPages() -> [BookPage] {
-        (0..<6).map { index in
-            souvenir("Maybe it was the rain today, I think, or sort of the light", on: 1, hour: 8 + index)
+        (0..<10).map { index in
+            souvenir("Maybe it was the rain today, I think, or sort of the light", on: 1 + (index % 4), hour: 8 + index)
         }
     }
 
     private func inputs(with pages: [BookPage], quill: ChosenQuill? = nil) -> BookSourceInputs {
         var inputs = BookSourceInputs.empty
-        inputs.days = [BookDay(id: "2026-07-01", date: date(1), pages: pages)]
+        inputs.days = Dictionary(grouping: pages) { BookDay.id(for: $0.createdAt) }
+            .map { id, pages in BookDay(id: id, date: pages[0].createdAt, pages: pages) }
         inputs.chosenQuill = quill
         return inputs
     }
@@ -105,7 +106,7 @@ final class QuillCompanionTests: XCTestCase {
     // MARK: - The choosing page
 
     func testChoosingSurfacesForMatureLibrary() {
-        let surfaced = candidates(inputs(with: hedgingPages()), now: date(1, hour: 20))
+        let surfaced = candidates(inputs(with: hedgingPages()), now: date(6, hour: 20))
         XCTAssertEqual(surfaced.count, 1)
         let page = surfaced[0]
         XCTAssertEqual(page.type, .castBond)
@@ -125,8 +126,8 @@ final class QuillCompanionTests: XCTestCase {
         // The same archive (same page ids) must present the same instrument,
         // however many days pass between offers.
         let pages = hedgingPages()
-        let first = candidates(inputs(with: pages), now: date(1, hour: 20))
-        let second = candidates(inputs(with: pages), now: date(4, hour: 9))
+        let first = candidates(inputs(with: pages), now: date(6, hour: 20))
+        let second = candidates(inputs(with: pages), now: date(9, hour: 9))
         XCTAssertEqual(
             first.first?.payload.metadata["quillName"],
             second.first?.payload.metadata["quillName"],
@@ -137,6 +138,14 @@ final class QuillCompanionTests: XCTestCase {
     func testChoosingWaitsForEnoughProse() {
         let surfaced = candidates(inputs(with: Array(hedgingPages().prefix(5))), now: date(1, hour: 20))
         XCTAssertTrue(surfaced.isEmpty)
+    }
+
+    func testChoosingWaitsForTheHandToAgeAcrossDays() {
+        let sameDay = (0..<10).map {
+            souvenir("Maybe the window kept changing its mind about the rain \($0).", on: 1, hour: 8 + $0)
+        }
+        XCTAssertTrue(candidates(inputs(with: sameDay), now: date(6, hour: 20)).isEmpty)
+        XCTAssertTrue(candidates(inputs(with: hedgingPages()), now: date(4, hour: 20)).isEmpty)
     }
 
     func testChoosingDoesNotRepeatAfterKept() {
@@ -155,7 +164,7 @@ final class QuillCompanionTests: XCTestCase {
     }
 
     func testChoosingPromptIsNotTheGenericTwoCastPrompt() throws {
-        let page = try XCTUnwrap(candidates(inputs(with: hedgingPages()), now: date(1, hour: 20)).first)
+        let page = try XCTUnwrap(candidates(inputs(with: hedgingPages()), now: date(6, hour: 20)).first)
         let prompt = QuillChoosing.generationPrompt(surface: page)
         let quillJSON = try XCTUnwrap(page.payload.metadata[QuillChoosing.metadataKey])
         let quill = try JSONDecoder().decode(ChosenQuill.self, from: Data(quillJSON.utf8))

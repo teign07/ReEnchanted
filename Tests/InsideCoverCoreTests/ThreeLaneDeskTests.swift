@@ -259,7 +259,7 @@ final class ThreeLaneDeskTests: XCTestCase {
 
     // MARK: - Discovery law
 
-    func testExactRepeatNeedsBeliefButNewActualPageDoesNot() {
+    func testExactRepeatRestsLongerAtLowBeliefButNewActualPageDoesNot() {
         let now = fixedDate(hour: 12)
         let repeated = candidate(.letter, score: 96, sourceID: "letters", copy: "The same old letter")
         let fresh = candidate(.letter, score: 24, id: "fresh-letter", sourceID: "letters", copy: "A genuinely different letter")
@@ -283,7 +283,7 @@ final class ThreeLaneDeskTests: XCTestCase {
         XCTAssertEqual(pages.map(\.id), ["fresh-letter"])
     }
 
-    func testInvestedBeliefAllowsAnExactPageToReturn() {
+    func testInvestedBeliefShortensAnExactPagesRest() {
         let now = fixedDate(hour: 12)
         let repeated = candidate(.letter, score: 40, sourceID: "letters", copy: "A beloved letter")
         var mood = openMood(types: [.letter])
@@ -342,7 +342,7 @@ final class ThreeLaneDeskTests: XCTestCase {
         XCTAssertEqual(Set(pages.map(\.type.deskLane)), Set(DeskLane.allCases))
     }
 
-    func testCuratorTraceExplainsUninvestedExactRepeat() throws {
+    func testCuratorTraceExplainsRestingExactRepeat() throws {
         let now = fixedDate(hour: 12)
         let repeated = candidate(.lore, score: 80, sourceID: "lore", copy: "The same lore")
         var mood = openMood(types: [.lore])
@@ -355,6 +355,6 @@ final class ThreeLaneDeskTests: XCTestCase {
 
         XCTAssertFalse(trace.isNewContent)
         XCTAssertEqual(trace.lane, .other)
-        XCTAssertEqual(trace.rejection, "exact-repeat-needs-belief")
+        XCTAssertEqual(trace.rejection, "exact-repeat-resting")
     }
 }

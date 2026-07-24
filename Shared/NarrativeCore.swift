@@ -1475,8 +1475,23 @@ enum StoryConsequenceResolver {
         guard page.type == .narrativeOS || page.type == .academyClass || page.type == .anchor || page.type == .bookFae else {
             return []
         }
+        let receipts = StoryDramaticOutcomeReceipt.receipts(in: page.tags)
+        var usedReceipts: [String: Int] = [:]
         return storyChoiceIDs(in: page)
-            .map { resolvedConsequence(forChoiceID: $0, page: page, world: world, bundles: bundles) }
+            .map { choiceID in
+                let normalized = StoryTurnLanding.normalizedChoiceID(choiceID)
+                let matches = receipts.filter { StoryTurnLanding.normalizedChoiceID($0.choiceID) == normalized }
+                let used = usedReceipts[normalized, default: 0]
+                let receipt = matches.isEmpty ? nil : matches[min(used, matches.count - 1)]
+                usedReceipts[normalized] = used + 1
+                return resolvedConsequence(
+                    forChoiceID: choiceID,
+                    page: page,
+                    world: world,
+                    bundles: bundles,
+                    dramaticReceipt: receipt
+                )
+            }
             .filter { !$0.isEmpty }
     }
 
@@ -1485,6 +1500,25 @@ enum StoryConsequenceResolver {
         page: BookPage,
         world: StoryConsequenceWorldSnapshot = StoryConsequenceWorldSnapshot(),
         bundles: [StoryConsequenceBundle] = StoryConsequenceRegistry.bundles
+    ) -> StoryResolvedConsequence {
+        let receipt = StoryDramaticOutcomeReceipt.receipts(in: page.tags).first {
+            StoryTurnLanding.normalizedChoiceID($0.choiceID) == StoryTurnLanding.normalizedChoiceID(choiceID)
+        }
+        return resolvedConsequence(
+            forChoiceID: choiceID,
+            page: page,
+            world: world,
+            bundles: bundles,
+            dramaticReceipt: receipt
+        )
+    }
+
+    private static func resolvedConsequence(
+        forChoiceID choiceID: String,
+        page: BookPage,
+        world: StoryConsequenceWorldSnapshot,
+        bundles: [StoryConsequenceBundle],
+        dramaticReceipt: StoryDramaticOutcomeReceipt?
     ) -> StoryResolvedConsequence {
         var resolved = StoryResolvedConsequence(choiceID: choiceID)
         let context = Context(page: page, choiceID: choiceID)
@@ -1503,7 +1537,53 @@ enum StoryConsequenceResolver {
                 ))
             }
         }
+        if let dramaticReceipt {
+            apply(dramaticReceipt, to: &resolved)
+        }
         return resolved
+    }
+
+    /// Applies the exact emotional state transition promised before prose. The
+    /// pack-authored consequence system still adds motifs and arc movement;
+    /// this receipt is the non-negotiable character/relationship truth beneath
+    /// those broader effects.
+    private static func apply(_ receipt: StoryDramaticOutcomeReceipt, to resolved: inout StoryResolvedConsequence) {
+        resolved.bundleIDs.append("dramatic-outcome-v\(receipt.version)")
+        for entityID in Set([receipt.leadCharacterID, receipt.reactorID]) where !entityID.isEmpty && entityID != "the-book" {
+            resolved.entityWeightDeltas[entityID, default: 0] += 1
+        }
+        if !receipt.relationshipID.isEmpty {
+            resolved.relationshipWeightDeltas[receipt.relationshipID, default: 0] += 1
+        }
+        let pair = Array(Set([receipt.leadCharacterID, receipt.otherCharacterID]).filter { !$0.isEmpty }).sorted()
+        if pair.count >= 2 {
+            resolved.relationshipTieDeltas.append(StoryRelationshipTieDelta(
+                entityIDs: pair,
+                warmth: receipt.warmthDelta,
+                tension: receipt.tensionDelta,
+                familiarity: receipt.familiarityDelta
+            ))
+        }
+        if !receipt.reactorID.isEmpty, receipt.reactorID != "the-book", !receipt.memorySummary.isEmpty {
+            resolved.entityMemoryWrites.append(NarrativeEntityMemoryWrite(
+                entityID: receipt.reactorID,
+                summary: receipt.memorySummary,
+                tags: [
+                    "story-dramatic-outcome",
+                    "story-recipe:\(receipt.recipeID)",
+                    "story-turn:\(receipt.turnKind.rawValue)",
+                    "story-choice:\(StoryTurnLanding.normalizedChoiceID(receipt.choiceID))"
+                ],
+                narrativeWeight: 7
+            ))
+        }
+        resolved.eventTags.append(contentsOf: [
+            "story-character-reacted",
+            "story-relationship-changed",
+            "story-reactor:\(receipt.reactorID)",
+            "story-turn:\(receipt.turnKind.rawValue)",
+            "story-recipe:\(receipt.recipeID)"
+        ])
     }
 
     static func resolvedConsequence(for choice: StorySceneChoice, packet: StoryScenePacket) -> StoryResolvedConsequence {
@@ -3561,6 +3641,11 @@ enum NarrativeEventResolver {
             }
             threadDeltas["ordinary-magic", default: 0] += 1
             createdHint = "A completed favor deepens what its asker will trust the player with next."
+        case .wickerDare:
+            entityDeltas["wicker-eddies", default: 0] += 2
+            threadDeltas["ordinary-magic", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+            createdHint = "A completed dare gives Wicker one true detail to call back, exaggerate, or challenge later."
         case .illustration where tags.contains("entity"):
             if let entityID = tags.first(where: { $0.hasPrefix("entity:") })?.replacingOccurrences(of: "entity:", with: "") {
                 entityDeltas[entityID, default: 0] += 3
@@ -3932,10 +4017,12 @@ enum NarrativeEntityMemoryConsolidator {
 // MARK: - The Rut of Routine
 //
 // The Labyrinth's antagonist: not a monster but a tide — apathy, the Rut,
-// the grey that takes unnoticed days. Doctrine, in order of importance:
+// the grey that can take texture out of ordinary life. Doctrine, in order:
 // 1. Under distress it does not exist. The Book is kind before it is interesting.
 // 2. It never guilts and never punishes. It makes STORY, not shame.
-// 3. It is never defeated, only understood — and held back by keeping pages.
+// 3. App silence is not evidence. The grey rises only from reader-reported Rut
+//    evidence or authored world events, never from days without a keep.
+// 4. It is never defeated, only understood — and held back by lived attention.
 enum NothingTide {
     struct RutAssessment: Equatable {
         /// 0 is kindness under distress; ordinary life otherwise begins at 1.
@@ -3948,8 +4035,8 @@ enum NothingTide {
     /// The curator assumes Routine is ordinary weather, not a failure that
     /// begins only after the reader stops using the app. Baseline pressure
     /// silently favors perspective-changing Pages. The Book may name the Rut
-    /// only when a current reader report, or a recognized Rut signal plus
-    /// corroborating quiet days, gives the hunch something firmer than absence.
+    /// only when the reader has explicitly reported it or taught the Book one
+    /// of their own Rut signals. Days without app activity never corroborate it.
     static func rutAssessment(
         inputs: BookSourceInputs,
         distressActive: Bool,
@@ -3977,22 +4064,6 @@ enum NothingTide {
             reportedPressure = depth == nil ? 0 : 1
         }
 
-        let hasKeptHistory = inputs.days.contains { !$0.capturedPages.isEmpty }
-        let archiveQuietDays = hasKeptHistory
-            ? NothingTide.quietDays(
-                in: inputs.days,
-                today: BookDay.id(for: now, calendar: calendar),
-                calendar: calendar,
-                now: now
-            )
-            : 0
-        let quietDays = max(inputs.quietDays, archiveQuietDays)
-        let quietPressure: Int
-        switch quietDays {
-        case 5...: quietPressure = 3
-        case 2...4: quietPressure = 2
-        default: quietPressure = 1
-        }
         let recognizedRut = usableFacts.contains {
             $0.questionID == "rut-signal" || $0.questionID == "rut-season"
         }
@@ -4000,19 +4071,19 @@ enum NothingTide {
         var evidence = ["ordinary-life-prior"]
         if depth != nil { evidence.append("current-reader-rut-report") }
         if recognizedRut { evidence.append("reader-recognized-rut-signal") }
-        if quietDays >= 2 { evidence.append("quiet-days:\(quietDays)") }
 
         return RutAssessment(
-            pressure: max(1, max(reportedPressure, quietPressure)),
-            mayNameRut: reportedPressure >= 2 || (recognizedRut && quietDays >= 2),
+            pressure: max(1, max(reportedPressure, recognizedRut ? 2 : 0)),
+            mayNameRut: reportedPressure >= 2 || recognizedRut,
             evidence: evidence
         )
     }
 
-    /// 0 = quiet (pages are being kept; the grey stays in the deep stacks),
-    /// 1 = at the edges, 2 = in the margins, 3 = at the desk.
+    /// 0 = quiet, 1 = at the edges, 2 = in the margins, 3 = at the desk.
+    /// `readerRutPressure` must come from explicit reader evidence. Authored
+    /// world-state shifts can still bend the fictional weather.
     static func greyLevel(
-        quietDays: Int,
+        readerRutPressure: Int,
         narrativeHeat: Int,
         distressActive: Bool,
         celebrationGreyShift: Int = 0
@@ -4020,13 +4091,7 @@ enum NothingTide {
         if distressActive {
             return 0
         }
-        var level: Int
-        switch quietDays {
-        case ..<1: level = 0
-        case 1: level = 1
-        case 2...3: level = 2
-        default: level = 3
-        }
+        var level = max(0, min(3, readerRutPressure))
         // A hot story field pushes the grey back a step.
         if narrativeHeat >= 6, level > 0 {
             level -= 1
@@ -4037,7 +4102,26 @@ enum NothingTide {
         return max(0, min(3, level))
     }
 
-    /// Consecutive days before today with no kept pages.
+    /// Compatibility entry point for callers that still need absence for a
+    /// warm return greeting or resurfacing cadence. The value is deliberately
+    /// ignored here: time away from the app cannot raise the grey.
+    static func greyLevel(
+        quietDays _: Int,
+        narrativeHeat: Int,
+        distressActive: Bool,
+        celebrationGreyShift: Int = 0
+    ) -> Int {
+        greyLevel(
+            readerRutPressure: 0,
+            narrativeHeat: narrativeHeat,
+            distressActive: distressActive,
+            celebrationGreyShift: celebrationGreyShift
+        )
+    }
+
+    /// Consecutive days before today with no kept pages. This may tailor a
+    /// welcoming return or an archive resurfacing, but must never drive Rut,
+    /// loss, world decay, or a penalty.
     static func quietDays(in days: [BookDay], today todayID: String, calendar: Calendar = .current, now: Date = Date()) -> Int {
         var quiet = 0
         for offset in 1...7 {

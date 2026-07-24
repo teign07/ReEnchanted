@@ -2,65 +2,101 @@ import XCTest
 @testable import InsideCoverCore
 
 final class MagicMomentTests: XCTestCase {
-    func testGovernorWarmsOnlyFromDistinctMeaningfulActions() {
+    func testLivedEvidenceRequiresThreeDistinctQualifyingDays() {
         let start = Date(timeIntervalSince1970: 1_800_000_000)
-        var state = MagicMomentState()
-
-        state = MagicMomentGovernor.recordingMeaningfulAction(state, key: "keep:a", now: start)
-        XCTAssertEqual(state.sessionsSinceMoment, 1)
-        XCTAssertFalse(state.isArmed)
-
-        // Lifecycle retries and repeated delivery of the same keep do nothing.
-        state = MagicMomentGovernor.recordingMeaningfulAction(
-            state,
-            key: "keep:a",
-            now: start.addingTimeInterval(60)
-        )
-        XCTAssertEqual(state.sessionsSinceMoment, 1)
-
-        state = MagicMomentGovernor.recordingMeaningfulAction(
-            state,
-            key: "keep:b",
-            now: start.addingTimeInterval(1_300)
-        )
-        XCTAssertEqual(state.sessionsSinceMoment, 2)
-        XCTAssertFalse(state.isArmed)
-
-        state = MagicMomentGovernor.recordingMeaningfulAction(
-            state,
-            key: "compass:c",
-            now: start.addingTimeInterval(2_600)
-        )
-        XCTAssertEqual(state.sessionsSinceMoment, 3)
-        XCTAssertTrue(state.isArmed)
+        let now = start.addingTimeInterval(4 * 86_400)
+        func receipt(_ id: String, _ day: Int, _ kind: BookLongGameEvidenceKind = .spontaneousKeep) -> BookLongGameEvidence {
+            BookLongGameEvidence(id: id, capacity: .spontaneousAttention, kind: kind, line: "lived", evidencePageIDs: [id], happenedAt: start.addingTimeInterval(TimeInterval(day * 86_400)), wasPromptedByBook: false)
+        }
+        XCTAssertFalse(MagicMomentGovernor.reconcilingLivedEvidence(MagicMomentState(), evidence: [receipt("a", 0), receipt("b", 0), receipt("c", 0)], now: now).isArmed)
+        XCTAssertTrue(MagicMomentGovernor.reconcilingLivedEvidence(MagicMomentState(), evidence: [receipt("a", 0), receipt("b", 1), receipt("c", 2)], now: now).isArmed)
+        XCTAssertFalse(MagicMomentGovernor.reconcilingLivedEvidence(MagicMomentState(), evidence: [receipt("a", 0, .readerDefinition), receipt("b", 1), receipt("c", 2)], now: now).isArmed)
     }
 
-    func testGovernorPersistsUntilConsumedAndThenNeedsFreshAttention() {
+    func testLivedEvidenceDoesNotRearmAcrossConsumptionBoundary() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let state = MagicMomentState(lastMomentAt: start.addingTimeInterval(10))
+        let evidence = (0..<3).map { index in
+            BookLongGameEvidence(id: "\(index)", capacity: .spontaneousAttention, kind: .spontaneousKeep, line: "lived", evidencePageIDs: [], happenedAt: start.addingTimeInterval(TimeInterval(index)), wasPromptedByBook: false)
+        }
+        XCTAssertFalse(MagicMomentGovernor.reconcilingLivedEvidence(state, evidence: evidence, now: start.addingTimeInterval(20)).isArmed)
+    }
+
+    func testLegacyInAppActionsCannotWarmAMoment() {
         let start = Date(timeIntervalSince1970: 1_800_000_000)
         var state = MagicMomentState()
-        for action in 0..<3 {
+        for action in 0..<6 {
             state = MagicMomentGovernor.recordingMeaningfulAction(
                 state,
-                key: "keep:\(action)",
-                now: start.addingTimeInterval(TimeInterval(action * 1_300))
+                key: "screen-action:\(action)",
+                now: start.addingTimeInterval(TimeInterval(action * 60))
             )
         }
+        XCTAssertEqual(state, MagicMomentState())
+    }
 
+    func testGovernorPersistsUntilConsumedAndThenNeedsFreshLivedDays() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        func receipt(_ id: String, day: Int) -> BookLongGameEvidence {
+            BookLongGameEvidence(
+                id: id,
+                capacity: .spontaneousAttention,
+                kind: .spontaneousKeep,
+                line: "lived",
+                evidencePageIDs: [id],
+                happenedAt: start.addingTimeInterval(TimeInterval(day * 86_400)),
+                wasPromptedByBook: false
+            )
+        }
+        var state = MagicMomentGovernor.reconcilingLivedEvidence(
+            MagicMomentState(),
+            evidence: [receipt("a", day: 0), receipt("b", day: 1), receipt("c", day: 2)],
+            now: start.addingTimeInterval(3 * 86_400)
+        )
         XCTAssertTrue(state.isArmed)
         XCTAssertEqual(state.sessionsSinceMoment, 3)
 
-        state = MagicMomentGovernor.consuming(state, key: "semantic:harbor", now: start.addingTimeInterval(6_600))
+        state = MagicMomentGovernor.consuming(
+            state,
+            key: "semantic:harbor",
+            now: start.addingTimeInterval(3 * 86_400)
+        )
         XCTAssertFalse(state.isArmed)
         XCTAssertEqual(state.sessionsSinceMoment, 0)
         XCTAssertEqual(state.lastMomentKey, "semantic:harbor")
 
-        state = MagicMomentGovernor.recordingMeaningfulAction(
+        state = MagicMomentGovernor.reconcilingLivedEvidence(
             state,
-            key: "keep:fresh",
-            now: start.addingTimeInterval(7_000)
+            evidence: [
+                receipt("a", day: 0), receipt("b", day: 1), receipt("c", day: 2),
+                receipt("d", day: 4), receipt("e", day: 5)
+            ],
+            now: start.addingTimeInterval(6 * 86_400)
         )
-        XCTAssertEqual(state.sessionsSinceMoment, 1)
+        XCTAssertEqual(state.sessionsSinceMoment, 2)
         XCTAssertFalse(state.isArmed)
+    }
+
+    func testFutureDatedEvidenceCannotArm() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let evidence = (1...3).map { day in
+            BookLongGameEvidence(
+                id: "\(day)",
+                capacity: .spontaneousAttention,
+                kind: .spontaneousKeep,
+                line: "future",
+                evidencePageIDs: [],
+                happenedAt: now.addingTimeInterval(TimeInterval(day * 86_400)),
+                wasPromptedByBook: false
+            )
+        }
+        XCTAssertFalse(
+            MagicMomentGovernor.reconcilingLivedEvidence(
+                MagicMomentState(),
+                evidence: evidence,
+                now: now
+            ).isArmed
+        )
     }
 
     func testWhisperCadenceMapsToOneMorningPromptAndOneEveningReturn() {

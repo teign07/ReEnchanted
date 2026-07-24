@@ -43,41 +43,6 @@ final class MomentaryEngagementTests: XCTestCase {
         XCTAssertTrue(line.contains("thread"))
     }
 
-    func testSubstantialKeepCreatesOneCausalFollowUpThatNamesTheThread() throws {
-        let original = SurfacePage(
-            id: "original",
-            type: .diary,
-            sourceID: "diary-source",
-            prompt: "What happened?",
-            detail: "Keep one true thing."
-        )
-        let page = BookPage(
-            id: "kept-page",
-            type: .diary,
-            promptText: original.prompt,
-            userInput: "The kettle sounded like rain."
-        )
-
-        let followUp = try XCTUnwrap(MomentaryThreadFollowUp.surface(
-            after: page,
-            keptFrom: original,
-            learning: ReaderLearningModel()
-        ))
-
-        XCTAssertEqual(followUp.sourceID, MomentaryThreadFollowUp.sourceID)
-        XCTAssertEqual(followUp.payload.metadata["momentaryThreadFollowUp"], "true")
-        XCTAssertEqual(followUp.payload.metadata["threadParentPageID"], page.id)
-        let threadWord = try XCTUnwrap(followUp.payload.metadata["threadWord"])
-        XCTAssertTrue(followUp.prompt.contains(threadWord))
-        XCTAssertTrue(followUp.reason.contains("because you kept"))
-
-        XCTAssertNil(MomentaryThreadFollowUp.surface(
-            after: page,
-            keptFrom: followUp,
-            learning: ReaderLearningModel()
-        ))
-    }
-
     func testMomentumTelemetryMeasuresOpenToActionWithoutSessionTime() {
         let start = Date(timeIntervalSince1970: 1_000)
         var learning = ReaderLearningModel()

@@ -2,6 +2,56 @@ import XCTest
 @testable import InsideCoverCore
 
 final class RutSelfKnowledgeTests: XCTestCase {
+    func testProgressiveYouShelfIsBroadUniqueAndStillOptional() throws {
+        let questions = SelfKnowledgePackRegistry.questions
+        XCTAssertGreaterThanOrEqual(questions.count, 45)
+        XCTAssertEqual(Set(questions.map(\.id)).count, questions.count)
+        XCTAssertEqual(SelfKnowledgePackRegistry.maxAboutYouFactsPerDay, 5)
+        XCTAssertEqual(SelfKnowledgePackRegistry.minimumHoursBetweenAboutYouFacts, 1)
+
+        for id in ["favorite-weather", "sensory-door", "best-time", "social-energy", "leaving-home", "movement-access", "time-budget", "money-boundary", "desired-surprise"] {
+            let question = try XCTUnwrap(SelfKnowledgePackRegistry.question(id: id))
+            XCTAssertFalse(SelfKnowledgePackRegistry.exampleLines(for: question).isEmpty, "Missing choices for \(id)")
+            XCTAssertEqual(SelfKnowledgePackRegistry.choicePrompt(for: question), "A FEW ANSWERS TO TRY ON")
+        }
+        XCTAssertEqual(
+            try XCTUnwrap(SelfKnowledgePackRegistry.question(id: "story-no")).defaultUsePermission,
+            .doNotUse
+        )
+    }
+
+    func testFreshUnnamedPlaceOffersAConsentPageWithoutCoordinates() throws {
+        let now = Date(timeIntervalSince1970: 1_783_484_800)
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.currentLocationLabel = "Belfast"
+        inputs.currentPlaceNamingOpportunityID = "opaque-opportunity"
+
+        let pages = AboutYouPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+        let place = try XCTUnwrap(pages.first { $0.payload.metadata["placeNamingOffer"] == "true" })
+
+        XCTAssertEqual(place.type, .aboutYou)
+        XCTAssertEqual(place.payload.metadata["questionID"], "familiar-place-opaque-opportunity")
+        XCTAssertTrue(place.payload.metadata["exampleLines"]?.contains("Home") == true)
+        XCTAssertTrue(place.payload.metadata["exampleLines"]?.contains("Don't remember this place") == true)
+        XCTAssertFalse(place.payload.metadata.keys.contains { $0.lowercased().contains("latitude") || $0.lowercased().contains("longitude") })
+        XCTAssertFalse(place.payload.metadata.values.contains { $0.contains("54.") || $0.contains("-5.") })
+
+        inputs.currentPlaceContext = .home
+        let recognizedPages = AboutYouPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+        XCTAssertFalse(recognizedPages.contains { $0.payload.metadata["placeNamingOffer"] == "true" })
+    }
+
     func testRutQuestionsAreHighPriorityAndPlainSpoken() throws {
         let signal = try XCTUnwrap(SelfKnowledgePackRegistry.question(id: "rut-signal"))
         let depth = try XCTUnwrap(SelfKnowledgePackRegistry.question(id: "rut-depth"))
@@ -273,7 +323,7 @@ final class RutSelfKnowledgeTests: XCTestCase {
         XCTAssertTrue(mood.allows(rutWarningSurface()))
     }
 
-    func testQuietAloneShapesTheDeskButDoesNotAccuseTheReader() {
+    func testAppSilenceNeitherRaisesRutPressureNorAccusesTheReader() {
         let now = Date(timeIntervalSince1970: 1_783_484_800)
         var inputs = BookSourceInputs.empty
         inputs.quietDays = 4
@@ -284,8 +334,27 @@ final class RutSelfKnowledgeTests: XCTestCase {
             now: now
         )
 
-        XCTAssertEqual(assessment.pressure, 2)
+        XCTAssertEqual(assessment.pressure, 1)
         XCTAssertFalse(assessment.mayNameRut)
+        XCTAssertFalse(assessment.evidence.contains { $0.contains("quiet-days") })
+    }
+
+    func testReaderNamedRutSignalCanRaiseStoryPressureWithoutAppAttendanceEvidence() throws {
+        let now = Date(timeIntervalSince1970: 1_783_484_800)
+        let signal = try XCTUnwrap(SelfKnowledgePackRegistry.question(id: "rut-signal"))
+        var inputs = BookSourceInputs.empty
+        inputs.quietDays = 0
+        inputs.selfFacts = [selfFact(for: signal, answer: "Phone fog", now: now)]
+
+        let assessment = NothingTide.rutAssessment(
+            inputs: inputs,
+            distressActive: false,
+            now: now
+        )
+
+        XCTAssertEqual(assessment.pressure, 2)
+        XCTAssertTrue(assessment.mayNameRut)
+        XCTAssertTrue(assessment.evidence.contains("reader-recognized-rut-signal"))
     }
 
     func testAntiRutCurationUsesTheReadersLowFrictionWonderDoor() {

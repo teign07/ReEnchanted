@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 import CryptoKit
 import StripePaymentSheet
 import UIKit
@@ -100,8 +101,15 @@ struct BookShopSheet: View {
             $0.family != .standingOrder && !$0.comingSoon && PackEntitlements.isUnlocked($0.packID)
         }
     }
-    private var standingOrderOffer: BookShopOffer? {
-        offers.first { $0.listing.family == .standingOrder }
+    private var standingOrderOffers: [BookShopOffer] {
+        let order = Dictionary(
+            uniqueKeysWithValues: BookShopCatalog.standingOrderTiers.enumerated().map {
+                ($0.element.productID, $0.offset)
+            }
+        )
+        return offers
+            .filter { $0.listing.family == .standingOrder }
+            .sorted { (order[$0.id] ?? .max) < (order[$1.id] ?? .max) }
     }
     private var freePacks: [PageArchetypePack] {
         PageArchetypePackRegistry.bundledPacks.filter { ["nocturne-folio", "margins-and-mysteries"].contains($0.id) }
@@ -154,8 +162,10 @@ struct BookShopSheet: View {
                         shelfBlock(title: "The Paid Shelf", subtitle: merchantName.isEmpty ? "The till is waking." : merchantName, symbol: "creditcard.fill", accent: BookPalette.teal) {
                             if PackEntitlements.hasStandingOrder {
                                 standingOrderActiveCard()
-                            } else if let passOffer = standingOrderOffer {
-                                standingOrderCard(passOffer)
+                            } else {
+                                ForEach(standingOrderOffers) { offer in
+                                    standingOrderCard(offer)
+                                }
                             }
                             if !freePacks.isEmpty || !BookShopCatalog.freeGifts.isEmpty {
                                 subsectionLabel("Free Gifts")
@@ -2091,13 +2101,13 @@ struct BookShopSheet: View {
     }
 
     /// The reader's standing with the Book Fae — folded in from the old Margin:
-    /// open debts, gifts in hand, and warmth by species.
+    /// waiting exchanges, gifts in hand, and warmth by species.
     private var standingSection: some View {
-        let debts = fae.bargains.filter { $0.status != .delivered }
+        let waiting = fae.bargains.filter { $0.status == .offered || $0.status == .owed }
         return VStack(alignment: .leading, spacing: 8) {
             shelfHeader("Your Standing With the Fae")
-            if !debts.isEmpty {
-                ForEach(debts) { bargain in
+            if !waiting.isEmpty {
+                ForEach(waiting) { bargain in
                     Button {
                         BookFeedback.play(.openPage)
                         onOpenBargain(bargain)
@@ -2106,17 +2116,17 @@ struct BookShopSheet: View {
                             HStack {
                                 Label(bargain.faeKind.name, systemImage: bargain.faeKind.symbolName)
                                     .font(.caption.weight(.bold))
-                                    .foregroundStyle(bargain.status == .lapsed ? BookPalette.ink.opacity(0.5) : BookPalette.ink)
+                                    .foregroundStyle(BookPalette.ink)
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .font(.caption2.weight(.bold))
                                     .foregroundStyle(BookPalette.teal.opacity(0.7))
                             }
-                            Text(bargain.status == .lapsed
-                                 ? "Lapsed — \(bargain.giftName) has gone cold. Tap to repair."
-                                 : "Owed: \(bargain.terms)")
+                            Text(bargain.status == .offered
+                                 ? "Offered: \(bargain.giftName)"
+                                 : "Waiting for: \(bargain.terms)")
                                 .font(.caption2)
-                                .foregroundStyle(bargain.status == .lapsed ? BookPalette.ink.opacity(0.5) : BookPalette.teal)
+                                .foregroundStyle(BookPalette.teal)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -2383,7 +2393,10 @@ struct BookShopSheet: View {
 
     /// The everything-pass, shelved above the folios it contains.
     private func standingOrderCard(_ offer: BookShopOffer) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let tier = BookShopCatalog.standingOrderTiers.first { $0.productID == offer.id }
+        let periodUnit = tier?.periodUnit ?? "year"
+        let cadence = tier?.title.lowercased() ?? "annual"
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 10) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -2397,13 +2410,13 @@ struct BookShopSheet: View {
                     Text(offer.listing.title)
                         .font(.system(.headline, design: .serif, weight: .bold))
                         .foregroundStyle(BookPalette.ink)
-                    Text("EVERY PACK · ALL YEAR")
+                    Text("EVERY PACK · \(cadence.uppercased()) RENEWAL")
                         .font(.caption2.weight(.black))
                         .kerning(0.8)
                         .foregroundStyle(BookPalette.violet.opacity(0.85))
                 }
                 Spacer()
-                priceTag(offer.displayPrice, label: "per year", tint: BookPalette.violet)
+                priceTag(offer.displayPrice, label: "per \(periodUnit)", tint: BookPalette.violet)
             }
             Text("\u{201C}\(offer.listing.goblinPitch)\u{201D}")
                 .font(.system(.caption, design: .serif).italic())
@@ -2416,7 +2429,7 @@ struct BookShopSheet: View {
             Button {
                 Task { await buy(offer) }
             } label: {
-                Label(isPurchasing ? "Binding..." : "Open a standing order — \(offer.displayPrice)/yr", systemImage: "book.closed.fill")
+                Label(isPurchasing ? "Binding..." : "Open the \(cadence) order — \(offer.displayPrice)/\(periodUnit)", systemImage: "book.closed.fill")
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
@@ -2424,7 +2437,7 @@ struct BookShopSheet: View {
             .buttonStyle(.borderedProminent)
             .tint(BookPalette.violet)
             .disabled(isPurchasing || !offer.isPurchasable)
-            Text("Auto-renews yearly through the App Store. Cancel anytime; packs bought outright stay yours forever.")
+            Text("Auto-renews \(cadence == "monthly" ? "monthly" : "yearly") through the App Store. Cancel anytime; packs bought outright stay yours forever.")
                 .font(.caption2)
                 .foregroundStyle(BookPalette.ink.opacity(0.55))
                 .fixedSize(horizontal: false, vertical: true)
@@ -3122,24 +3135,230 @@ private extension UIViewController {
 
 // MARK: - The Standing Order paywall
 
+/// Only reader-authored, non-sensitive answers cross into the offer. This
+/// isn't a marketing profile and never includes people, photos, or inferred
+/// sensitive traits. These answers personalize the Book's explanation for the
+/// two universal prices; they never change the actual terms.
+struct StandingOrderPersonalization: Equatable {
+    var readerName: String
+    var rutAnswer: String
+    var aliveAnswer: String
+    var magicAnswer: String
+    var appetiteAnswer: String
+    var edgeAnswer: String
+    var chapterName: String
+    var offerReasons: [String]
+
+    static let empty = StandingOrderPersonalization()
+
+    init(
+        readerName: String = "",
+        rutAnswer: String = "",
+        aliveAnswer: String = "",
+        magicAnswer: String = "",
+        appetiteAnswer: String = "",
+        edgeAnswer: String = "",
+        chapterName: String = "",
+        offerReasons: [String] = [
+            "You gave the Book one honest answer before it asked for anything. The Bindery noticed.",
+            "You made it through the First Door. The clerk reluctantly counted that as advance payment."
+        ]
+    ) {
+        self.readerName = readerName
+        self.rutAnswer = rutAnswer
+        self.aliveAnswer = aliveAnswer
+        self.magicAnswer = magicAnswer
+        self.appetiteAnswer = appetiteAnswer
+        self.edgeAnswer = edgeAnswer
+        self.chapterName = chapterName
+        self.offerReasons = offerReasons
+    }
+
+    init(onboarding result: OnboardingFlowView.Result) {
+        readerName = result.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        rutAnswer = Self.rutAnswers[result.rutStrongest] ?? ""
+        aliveAnswer = Self.aliveAnswers[result.mostAlive] ?? ""
+        magicAnswer = Self.magicAnswers[result.magicSource] ?? ""
+        appetiteAnswer = Self.appetiteAnswers[result.tastePreference] ?? ""
+        edgeAnswer = Self.edgeAnswers[result.comfortBoundary] ?? ""
+        chapterName = AcademyChapterRegistry.chapter(id: result.drawnChapterID)?.name ?? ""
+        offerReasons = Self.offerReasons(
+            hiddenMagicStance: result.hiddenMagicStance,
+            magicSource: result.magicSource,
+            tastePreference: result.tastePreference,
+            chapterName: chapterName,
+            sleeveWord: result.sleeveWord,
+            wickerRollSucceeded: result.wickerRollSucceeded
+        )
+    }
+
+    var hasReaderMap: Bool {
+        !rutAnswer.isEmpty || !aliveAnswer.isEmpty || !magicAnswer.isEmpty
+    }
+
+    var hasStoryDirection: Bool {
+        !appetiteAnswer.isEmpty || !edgeAnswer.isEmpty || !chapterName.isEmpty
+    }
+
+    private static let rutAnswers = [
+        "work": "Work swallows the day",
+        "phone": "My phone eats the edges",
+        "chores": "Chores all blur together",
+        "exhaustion": "I'm tired before I begin",
+        "sameness": "My days feel the same",
+        "later": "I keep waiting for later"
+    ]
+
+    private static let aliveAnswers = [
+        "making": "Making something",
+        "outside": "Outside somewhere",
+        "people": "With people I love",
+        "movement": "Moving my body",
+        "learning": "Learning something",
+        "solitude": "Alone and unhurried",
+        "helping": "Helping someone",
+        "story": "Lost in a story"
+    ]
+
+    private static let magicAnswers = [
+        "music": "Music landing just right",
+        "weather": "Wild weather",
+        "places": "Places with a charge",
+        "coincidence": "Strange coincidences",
+        "details": "Tiny beautiful details",
+        "laughter": "Making someone laugh",
+        "imagination": "Dreams and imagination",
+        "love": "People I love",
+        "unsure": "I'm not sure yet"
+    ]
+
+    private static let appetiteAnswers = [
+        "letters": "Letters and voices",
+        "errands": "Strange errands",
+        "cozy": "Cozy noticing",
+        "weather-place": "Weather and place",
+        "eerie": "Eerie story threads",
+        "oddities": "Funny little oddities"
+    ]
+
+    private static let edgeAnswers = [
+        "gentle": "Invite me",
+        "balanced": "Nudge me",
+        "strange": "Call me on my nonsense"
+    ]
+
+    /// The explanations come only from harmless authored choices. The sheet
+    /// rotates this pool on each presentation, while the two real prices remain
+    /// identical for every reader.
+    private static func offerReasons(
+        hiddenMagicStance: String,
+        magicSource: String,
+        tastePreference: String,
+        chapterName: String,
+        sleeveWord: String,
+        wickerRollSucceeded: Bool
+    ) -> [String] {
+        var reasons: [String] = []
+
+        if hiddenMagicStance == "prove" {
+            reasons.append("You said, “Show me.” Fair. That's the excuse I wrote in the margin: give you time to gather evidence.")
+        }
+
+        if chapterName.caseInsensitiveCompare("Duskthorn") == .orderedSame {
+            reasons.append("You chose Duskthorn. It's my favorite argument: beauty's allowed to defend itself. Obviously that's the excuse I put on the form.")
+        } else if !chapterName.isEmpty {
+            reasons.append("You gave \(chapterName) the first word. The Chapter volunteered to be the official excuse for this welcome.")
+        }
+
+        switch tastePreference {
+        case "letters":
+            reasons.append("You asked for letters and voices. One volunteered to carry this welcome to you.")
+        case "errands":
+            reasons.append("You asked for strange errands. The clerk insists considering this welcome counts as one.")
+        case "cozy":
+            reasons.append("You asked the Book to begin gently. Even a welcome offer can take the hint.")
+        case "weather-place":
+            reasons.append("You asked for weather and places. A favorable wind delivered this welcome.")
+        case "eerie":
+            reasons.append("You asked for eerie story threads. One got into Accounting and circled this welcome in violet.")
+        case "oddities":
+            reasons.append("You gave funny little oddities permission to enter. The clerk says this welcome qualifies.")
+        default:
+            break
+        }
+
+        switch magicSource {
+        case "details":
+            reasons.append("You notice tiny beautiful details. A First Door welcome is a small detail with excellent timing.")
+        case "music":
+            reasons.append("You said magic starts when the music lands just right. This welcome arrived on the downbeat.")
+        case "coincidence":
+            reasons.append("You believe strange coincidences might count. Conveniently, this welcome would like to be one.")
+        case "unsure":
+            reasons.append("You didn't pretend to believe. The Book respects a reader with terms, so that's the excuse it chose.")
+        default:
+            break
+        }
+
+        let trimmedWord = sleeveWord.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedWord.isEmpty {
+            reasons.append("You carried \(trimmedWord.uppercased()) through the First Door. The Bindery filed it as the official excuse for this welcome.")
+        }
+
+        if wickerRollSucceeded {
+            reasons.append("You won Wicker's little challenge. He denies that's why this welcome found you. The ledger disagrees.")
+        }
+
+        if reasons.count < 2 {
+            reasons.append("You gave the Book one honest answer before it asked for anything. The Bindery noticed.")
+        }
+        if reasons.count < 2 {
+            reasons.append("You made it through the First Door. The clerk reluctantly counted that as advance payment.")
+        }
+        return reasons
+    }
+}
+
 /// A disclosure-forward, four-page subscription walkthrough — a contract letter
 /// from the Bindery rather than an ad in a box. Free capabilities first, then
-/// what the Standing Order adds, then the three cadences (weekly/monthly/annual,
-/// each with a 10-day free trial), then the terms in plain ink with exact dates,
-/// a cancel path, and Restore. Reuses `BookShopTill`/`StoreKitMerchant` so a tap
-/// runs the same purchase + entitlement path as the goblin market.
+/// what the Standing Order adds, then the two cadences (monthly/annual), then
+/// the terms in plain ink with exact dates, a cancel path, and Restore. Trial
+/// language appears only when StoreKit confirms this reader is eligible (or
+/// when the debug-only local counter is standing in for StoreKit). Reuses
+/// `BookShopTill`/`StoreKitMerchant` so a tap runs the same purchase +
+/// entitlement path as the goblin market.
 struct StandingOrderSheet: View {
+    private enum BargainStrikeStage: Equatable {
+        case idle
+        case sealing
+        case ready
+        case opening
+    }
+
+    var personalization: StandingOrderPersonalization = .empty
     /// Persist the granted packID (always the Standing Order pack).
     var onSubscribed: (String) -> Void
+    /// Marks a newly purchased Standing Order. Restore deliberately doesn't
+    /// call this, because restoring an old promise isn't striking a new one.
+    var onBargainStruck: () -> Void = {}
     var onDismiss: () -> Void
+    var onBrowsePacks: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var page = 0
     @State private var pageDirection = 1
     @State private var selectedTierID = "standing-order-annual"
     @State private var pricing: [String: StandingOrderTierPricing] = [:]
+    @State private var usesDevelopmentTrialFallback = false
+    @State private var reminderAuthorization: StandingOrderTrialReminder.AuthorizationState = .unavailable
     @State private var isPurchasing = false
     @State private var statusLine = ""
+    @State private var isLivingBookAwake = false
+    @State private var isOwnershipSealOpen = false
+    @State private var bargainStrikeStage: BargainStrikeStage = .idle
+    /// A fresh sheet presentation rotates which harmless onboarding answer the
+    /// Book cites on each plan. Stable while this sheet remains open.
+    @State private var offerReasonNonce = UUID()
 
     private let pageCount = 4
     private let tiers = BookShopCatalog.standingOrderTiers
@@ -3152,8 +3371,41 @@ struct StandingOrderSheet: View {
         pricing[tier.productID]?.displayPrice ?? tier.fallbackDisplayPrice
     }
 
-    private func trialDays(for tier: StandingOrderTier) -> Int {
-        pricing[tier.productID]?.trialDays ?? tier.freeTrialDays
+    private func valueNote(for tier: StandingOrderTier) -> String? {
+        guard tier.cadence == .annual,
+              let monthlyTier = tiers.first(where: { $0.cadence == .monthly }),
+              let monthlyPrice = pricing[monthlyTier.productID]?.price,
+              let annualPrice = pricing[tier.productID]?.price else {
+            return tier.valueNote
+        }
+        let twelveMonths = monthlyPrice * Decimal(12)
+        guard twelveMonths > annualPrice, twelveMonths > 0 else { return tier.valueNote }
+        let percent = NSDecimalNumber(
+            decimal: ((twelveMonths - annualPrice) / twelveMonths) * Decimal(100)
+        ).doubleValue
+        return "Save \(Int(percent.rounded()))%"
+    }
+
+    private func trialDays(for tier: StandingOrderTier) -> Int? {
+        if let liveTerms = pricing[tier.productID] {
+            return liveTerms.trialDays
+        }
+        #if DEBUG
+        if usesDevelopmentTrialFallback {
+            return tier.freeTrialDays
+        }
+        #endif
+        return nil
+    }
+
+    private func purchaseButtonTitle(for tier: StandingOrderTier) -> String {
+        if let days = trialDays(for: tier) {
+            return "Start \(days)-day free trial"
+        }
+        guard pricing[tier.productID] != nil else {
+            return "Continue with Apple"
+        }
+        return "Subscribe · \(priceText(for: tier)) / \(tier.periodUnit)"
     }
 
     var body: some View {
@@ -3164,29 +3416,271 @@ struct StandingOrderSheet: View {
 
             VStack(spacing: 0) {
                 header
-                ScrollView {
-                    Group {
-                        switch page {
-                        case 0: freePage
-                        case 1: addsPage
-                        case 2: plansPage
-                        default: termsPage
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            Color.clear
+                                .frame(height: 1)
+                                .id("standing-order-page-top")
+
+                            Group {
+                                switch page {
+                                case 0: freePage
+                                case 1: addsPage
+                                case 2: plansPage
+                                default: termsPage
+                                }
+                            }
+                            .id(page)
+                            .padding(.horizontal, 22)
+                            .padding(.vertical, 18)
+                            .transition(standingOrderPageTransition)
                         }
                     }
-                    .id(page)
-                    .padding(.horizontal, 22)
-                    .padding(.vertical, 18)
-                    .transition(standingOrderPageTransition)
+                    .onChange(of: page) { _, _ in
+                        DispatchQueue.main.async {
+                            scrollProxy.scrollTo("standing-order-page-top", anchor: .top)
+                        }
+                    }
                 }
                 footer
             }
+
+            if bargainStrikeStage != .idle {
+                bargainStrikeOverlay
+                    .transition(.opacity.combined(with: .scale(scale: 1.03)))
+                    .zIndex(20)
+            }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: page)
+        .interactiveDismissDisabled(bargainStrikeStage != .idle)
         .task {
-            let loaded = await StandingOrderPricing.load()
+            async let loadedPricing = StandingOrderPricing.load()
+            async let loadedAuthorization = StandingOrderTrialReminder.authorizationState()
+            let (loaded, authorization) = await (loadedPricing, loadedAuthorization)
+            reminderAuthorization = authorization
+            #if DEBUG
+            usesDevelopmentTrialFallback = loaded.isEmpty
+            #endif
             if !loaded.isEmpty {
                 withAnimation { pricing = loaded }
             }
+        }
+    }
+
+    private var bargainStrikeOverlay: some View {
+        ZStack {
+            BookPalette.nightPanel
+                .overlay {
+                    RadialGradient(
+                        colors: [
+                            BookPalette.violet.opacity(0.42),
+                            BookPalette.nightPanel.opacity(0.16),
+                            BookPalette.ink.opacity(0.72)
+                        ],
+                        center: .center,
+                        startRadius: 24,
+                        endRadius: 420
+                    )
+                }
+                .ignoresSafeArea()
+
+            ForEach(0..<12, id: \.self) { index in
+                Image(systemName: index.isMultiple(of: 3) ? "sparkle" : "diamond.fill")
+                    .font(.system(size: index.isMultiple(of: 3) ? 15 : 6, weight: .black))
+                    .foregroundStyle(index.isMultiple(of: 2) ? BookPalette.lampGold : BookPalette.teal)
+                    .rotationEffect(.degrees(Double(index) * 31))
+                    .offset(
+                        x: bargainSparkOffset(index: index, horizontal: true),
+                        y: bargainSparkOffset(index: index, horizontal: false)
+                    )
+                    .opacity(bargainStrikeStage == .sealing ? 0.28 : 0.88)
+                    .scaleEffect(bargainStrikeStage == .opening ? 1.5 : 1)
+            }
+
+            VStack(spacing: 22) {
+                bargainBookSeal
+
+                VStack(spacing: 8) {
+                    Text(bargainStrikeKicker)
+                        .font(.system(size: 11, weight: .black))
+                        .tracking(1.4)
+                        .foregroundStyle(BookPalette.lampGold)
+
+                    Text(bargainStrikeTitle)
+                        .font(.system(.largeTitle, design: .serif).weight(.black))
+                        .foregroundStyle(BookPalette.nightText)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(bargainStrikeBody)
+                        .font(.system(.body, design: .serif).weight(.semibold))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.82))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 8)
+                }
+
+                if bargainStrikeStage == .ready {
+                    Button {
+                        openStruckBargain()
+                    } label: {
+                        Label("Open into my story", systemImage: "book.pages.fill")
+                            .font(.body.weight(.black))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 15)
+                            .background(BookPalette.lampGold, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                            .foregroundStyle(BookPalette.ink)
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if bargainStrikeStage == .sealing {
+                    Label("The ink is learning your name…", systemImage: "signature")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.teal)
+                } else {
+                    Label("The Book is keeping its side.", systemImage: "door.left.hand.open")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.teal)
+                }
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 32)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(bargainStrikeTitle). \(bargainStrikeBody)")
+    }
+
+    private var bargainBookSeal: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(BookPalette.page)
+                .frame(width: 148, height: 198)
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(BookPalette.lampGold.opacity(0.20))
+                        .frame(width: 7)
+                        .padding(.vertical, 8)
+                }
+                .overlay {
+                    VStack(spacing: 8) {
+                        Text("THE STANDING ORDER")
+                            .font(.system(size: 8, weight: .black))
+                            .tracking(1)
+                            .foregroundStyle(BookPalette.ink.opacity(0.72))
+                        Image(systemName: "leaf.fill")
+                            .font(.title2.weight(.black))
+                            .foregroundStyle(BookPalette.violet)
+                        Text("A PROMISE\nFOR A PROMISE")
+                            .font(.system(size: 8, weight: .black, design: .serif))
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(BookPalette.ink.opacity(0.76))
+                    }
+                }
+                .shadow(color: BookPalette.lampGold.opacity(0.28), radius: 24, y: 12)
+
+            Image("EnchantedBookCoverPlate")
+                .resizable()
+                .scaledToFill()
+                .frame(width: 148, height: 198)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(BookPalette.lampGold.opacity(0.72), lineWidth: 1.4)
+                }
+                .rotation3DEffect(
+                    .degrees(bargainStrikeStage == .opening ? -82 : 0),
+                    axis: (x: 0, y: 1, z: 0),
+                    anchor: .leading,
+                    perspective: 0.55
+                )
+                .offset(x: bargainStrikeStage == .opening ? -64 : 0)
+                .shadow(color: BookPalette.violet.opacity(0.42), radius: 28, y: 12)
+
+            if bargainStrikeStage != .opening {
+                ZStack {
+                    Circle()
+                        .fill(BookPalette.violet)
+                    Circle()
+                        .stroke(BookPalette.lampGold, lineWidth: 2)
+                        .padding(5)
+                    Image(systemName: "seal.fill")
+                        .font(.title2.weight(.black))
+                        .foregroundStyle(BookPalette.lampGold)
+                }
+                .frame(width: 66, height: 66)
+                .offset(y: 55)
+                .scaleEffect(bargainStrikeStage == .sealing ? 1.16 : 1)
+                .shadow(color: BookPalette.violet.opacity(0.48), radius: 14, y: 8)
+            }
+        }
+        .frame(height: 220)
+        .animation(
+            reduceMotion ? nil : .spring(response: 0.85, dampingFraction: 0.68),
+            value: bargainStrikeStage
+        )
+        .accessibilityHidden(true)
+    }
+
+    private var bargainStrikeKicker: String {
+        switch bargainStrikeStage {
+        case .sealing: return "INK · INTENT · APPLE'S LEDGER"
+        case .ready: return "A PROMISE FOR A PROMISE"
+        case .opening: return "THE COVER OPENS"
+        case .idle: return ""
+        }
+    }
+
+    private var bargainStrikeTitle: String {
+        switch bargainStrikeStage {
+        case .sealing: return "The bargain is struck."
+        case .ready: return "The Book gives its word."
+        case .opening: return "Your story continues."
+        case .idle: return ""
+        }
+    }
+
+    private var bargainStrikeBody: String {
+        switch bargainStrikeStage {
+        case .sealing:
+            return "A deal with the fae is never just a receipt. You gave this magical Book a standing promise. Now it's writing one back."
+        case .ready:
+            return "While your order stands, the world behind these pages will keep growing. New doors, voices, mysteries, and monthly packs can now remember what you choose."
+        case .opening:
+            return "The fae read the terms twice. The Book only cared that you chose to open a new wing of the story. Home is waiting on the other side."
+        case .idle:
+            return ""
+        }
+    }
+
+    private func bargainSparkOffset(index: Int, horizontal: Bool) -> CGFloat {
+        let angle = Double(index) * (.pi * 2 / 12) - .pi / 2
+        let radius = bargainStrikeStage == .opening ? 176.0 : 132.0
+        return CGFloat((horizontal ? cos(angle) : sin(angle)) * radius)
+    }
+
+    @MainActor
+    private func strikeBargain() async {
+        statusLine = ""
+        withAnimation(reduceMotion ? nil : .spring(response: 0.58, dampingFraction: 0.72)) {
+            bargainStrikeStage = .sealing
+        }
+        BookFeedback.play(.braidComplete)
+        try? await Task.sleep(for: .milliseconds(reduceMotion ? 350 : 1_150))
+        withAnimation(reduceMotion ? nil : .spring(response: 0.62, dampingFraction: 0.76)) {
+            bargainStrikeStage = .ready
+        }
+        BookFeedback.play(.keepPage)
+    }
+
+    private func openStruckBargain() {
+        guard bargainStrikeStage == .ready else { return }
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.82)) {
+            bargainStrikeStage = .opening
+        }
+        BookFeedback.play(.openPage)
+        DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.45 : 1.25)) {
+            onDismiss()
         }
     }
 
@@ -3196,11 +3690,15 @@ struct StandingOrderSheet: View {
                 .font(.title3.weight(.black))
                 .foregroundStyle(BookPalette.lampGold)
             VStack(alignment: .leading, spacing: 1) {
-                Text("THE STANDING ORDER")
+                Text("YOUR STORY · THE BARGAIN")
                     .font(.system(size: 12, weight: .black))
                     .tracking(1.4)
                     .foregroundStyle(BookPalette.lampGold)
-                Text("A letter from the Bindery")
+                Text(
+                    personalization.readerName.isEmpty
+                        ? "The Standing Order · A letter from the Bindery"
+                        : "The Standing Order · A letter for \(personalization.readerName)"
+                )
                     .font(.system(.subheadline, design: .serif).weight(.semibold))
                     .foregroundStyle(BookPalette.nightText.opacity(0.8))
             }
@@ -3223,7 +3721,7 @@ struct StandingOrderSheet: View {
         VStack(spacing: 10) {
             if !statusLine.isEmpty {
                 Text(statusLine)
-                    .font(.caption.weight(.semibold))
+                    .font(.callout.weight(.semibold))
                     .foregroundStyle(BookPalette.nightText.opacity(0.8))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -3237,6 +3735,12 @@ struct StandingOrderSheet: View {
                         .frame(width: index == page ? 20 : 7, height: 6)
                 }
             }
+
+            Text("Pay the price or keep the free Book. Either way, your story continues. Everything you make stays yours.")
+                .font(.system(.callout, design: .serif).weight(.semibold))
+                .foregroundStyle(BookPalette.nightText.opacity(0.74))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 22)
 
             HStack(spacing: 10) {
                 if page > 0 {
@@ -3262,7 +3766,7 @@ struct StandingOrderSheet: View {
                         }
                         BookFeedback.play(.openPage)
                     } label: {
-                        Text(page == pageCount - 2 ? "See the terms" : "Continue")
+                        Text(nextPageButtonTitle)
                             .font(.body.weight(.black))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 15)
@@ -3274,7 +3778,7 @@ struct StandingOrderSheet: View {
                         Task { await subscribe() }
                     } label: {
                         Label(
-                            isPurchasing ? "Opening the ledger…" : "Start \(trialDays(for: selectedTier))-day free trial",
+                            isPurchasing ? "Opening the ledger…" : purchaseButtonTitle(for: selectedTier),
                             systemImage: isPurchasing ? "hourglass" : "seal.fill"
                         )
                         .font(.body.weight(.black))
@@ -3291,6 +3795,14 @@ struct StandingOrderSheet: View {
         .padding(.bottom, 18)
     }
 
+    private var nextPageButtonTitle: String {
+        switch page {
+        case 0: return "Why the Book must keep changing"
+        case 1: return "Choose how to keep it alive"
+        default: return "See exactly what Apple charges"
+        }
+    }
+
     private var standingOrderPageTransition: AnyTransition {
         guard !reduceMotion else { return .opacity }
         let incoming: Edge = pageDirection >= 0 ? .trailing : .leading
@@ -3304,81 +3816,243 @@ struct StandingOrderSheet: View {
     // MARK: Page 1 — the free Book
 
     private var freePage: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            pageTitle("The free Book is yours. Always.", subtitle: "No trial, no card, no catch. This is what the Book does for everyone, forever.")
+        VStack(alignment: .leading, spacing: 19) {
+            pageTitle(
+                personalization.readerName.isEmpty
+                    ? "The Book heard you."
+                    : "\(personalization.readerName), the Book heard you.",
+                subtitle: "You gave it a real moment. It listened, changed the story, and bound the proof. Here's what it understood."
+            )
 
-            benefitRow("eye", "Notice and keep", "Capture a real moment and keep it as a page. The core loop is never gated.")
-            benefitRow("moon.stars", "The nightly braid", "The Book of You gathers your kept pages into a grounded nightly entry.")
-            benefitRow("books.vertical", "Monthly & annual bindings — free", "Every month and every year binds into a real PDF edition — cover, star chart, and all — to keep, print at home, or read forever. Yours at no charge.", emphasized: true)
-            benefitRow("calendar", "The Almanac & souvenirs", "Jump to any date, press souvenir cards, and share what you make.")
+            bargainStoryCard
+
+            if personalization.hasReaderMap {
+                readerMapCard
+            }
+
+            ownershipSealCard
         }
+    }
+
+    private var bargainStoryCard: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            Label("EVERY FAERIE TALE HAS THIS PAGE", systemImage: "scroll.fill")
+                .font(.system(size: 12, weight: .black))
+                .tracking(0.8)
+                .foregroundStyle(BookPalette.lampGold)
+
+            Text("Sooner or later, the protagonist finds magic, but has to pay a price to keep it.")
+                .font(.system(.title3, design: .serif).weight(.bold))
+                .foregroundStyle(BookPalette.nightText)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("This is that part of your story.")
+                .font(.body.weight(.black))
+                .foregroundStyle(BookPalette.lampGold)
+
+            Text("But this isn't a cursed bargain. Your free Book is already yours. The only price here is for keeping its world growing around you.")
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.nightText.opacity(0.88))
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 3)
+        }
+        .padding(17)
+        .background(
+            LinearGradient(
+                colors: [
+                    BookPalette.nightPanel.opacity(0.90),
+                    BookPalette.violet.opacity(0.18)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
+        }
+    }
+
+    private var ownershipSealCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button {
+                BookFeedback.play(isOwnershipSealOpen ? .dismissPage : .keepPage)
+                withAnimation(reduceMotion ? nil : .spring(response: 0.48, dampingFraction: 0.76)) {
+                    isOwnershipSealOpen.toggle()
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(BookPalette.violet)
+                        Circle()
+                            .stroke(BookPalette.lampGold, lineWidth: 1.6)
+                            .padding(5)
+                        Image(systemName: isOwnershipSealOpen ? "checkmark.seal.fill" : "seal.fill")
+                            .font(.title3.weight(.black))
+                            .foregroundStyle(BookPalette.lampGold)
+                    }
+                    .frame(width: 50, height: 50)
+                    .scaleEffect(isOwnershipSealOpen ? 0.92 : 1)
+                    .rotationEffect(.degrees(isOwnershipSealOpen && !reduceMotion ? -6 : 0))
+                    .shadow(color: BookPalette.violet.opacity(0.42), radius: 10, y: 6)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("THE BOOK'S UNBREAKABLE PROMISE")
+                            .font(.system(size: 11, weight: .black))
+                            .tracking(0.8)
+                            .foregroundStyle(BookPalette.lampGold)
+                        Text("Your free Book and everything you make stay yours.")
+                            .font(.system(.body, design: .serif).weight(.bold))
+                            .foregroundStyle(BookPalette.nightText)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(isOwnershipSealOpen ? "The promise is open." : "Press the seal to read exactly what that means.")
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: isOwnershipSealOpen ? "chevron.up" : "chevron.down")
+                        .font(.body.weight(.black))
+                        .foregroundStyle(BookPalette.teal)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("The Book's unbreakable promise. Your free Book and everything you make stay yours.")
+            .accessibilityValue(isOwnershipSealOpen ? "Open" : "Closed")
+            .accessibilityHint(isOwnershipSealOpen ? "Closes the promise" : "Opens the promise and explains what remains yours")
+
+            if isOwnershipSealOpen {
+                Divider()
+                    .overlay(BookPalette.lampGold.opacity(0.34))
+                    .transition(.opacity)
+
+                freeLoopCard
+                    .transition(.move(edge: .top).combined(with: .opacity))
+
+                ownershipPromiseLine(
+                    "checkmark.seal.fill",
+                    "THE WHOLE SPELL STAYS FREE",
+                    "Notice your life. Keep what matters. Read what returns. Bind your own monthly and yearly PDFs."
+                )
+
+                ownershipPromiseLine(
+                    "lock.shield.fill",
+                    "YOUR WORK STAYS YOURS",
+                    "Your Pages and editions don't disappear if you never subscribe, or if you subscribe and later stop."
+                )
+
+                Text("No trial. No card. No catch.")
+                    .font(.body.weight(.black))
+                    .foregroundStyle(BookPalette.teal)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .transition(.opacity)
+            }
+        }
+        .padding(17)
+        .background(
+            LinearGradient(
+                colors: [
+                    BookPalette.violet.opacity(0.16),
+                    BookPalette.nightPanel.opacity(0.88),
+                    BookPalette.teal.opacity(0.08)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(
+                    isOwnershipSealOpen
+                        ? BookPalette.lampGold.opacity(0.58)
+                        : BookPalette.teal.opacity(0.30),
+                    lineWidth: isOwnershipSealOpen ? 1.4 : 1
+                )
+        }
+    }
+
+    private func ownershipPromiseLine(
+        _ symbol: String,
+        _ title: String,
+        _ body: String
+    ) -> some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: symbol)
+                .font(.callout.weight(.black))
+                .foregroundStyle(BookPalette.lampGold)
+                .frame(width: 28, height: 28)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 11, weight: .black))
+                    .tracking(0.6)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                Text(body)
+                    .font(.system(.body, design: .serif).weight(.semibold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.84))
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Page 2 — what the Standing Order adds
 
     private var addsPage: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 19) {
             pageTitle(
-                "Keep the Book Growing",
-                subtitle: "Your subscription opens the ongoing world of ReEnchanted—and everything new that is added to it."
+                "Even magic can become wallpaper.",
+                subtitle: "If an app shows you the same pages, voices, and tricks forever, your brain stops looking. That's the Rut of Routine doing its job."
             )
 
+            livingBookHero
+
             benefitRow(
-                "book.pages.fill",
-                "A living story that changes each month",
-                "Follow an unfolding narrative told through the whole Book, with new events, conflicts, mysteries, characters, and consequences developing from month to month.",
+                "theatermasks.fill",
+                "A real story, continuing month to month",
+                "This isn't a loose pile of generated scenes. It's an ongoing authored story with chapters, characters, mysteries, choices, consequences, and payoffs that carry from one month into the next. Its spine is planned; the route through it can still listen to the player and the real world.",
                 emphasized: true
             )
+
+            livingStoryScheduleCard
+
             benefitRow(
-                "shippingbox.fill",
-                "Every monthly content pack",
-                "Each chapter of the living story arrives with the Pages, encounters, sounds, words, and other additions that let it spread throughout the Book."
-            )
-            benefitRow(
-                "rectangle.stack.badge.plus",
-                "New Pages to discover",
-                "Open new Page types, rituals, games, reflections, creative tools, and strange little doors for the Book to place in your path."
-            )
-            benefitRow(
-                "sparkles",
-                "More ways to play with everyday life",
-                "Existing Pages keep growing too—with new playful missions, noticing experiments, questions, prompts, challenges, and ways to bring the ordinary world back into the Book."
-            )
-            benefitRow(
-                "person.3.fill",
-                "New characters and voices",
-                "Meet new students, faculty, creatures, rivals, correspondents, merchants, and other inhabitants of the Academy and the wider Labyrinth."
-            )
-            benefitRow(
-                "radio.fill",
-                "An expanding Radio",
-                "Hear new songs, radio stations, station events, DJ banter, unauthorized broadcasts, questionable goblin advertisements, and interruptions from beyond the margins."
-            )
-            benefitRow(
-                "textformat.abc",
-                "More words for your Book",
-                "Receive new quotes, quips, prompts, sentence-building words and chips, transmutations, and fresh marginalia for Illuminated Photos and Pagewright scrapbooks."
-            )
-            benefitRow(
-                "questionmark.diamond.fill",
-                "New mysteries in the margins",
-                "Discover fresh secrets, hidden broadcasts, lore, letters, encounters, side stories, and details that make the Book feel deeper the longer you keep it."
+                "sparkles.rectangle.stack",
+                "A fresh content pack every month",
+                "New authored Pages, quests, rituals, events, music, places, characters, and surprises give the Book another way to wake up your attention."
             )
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("A Book That Never Finishes Becoming")
+            if personalization.hasStoryDirection {
+                personalizedStoryDirectionCard
+            }
+
+            VStack(alignment: .leading, spacing: 9) {
+                Text("What are you actually paying for?")
                     .font(.system(.title3, design: .serif).weight(.bold))
                     .foregroundStyle(BookPalette.nightText)
-                Text("ReEnchanted is built to expand—from its stories and Pages to its characters, music, writing tools, missions, events, and hidden corners.")
-                    .font(.system(.callout, design: .serif))
-                    .foregroundStyle(BookPalette.nightText.opacity(0.76))
+                Text("Not storage. Not your memories. Not the right to use the Book.")
+                    .font(.system(.body, design: .serif))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.84))
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Subscribe to keep the whole living Book open.")
-                    .font(.subheadline.weight(.black))
+                Text("You're paying for a living world that keeps finding new ways to wake you up.")
+                    .font(.body.weight(.black))
                     .foregroundStyle(BookPalette.lampGold)
-                    .padding(.top, 2)
+                    .padding(.top, 3)
+                Text("The living story changes because you do. Monthly packs change what can happen next. Together, they keep the cure for Routine from becoming routine too.")
+                    .font(.system(.body, design: .serif).weight(.semibold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.88))
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(14)
+            .padding(17)
             .background(BookPalette.nightPanel.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -3387,32 +4061,438 @@ struct StandingOrderSheet: View {
         }
     }
 
+    private var livingStoryScheduleCard: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            Label("THE FIRST STORY SPINE IS ALREADY MAPPED", systemImage: "calendar.badge.checkmark")
+                .font(.system(size: 12, weight: .black))
+                .tracking(0.7)
+                .foregroundStyle(BookPalette.lampGold)
+
+            Text("September → December 2028")
+                .font(.system(.title3, design: .serif).weight(.black))
+                .foregroundStyle(BookPalette.nightText)
+
+            Text("Four authored monthly movements, written to belong together. September opens the story. October and November carry it forward. December brings the arc to its reckoning.")
+                .font(.system(.body, design: .serif).weight(.semibold))
+                .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("That doesn't mean fixed rails. If the player opts in, their choices, kept moments, season, weather, places, and real-world events can change which doors open, who answers, and what consequences follow. The Book uses only the signals the player allows.")
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.nightText.opacity(0.80))
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 6) {
+                storyMonth("SEP", symbol: "door.left.hand.open")
+                storyMonthArrow
+                storyMonth("OCT", symbol: "moon.stars.fill")
+                storyMonthArrow
+                storyMonth("NOV", symbol: "point.topleft.down.to.point.bottomright.curvepath")
+                storyMonthArrow
+                storyMonth("DEC", symbol: "seal.fill")
+            }
+        }
+        .padding(17)
+        .background(
+            LinearGradient(
+                colors: [
+                    BookPalette.violet.opacity(0.25),
+                    BookPalette.nightPanel.opacity(0.88),
+                    BookPalette.teal.opacity(0.12)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.42), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func storyMonth(_ month: String, symbol: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.callout.weight(.black))
+                .foregroundStyle(BookPalette.lampGold)
+            Text(month)
+                .font(.system(size: 11, weight: .black))
+                .tracking(0.5)
+                .foregroundStyle(BookPalette.nightText)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 9)
+        .background(BookPalette.paper.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var storyMonthArrow: some View {
+        Image(systemName: "chevron.right")
+            .font(.system(size: 9, weight: .black))
+            .foregroundStyle(BookPalette.teal)
+            .accessibilityHidden(true)
+    }
+
+    private var readerMapCard: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            HStack(spacing: 10) {
+                Image(systemName: "seal.fill")
+                    .font(.callout.weight(.black))
+                    .foregroundStyle(BookPalette.ink)
+                    .frame(width: 34, height: 34)
+                    .background(BookPalette.lampGold, in: Circle())
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("THE PAGE IT MADE OF YOUR ANSWERS")
+                        .font(.system(size: 11, weight: .black))
+                        .tracking(0.9)
+                        .foregroundStyle(BookPalette.lampGold)
+                    Text("No prophecy. No secret profile. These are your words.")
+                        .font(.system(.callout, design: .serif).weight(.semibold))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.80))
+                }
+            }
+
+            if !personalization.rutAnswer.isEmpty {
+                readerMapRow(
+                    "cloud.fog.fill",
+                    "Where the Rut gets in",
+                    personalization.rutAnswer
+                )
+            }
+            if !personalization.aliveAnswer.isEmpty {
+                readerMapRow(
+                    "waveform.path.ecg",
+                    "Where life wakes up",
+                    personalization.aliveAnswer
+                )
+            }
+            if !personalization.magicAnswer.isEmpty {
+                readerMapRow(
+                    "sparkles",
+                    "What feels magical",
+                    personalization.magicAnswer
+                )
+            }
+        }
+        .padding(17)
+        .background {
+            ZStack {
+                Image("ParchmentFiber")
+                    .resizable()
+                    .scaledToFill()
+                    .opacity(0.16)
+                BookPalette.nightPanel.opacity(0.88)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.22), radius: 12, y: 7)
+        .rotationEffect(.degrees(reduceMotion ? 0 : -0.35))
+    }
+
+    private func readerMapRow(_ symbol: String, _ title: String, _ answer: String) -> some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: symbol)
+                .font(.callout.weight(.black))
+                .foregroundStyle(BookPalette.lampGold)
+                .frame(width: 25, height: 25)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title.uppercased())
+                    .font(.system(size: 11, weight: .black))
+                    .tracking(0.6)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.68))
+                Text(answer)
+                    .font(.system(.body, design: .serif).weight(.semibold))
+                    .foregroundStyle(BookPalette.nightText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var freeLoopCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("THE WHOLE FREE SPELL")
+                .font(.system(size: 12, weight: .black))
+                .tracking(1.0)
+                .foregroundStyle(BookPalette.teal)
+
+            HStack(spacing: 5) {
+                loopStep("eye.fill", "NOTICE")
+                loopArrow
+                loopStep("bookmark.fill", "KEEP")
+                loopArrow
+                loopStep("arrow.uturn.backward", "RETURN")
+                loopArrow
+                loopStep("books.vertical.fill", "BIND")
+            }
+        }
+        .padding(14)
+        .background(BookPalette.page.opacity(0.46), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(BookPalette.teal.opacity(0.34), lineWidth: 1)
+        }
+    }
+
+    private func loopStep(_ symbol: String, _ title: String) -> some View {
+        VStack(spacing: 5) {
+            Image(systemName: symbol)
+                .font(.callout.weight(.black))
+                .foregroundStyle(BookPalette.ink)
+                .frame(width: 34, height: 34)
+                .background(BookPalette.teal.opacity(0.92), in: Circle())
+            Text(title)
+                .font(.system(size: 9, weight: .black))
+                .tracking(0.4)
+                .foregroundStyle(BookPalette.nightText.opacity(0.76))
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var loopArrow: some View {
+        Image(systemName: "chevron.right")
+            .font(.system(size: 8, weight: .black))
+            .foregroundStyle(BookPalette.lampGold.opacity(0.72))
+            .accessibilityHidden(true)
+    }
+
+    private var livingBookHero: some View {
+        HStack(spacing: 10) {
+            VStack(spacing: 8) {
+                Text("THE SAME TRICK")
+                    .font(.system(size: 11, weight: .black))
+                    .tracking(0.8)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.62))
+
+                ZStack {
+                    ForEach(0..<3, id: \.self) { index in
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(BookPalette.nightText.opacity(0.08 + Double(index) * 0.025))
+                            .overlay {
+                                VStack(spacing: 6) {
+                                    Capsule()
+                                        .fill(BookPalette.nightText.opacity(0.15))
+                                        .frame(width: 42, height: 4)
+                                    Capsule()
+                                        .fill(BookPalette.nightText.opacity(0.10))
+                                        .frame(width: 54, height: 3)
+                                    Capsule()
+                                        .fill(BookPalette.nightText.opacity(0.10))
+                                        .frame(width: 46, height: 3)
+                                }
+                            }
+                            .frame(width: 82, height: 112)
+                            .rotationEffect(.degrees(Double(index - 1) * 3))
+                            .offset(x: CGFloat(index - 1) * 3)
+                    }
+                    Image(systemName: "cloud.fog.fill")
+                        .font(.title2.weight(.black))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.30))
+                }
+            }
+            .frame(maxWidth: .infinity)
+
+            Image(systemName: "arrow.right")
+                .font(.headline.weight(.black))
+                .foregroundStyle(BookPalette.lampGold)
+                .accessibilityHidden(true)
+
+            VStack(spacing: 8) {
+                Text("A LIVING BOOK")
+                    .font(.system(size: 11, weight: .black))
+                    .tracking(0.8)
+                    .foregroundStyle(BookPalette.lampGold)
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(BookPalette.teal.opacity(0.50))
+                        .frame(width: 76, height: 106)
+                        .rotationEffect(.degrees(isLivingBookAwake ? -10 : 0), anchor: .bottom)
+                        .offset(x: isLivingBookAwake ? -18 : 0, y: 3)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(BookPalette.violet.opacity(0.54))
+                        .frame(width: 76, height: 106)
+                        .rotationEffect(.degrees(isLivingBookAwake ? 10 : 0), anchor: .bottom)
+                        .offset(x: isLivingBookAwake ? 18 : 0, y: 3)
+
+                    Image("EnchantedBookCoverPlate")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 82, height: 116)
+                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .stroke(BookPalette.lampGold.opacity(0.66), lineWidth: 1)
+                        }
+                        .shadow(color: BookPalette.lampGold.opacity(0.24), radius: 12, y: 7)
+
+                    ForEach(0..<4, id: \.self) { index in
+                        Image(systemName: "sparkle")
+                            .font(.system(size: index.isMultiple(of: 2) ? 12 : 8, weight: .black))
+                            .foregroundStyle(index.isMultiple(of: 2) ? BookPalette.lampGold : BookPalette.teal)
+                            .offset(
+                                x: isLivingBookAwake ? (index < 2 ? -52 : 52) : 0,
+                                y: isLivingBookAwake ? (index.isMultiple(of: 2) ? -38 : 36) : 0
+                            )
+                            .opacity(isLivingBookAwake ? 1 : 0)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(14)
+        .background(
+            LinearGradient(
+                colors: [
+                    BookPalette.nightPanel.opacity(0.82),
+                    BookPalette.violet.opacity(0.13),
+                    BookPalette.nightPanel.opacity(0.88)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            ),
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.28), lineWidth: 1)
+        }
+        .overlay(alignment: .bottom) {
+            Label("Tap to wake the Book again", systemImage: "hand.tap")
+                .font(.system(size: 11, weight: .black))
+                .foregroundStyle(BookPalette.nightText.opacity(0.76))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(BookPalette.nightPanel.opacity(0.82), in: Capsule())
+                .offset(y: -6)
+        }
+        .padding(.bottom, 2)
+        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .onTapGesture {
+            BookFeedback.play(.openPage)
+            guard !reduceMotion else {
+                isLivingBookAwake = true
+                return
+            }
+            withAnimation(.easeOut(duration: 0.12)) {
+                isLivingBookAwake = false
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
+                withAnimation(.spring(response: 0.72, dampingFraction: 0.68)) {
+                    isLivingBookAwake = true
+                }
+            }
+        }
+        .onAppear {
+            guard !reduceMotion else {
+                isLivingBookAwake = true
+                return
+            }
+            isLivingBookAwake = false
+            withAnimation(.spring(response: 0.72, dampingFraction: 0.68).delay(0.18)) {
+                isLivingBookAwake = true
+            }
+        }
+        .onDisappear {
+            isLivingBookAwake = false
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("The same repeated pages fade grey. A living Book opens into fresh colored folios and sparks.")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Wakes the living Book animation")
+    }
+
+    private var personalizedStoryDirectionCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("THE BOOK ALREADY HAS YOUR INSTRUCTIONS", systemImage: "pencil.and.scribble")
+                .font(.system(size: 12, weight: .black))
+                .tracking(0.7)
+                .foregroundStyle(BookPalette.teal)
+
+            if !personalization.appetiteAnswer.isEmpty {
+                directionRow(
+                    "rectangle.stack.badge.play",
+                    "Bring this first",
+                    personalization.appetiteAnswer
+                )
+            }
+            if !personalization.edgeAnswer.isEmpty {
+                directionRow(
+                    "slider.horizontal.3",
+                    "How hard to press",
+                    personalization.edgeAnswer
+                )
+            }
+            if !personalization.chapterName.isEmpty {
+                directionRow(
+                    "flag.2.crossed.fill",
+                    "Your first argument",
+                    personalization.chapterName
+                )
+            }
+
+            Text("The Standing Order doesn't replace those choices. It gives them more characters, mysteries, places, and monthly surprises to shape.")
+                .font(.system(.body, design: .serif).weight(.semibold))
+                .foregroundStyle(BookPalette.nightText.opacity(0.82))
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 3)
+        }
+        .padding(17)
+        .background(BookPalette.teal.opacity(0.09), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(BookPalette.teal.opacity(0.30), lineWidth: 1)
+        }
+    }
+
+    private func directionRow(_ symbol: String, _ label: String, _ answer: String) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: symbol)
+                .font(.callout.weight(.black))
+                .foregroundStyle(BookPalette.lampGold)
+                .frame(width: 22)
+            Text(label)
+                .font(.callout.weight(.bold))
+                .foregroundStyle(BookPalette.nightText.opacity(0.70))
+            Spacer(minLength: 6)
+            Text(answer)
+                .font(.callout.weight(.black))
+                .foregroundStyle(BookPalette.nightText)
+                .multilineTextAlignment(.trailing)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     // MARK: Page 3 — choose a cadence
 
     private var plansPage: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            pageTitle("Choose your cadence.", subtitle: "Every plan is the same Standing Order, and every plan starts with a 10-day free trial.")
+        VStack(alignment: .leading, spacing: 18) {
+            pageTitle(
+                "Keep this Book alive.",
+                subtitle: "Two choices. Both include the ongoing Living Story, the whole paid shelf, and one fresh content pack each month. Choose only how often Apple bills you."
+            )
 
             ForEach(tiers) { tier in
                 tierCard(tier)
             }
 
-            Button {
-                BookFeedback.play(.select)
-                onDismiss()
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "cart")
-                    Text("Or buy single packs à la carte")
-                    Spacer(minLength: 0)
-                    Image(systemName: "arrow.up.right")
-                }
-                .font(.subheadline.weight(.bold))
+            Text("The excuses are personal. The prices aren't. Every reader gets the same two offers; your answers only decide how the Book explains its suspicious generosity.")
+                .font(.system(.callout, design: .serif).weight(.semibold))
                 .foregroundStyle(BookPalette.nightText.opacity(0.72))
-                .padding(12)
-                .background(BookPalette.paper.opacity(0.4), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            }
-            .buttonStyle(.plain)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 2)
         }
     }
 
@@ -3422,38 +4502,73 @@ struct StandingOrderSheet: View {
             BookFeedback.play(.select)
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { selectedTierID = tier.id }
         } label: {
-            HStack(spacing: 12) {
-                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(selected ? BookPalette.lampGold : BookPalette.nightText.opacity(0.4))
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        Text(tier.title)
-                            .font(.headline.weight(.black))
-                            .foregroundStyle(BookPalette.nightText)
-                        if let note = tier.valueNote {
-                            Text(note.uppercased())
-                                .font(.system(size: 9, weight: .black))
-                                .tracking(0.6)
-                                .foregroundStyle(BookPalette.ink)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
-                                .background(BookPalette.lampGold, in: Capsule())
-                        }
+            VStack(alignment: .leading, spacing: 13) {
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(selected ? BookPalette.lampGold : BookPalette.nightText.opacity(0.4))
+
+                    Text(tier.title)
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(BookPalette.nightText)
+
+                    if let note = valueNote(for: tier) {
+                        Text(note.uppercased())
+                            .font(.system(size: 10, weight: .black))
+                            .tracking(0.6)
+                            .foregroundStyle(BookPalette.ink)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(BookPalette.lampGold, in: Capsule())
                     }
-                    Text("\(trialDays(for: tier))-day free trial, then \(priceText(for: tier)) / \(tier.periodUnit)")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(BookPalette.nightText.opacity(0.74))
+
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
-                Text(priceText(for: tier))
-                    .font(.system(.title3, design: .serif).weight(.black))
-                    .foregroundStyle(selected ? BookPalette.lampGold : BookPalette.nightText.opacity(0.8))
+
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(priceText(for: tier))
+                        .font(.system(.largeTitle, design: .serif).weight(.black))
+                        .foregroundStyle(selected ? BookPalette.lampGold : BookPalette.nightText)
+                    Text("/ \(tier.periodUnit)")
+                        .font(.body.weight(.bold))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.68))
+                    Spacer(minLength: 0)
+                }
+
+                Text(tierTermsLine(tier))
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Divider()
+                    .overlay(BookPalette.lampGold.opacity(0.28))
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Label("WHY THE BOOK MARKED THIS PRICE DOWN", systemImage: "tag.fill")
+                        .font(.system(size: 11, weight: .black))
+                        .tracking(0.6)
+                        .foregroundStyle(BookPalette.teal)
+                    Text(discountReason(for: tier))
+                        .font(.system(.body, design: .serif).weight(.semibold))
+                        .italic()
+                        .foregroundStyle(BookPalette.nightText.opacity(0.88))
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            .padding(14)
-            .background((selected ? BookPalette.lampGold.opacity(0.12) : BookPalette.paper.opacity(0.4)), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(17)
+            .background(
+                LinearGradient(
+                    colors: selected
+                        ? [BookPalette.lampGold.opacity(0.16), BookPalette.violet.opacity(0.18)]
+                        : [BookPalette.paper.opacity(0.42), BookPalette.nightPanel.opacity(0.62)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
             .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke((selected ? BookPalette.lampGold : BookPalette.nightText.opacity(0.2)), lineWidth: selected ? 1.6 : 1)
             }
         }
@@ -3461,17 +4576,33 @@ struct StandingOrderSheet: View {
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
+    private func discountReason(for tier: StandingOrderTier) -> String {
+        let reasons = personalization.offerReasons.isEmpty
+            ? StandingOrderPersonalization.empty.offerReasons
+            : personalization.offerReasons
+        let rotation = abs(offerReasonNonce.uuidString.stableHash) % reasons.count
+        let offset = tier.cadence == .monthly ? 0 : 1
+        return reasons[(rotation + offset) % reasons.count]
+    }
+
     // MARK: Page 4 — the terms in plain ink
 
     private var termsPage: some View {
         VStack(alignment: .leading, spacing: 14) {
-            pageTitle("The terms, in plain ink.", subtitle: "No trap doors. Here is exactly what happens and when.")
+            pageTitle(
+                "No faerie-tale fine print.",
+                subtitle: "A good bargain says exactly what it takes and exactly what it gives. Here's what happens and when."
+            )
+
+            finalOfferSummary
 
             VStack(alignment: .leading, spacing: 12) {
-                termsLine("calendar", trialClause)
-                termsLine("bell", "We'll tap the glass the day before any coin moves — a reminder the day before your trial ends.")
-                termsLine("xmark.circle", "Cancel anytime in Settings → Apple ID → Subscriptions. Cancel before the trial ends and you are never charged.")
-                termsLine("lock.shield", "The free Book keeps everything you already made, trial or not. Your pages are always yours.")
+                termsLine("calendar", billingClause)
+                if trialDays(for: selectedTier) != nil {
+                    termsLine("bell", reminderClause)
+                }
+                termsLine("xmark.circle", cancellationClause)
+                termsLine("lock.shield", "If the order ends, its paid folios close unless you bought them separately. The free Book and everything you made stay yours.")
                 termsLine("arrow.clockwise", "Payment is charged to your Apple ID. A subscription renews automatically unless cancelled at least 24 hours before the period ends.")
             }
             .padding(14)
@@ -3492,32 +4623,120 @@ struct StandingOrderSheet: View {
             }
             .font(.caption.weight(.semibold))
             .foregroundStyle(BookPalette.nightText.opacity(0.6))
+
+            Button {
+                BookFeedback.play(.dismissPage)
+                onDismiss()
+            } label: {
+                Text("Open my free Book instead")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(BookPalette.paper.opacity(0.38), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.78))
+            }
+            .buttonStyle(.plain)
         }
     }
 
-    private var trialClause: String {
-        let days = trialDays(for: selectedTier)
+    private var finalOfferSummary: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(selectedTier.title.uppercased()) STANDING ORDER")
+                        .font(.system(size: 10, weight: .black))
+                        .tracking(0.8)
+                        .foregroundStyle(BookPalette.lampGold)
+                    Text("Living story + one fresh pack every month")
+                        .font(.system(.callout, design: .serif).weight(.semibold))
+                        .foregroundStyle(BookPalette.nightText)
+                }
+                Spacer(minLength: 8)
+                Text(priceText(for: selectedTier))
+                    .font(.system(.title2, design: .serif).weight(.black))
+                    .foregroundStyle(BookPalette.lampGold)
+            }
+
+            Text("Includes the whole paid shelf and every new monthly pack while your order is active. The free Book and everything you make remain yours if it ends.")
+                .font(.system(.caption, design: .serif))
+                .foregroundStyle(BookPalette.nightText.opacity(0.70))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if pricing[selectedTier.productID] == nil {
+                Text("Catalog estimate only. Apple confirms the live localized price before purchase.")
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(BookPalette.teal)
+            }
+        }
+        .padding(14)
+        .background(BookPalette.nightPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
+        }
+    }
+
+    private func tierTermsLine(_ tier: StandingOrderTier) -> String {
+        if let days = trialDays(for: tier) {
+            guard pricing[tier.productID] != nil else {
+                return "\(days)-day trial preview; Apple confirms live eligibility and price"
+            }
+            return "\(days)-day free trial, then \(priceText(for: tier)) / \(tier.periodUnit)"
+        }
+        guard pricing[tier.productID] != nil else {
+            return "Apple confirms the current price before purchase"
+        }
+        return "\(priceText(for: tier)) / \(tier.periodUnit), billed when you confirm"
+    }
+
+    private var billingClause: String {
         let start = Date()
-        let charge = Calendar.current.date(byAdding: .day, value: days, to: start) ?? start
         let fmt = Date.FormatStyle.dateTime.month(.wide).day()
         let price = priceText(for: selectedTier)
+        guard pricing[selectedTier.productID] != nil else {
+            return "Apple will show and confirm the current localized price before you subscribe. The \(price) shown earlier is only the Book's catalog estimate."
+        }
+        guard let days = trialDays(for: selectedTier) else {
+            return "If you confirm today, \(start.formatted(fmt)), Apple charges \(price) for the \(selectedTier.title.lowercased()) Standing Order."
+        }
+        let charge = Calendar.current.date(byAdding: .day, value: days, to: start) ?? start
         return "Your free trial starts today, \(start.formatted(fmt)). On \(charge.formatted(fmt)), Apple charges \(price) for the \(selectedTier.title.lowercased()) Standing Order unless you cancel first."
+    }
+
+    private var reminderClause: String {
+        switch reminderAuthorization {
+        case .allowed:
+            return "Notifications are allowed, so we'll tap the glass the day before your free trial ends."
+        case .notDetermined:
+            return "If you allow notifications when asked, we'll tap the glass the day before your free trial ends."
+        case .unavailable:
+            return "Notifications are off, so the Book cannot promise a trial reminder. The charge date is written above."
+        }
+    }
+
+    private var cancellationClause: String {
+        if trialDays(for: selectedTier) != nil {
+            return "Cancel anytime in Settings → Apple ID → Subscriptions. Cancel before the trial ends and you are never charged."
+        }
+        return "Cancel anytime in Settings → Apple ID → Subscriptions. Your access continues through the paid billing period."
     }
 
     // MARK: Shared bits
 
     private func pageTitle(_ title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 9) {
             Text(title)
                 .font(.system(.title, design: .serif).weight(.bold))
                 .foregroundStyle(BookPalette.nightText)
+                .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
             Text(subtitle)
-                .font(.system(.callout, design: .serif))
-                .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.nightText.opacity(0.82))
+                .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.bottom, 4)
+        .padding(.bottom, 6)
     }
 
     private func benefitRow(_ symbol: String, _ title: String, _ body: String, emphasized: Bool = false) -> some View {
@@ -3529,16 +4748,17 @@ struct StandingOrderSheet: View {
                 .background((emphasized ? BookPalette.lampGold : BookPalette.nightPanel).opacity(emphasized ? 0.92 : 0.7), in: Circle())
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.subheadline.weight(.black))
+                    .font(.headline.weight(.black))
                     .foregroundStyle(BookPalette.nightText)
                 Text(body)
-                    .font(.system(.callout, design: .serif))
-                    .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                    .font(.system(.body, design: .serif))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.82))
+                    .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
-        .padding(12)
+        .padding(16)
         .background(BookPalette.page.opacity(emphasized ? 0.6 : 0.4), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -3566,16 +4786,24 @@ struct StandingOrderSheet: View {
         let merchant = await BookShopTill.resolveMerchant()
         switch await merchant.purchase(productID: selectedTier.productID) {
         case .bound:
-            BookFeedback.play(.braidComplete)
-            // Make the terms page's promise real: a tap on the glass the day
-            // before the trial converts to a charge.
-            StandingOrderTrialReminder.schedule(
-                trialDays: trialDays(for: selectedTier),
-                price: priceText(for: selectedTier),
-                periodUnit: selectedTier.periodUnit
-            )
+            if let days = trialDays(for: selectedTier) {
+                // Schedule the courtesy reminder only for a trial the sheet
+                // actually disclosed for this reader.
+                let didSchedule = await StandingOrderTrialReminder.scheduleForPurchasedTrial(
+                    productID: selectedTier.productID,
+                    fallbackTrialDays: days,
+                    price: priceText(for: selectedTier),
+                    periodUnit: selectedTier.periodUnit
+                )
+                if !didSchedule {
+                    statusLine = "The bargain is struck. Notifications are off, so keep the charge date written above."
+                }
+            } else {
+                StandingOrderTrialReminder.cancel()
+            }
+            onBargainStruck()
             onSubscribed(PackEntitlements.standingOrderPackID)
-            onDismiss()
+            await strikeBargain()
         case .pending:
             statusLine = "The App Store says the order is pending approval. The ledger will wait."
         case .cancelled:
@@ -3591,6 +4819,7 @@ struct StandingOrderSheet: View {
         let merchant = await BookShopTill.resolveMerchant()
         let owned = await merchant.restorePurchases()
         if owned.contains(PackEntitlements.standingOrderPackID) {
+            await StandingOrderTrialReminder.reconcileCurrentTrial()
             onSubscribed(PackEntitlements.standingOrderPackID)
             statusLine = "The ledger remembers you. Your Standing Order is restored."
             BookFeedback.play(.braidComplete)

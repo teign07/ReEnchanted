@@ -397,6 +397,8 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .reflect
         case .elective:
             return .capture
+        case .wickerDare:
+            return .capture
         case .packPage, .wordNegotiation:
             return .reflect
         case .calendar:
@@ -1063,6 +1065,510 @@ struct SurfaceDismissalLedger: Codable, Equatable {
     }
 }
 
+enum ReaderAlivenessCurationContext {
+    static func facets(inputs: BookSourceInputs, now: Date, calendar: Calendar = .current) -> Set<String> {
+        var facets: Set<String> = []
+        let hour = calendar.component(.hour, from: now)
+        let dayPart: String
+        switch hour {
+        case 5...11: dayPart = "morning"
+        case 12...16: dayPart = "afternoon"
+        case 17...20: dayPart = "evening"
+        default: dayPart = "night"
+        }
+        facets.insert("time:\(dayPart)")
+        if let place = inputs.currentLocationLabel?.nonEmpty {
+            facets.insert("place:\(place.readerLearningNormalizedTag)")
+        }
+        if let anchor = inputs.nearbyAnchor?.anchor.id.nonEmpty {
+            facets.insert("anchor:\(anchor.readerLearningNormalizedTag)")
+        }
+        let weather = [inputs.weather?.phrase, inputs.enchantedWeather?.summary]
+            .compactMap { $0 }.joined(separator: " ").lowercased()
+        let weatherTerms = ["rain", "storm", "snow", "wind", "fog", "mist", "cloud", "sun", "clear", "heat", "cold"]
+        for term in weatherTerms where weather.contains(term) {
+            facets.insert("weather:\(term)")
+        }
+        let activeEvents = inputs.calendarEvents.filter {
+            $0.startsAt <= now && ($0.endsAt ?? $0.startsAt.addingTimeInterval(3600)) >= now
+        }
+        facets.insert("day-load:\(activeEvents.isEmpty ? "open" : (activeEvents.count >= 3 ? "crowded" : "held"))")
+        let readerState = inputs.readerStatePulses.currentState(now: now)
+        if let value = readerState.aliveness {
+            facets.insert("state:aliveness:\(stateBand(value))")
+        }
+        if let value = readerState.wonder {
+            facets.insert("state:wonder:\(stateBand(value))")
+        }
+        if let value = readerState.hiddenMagic {
+            facets.insert("state:hidden-magic:\(stateBand(value))")
+        }
+        if let value = readerState.capacity {
+            facets.insert("state:capacity:\(capacityBand(value))")
+        }
+        return facets
+    }
+
+    private static func stateBand(_ score: Int) -> String {
+        switch score {
+        case ...3: return "closed"
+        case 4...5: return "flicker"
+        case 6...7: return "open"
+        default: return "vivid"
+        }
+    }
+
+    private static func capacityBand(_ score: Int) -> String {
+        switch score {
+        case ...3: return "little"
+        case 4...7: return "some"
+        default: return "wide"
+        }
+    }
+
+    static func addingSurfaceFacets(_ base: Set<String>, page: SurfacePage) -> Set<String> {
+        var facets = base
+        for tag in page.readerLearningTags where
+            tag.hasPrefix("person:") || tag.hasPrefix("entity:") || tag.hasPrefix("sender:") {
+            facets.insert(tag)
+        }
+        return facets
+    }
+
+    /// A non-reversible bucket for causal comparison. The raw place, weather,
+    /// and company facets stay in the local aliveness portrait; opportunity
+    /// receipts need only know that two selection moments were comparable.
+    static func contextKey(_ facets: Set<String>) -> String {
+        let seed = facets.sorted().joined(separator: "|")
+        return "ctx-\(abs(seed.stableHash))"
+    }
+}
+
+enum BookSessionDirector {
+    private struct MovementCandidate {
+        var movement: BookReenchantmentMovement
+        var support: Int
+        var evidencePageIDs: [String]
+        var reason: String
+    }
+
+    static func intention(
+        for day: BookDay,
+        inputs: BookSourceInputs,
+        candidates: [SurfacePage],
+        preferences: CuratorSurfacePreferences,
+        distressActive: Bool,
+        now: Date
+    ) -> BookSessionIntention {
+        if let active = inputs.activeBookSessionIntention,
+           active.isActive(on: day.id, now: now) {
+            return active
+        }
+
+        let sessionSeed = "\(day.id)|\(Int(now.timeIntervalSince1970 / (4 * 3600)))"
+        if distressActive {
+            return make(
+                movement: .shelter,
+                ambition: .glint,
+                evidencePageIDs: day.pages.suffix(2).map(\.id),
+                reason: "The current day asked the Book to lower effort and offer shelter.",
+                dayID: day.id,
+                seed: sessionSeed,
+                now: now
+            )
+        }
+
+        if let campaign = inputs.bookInterior.longGame?.currentCampaign,
+           campaign.mayClaimDeskSlot {
+            return make(
+                movement: BookReenchantmentMovement(capacity: campaign.capacity),
+                ambition: campaign.beat == .return ? .return : .intervention,
+                evidencePageIDs: Array(Set(campaign.edgeEvidencePageIDs + campaign.outcomeEvidencePageIDs)).sorted(),
+                reason: "A finite Long Game campaign has one evidence-backed real-world effect in progress.",
+                dayID: day.id,
+                seed: sessionSeed + "|" + campaign.id,
+                now: now
+            )
+        }
+
+        if candidates.contains(where: { $0.payload.metadata["magicMoment"] == "true" }) {
+            let evidenceIDs = candidates
+                .filter { $0.payload.metadata["magicMoment"] == "true" }
+                .flatMap { ($0.payload.metadata["bookActEvidencePageIDs"] ?? "").split(separator: ",").map(String.init) }
+            return make(
+                movement: .livingContinuity,
+                ambition: .revelation,
+                evidencePageIDs: Array(Set(evidenceIDs)).sorted(),
+                reason: "Meaningful attention earned an evidence-backed reveal.",
+                dayID: day.id,
+                seed: sessionSeed + "|earned-reveal",
+                now: now
+            )
+        }
+
+        let recentPages = (inputs.days + [day])
+            .flatMap(\.pages)
+            .sorted { $0.createdAt > $1.createdAt }
+        let recentAuthored = recentPages.filter { $0.origin == .userAuthored }
+        var movements: [MovementCandidate] = [
+            MovementCandidate(
+                movement: .freshSight,
+                support: 16 + (inputs.weather == nil ? 0 : 5) + (inputs.nearbyAnchor == nil ? 0 : 4),
+                evidencePageIDs: recentAuthored.prefix(1).map(\.id),
+                reason: "The present day contains something concrete the reader can meet with fresh attention."
+            ),
+            MovementCandidate(
+                movement: .livingWorld,
+                support: 8 + (inputs.weather == nil ? 0 : 8) + (inputs.currentLocationLabel == nil ? 0 : 7)
+                    + (inputs.nearbyPlaces.isEmpty ? 0 : 5),
+                evidencePageIDs: recentPages.filter { [.weather, .location, .todaysSky, .anchor].contains($0.type) }.prefix(3).map(\.id),
+                reason: "Place, weather, or nearby nonhuman business can become more than backdrop."
+            ),
+            MovementCandidate(
+                movement: .scriptFreedom,
+                support: 8 + min(8, inputs.selfFacts.count),
+                evidencePageIDs: recentAuthored.prefix(2).map(\.id),
+                reason: "The reader has supplied enough authorship for one ordinary rule to become less inevitable."
+            ),
+            MovementCandidate(
+                movement: .chosenDetour,
+                support: 9 + (livingEdgeCount(in: recentAuthored) * 5),
+                evidencePageIDs: livingEdgeIDs(in: recentAuthored),
+                reason: "A reader-authored desire or an open part of the day can support one chosen detour."
+            ),
+            MovementCandidate(
+                movement: .exactLanguage,
+                support: 7 + min(14, recentAuthored.filter { !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count * 2),
+                evidencePageIDs: recentAuthored.filter { !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.prefix(3).map(\.id),
+                reason: "The reader's own words can make one blurred experience more exact."
+            ),
+            MovementCandidate(
+                movement: .humanOtherness,
+                support: 5 + min(15, inputs.people.threads.count * 4) + min(6, inputs.customCastMembers.count),
+                evidencePageIDs: recentPages.filter { $0.tags.contains(where: { $0.hasPrefix("person:") || $0.hasPrefix("entity:") }) }.prefix(3).map(\.id),
+                reason: "A person in the Book can be encountered as another world rather than a familiar role."
+            ),
+            MovementCandidate(
+                movement: .livingContinuity,
+                support: 4 + min(18, inputs.resurfacingCandidates.count * 3) + min(8, inputs.continuity.signals.count),
+                evidencePageIDs: Array(inputs.resurfacingCandidates.prefix(3).map(\.id)),
+                reason: "Earlier life has enough surviving evidence to acquire a second life in the present."
+            )
+        ]
+
+        // A pulse changes the remedy, never the eligibility of a movement.
+        // Low capacity asks for shelter and small attention; a vivid day can
+        // carry a larger detour. The learned outcome model still gets the
+        // final weighted vote below.
+        let readerState = inputs.readerStatePulses.currentState(now: now)
+        func addSupport(_ amount: Int, to movement: BookReenchantmentMovement) {
+            guard let index = movements.firstIndex(where: { $0.movement == movement }) else { return }
+            movements[index].support += amount
+        }
+        if let capacity = readerState.capacity {
+            if capacity <= 3 {
+                addSupport(10, to: .freshSight)
+                addSupport(-7, to: .chosenDetour)
+                addSupport(-5, to: .humanOtherness)
+            } else if capacity >= 8 {
+                addSupport(7, to: .chosenDetour)
+                addSupport(4, to: .humanOtherness)
+            }
+        }
+        if let wonder = readerState.wonder, wonder <= 3 {
+            addSupport(9, to: .freshSight)
+            addSupport(7, to: .livingWorld)
+        }
+        if let aliveness = readerState.aliveness {
+            if aliveness <= 3 {
+                addSupport(6, to: .freshSight)
+                addSupport(5, to: .livingWorld)
+            } else if aliveness >= 8 {
+                addSupport(5, to: .chosenDetour)
+                addSupport(4, to: .humanOtherness)
+            }
+        }
+
+        if let longGame = inputs.bookInterior.longGame,
+           let hypothesis = longGame.hypotheses.first {
+            let movement = BookReenchantmentMovement(capacity: hypothesis.capacity)
+            if let index = movements.firstIndex(where: { $0.movement == movement }) {
+                let hypothesisPageIDs = longGame.evidence
+                    .filter { hypothesis.evidenceIDs.contains($0.id) }
+                    .flatMap(\.evidencePageIDs)
+                movements[index].support += 20
+                movements[index].evidencePageIDs.append(contentsOf: hypothesisPageIDs)
+                movements[index].reason = "The Book's current cautious hypothesis and the present life point toward the same capacity."
+            }
+        }
+
+        movements = movements.filter { movement in
+            candidates.contains { BookSessionComposer.intentionFit(for: $0, movement: movement.movement) > 0 }
+        }
+        let movementContextKey = ReaderAlivenessCurationContext.contextKey(
+            ReaderAlivenessCurationContext.facets(inputs: inputs, now: now)
+        )
+        let chosen = weightedMovement(
+            movements,
+            candidates: candidates,
+            preferences: preferences,
+            aliveness: inputs.readerAliveness,
+            now: now,
+            contextKey: movementContextKey,
+            seed: sessionSeed
+        ) ?? movements.first ?? MovementCandidate(
+            movement: .freshSight,
+            support: 1,
+            evidencePageIDs: [],
+            reason: "The present day offers one small thing worth seeing properly."
+        )
+        let evidenceIDs = Array(Set(chosen.evidencePageIDs)).sorted()
+        let ambition: BookSessionAmbition = chosen.movement == .livingContinuity && !evidenceIDs.isEmpty
+            ? .return
+            : (evidenceIDs.count >= 2 ? .connection : .glint)
+        let causalMovementReceipt = causalMovementReceipt(
+            chosen: chosen,
+            among: movements,
+            candidates: candidates,
+            preferences: preferences,
+            aliveness: inputs.readerAliveness,
+            contextKey: movementContextKey,
+            sessionID: "book-session-\(day.id)-\(chosen.movement.rawValue)-\(abs((sessionSeed + "|" + chosen.movement.rawValue).stableHash))",
+            now: now
+        )
+        return make(
+            movement: chosen.movement,
+            ambition: ambition,
+            evidencePageIDs: evidenceIDs,
+            reason: chosen.reason,
+            dayID: day.id,
+            seed: sessionSeed + "|" + chosen.movement.rawValue,
+            now: now,
+            causalMovementReceipt: causalMovementReceipt
+        )
+    }
+
+    private static func make(
+        movement: BookReenchantmentMovement,
+        ambition: BookSessionAmbition,
+        evidencePageIDs: [String],
+        reason: String,
+        dayID: String,
+        seed: String,
+        now: Date,
+        causalMovementReceipt: CausalMovementReceipt? = nil
+    ) -> BookSessionIntention {
+        let calendar = Calendar.current
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
+            ?? now.addingTimeInterval(6 * 3600)
+        let expiresAt = min(now.addingTimeInterval(6 * 3600), nextDay)
+        return BookSessionIntention(
+            id: "book-session-\(dayID)-\(movement.rawValue)-\(abs(seed.stableHash))",
+            dayID: dayID,
+            movement: movement,
+            ambition: ambition,
+            evidencePageIDs: evidencePageIDs,
+            evidenceReason: reason,
+            createdAt: now,
+            expiresAt: expiresAt,
+            seed: seed,
+            causalMovementReceipt: causalMovementReceipt
+        )
+    }
+
+    private static func weightedMovement(
+        _ movements: [MovementCandidate],
+        candidates: [SurfacePage],
+        preferences: CuratorSurfacePreferences,
+        aliveness: ReaderAlivenessModel,
+        now: Date,
+        contextKey: String,
+        seed: String
+    ) -> MovementCandidate? {
+        movements.min { left, right in
+            movementRace(
+                left,
+                candidates: candidates,
+                preferences: preferences,
+                aliveness: aliveness,
+                now: now,
+                contextKey: contextKey,
+                seed: seed
+            ) < movementRace(
+                right,
+                candidates: candidates,
+                preferences: preferences,
+                aliveness: aliveness,
+                now: now,
+                contextKey: contextKey,
+                seed: seed
+            )
+        }
+    }
+
+    private static func movementRace(
+        _ candidate: MovementCandidate,
+        candidates: [SurfacePage],
+        preferences: CuratorSurfacePreferences,
+        aliveness: ReaderAlivenessModel,
+        now: Date,
+        contextKey: String,
+        seed: String
+    ) -> Double {
+        let weight = movementWeight(
+            candidate,
+            candidates: candidates,
+            preferences: preferences,
+            aliveness: aliveness,
+            now: now,
+            contextKey: contextKey
+        )
+        return weightedRace(seed: "\(seed)|movement|\(candidate.movement.rawValue)", weight: weight)
+    }
+
+    private static func movementWeight(
+        _ candidate: MovementCandidate,
+        candidates: [SurfacePage],
+        preferences: CuratorSurfacePreferences,
+        aliveness: ReaderAlivenessModel,
+        now: Date,
+        contextKey: String
+    ) -> Double {
+        let relevant = candidates.filter {
+            BookSessionComposer.intentionFit(for: $0, movement: candidate.movement) > 0
+        }
+        let belief = relevant.map { preferences.beliefSelectionMultiplier(for: $0) }.max() ?? 0.35
+        let exploration = aliveness.movementExplorationMultiplier(candidate.movement, now: now)
+        let causal = aliveness.causalMovementUpliftMultiplier(
+            movement: candidate.movement,
+            contextKey: contextKey,
+            now: now
+        )
+        return max(0.1, Double(max(1, candidate.support)) * belief * exploration * causal)
+    }
+
+    private static func causalMovementReceipt(
+        chosen: MovementCandidate,
+        among movements: [MovementCandidate],
+        candidates: [SurfacePage],
+        preferences: CuratorSurfacePreferences,
+        aliveness: ReaderAlivenessModel,
+        contextKey: String,
+        sessionID: String,
+        now: Date
+    ) -> CausalMovementReceipt? {
+        guard movements.count >= 2 else { return nil }
+        let weighted = movements.map { movement in
+            CausalMovementCandidate(
+                movement: movement.movement,
+                weight: movementWeight(
+                    movement,
+                    candidates: candidates,
+                    preferences: preferences,
+                    aliveness: aliveness,
+                    now: now,
+                    contextKey: contextKey
+                )
+            )
+        }
+        guard let selected = weighted.first(where: { $0.movement == chosen.movement }) else { return nil }
+        let total = weighted.reduce(0) { $0 + $1.weight }
+        guard total > 0 else { return nil }
+        let idSeed = "\(sessionID)|movement|\(contextKey)"
+        return CausalMovementReceipt(
+            id: "causal-movement-\(abs(idSeed.stableHash))",
+            policyVersion: CausalMovementReceipt.currentPolicyVersion,
+            sessionID: sessionID,
+            chosenMovement: chosen.movement,
+            contextKey: contextKey,
+            propensity: max(0.000_001, min(1, selected.weight / total)),
+            candidates: weighted,
+            selectedAt: now
+        )
+    }
+
+    private static func livingEdgeCount(in pages: [BookPage]) -> Int {
+        livingEdgeIDs(in: pages).count
+    }
+
+    private static func livingEdgeIDs(in pages: [BookPage]) -> [String] {
+        let markers = ["i want", "i wish", "i keep meaning", "someday", "my dream", "i'd love", "i miss"]
+        return pages.filter { page in
+            let text = [page.userInput, page.playerReply].joined(separator: " ").lowercased()
+            return markers.contains(where: text.contains)
+        }.prefix(3).map(\.id)
+    }
+
+    fileprivate static func weightedRace(seed: String, weight: Double) -> Double {
+        let scrambled = abs(seed.stableHash.stableScramble % 1_000_000)
+        let unit = Double(scrambled + 1) / 1_000_001.0
+        return -log(unit) / max(0.0001, weight)
+    }
+}
+
+enum BookSessionComposer {
+    static func intentionFit(for page: SurfacePage, movement: BookReenchantmentMovement) -> Int {
+        let preferred: Set<BookPageType>
+        switch movement {
+        case .freshSight:
+            preferred = [.plainPage, .souvenir, .wonderCompass, .weather, .body, .mood, .enchantment, .quip, .quotes]
+        case .livingWorld:
+            preferred = [.wonderCompass, .location, .todaysSky, .weather, .anchor, .bookNotices, .enchantment, .lore]
+        case .scriptFreedom:
+            preferred = [.wordNegotiation, .affirmations, .faeBargain, .bookNotices, .wonderCompass, .narrativeOS]
+        case .chosenDetour:
+            preferred = [.wonderCompass, .elective, .narrativeOS, .enchantment, .plainPage, .bookJump]
+        case .exactLanguage:
+            preferred = [.wordNegotiation, .diary, .souvenir, .quotes, .bookNotices, .plainPage]
+        case .humanOtherness:
+            preferred = [.letter, .note, .elective, .bookConnections, .gossip, .castBond, .bookFae]
+        case .livingContinuity:
+            preferred = [.bookRemembered, .bookConnections, .bookOfYou, .bookPocket, .bindery, .bookNotices]
+        case .shelter:
+            preferred = [.rest, .body, .weather, .plainPage, .mood, .quotes, .radio]
+        }
+        var value = preferred.contains(page.type) ? 18 : 0
+        if movement == .livingContinuity, [.resurface, .braid, .reflect].contains(page.intent) { value += 8 }
+        if movement == .shelter, page.intent == .rest { value += 12 }
+        if [.freshSight, .livingWorld, .chosenDetour].contains(movement), page.type.deskLane == .outward { value += 5 }
+        if movement == .humanOtherness,
+           page.readerLearningTags.contains(where: { $0.hasPrefix("person:") || $0.hasPrefix("entity:") || $0.hasPrefix("sender:") }) {
+            value += 8
+        }
+        return value
+    }
+
+    static func roleFit(for page: SurfacePage, role: BookSessionRole, movement: BookReenchantmentMovement) -> Int {
+        switch role {
+        case .door:
+            var value = intentionFit(for: page, movement: movement)
+            if page.type.deskLane == .outward || page.isReaderActionCommission { value += 12 }
+            if [.capture, .rest, .resurface].contains(page.intent) { value += 6 }
+            if movement == .livingContinuity, [.bookRemembered, .bookConnections, .bookOfYou].contains(page.type) { value += 14 }
+            return value
+        case .echo:
+            var value = intentionFit(for: page, movement: movement) / 2
+            if [.reflect, .resurface, .braid].contains(page.intent) { value += 14 }
+            if [.bookNotices, .bookRemembered, .bookConnections, .bookPocket, .bookOfYou].contains(page.type) { value += 12 }
+            if page.isReaderActionCommission { value -= 20 }
+            return value
+        case .horizon:
+            var value = intentionFit(for: page, movement: movement) / 3
+            if page.type.deskLane == .fiction || page.intent == .importReference || page.intent == .simulate { value += 14 }
+            if [.lore, .quotes, .quip, .radio, .narrativeOS, .letter, .gossip, .facultyResearch].contains(page.type) { value += 7 }
+            if page.isReaderActionCommission { value -= 24 }
+            return value
+        }
+    }
+
+    static func preferredRole(for page: SurfacePage, movement: BookReenchantmentMovement) -> BookSessionRole {
+        BookSessionRole.allCases.max {
+            roleFit(for: page, role: $0, movement: movement)
+                < roleFit(for: page, role: $1, movement: movement)
+        } ?? .horizon
+    }
+}
+
 enum BookCurator {
     static func surfacedPages(for day: BookDay, now: Date = Date(), limit: Int = 3) -> [SurfacePage] {
         surfacedPages(for: day, context: .make(for: day), inputs: .empty, now: now, limit: limit)
@@ -1095,6 +1601,15 @@ enum BookCurator {
     ) -> [SurfacePage] {
         let inputs = inputs.resolvingWorldEvents(for: day, now: now)
         let bookRelationship = BookRelationshipLedger.snapshot(inputs: inputs, now: now)
+        let preparedSurfaceIDs = Set([
+            inputs.preparedAnchorSurface?.id,
+            inputs.preparedIlluminatedPhotoSurface?.id,
+            inputs.preparedStoryPageSurface?.id,
+            inputs.preparedGossipPageSurface?.id,
+            inputs.preparedFacultyResearchSurface?.id,
+            inputs.preparedLetterSurface?.id,
+            inputs.preparedBleedEditionSurface?.id
+        ].compactMap { $0 })
         let rawCandidates = (
             BookPageSourceAdapters.active.flatMap { adapter in
                 adapter.candidates(for: day, context: context, inputs: inputs, now: now)
@@ -1102,7 +1617,23 @@ enum BookCurator {
             + BookInteriorSurfaces.candidates(for: day, inputs: inputs, now: now)
         )
         .map { WorldEventEffects.framed($0, events: inputs.activeWorldEvents) }
-        .map { BookRelationshipVoice.decorating($0, relationship: bookRelationship) }
+        .map { page in
+            guard preparedSurfaceIDs.contains(page.id) else { return page }
+            var payload = page.payload
+            payload.metadata["curatorPreparedArtifact"] = "true"
+            return SurfacePage(
+                id: page.id,
+                type: page.type,
+                sourceID: page.sourceID,
+                intent: page.intent,
+                renderStyle: page.renderStyle,
+                score: page.score,
+                reason: page.reason,
+                prompt: page.prompt,
+                detail: page.detail,
+                payload: payload
+            )
+        }
         .map {
             BookInteriorVoice.influencing(
                 $0,
@@ -1122,12 +1653,25 @@ enum BookCurator {
             state: inputs.magicMoment
         )
         let mood = CuratorMood.make(inputs: inputs, distressActive: context.distress.isActive, now: now)
+        let alivenessFacets = ReaderAlivenessCurationContext.facets(inputs: inputs, now: now)
+        let sessionIntention = BookSessionDirector.intention(
+            for: day,
+            inputs: inputs,
+            candidates: candidates,
+            preferences: preferences,
+            distressActive: context.distress.isActive,
+            now: now
+        )
         var picked = rankedPages(
             from: candidates,
             limit: limit,
             preferences: preferences,
             mood: mood,
-            now: now
+            now: now,
+            intention: sessionIntention,
+            selectionSeed: sessionIntention.seed,
+            readerAliveness: inputs.readerAliveness,
+            alivenessFacets: alivenessFacets
         ).map(\.page)
 
         // The Long Game is strategy, not flavor text. When its current
@@ -1159,7 +1703,11 @@ enum BookCurator {
                 limit: 1,
                 preferences: preferences,
                 mood: mood,
-                now: now
+                now: now,
+                intention: sessionIntention,
+                selectionSeed: sessionIntention.seed + "|strategic",
+                readerAliveness: inputs.readerAliveness,
+                alivenessFacets: alivenessFacets
             ).first?.page
             if let strategic,
                !picked.contains(where: { $0.id == strategic.id }) {
@@ -1240,13 +1788,26 @@ enum BookCurator {
             }
         }
 
+        picked = picked.map { page in
+            guard page.payload.metadata[BookSessionIntention.metadataID] == nil else { return page }
+            return sessionIntention.applying(
+                to: page,
+                role: BookSessionComposer.preferredRole(for: page, movement: sessionIntention.movement)
+            )
+        }
         let framed = picked
             .map { PactWarEffects.framed($0, state: inputs.pactWar) }
             .map { $0.withReaderLexiconLanguageLaw(inputs.readerLexicon) }
-        return BookPersonalityActuator.enacting(
+        let enacted = BookPersonalityActuator.enacting(
             in: framed,
             interior: inputs.bookInterior,
             day: day
+        )
+        return BookAsideEditor.decoratingDesk(
+            enacted,
+            relationship: bookRelationship,
+            receipts: inputs.bookAsideReceipts,
+            now: now
         )
     }
 
@@ -1291,7 +1852,11 @@ enum BookCurator {
         limit: Int = 3,
         preferences: CuratorSurfacePreferences = .none,
         mood: CuratorMood = .neutral,
-        now: Date = Date()
+        now: Date = Date(),
+        intention: BookSessionIntention? = nil,
+        selectionSeed: String? = nil,
+        readerAliveness: ReaderAlivenessModel = .unwritten,
+        alivenessFacets: Set<String> = []
     ) -> [RankedSurfacePage] {
         // Hard filters: a reader's disabled sources and first-hours hidden types
         // are never overridden.
@@ -1303,7 +1868,8 @@ enum BookCurator {
                 CuratorNoveltyPolicy.allowsAutomaticSurface(
                     $0,
                     history: mood.surfaceHistory,
-                    preferences: preferences
+                    preferences: preferences,
+                    now: now
                 )
             }
         // The type-refresh cooldown only adds variety — it must never starve the
@@ -1339,9 +1905,15 @@ enum BookCurator {
             }
             return left.offset < right.offset
         }.map(\.element)
-        let deduped = unique(selectionOrder)
+        // Stage one works with one representative per Page type. This keeps a
+        // prolific family from buying twenty lottery tickets merely because it
+        // supplied twenty variants. Stage two (inside `weightedOrder`) receives
+        // the full `selectionOrder` and chooses the exact Page only after the
+        // family has won its place.
+        let typeRepresentatives = unique(selectionOrder)
         var picked: [SurfacePage] = []
         var pickedTypes: Set<BookPageType> = []
+        var pickedSourceIDs: Set<String> = []
         var compositionCount = 0
         var debutCount = 0
         var actionCommissionCount = 0
@@ -1364,6 +1936,7 @@ enum BookCurator {
         func canAdd(_ page: SurfacePage) -> Bool {
             guard picked.count < limit else { return false }
             guard !pickedTypes.contains(page.type) else { return false }
+            guard !pickedSourceIDs.contains(page.sourceID) else { return false }
             let isBuildingVisibleDesk = picked.count < visibleLimit
             let currentCompositionLimit = isBuildingVisibleDesk ? 1 : compositionLimit
             let currentDebutLimit = isBuildingVisibleDesk ? 1 : debutLimit
@@ -1371,14 +1944,50 @@ enum BookCurator {
             if page.type.isCompositionPrompt, compositionCount >= currentCompositionLimit { return false }
             if isDebut(page), debutCount >= currentDebutLimit { return false }
             if page.isReaderActionCommission, actionCommissionCount >= currentActionLimit { return false }
+            if page.isReaderActionCommission,
+               !page.isDeskMilestone,
+               page.payload.metadata["firstRunStep"] == nil,
+               !readerAliveness.allowsHighPressureCausalAttempt(now: now) { return false }
             return true
         }
-        func add(_ page: SurfacePage) {
+        func add(
+            _ page: SurfacePage,
+            role: BookSessionRole? = nil,
+            causalCandidates: [SurfacePage]? = nil
+        ) {
             if isDebut(page) { debutCount += 1 }
             if page.type.isCompositionPrompt { compositionCount += 1 }
             if page.isReaderActionCommission { actionCommissionCount += 1 }
-            picked.append(page)
+            if let intention {
+                let selected: SurfacePage
+                if let role,
+                   intention.movement != .shelter,
+                   let causalCandidates,
+                   causalCandidates.count >= 2,
+                   let receipt = causalReceipt(
+                       for: page,
+                       among: causalCandidates,
+                       preferences: preferences,
+                       mood: mood,
+                       now: now,
+                       intention: intention,
+                       role: role,
+                       readerAliveness: readerAliveness,
+                       alivenessFacets: alivenessFacets
+                   ) {
+                    selected = receipt.applying(to: page)
+                } else {
+                    selected = page
+                }
+                picked.append(intention.applying(
+                    to: selected,
+                    role: role ?? BookSessionComposer.preferredRole(for: page, movement: intention.movement)
+                ))
+            } else {
+                picked.append(page)
+            }
             pickedTypes.insert(page.type)
+            pickedSourceIDs.insert(page.sourceID)
         }
 
         // The visible three-card prefix is balanced across lanes even when the
@@ -1388,24 +1997,138 @@ enum BookCurator {
         // Milestones are promises the Book has already earned the right to
         // fulfill. Give them first claim on the visible prefix; additional
         // milestones remain first in the deeper selection order below.
-        for page in deduped where page.isDeskMilestone && picked.count < visibleLimit && canAdd(page) {
-            add(page)
+        for page in typeRepresentatives where page.isDeskMilestone && picked.count < visibleLimit && canAdd(page) {
+            add(page, role: picked.isEmpty ? .door : intention.map {
+                BookSessionComposer.preferredRole(for: page, movement: $0.movement)
+            })
         }
-        if balancesVisibleDesk {
-            for lane in DeskLane.allCases {
-                guard picked.count < visibleLimit else { break }
-                guard !picked.contains(where: { $0.type.deskLane == lane }) else { continue }
-                if let page = deduped.first(where: { $0.type.deskLane == lane && canAdd($0) }) {
-                    add(page)
+        // A generated or rendered artifact is work the reader explicitly
+        // commissioned and the Book has finished. It reaches the visible desk
+        // before ordinary probabilistic composition, without displacing a
+        // protected milestone or breaking the one-commission boundary.
+        for page in typeRepresentatives
+            where page.payload.metadata["curatorPreparedArtifact"] == "true"
+                && picked.count < visibleLimit
+                && canAdd(page) {
+            add(page, role: picked.isEmpty ? .door : intention.map {
+                BookSessionComposer.preferredRole(for: page, movement: $0.movement)
+            })
+        }
+        let belovedReservationRoll = intention.map {
+            abs(($0.seed + "|beloved-first-refusal").stableHash.stableScramble % 4)
+        }
+        if let intention,
+           belovedReservationRoll != 0,
+           picked.count < visibleLimit {
+            // Very high Belief gives one coherent favorite first refusal on an
+            // ordinary slot. It is still absent when resting, disabled, gated,
+            // incompatible with every session role, or displaced by promises
+            // the Book has already earned the duty to keep.
+            let belovedCandidates = selectionOrder
+                .filter { page in
+                    CuratorNoveltyPolicy.belief(for: page, preferences: preferences)
+                        >= CuratorNoveltyPolicy.belovedBeliefThreshold
+                        && BookSessionRole.allCases.contains(where: { role in
+                            BookSessionComposer.roleFit(for: page, role: role, movement: intention.movement) > 0
+                        })
+                        && canAdd(page)
+                }
+            let belovedByType = Dictionary(grouping: belovedCandidates, by: \.type)
+            let belovedType = belovedByType.keys.max { leftType, rightType in
+                let left = belovedByType[leftType] ?? []
+                let right = belovedByType[rightType] ?? []
+                let leftBelief = left.map { CuratorNoveltyPolicy.belief(for: $0, preferences: preferences) }.max() ?? 0
+                let rightBelief = right.map { CuratorNoveltyPolicy.belief(for: $0, preferences: preferences) }.max() ?? 0
+                if leftBelief == rightBelief {
+                    let leftScore = left.map { totalScore(for: $0, preferences: preferences, mood: mood, now: now) }.max() ?? 0
+                    let rightScore = right.map { totalScore(for: $0, preferences: preferences, mood: mood, now: now) }.max() ?? 0
+                    if leftScore == rightScore {
+                        return leftType.rawValue < rightType.rawValue
+                    }
+                    return leftScore < rightScore
+                }
+                return leftBelief < rightBelief
+            }
+            if let belovedType {
+                // Belief first reserves the family. Then every eligible Page in
+                // it—including its low-Belief surprises—receives the ordinary
+                // second-stage exact-Page draw.
+                let familyPages = selectionOrder.filter { page in
+                    page.type == belovedType
+                        && canAdd(page)
+                        && BookSessionRole.allCases.contains(where: { role in
+                            BookSessionComposer.roleFit(for: page, role: role, movement: intention.movement) > 0
+                        })
+                }
+                let beloved = weightedOrder(
+                    familyPages,
+                    preferences: preferences,
+                    mood: mood,
+                    now: now,
+                    intention: intention,
+                    role: nil,
+                    readerAliveness: readerAliveness,
+                    alivenessFacets: alivenessFacets,
+                    seed: intention.seed + "|beloved-page-detail"
+                ).first
+                if let beloved {
+                    add(
+                        beloved,
+                        role: BookSessionComposer.preferredRole(for: beloved, movement: intention.movement)
+                    )
                 }
             }
-            for page in deduped where picked.count < visibleLimit && canAdd(page) { add(page) }
-            // Restore score order inside the visible trio, then append the deep
-            // bench in rank order without allowing it to displace that trio.
-            let rank = Dictionary(uniqueKeysWithValues: deduped.enumerated().map { ($0.element.id, $0.offset) })
-            picked.sort { (rank[$0.id] ?? 0) < (rank[$1.id] ?? 0) }
         }
-        for page in deduped where canAdd(page) { add(page) }
+        if balancesVisibleDesk || intention != nil {
+            if let intention, let selectionSeed {
+                // A visible desk is a sentence before it is a taxonomy. Choose
+                // one Door, Echo, and Horizon when honest candidates exist;
+                // lane diversity remains the fallback rather than forcing an
+                // unrelated card into a coherent session.
+                for role in BookSessionRole.allCases {
+                    guard picked.count < visibleLimit else { break }
+                    guard !picked.contains(where: {
+                        $0.payload.metadata[BookSessionIntention.metadataRole] == role.rawValue
+                    }) else { continue }
+                    if role == .door,
+                       intention.movement == .shelter,
+                       let rest = typeRepresentatives.first(where: { $0.type == .rest && canAdd($0) }) {
+                        add(rest, role: .door)
+                        continue
+                    }
+                    let eligibleRoleCandidates = selectionOrder.filter(canAdd)
+                    let roleOrder = weightedOrder(
+                        eligibleRoleCandidates,
+                        preferences: preferences,
+                        mood: mood,
+                        now: now,
+                        intention: intention,
+                        role: role,
+                        readerAliveness: readerAliveness,
+                        alivenessFacets: alivenessFacets,
+                        seed: selectionSeed + "|" + role.rawValue
+                    )
+                    if let page = roleOrder.first {
+                        add(page, role: role, causalCandidates: eligibleRoleCandidates)
+                    }
+                }
+                for page in typeRepresentatives where picked.count < visibleLimit && canAdd(page) { add(page) }
+            } else {
+                for lane in DeskLane.allCases {
+                    guard picked.count < visibleLimit else { break }
+                    guard !picked.contains(where: { $0.type.deskLane == lane }) else { continue }
+                    if let page = typeRepresentatives.first(where: { $0.type.deskLane == lane && canAdd($0) }) {
+                        add(page)
+                    }
+                }
+                for page in typeRepresentatives where picked.count < visibleLimit && canAdd(page) { add(page) }
+                // Restore score order inside the visible trio, then append the
+                // deep bench in rank order without displacing that trio.
+                let rank = Dictionary(uniqueKeysWithValues: typeRepresentatives.enumerated().map { ($0.element.id, $0.offset) })
+                picked.sort { (rank[$0.id] ?? 0) < (rank[$1.id] ?? 0) }
+            }
+        }
+        for page in typeRepresentatives where canAdd(page) { add(page) }
 
         return picked
             .enumerated()
@@ -1418,7 +2141,8 @@ enum BookCurator {
         from candidates: [SurfacePage],
         preferences: CuratorSurfacePreferences = .none,
         mood: CuratorMood = .neutral,
-        now: Date = Date()
+        now: Date = Date(),
+        intention: BookSessionIntention? = nil
     ) -> [CuratorCandidateTrace] {
         candidates.map { page in
             let preferenceAllowed = preferences.allows(page)
@@ -1427,7 +2151,8 @@ enum BookCurator {
             let noveltyAllowed = CuratorNoveltyPolicy.allowsAutomaticSurface(
                 page,
                 history: mood.surfaceHistory,
-                preferences: preferences
+                preferences: preferences,
+                now: now
             )
             let rejection: String?
             if !preferenceAllowed {
@@ -1437,7 +2162,7 @@ enum BookCurator {
             } else if !memoryAllowed {
                 rejection = "memory-maturity-gate"
             } else if !noveltyAllowed {
-                rejection = "exact-repeat-needs-belief"
+                rejection = "exact-repeat-resting"
             } else {
                 rejection = nil
             }
@@ -1448,6 +2173,10 @@ enum BookCurator {
                 lane: page.type.deskLane,
                 totalScore: totalScore(for: page, preferences: preferences, mood: mood, now: now),
                 belief: CuratorNoveltyPolicy.belief(for: page, preferences: preferences),
+                beliefSelectionMultiplier: preferences.beliefSelectionMultiplier(for: page),
+                movement: intention?.movement,
+                intentionFit: intention.map { BookSessionComposer.intentionFit(for: page, movement: $0.movement) } ?? 0,
+                preferredRole: intention.map { BookSessionComposer.preferredRole(for: page, movement: $0.movement) },
                 isNewType: CuratorNoveltyPolicy.isNewType(page, history: mood.surfaceHistory),
                 isNewSource: CuratorNoveltyPolicy.isNewSource(page, history: mood.surfaceHistory),
                 isNewContent: CuratorNoveltyPolicy.isNewContent(page, history: mood.surfaceHistory),
@@ -1470,6 +2199,273 @@ enum BookCurator {
                 preferences: preferences,
                 now: now
             )
+    }
+
+    /// A deterministic two-stage weighted permutation. Page types race first;
+    /// then the concrete Pages inside each type race for the right to represent
+    /// that family. Variant count therefore never increases a type's chance of
+    /// being chosen, while every eligible individual Page keeps nonzero odds.
+    private static func weightedOrder(
+        _ pages: [SurfacePage],
+        preferences: CuratorSurfacePreferences,
+        mood: CuratorMood,
+        now: Date,
+        intention: BookSessionIntention,
+        role: BookSessionRole?,
+        readerAliveness: ReaderAlivenessModel,
+        alivenessFacets: Set<String>,
+        seed: String
+    ) -> [SurfacePage] {
+        // Duplicate renderings of the same readable Page are one candidate,
+        // not extra tickets in the within-type race.
+        var seenContent = Set<String>()
+        let indexed = pages.enumerated().compactMap { offset, page -> (offset: Int, page: SurfacePage)? in
+            guard seenContent.insert(page.curatorContentNoveltyKey).inserted else { return nil }
+            return (offset, page)
+        }
+        let families = Dictionary(grouping: indexed, by: { $0.page.type })
+        let orderedTypes = families.keys.sorted { leftType, rightType in
+            let left = families[leftType] ?? []
+            let right = families[rightType] ?? []
+            let leftWeight = left.map {
+                selectionWeight(
+                    for: $0.page,
+                    preferences: preferences,
+                    mood: mood,
+                    now: now,
+                    intention: intention,
+                    role: role,
+                    readerAliveness: readerAliveness,
+                    alivenessFacets: alivenessFacets
+                )
+            }.max() ?? 0.0001
+            let rightWeight = right.map {
+                selectionWeight(
+                    for: $0.page,
+                    preferences: preferences,
+                    mood: mood,
+                    now: now,
+                    intention: intention,
+                    role: role,
+                    readerAliveness: readerAliveness,
+                    alivenessFacets: alivenessFacets
+                )
+            }.max() ?? 0.0001
+            let leftRace = BookSessionDirector.weightedRace(
+                seed: "\(seed)|page-type|\(leftType.rawValue)",
+                weight: leftWeight
+            )
+            let rightRace = BookSessionDirector.weightedRace(
+                seed: "\(seed)|page-type|\(rightType.rawValue)",
+                weight: rightWeight
+            )
+            if leftRace == rightRace { return leftType.rawValue < rightType.rawValue }
+            return leftRace < rightRace
+        }
+        return orderedTypes.compactMap { type in
+            guard let variants = families[type] else { return nil }
+            return variants.sorted { left, right in
+                let leftRace = selectionRace(
+                    for: left.page,
+                    originalOffset: left.offset,
+                    preferences: preferences,
+                    mood: mood,
+                    now: now,
+                    intention: intention,
+                    role: role,
+                    readerAliveness: readerAliveness,
+                    alivenessFacets: alivenessFacets,
+                    seed: seed + "|page-detail|" + type.rawValue
+                )
+                let rightRace = selectionRace(
+                    for: right.page,
+                    originalOffset: right.offset,
+                    preferences: preferences,
+                    mood: mood,
+                    now: now,
+                    intention: intention,
+                    role: role,
+                    readerAliveness: readerAliveness,
+                    alivenessFacets: alivenessFacets,
+                    seed: seed + "|page-detail|" + type.rawValue
+                )
+                if leftRace == rightRace { return left.offset < right.offset }
+                return leftRace < rightRace
+            }.first?.page
+        }
+    }
+
+    private static func selectionRace(
+        for page: SurfacePage,
+        originalOffset: Int,
+        preferences: CuratorSurfacePreferences,
+        mood: CuratorMood,
+        now: Date,
+        intention: BookSessionIntention,
+        role: BookSessionRole?,
+        readerAliveness: ReaderAlivenessModel,
+        alivenessFacets: Set<String>,
+        seed: String
+    ) -> Double {
+        let weight = selectionWeight(
+            for: page,
+            preferences: preferences,
+            mood: mood,
+            now: now,
+            intention: intention,
+            role: role,
+            readerAliveness: readerAliveness,
+            alivenessFacets: alivenessFacets
+        )
+        return BookSessionDirector.weightedRace(
+            seed: "\(seed)|\(page.sourceID)|\(page.curatorContentNoveltyKey)|\(originalOffset)",
+            weight: weight
+        )
+    }
+
+    private static func selectionWeight(
+        for page: SurfacePage,
+        preferences: CuratorSurfacePreferences,
+        mood: CuratorMood,
+        now: Date,
+        intention: BookSessionIntention,
+        role: BookSessionRole?,
+        readerAliveness: ReaderAlivenessModel,
+        alivenessFacets: Set<String>
+    ) -> Double {
+        let score = totalScore(for: page, preferences: preferences, mood: mood, now: now)
+        let scoreWeight = max(0.2, min(2.4, 1.0 + Double(score - 60) / 80.0))
+        let intentionPoints = BookSessionComposer.intentionFit(for: page, movement: intention.movement)
+        let intentionWeight = 0.35 + Double(max(0, intentionPoints)) / 18.0
+        let rolePoints = role.map {
+            BookSessionComposer.roleFit(for: page, role: $0, movement: intention.movement)
+        } ?? 0
+        let roleWeight = role == nil ? 1.0 : max(0.18, 0.35 + Double(max(0, rolePoints)) / 18.0)
+        let beliefWeight = preferences.beliefSelectionMultiplier(for: page)
+        let intimateFacets = ReaderAlivenessCurationContext.addingSurfaceFacets(alivenessFacets, page: page)
+        let alivenessWeight = readerAliveness.curationMultiplier(
+            movement: intention.movement,
+            sourceID: page.sourceID,
+            currentFacets: intimateFacets,
+            now: now
+        )
+        let contextKey = ReaderAlivenessCurationContext.contextKey(alivenessFacets)
+        let causalWeight = role.map {
+            readerAliveness.causalUpliftMultiplier(
+                movement: intention.movement,
+                role: $0,
+                sourceID: page.sourceID,
+                contextKey: contextKey,
+                now: now
+            )
+        } ?? 1
+        return max(
+            0.0001,
+            scoreWeight * intentionWeight * roleWeight * beliefWeight * alivenessWeight * causalWeight
+        )
+    }
+
+    private static func causalReceipt(
+        for selected: SurfacePage,
+        among candidates: [SurfacePage],
+        preferences: CuratorSurfacePreferences,
+        mood: CuratorMood,
+        now: Date,
+        intention: BookSessionIntention,
+        role: BookSessionRole,
+        readerAliveness: ReaderAlivenessModel,
+        alivenessFacets: Set<String>
+    ) -> CausalCurationReceipt? {
+        let contextKey = ReaderAlivenessCurationContext.contextKey(alivenessFacets)
+        let weightedPages = candidates.map { page -> (page: SurfacePage, candidate: CausalCurationCandidate) in
+            let armID = causalArmID(
+                for: page,
+                intention: intention,
+                role: role,
+                contextKey: contextKey
+            )
+            return (page, CausalCurationCandidate(
+                sourceID: page.sourceID,
+                armID: armID,
+                weight: selectionWeight(
+                    for: page,
+                    preferences: preferences,
+                    mood: mood,
+                    now: now,
+                    intention: intention,
+                    role: role,
+                    readerAliveness: readerAliveness,
+                    alivenessFacets: alivenessFacets
+                )
+            ))
+        }
+        // Collapse duplicate renderings of the same semantic Page, never all
+        // variants of a source. Page types receive one family weight (their
+        // strongest currently eligible offering), then the exact variants race
+        // only inside the chosen family.
+        let byArm = Dictionary(grouping: weightedPages, by: { $0.candidate.armID })
+        let uniquePages = byArm.values.compactMap { duplicates in
+            duplicates.max { $0.candidate.weight < $1.candidate.weight }
+        }
+        let weighted = uniquePages.map(\.candidate).sorted { $0.armID < $1.armID }
+        let chosenArmID = causalArmID(
+            for: selected,
+            intention: intention,
+            role: role,
+            contextKey: contextKey
+        )
+        guard weighted.count >= 2,
+              let chosen = weighted.first(where: { $0.armID == chosenArmID }) else { return nil }
+        let byType = Dictionary(grouping: uniquePages, by: { $0.page.type })
+        let typeWeights = byType.mapValues { variants in
+            variants.map { max(0, $0.candidate.weight) }.max() ?? 0
+        }
+        let totalTypeWeight = typeWeights.values.reduce(0, +)
+        let chosenTypeWeight = typeWeights[selected.type] ?? 0
+        let chosenTypePages = byType[selected.type] ?? []
+        let withinTypeTotal = chosenTypePages.reduce(0) { $0 + max(0, $1.candidate.weight) }
+        guard totalTypeWeight > 0, chosenTypeWeight > 0, withinTypeTotal > 0 else { return nil }
+        let typePropensity = chosenTypeWeight / totalTypeWeight
+        let pagePropensity = max(0, chosen.weight) / withinTypeTotal
+        let overallPropensity = typePropensity * pagePropensity
+        let pressureCost: Double
+        if selected.isReaderActionCommission {
+            pressureCost = 1
+        } else if selected.type.isCompositionPrompt {
+            pressureCost = 0.55
+        } else {
+            pressureCost = 0.08
+        }
+        let idSeed = "\(intention.id)|\(role.rawValue)|\(chosenArmID)|\(contextKey)"
+        return CausalCurationReceipt(
+            id: "causal-\(abs(idSeed.stableHash))",
+            policyVersion: CausalCurationReceipt.currentPolicyVersion,
+            sessionID: intention.id,
+            movement: intention.movement,
+            role: role,
+            chosenSourceID: selected.sourceID,
+            chosenArmID: chosenArmID,
+            contextKey: contextKey,
+            propensity: max(0.000_001, min(1, overallPropensity)),
+            candidates: weighted,
+            pressureCost: pressureCost,
+            selectedAt: now,
+            movementReceipt: intention.causalMovementReceipt,
+            chosenType: selected.type,
+            typePropensity: max(0.000_001, min(1, typePropensity)),
+            pagePropensityWithinType: max(0.000_001, min(1, pagePropensity)),
+            pageCandidateCountWithinType: chosenTypePages.count
+        )
+    }
+
+    private static func causalArmID(
+        for page: SurfacePage,
+        intention: BookSessionIntention,
+        role: BookSessionRole,
+        contextKey: String
+    ) -> String {
+        "\(intention.movement.rawValue)-\(role.rawValue)-\(page.type.rawValue)-\(page.curatorContentNoveltyKey)-\(contextKey)"
+            .readerLearningNormalizedTag
     }
 
     private static func unique(_ pages: [SurfacePage]) -> [SurfacePage] {
@@ -1695,6 +2691,10 @@ struct CuratorCandidateTrace: Equatable {
     var lane: DeskLane
     var totalScore: Int
     var belief: Int
+    var beliefSelectionMultiplier: Double
+    var movement: BookReenchantmentMovement?
+    var intentionFit: Int
+    var preferredRole: BookSessionRole?
     var isNewType: Bool
     var isNewSource: Bool
     var isNewContent: Bool
@@ -1909,6 +2909,9 @@ struct ReaderLearningEvent: Identifiable, Codable, Equatable {
     var sourceID: String
     var type: BookPageType
     var varietyKey: String
+    /// Identity of the exact readable Page, not merely its family or recipe.
+    /// Optional so every existing on-device learning ledger still decodes.
+    var contentKey: String? = nil
     var hour: Int
     var tags: [String]
     var evidence: String?
@@ -1917,6 +2920,14 @@ struct ReaderLearningEvent: Identifiable, Codable, Equatable {
     /// place, and reader-named inner weather later. Older ledgers decode with
     /// no snapshot, and coordinates/calendar titles are never stored here.
     var context: BookPageContextSnapshot?
+    /// Present only for ordinary randomized Curator choices. It records the
+    /// eligible alternatives and selection propensity needed to distinguish
+    /// causal uplift from the Book merely repeating its own preferences.
+    var causalReceipt: CausalCurationReceipt?
+    /// Session-level randomized movement choice. Kept separately from the
+    /// Page receipt so a protected or deterministic Page can still report the
+    /// outcome of an otherwise ordinary movement experiment.
+    var causalMovementReceipt: CausalMovementReceipt?
 
     init(
         id: String = UUID().uuidString,
@@ -1927,10 +2938,13 @@ struct ReaderLearningEvent: Identifiable, Codable, Equatable {
         sourceID: String,
         type: BookPageType,
         varietyKey: String,
+        contentKey: String? = nil,
         hour: Int,
         tags: [String] = [],
         evidence: String? = nil,
-        context: BookPageContextSnapshot? = nil
+        context: BookPageContextSnapshot? = nil,
+        causalReceipt: CausalCurationReceipt? = nil,
+        causalMovementReceipt: CausalMovementReceipt? = nil
     ) {
         self.id = id
         self.dayID = dayID
@@ -1940,12 +2954,15 @@ struct ReaderLearningEvent: Identifiable, Codable, Equatable {
         self.sourceID = sourceID
         self.type = type
         self.varietyKey = varietyKey
+        self.contentKey = contentKey
         self.hour = max(0, min(23, hour))
         self.tags = Array(Set(tags.map(\.readerLearningNormalizedTag).filter { !$0.isEmpty })).sorted()
         self.evidence = evidence?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty.map {
             String($0.prefix(160))
         }
         self.context = context
+        self.causalReceipt = causalReceipt
+        self.causalMovementReceipt = causalMovementReceipt
     }
 }
 
@@ -2055,7 +3072,7 @@ struct ReaderMomentumMetrics: Equatable {
 }
 
 struct ReaderLearningModel: Codable, Equatable {
-    static let currentVersion = 1
+    static let currentVersion = 2
     static let maxEvents = 800
 
     var version: Int = ReaderLearningModel.currentVersion
@@ -2063,6 +3080,9 @@ struct ReaderLearningModel: Codable, Equatable {
     var sourceAffinities: [String: ReaderLearningAffinity] = [:]
     var typeAffinities: [BookPageType: ReaderLearningAffinity] = [:]
     var tagAffinities: [String: ReaderLearningAffinity] = [:]
+    /// Exact-page learning sits below type/source learning. Optional preserves
+    /// backward decoding; it is materialized on the first new interaction.
+    var contentAffinities: [String: ReaderLearningAffinity]? = nil
     var dailyDigests: [ReaderLearningDailyDigest] = []
     var lastUpdatedAt: Date?
 
@@ -2074,6 +3094,10 @@ struct ReaderLearningModel: Codable, Equatable {
 
         sourceAffinities[event.sourceID, default: ReaderLearningAffinity()].record(event)
         typeAffinities[event.type, default: ReaderLearningAffinity()].record(event)
+        let contentKey = event.contentKey ?? event.varietyKey
+        var exact = contentAffinities ?? [:]
+        exact[contentKey, default: ReaderLearningAffinity()].record(event)
+        contentAffinities = exact
         for tag in event.tags.prefix(8) {
             tagAffinities[tag, default: ReaderLearningAffinity()].record(event)
         }
@@ -2084,14 +3108,18 @@ struct ReaderLearningModel: Codable, Equatable {
     func scoreAdjustment(for page: SurfacePage) -> Int {
         let source = sourceAffinities[page.sourceID]?.curationAdjustment(scale: 4, maximum: 10) ?? 0
         let type = typeAffinities[page.type]?.curationAdjustment(scale: 5, maximum: 12) ?? 0
+        let content = contentAffinities?[page.curatorContentNoveltyKey]?.curationAdjustment(scale: 5, maximum: 10) ?? 0
         let tag = page.readerLearningTags
             .compactMap { tagAffinities[$0]?.curationAdjustment(scale: 4, maximum: 4) }
             .sorted(by: >)
             .prefix(3)
             .reduce(0, +)
-        // Learned taste is a tie-breaker inside the fresh pool. It should help
-        // the Book choose *which new Page* lands, never overpower discovery.
-        return max(-8, min(8, source + type + tag))
+        // Shared family learning establishes the broad lane; exact-page
+        // learning remains visible above that common baseline so two Pages in
+        // the same source/type can still separate. Neither layer may overpower
+        // discovery.
+        let family = max(-8, min(8, source + type + tag))
+        return max(-12, min(12, family + content))
     }
 
     func metrics(days: [BookDay] = [], now: Date = Date(), calendar: Calendar = .current) -> ReaderLearningMetrics {
@@ -2393,6 +3421,47 @@ struct MomentaryActionOutcome: Equatable {
     var keepsakeLine: String?
 }
 
+/// A finite published desk. Slot keys survive cadence-rotated page ids.
+struct BookDeskRound: Equatable {
+    enum Resolution: Equatable { case waiting, opened, passed }
+    private(set) var resolutions: [String: Resolution] = [:]
+    var slotKeys: Set<String> { Set(resolutions.keys) }
+    var hasPublishedPages: Bool { !resolutions.isEmpty }
+    func isTracking(_ page: SurfacePage) -> Bool { resolutions[page.deskSlotKey] != nil }
+    var isTouched: Bool { resolutions.values.contains { $0 != .waiting } }
+    var isComplete: Bool { !resolutions.isEmpty && resolutions.values.allSatisfy { $0 != .waiting } }
+
+    mutating func begin(with pages: [SurfacePage]) {
+        var keys: [String] = []
+        for page in pages where keys.count < 3 && !keys.contains(page.deskSlotKey) { keys.append(page.deskSlotKey) }
+        resolutions = Dictionary(uniqueKeysWithValues: keys.map { ($0, .waiting) })
+    }
+    /// Launch enrichment may deepen an untouched desk before the reader acts.
+    /// If its logical slots change, track the Pages that are actually visible.
+    /// Once any Page has been resolved, the published encounter is frozen.
+    mutating func reconcileUntouched(with pages: [SurfacePage]) {
+        guard !isTouched else { return }
+        begin(with: pages)
+    }
+    mutating func open(_ page: SurfacePage) { resolve(page, as: .opened) }
+    mutating func pass(_ page: SurfacePage) { resolve(page, as: .passed) }
+    mutating func undoPass(_ page: SurfacePage) {
+        guard resolutions[page.deskSlotKey] == .passed else { return }
+        resolutions[page.deskSlotKey] = .waiting
+    }
+    private mutating func resolve(_ page: SurfacePage, as next: Resolution) {
+        let key = page.deskSlotKey
+        guard let current = resolutions[key], current != .opened else { return }
+        if current == .passed && next == .passed { return }
+        resolutions[key] = next
+    }
+}
+
+enum EnchantedSnackFirstBeat: Equatable {
+    case momentary(MomentaryActionPrompt)
+    case native
+}
+
 /// Gives prose-first Pages one immediate act above their deeper material.
 /// Pages that already open directly into a game, conversation, reading,
 /// transaction, or multi-step ritual keep their native first move.
@@ -2401,47 +3470,65 @@ enum MomentaryAttentionEngine {
         .askTheBook, .radio, .gamePage, .bookJump, .faeBargain, .bookFae,
         .pactVerdict, .pactErrand, .narrativeOS, .academyClass, .tarot,
         .enchantment, .inkrestOfficeHours, .twoReadings, .wordNegotiation,
-        .plainPage, .bookOfYou
+        .plainPage, .bookOfYou, .mood, .aboutYou, .affirmations, .inventory,
+        .marginsAtlas, .calendar, .location, .anchor, .wonderCompass, .elective
     ]
 
     static func prompt(
         for surface: SurfacePage,
         learning: ReaderLearningModel
     ) -> MomentaryActionPrompt? {
+        if case let .momentary(prompt) = firstBeat(for: surface, learning: learning) { return prompt }
+        return nil
+    }
+
+    static func firstBeat(
+        for surface: SurfacePage,
+        learning: ReaderLearningModel
+    ) -> EnchantedSnackFirstBeat {
         guard !pagesWithNativeFirstMove.contains(surface.type),
-              surface.payload.metadata["keptReadback"] != "true" else {
-            return nil
+              surface.payload.metadata["keptReadback"] != "true",
+              !hasSpecializedFirstMove(surface) else {
+            return .native
         }
         let stage = ReaderAttentionMasteryStage.current(for: learning)
         switch stage {
         case .notice:
-            return MomentaryActionPrompt(
+            return .momentary(MomentaryActionPrompt(
                 stage: stage,
                 question: "What caught first?",
                 placeholder: "One word is enough",
                 buttonTitle: "Let it catch"
-            )
+            ))
         case .name:
-            return MomentaryActionPrompt(
+            return .momentary(MomentaryActionPrompt(
                 stage: stage,
                 question: "What has the strongest charge?",
                 placeholder: "Name the detail",
                 buttonTitle: "Give it ink"
-            )
+            ))
         case .connect:
-            return MomentaryActionPrompt(
+            return .momentary(MomentaryActionPrompt(
                 stage: stage,
                 question: "What does this touch in your life?",
                 placeholder: "A person, place, memory, or object",
                 buttonTitle: "Start the thread"
-            )
+            ))
         case .transform:
-            return MomentaryActionPrompt(
+            return .momentary(MomentaryActionPrompt(
                 stage: stage,
                 question: "What will you carry out of this Page?",
                 placeholder: "One small change",
                 buttonTitle: "Carry it out"
-            )
+            ))
+        }
+    }
+
+    private static func hasSpecializedFirstMove(_ surface: SurfacePage) -> Bool {
+        let metadata = surface.payload.metadata
+        return ["playfulMissionID", "anchorOffer", "anchorID", "moodChoice", "aboutYouChoice",
+                "affirmationCountersign", "preparedRitual", "opensBookShop", "opensPagewright"].contains {
+            metadata[$0]?.nonEmpty != nil
         }
     }
 
@@ -2464,61 +3551,6 @@ enum MomentaryAttentionEngine {
         case .transform:
             return "“\(clipped)” leaves the Page with you. The Book marks the change."
         }
-    }
-}
-
-/// A single causal handoff after a substantial Keep. It names the reader's
-/// exact material and asks for one more connection; it never chains itself.
-enum MomentaryThreadFollowUp {
-    static let sourceID = "momentary-thread-follow-up"
-
-    static func surface(
-        after page: BookPage,
-        keptFrom surface: SurfacePage,
-        learning: ReaderLearningModel
-    ) -> SurfacePage? {
-        guard surface.payload.metadata["momentaryThreadFollowUp"] != "true",
-              surface.type != .bookConnections,
-              page.origin == .userAuthored else {
-            return nil
-        }
-        let input = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard input.split(whereSeparator: { $0.isWhitespace }).count >= 2 else { return nil }
-        let thread = KeepMarginalia.featuredWord(in: input)
-            ?? String(input.prefix(42)).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !thread.isEmpty else { return nil }
-        let stage = ReaderAttentionMasteryStage.current(for: learning)
-        let nextQuestion: String
-        switch stage {
-        case .notice, .name:
-            nextQuestion = "Where else have you noticed it?"
-        case .connect:
-            nextQuestion = "What person, place, or memory answers it?"
-        case .transform:
-            nextQuestion = "What could it change before the day is over?"
-        }
-        return SurfacePage(
-            id: "momentary-thread-\(page.id)",
-            type: .bookConnections,
-            sourceID: sourceID,
-            intent: .capture,
-            renderStyle: .promptCard,
-            score: 96,
-            reason: "This rose because you kept “\(thread)”.",
-            prompt: "You kept “\(thread)”. \(nextQuestion)",
-            detail: "One more true connection, if it has one. If nothing answers, let the thread rest.",
-            payload: BookPagePayload(
-                headline: "The Thread That Answered",
-                body: "The Book has not invented a connection. It is holding your own words open long enough for you to notice whether something real answers them.",
-                metadata: [
-                    "momentaryThreadFollowUp": "true",
-                    "threadParentPageID": page.id,
-                    "threadWord": thread,
-                    "surfaceLabel": "A Thread Answered",
-                    "tags": "momentary-attention,causal-follow-up"
-                ]
-            )
-        )
     }
 }
 
@@ -2568,6 +3600,8 @@ extension SurfacePage {
         if let id = payload.metadata["senderID"]?.nonEmpty { return "sender:\(id)" }
         if let id = payload.metadata["anchorID"]?.nonEmpty { return "anchor:\(id)" }
         if let id = payload.metadata["storyRecipeID"]?.nonEmpty { return "recipe:\(id)" }
+        if let id = payload.metadata["journalPromptID"]?.nonEmpty { return "journal:\(id)" }
+        if let id = payload.metadata["tarotSpreadID"]?.nonEmpty { return "tarot-spread:\(id)" }
         if let id = payload.metadata["storyFormID"]?.nonEmpty { return "form:\(id)" }
         if let id = payload.metadata["bookJumpID"]?.nonEmpty {
             let action = payload.metadata["bookJumpAction"]?.nonEmpty ?? "step"
@@ -2577,7 +3611,10 @@ extension SurfacePage {
         if payload.metadata["firstDoorOrigin"] == "true" { return "first-door-origin" }
         if let id = payload.metadata["firstDoorApprenticeshipDay"]?.nonEmpty { return "first-door-apprenticeship:\(id)" }
         if let id = payload.metadata["tipID"]?.nonEmpty { return "tip:\(id)" }
-        return "source:\(sourceID)"
+        // Some dynamic families do not own a named catalog id. Their visible
+        // copy is still an individual Page and must not collapse back into the
+        // source family for curation or learning.
+        return curatorContentNoveltyKey
     }
 
     /// The identity of the actual readable Page, independent of cadence ids and
@@ -2801,6 +3838,9 @@ enum CuratorVarietyGovernor {
 /// choose among genuinely available Pages; only explicit Belief gives an exact
 /// Page permission to return automatically.
 enum CuratorNoveltyPolicy {
+    /// Retained as a meaningful compatibility landmark: at this Belief an
+    /// exact Page's ordinary overnight rest is just under twenty-five hours.
+    /// It is no longer a yes/no eligibility threshold.
     static let repeatBeliefThreshold = 45
     static let belovedBeliefThreshold = 80
 
@@ -2808,8 +3848,7 @@ enum CuratorNoveltyPolicy {
         for page: SurfacePage,
         preferences: CuratorSurfacePreferences
     ) -> Int {
-        let recordedBelief = preferences.pageBeliefProfiles[page.sourceID]?.belief
-            ?? BookPageSourceRegistry.beliefProfile(for: page.source).belief
+        let recordedBelief = preferences.beliefProfile(for: page).belief
         guard let rawStartingBelief = page.payload.metadata["startingPageBelief"],
               let startingBelief = Int(rawStartingBelief) else {
             return recordedBelief
@@ -2845,12 +3884,18 @@ enum CuratorNoveltyPolicy {
     static func allowsAutomaticSurface(
         _ page: SurfacePage,
         history: [String: SurfaceHistoryRecord],
-        preferences: CuratorSurfacePreferences
+        preferences: CuratorSurfacePreferences,
+        now: Date
     ) -> Bool {
         if isNewContent(page, history: history) { return true }
         if page.isDeskMilestone { return true }
         if isActiveContinuation(page) { return true }
-        return belief(for: page, preferences: preferences) >= repeatBeliefThreshold
+        guard let record = history[page.curatorContentNoveltyKey] else { return true }
+        let belief = belief(for: page, preferences: preferences)
+        // Familiar low-Belief content rests longer, but Belief is never an
+        // eligibility veto. Even the quietest Page can eventually return.
+        let cooldownHours = 18.0 + (Double(100 - belief) * 0.12)
+        return now.timeIntervalSince(record.lastShownAt) >= cooldownHours * 3600
     }
 
     static func adjustment(
@@ -3126,15 +4171,331 @@ enum FirstDoorCurationAffinity {
     }
 }
 
+/// A bounded authorial nudge from the reader's actual day. These signals make
+/// context relevant at both stages of hierarchical curation without becoming
+/// eligibility gates: an unrelated Page always keeps its ordinary path.
+enum CuratorWorldContextAffinity {
+    static func boost(for page: SurfacePage, mood: CuratorMood) -> Int {
+        var delta = 0
+        let pageTags = Set(
+            (page.payload.metadata["tags"] ?? "")
+                .split(separator: ",")
+                .map { String($0).readerLearningNormalizedTag }
+                .filter { !$0.isEmpty }
+        )
+
+        if mood.hasWeatherContext {
+            switch page.type {
+            case .weather: delta += 8
+            case .todaysSky: delta += 5
+            case .wonderCompass, .enchantment: delta += 4
+            case .location, .souvenir, .quip: delta += 2
+            default: break
+            }
+            if !pageTags.isDisjoint(with: mood.weatherContextTags) {
+                delta += 4
+            }
+        }
+
+        if mood.hasCoarseLocationContext {
+            switch page.type {
+            case .location: delta += 8
+            case .wonderCompass: delta += 5
+            case .enchantment, .pactErrand: delta += 4
+            case .elective, .souvenir, .plainPage: delta += 2
+            default: break
+            }
+        }
+        if let place = mood.currentPlaceContext {
+            switch place {
+            case .home:
+                if [.rest, .diary, .enchantment, .illuminatedPhoto, .bookOfYou].contains(page.type) { delta += 6 }
+                if [.wonderCompass, .pactErrand].contains(page.type) { delta -= 2 }
+            case .work:
+                if [.quip, .rest, .souvenir, .wonderCompass].contains(page.type) { delta += 4 }
+                if [.bookOfYou, .facultyResearch].contains(page.type) { delta -= 2 }
+            case .cafe, .library:
+                if [.quotes, .diary, .lore, .wonderCompass].contains(page.type) { delta += 4 }
+            case .harbor, .park, .waterfront, .trail:
+                if [.wonderCompass, .weather, .location, .enchantment, .souvenir].contains(page.type) { delta += 5 }
+            case .store:
+                if [.pactErrand, .wonderCompass, .location, .quip].contains(page.type) { delta += 4 }
+            case .transit, .neighborhood:
+                if [.wonderCompass, .location, .radio, .souvenir].contains(page.type) { delta += 4 }
+            case .indoors:
+                if [.enchantment, .illuminatedPhoto, .diary, .rest].contains(page.type) { delta += 3 }
+            case .current, .other:
+                break
+            }
+        }
+        if mood.hasNearbyPlaces {
+            switch page.type {
+            case .location, .wonderCompass: delta += 4
+            case .elective, .pactErrand, .wickerDare: delta += 3
+            default: break
+            }
+            if page.payload.metadata["nearbyPlaces"]?.nonEmpty != nil {
+                delta += 2
+            }
+        }
+        if mood.hasNearbyAnchor {
+            switch page.type {
+            case .anchor: delta += 12
+            case .location, .wonderCompass: delta += 5
+            default: break
+            }
+        }
+
+        if mood.upcomingCalendarEventCount > 0 {
+            if page.type == .calendar { delta += 8 }
+            if mood.upcomingCalendarEventCount >= 3 {
+                let lightPages: Set<BookPageType> = [.calendar, .rest, .body, .fuel, .souvenir, .weather, .quip]
+                let heavyPages: Set<BookPageType> = [.narrativeOS, .bookOfYou, .bookJump, .facultyResearch, .marginsAtlas]
+                if lightPages.contains(page.type) { delta += 4 }
+                if heavyPages.contains(page.type) { delta -= 4 }
+            }
+        }
+        return delta
+    }
+}
+
+/// Only answers the reader deliberately gave the Book enter this profile.
+/// It translates a few known, bounded choices into curation pressure; freeform
+/// autobiography remains story material rather than something the algorithm
+/// pretends to understand perfectly.
+struct ReaderDeclaredCurationProfile: Equatable {
+    var leavingHome: String?
+    var movementAccess: String?
+    var timeBudget: String?
+    var moneyBoundary: String?
+    var desiredSurprise: String?
+    var sensoryDoor: String?
+    var favoriteWeather: String?
+    var bestTime: String?
+
+    static let empty = ReaderDeclaredCurationProfile()
+
+    static func make(from facts: [SelfFact]) -> ReaderDeclaredCurationProfile {
+        func answer(_ questionID: String) -> String? {
+            facts
+                .filter { $0.questionID == questionID && $0.usePermission != .doNotUse }
+                .max { $0.updatedAt < $1.updatedAt }?
+                .answer
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+                .nonEmpty
+        }
+        return ReaderDeclaredCurationProfile(
+            leavingHome: answer("leaving-home"),
+            movementAccess: answer("movement-access"),
+            timeBudget: answer("time-budget"),
+            moneyBoundary: answer("money-boundary"),
+            desiredSurprise: answer("desired-surprise"),
+            sensoryDoor: answer("sensory-door"),
+            favoriteWeather: answer("favorite-weather"),
+            bestTime: answer("best-time")
+        )
+    }
+}
+
+/// Explicit answers are meaningful votes, not permanent boxes. Strongly stated
+/// access and spending edges get the largest pressure; tastes get a smaller
+/// nudge and still leave room for surprise.
+enum CuratorSelfKnowledgeAffinity {
+    static func boost(for page: SurfacePage, mood: CuratorMood) -> Int {
+        let profile = mood.declaredCuration
+        let tags = Set(
+            (page.payload.metadata["tags"] ?? "")
+                .split(separator: ",")
+                .map { String($0).readerLearningNormalizedTag }
+                .filter { !$0.isEmpty }
+        )
+        let outwardTypes: Set<BookPageType> = [.anchor, .location, .pactErrand]
+        let indoorTypes: Set<BookPageType> = [.rest, .diary, .enchantment, .illuminatedPhoto, .bookOfYou]
+        let heavyTypes: Set<BookPageType> = [.narrativeOS, .bookJump, .facultyResearch, .marginsAtlas]
+        let quickTypes: Set<BookPageType> = [.quip, .weather, .todaysSky, .souvenir, .rest, .aboutYou]
+        var delta = 0
+
+        if profile.leavingHome == "keep wonder indoors" {
+            if indoorTypes.contains(page.type) { delta += 8 }
+            if outwardTypes.contains(page.type) { delta -= 12 }
+            if tags.contains("outward") || tags.contains("walking") || tags.contains("outing") { delta -= 18 }
+        } else if profile.leavingHome == "only when i choose it" || profile.leavingHome == "ask gently" {
+            if indoorTypes.contains(page.type) { delta += 2 }
+            if outwardTypes.contains(page.type) { delta -= 3 }
+            if tags.contains("outward") || tags.contains("walking") || tags.contains("outing") { delta -= 6 }
+        }
+
+        if let movementAccess = profile.movementAccess,
+           ["short distances", "seated options", "no stairs"].contains(movementAccess) {
+            if outwardTypes.contains(page.type) { delta -= 3 }
+            if tags.contains("walking") || tags.contains("stairs") || tags.contains("long-distance") { delta -= 12 }
+            if page.type == .rest || tags.contains("seated") { delta += 4 }
+        }
+
+        if profile.timeBudget == "one minute" || profile.timeBudget == "ten minutes" {
+            if quickTypes.contains(page.type) { delta += 5 }
+            if heavyTypes.contains(page.type) { delta -= 8 }
+        }
+
+        if profile.moneyBoundary == "free by default" || profile.moneyBoundary == "ask first" {
+            if tags.contains("spend") || tags.contains("shopping") || tags.contains("purchase") || tags.contains("paid") {
+                delta -= 14
+            }
+            if tags.contains("free") { delta += 4 }
+        }
+
+        switch profile.desiredSurprise {
+        case "a strange fact":
+            if [.lore, .quotes, .facultyResearch].contains(page.type) { delta += 4 }
+        case "a beautiful place":
+            if [.location, .wonderCompass, .weather, .illuminatedPhoto].contains(page.type) { delta += 4 }
+        case "a joke":
+            if page.type == .quip { delta += 6 }
+        case "a message from someone":
+            if [.letter, .radio].contains(page.type) { delta += 4 }
+        case "a tiny challenge":
+            if [.pactErrand, .wonderCompass, .wickerDare].contains(page.type) { delta += 4 }
+        default:
+            break
+        }
+
+        switch profile.sensoryDoor {
+        case "sound":
+            if page.type == .radio { delta += 4 }
+        case "color":
+            if [.illuminatedPhoto, .weather, .todaysSky].contains(page.type) { delta += 4 }
+        case "texture":
+            if [.souvenir, .enchantment].contains(page.type) { delta += 3 }
+        case "movement":
+            if [.wonderCompass, .anchor].contains(page.type) { delta += 3 }
+        default:
+            break
+        }
+
+        let favoriteWeatherTags = weatherTags(in: profile.favoriteWeather)
+        if page.type == .weather, !tags.isDisjoint(with: favoriteWeatherTags) {
+            delta += 4
+        }
+
+        if isReadersTime(profile.bestTime, hour: mood.hour) {
+            if [.wonderCompass, .enchantment, .location, .souvenir].contains(page.type) { delta += 3 }
+        }
+        return delta
+    }
+
+    private static func weatherTags(in answer: String?) -> Set<String> {
+        guard let answer else { return [] }
+        var tags: Set<String> = []
+        if answer.contains("rain") { tags.insert("rain") }
+        if answer.contains("thunder") || answer.contains("storm") { tags.insert("storm") }
+        if answer.contains("snow") { tags.insert("snow") }
+        if answer.contains("sun") { tags.insert("sun") }
+        if answer.contains("wind") { tags.insert("wind") }
+        return tags
+    }
+
+    private static func isReadersTime(_ answer: String?, hour: Int) -> Bool {
+        switch answer {
+        case "early morning": return (5..<10).contains(hour)
+        case "the middle of the day": return (11..<15).contains(hour)
+        case "dusk": return (17..<21).contains(hour)
+        case "late night": return hour >= 21 || hour < 2
+        default: return false
+        }
+    }
+}
+
 /// Everything the curator should feel before ranking: the clock, the
 /// narrative temperature, what was recently served, and the shape of the
-/// real day's calendar.
+/// real day outside the Book.
+enum CuratorReaderStateAffinity {
+    static func boost(
+        for page: SurfacePage,
+        state: ReaderCurrentState,
+        reading: ReaderReenchantmentMetrics
+    ) -> Int {
+        var delta = 0
+
+        if let capacity = state.capacity {
+            let lightDoors: Set<BookPageType> = [
+                .rest, .weather, .todaysSky, .quip, .souvenir, .aboutYou
+            ]
+            let longDoors: Set<BookPageType> = [
+                .narrativeOS, .bookJump, .facultyResearch, .bookConnections,
+                .marginsAtlas, .supportGuild, .bookOfYou
+            ]
+            if capacity <= 3 {
+                if lightDoors.contains(page.type) { delta += 7 }
+                if longDoors.contains(page.type) { delta -= 10 }
+            } else if capacity >= 8, longDoors.contains(page.type) {
+                delta += 4
+            }
+        }
+
+        if let aliveness = state.aliveness {
+            if aliveness <= 3 {
+                if [.rest, .mood, .weather, .radio].contains(page.type) { delta += 5 }
+                if [.wonderCompass, .todaysSky, .enchantment, .quip].contains(page.type) { delta += 3 }
+            } else if aliveness >= 8,
+                      [.wonderCompass, .location, .narrativeOS, .letter, .souvenir].contains(page.type) {
+                delta += 4
+            }
+        }
+
+        if let wonder = state.wonder {
+            if wonder <= 3,
+               [.weather, .location, .todaysSky, .wonderCompass, .enchantment, .quip].contains(page.type) {
+                // When wonder is scarce, prefer doors with something concrete
+                // outside the reader rather than another abstract diagnosis.
+                delta += 6
+            } else if wonder >= 8,
+                      [.souvenir, .diary, .narrativeOS, .bookOfYou, .illustration].contains(page.type) {
+                delta += 4
+            }
+        }
+
+        if let hiddenMagic = state.hiddenMagic, hiddenMagic >= 7,
+           [.souvenir, .diary, .illustration, .bookNotices, .bookRemembered].contains(page.type) {
+            delta += 4
+        }
+
+        switch reading.direction {
+        case .dimming:
+            if [.wonderCompass, .weather, .todaysSky, .location, .enchantment, .quip].contains(page.type) {
+                delta += 6
+            }
+            if [.bookConnections, .marginsAtlas, .facultyResearch].contains(page.type) {
+                delta -= 5
+            }
+        case .holding:
+            if [.bookRemembered, .souvenir, .wonderCompass].contains(page.type) {
+                delta += 3
+            }
+        case .brightening:
+            if [.wonderCompass, .location, .letter, .souvenir, .narrativeOS].contains(page.type) {
+                delta += 4
+            }
+        case .notEnoughEvidence:
+            break
+        }
+        return delta
+    }
+}
+
 struct CuratorMood {
     var hour: Int = 12
     var surfaceHistory: [String: SurfaceHistoryRecord] = [:]
     var narrativeHeat: Int = 0
     var hasFreshEntityMemory: Bool = false
     var minutesToNextCalendarEvent: Int?
+    var upcomingCalendarEventCount: Int = 0
+    var hasWeatherContext = false
+    var weatherContextTags: Set<String> = []
+    var hasCoarseLocationContext = false
+    var currentPlaceContext: CompassPlaceContext?
+    var hasNearbyPlaces = false
+    var hasNearbyAnchor = false
     var distressActive: Bool = false
     var greyLevel: Int = 0
     /// Routine is presumed to be ordinary weather. This pressure can shape the
@@ -3152,6 +4513,9 @@ struct CuratorMood {
     var onboardingTaste: String?
     var onboardingChapter: String?
     var onboardingComfort: String?
+    var declaredCuration: ReaderDeclaredCurationProfile = .empty
+    var readerCurrentState: ReaderCurrentState = .unknown
+    var readerReenchantmentReading: ReaderReenchantmentMetrics = .unwritten
 
     static let neutral = CuratorMood()
 
@@ -3163,19 +4527,31 @@ struct CuratorMood {
             .filter { !$0.isAllDay && $0.startsAt > now }
             .map { Int($0.startsAt.timeIntervalSince(now) / 60) }
             .min()
+        let upcomingEventCount = inputs.calendarEvents.filter {
+            !$0.isAllDay
+                && $0.startsAt > now
+                && $0.startsAt <= now.addingTimeInterval(12 * 3600)
+        }.count
+        let weatherTags = Set(
+            RadioPageContext.weatherTags(
+                weather: inputs.weather,
+                enchanted: inputs.enchantedWeather
+            ).map(\.readerLearningNormalizedTag)
+        )
         let rut = NothingTide.rutAssessment(
             inputs: inputs,
             distressActive: distressActive,
             now: now,
             calendar: calendar
         )
-        let absenceGrey = NothingTide.greyLevel(
-            quietDays: inputs.quietDays,
+        let storyGrey = NothingTide.greyLevel(
+            readerRutPressure: rut.mayNameRut ? rut.pressure : 0,
             narrativeHeat: recentEvents,
             distressActive: distressActive,
             celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: inputs.hemisphere)
                 + BookJumpEngine.greyShift(state: inputs.bookJump, now: now)
                 + RadioStationRegistry.greyShift(state: inputs.radio, now: now)
+                + (inputs.faeState.activeGifts.contains { $0.effect == .quieting } ? -1 : 0)
                 + inputs.nothingGreyOffset
         )
         return CuratorMood(
@@ -3184,8 +4560,15 @@ struct CuratorMood {
             narrativeHeat: recentEvents,
             hasFreshEntityMemory: freshMemory,
             minutesToNextCalendarEvent: nextEventMinutes,
+            upcomingCalendarEventCount: upcomingEventCount,
+            hasWeatherContext: inputs.weather != nil || inputs.enchantedWeather != nil,
+            weatherContextTags: weatherTags,
+            hasCoarseLocationContext: inputs.currentLocationLabel?.nonEmpty != nil,
+            currentPlaceContext: inputs.currentPlaceContext,
+            hasNearbyPlaces: !inputs.nearbyPlaces.isEmpty,
+            hasNearbyAnchor: inputs.nearbyAnchor != nil,
             distressActive: distressActive,
-            greyLevel: max(absenceGrey, rut.mayNameRut ? rut.pressure : 0),
+            greyLevel: storyGrey,
             rutPressure: rut.pressure,
             mayNameRut: rut.mayNameRut,
             reshelvedSourceIDs: FaeGiftEffects.reshelvedSourceIDs(
@@ -3205,7 +4588,18 @@ struct CuratorMood {
             rutWonderEntry: onboardingAnswer("wonder-entry", in: inputs.selfFacts),
             onboardingTaste: onboardingAnswer("onboarding-taste", in: inputs.selfFacts),
             onboardingChapter: onboardingAnswer("onboarding-drawn-chapter", in: inputs.selfFacts),
-            onboardingComfort: onboardingAnswer("onboarding-comfort-boundary", in: inputs.selfFacts)
+            onboardingComfort: onboardingAnswer("onboarding-comfort-boundary", in: inputs.selfFacts),
+            declaredCuration: ReaderDeclaredCurationProfile.make(from: inputs.selfFacts),
+            readerCurrentState: inputs.readerStatePulses.currentState(now: now),
+            readerReenchantmentReading: ReaderReenchantmentMeasure.reading(
+                pulses: inputs.readerStatePulses,
+                aliveness: inputs.readerAliveness,
+                longGame: inputs.bookInterior.longGame,
+                learning: inputs.readerLearning,
+                days: inputs.days,
+                now: now,
+                calendar: calendar
+            )
         )
     }
 
@@ -3275,6 +4669,13 @@ struct CuratorMood {
             return 0
         }
         var delta = CuratorTimeAffinity.boost(for: page.type, at: now)
+        delta += CuratorWorldContextAffinity.boost(for: page, mood: self)
+        delta += CuratorSelfKnowledgeAffinity.boost(for: page, mood: self)
+        delta += CuratorReaderStateAffinity.boost(
+            for: page,
+            state: readerCurrentState,
+            reading: readerReenchantmentReading
+        )
 
         if isFirstHours {
             delta += Self.firstHoursOrientationBoosts[page.type] ?? 0
@@ -3391,7 +4792,8 @@ struct CuratorMood {
         .bookJump,
         .pactDispatch,
         .pactVerdict,
-        .pactErrand
+        .pactErrand,
+        .wickerDare
     ]
 
     private static let firstHoursOrientationBoosts: [BookPageType: Int] = [

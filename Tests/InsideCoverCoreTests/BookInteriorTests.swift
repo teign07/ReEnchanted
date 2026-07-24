@@ -1371,7 +1371,7 @@ final class BookInteriorTests: XCTestCase {
         ))
     }
 
-    func testUnseenCampaignDoesNotAdvanceOnElapsedTimeAlone() throws {
+    func testUnseenCampaignExpiresUntriedAfterItsOpportunityWindow() throws {
         var inputs = BookSourceInputs.empty
         inputs.days = [BookDay(id: "2026-07-19", date: now, pages: (1...3).map { keptPage($0) })]
         var game = campaignGame()
@@ -1383,7 +1383,9 @@ final class BookInteriorTests: XCTestCase {
             now: now.addingTimeInterval(20 * 86_400)
         )
 
-        XCTAssertEqual(game.currentCampaign?.beat, .seed)
+        XCTAssertNil(game.currentCampaign)
+        XCTAssertEqual(game.campaignHistory.last?.status, .untried)
+        XCTAssertEqual(game.campaignHistory.last?.beat, .release)
     }
 
     func testSeenCampaignAdvancesThenWithdrawsWithoutTreatingSilenceAsDefiance() throws {

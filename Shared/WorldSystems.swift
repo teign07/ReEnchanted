@@ -12,8 +12,69 @@ struct RadioTrack: Codable, Equatable, Identifiable {
     /// without them; future stations can favor or gate tracks by world state.
     var weight: Int? = nil
     var conditions: RadioBanter.Conditions? = nil
+    /// A short, authored, non-lyric trace which may tint later fiction.
+    var meaning: RadioTrackMeaning? = nil
 
     var resolvedWeight: Int { max(1, weight ?? 1) }
+}
+
+struct RadioTrackMeaning: Codable, Equatable {
+    var themeTags: [String]?
+    var imageTags: [String]?
+    var ordinaryLifeCue: String?
+
+    func sanitized() -> RadioTrackMeaning {
+        RadioTrackMeaning(
+            themeTags: Self.clean(tags: themeTags, limit: 4, characterLimit: 48),
+            imageTags: Self.clean(tags: imageTags, limit: 4, characterLimit: 48),
+            ordinaryLifeCue: Self.clean(line: ordinaryLifeCue, characterLimit: 160)
+        )
+    }
+
+    private static func clean(tags: [String]?, limit: Int, characterLimit: Int) -> [String]? {
+        let values = (tags ?? []).compactMap { clean(line: $0, characterLimit: characterLimit) }
+        return values.isEmpty ? nil : Array(values.prefix(limit))
+    }
+
+    private static func clean(line: String?, characterLimit: Int) -> String? {
+        guard let line else { return nil }
+        let controls = CharacterSet.controlCharacters.union(.newlines)
+        let cleaned = line.components(separatedBy: controls).joined(separator: " ")
+            .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        let bounded = String(cleaned.prefix(characterLimit)).trimmingCharacters(in: .whitespaces)
+        return bounded.isEmpty ? nil : bounded
+    }
+}
+
+struct RadioTrackPlayReceipt: Codable, Equatable {
+    var stationID: String
+    var trackID: String
+    var startedAt: Date
+}
+
+struct RadioNarrativeEcho: Equatable {
+    var stationID: String
+    var trackID: String
+    var startedAt: Date
+    var meaning: RadioTrackMeaning
+}
+
+enum RadioNarrativeEchoPrompt {
+    static func section(_ echo: RadioNarrativeEcho?) -> String {
+        guard let echo else { return "" }
+        let images = (echo.meaning.imageTags ?? []).prefix(1).joined(separator: ", ")
+        let themes = (echo.meaning.themeTags ?? []).prefix(2).joined(separator: ", ")
+        let cue = echo.meaning.ordinaryLifeCue ?? ""
+        let trace = [images, themes, cue].filter { !$0.isEmpty }.joined(separator: "; ")
+        guard !trace.isEmpty else { return "" }
+        return """
+
+
+        RECENT SONG TRACE — AUTHORED NON-LYRIC ATMOSPHERE, NOT EVIDENCE:
+        \(trace)
+        It may lend at most one image, motion, or cadence only when the lived material already invites it. Never quote or reconstruct lyrics; never name the song, artist, or station; never infer what the reader liked, felt, chose, or did. It cannot own the title, moral, or ending.
+        """
+    }
 }
 
 struct RadioStationEffect: Codable, Equatable {
@@ -141,6 +202,16 @@ struct RadioBanter: Codable, Equatable, Identifiable {
     var resolvedWeight: Int { max(1, weight ?? 1) }
     var isBound: Bool { trackID != nil }
 
+    /// Imported DJ batches sometimes arrive with only production placeholders.
+    /// This is intentionally a label, not an invented transcript.
+    var readerFacingCaption: String {
+        let lowered = caption.lowercased()
+        if lowered.contains("unscheduled ") || lowered.contains("audio-backed clip") {
+            return "A local station break is playing. Its words have not been transcribed yet."
+        }
+        return caption
+    }
+
     /// Is this break allowed to play given the song that just ended and the one
     /// queued next? Unbound breaks are always allowed; bound ones must sit on the
     /// correct side of their song.
@@ -260,6 +331,9 @@ struct RadioWorldContext: Equatable {
     /// season (e.g. ["dictionary-rebellion"]). Defaults empty; populate from the
     /// app's active world events when rebellion banters are wired.
     var activeWorldEventIDs: [String]
+    /// The current session score, when one exists. Radio remains fully alive
+    /// without it and receives only bounded Page motifs, never reader prose.
+    var experienceProgram: BookExperienceProgram?
 
     init(
         timeOfDay: String = "day",
@@ -268,7 +342,8 @@ struct RadioWorldContext: Equatable {
         listeningDays: Int = 0,
         weekday: Int? = nil,
         pageContext: RadioPageContext = RadioPageContext(),
-        activeWorldEventIDs: [String] = []
+        activeWorldEventIDs: [String] = [],
+        experienceProgram: BookExperienceProgram? = nil
     ) {
         self.timeOfDay = timeOfDay
         self.grey = grey
@@ -277,6 +352,7 @@ struct RadioWorldContext: Equatable {
         self.weekday = weekday
         self.pageContext = pageContext
         self.activeWorldEventIDs = activeWorldEventIDs
+        self.experienceProgram = experienceProgram
     }
 
     /// Convenience: derive the time-of-day band from a date.
@@ -532,6 +608,197 @@ struct RadioPlaybackState: Codable, Equatable {
 
 enum RadioStationRegistry {
     static let userPackFileSuffix = ".reenchantedradio.json"
+
+    static func narrativeEcho(
+        receipt: RadioTrackPlayReceipt?,
+        unlockedPackIDs: Set<String> = PackEntitlements.ownedPackIDs,
+        now: Date = Date()
+    ) -> RadioNarrativeEcho? {
+        guard let receipt,
+              now.timeIntervalSince(receipt.startedAt) >= 0,
+              now.timeIntervalSince(receipt.startedAt) <= 24 * 60 * 60,
+              let station = station(id: receipt.stationID, unlockedPackIDs: unlockedPackIDs),
+              let track = station.tracks.first(where: { $0.id == receipt.trackID }),
+              let meaning = track.meaning?.sanitized(),
+              meaning.themeTags != nil || meaning.imageTags != nil || meaning.ordinaryLifeCue != nil else { return nil }
+        return RadioNarrativeEcho(stationID: station.id, trackID: track.id, startedAt: receipt.startedAt, meaning: meaning)
+    }
+
+    private static let authoredBundledMeanings: [String: RadioTrackMeaning] = {
+        func meaning(_ themes: [String], _ image: String, _ cue: String) -> RadioTrackMeaning {
+            RadioTrackMeaning(themeTags: themes, imageTags: [image], ordinaryLifeCue: cue)
+        }
+        return [
+            "fae-fi-mossy-footsteps": meaning(
+                ["unnoticed paths", "soft adventure"],
+                "damp green between paving stones",
+                "Notice the tiniest path underfoot."
+            ),
+            "fae-fi-folktronica": meaning(
+                ["old and new", "handmade play"],
+                "wooden rhythm beside blinking circuitry",
+                "Find where something handmade and something humming share a table."
+            ),
+            "fae-fi-ink-hands": meaning(
+                ["making", "traces"],
+                "smudged fingertips beside a half-finished note",
+                "Notice what your hands have quietly changed."
+            ),
+            "fae-fi-art-of-the-glint": meaning(
+                ["second sight", "found beauty"],
+                "a brief flash on an ordinary edge",
+                "Let one reflected spark interrupt the obvious."
+            ),
+            "fae-fi-crushed-pixies": meaning(
+                ["aftermath", "resilient mischief"],
+                "bright dust beside a scuffed shoe",
+                "Look for what stayed bright after a small mess."
+            ),
+            "fae-fi-fae-fi": meaning(
+                ["unofficial signals", "playful wonder"],
+                "radio static caught in clover",
+                "Listen for the room's faintest unofficial broadcast."
+            ),
+            "fae-fi-mossy-groove": meaning(
+                ["patient growth", "unhurried play"],
+                "moss keeping the shape of a stone",
+                "Find a green thing keeping time without hurry."
+            ),
+            "fae-fi-to-the-adventure": meaning(
+                ["beginnings", "small courage"],
+                "a coat pocket waiting beside the door",
+                "Let one familiar route contain an unplanned turn."
+            ),
+            "fae-fi-pages-rising": meaning(
+                ["readiness", "unfinished possibility"],
+                "loose paper lifting in a window draft",
+                "Notice which unfinished thing wants your hand."
+            ),
+            "fae-fi-look-twice": meaning(
+                ["ordinary wonder", "second sight"],
+                "a familiar object seen sideways",
+                "Let one commonplace thing earn a second look."
+            ),
+            "mothlight-the-page-came-through": meaning(
+                ["arrival", "quiet messages"],
+                "folded paper waiting under a door",
+                "Notice what reached you without ceremony."
+            ),
+            "mothlight-fae-dust": meaning(
+                ["dusk", "fading wonder"],
+                "dust turning visible in the last light",
+                "Look where evening makes a small thing newly visible."
+            ),
+            "mothlight-lost-candy": meaning(
+                ["sweet memory", "small losses"],
+                "a wrapper at the bottom of a pocket",
+                "Notice one small thing carrying a whole afternoon."
+            ),
+            "mothlight-in-the-story": meaning(
+                ["presence", "ordinary narrative"],
+                "a chair left at an unexpected angle",
+                "Let one ordinary scene have a beginning and a turn."
+            ),
+            "mothlight-noticing-text-flowers": meaning(
+                ["language", "close attention"],
+                "hand lettering curling around a shop sign",
+                "Read one nearby sign as if each word was deliberately planted."
+            ),
+            "mothlight-tales-end": meaning(
+                ["closure", "what remains"],
+                "a bookmark resting after the last page",
+                "Notice what lingers after something has properly ended."
+            ),
+            "mothlight-book-jumping": meaning(
+                ["curiosity", "side doors"],
+                "a finger keeping two pages open",
+                "Let one nearby title lead you somewhere unplanned."
+            ),
+            "mothlight-porchlight-fading": meaning(
+                ["home", "parting light"],
+                "a porch light entering the blue hour",
+                "Watch one familiar light change the space around it."
+            ),
+            "mothlight-afternoon-chapters": meaning(
+                ["ordinary time", "gentle pause"],
+                "a rectangle of sun crossing a table",
+                "Give the next ten minutes one concrete chapter detail."
+            ),
+            "thornwave-bramble-bass": meaning(
+                ["boundaries", "contained energy"],
+                "a hedge holding the noise of the street",
+                "Notice one boundary that has a rhythm of its own."
+            ),
+            "thornwave-nocturnal-faerie-lounge": meaning(
+                ["night company", "shelter"],
+                "condensation on a late glass",
+                "Find the coziest honest corner of the evening."
+            ),
+            "thornwave-whispering-shadows": meaning(
+                ["ambiguity", "patient attention"],
+                "a shadow changing shape across a wall",
+                "Let one dim object remain unexplained for a minute."
+            ),
+            "thornwave-long-titles-in-the-dark": meaning(
+                ["naming", "mystery"],
+                "spine lettering disappearing into low light",
+                "Read one ordinary label as if it opens a side door."
+            ),
+            "thornwave-duskthorn-rising": meaning(
+                ["fierce beauty", "change at dusk"],
+                "a thorn silhouette against the lowering light",
+                "Notice what becomes clearer as the light lowers."
+            ),
+            "thornwave-no-conflict-no-story": meaning(
+                ["friction", "choice"],
+                "two objects competing for the same hook",
+                "Name the smallest tension in the room without solving it."
+            ),
+            "thornwave-magic-margins": meaning(
+                ["peripheral wonder", "annotations"],
+                "a handwritten note beside a receipt",
+                "Look at the edge of one page or plan, not its center."
+            ),
+            "thornwave-velvet-arrears": meaning(
+                ["obligation", "soft menace"],
+                "a velvet pouch holding an overdue coin",
+                "Notice one postponed thing by its physical trace."
+            ),
+            "thornwave-goblin-market": meaning(
+                ["barter", "strange value"],
+                "mismatched coins beside a handwritten price",
+                "Ask what one ordinary object would demand in trade."
+            ),
+            "thornwave-mossy-night": meaning(
+                ["night growth", "stillness"],
+                "wet green holding to stone after dark",
+                "Find one living texture that night almost hides."
+            ),
+            "the-bleed-intercept": meaning(
+                ["interruption", "hidden messages"],
+                "a red tuning needle between stations",
+                "Notice one stray phrase or signal that does not quite belong."
+            ),
+            "midnight-bindery-thread": meaning(
+                ["continuity", "repair"],
+                "thread pulled through a paper seam",
+                "Find two loose things already trying to connect."
+            ),
+            "goblin-market-after-hours": meaning(
+                ["mischief", "value beyond money"],
+                "a coin vanishing under late counter light",
+                "Watch one exchange and notice what is not money."
+            )
+        ]
+    }()
+
+    private static func authoredBundledMeaning(for track: RadioTrack) -> RadioTrackMeaning {
+        authoredBundledMeanings[track.id] ?? RadioTrackMeaning(
+            themeTags: Array(track.moodTags.prefix(3)),
+            imageTags: ["one concrete detail held in passing light"],
+            ordinaryLifeCue: "Let one small ordinary detail keep its own strange pace."
+        )
+    }
 
     static let coreStations: [RadioStation] = [
         RadioStation(
@@ -2191,7 +2458,7 @@ enum RadioStationRegistry {
         )
     ]
 
-    static let bundledPacks: [RadioStationPack] = [
+    private static let bundledPacksWithoutMeanings: [RadioStationPack] = [
         RadioStationPack(
             id: "core-radio-pack",
             displayName: "Core Radio Pack",
@@ -2265,6 +2532,22 @@ enum RadioStationRegistry {
         )
     ]
 
+    static var bundledPacks: [RadioStationPack] {
+        bundledPacksWithoutMeanings.map { pack in
+            var enrichedPack = pack
+            enrichedPack.stations = pack.stations.map { station in
+                var enrichedStation = station
+                enrichedStation.tracks = station.tracks.map { track in
+                    var enrichedTrack = track
+                    enrichedTrack.meaning = track.meaning ?? authoredBundledMeaning(for: track)
+                    return enrichedTrack
+                }
+                return enrichedStation
+            }
+            return enrichedPack
+        }
+    }
+
     static func userPacks(fileManager: FileManager = .default) -> [RadioStationPack] {
         guard let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first,
               let files = try? fileManager.contentsOfDirectory(
@@ -2300,6 +2583,18 @@ enum RadioStationRegistry {
             .flatMap(\.stations)
             .filter { station in
                 station.packID.map { PackEntitlements.owns($0, in: unlockedPackIDs) } ?? true
+            }
+            .map { station in
+                // Only bundled catalogues receive this authored baseline. User
+                // packs must explicitly provide meaning before they can echo.
+                guard bundledPacks.flatMap(\.stations).contains(where: { $0.id == station.id }) else { return station }
+                var enriched = station
+                enriched.tracks = station.tracks.map { track in
+                    var authored = track
+                    authored.meaning = track.meaning ?? authoredBundledMeaning(for: track)
+                    return authored
+                }
+                return enriched
             }
     }
 
@@ -2471,7 +2766,14 @@ enum RadioStationRegistry {
     ) -> RadioTrack? {
         guard !station.tracks.isEmpty else { return nil }
         let contextual = station.tracks.filter { context.satisfies($0.conditions) }
-        let eligible = contextual.isEmpty ? station.tracks : contextual
+        let unconditional = station.tracks.filter {
+            $0.conditions == nil || $0.conditions?.isUnconditional == true
+        }
+        // A contextual catalog must never leak a gated future track merely
+        // because no current gate matched. Fall back to ordinary station music.
+        let eligible = contextual.isEmpty
+            ? (unconditional.isEmpty ? station.tracks : unconditional)
+            : contextual
         let recent = Set(recentTrackIDs)
         let fresh = eligible.filter { $0.id != previousTrackID && !recent.contains($0.id) }
         let nonRepeating = eligible.filter { $0.id != previousTrackID }
@@ -2481,9 +2783,11 @@ enum RadioStationRegistry {
             aliveScore(
                 seed: "\(sessionSeed)|track|\(station.id)|\(previousTrackID ?? "start")|\(playTurn)|\(slot)|\(context.timeOfDay)|\(left.id)",
                 weight: Double(left.resolvedWeight)
+                    * experienceTrackMultiplier(left, context: context)
             ) < aliveScore(
                 seed: "\(sessionSeed)|track|\(station.id)|\(previousTrackID ?? "start")|\(playTurn)|\(slot)|\(context.timeOfDay)|\(right.id)",
                 weight: Double(right.resolvedWeight)
+                    * experienceTrackMultiplier(right, context: context)
             )
         }
     }
@@ -2514,7 +2818,10 @@ enum RadioStationRegistry {
                     upcomingTrackID: upcomingTrackID
                 )
         }
-        let probability = hasBoundMoment ? 0.82 : 0.58
+        let hasAttendedFocus = context.experienceProgram?.focusCue.map {
+            $0.stage != .displayed && $0.stage != .dismissed
+        } ?? false
+        let probability = hasBoundMoment ? 0.82 : hasAttendedFocus ? 0.70 : 0.58
         let session = state.startedAt?.timeIntervalSince1970 ?? now.timeIntervalSince1970
         let slot = Int(now.timeIntervalSince1970 / 300)
         let roll = stableUnit("\(station.id)|cadence|\(session)|\(slot)|\(state.lastTrackID ?? "none")")
@@ -2536,6 +2843,26 @@ enum RadioStationRegistry {
         guard let station = station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs) else {
             return nil
         }
+        return nextBanter(
+            station: station,
+            state: state,
+            context: context,
+            justFinishedTrackID: justFinishedTrackID,
+            upcomingTrackID: upcomingTrackID,
+            now: now
+        )
+    }
+
+    /// Pure-station form used by pack validation and simulations before a
+    /// station has been installed in the global registry.
+    static func nextBanter(
+        station: RadioStation,
+        state: RadioPlaybackState,
+        context: RadioWorldContext,
+        justFinishedTrackID: String? = nil,
+        upcomingTrackID: String? = nil,
+        now: Date = Date()
+    ) -> RadioBanter? {
         let all = station.resolvedBanters
         guard !all.isEmpty else { return nil }
 
@@ -2614,7 +2941,125 @@ enum RadioStationRegistry {
                 weight *= 1.1
             }
         }
+        if let program = context.experienceProgram {
+            let function = program.nextBroadcastFunction
+            let hasPersonalGate = banter.conditions.map {
+                $0.pageTypes != nil || $0.lastKeptPageTypes != nil
+                    || $0.sourceIDs != nil || $0.sourceTags != nil
+            } ?? false
+            if program.nextBroadcastIsAutonomous {
+                switch banter.category {
+                case .stationID, .news, .network, .gossip:
+                    weight *= 1.9
+                case .transition:
+                    weight *= 1.15
+                case .sponsor:
+                    weight *= 1.0
+                }
+                if hasPersonalGate { weight *= 0.45 }
+            } else {
+                let terms = program.radioAffinityTerms
+                let overlap = experienceWords(for: banter).intersection(terms).count
+                weight *= 1 + min(4.0, Double(overlap)) * 0.52
+                if let focus = program.focusCue {
+                    if banter.conditions?.pageTypes?.contains(focus.type) == true {
+                        weight *= 2.1
+                    }
+                    if banter.conditions?.sourceIDs?
+                        .map(RadioPageContext.normalize)
+                        .contains(RadioPageContext.normalize(focus.sourceID)) == true {
+                        weight *= 2.25
+                    }
+                }
+                switch function {
+                case .stationNative:
+                    break
+                case .establish:
+                    if banter.category == .stationID || banter.category == .transition {
+                        weight *= 1.35
+                    }
+                case .resonate:
+                    if hasPersonalGate || banter.isBound { weight *= 1.4 }
+                case .complicate:
+                    if banter.category == .gossip || banter.category == .news {
+                        weight *= 1.55
+                    }
+                case .afterimage:
+                    if banter.category == .transition || banter.isBound { weight *= 1.5 }
+                case .release:
+                    if banter.category == .stationID || banter.category == .network {
+                        weight *= 1.6
+                    }
+                    if hasPersonalGate { weight *= 0.6 }
+                }
+            }
+        }
         return weight
+    }
+
+    private static func experienceTrackMultiplier(
+        _ track: RadioTrack,
+        context: RadioWorldContext
+    ) -> Double {
+        guard let program = context.experienceProgram else { return 1 }
+        if program.nextBroadcastIsAutonomous { return 1 }
+        let terms = program.radioAffinityTerms
+        let overlap = experienceWords(for: track).intersection(terms).count
+        var multiplier = 1 + min(5.0, Double(overlap)) * 0.58
+        switch program.nextBroadcastFunction {
+        case .stationNative:
+            return 1
+        case .establish:
+            multiplier *= experienceWords(for: track)
+                .isDisjoint(with: ["arrival", "opening", "light", "morning", "threshold"]) ? 1 : 1.35
+        case .resonate:
+            if overlap > 0 { multiplier *= 1.25 }
+        case .complicate:
+            multiplier *= experienceWords(for: track)
+                .isDisjoint(with: ["strange", "wild", "dark", "mystery", "storm", "mischief"]) ? 1 : 1.55
+        case .afterimage:
+            multiplier *= experienceWords(for: track)
+                .isDisjoint(with: ["memory", "glow", "dream", "tender", "home", "echo"]) ? 1 : 1.55
+        case .release:
+            if overlap > 0 {
+                multiplier *= 0.55
+            }
+            multiplier *= experienceWords(for: track)
+                .isDisjoint(with: ["quiet", "air", "rest", "instrumental", "ambient", "open"]) ? 1 : 1.7
+        }
+        return max(0.2, multiplier)
+    }
+
+    private static func experienceWords(for track: RadioTrack) -> Set<String> {
+        experienceWords(in:
+            track.moodTags
+                + (track.meaning?.themeTags ?? [])
+                + (track.meaning?.imageTags ?? [])
+                + [track.meaning?.ordinaryLifeCue ?? ""]
+        )
+    }
+
+    private static func experienceWords(for banter: RadioBanter) -> Set<String> {
+        var values = [banter.category.rawValue, banter.caption]
+        if let conditions = banter.conditions {
+            values += conditions.pageTypes?.map(\.rawValue) ?? []
+            values += conditions.lastKeptPageTypes?.map(\.rawValue) ?? []
+            values += conditions.sourceIDs ?? []
+            values += conditions.sourceTags ?? []
+            values += conditions.weatherTags ?? []
+        }
+        return experienceWords(in: values)
+    }
+
+    private static func experienceWords(in values: [String]) -> Set<String> {
+        Set(values.flatMap { value in
+            value.lowercased()
+                .split { character in
+                    !character.isLetter && !character.isNumber
+                }
+                .map(String.init)
+                .filter { $0.count > 2 }
+        })
     }
 
     private static func aliveScore(seed: String, weight: Double) -> Double {
@@ -3167,6 +3612,9 @@ struct UnwrittenElective: Codable, Identifiable, Equatable {
     var practiceShape: String
     var createdAt: Date
     var completedAt: Date?
+    /// A clean ending chosen in the flyleaf. Resting a quest frees its slot
+    /// without manufacturing proof or letting it count as completion.
+    var releasedAt: Date? = nil
     var proof: String?
     var proofPhotoURL: String? = nil
     var proofLocationSummary: String? = nil
@@ -3179,7 +3627,8 @@ struct UnwrittenElective: Codable, Identifiable, Equatable {
     /// flyleaf quest without inventing a parallel quest system.
     var bookFavorID: String? = nil
 
-    var isActive: Bool { completedAt == nil }
+    var isActive: Bool { completedAt == nil && releasedAt == nil }
+    var isReleased: Bool { releasedAt != nil }
 
     static let maxActive = 5
     static let completionBeliefReward = BeliefEconomyPolicy.electiveCompletionReward
@@ -4098,10 +4547,9 @@ struct ChapterBindingCeremony: Equatable {
 }
 
 enum ChapterBindingOracle {
-    static let minimumKeptDays = 3
-    static let minimumKeptPages = 5
-    static let minimumDaysSinceFirstKeptPage = 3
-    static let matureDaysSinceFirstKeptPage = 7
+    static let minimumKeptDays = 5
+    static let minimumKeptPages = 10
+    static let minimumDaysSinceFirstKeptPage = 7
 
     static func readiness(days: [BookDay], now: Date = Date(), calendar: Calendar = .current) -> ChapterBindingReadiness {
         let keptDays = days
@@ -4115,7 +4563,6 @@ enum ChapterBindingOracle {
         }
         let hasEnoughPages = keptDays.count >= minimumKeptDays && keptPageCount >= minimumKeptPages
         let hasEnoughTime = (daysSinceFirst ?? 0) >= minimumDaysSinceFirstKeptPage
-        let isMature = (daysSinceFirst ?? 0) >= matureDaysSinceFirstKeptPage && keptPageCount >= 3
         let primerStage: Int
         if keptDays.count >= 2 || keptPageCount >= 2 {
             primerStage = min(3, max(1, keptDays.count))
@@ -4123,7 +4570,7 @@ enum ChapterBindingOracle {
             primerStage = 0
         }
         return ChapterBindingReadiness(
-            isReady: (hasEnoughPages && hasEnoughTime) || isMature,
+            isReady: hasEnoughPages && hasEnoughTime,
             keptDayCount: keptDays.count,
             keptPageCount: keptPageCount,
             daysSinceFirstKeptPage: daysSinceFirst,
@@ -5117,10 +5564,11 @@ enum FoodDataCentralNutritionParser {
 // The Fae are born from the ink and have never touched the world they have read
 // ten thousand descriptions of. A reader is their field agent in a world of
 // matter. A bargain is not a quest: the fae gives first (unprompted), then the
-// reader owes a sensory field report. Fae never trade in Belief. The stakes are
-// a parallel economy — Warmth (per-species reputation), Attention (the goblins'
-// currency), and functional Gifts that are fronted on credit and go cold if the
-// debt is not paid. See lore/creatures.md and lore/outer-stacks.md.
+// reader may answer with a sensory field report. Fae never trade in Belief. The
+// parallel economy is Warmth (per-species reputation), Attention (the goblins'
+// currency), and functional Gifts. Time away closes an exchange window but
+// never harms a gift or the reader's standing. See lore/creatures.md and
+// lore/outer-stacks.md.
 
 enum FaeKind: String, Codable, CaseIterable, Identifiable, Equatable {
     case bookSprite
@@ -5299,9 +5747,9 @@ enum FaeCourt: String, Codable, Equatable {
     }
 }
 
-/// What a fronted Gift actually does in the app. These are the real stakes:
-/// each one changes the reader's experience, and each goes cold if the
-/// bargain that fronted it is left unpaid.
+/// What a fronted Gift actually does in the app. Each one changes the reader's
+/// experience. Gifts can still change through explicit use and story choices;
+/// they never go cold merely because an exchange's clock elapsed.
 enum FaeGiftEffect: String, Codable, Equatable {
     case reshelving   // force-surfaces a chosen dormant page source for a day
     case quieting     // lowers Routine's grey by one level for a day
@@ -5384,11 +5832,51 @@ struct FaeGift: Identifiable, Codable, Equatable {
     }
 }
 
+/// Legacy saves may contain `isCold == true` from the retired real-time lapse
+/// penalty. Decode and re-encode those gifts warm. Explicit spent/ready state is
+/// still represented by charges, activation, and binding fields.
+extension FaeGift {
+    private enum CodingKeys: String, CodingKey {
+        case id, faeKind, name, descriptionText, effect, isCold, acquiredAt
+        case chargesRemaining, boundSourceID, activatedAt, expiresAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        faeKind = try values.decode(FaeKind.self, forKey: .faeKind)
+        name = try values.decode(String.self, forKey: .name)
+        descriptionText = try values.decode(String.self, forKey: .descriptionText)
+        effect = try values.decode(FaeGiftEffect.self, forKey: .effect)
+        isCold = false
+        acquiredAt = try values.decode(Date.self, forKey: .acquiredAt)
+        chargesRemaining = try values.decodeIfPresent(Int.self, forKey: .chargesRemaining)
+        boundSourceID = try values.decodeIfPresent(String.self, forKey: .boundSourceID)
+        activatedAt = try values.decodeIfPresent(Date.self, forKey: .activatedAt)
+        expiresAt = try values.decodeIfPresent(Date.self, forKey: .expiresAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(id, forKey: .id)
+        try values.encode(faeKind, forKey: .faeKind)
+        try values.encode(name, forKey: .name)
+        try values.encode(descriptionText, forKey: .descriptionText)
+        try values.encode(effect, forKey: .effect)
+        try values.encode(false, forKey: .isCold)
+        try values.encode(acquiredAt, forKey: .acquiredAt)
+        try values.encodeIfPresent(chargesRemaining, forKey: .chargesRemaining)
+        try values.encodeIfPresent(boundSourceID, forKey: .boundSourceID)
+        try values.encodeIfPresent(activatedAt, forKey: .activatedAt)
+        try values.encodeIfPresent(expiresAt, forKey: .expiresAt)
+    }
+}
+
 enum FaeBargainStatus: String, Codable, Equatable {
     case offered     // proposed on the desk; nothing fronted yet — only becomes real when the reader opens the page
     case owed        // gift fronted, payment due
     case delivered   // paid and accepted
-    case lapsed      // deadline passed; gift cold, market closed until repaired
+    case lapsed      // the exchange window passed; the Fae moved on without penalty
 }
 
 struct FaeBargain: Identifiable, Codable, Equatable {
@@ -5486,9 +5974,10 @@ struct FaePlayerState: Codable, Equatable {
         bargains.contains { $0.faeKind == kind && $0.status == .owed }
     }
 
-    /// A species whose last bargain lapsed has its market closed until repaired.
-    func marketIsClosed(for kind: FaeKind) -> Bool {
-        bargains.contains { $0.faeKind == kind && $0.status == .lapsed }
+    /// Kept for save/API compatibility. Time passing never closes a market;
+    /// market access can change only through an explicit story choice.
+    func marketIsClosed(for _: FaeKind) -> Bool {
+        false
     }
 
     var activeGifts: [FaeGift] { gifts.filter { $0.isActive } }
@@ -5522,19 +6011,15 @@ struct FaeBargainTemplate: Equatable {
 enum FaeEconomy {
     /// Minimum hours between unprompted bargain offers.
     static let offerGapHours = 20
-    /// How long the reader has to pay before the gift goes cold.
+    /// How long the exchange waits on the active desk before the Fae wanders on.
     static let paymentWindowHours = 72
     /// Warmth gained for a genuine, accepted delivery.
     static let warmthPerDelivery = 3
-    /// Warmth lost when a bargain lapses.
-    static let warmthPerLapse = 4
     /// Attention earned per accepted delivery (scaled by report richness).
     static let baseAttention = 2
     /// Claim is the pressure of faerie attention: strange, useful, never punishment.
     static let claimPerOffer = 1
-    static let claimPerLapse = 12
     static let claimReliefPerDelivery = 3
-    static let claimReliefPerRepair = 7
     static let watchingClaimThreshold = 25
     static let unseelieClaimThreshold = 45
     static let wildClaimThreshold = 70
@@ -5565,8 +6050,8 @@ enum FaeEconomy {
 
     /// Can a fresh, unprompted bargain be offered right now?
     static func canOfferBargain(state: FaePlayerState, now: Date = Date()) -> Bool {
-        // One live bargain at a time keeps the debt legible — whether it is still
-        // a proposal on the desk (.offered) or an accepted debt (.owed).
+        // One live bargain at a time keeps the exchange legible — whether it is
+        // still a proposal on the desk (.offered) or waiting for an answer (.owed).
         guard !state.bargains.contains(where: { $0.status == .offered || $0.status == .owed }) else { return false }
         guard let last = state.lastBargainOfferedAt else { return true }
         return now.timeIntervalSince(last) >= Double(offerGapHours) * 3_600
@@ -5693,11 +6178,9 @@ enum FaeEconomy {
         }
     }
 
-    /// Choose which fae offers, biased toward species the reader is warm with
-    /// but never one whose market is currently closed (lapsed, unrepaired).
-    static func chooseFae(state: FaePlayerState, slot: String) -> FaeKind {
-        let open = FaeKind.allCases.filter { !state.marketIsClosed(for: $0) }
-        let pool = open.isEmpty ? FaeKind.allCases : open
+    /// Choose which Fae offers. A past exchange never locks a species out.
+    static func chooseFae(state _: FaePlayerState, slot: String) -> FaeKind {
+        let pool = FaeKind.allCases
         let index = abs("\(slot)-fae-choice".stableHash) % pool.count
         return pool[index]
     }
@@ -6086,35 +6569,24 @@ enum FaeEconomy {
         return expired
     }
 
-    /// Mark any owed bargain past its deadline as lapsed: its fronted gift goes
-    /// cold and that species' market closes until the debt is repaired. Faerie
-    /// law made visible — never punishment. Returns the ids that just lapsed.
+    /// Let an owed exchange leave the active desk after its window. The Fae
+    /// wanders on; the fronted gift stays warm, the temporary Claim from
+    /// accepting the exchange is released, and standing does not fall. A reader
+    /// can still answer later because they want to, never to repair an absence.
     @discardableResult
     static func sweepLapses(into state: inout FaePlayerState, now: Date = Date()) -> [String] {
-        var lapsed: [String] = []
+        var changed: [String] = []
+        for index in state.gifts.indices where state.gifts[index].isCold {
+            state.gifts[index].isCold = false
+            changed.append("legacy-warm:\(state.gifts[index].id)")
+        }
         for index in state.bargains.indices where state.bargains[index].status == .owed {
             guard now > state.bargains[index].deadline else { continue }
             state.bargains[index].status = .lapsed
-            let giftID = state.bargains[index].giftID
-            if let giftIndex = state.gifts.firstIndex(where: { $0.id == giftID }) {
-                state.gifts[giftIndex].isCold = true
-            }
-            let kind = state.bargains[index].faeKind.rawValue
-            state.warmth[kind] = (state.warmth[kind] ?? 0) - warmthPerLapse
-            adjustClaim(state.bargains[index].faeKind, by: claimPerLapse, into: &state)
-            appendOmen(
-                kind: state.bargains[index].faeKind,
-                title: "Cold Gift",
-                text: "A fronted gift has gone cold. This is not a punishment; it is a door that now opens by repair instead of ease.",
-                choiceID: "lapse",
-                intensity: 4,
-                lifetimeHours: 168,
-                into: &state,
-                now: now
-            )
-            lapsed.append(state.bargains[index].id)
+            adjustClaim(state.bargains[index].faeKind, by: -claimPerOffer, into: &state)
+            changed.append(state.bargains[index].id)
         }
-        return lapsed
+        return changed
     }
 
     /// Pay a bargain with a genuine field report. Awards warmth and attention,
@@ -6135,7 +6607,7 @@ enum FaeEconomy {
         state.bargains[index].rewardText = reward
         state.bargains[index].deliveredAt = now
 
-        // A repaired debt thaws its cold gift; a fresh delivery keeps it warm.
+        // A late answer is welcome, but there was no cold gift to repair.
         let giftID = state.bargains[index].giftID
         if let giftIndex = state.gifts.firstIndex(where: { $0.id == giftID }) {
             state.gifts[giftIndex].isCold = false
@@ -6143,23 +6615,11 @@ enum FaeEconomy {
 
         let kind = state.bargains[index].faeKind
         let mood = mood(for: now)
-        // Repair restores half the warmth a lapse cost; a clean delivery pays full.
-        let warmthGain = wasLapsed ? max(1, warmthPerLapse / 2) : warmthPerDelivery
-        state.warmth[kind.rawValue] = (state.warmth[kind.rawValue] ?? 0) + warmthGain
-        adjustClaim(kind, by: wasLapsed ? -claimReliefPerRepair : -claimReliefPerDelivery, into: &state)
-        state.attention += attention(forReport: report, mood: mood)
-        if wasLapsed {
-            appendOmen(
-                kind: kind,
-                title: "Debt Repaired",
-                text: "The cold gift has thawed, but it remembers being brought back. Repaired things do not become less magical.",
-                choiceID: "repair",
-                intensity: 2,
-                lifetimeHours: 96,
-                into: &state,
-                now: now
-            )
+        state.warmth[kind.rawValue] = (state.warmth[kind.rawValue] ?? 0) + warmthPerDelivery
+        if !wasLapsed {
+            adjustClaim(kind, by: -claimReliefPerDelivery, into: &state)
         }
+        state.attention += attention(forReport: report, mood: mood)
     }
 
     /// Spend a consumable gift (e.g., a calling card). Returns true if spent.
@@ -8670,7 +9130,6 @@ extension SurfacePage {
 
 enum BeliefEconomyEngine {
     static let sourceKeepCeiling = 75
-    static let pageGlowSettleFloor = 22
     static let entityGlowSettleFloor = 18
     static let readerSoftCeiling = 74
 
@@ -8688,14 +9147,12 @@ enum BeliefEconomyEngine {
         var movements: [BeliefEconomyMovement] = []
         var readerDelta = 0
         var entityDeltas: [String: Int] = [:]
-        var pageDeltas: [String: Int] = [:]
+        let pageDeltas: [String: Int] = [:]
 
         let calendar = Calendar.current
         let yesterday = calendar.date(byAdding: .day, value: -1, to: context.now) ?? context.now.addingTimeInterval(-86_400)
         let yesterdayID = BookDay.id(for: yesterday)
         let yesterdayPages = context.days.first { $0.id == yesterdayID }?.pages ?? []
-        let recentPages = context.days.suffix(7).flatMap(\.pages)
-        let recentSourceIDs = Set(recentPages.map(\.sourceID))
         let recentlyTouchedEntityIDs = touchedEntityIDs(events: context.events, since: context.now.addingTimeInterval(-14 * 86_400))
         let tideCandidates = context.entities
             .filter { entity in
@@ -8724,43 +9181,10 @@ enum BeliefEconomyEngine {
             movements.append(movement(.entity, id: entity.id, name: entity.name, delta: 1, reason: .dailyTide, now: context.now, note: "\(entity.name) caught a point of yesterday's attention."))
         }
 
-        let settlingEntities = context.entities
-            .filter { entity in
-                let adjusted = effectiveBelief(entity, offsets: context.entityBelief)
-                // The Rut of Routine and its kin neither receive the tide nor cool on
-                // their own — antagonist Glow only moves through real events.
-                return adjusted > 70
-                    && !recentlyTouchedEntityIDs.contains(entity.id)
-                    && !entity.tags.contains("nothing")
-            }
-            .sorted { effectiveBelief($0, offsets: context.entityBelief) > effectiveBelief($1, offsets: context.entityBelief) }
-            .prefix(4)
-
-        for entity in settlingEntities {
-            let adjusted = effectiveBelief(entity, offsets: context.entityBelief)
-            let delta = adjusted >= 90 ? -2 : -1
-            let allowed = max(delta, entityGlowSettleFloor - adjusted)
-            guard allowed < 0 else { continue }
-            entityDeltas[entity.id, default: 0] += allowed
-            movements.append(movement(.entity, id: entity.id, name: entity.name, delta: allowed, reason: .neglectedGlowSettled, now: context.now, note: "\(entity.name)'s unattended Glow cooled by \(abs(allowed))."))
-        }
-
-        let settlingSources = BookPageSourceRegistry.activeSources
-            .filter { source in
-                let adjusted = sourceBelief(source, offsets: context.pageBelief)
-                return adjusted > 60 && !recentSourceIDs.contains(source.id)
-            }
-            .sorted { sourceBelief($0, offsets: context.pageBelief) > sourceBelief($1, offsets: context.pageBelief) }
-            .prefix(4)
-
-        for source in settlingSources {
-            let adjusted = sourceBelief(source, offsets: context.pageBelief)
-            let delta = adjusted >= 85 ? -2 : -1
-            let allowed = max(delta, pageGlowSettleFloor - adjusted)
-            guard allowed < 0 else { continue }
-            pageDeltas[source.id, default: 0] += allowed
-            movements.append(movement(.pageSource, id: source.id, name: source.title, delta: allowed, reason: .neglectedGlowSettled, now: context.now, note: "\(source.title) rested and cooled by \(abs(allowed))."))
-        }
+        // Time away from the app never cools a character, a relationship, or a
+        // kind of Page. Negative Glow movement remains available through
+        // explicit reader choices (`sourceDismissed`, fiction spends) and story
+        // consequences, where the reader can see what caused it.
 
         state.remember(movements)
         return BeliefEconomyDailyResult(state: state, readerDelta: readerDelta, entityDeltas: entityDeltas, pageDeltas: pageDeltas, movements: movements)
@@ -9284,32 +9708,6 @@ enum KeepMarginalia {
         return Note(
             castSlug: "almanac",
             castName: "The Almanac \u{2014} \(commonName)",
-            assetName: "LabyrinthFaeBookSprite",
-            line: line
-        )
-    }
-
-    /// The Almanac's line when a keep lights a new day that crosses one of the
-    /// month's thread milestones. Voiced by the Almanac, keyed to the keepsake
-    /// tier just earned — it counts the days the reader showed up, never the days
-    /// they missed, and asks for nothing in return.
-    static func threadNote(litDays: Int, seal: ThreadOfTheMonth.Seal, monthName: String) -> Note {
-        let line: String
-        switch seal {
-        case .inked:
-            line = "\(monthName) has ink in it now — \(litDays) days you showed up. The Book started a thread to hold them."
-        case .sealed:
-            line = "\(litDays) lit days this month. The Almanac warmed a little wax and pressed a seal on \(monthName). It's yours."
-        case .ribboned:
-            line = "\(litDays) days of \(monthName) carry your ink. The Book tied a ribbon around them — a good month, and not over yet."
-        case .bound:
-            line = "\(litDays) lit days. \(monthName) is cloth-bound now, a full and well-kept volume. The thread holds every one."
-        case .unbound:
-            line = "\(monthName) begins its thread. This is the first stitch."
-        }
-        return Note(
-            castSlug: "almanac",
-            castName: "The Almanac \u{2014} the Thread of \(monthName)",
             assetName: "LabyrinthFaeBookSprite",
             line: line
         )

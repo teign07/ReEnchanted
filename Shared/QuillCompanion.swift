@@ -31,11 +31,17 @@ struct ReaderMannerProfile: Equatable {
         "probably", "possibly", "a little", "not sure", "might"
     ]
 
+    static func eligiblePages(from pages: [BookPage]) -> [BookPage] {
+        pages.filter { page in
+            guard !EditionCurator.defaultPrivateTypes.contains(page.type) else { return false }
+            let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).count >= 3
+        }
+    }
+
     static func measure(pages: [BookPage]) -> ReaderMannerProfile {
-        let prose = pages
-            .filter { !EditionCurator.defaultPrivateTypes.contains($0.type) }
+        let prose = eligiblePages(from: pages)
             .map { $0.userInput.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { $0.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).count >= 3 }
         guard !prose.isEmpty else {
             return ReaderMannerProfile(pageCount: 0, hedgeRate: 0, questionRate: 0,
                                        exclaimRate: 0, averageWords: 0, punctuationDiscipline: 0)
@@ -223,6 +229,27 @@ enum QuillChoosing {
     /// Enough prose pages to read a hand honestly before an instrument
     /// commits to opposing it.
     static let minimumProsePages = 6
+    static let minimumChoosingProsePages = 10
+    static let minimumProseDays = 4
+    static let minimumDaysSinceFirstProse = 5
+
+    static func hasMatureHand(
+        _ pages: [BookPage],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Bool {
+        let prosePages = ReaderMannerProfile.eligiblePages(from: pages)
+        guard prosePages.count >= minimumChoosingProsePages else { return false }
+        let proseDays = Set(prosePages.map { BookDay.id(for: $0.createdAt, calendar: calendar) })
+        guard proseDays.count >= minimumProseDays,
+              let first = prosePages.map(\.createdAt).min() else { return false }
+        let age = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: first),
+            to: calendar.startOfDay(for: now)
+        ).day ?? 0
+        return age >= minimumDaysSinceFirstProse
+    }
 
     static let names: [String] = [
         "Vesper", "Meridian", "Bellwether", "Quince", "Ombra", "Petrel",
@@ -532,7 +559,8 @@ struct QuillChoosingPageSourceAdapter: BookPageSourceAdapter {
         // and self-suppressing, so it simply waits for a calmer session.
         guard !context.distress.isActive else { return [] }
         let pages = (inputs.days + [day]).flatMap(\.capturedPages)
-        guard !pages.contains(where: { $0.tags.contains(QuillChoosing.chosenTag) }),
+        guard QuillChoosing.hasMatureHand(pages, now: now),
+              !pages.contains(where: { $0.tags.contains(QuillChoosing.chosenTag) }),
               let quill = QuillChoosing.mint(from: pages, now: now),
               let data = try? JSONEncoder().encode(quill),
               let encoded = String(data: data, encoding: .utf8) else { return [] }

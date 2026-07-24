@@ -964,12 +964,23 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     /// Latest world snapshot pushed by the app (see `updateWorldState`). Takes
     /// precedence over `worldContextProvider`; both fall back to calm.
     private var liveWorld: (grey: Int, festivalActive: Bool, pageContext: RadioPageContext)?
+    /// The current score from the existing BookSessionDirector. Updating it
+    /// never interrupts audio; it changes only the next playout decision.
+    private var liveExperienceProgram: BookExperienceProgram?
 
     /// Push the current world-state in. Cheap to call often (e.g. on appear, on
     /// tune, on scene-active) — grey/festival change at most daily. `grey` is on
     /// the 0–100 scale the banter conditions use.
     func updateWorldState(grey: Int, festivalActive: Bool, pageContext: RadioPageContext = RadioPageContext()) {
         liveWorld = (max(0, min(100, grey)), festivalActive, pageContext)
+    }
+
+    func updateExperienceProgram(_ program: BookExperienceProgram?) {
+        guard let program, Date() < program.expiresAt else {
+            liveExperienceProgram = nil
+            return
+        }
+        liveExperienceProgram = program
     }
 
     private override init() { super.init() }
@@ -1051,12 +1062,19 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                 audioPlayer.volume = station.id == "thornwave" ? 0.48 : 0.42
                 audioPlayer.delegate = self
                 audioPlayer.prepareToPlay()
-                audioPlayer.play()
+                guard audioPlayer.play() else {
+                    playProceduralFallback(for: station, track: track)
+                    return
+                }
                 filePlayer = audioPlayer
                 activeBuffer = nil
                 activeTrack = track
                 sourceLine = "Playing \(track.title) from local radio assets."
                 updateSystemNowPlayingSong(track, station: station, duration: audioPlayer.duration)
+                PlayerVault.shared.data.lastRadioTrackPlay = RadioTrackPlayReceipt(
+                    stationID: station.id, trackID: track.id, startedAt: Date()
+                )
+                PlayerVault.shared.save()
             } catch {
                 appLog.error("Radio asset failed: \(error.localizedDescription, privacy: .public)")
                 playProceduralFallback(for: station, track: track)
@@ -1067,6 +1085,12 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
 
         if let trackID = track?.id {
             playback.recordTrack(trackID, stationTrackIDs: station.tracks.map(\.id))
+            recordExperienceBroadcast(
+                stationID: station.id,
+                kind: .track,
+                itemID: trackID,
+                candidateIDs: station.tracks.map(\.id)
+            )
         }
         statusLine = "\(station.displayFrequency) \(station.title) — \(track?.title ?? "broadcasting")."
     }
@@ -1118,19 +1142,65 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             // Hold the upcoming song so it plays right after the break — this is
             // what makes an intro ("Coming up, Folktronica…") land on its song.
             pendingTrack = upcoming
-            if shouldPlayInterstitial(for: station) {
+            if shouldPlayExperienceSilence(for: station) {
+                pendingBanter = banter
+                playExperienceSilence(for: station)
+            } else if shouldPlayInterstitial(for: station) {
                 pendingBanter = banter
                 playInterstitial(for: station)
             } else {
                 playBanter(banter, for: station)
             }
         } else {
-            pendingTrack = nil
-            if shouldPlayInterstitial(for: station) {
+            if shouldPlayExperienceSilence(for: station) {
+                pendingTrack = upcoming
+                playExperienceSilence(for: station)
+            } else if shouldPlayInterstitial(for: station) {
+                pendingTrack = nil
                 playInterstitial(for: station)
             } else {
+                pendingTrack = nil
                 beginTrack(upcoming, for: station)
             }
+        }
+    }
+
+    private func shouldPlayExperienceSilence(for station: RadioStation) -> Bool {
+        guard let program = liveExperienceProgram,
+              program.nextBroadcastFunction == .release,
+              !program.nextBroadcastIsAutonomous,
+              program.broadcastReceipts.last?.kind != .silence else {
+            return false
+        }
+        let seed = "\(program.seed)|silence|\(station.id)|\(playback.lastTrackID ?? "none")|\(tracksSinceTune)"
+        return UInt(bitPattern: seed.stableHash) % 3 == 0
+    }
+
+    /// A short, authored absence between playout items. It never powers the
+    /// station off or asks the reader to return; it simply lets a clean no or
+    /// completed Page stop echoing for one measure.
+    private func playExperienceSilence(for station: RadioStation) {
+        nowPlayingBanter = nil
+        isPlayingBanter = false
+        isPlayingInterstitial = true
+        statusLine = "\(station.displayFrequency) \(station.title) — one empty measure."
+        sourceLine = "The station leaves a little air between things."
+        player.stop()
+        filePlayer?.stop()
+        filePlayer = nil
+        recordExperienceBroadcast(
+            stationID: station.id,
+            kind: .silence,
+            itemID: "one-empty-measure",
+            candidateIDs: ["one-empty-measure"]
+        )
+        let token = playoutToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) { [weak self] in
+            guard let self,
+                  self.isPlaying,
+                  self.isPlayingInterstitial,
+                  self.playoutToken == token else { return }
+            self.resumeAfterInterstitial(for: station)
         }
     }
 
@@ -1161,6 +1231,12 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             staticPlayer.prepareToPlay()
             staticPlayer.play()
             filePlayer = staticPlayer
+            recordExperienceBroadcast(
+                stationID: station.id,
+                kind: .interstitial,
+                itemID: station.interstitialTitle ?? asset,
+                candidateIDs: [station.interstitialTitle ?? asset]
+            )
             updateSystemNowPlayingStatic(frequency: station.frequency)
         } catch {
             appLog.error("Radio interstitial failed: \(error.localizedDescription, privacy: .public)")
@@ -1180,6 +1256,12 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
 
     private func playBanter(_ banter: RadioBanter, for station: RadioStation) {
         playback.recordBanter(banter.id)
+        recordExperienceBroadcast(
+            stationID: station.id,
+            kind: .banter,
+            itemID: banter.id,
+            candidateIDs: station.resolvedBanters.map(\.id)
+        )
         tracksSinceBanter = 0
         nowPlayingBanter = banter
         isPlayingInterstitial = false
@@ -1533,7 +1615,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             MPMediaItemPropertyTitle: "DJ: \(station.hostDisplayName)",
             MPMediaItemPropertyArtist: station.title,
             MPMediaItemPropertyAlbumTitle: "\(station.displayFrequency) \(station.title)",
-            MPMediaItemPropertyComments: banter.caption,
+            MPMediaItemPropertyComments: banter.readerFacingCaption,
             MPNowPlayingInfoPropertyIsLiveStream: duration == nil,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: 0,
             MPNowPlayingInfoPropertyPlaybackRate: 1,
@@ -1704,8 +1786,32 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             festivalActive: world.festivalActive,
             listeningDays: playback.daysHeard(stationID: station.id),
             weekday: Calendar.current.component(.weekday, from: now),
-            pageContext: world.pageContext
+            pageContext: world.pageContext,
+            experienceProgram: liveExperienceProgram
         )
+    }
+
+    private func recordExperienceBroadcast(
+        stationID: String,
+        kind: BookExperienceBroadcastKind,
+        itemID: String,
+        candidateIDs: [String],
+        now: Date = Date()
+    ) {
+        guard var program = liveExperienceProgram, now < program.expiresAt else {
+            liveExperienceProgram = nil
+            return
+        }
+        program.recordBroadcast(
+            stationID: stationID,
+            kind: kind,
+            itemID: itemID,
+            candidateIDs: candidateIDs,
+            at: now
+        )
+        liveExperienceProgram = program
+        PlayerVault.shared.data.activeExperienceProgram = program
+        PlayerVault.shared.save()
     }
 
     private func resolvedAudioURL(for track: RadioTrack) -> URL? {
@@ -1866,7 +1972,12 @@ final class BookRadioManager {
     private(set) var sourceLine = "No broadcast is tuned."
     private(set) var nowPlayingBanter: RadioBanter?
     private var isPausedForMemoryPressure = false
+    private var liveExperienceProgram: BookExperienceProgram?
     private init() {}
+    func updateWorldState(grey: Int, festivalActive: Bool, pageContext: RadioPageContext = RadioPageContext()) {}
+    func updateExperienceProgram(_ program: BookExperienceProgram?) {
+        liveExperienceProgram = program
+    }
     func restore(state: RadioPlaybackState, unlockedPackIDs: Set<String>) { playback = state }
     func tune(stationID: String, unlockedPackIDs: Set<String>) {
         activeStation = RadioStationRegistry.station(id: stationID, unlockedPackIDs: unlockedPackIDs)
@@ -2726,6 +2837,19 @@ enum WeatherLocationReader {
         #endif
     }
 
+    /// Reuses a coordinate already obtained for the shared real-world context
+    /// pass, so weather, Anchors, and nearby-place scouting do not each wake GPS.
+    static func weatherSignal(latitude: Double, longitude: Double) async throws -> WeatherSourceSignal {
+        #if canImport(CoreLocation)
+        return try await weatherSignal(for: CLLocationCoordinate2D(
+            latitude: latitude,
+            longitude: longitude
+        ))
+        #else
+        throw ReaderError.unavailable
+        #endif
+    }
+
     #if canImport(CoreLocation)
     fileprivate static func weatherSignal(for coordinate: CLLocationCoordinate2D) async throws -> WeatherSourceSignal {
         let weather = try await OpenMeteoClient.forecast(for: coordinate)
@@ -3024,13 +3148,31 @@ private final class OneShotLocationReader: NSObject, CLLocationManagerDelegate {
             case .notDetermined:
                 manager.requestWhenInUseAuthorization()
             case .authorizedAlways, .authorizedWhenInUse:
-                manager.requestLocation()
+                if let cached = recentSystemLocation() {
+                    finish(returning: cached)
+                } else {
+                    manager.requestLocation()
+                }
             case .denied, .restricted:
                 finish(throwing: WeatherLocationReader.ReaderError.denied)
             @unknown default:
                 finish(throwing: WeatherLocationReader.ReaderError.noLocation)
             }
         }
+    }
+
+    /// Core Location often already has a recent fix from Maps, Weather, or an
+    /// earlier Book request. Reusing that system-owned reading makes an
+    /// intelligent refresh effectively free instead of waking GPS again.
+    private func recentSystemLocation(now: Date = Date()) -> CLLocation? {
+        guard let location = manager.location else { return nil }
+        let age = now.timeIntervalSince(location.timestamp)
+        let acceptableAccuracy = max(manager.desiredAccuracy * 2, 500)
+        guard age >= 0,
+              age <= 2 * 60,
+              location.horizontalAccuracy >= 0,
+              location.horizontalAccuracy <= acceptableAccuracy else { return nil }
+        return location
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -3260,34 +3402,157 @@ import UserNotifications
 enum StandingOrderTrialReminder {
     static let identifier = "standing-order-trial-reminder"
 
-    static func schedule(trialDays: Int, price: String, periodUnit: String, now: Date = Date()) {
+    enum AuthorizationState: Equatable, Sendable {
+        case allowed
+        case notDetermined
+        case unavailable
+    }
+
+    static func authorizationState() async -> AuthorizationState {
+        #if canImport(UserNotifications)
+        let settings = await withCheckedContinuation { continuation in
+            UNUserNotificationCenter.current().getNotificationSettings {
+                continuation.resume(returning: $0)
+            }
+        }
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            return .allowed
+        case .notDetermined:
+            return .notDetermined
+        case .denied:
+            return .unavailable
+        @unknown default:
+            return .unavailable
+        }
+        #else
+        return .unavailable
+        #endif
+    }
+
+    @discardableResult
+    static func schedule(
+        trialEndsAt: Date,
+        price: String,
+        periodUnit: String,
+        now: Date = Date(),
+        requestAuthorizationIfNeeded: Bool = true
+    ) async -> Bool {
         #if canImport(UserNotifications)
         let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
-            guard granted else { return }
-            let calendar = Calendar.current
-            // The day before the charge: trialStart + (trialDays - 1) days.
-            let reminderDay = calendar.date(byAdding: .day, value: max(0, trialDays - 1), to: now) ?? now
-            var comps = calendar.dateComponents([.year, .month, .day], from: reminderDay)
-            comps.hour = 10
-            comps.minute = 0
-
-            let content = UNMutableNotificationContent()
-            content.title = "Your free trial ends tomorrow"
-            content.body = "Tomorrow the Standing Order becomes \(price)/\(periodUnit). Keep it, or cancel in Settings — either way, every page you made stays yours."
-            content.sound = .default
-
-            let trigger: UNNotificationTrigger
-            if let fireDate = calendar.date(from: comps), fireDate > now {
-                trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
-            } else {
-                // Trial too short for a day-before slot; nudge shortly instead.
-                trigger = UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false)
-            }
-
-            center.removePendingNotificationRequests(withIdentifiers: [identifier])
-            center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
+        guard let plan = StandingOrderTrialReminderPlan.make(
+            trialEndsAt: trialEndsAt,
+            price: price,
+            periodUnit: periodUnit,
+            now: now
+        ) else {
+            cancel()
+            return false
         }
+        let authorization = await authorizationState()
+        let allowed: Bool
+        switch authorization {
+        case .allowed:
+            allowed = true
+        case .notDetermined where requestAuthorizationIfNeeded:
+            allowed = await requestAuthorization()
+        case .notDetermined, .unavailable:
+            allowed = false
+        }
+        guard allowed else { return false }
+
+        let content = UNMutableNotificationContent()
+        content.title = plan.title
+        content.body = plan.body
+        content.sound = .default
+        content.userInfo = [
+            "kind": "standing-order-trial-reminder",
+            "trialEndsAt": plan.trialEndsAt.timeIntervalSince1970
+        ]
+
+        let interval = max(1, plan.fireDate.timeIntervalSince(now))
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+        return await withCheckedContinuation { continuation in
+            center.add(request) { error in
+                continuation.resume(returning: error == nil)
+            }
+        }
+        #else
+        return false
+        #endif
+    }
+
+    @discardableResult
+    static func schedule(
+        trialDays: Int,
+        price: String,
+        periodUnit: String,
+        now: Date = Date()
+    ) async -> Bool {
+        let trialEndsAt = Calendar.current.date(
+            byAdding: .day,
+            value: trialDays,
+            to: now
+        ) ?? now
+        return await schedule(
+            trialEndsAt: trialEndsAt,
+            price: price,
+            periodUnit: periodUnit,
+            now: now
+        )
+    }
+
+    /// Prefer StoreKit's verified expiration to the catalog's day count. The
+    /// fallback exists for the development counter and a just-finished purchase
+    /// whose entitlement has not propagated into `currentEntitlements` yet.
+    @discardableResult
+    static func scheduleForPurchasedTrial(
+        productID: String,
+        fallbackTrialDays: Int,
+        price: String,
+        periodUnit: String,
+        now: Date = Date()
+    ) async -> Bool {
+        #if canImport(StoreKit)
+        let exactEnd = await currentTrial(productID: productID)?.endsAt
+        #else
+        let exactEnd: Date? = nil
+        #endif
+        let fallbackEnd = Calendar.current.date(
+            byAdding: .day,
+            value: fallbackTrialDays,
+            to: now
+        ) ?? now
+        return await schedule(
+            trialEndsAt: exactEnd ?? fallbackEnd,
+            price: price,
+            periodUnit: periodUnit,
+            now: now
+        )
+    }
+
+    /// Rebuilds the reminder from the verified active introductory transaction
+    /// on launch. Once the trial has ended, the stale request is removed.
+    static func reconcileCurrentTrial(now: Date = Date()) async {
+        #if canImport(StoreKit)
+        guard let trial = await currentTrial(productID: nil),
+              trial.endsAt > now else {
+            cancel()
+            return
+        }
+        let tier = BookShopCatalog.standingOrderTiers.first {
+            $0.productID == trial.productID
+        }
+        let product = try? await Product.products(for: [trial.productID]).first
+        _ = await schedule(
+            trialEndsAt: trial.endsAt,
+            price: product?.displayPrice ?? tier?.fallbackDisplayPrice ?? "the confirmed price",
+            periodUnit: tier?.periodUnit ?? "period",
+            now: now,
+            requestAuthorizationIfNeeded: false
+        )
         #endif
     }
 
@@ -3296,6 +3561,43 @@ enum StandingOrderTrialReminder {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier])
         #endif
     }
+
+    #if canImport(UserNotifications)
+    private static func requestAuthorization() async -> Bool {
+        await withCheckedContinuation { continuation in
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) {
+                granted, _ in
+                continuation.resume(returning: granted)
+            }
+        }
+    }
+    #endif
+
+    #if canImport(StoreKit)
+    private struct CurrentTrial {
+        var productID: String
+        var endsAt: Date
+    }
+
+    private static func currentTrial(productID: String?) async -> CurrentTrial? {
+        let standingOrderProductIDs = Set(BookShopCatalog.standingOrderTiers.map(\.productID))
+        var latest: CurrentTrial?
+        for await entitlement in Transaction.currentEntitlements {
+            guard case .verified(let transaction) = entitlement,
+                  standingOrderProductIDs.contains(transaction.productID),
+                  productID == nil || transaction.productID == productID,
+                  transaction.offerType == .introductory,
+                  transaction.revocationDate == nil,
+                  let expirationDate = transaction.expirationDate else {
+                continue
+            }
+            if latest == nil || expirationDate > latest!.endsAt {
+                latest = CurrentTrial(productID: transaction.productID, endsAt: expirationDate)
+            }
+        }
+        return latest
+    }
+    #endif
 }
 
 /// The Book's voice outside the app: a few quiet, in-world local
@@ -3304,67 +3606,644 @@ enum StandingOrderTrialReminder {
 /// anything else, and the whole channel has one switch in the Colophon.
 enum BookWhispers {
     static let identifierPrefix = "book-whisper-"
-    static let promptIdentifierPrefix = "book-whisper-prompt-"
     static let promptCategoryIdentifier = "book-whisper-prompt"
     static let promptReplyActionIdentifier = "prompt-keep-reply"
 
-    static func refreshSchedule(
-        enabled: Bool,
-        cadence: BookWhisperCadence = .both,
-        electives: [UnwrittenElective],
-        whisperController: String? = nil,
-        festivalWhisper: (title: String, body: String)? = nil,
-        bookInterior: BookInteriorState = .unawakened,
-        now: Date = Date()
-    ) {
+    struct RefreshContext {
+        var cadence: BookWhisperCadence
+        var day: BookDay
+        var inputs: BookSourceInputs
+        var electives: [UnwrittenElective]
+        var people: PeopleLedger
+        var calendarEvents: [CalendarEventSignal]
+        var whisperController: String?
+        var whisperSovereign: Bool
+        var eventWhisper: (title: String, body: String)?
+        var festivalWhisper: (title: String, body: String)?
+        var bookInterior: BookInteriorState
+
+        init(
+            cadence: BookWhisperCadence,
+            day: BookDay,
+            inputs: BookSourceInputs,
+            electives: [UnwrittenElective],
+            people: PeopleLedger = PeopleLedger(),
+            calendarEvents: [CalendarEventSignal] = [],
+            whisperController: String? = nil,
+            whisperSovereign: Bool = false,
+            eventWhisper: (title: String, body: String)? = nil,
+            festivalWhisper: (title: String, body: String)? = nil,
+            bookInterior: BookInteriorState = .unawakened
+        ) {
+            self.cadence = cadence
+            self.day = day
+            self.inputs = inputs
+            self.electives = electives
+            self.people = people
+            self.calendarEvents = calendarEvents
+            self.whisperController = whisperController
+            self.whisperSovereign = whisperSovereign
+            self.eventWhisper = eventWhisper
+            self.festivalWhisper = festivalWhisper
+            self.bookInterior = bookInterior
+        }
+    }
+
+    #if canImport(UserNotifications)
+    private final class RefreshGeneration: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+
+        func advance() -> Int {
+            lock.lock()
+            defer { lock.unlock() }
+            value &+= 1
+            return value
+        }
+
+        func isCurrent(_ candidate: Int) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return value == candidate
+        }
+
+        /// Keeps the final generation check and notification-center mutation
+        /// in one critical section. A newer refresh cannot slip between them
+        /// and leave a stale request behind.
+        @discardableResult
+        func performIfCurrent(_ candidate: Int, _ action: () -> Void) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            guard value == candidate else { return false }
+            action()
+            return true
+        }
+
+        /// Lets a late, fully eligible contextual hinge become the newest
+        /// generation without invalidating an ordinary refresh when it cannot
+        /// actually claim a seat.
+        @discardableResult
+        func supersedeIf(
+            _ isEligible: () -> Bool,
+            perform action: () -> Void
+        ) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            guard isEligible() else { return false }
+            value &+= 1
+            action()
+            return true
+        }
+    }
+
+    private static let refreshGeneration = RefreshGeneration()
+
+    private struct SeatReservation: Codable, Equatable {
+        var candidateID: String
+        var identifier: String
+        var dayID: String
+        var window: BookInterruptionWindow
+        var kind: BookInterruptionKind
+        var isSpecific: Bool
+        var fireAt: Date
+        var title: String
+        var body: String
+        var prompt: PromptWhisper?
+
+        var seatID: String { "\(dayID)|\(window.rawValue)" }
+    }
+
+    private static let reservationDefaultsKey = "bookWhisperSeatReservations.v1"
+    private static let remindedFavorDefaultsKey = "bookWhisperRemindedFavorIDs.v1"
+
+    private static func seatRequestIdentifier(
+        dayID: String,
+        window: BookInterruptionWindow
+    ) -> String {
+        "\(identifierPrefix)seat-\(dayID)-\(window.rawValue)"
+    }
+
+    private static func loadReservations() -> [SeatReservation] {
+        guard let data = UserDefaults.standard.data(forKey: reservationDefaultsKey),
+              let decoded = try? JSONDecoder().decode([SeatReservation].self, from: data) else {
+            return []
+        }
+        return decoded
+    }
+
+    private static func saveReservations(_ reservations: [SeatReservation], now: Date) {
+        let cutoff = now.addingTimeInterval(-7 * 86_400)
+        let kept = reservations
+            .filter { $0.fireAt >= cutoff }
+            .sorted { ($0.fireAt, $0.identifier) < ($1.fireAt, $1.identifier) }
+        guard let data = try? JSONEncoder().encode(kept) else { return }
+        UserDefaults.standard.set(data, forKey: reservationDefaultsKey)
+    }
+
+    private static func remindedFavorIDs() -> Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: remindedFavorDefaultsKey) ?? [])
+    }
+
+    private static func recordRemindedFavorIDs(_ ids: Set<String>) {
+        UserDefaults.standard.set(Array(ids).sorted(), forKey: remindedFavorDefaultsKey)
+    }
+
+    private static func interiorWhisper(
+        for bookInterior: BookInteriorState
+    ) -> (title: String, body: String)? {
+        if let secret = bookInterior.secret, secret.status == .ready {
+            return ("A sealed leaf shifted", "One of the Book's own secrets is ready inside.")
+        }
+        if let promise = bookInterior.promise, promise.status == .keeping {
+            return (
+                "The ribbon kept its place",
+                "The Book is still holding an unfinished promise. Nothing is required tonight."
+            )
+        }
+        if let opinion = bookInterior.opinion,
+           opinion.strength == .reconsidering,
+           opinion.firstPresentedAt == nil {
+            return (
+                "An erasure in the margin",
+                "The Book changed its mind and kept the reason beside the correction."
+            )
+        }
+        if let game = bookInterior.longGame, game.phasePresentedAt == nil {
+            return (
+                "The long game moved",
+                "The Book's campaign of re-enchantment has entered \(game.phase.title)."
+            )
+        }
+        if let fascination = bookInterior.fascination {
+            return (
+                "The Book is still thinking",
+                "A thread about \(fascination.facet.verb) is moving quietly in the margins."
+            )
+        }
+        return nil
+    }
+
+    private static func promptContent(_ prompt: PromptWhisper) -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        content.title = prompt.title
+        content.body = prompt.body
+        content.sound = .default
+        content.categoryIdentifier = promptCategoryIdentifier
+        content.userInfo = [
+            "promptWhisperID": prompt.id,
+            "keepPrompt": prompt.keepPrompt,
+            "title": prompt.title,
+            "body": prompt.body,
+            "tags": prompt.tags.joined(separator: ","),
+            "kind": prompt.kind.rawValue,
+            "allowsPhoto": prompt.allowsPhoto ?? false
+        ]
+        return content
+    }
+
+    private static func notificationRequest(
+        for reservation: SeatReservation,
+        calendar: Calendar
+    ) -> UNNotificationRequest {
+        let content: UNMutableNotificationContent
+        if let prompt = reservation.prompt {
+            content = promptContent(prompt)
+        } else {
+            content = UNMutableNotificationContent()
+            content.title = reservation.title
+            content.body = reservation.body
+            content.sound = .default
+        }
+        content.userInfo["bookInterruptionSpecific"] = reservation.isSpecific
+        content.userInfo["bookInterruptionKind"] = reservation.kind.rawValue
+        content.userInfo["bookInterruptionDayID"] = reservation.dayID
+        content.userInfo["bookInterruptionWindow"] = reservation.window.rawValue
+        let components = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute],
+            from: reservation.fireAt
+        )
+        return UNNotificationRequest(
+            identifier: reservation.identifier,
+            content: content,
+            trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        )
+    }
+    #endif
+
+    /// Reconciles every ordinary Book interruption in one sweep. Test and
+    /// billing notices use different identifiers and intentionally survive.
+    static func refreshAll(context: RefreshContext, now: Date = Date()) {
         #if canImport(UserNotifications)
+        let generation = refreshGeneration.advance()
         let center = UNUserNotificationCenter.current()
         center.getPendingNotificationRequests { pending in
-            let ours = pending.map(\.identifier).filter {
-                $0.hasPrefix(identifierPrefix) && !$0.hasPrefix(promptIdentifierPrefix)
+            guard refreshGeneration.isCurrent(generation) else { return }
+            let ordinary = pending.map(\.identifier).filter { $0.hasPrefix(identifierPrefix) }
+            let previous = loadReservations()
+            let elapsed = previous.filter { $0.fireAt <= now }
+            guard context.cadence != .inside else {
+                refreshGeneration.performIfCurrent(generation) {
+                    center.removePendingNotificationRequests(withIdentifiers: ordinary)
+                    saveReservations(elapsed, now: now)
+                }
+                return
             }
-            center.removePendingNotificationRequests(withIdentifiers: ours)
-            guard enabled, cadence != .inside else { return }
             center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
-                guard granted else { return }
-                schedule(center: center, cadence: cadence, electives: electives, whisperController: whisperController, festivalWhisper: festivalWhisper, bookInterior: bookInterior, now: now)
+                guard refreshGeneration.isCurrent(generation) else { return }
+                guard granted else {
+                    refreshGeneration.performIfCurrent(generation) {
+                        center.removePendingNotificationRequests(withIdentifiers: ordinary)
+                        saveReservations(elapsed, now: now)
+                    }
+                    return
+                }
+                let calendar = Calendar.current
+                let start = BookDay.startDate(for: context.day.id, fallback: context.day.date, calendar: calendar)
+                let horizonEnd = calendar.date(byAdding: .day, value: 3, to: start)
+                    ?? start.addingTimeInterval(3 * 86_400)
+                var candidates: [BookInterruptionCandidate] = []
+                var reservations: [String: SeatReservation] = [:]
+
+                func add(
+                    id: String,
+                    dayID: String,
+                    window: BookInterruptionWindow,
+                    kind: BookInterruptionKind,
+                    isSpecific: Bool = false,
+                    priority: Int = 0,
+                    fireAt: Date,
+                    title: String,
+                    body: String,
+                    prompt: PromptWhisper? = nil
+                ) {
+                    guard fireAt > now, fireAt < horizonEnd else { return }
+                    let candidate = BookInterruptionCandidate(
+                        id: id,
+                        dayID: dayID,
+                        window: window,
+                        kind: kind,
+                        isSpecific: isSpecific,
+                        priority: priority,
+                        expiresAt: fireAt
+                    )
+                    candidates.append(candidate)
+                    reservations[id] = SeatReservation(
+                        candidateID: id,
+                        identifier: seatRequestIdentifier(dayID: dayID, window: window),
+                        dayID: dayID,
+                        window: window,
+                        kind: kind,
+                        isSpecific: isSpecific,
+                        fireAt: fireAt,
+                        title: title,
+                        body: body,
+                        prompt: prompt
+                    )
+                }
+
+                for offset in 0..<3 {
+                    guard let date = calendar.date(byAdding: .day, value: offset, to: start) else { continue }
+                    let dayID = BookDay.id(for: date, calendar: calendar)
+                    var morning = calendar.dateComponents([.year, .month, .day], from: date)
+                    morning.hour = 11
+                    morning.minute = 0
+                    if let fire = calendar.date(from: morning) {
+                        let promptDay = BookDay(
+                            id: dayID,
+                            date: calendar.startOfDay(for: date),
+                            pages: offset == 0 ? context.day.pages : []
+                        )
+                        let ordinary = PromptWhisperRegistry.prompts(
+                            for: promptDay,
+                            inputs: context.inputs,
+                            now: date,
+                            count: 1
+                        ).first
+                        let sovereign = offset == 0 && context.whisperSovereign
+                            ? PactVoices.sovereignWhisper(controller: context.whisperController)
+                            : nil
+                        let contextual = offset == 0
+                            ? (context.eventWhisper ?? sovereign.map { ($0.title, $0.body) })
+                            : nil
+                        let prompt = contextual.map {
+                            PromptWhisper(
+                                id: "contextual-\(dayID)",
+                                kind: .checkIn,
+                                title: $0.0,
+                                body: $0.1,
+                                keepPrompt: $0.1,
+                                tags: ["contextual-whisper"]
+                            )
+                        } ?? ordinary
+                        if let prompt {
+                            add(
+                                id: contextual == nil ? "morning-\(dayID)" : "context-morning-\(dayID)",
+                                dayID: dayID,
+                                window: .morning,
+                                kind: .ordinary,
+                                isSpecific: contextual != nil,
+                                priority: contextual == nil ? 0 : 80,
+                                fireAt: fire,
+                                title: prompt.title,
+                                body: prompt.body,
+                                prompt: prompt
+                            )
+                        }
+                    }
+
+                    let festival = offset == 0 ? context.festivalWhisper : nil
+                    let interior = offset == 0 ? interiorWhisper(for: context.bookInterior) : nil
+                    let braid = PactVoices.braidWhisper(controller: context.whisperController)
+                    let eveningWhisper = festival
+                        ?? interior
+                        ?? (title: braid.title, body: braid.body)
+                    var evening = calendar.dateComponents([.year, .month, .day], from: date)
+                    evening.hour = festival == nil ? 20 : 18
+                    evening.minute = festival == nil ? 45 : 0
+                    if let fire = calendar.date(from: evening) {
+                        add(
+                            id: festival != nil
+                                ? "festival-\(dayID)"
+                                : interior != nil ? "interior-\(dayID)" : "evening-\(dayID)",
+                            dayID: dayID,
+                            window: .evening,
+                            kind: festival != nil ? .festival : interior != nil ? .interior : .braid,
+                            isSpecific: festival != nil || interior != nil,
+                            priority: festival != nil ? 120 : interior != nil ? 70 : 0,
+                            fireAt: fire,
+                            title: eveningWhisper.title,
+                            body: eveningWhisper.body
+                        )
+                    }
+                }
+
+                for weather in previous where weather.kind == .weather && weather.fireAt > now {
+                    add(
+                        id: weather.candidateID,
+                        dayID: weather.dayID,
+                        window: .morning,
+                        kind: .weather,
+                        isSpecific: true,
+                        priority: 110,
+                        fireAt: weather.fireAt,
+                        title: weather.title,
+                        body: weather.body,
+                        prompt: weather.prompt
+                    )
+                }
+
+                for charge in PeopleOfTheBook.preMeetingCharges(
+                    ledger: context.people,
+                    events: context.calendarEvents,
+                    now: now
+                ) {
+                    let id = "person-\(charge.eventID)"
+                    let dayID = BookDay.id(for: charge.fireAt, calendar: calendar)
+                    let prompt = PromptWhisper(
+                        id: id,
+                        kind: .mission,
+                        title: charge.title,
+                        body: charge.body,
+                        keepPrompt: charge.keepPrompt,
+                        tags: charge.tags
+                    )
+                    add(
+                        id: id,
+                        dayID: dayID,
+                        window: .morning,
+                        kind: .person,
+                        isSpecific: true,
+                        priority: 115,
+                        fireAt: charge.fireAt,
+                        title: charge.title,
+                        body: charge.body,
+                        prompt: prompt
+                    )
+                }
+
+                var reminded = remindedFavorIDs()
+                for elective in context.electives where elective.isActive && !reminded.contains(elective.id) {
+                    let due = elective.createdAt.addingTimeInterval(3 * 86_400)
+                    guard due < horizonEnd else { continue }
+                    let base = max(due, now)
+                    var targetDay = calendar.startOfDay(for: base)
+                    var components = calendar.dateComponents([.year, .month, .day], from: targetDay)
+                    components.hour = 19
+                    components.minute = 30
+                    var fire = calendar.date(from: components) ?? base
+                    if fire <= now || fire < due {
+                        targetDay = calendar.date(byAdding: .day, value: 1, to: targetDay) ?? targetDay
+                        components = calendar.dateComponents([.year, .month, .day], from: targetDay)
+                        components.hour = 19
+                        components.minute = 30
+                        fire = calendar.date(from: components) ?? targetDay
+                    }
+                    let title = elective.bookFavorID == nil
+                        ? "A quest is waiting in the flyleaf"
+                        : "An optional favor rests in the flyleaf"
+                    let body = elective.bookFavorID == nil
+                        ? "\(elective.characterName) is still hoping for “\(elective.title)”. Sentence, photo, or GPS proof completes it."
+                        : "\(elective.title) is still there if it would add something to your day. Nothing is owed."
+                    add(
+                        id: "favor-\(elective.id)",
+                        dayID: BookDay.id(for: fire, calendar: calendar),
+                        window: .evening,
+                        kind: .favor,
+                        isSpecific: true,
+                        priority: 100,
+                        fireAt: fire,
+                        title: title,
+                        body: body
+                    )
+                }
+
+                let consumed = Set(elapsed.map(\.seatID))
+                let winners = BookInterruptionBudget.plan(
+                    candidates: candidates,
+                    cadence: context.cadence,
+                    consumed: consumed
+                ).winners.compactMap { reservations[$0.id] }
+
+                refreshGeneration.performIfCurrent(generation) {
+                    center.removePendingNotificationRequests(withIdentifiers: ordinary)
+                    for reservation in winners {
+                        center.add(notificationRequest(for: reservation, calendar: calendar))
+                        if reservation.kind == .favor,
+                           reservation.candidateID.hasPrefix("favor-") {
+                            reminded.insert(String(reservation.candidateID.dropFirst("favor-".count)))
+                        }
+                    }
+                    recordRemindedFavorIDs(reminded)
+                    saveReservations(elapsed + winners, now: now)
+                }
             }
         }
         #endif
     }
 
-    static func refreshPromptWhispers(
-        enabled: Bool,
-        cadence: BookWhisperCadence = .both,
-        day: BookDay,
-        inputs: BookSourceInputs,
-        whisperController: String? = nil,
-        whisperSovereign: Bool = false,
-        eventWhisper: (title: String, body: String)? = nil,
-        now: Date = Date()
-    ) {
-        #if canImport(UserNotifications)
+    #if canImport(UserNotifications)
+    /// A late weather hinge may take today's still-future generic morning seat.
+    /// It never displaces another specific lived-world interruption and never
+    /// reopens a seat whose scheduled fire time has already passed.
+    static func offerWeather(_ whisper: PromptWhisper, now: Date = Date()) async -> Bool {
+        let cadence = BookWhisperCadence.resolved(
+            bookWhispersEnabled: UserDefaults.standard.bool(forKey: "bookWhispersEnabled"),
+            promptWhispersEnabled: UserDefaults.standard.bool(forKey: "promptWhispersEnabled")
+        )
+        guard cadence.allowsMorning else { return false }
+
+        let calendar = Calendar.current
+        let dayID = BookDay.id(for: now, calendar: calendar)
+        let seatID = "\(dayID)|\(BookInterruptionWindow.morning.rawValue)"
+        let existing = loadReservations()
+        guard !existing.contains(where: { $0.seatID == seatID && $0.fireAt <= now }),
+              !existing.contains(where: {
+                  $0.seatID == seatID && $0.fireAt > now && $0.isSpecific
+              }) else {
+            return false
+        }
+
         let center = UNUserNotificationCenter.current()
-        center.getPendingNotificationRequests { pending in
-            let ours = pending.map(\.identifier).filter { $0.hasPrefix(promptIdentifierPrefix) }
-            center.removePendingNotificationRequests(withIdentifiers: ours)
-            guard enabled, cadence.allowsMorning else { return }
+        let granted: Bool = await withCheckedContinuation { continuation in
             center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
-                guard granted else { return }
-                schedulePromptWhispers(
-                    center: center,
-                    cadence: cadence,
-                    day: day,
-                    inputs: inputs,
-                    whisperController: whisperController,
-                    whisperSovereign: whisperSovereign,
-                    eventWhisper: eventWhisper,
-                    now: now
-                )
+                continuation.resume(returning: granted)
             }
         }
-        #endif
+        guard granted else { return false }
+
+        let pending: [UNNotificationRequest] = await withCheckedContinuation { continuation in
+            center.getPendingNotificationRequests { continuation.resume(returning: $0) }
+        }
+        let specificPrefixes = [
+            "\(identifierPrefix)person-",
+            "\(identifierPrefix)person-charge-",
+            "\(identifierPrefix)context-morning-",
+            "\(identifierPrefix)weather-"
+        ]
+        let fixedMorningSeatIdentifier = seatRequestIdentifier(dayID: dayID, window: .morning)
+        guard !pending.contains(where: { request in
+            if request.identifier == fixedMorningSeatIdentifier {
+                // A fixed-seat request without metadata is treated
+                // conservatively: never overwrite a possibly specific hinge
+                // when the local reservation ledger is missing or stale.
+                return (request.content.userInfo["bookInterruptionSpecific"] as? Bool) ?? true
+            }
+            guard specificPrefixes.contains(where: request.identifier.hasPrefix) else { return false }
+            let fireAt: Date?
+            if let trigger = request.trigger as? UNCalendarNotificationTrigger {
+                fireAt = trigger.nextTriggerDate()
+            } else if let trigger = request.trigger as? UNTimeIntervalNotificationTrigger {
+                fireAt = now.addingTimeInterval(trigger.timeInterval)
+            } else {
+                fireAt = nil
+            }
+            guard let fireAt else { return false }
+            return calendar.isDate(fireAt, inSameDayAs: now)
+        }) else {
+            return false
+        }
+
+        let fireAt = now.addingTimeInterval(60)
+        let weatherCandidate = BookInterruptionCandidate(
+            id: "weather-\(dayID)",
+            dayID: dayID,
+            window: .morning,
+            kind: .weather,
+            isSpecific: true,
+            priority: 110,
+            expiresAt: fireAt
+        )
+        let existingCandidates = existing.filter {
+            $0.seatID == seatID && $0.fireAt > now
+        }.map {
+            BookInterruptionCandidate(
+                id: $0.candidateID,
+                dayID: $0.dayID,
+                window: $0.window,
+                kind: $0.kind,
+                isSpecific: $0.isSpecific,
+                priority: 0,
+                expiresAt: $0.fireAt
+            )
+        }
+        let consumed = Set(existing.filter { $0.fireAt <= now }.map(\.seatID))
+        guard BookInterruptionBudget.plan(
+            candidates: existingCandidates + [weatherCandidate],
+            cadence: cadence,
+            consumed: consumed
+        ).winners.contains(where: { $0.id == weatherCandidate.id }) else {
+            return false
+        }
+
+        let reservation = SeatReservation(
+            candidateID: weatherCandidate.id,
+            identifier: seatRequestIdentifier(dayID: dayID, window: .morning),
+            dayID: dayID,
+            window: .morning,
+            kind: .weather,
+            isSpecific: true,
+            fireAt: fireAt,
+            title: whisper.title,
+            body: whisper.body,
+            prompt: whisper
+        )
+        let weatherContent = promptContent(whisper)
+        weatherContent.userInfo["bookInterruptionSpecific"] = true
+        weatherContent.userInfo["bookInterruptionKind"] = BookInterruptionKind.weather.rawValue
+        weatherContent.userInfo["bookInterruptionDayID"] = dayID
+        weatherContent.userInfo["bookInterruptionWindow"] = BookInterruptionWindow.morning.rawValue
+        let request = UNNotificationRequest(
+            identifier: reservation.identifier,
+            content: weatherContent,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false)
+        )
+        // Do not invalidate a full reconcile until Weather has passed every
+        // eligibility check. The seat is re-read under the same lock used by
+        // the ordinary scheduler.
+        var updatedReservations: [SeatReservation] = []
+        let committed = refreshGeneration.supersedeIf({
+            let currentCadence = BookWhisperCadence.resolved(
+                bookWhispersEnabled: UserDefaults.standard.bool(forKey: "bookWhispersEnabled"),
+                promptWhispersEnabled: UserDefaults.standard.bool(forKey: "promptWhispersEnabled")
+            )
+            guard currentCadence.allowsMorning else { return false }
+            let current = loadReservations()
+            let currentConsumed = Set(current.filter { $0.fireAt <= now }.map(\.seatID))
+            let currentCandidates = current.filter {
+                $0.seatID == seatID && $0.fireAt > now && !$0.isSpecific
+            }.map {
+                BookInterruptionCandidate(
+                    id: $0.candidateID,
+                    dayID: $0.dayID,
+                    window: $0.window,
+                    kind: $0.kind,
+                    isSpecific: false,
+                    priority: 0,
+                    expiresAt: $0.fireAt
+                )
+            }
+            let winner = BookInterruptionBudget.plan(
+                candidates: currentCandidates + [weatherCandidate],
+                cadence: currentCadence,
+                consumed: currentConsumed
+            ).winners.first { $0.dayID == dayID && $0.window == .morning }
+            guard winner?.id == weatherCandidate.id,
+                  !current.contains(where: {
+                      $0.seatID == seatID && $0.fireAt > now && $0.isSpecific
+                  }) else {
+                return false
+            }
+
+            updatedReservations = current.filter { $0.seatID != seatID }
+            updatedReservations.append(reservation)
+            return true
+        }, perform: {
+            center.add(request)
+            saveReservations(updatedReservations, now: now)
+        })
+        return committed
     }
+    #endif
 
     static func refreshAnchorDoorbells(enabled: Bool, anchors: [AnchorRecord], now: Date = Date()) {
         #if canImport(UserNotifications) && canImport(CoreLocation)
@@ -3372,85 +4251,8 @@ enum BookWhispers {
         let prefix = "book-whisper-doorbell-"
         center.getPendingNotificationRequests { pending in
             center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix(prefix) })
-            guard enabled,
-                  [.authorizedAlways, .authorizedWhenInUse].contains(CLLocationManager().authorizationStatus) else { return }
-            let defaults = UserDefaults.standard
-            let armed = Dictionary(uniqueKeysWithValues: anchors.compactMap { anchor in
-                (defaults.object(forKey: "anchorDoorbellArmed:\(anchor.id)") as? Date)
-                    .map { (anchor.id, $0) }
-            })
-            for bell in AnchorDoorbells.plan(anchors: anchors, lastArmed: armed, now: now) {
-                let region = CLCircularRegion(
-                    center: CLLocationCoordinate2D(latitude: bell.latitude, longitude: bell.longitude),
-                    radius: bell.radiusMeters,
-                    identifier: "\(prefix)\(bell.anchorID)"
-                )
-                region.notifyOnEntry = true
-                region.notifyOnExit = false
-                let content = UNMutableNotificationContent()
-                content.title = bell.title
-                content.body = bell.body
-                content.sound = .default
-                content.categoryIdentifier = promptCategoryIdentifier
-                content.userInfo = [
-                    "promptWhisperID": "anchor-doorbell-\(bell.anchorID)",
-                    "keepPrompt": bell.keepPrompt,
-                    "title": bell.title,
-                    "body": bell.body,
-                    "tags": bell.tags.joined(separator: ","),
-                    "kind": PromptWhisper.Kind.mission.rawValue
-                ]
-                center.add(UNNotificationRequest(
-                    identifier: "\(prefix)\(bell.anchorID)",
-                    content: content,
-                    trigger: UNLocationNotificationTrigger(region: region, repeats: false)
-                ))
-                defaults.set(now, forKey: "anchorDoorbellArmed:\(bell.anchorID)")
-            }
-        }
-        #endif
-    }
-
-    /// Arms pre-meeting charges: a whisper an hour before the reader sees
-    /// someone whose thread the Book keeps (calendar title names a confirmed
-    /// person). Pure planning lives in PeopleOfTheBook.preMeetingCharges; this
-    /// only converts the plan into scheduled notifications, using the same
-    /// reply-to-keep category as prompt whispers.
-    static func refreshPersonCharges(
-        enabled: Bool,
-        ledger: PeopleLedger,
-        events: [CalendarEventSignal],
-        now: Date = Date()
-    ) {
-        #if canImport(UserNotifications)
-        let center = UNUserNotificationCenter.current()
-        let prefix = "book-whisper-person-charge-"
-        center.getPendingNotificationRequests { pending in
-            center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix(prefix) })
-            guard enabled else { return }
-            for charge in PeopleOfTheBook.preMeetingCharges(ledger: ledger, events: events, now: now) {
-                let content = UNMutableNotificationContent()
-                content.title = charge.title
-                content.body = charge.body
-                content.sound = .default
-                content.categoryIdentifier = promptCategoryIdentifier
-                content.userInfo = [
-                    "promptWhisperID": "person-charge-\(charge.eventID)",
-                    "keepPrompt": charge.keepPrompt,
-                    "title": charge.title,
-                    "body": charge.body,
-                    "tags": charge.tags.joined(separator: ","),
-                    "kind": PromptWhisper.Kind.mission.rawValue
-                ]
-                center.add(UNNotificationRequest(
-                    identifier: "\(prefix)\(charge.eventID)",
-                    content: content,
-                    trigger: UNTimeIntervalNotificationTrigger(
-                        timeInterval: max(60, charge.fireAt.timeIntervalSince(now)),
-                        repeats: false
-                    )
-                ))
-            }
+            // Anchor arrivals are foreground/in-app under the current location
+            // permission contract. Remove only legacy external doorbells.
         }
         #endif
     }
@@ -3475,141 +4277,6 @@ enum BookWhispers {
             var updated = categories.filter { $0.identifier != promptCategoryIdentifier }
             updated.insert(category)
             center.setNotificationCategories(updated)
-        }
-    }
-
-    private static func schedule(center: UNUserNotificationCenter, cadence: BookWhisperCadence, electives: [UnwrittenElective], whisperController: String?, festivalWhisper: (title: String, body: String)?, bookInterior: BookInteriorState, now: Date) {
-        var requests: [UNNotificationRequest] = []
-        let calendar = Calendar.current
-
-        if cadence.allowsEvening {
-            // A festival replaces the evening braid rather than stacking a
-            // second tap on the reader's chosen return window.
-            let braidWhisper = PactVoices.braidWhisper(controller: whisperController)
-            let interiorWhisper: (title: String, body: String)?
-            if let secret = bookInterior.secret, secret.status == .ready {
-                interiorWhisper = ("A sealed leaf shifted", "One of the Book's own secrets is ready inside.")
-            } else if let promise = bookInterior.promise, promise.status == .keeping {
-                interiorWhisper = ("The ribbon kept its place", "The Book is still holding an unfinished promise. Nothing is required tonight.")
-            } else if let opinion = bookInterior.opinion,
-                      opinion.strength == .reconsidering,
-                      opinion.firstPresentedAt == nil {
-                interiorWhisper = ("An erasure in the margin", "The Book changed its mind and kept the reason beside the correction.")
-            } else if let game = bookInterior.longGame, game.phasePresentedAt == nil {
-                interiorWhisper = ("The long game moved", "The Book's campaign of re-enchantment has entered \(game.phase.title).")
-            } else if let fascination = bookInterior.fascination {
-                interiorWhisper = ("The Book is still thinking", "A thread about \(fascination.facet.verb) is moving quietly in the margins.")
-            } else {
-                interiorWhisper = nil
-            }
-            let whisper: (title: String, body: String) = festivalWhisper
-                ?? interiorWhisper
-                ?? (title: braidWhisper.title, body: braidWhisper.body)
-            let braidContent = UNMutableNotificationContent()
-            braidContent.title = whisper.title
-            braidContent.body = whisper.body
-            braidContent.sound = .default
-            var braidTime = DateComponents()
-            braidTime.hour = festivalWhisper == nil ? 20 : 18
-            braidTime.minute = festivalWhisper == nil ? 45 : 0
-            requests.append(UNNotificationRequest(
-                identifier: festivalWhisper == nil ? "\(identifierPrefix)braid" : "\(identifierPrefix)festival",
-                content: braidContent,
-                trigger: UNCalendarNotificationTrigger(dateMatching: braidTime, repeats: festivalWhisper == nil)
-            ))
-        }
-
-        // Favors that have waited three days.
-        for elective in electives.filter(\.isActive) {
-            let remindAt = elective.createdAt.addingTimeInterval(3 * 24 * 3600)
-            guard remindAt > now else { continue }
-            let content = UNMutableNotificationContent()
-            if elective.bookFavorID != nil {
-                content.title = "An optional favor rests in the flyleaf"
-                content.body = "\(elective.title) is still there if it would add something to your day. Nothing is owed."
-            } else {
-                content.title = "A quest is waiting in the flyleaf"
-                content.body = "\(elective.characterName) is still hoping for \"\(elective.title)\". Sentence, photo, or GPS proof completes it."
-            }
-            content.sound = .default
-            let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: remindAt)
-            requests.append(UNNotificationRequest(
-                identifier: "\(identifierPrefix)elective-\(elective.id)",
-                content: content,
-                trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-            ))
-        }
-
-        for request in requests {
-            center.add(request)
-        }
-    }
-
-    private static func schedulePromptWhispers(
-        center: UNUserNotificationCenter,
-        cadence: BookWhisperCadence,
-        day: BookDay,
-        inputs: BookSourceInputs,
-        whisperController: String?,
-        whisperSovereign: Bool,
-        eventWhisper: (title: String, body: String)?,
-        now: Date
-    ) {
-        let calendar = Calendar.current
-        // One keepable morning prompt. Evening belongs to the braid call, so
-        // choosing both produces two predictable contacts rather than a pile.
-        let slots: [(hour: Int, minute: Int)] = cadence.allowsMorning ? [(11, 0)] : []
-        let start = BookDay.startDate(for: day.id, fallback: day.date, calendar: calendar)
-
-        for dayOffset in 0..<3 {
-            guard let date = calendar.date(byAdding: .day, value: dayOffset, to: start) else { continue }
-            let scheduledDay = BookDay(id: BookDay.id(for: date, calendar: calendar), date: calendar.startOfDay(for: date), pages: dayOffset == 0 ? day.pages : [])
-            let prompts = PromptWhisperRegistry.prompts(for: scheduledDay, inputs: inputs, now: date, count: slots.count)
-            for (slotIndex, slot) in slots.enumerated() {
-                guard slotIndex < prompts.count else { continue }
-                var components = calendar.dateComponents([.year, .month, .day], from: date)
-                components.hour = slot.hour
-                components.minute = slot.minute
-                guard let fireDate = calendar.date(from: components), fireDate > now else { continue }
-
-                let sovereign: (title: String, body: String)? = whisperSovereign
-                    ? PactVoices.sovereignWhisper(controller: whisperController).map {
-                        (title: $0.title, body: $0.body)
-                    }
-                    : nil
-                // Authored context takes the existing morning seat. It never
-                // creates an additional notification beyond the chosen cadence.
-                let contextual = dayOffset == 0 ? (eventWhisper ?? sovereign) : sovereign
-                let whisper = contextual.map {
-                    PromptWhisper(
-                        id: "contextual-\(scheduledDay.id)",
-                        kind: .checkIn,
-                        title: $0.title,
-                        body: $0.body,
-                        keepPrompt: $0.body,
-                        tags: ["contextual-whisper"]
-                    )
-                } ?? prompts[slotIndex]
-                let content = UNMutableNotificationContent()
-                content.title = whisper.title
-                content.body = whisper.body
-                content.sound = .default
-                content.categoryIdentifier = promptCategoryIdentifier
-                content.userInfo = [
-                    "promptWhisperID": whisper.id,
-                    "keepPrompt": whisper.keepPrompt,
-                    "title": whisper.title,
-                    "body": whisper.body,
-                    "tags": whisper.tags.joined(separator: ","),
-                    "kind": whisper.kind.rawValue,
-                    "allowsPhoto": whisper.allowsPhoto ?? false
-                ]
-                center.add(UNNotificationRequest(
-                    identifier: "\(promptIdentifierPrefix)\(scheduledDay.id)-\(slotIndex)",
-                    content: content,
-                    trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-                ))
-            }
         }
     }
 
@@ -3737,7 +4404,7 @@ extension BookWhispers {
             content.body = "If you can read this, the Book's voice reaches you. (It waited about ten seconds.)"
             content.sound = .default
             center.add(UNNotificationRequest(
-                identifier: "\(identifierPrefix)test-\(UUID().uuidString)",
+                identifier: "book-test-whisper-\(UUID().uuidString)",
                 content: content,
                 trigger: UNTimeIntervalNotificationTrigger(timeInterval: 10, repeats: false)
             ))
@@ -3767,6 +4434,11 @@ enum OvernightScribe {
         var drafts: [OvernightConnectionDraft]
     }
 
+    private struct StrategyDraft: Codable {
+        var generatedAt: Date
+        var strategy: BookReenchantmentStrategy
+    }
+
     static var draftURL: URL {
         let base = InsideCoverStore.containerURL
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -3777,6 +4449,12 @@ enum OvernightScribe {
         let base = InsideCoverStore.containerURL
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("OvernightConnections.json")
+    }
+
+    static var strategyDraftURL: URL {
+        let base = InsideCoverStore.containerURL
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return base.appendingPathComponent("OvernightReenchantmentStrategy.json")
     }
 
     static func register() {
@@ -3829,7 +4507,8 @@ enum OvernightScribe {
         let prepared: (
             story: SurfacePage,
             connections: [OvernightConnectionCandidate],
-            ingredients: [BookInterpretationIngredient]
+            ingredients: [BookInterpretationIngredient],
+            strategyPacket: ReenchantmentStrategyPacket?
         ) = await MainActor.run {
             let days = BookDatabase.loadDays(migratingFrom: BookStore.loadDays())
             let day = BookStore.today(from: days)
@@ -3846,6 +4525,8 @@ enum OvernightScribe {
             inputs.bookObservations = vault.bookObservations ?? []
             inputs.bookReadingBoundaries = vault.bookReadingBoundaries ?? []
             inputs.readerLearning = vault.readerLearning ?? ReaderLearningModel()
+            inputs.readerAliveness = vault.readerAliveness ?? .unwritten
+            inputs.readerStatePulses = vault.readerStatePulses ?? .empty
             inputs.bookInterior = vault.bookInterior ?? BookInteriorState(awakenedAt: now)
             inputs.constellations = vault.constellations ?? []
             inputs.wagers = vault.wagers ?? []
@@ -3858,10 +4539,19 @@ enum OvernightScribe {
             inputs.overnightConnectionDrafts = vault.overnightConnectionDrafts ?? []
             inputs.chosenQuill = vault.chosenQuill
             let connections = OvernightConnectionReview.candidates(for: day, inputs: inputs, now: now)
+            let packet = ReenchantmentStrategyPacketBuilder.make(inputs: inputs, now: now)
+            let game = inputs.bookInterior.longGame
+            let strategyPacket = NightGardenerReviewGate.shouldReview(
+                packet: packet,
+                activeStrategy: game?.activeStrategy,
+                strategyHistory: game?.strategyHistory ?? [],
+                now: now
+            ) ? packet : nil
             return (
                 NarrativeOSPageSourceAdapter.draftCandidate(for: day, inputs: inputs, now: now),
                 connections,
-                OvernightConnectionReview.ingredients(inputs: inputs)
+                OvernightConnectionReview.ingredients(inputs: inputs),
+                strategyPacket
             )
         }
 
@@ -3927,6 +4617,98 @@ enum OvernightScribe {
                 appLog.error("Overnight connection review failed: \(error.localizedDescription, privacy: .public)")
             }
         }
+
+        if let packet = prepared.strategyPacket {
+            do {
+                let naturalistText = try await MLXLocalTextGenerator.run(
+                    prompt: NightGardenerPromptBuilder.naturalist(packet: packet),
+                    instructions: "You are the Naturalist in the Book's Night Council. Stay inside the frozen evidence packet. Return strict JSON only. The object is lived aliveness outside the app, never engagement or a higher score.",
+                    maxTokens: 980,
+                    label: "night-gardener-naturalist",
+                    tags: ["overnight", "night-gardener", "naturalist", "local-only"],
+                    temperature: 0.52,
+                    topP: 0.86,
+                    maxKVSize: 4_096,
+                    presentation: .readingRoom,
+                    publishesProgress: false
+                )
+                guard let naturalist = NightGardenerJSON.decode(
+                    NightGardenerNaturalistResponse.self,
+                    from: naturalistText
+                ), !naturalist.candidates.isEmpty else {
+                    throw CocoaError(.coderReadCorrupt)
+                }
+
+                let hereticText = try await MLXLocalTextGenerator.run(
+                    prompt: NightGardenerPromptBuilder.heretic(
+                        packet: packet,
+                        naturalist: naturalist
+                    ),
+                    instructions: "You are the Heretic in the Book's Night Council. Your loyalty is to the reader's real life and to disconfirming evidence, not to the Book's preferred story. Return strict JSON only.",
+                    maxTokens: 900,
+                    label: "night-gardener-heretic",
+                    tags: ["overnight", "night-gardener", "heretic", "local-only"],
+                    temperature: 0.38,
+                    topP: 0.82,
+                    maxKVSize: 4_096,
+                    presentation: .readingRoom,
+                    publishesProgress: false
+                )
+                guard let heretic = NightGardenerJSON.decode(
+                    NightGardenerHereticResponse.self,
+                    from: hereticText
+                ), !heretic.assessments.isEmpty else {
+                    throw CocoaError(.coderReadCorrupt)
+                }
+
+                let gardenerText = try await MLXLocalTextGenerator.run(
+                    prompt: NightGardenerPromptBuilder.gardener(
+                        packet: packet,
+                        naturalist: naturalist,
+                        heretic: heretic
+                    ),
+                    instructions: "You are the Gardener in the Book's Night Council. Propose one small falsifiable experiment or remain silent. You cannot authorize action. Return strict JSON only.",
+                    maxTokens: 640,
+                    label: "night-gardener-gardener",
+                    tags: ["overnight", "night-gardener", "gardener", "local-only"],
+                    temperature: 0.48,
+                    topP: 0.84,
+                    maxKVSize: 4_096,
+                    presentation: .readingRoom,
+                    publishesProgress: false
+                )
+                guard let gardener = NightGardenerJSON.decode(
+                    NightGardenerProposal.self,
+                    from: gardenerText
+                ) else {
+                    throw CocoaError(.coderReadCorrupt)
+                }
+
+                switch BookReenchantmentStrategyValidator.validate(
+                    packet: packet,
+                    naturalist: naturalist,
+                    heretic: heretic,
+                    gardener: gardener,
+                    aliveness: await MainActor.run {
+                        PlayerVault.shared.data.readerAliveness ?? .unwritten
+                    },
+                    now: now
+                ) {
+                case .success(let strategy):
+                    let data = try JSONEncoder().encode(
+                        StrategyDraft(generatedAt: now, strategy: strategy)
+                    )
+                    try data.write(to: strategyDraftURL, options: [.atomic])
+                    wroteSomething = true
+                case .failure(let error):
+                    appLog.info(
+                        "Night Gardener produced no admissible strategy: \(error.rawValue, privacy: .public)"
+                    )
+                }
+            } catch {
+                appLog.error("Night Gardener failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
         return wroteSomething
         #else
         return false
@@ -3955,6 +4737,18 @@ enum OvernightScribe {
         guard let bundle = try? JSONDecoder().decode(ConnectionDrafts.self, from: data),
               now.timeIntervalSince(bundle.generatedAt) < freshnessWindow else { return [] }
         return bundle.drafts
+    }
+
+    /// Returns one already-validated, still-fresh strategy proposal. Adoption
+    /// compares its evidence signature with a freshly rebuilt Observatory
+    /// packet before it can enter the Long Game.
+    static func adoptStrategyDraft(now: Date = Date()) -> BookReenchantmentStrategy? {
+        guard let data = try? Data(contentsOf: strategyDraftURL) else { return nil }
+        try? FileManager.default.removeItem(at: strategyDraftURL)
+        guard let draft = try? JSONDecoder().decode(StrategyDraft.self, from: data),
+              now.timeIntervalSince(draft.generatedAt) < freshnessWindow,
+              draft.strategy.expiresAt > now else { return nil }
+        return draft.strategy
     }
 }
 
@@ -3990,7 +4784,7 @@ enum WeatherBell {
     #endif
 
     static func refresh(now: Date = Date()) async -> Bool? {
-        guard UserDefaults.standard.object(forKey: "promptWhispersEnabled") as? Bool ?? true else { return false }
+        guard UserDefaults.standard.bool(forKey: "promptWhispersEnabled") else { return false }
         if let last = UserDefaults.standard.object(forKey: "weatherBellLastFired") as? Date,
            Calendar.current.isDate(last, inSameDayAs: now) { return false }
         do {
@@ -4008,13 +4802,9 @@ enum WeatherBell {
             guard let mission = PlayfulMissionRegistry.weatherBellMission(weatherText: text) else { return false }
             #if canImport(UserNotifications)
             let whisper = PromptWhisperRegistry.promptWhisper(from: mission)
-            let content = UNMutableNotificationContent()
-            content.title = whisper.title
-            content.body = whisper.body
-            content.sound = .default
-            content.categoryIdentifier = BookWhispers.promptCategoryIdentifier
-            content.userInfo = ["promptWhisperID": whisper.id, "keepPrompt": whisper.keepPrompt, "title": whisper.title, "body": whisper.body, "tags": whisper.tags.joined(separator: ","), "kind": whisper.kind.rawValue, "allowsPhoto": whisper.allowsPhoto ?? false]
-            try await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "book-whisper-weather-bell", content: content, trigger: nil))
+            guard await BookWhispers.offerWeather(whisper, now: now) else { return false }
+            #else
+            return false
             #endif
             UserDefaults.standard.set(now, forKey: "weatherBellLastFired")
             return true
@@ -4384,18 +5174,36 @@ enum LocalPlacesScout {
 
     static func refreshIfNeeded(now: Date = Date()) async -> [LocalPlaceSignal] {
         #if canImport(MapKit)
+        guard let coordinate = try? await AnchorLocationReader.requestLocation() else {
+            return cachedPlaces()
+        }
+        return await refreshIfNeeded(
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            now: now
+        )
+        #else
+        return []
+        #endif
+    }
+
+    /// Uses a coordinate from the shared foreground context read. Map search is
+    /// still cached for days and only reruns after meaningful travel.
+    static func refreshIfNeeded(
+        latitude: Double,
+        longitude: Double,
+        now: Date = Date()
+    ) async -> [LocalPlaceSignal] {
+        #if canImport(MapKit)
         var existing: Cache?
         if let raw = UserDefaults.standard.string(forKey: cacheKey)?.data(using: .utf8) {
             existing = try? JSONDecoder().decode(Cache.self, from: raw)
-        }
-        guard let coordinate = try? await AnchorLocationReader.requestLocation() else {
-            return existing?.places ?? []
         }
         if let existing,
            now.timeIntervalSince(existing.fetchedAt) < staleAfter,
            AnchorMath.distanceMeters(
                fromLatitude: existing.latitude, longitude: existing.longitude,
-               toLatitude: coordinate.latitude, longitude: coordinate.longitude
+               toLatitude: latitude, longitude: longitude
            ) < moveThresholdMeters {
             return existing.places
         }
@@ -4405,7 +5213,7 @@ enum LocalPlacesScout {
         let rotated = (0..<5).map { categoryPool[(week * 3 + $0 * 2) % categoryPool.count] }
         var found: [LocalPlaceSignal] = []
         let region = MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: coordinate.latitude, longitude: coordinate.longitude),
+            center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
             latitudinalMeters: 24_000,
             longitudinalMeters: 24_000
         )
@@ -4419,7 +5227,7 @@ enum LocalPlacesScout {
                 guard let name = item.name, !name.isEmpty else { continue }
                 let location = item.placemark.coordinate
                 let meters = AnchorMath.distanceMeters(
-                    fromLatitude: coordinate.latitude, longitude: coordinate.longitude,
+                    fromLatitude: latitude, longitude: longitude,
                     toLatitude: location.latitude, longitude: location.longitude
                 )
                 guard meters < 25_000 else { continue }
@@ -4440,7 +5248,7 @@ enum LocalPlacesScout {
         var seen = Set<String>()
         let places = found.filter { seen.insert($0.name).inserted }
         guard !places.isEmpty else { return existing?.places ?? [] }
-        let cache = Cache(fetchedAt: now, latitude: coordinate.latitude, longitude: coordinate.longitude, places: places)
+        let cache = Cache(fetchedAt: now, latitude: latitude, longitude: longitude, places: places)
         if let data = try? JSONEncoder().encode(cache), let encoded = String(data: data, encoding: .utf8) {
             UserDefaults.standard.set(encoded, forKey: cacheKey)
         }
@@ -4504,7 +5312,8 @@ enum CompassPlaceMemory {
         context: CompassPlaceContext,
         latitude: Double,
         longitude: Double,
-        radiusMeters: Double? = nil
+        radiusMeters: Double? = nil,
+        displayName: String? = nil
     ) -> CompassKnownPlace {
         let radius = radiusMeters ?? defaultRadius(for: context)
         let now = Date()
@@ -4523,7 +5332,7 @@ enum CompassPlaceMemory {
         let place = CompassKnownPlace(
             id: matchingIndex.flatMap { existingPlaces[$0].id }
                 ?? "compass-place-\(context.rawValue)-\(Int(now.timeIntervalSince1970))-\(abs("\(latitude),\(longitude)".stableHash))",
-            name: context.title,
+            name: displayName?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? context.title,
             contextID: context.rawValue,
             latitude: latitude,
             longitude: longitude,
@@ -4586,7 +5395,10 @@ struct CompassCurrentPlaceSignal: Equatable {
 enum CompassCurrentPlaceReader {
     static func request(anchors: [AnchorRecord] = []) async throws -> CompassCurrentPlaceSignal {
         let coordinate = try await AnchorLocationReader.requestLocation()
-        let places = await LocalPlacesScout.refreshIfNeeded()
+        let places = await LocalPlacesScout.refreshIfNeeded(
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude
+        )
         let anchorProximity = AnchorRegistry.nearestAnchor(
             to: coordinate.latitude,
             longitude: coordinate.longitude,
@@ -4805,19 +5617,23 @@ struct ScrivenersCounterMerchant: BookShopMerchant {
 }
 
 /// Live pricing for one Standing Order cadence, resolved from StoreKit when the
-/// product exists in App Store Connect. Before the products exist (or offline),
-/// the paywall falls back to the tier's `fallbackDisplayPrice`.
+/// product exists in App Store Connect. Trial fields are populated only when
+/// StoreKit confirms this reader is currently eligible for that product's free
+/// introductory offer.
 struct StandingOrderTierPricing: Equatable {
     var productID: String
     var displayPrice: String
-    /// e.g. "10-day free trial", nil when the product has no introductory offer.
+    /// StoreKit's localized numeric price, used only to calculate an honest
+    /// monthly-versus-annual savings badge.
+    var price: Decimal
+    /// e.g. "30-day free trial", nil when the product has no introductory offer.
     var trialSummary: String?
     /// The introductory free-trial length in days, if any.
     var trialDays: Int?
 }
 
 enum StandingOrderPricing {
-    /// Queries StoreKit for the three cadences and returns a map keyed by
+    /// Queries StoreKit for the two offered cadences and returns a map keyed by
     /// productID. Empty until the products go live in App Store Connect.
     static func load() async -> [String: StandingOrderTierPricing] {
         #if canImport(StoreKit)
@@ -4827,7 +5643,10 @@ enum StandingOrderPricing {
         for product in products {
             var trialSummary: String?
             var trialDays: Int?
-            if let intro = product.subscription?.introductoryOffer, intro.paymentMode == .freeTrial {
+            if let subscription = product.subscription,
+               let intro = subscription.introductoryOffer,
+               intro.paymentMode == .freeTrial,
+               await subscription.isEligibleForIntroOffer {
                 let count = intro.period.value
                 let unit = unitLabel(for: intro.period.unit, count: count)
                 trialSummary = "\(count)-\(unit) free trial"
@@ -4836,6 +5655,7 @@ enum StandingOrderPricing {
             result[product.id] = StandingOrderTierPricing(
                 productID: product.id,
                 displayPrice: product.displayPrice,
+                price: product.price,
                 trialSummary: trialSummary,
                 trialDays: trialDays
             )

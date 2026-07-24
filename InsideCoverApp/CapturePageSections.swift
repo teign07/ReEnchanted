@@ -573,8 +573,10 @@ struct AnchorOfferFormView: View {
 }
 
 struct ElectiveFlyleafListView: View {
-    let activeElectives: [UnwrittenElective]
+    let ledger: FlyleafLedger
     let onCompleteElective: (String, String, String?, String?) -> Void
+    let onReleaseElective: (String) -> Void
+    let onOpenDoor: (FlyleafDoor) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var electiveProofDrafts: [String: String] = [:]
@@ -583,11 +585,41 @@ struct ElectiveFlyleafListView: View {
     @State private var locationProofSummaries: [String: String] = [:]
     @State private var verifyingLocationIDs: Set<String> = []
     @State private var completedElectiveIDs: Set<String> = []
+    @State private var releaseCandidateID: String?
+
+    private var activeElectives: [UnwrittenElective] {
+        ledger.electives
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if ledger.openThreadCount == 0 {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Nothing is asking for you just now.", systemImage: "bookmark")
+                        .font(.callout.weight(.bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text("The empty space counts. A quest only lives here after you choose it, and every chosen note may be put to rest.")
+                        .font(.caption)
+                        .foregroundStyle(BookPalette.ink.opacity(0.64))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(12)
+                .background(BookPalette.page.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+
+            if !activeElectives.isEmpty {
+                flyleafSectionTitle(
+                    "Notes you chose",
+                    detail: "\(activeElectives.count)/\(UnwrittenElective.maxActive) places in the binding"
+                )
+            }
+
             ForEach(activeElectives) { elective in
                 VStack(alignment: .leading, spacing: 8) {
+                    Text(elective.bookFavorID == nil ? "CHARACTER QUEST" : "BOOK FAVOR")
+                        .font(.caption2.weight(.black))
+                        .tracking(0.6)
+                        .foregroundStyle(BookPalette.lampGold)
                     HStack(alignment: .firstTextBaseline) {
                         Text(elective.title)
                             .font(.callout.weight(.bold))
@@ -696,31 +728,45 @@ struct ElectiveFlyleafListView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    Button {
-                        let proof = (electiveProofDrafts[elective.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                        let photoURL = proofPhotoURLs[elective.id]
-                        let locationSummary = locationProofSummaries[elective.id]
-                        guard !proof.isEmpty || photoURL != nil || locationSummary != nil else { return }
-                        BookFeedback.play(.keepPage)
-                        withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.42, dampingFraction: 0.68)) {
-                            completedElectiveIDs.insert(elective.id)
+                    HStack(spacing: 8) {
+                        Button {
+                            let proof = (electiveProofDrafts[elective.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                            let photoURL = proofPhotoURLs[elective.id]
+                            let locationSummary = locationProofSummaries[elective.id]
+                            guard !proof.isEmpty || photoURL != nil || locationSummary != nil else { return }
+                            BookFeedback.play(.keepPage)
+                            withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.42, dampingFraction: 0.68)) {
+                                completedElectiveIDs.insert(elective.id)
+                            }
+                            onCompleteElective(elective.id, proof, photoURL, locationSummary)
+                        } label: {
+                            Label(
+                                completedElectiveIDs.contains(elective.id) ? "Completed" : "Complete with proof",
+                                systemImage: completedElectiveIDs.contains(elective.id) ? "checkmark.seal.fill" : "checkmark.seal"
+                            )
+                            .font(.caption.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
                         }
-                        onCompleteElective(elective.id, proof, photoURL, locationSummary)
-                    } label: {
-                        Label(
-                            completedElectiveIDs.contains(elective.id) ? "Completed" : "Complete with proof",
-                            systemImage: completedElectiveIDs.contains(elective.id) ? "checkmark.seal.fill" : "checkmark.seal"
+                        .buttonStyle(.borderedProminent)
+                        .tint(BookPalette.teal)
+                        .disabled(
+                            completedElectiveIDs.contains(elective.id) ||
+                            !hasAnyProof(for: elective.id)
                         )
-                        .font(.caption.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+
+                        Button {
+                            BookFeedback.play(.select)
+                            releaseCandidateID = elective.id
+                        } label: {
+                            Label("Let rest", systemImage: "moon.zzz")
+                                .font(.caption.weight(.bold))
+                                .padding(.vertical, 8)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(BookPalette.ink.opacity(0.72))
+                        .disabled(completedElectiveIDs.contains(elective.id))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(BookPalette.teal)
-                    .disabled(
-                        completedElectiveIDs.contains(elective.id) ||
-                        !hasAnyProof(for: elective.id)
-                    )
                 }
                 .padding(12)
                 .background(BookPalette.page.opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -745,6 +791,105 @@ struct ElectiveFlyleafListView: View {
                 .scaleEffect(completedElectiveIDs.contains(elective.id) && !reduceMotion ? 0.985 : 1)
                 .animation(BookMotion.result(reduceMotion), value: proofPhotoURLs[elective.id])
             }
+
+            if !ledger.doors.isEmpty {
+                flyleafSectionTitle(
+                    "Other open doors",
+                    detail: "These live in their own parts of the Book. The flyleaf only remembers the way back."
+                )
+                .padding(.top, activeElectives.isEmpty ? 0 : 4)
+
+                ForEach(ledger.doors) { door in
+                    flyleafDoorCard(door)
+                }
+            }
+        }
+        .confirmationDialog(
+            "Let this note rest?",
+            isPresented: Binding(
+                get: { releaseCandidateID != nil },
+                set: { if !$0 { releaseCandidateID = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let releaseCandidateID {
+                Button("Let it rest") {
+                    BookFeedback.play(.dismissPage)
+                    onReleaseElective(releaseCandidateID)
+                    self.releaseCandidateID = nil
+                }
+                Button("Keep it tucked", role: .cancel) {
+                    self.releaseCandidateID = nil
+                }
+            }
+        } message: {
+            Text("No proof is needed. It will free its place in the binding and will not count as completed.")
+        }
+    }
+
+    private func flyleafSectionTitle(_ title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title.uppercased())
+                .font(.caption2.weight(.black))
+                .tracking(0.8)
+                .foregroundStyle(BookPalette.teal)
+            Text(detail)
+                .font(.caption2)
+                .foregroundStyle(BookPalette.ink.opacity(0.58))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func flyleafDoorCard(_ door: FlyleafDoor) -> some View {
+        Button {
+            BookFeedback.play(.openPage)
+            onOpenDoor(door)
+        } label: {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Label(door.eyebrow, systemImage: symbolName(for: door.kind))
+                        .font(.caption2.weight(.black))
+                        .tracking(0.45)
+                        .foregroundStyle(BookPalette.lampGold)
+                    Spacer()
+                }
+                Text(door.title)
+                    .font(.callout.weight(.bold))
+                    .foregroundStyle(BookPalette.ink)
+                Text(door.detail)
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.ink.opacity(0.76))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(door.statusLine)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.6))
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 5) {
+                    Text(door.actionTitle)
+                    Image(systemName: "arrow.right")
+                }
+                .font(.caption.weight(.bold))
+                .foregroundStyle(BookPalette.teal)
+                .padding(.top, 2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(BookPalette.page.opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(BookPalette.lampGold.opacity(0.24), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(door.eyebrow), \(door.title). \(door.statusLine). \(door.actionTitle)")
+    }
+
+    private func symbolName(for kind: FlyleafDoorKind) -> String {
+        switch kind {
+        case .bookJump: return "books.vertical"
+        case .compassRun: return "safari"
+        case .faeBargain: return "sparkles"
+        case .pactErrand: return "map"
         }
     }
 

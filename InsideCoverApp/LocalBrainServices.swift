@@ -105,6 +105,35 @@ actor LocalBrainModelCache {
     }
 }
 
+/// A model container may stay warm between calls, but generation state must
+/// not. `ChatSession` retains its KV cache for conversational continuation, so
+/// every Book generation explicitly saves its result outside the session,
+/// empties that KV cache, waits for the session to release it, and then clears
+/// MLX's reusable buffer pool before another prompt can insert fresh context.
+enum LocalBrainGenerationLifecycle {
+    static func saving<Result>(
+        _ operation: () async throws -> Result,
+        thenRefreshing session: ChatSession,
+        label: String
+    ) async throws -> Result {
+        do {
+            let savedResult = try await operation()
+            await refresh(session: session, label: label)
+            return savedResult
+        } catch {
+            await refresh(session: session, label: label)
+            throw error
+        }
+    }
+
+    private static func refresh(session: ChatSession, label: String) async {
+        await session.clear()
+        await session.synchronize()
+        Memory.clearCache()
+        AppMemoryLedger.record("\(label)-generation-cache-refreshed")
+    }
+}
+
 /// A downloaded checkpoint is not ready merely because its files exist. Load
 /// every model path the app will use and ask the text model for one token before
 /// the installer writes the active marker. This catches architecture/weight
@@ -136,7 +165,13 @@ enum LocalModelInstallValidator {
                     prefillStepSize: 64
                 )
             )
-            _ = try await session.respond(to: "Ready?")
+            _ = try await LocalBrainGenerationLifecycle.saving(
+                {
+                    try await session.respond(to: "Ready?")
+                },
+                thenRefreshing: session,
+                label: "install-text-validation"
+            )
         }
     }
 
@@ -595,72 +630,78 @@ enum MLXLocalTextGenerator {
                     )
                 )
 
-                var output = ""
-                var progressPreview = ""
-                var generatedCharacterCount = 0
-                var lastPostedCharacterCount = 0
-                var lastPostedAt = Date.distantPast
-                var completionInfo: GenerateCompletionInfo?
-                if publishesProgress {
-                    postProgress(
-                        label: label,
-                        text: progressPreview,
-                        generatedCharacters: generatedCharacterCount,
-                        info: nil,
-                        isFinal: false
-                    )
-                }
-
-                for try await generation in session.streamDetails(
-                    to: prompt,
-                    images: [],
-                    videos: []
-                ) {
-                    switch generation {
-                    case .chunk(let chunk):
-                        output += chunk
-                        guard publishesProgress else { continue }
-                        generatedCharacterCount += chunk.count
-                        appendProgressChunk(chunk, to: &progressPreview)
-                        let now = Date()
-                        if generatedCharacterCount - lastPostedCharacterCount >= progressCharacterStride ||
-                            now.timeIntervalSince(lastPostedAt) >= progressInterval {
-                            lastPostedCharacterCount = generatedCharacterCount
-                            lastPostedAt = now
-                            postProgress(
-                                label: label,
-                                text: progressPreview,
-                                generatedCharacters: generatedCharacterCount,
-                                info: completionInfo,
-                                isFinal: false
-                            )
-                        }
-                    case .info(let info):
-                        completionInfo = info
+                return try await LocalBrainGenerationLifecycle.saving(
+                    {
+                        var output = ""
+                        var progressPreview = ""
+                        var generatedCharacterCount = 0
+                        var lastPostedCharacterCount = 0
+                        var lastPostedAt = Date.distantPast
+                        var completionInfo: GenerateCompletionInfo?
                         if publishesProgress {
                             postProgress(
                                 label: label,
                                 text: progressPreview,
                                 generatedCharacters: generatedCharacterCount,
-                                info: info,
+                                info: nil,
+                                isFinal: false
+                            )
+                        }
+
+                        for try await generation in session.streamDetails(
+                            to: prompt,
+                            images: [],
+                            videos: []
+                        ) {
+                            switch generation {
+                            case .chunk(let chunk):
+                                output += chunk
+                                guard publishesProgress else { continue }
+                                generatedCharacterCount += chunk.count
+                                appendProgressChunk(chunk, to: &progressPreview)
+                                let now = Date()
+                                if generatedCharacterCount - lastPostedCharacterCount >= progressCharacterStride ||
+                                    now.timeIntervalSince(lastPostedAt) >= progressInterval {
+                                    lastPostedCharacterCount = generatedCharacterCount
+                                    lastPostedAt = now
+                                    postProgress(
+                                        label: label,
+                                        text: progressPreview,
+                                        generatedCharacters: generatedCharacterCount,
+                                        info: completionInfo,
+                                        isFinal: false
+                                    )
+                                }
+                            case .info(let info):
+                                completionInfo = info
+                                if publishesProgress {
+                                    postProgress(
+                                        label: label,
+                                        text: progressPreview,
+                                        generatedCharacters: generatedCharacterCount,
+                                        info: info,
+                                        isFinal: true
+                                    )
+                                }
+                            case .toolCall:
+                                break
+                            }
+                        }
+
+                        if publishesProgress, completionInfo == nil {
+                            postProgress(
+                                label: label,
+                                text: progressPreview,
+                                generatedCharacters: generatedCharacterCount,
+                                info: nil,
                                 isFinal: true
                             )
                         }
-                    case .toolCall:
-                        break
-                    }
-                }
-
-                if publishesProgress, completionInfo == nil {
-                    postProgress(
-                        label: label,
-                        text: progressPreview,
-                        generatedCharacters: generatedCharacterCount,
-                        info: nil,
-                        isFinal: true
-                    )
-                }
-                return output.trimmingCharacters(in: .whitespacesAndNewlines)
+                        return output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    },
+                    thenRefreshing: session,
+                    label: label
+                )
             }
         }
 
@@ -1186,7 +1227,11 @@ struct MLXWeatherEnchanter: WeatherEnchanting {
 struct MLXStoryPageWriter: StoryPageWriting {
     func write(surface: SurfacePage) async throws -> StoryPageProse {
         let draft = StoryPageSceneDraft(surface: surface)
-        let prompt = StoryPagePromptBuilder.prompt(for: draft, nowPlaying: RadioAtmosphereContext.current)
+        let echo = RadioStationRegistry.narrativeEcho(
+            receipt: PlayerVault.shared.data.lastRadioTrackPlay,
+            unlockedPackIDs: Set(PlayerVault.shared.data.ownedPacks ?? [])
+        )
+        let prompt = StoryPagePromptBuilder.prompt(for: draft, nowPlaying: RadioAtmosphereContext.current, radioNarrativeEcho: echo)
         let maxTokens: Int
         switch surface.type {
         case .academyClass:
@@ -1296,7 +1341,7 @@ struct MLXStoryPageResultWriter: StoryPageResultWriting {
             : "story-page-result"
         func generate(correction: String? = nil) async throws -> String {
             let response = try await MLXBraidTaskRunner.run(
-                prompt: prompt + (correction.map { "\n\nCHARACTER CONTINUITY REPAIR:\n\($0)\nReturn the full result prose again." } ?? ""),
+                prompt: prompt + (correction.map { "\n\nDRAMATIC CONTRACT REPAIR:\n\($0)\nReturn the full result prose again." } ?? ""),
                 instructions: StoryPageResultPromptBuilder.instructions,
                 maxTokens: 280,
                 sourceID: sourceID,
@@ -1307,28 +1352,41 @@ struct MLXStoryPageResultWriter: StoryPageResultWriting {
             return StoryPageResultPromptBuilder.clean(response)
         }
 
+        func evaluate(_ prose: String, label: String) async -> (fidelity: CharacterFidelityAudit, dramatic: StoryDramaticValidation) {
+            let fidelity = await CharacterFidelityReviewer.audit(
+                prose: prose,
+                canon: context.draft.characterCanon,
+                context: "\(label) consequence after \(context.selectedChoice.title) in \(context.draft.thread)",
+                sourceID: sourceID
+            )
+            let dramatic = context.dramaticEffect.map { StoryDramaticResultValidator.validate(prose, effect: $0) }
+                ?? StoryDramaticValidation(score: 100, failures: [])
+            return (fidelity, dramatic)
+        }
+
         let first = try await generate()
-        let firstAudit = await CharacterFidelityReviewer.audit(
-            prose: first,
-            canon: context.draft.characterCanon,
-            context: "Consequence after \(context.selectedChoice.title) in \(context.draft.thread)",
-            sourceID: sourceID
-        )
-        if firstAudit.passed {
+        let firstAudit = await evaluate(first, label: "First")
+        if firstAudit.fidelity.passed && firstAudit.dramatic.isAcceptable {
             return first.nonEmpty ?? context.fallbackResult
         }
 
-        let second = (try? await generate(correction: firstAudit.feedback)) ?? first
-        let secondAudit = await CharacterFidelityReviewer.audit(
-            prose: second,
-            canon: context.draft.characterCanon,
-            context: "Repaired consequence after \(context.selectedChoice.title) in \(context.draft.thread)",
-            sourceID: sourceID
-        )
-        if secondAudit.passed || secondAudit.score >= firstAudit.score {
-            return second.nonEmpty ?? context.fallbackResult
+        var repairs = firstAudit.dramatic.failures
+        if !firstAudit.fidelity.passed { repairs.append("Character continuity editor: \(firstAudit.fidelity.feedback)") }
+        let second = (try? await generate(correction: "- " + repairs.joined(separator: "\n- "))) ?? first
+        let secondAudit = await evaluate(second, label: "Repaired")
+        let selected: String
+        let secondScore = secondAudit.fidelity.score + secondAudit.dramatic.score
+        let firstScore = firstAudit.fidelity.score + firstAudit.dramatic.score
+        if (secondAudit.fidelity.passed && secondAudit.dramatic.isAcceptable) || secondScore >= firstScore {
+            selected = second.nonEmpty ?? context.fallbackResult
+        } else {
+            selected = first.nonEmpty ?? context.fallbackResult
         }
-        return first.nonEmpty ?? context.fallbackResult
+        guard let effect = context.dramaticEffect,
+              !StoryDramaticResultValidator.validate(selected, effect: effect).isAcceptable else {
+            return selected
+        }
+        return StoryDramaticResultValidator.landed(selected, effect: effect)
     }
 }
 
@@ -1763,12 +1821,18 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
                     ),
                     processing: UserInput.Processing(resize: CGSize(width: 224, height: 224))
                 )
-                return try await session.respond(
-                    to: prompt,
-                    image: image,
-                    video: nil
+                return try await LocalBrainGenerationLifecycle.saving(
+                    {
+                        try await session.respond(
+                            to: prompt,
+                            image: image,
+                            video: nil
+                        )
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    },
+                    thenRefreshing: session,
+                    label: "photo-illumination"
                 )
-                .trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }
 

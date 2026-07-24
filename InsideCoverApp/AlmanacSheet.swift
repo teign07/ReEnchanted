@@ -161,20 +161,19 @@ struct AlmanacSheet: View {
         .foregroundStyle(BookPalette.lampGold)
     }
 
-    /// The Thread of the Month: a warm count of lit days and the keepsake earned,
-    /// never a chain and never a guilt-inducing gap tally. Only shown for a month
-    /// that has something in it.
+    /// The Thread of the Month is a warm look backward at what arrived. There is
+    /// no next tier, denominator, streak, or gap tally.
     private var threadBanner: some View {
         let progress = thread
         return HStack(spacing: 10) {
-            Image(systemName: progress.seal.sfSymbol)
+            Image(systemName: "bookmark.fill")
                 .font(.title3)
                 .foregroundStyle(BookPalette.lampGold)
             VStack(alignment: .leading, spacing: 2) {
                 Text(threadCountText(progress))
                     .font(.system(.subheadline, design: .serif).weight(.semibold))
                     .foregroundStyle(BookPalette.nightText)
-                Text(threadTierText(progress))
+                Text(threadReflectionText(progress))
                     .font(.system(.caption, design: .serif).italic())
                     .foregroundStyle(BookPalette.nightText.opacity(0.6))
             }
@@ -188,23 +187,19 @@ struct AlmanacSheet: View {
     }
 
     private func threadCountText(_ progress: ThreadOfTheMonth.Progress) -> String {
-        let dayWord = progress.litDays == 1 ? "day" : "days"
-        return "\(progress.litDays) lit \(dayWord) this month"
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.dateFormat = "MMMM"
+        let month = formatter.string(from: progress.monthStart)
+        if progress.litDays == 1 {
+            return "\(month) holds one day from your life"
+        }
+        return "\(month) holds \(progress.litDays) days from your life"
     }
 
-    private func threadTierText(_ progress: ThreadOfTheMonth.Progress) -> String {
-        if progress.seal != .unbound, let next = progress.nextSeal {
-            let more = progress.litDaysToNextSeal
-            let dayWord = more == 1 ? "day" : "days"
-            return "\(progress.seal.name.capitalized) \u{00B7} \(more) more \(dayWord) to \(next.name)"
-        } else if progress.seal != .unbound {
-            return "\(progress.seal.name.capitalized) \u{2014} a full, well-kept month"
-        } else if let next = progress.nextSeal {
-            let more = progress.litDaysToNextSeal
-            let dayWord = more == 1 ? "day" : "days"
-            return "\(more) more \(dayWord) to start the thread"
-        }
-        return "The thread has begun."
+    private func threadReflectionText(_ progress: ThreadOfTheMonth.Progress) -> String {
+        let pageWord = progress.keptPages == 1 ? "Page" : "Pages"
+        return "\(progress.keptPages) kept \(pageWord). The Almanac binds what arrived and asks nothing of the rest."
     }
 
     private var weekdaySymbols: [String] {

@@ -24,6 +24,7 @@ let package = Package(
                 "ReEnchantedWidgetSnapshot.swift",
                 "SentenceBuilder.swift",
                 "BookArchiveDatabase.swift",
+                "BookInterruptionBudget.swift",
                 "PageModel.swift",
                 "Tarot.swift",
                 "SurfaceAndCurator.swift",

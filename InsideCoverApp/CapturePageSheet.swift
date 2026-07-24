@@ -942,7 +942,7 @@ enum BookNoticeFeedbackChoice {
     var label: String {
         switch self {
         case .trueReading: return "True"
-        case .notQuite: return "Not quite"
+        case .notQuite: return "Sometimes / not quite"
         case .doNotReadThisWay: return "Do not read me this way"
         }
     }
@@ -1039,8 +1039,10 @@ struct CapturePageSheet: View {
     var onRefundBeliefForGeneration: (BeliefGenerationKind) -> Void = { _ in }
     var onAnchorPlace: (AnchorPlaceDraft) -> Void = { _ in }
     var onBindChapter: (ChapterBindingAcceptance) -> Void = { _ in }
-    var activeElectives: [UnwrittenElective] = []
+    var flyleafLedger: FlyleafLedger = .empty
     var onCompleteElective: (String, String, String?, String?) -> Void = { _, _, _, _ in }
+    var onReleaseElective: (String) -> Void = { _ in }
+    var onOpenFlyleafDoor: (FlyleafDoor) -> Void = { _ in }
     var onPayFaeBargain: (String, String, String) -> Void = { _, _, _ in }
     /// (chosenID, chosenName, otherID, otherName) when the reader sides in The Two Readings.
     var onTwoReadingsSided: (String, String, String, String) -> Void = { _, _, _, _ in }
@@ -1104,6 +1106,8 @@ struct CapturePageSheet: View {
     @State private var isTuckingPage = false
     @State private var centerGearOffset = 0
     @State private var text = ""
+    @State private var momentaryText = ""
+    @State private var momentaryOutcome: MomentaryActionOutcome?
     @State private var didRecordPageOpened = false
     @State private var playfulMissionOpenBurstTrigger = 0
     @State private var didPlayPlayfulMissionOpenBurst = false
@@ -1178,6 +1182,7 @@ struct CapturePageSheet: View {
     @State private var proofPhotoURL: URL?
     @State private var proofPhotoMessage = ""
     @State private var didSeedCompassControls = false
+    @State private var compassConstraintStep: CompassRunConstraintStep = .location
     @State private var compassPlaceContextID = CompassPlaceContext.current.rawValue
     @State private var compassLocation = ""
     @State private var compassTimeLimit = ""
@@ -1704,6 +1709,10 @@ struct CapturePageSheet: View {
             surface.payload.metadata["compassMode"] != "standalone"
     }
 
+    private var isPreparedCompassRunStartPage: Bool {
+        isCompassRunStartPage && surface.payload.metadata["compassRunPrepared"] == "true"
+    }
+
     private var isStandalonePlayfulMissionPage: Bool {
         surface.type == .wonderCompass &&
             surface.payload.metadata["compassStep"] == "sense" &&
@@ -1810,6 +1819,12 @@ struct CapturePageSheet: View {
         }
         if isStandalonePlayfulMissionPage {
             return currentCompassNote.isEmpty && proofPhotoURL != nil ? "Keep photo" : "Keep sentence"
+        }
+        if isPreparedCompassRunStartPage {
+            return "Begin at North"
+        }
+        if isCompassRunStartPage {
+            return "Finish the six questions"
         }
         if isBookJumpPage, bookJumpAction == .start {
             return "Open the Spine · \(BookJumpEngine.startCost) Belief"
@@ -2908,7 +2923,9 @@ struct CapturePageSheet: View {
             return
         }
         #endif
-        if isCompassRunStartPage {
+        if isPreparedCompassRunStartPage {
+            onNavigateToSurface(compassStepSurface(from: surface, step: .notice))
+        } else if isCompassRunStartPage {
             Task { await generateAndSaveCompassRun() }
         } else if isCompassRunStepPage {
             keepCompassStepAndAdvance()
@@ -3079,6 +3096,10 @@ struct CapturePageSheet: View {
                 .shadow(color: BookPalette.lampGold.opacity(0.14), radius: 6, x: 0, y: 2)
                 .fixedSize(horizontal: false, vertical: true)
 
+            if case let .momentary(prompt) = MomentaryAttentionEngine.firstBeat(for: surface, learning: readerLearning) {
+                enchantedSnackFirstBeat(prompt)
+            }
+
             if !isStandalonePlayfulMissionPage {
                 Text(surface.detail)
                     .font(.body)
@@ -3210,7 +3231,12 @@ struct CapturePageSheet: View {
             }
 
             if isElectiveFlyleafPage {
-                ElectiveFlyleafListView(activeElectives: activeElectives, onCompleteElective: onCompleteElective)
+                ElectiveFlyleafListView(
+                    ledger: flyleafLedger,
+                    onCompleteElective: onCompleteElective,
+                    onReleaseElective: onReleaseElective,
+                    onOpenDoor: onOpenFlyleafDoor
+                )
             }
 
             if isChapterBindingPage {
@@ -3327,6 +3353,37 @@ struct CapturePageSheet: View {
                 publicMarginsExportControl
             }
         }
+    }
+
+    @ViewBuilder
+    private func enchantedSnackFirstBeat(_ prompt: MomentaryActionPrompt) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(prompt.question).font(.subheadline.weight(.semibold))
+            HStack(spacing: 8) {
+                TextField(prompt.placeholder, text: $momentaryText)
+                    .textFieldStyle(.roundedBorder)
+                    .submitLabel(.done)
+                    .onSubmit { submitMomentary(prompt) }
+                    .disabled(momentaryOutcome != nil)
+                Button(prompt.buttonTitle) { submitMomentary(prompt) }
+                    .disabled(momentaryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || momentaryOutcome != nil)
+            }
+            Text("One word is enough.").font(.caption).foregroundStyle(openPageSecondaryText)
+            if let outcome = momentaryOutcome {
+                Text(outcome.recognitionLine).font(.caption).foregroundStyle(BookPalette.lampGold)
+                if let keepsake = outcome.keepsakeLine { Text(keepsake).font(.caption2).foregroundStyle(openPageSecondaryText) }
+                Button("Carry it out") { requestDismiss() }.font(.caption.weight(.semibold))
+            }
+        }
+        .padding(10)
+        .background(BookPalette.lampGold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func submitMomentary(_ prompt: MomentaryActionPrompt) {
+        let trimmed = momentaryText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, momentaryOutcome == nil else { return }
+        momentaryOutcome = onMomentaryAction(surface, trimmed, Date())
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { text = trimmed }
     }
 
     @ViewBuilder
@@ -5008,7 +5065,7 @@ struct CapturePageSheet: View {
                     hourPageCallout(
                         title: "DJ: \(active.hostDisplayName)",
                         symbol: "mic.fill",
-                        body: banter.caption,
+                        body: banter.readerFacingCaption,
                         tint: BookPalette.violet
                     )
                 } else if radioManager.isPlaying,
@@ -5017,7 +5074,10 @@ struct CapturePageSheet: View {
                     hourPageCallout(
                         title: "Now playing: \(track.title)",
                         symbol: "waveform",
-                        body: track.artist,
+                        body: [
+                            track.artist,
+                            track.meaning?.sanitized().ordinaryLifeCue
+                        ].compactMap { $0?.nonEmpty }.joined(separator: "\n"),
                         tint: BookPalette.lampGold
                     )
                 } else {
@@ -5459,14 +5519,15 @@ struct CapturePageSheet: View {
 
     private var faeBargainView: some View {
         let metadata = surface.payload.metadata
-        let isRepair = metadata["isRepair"] == "true"
+        let hasMovedOn = metadata["hasMovedOn"] == "true" || metadata["status"] == FaeBargainStatus.lapsed.rawValue
         let faeName = metadata["faeName"] ?? "A Book Fae"
         let giftName = metadata["giftName"] ?? "a gift"
         let giftLine = metadata["giftEffectLine"] ?? ""
         let giftUseLine = metadata["giftUseLine"] ?? "Find it in Inventory under Fae Gifts."
         let terms = metadata["terms"] ?? surface.detail
-        let deadlineLine = metadata["deadlineLine"] ?? "the debt is due"
-        let consequenceLine = metadata["consequenceLine"] ?? "\(giftName) goes cold until the debt is repaired."
+        let deadlineLine = metadata["deadlineLine"] ?? "the exchange window is ending"
+        let consequenceLine = metadata["consequenceLine"]
+            ?? "When the window passes, the Fae wanders on. Your gift and standing stay as they are."
         return VStack(alignment: .leading, spacing: 14) {
             Text(surface.payload.body)
                 .font(.system(.body, design: .serif))
@@ -5474,44 +5535,40 @@ struct CapturePageSheet: View {
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // The gift the fae already fronted — working now (or cold, if repairing).
+            // A fronted gift stays warm even when the exchange window passes.
             hourPageCallout(
-                title: isRepair ? "\(giftName) — gone cold" : "\(faeName) gave first: \(giftName)",
-                symbol: isRepair ? "snowflake" : "gift",
-                body: isRepair
-                    ? "\(giftLine) It will not work again until the debt is paid."
-                    : giftLine,
-                tint: isRepair ? openPageSecondaryText : BookPalette.lampGold
+                title: "\(faeName) gave first: \(giftName)",
+                symbol: "gift",
+                body: giftLine,
+                tint: BookPalette.lampGold
             )
 
-            if !isRepair {
-                hourPageCallout(
-                    title: "Where to find and use it",
-                    symbol: "shippingbox",
-                    body: giftUseLine,
-                    tint: BookPalette.teal
-                )
-            }
+            hourPageCallout(
+                title: "Where to find and use it",
+                symbol: "shippingbox",
+                body: giftUseLine,
+                tint: BookPalette.teal
+            )
 
             hourPageCallout(
-                title: isRepair ? "What was owed" : "What is owed",
+                title: hasMovedOn ? "What the Fae once asked" : "What the Fae is asking",
                 symbol: "hands.sparkles",
                 body: terms,
                 tint: BookPalette.teal
             )
 
             hourPageCallout(
-                title: isRepair ? "How repair works" : "Deadline and consequence",
-                symbol: isRepair ? "wrench.and.screwdriver" : "hourglass",
-                body: isRepair ? consequenceLine : "You have \(deadlineLine). \(consequenceLine)",
-                tint: isRepair ? BookPalette.teal : BookPalette.lampGold
+                title: hasMovedOn ? "The world moved on" : "While the exchange waits",
+                symbol: hasMovedOn ? "leaf" : "hourglass",
+                body: hasMovedOn ? consequenceLine : "You have \(deadlineLine). \(consequenceLine)",
+                tint: hasMovedOn ? BookPalette.teal : BookPalette.lampGold
             )
 
-            if !isRepair, faeResponseText.isEmpty, faeDeadline != nil {
+            if !hasMovedOn, faeResponseText.isEmpty, faeDeadline != nil {
                 Button {
                     Task { await setFaeBargainReminder() }
                 } label: {
-                    Label("Remind me before it goes cold", systemImage: "bell.badge")
+                    Label("Remind me while the exchange is waiting", systemImage: "bell.badge")
                         .font(.caption.weight(.semibold))
                 }
                 .buttonStyle(.bookPress())
@@ -5520,7 +5577,7 @@ struct CapturePageSheet: View {
 
             if faeResponseText.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(isRepair ? "Pay late — bring a real noticing" : "Your field report")
+                    Text(hasMovedOn ? "Answer anyway, if you want" : "Your field report")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(openPageSecondaryText)
                     Text("Sensory and specific. Not the category — the detail. The fae can tell the difference.")
@@ -5543,7 +5600,7 @@ struct CapturePageSheet: View {
                     Button {
                         Task { await payFaeBargainInSheet() }
                     } label: {
-                        Label(isFaePaying ? "The Fae is considering..." : (isRepair ? "Repay the bargain" : "Pay the bargain"),
+                        Label(isFaePaying ? "The Fae is considering..." : (hasMovedOn ? "Send the noticing" : "Answer the bargain"),
                               systemImage: isFaePaying ? "pencil.and.scribble" : "arrow.up.heart")
                             .font(.subheadline.weight(.bold))
                             .frame(maxWidth: .infinity)
@@ -5572,8 +5629,8 @@ struct CapturePageSheet: View {
                         .foregroundStyle(BookPalette.ink.opacity(0.88))
                         .lineSpacing(3)
                         .fixedSize(horizontal: false, vertical: true)
-                    Label(isRepair
-                          ? "The debt is repaired. \(giftName) is warm again. Keep the page to remember it."
+                    Label(hasMovedOn
+                          ? "The late answer was welcomed. Keep the page to remember it."
                           : "The bargain is closed. Keep the page to remember it.",
                           systemImage: "checkmark.seal")
                         .font(.caption.weight(.semibold))
@@ -7649,13 +7706,13 @@ struct CapturePageSheet: View {
     private func inventoryGiftCard(_ gift: FaeGift) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(alignment: .top) {
-                Label(gift.name, systemImage: gift.isCold ? "snowflake" : gift.faeKind.symbolName)
+                Label(gift.name, systemImage: gift.faeKind.symbolName)
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(gift.isCold ? BookPalette.ink.opacity(0.48) : BookPalette.ink)
+                    .foregroundStyle(BookPalette.ink)
                 Spacer()
                 Text(inventoryGiftState(gift))
                     .font(.caption2.weight(.black))
-                    .foregroundStyle(gift.isCold ? BookPalette.ink.opacity(0.45) : BookPalette.teal)
+                    .foregroundStyle(BookPalette.teal)
             }
             Text(gift.descriptionText)
                 .font(.system(.callout, design: .serif))
@@ -7668,23 +7725,12 @@ struct CapturePageSheet: View {
 
             inventoryGiftControl(gift)
         }
-        .inventoryObjectSurface(accent: gift.isCold ? BookPalette.ink.opacity(0.35) : BookPalette.lampGold)
+        .inventoryObjectSurface(accent: BookPalette.lampGold)
     }
 
     @ViewBuilder
     private func inventoryGiftControl(_ gift: FaeGift) -> some View {
-        if gift.isCold {
-            if let bargain = inventoryFae.bargains.first(where: { $0.giftID == gift.id && $0.status == .lapsed }) {
-                Button("Return to the bargain") { onOpenInventoryBargain(bargain) }
-                    .buttonStyle(.bordered)
-                    .tint(BookPalette.teal)
-            } else {
-                Text("Cold. The object remembers unfinished terms, but the matching bargain is no longer on the open desk.")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(BookPalette.ink.opacity(0.52))
-            }
-        } else {
-            switch gift.effect {
+        switch gift.effect {
             case .quieting:
                 if gift.isActive, let expiresAt = gift.expiresAt {
                     Label("Quiet until \(expiresAt.formatted(date: .abbreviated, time: .shortened))", systemImage: "moon.zzz.fill")
@@ -7763,7 +7809,6 @@ struct CapturePageSheet: View {
                     }
                     .buttonStyle(.bordered).tint(BookPalette.teal)
                 }
-            }
         }
     }
 
@@ -7827,7 +7872,6 @@ struct CapturePageSheet: View {
     }
 
     private func inventoryGiftState(_ gift: FaeGift) -> String {
-        if gift.isCold { return "COLD" }
         if gift.effect == .callingCard, !gift.isActive { return "SPENT" }
         if (gift.effect == .reshelving || gift.effect == .longMemory), gift.boundSourceID?.isEmpty != false { return "READY" }
         if gift.isActive { return gift.effect == .loosePage ? "COLLECTED" : "ACTIVE" }
@@ -8226,7 +8270,11 @@ struct CapturePageSheet: View {
                 standalonePlayfulMissionCard
             } else {
                 if let step = surface.payload.metadata["compassStep"], step == "run" {
-                    compassRunConstraintForm
+                    if isPreparedCompassRunStartPage {
+                        compassRunReadyView
+                    } else {
+                        compassRunConstraintForm
+                    }
                 } else {
                     compassStepSummary
                 }
@@ -8420,40 +8468,120 @@ struct CapturePageSheet: View {
     }
 
     private var compassRunConstraintForm: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            compassPlaceMenu
-            compassMenuField("Time limit", options: compassTimeOptions, selection: $compassTimeLimit)
-            compassMenuField("Energy", options: compassEnergyOptions, selection: $compassEnergy)
-            compassMenuField("Who is with me", options: compassCompanionOptions, selection: $compassCompanions)
-            compassMenuField("Budget", options: compassBudgetOptions, selection: $compassBudget)
-            compassConsiderationPicker
-
-            Button {
-                BookFeedback.play(.braidStart)
-                Task { await generateAndSaveCompassRun() }
-            } label: {
-                Label(isGeneratingCompassRun ? "Creating..." : "Create Compass Run", systemImage: "safari")
-                    .font(.headline.weight(.bold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 6) {
+                ForEach(CompassRunConstraintStep.allCases) { step in
+                    Capsule()
+                        .fill(step.ordinal <= compassConstraintStep.ordinal ? BookPalette.teal : BookPalette.ink.opacity(0.12))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 5)
+                }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(BookPalette.teal)
-            .disabled(!canSubmitCompassRun)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Question \(compassConstraintStep.ordinal) of \(CompassRunConstraintStep.allCases.count)")
 
-            DisclosureGroup(isExpanded: $isWritingManualCompassRun) {
-                manualCompassRunForm
-                    .padding(.top, 8)
-            } label: {
-                Label("Write my own Compass Run", systemImage: "square.and.pencil")
-                    .font(.headline.weight(.bold))
+            VStack(alignment: .leading, spacing: 7) {
+                Label(
+                    "QUESTION \(compassConstraintStep.ordinal) OF \(CompassRunConstraintStep.allCases.count) · \(compassConstraintStep.title.uppercased())",
+                    systemImage: compassConstraintStep.symbol
+                )
+                .font(.caption.weight(.black))
+                .tracking(0.7)
+                .foregroundStyle(BookPalette.teal)
+
+                Text(compassConstraintStep.question)
+                    .font(.system(.title2, design: .serif).weight(.semibold))
                     .foregroundStyle(BookPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(compassConstraintStep.guidance)
+                    .font(.callout)
+                    .foregroundStyle(openPageSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(12)
-            .background(BookPalette.paper.opacity(0.62), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(BookPalette.ink.opacity(0.12), lineWidth: 1)
+
+            Group {
+                switch compassConstraintStep {
+                case .location:
+                    compassPlaceMenu
+                case .time:
+                    compassMenuField("Time limit", options: compassTimeOptions, selection: $compassTimeLimit)
+                case .energy:
+                    compassMenuField("Energy", options: compassEnergyOptions, selection: $compassEnergy)
+                case .companions:
+                    compassMenuField("Who is with me", options: compassCompanionOptions, selection: $compassCompanions)
+                case .budget:
+                    compassMenuField("Budget", options: compassBudgetOptions, selection: $compassBudget)
+                case .considerations:
+                    compassConsiderationPicker
+                }
+            }
+            .id(compassConstraintStep)
+            .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
+
+            HStack(spacing: 10) {
+                if let previous = compassConstraintStep.previous {
+                    Button {
+                        BookFeedback.play(.select)
+                        withAnimation(BookMotion.reveal(reduceMotion)) {
+                            compassConstraintStep = previous
+                        }
+                    } label: {
+                        Label("Back", systemImage: "chevron.left")
+                            .font(.headline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 11)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(BookPalette.ink.opacity(0.72))
+                }
+
+                if let next = compassConstraintStep.next {
+                    Button {
+                        BookFeedback.play(.select)
+                        withAnimation(BookMotion.reveal(reduceMotion)) {
+                            compassConstraintStep = next
+                        }
+                    } label: {
+                        Label("Next", systemImage: "chevron.right")
+                            .font(.headline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 11)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(BookPalette.teal)
+                    .disabled(!canAdvanceCompassConstraintStep)
+                } else {
+                    Button {
+                        BookFeedback.play(.braidStart)
+                        Task { await generateAndSaveCompassRun() }
+                    } label: {
+                        Label(isGeneratingCompassRun ? "Drawing the route..." : "Draw My Compass Run", systemImage: "safari")
+                            .font(.headline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 11)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(BookPalette.teal)
+                    .disabled(!canSubmitCompassRun)
+                }
+            }
+
+            if compassConstraintStep == .considerations {
+                DisclosureGroup(isExpanded: $isWritingManualCompassRun) {
+                    manualCompassRunForm
+                        .padding(.top, 8)
+                } label: {
+                    Label("Write my own Compass Run", systemImage: "square.and.pencil")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(BookPalette.ink)
+                }
+                .padding(12)
+                .background(BookPalette.paper.opacity(0.62), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.ink.opacity(0.12), lineWidth: 1)
+                }
             }
 
             if isGeneratingCompassRun {
@@ -8465,6 +8593,44 @@ struct CapturePageSheet: View {
         }
         .onAppear {
             seedCompassRunControlsIfNeeded()
+        }
+    }
+
+    private var compassRunReadyView: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("YOUR ROUTE IS DRAWN", systemImage: "safari.fill")
+                .font(.caption.weight(.black))
+                .tracking(0.9)
+                .foregroundStyle(BookPalette.teal)
+
+            Text("Read the whole little route once. Then begin at North and let each direction hand you to the next.")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(openPageSecondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            compassRail("North · Notice", surface.payload.metadata["spark"])
+
+            VStack(alignment: .leading, spacing: 8) {
+                compassRail("East · Destination", surface.payload.metadata["destination"])
+                compassRail("East · Delight", surface.payload.metadata["delight"])
+                compassRail("East · Definition", surface.payload.metadata["definition"])
+            }
+
+            compassRail("South · Sense", surface.payload.metadata["mission"])
+            compassRail("West · Write", surface.payload.metadata["souvenirPrompt"])
+            compassRail("Center · Rest", surface.payload.metadata["restPrompt"])
+
+            Button {
+                BookFeedback.play(.openPage)
+                onNavigateToSurface(compassStepSurface(from: surface, step: .notice))
+            } label: {
+                Label("Begin at North: Notice", systemImage: "arrow.up.circle.fill")
+                    .font(.headline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(BookPalette.teal)
         }
     }
 
@@ -8601,7 +8767,7 @@ struct CapturePageSheet: View {
     private var compassPlaceMenu: some View {
         VStack(alignment: .leading, spacing: 8) {
             compassMenuButton(
-                title: "Place",
+                title: "Location",
                 selectionTitle: selectedCompassPlaceContext.title,
                 symbol: compassPlaceSymbol(for: selectedCompassPlaceContext)
             ) {
@@ -8954,9 +9120,14 @@ struct CapturePageSheet: View {
         surface.payload.metadata["exampleLineMode"] == "reader-archive"
     }
 
+    private var aboutYouChoicePrompt: String {
+        surface.payload.metadata["choicePrompt"]?.nonEmpty
+            ?? (aboutYouLinesComeFromReader ? "LINES FROM YOUR BOOK" : "A FEW ANSWERS TO TRY ON")
+    }
+
     private var aboutYouExampleLineOptions: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(aboutYouLinesComeFromReader ? "LINES FROM YOUR BOOK" : "WHICH LINE FOUND YOU?")
+            Text(aboutYouChoicePrompt)
                 .font(.caption2.weight(.black))
                 .tracking(0.8)
                 .foregroundStyle(BookPalette.lampGold)
@@ -11602,7 +11773,9 @@ struct CapturePageSheet: View {
         }
         #endif
         if isCompassRunStartPage {
-            return canSubmitCompassRun
+            // Intake advances through its own one-question controls. The page's
+            // toolbar action wakes only after the complete route is revealed.
+            return isPreparedCompassRunStartPage
         }
         if let currentCompassStep, currentCompassStep != .write {
             // North, East, South, and Center are actions, not forms. West is
@@ -11673,6 +11846,15 @@ struct CapturePageSheet: View {
                 !compassCurrentPlaceMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
         return true
+    }
+
+    private var canAdvanceCompassConstraintStep: Bool {
+        guard compassConstraintStep == .location else { return true }
+        if selectedCompassPlaceContext == .current {
+            return !compassLocation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                !compassCurrentPlaceMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        return !compassLocation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var canSubmitManualCompassRun: Bool {
@@ -12211,10 +12393,30 @@ struct CapturePageSheet: View {
             }
             if let selectedStoryChoice {
                 tags.append("choice:\(selectedStoryChoice.id)")
+                if storyTurns.isEmpty,
+                   let draft = storySceneDraft,
+                   let contract = draft.dramaticContract,
+                   let effect = contract.effect(for: selectedStoryChoice.id),
+                   let receipt = StoryDramaticOutcomeReceipt(
+                       contract: contract,
+                       effect: effect,
+                       turnKind: draft.blueprint?.turn.kind ?? .smallDecision
+                   ).encodedTag {
+                    tags.append(receipt)
+                }
             }
             for turn in storyTurns {
                 if let choice = turn.selectedChoice {
                     tags.append("choice:\(choice.id)")
+                    if let contract = turn.draft.dramaticContract,
+                       let effect = contract.effect(for: choice.id),
+                       let receipt = StoryDramaticOutcomeReceipt(
+                           contract: contract,
+                           effect: effect,
+                           turnKind: turn.draft.blueprint?.turn.kind ?? .smallDecision
+                       ).encodedTag {
+                        tags.append(receipt)
+                    }
                     if let resolution = turn.inkbonesResolution(for: choice) {
                         tags.append("story-mechanic:belief-dice")
                         tags.append("inkbones-band:\(resolution.band.rawValue)")
@@ -12224,6 +12426,9 @@ struct CapturePageSheet: View {
                 }
             }
             tags.append("story-turns:\(max(storyTurns.count, 1))")
+            if let recipeID = preparedSurface.payload.metadata["storyRecipeID"]?.nonEmpty {
+                tags.append("story-recipe:\(recipeID)")
+            }
             // Carry the scene's cast into the kept page so those entities
             // mint memories of what happened to them in this Story Page.
             let entityIDs = (preparedSurface.payload.metadata["selectedEntityIDs"]
@@ -12319,8 +12524,8 @@ struct CapturePageSheet: View {
             if let kind = preparedSurface.payload.metadata["faeKind"], !kind.isEmpty {
                 tags.append("fae:\(kind)")
             }
-            if preparedSurface.payload.metadata["isRepair"] == "true" {
-                tags.append("fae-repair")
+            if preparedSurface.payload.metadata["hasMovedOn"] == "true" {
+                tags.append("fae-moved-on")
             }
         }
         if preparedSurface.type == .inkrestOfficeHours {
@@ -12415,7 +12620,7 @@ struct CapturePageSheet: View {
 
         let savedSurface = surface.withCompassRunPlan(plan, constraints: constraints)
         onSave(savedSurface, compassPreparedInput(for: savedSurface), preparedTags(for: savedSurface), [])
-        onNavigateToSurface(compassStepSurface(from: savedSurface, step: .notice))
+        onNavigateToSurface(savedSurface)
     }
 
     private func saveManualCompassRun() {
@@ -12427,7 +12632,7 @@ struct CapturePageSheet: View {
             ]) { _, new in new }
         let savedSurface = surface.withCompassRunPlan(manualCompassRunPlan(), constraints: constraints)
         onSave(savedSurface, compassPreparedInput(for: savedSurface), preparedTags(for: savedSurface), [])
-        onNavigateToSurface(compassStepSurface(from: savedSurface, step: .notice))
+        onNavigateToSurface(savedSurface)
     }
 
     private func manualCompassRunPlan() -> [String: String] {
@@ -12905,7 +13110,8 @@ struct CapturePageSheet: View {
         surface.payload.metadata["deadline"].flatMap { ISO8601DateFormatter().date(from: $0) }
     }
 
-    /// Set a real Reminder a few hours before the gift goes cold. User-initiated.
+    /// Set a real Reminder a few hours before the exchange leaves the active
+    /// desk. The gift and standing remain safe either way.
     private func setFaeBargainReminder() async {
         guard let deadline = faeDeadline else { return }
         let remindAt = max(Date().addingTimeInterval(60), deadline.addingTimeInterval(-3 * 3_600))
@@ -12913,12 +13119,12 @@ struct CapturePageSheet: View {
         let fae = metadata["faeName"] ?? "A Book Fae"
         let gift = metadata["giftName"] ?? "the gift"
         let ok = await EventKitWriter.addReminder(
-            title: "A Fae bargain comes due",
-            notes: "\(fae) is waiting. Pay before \(gift) goes cold:\n\(metadata["terms"] ?? "")",
+            title: "A Fae exchange is still waiting",
+            notes: "\(fae) is waiting for this noticing. If the window passes, \(gift) stays warm and the Fae wanders on:\n\(metadata["terms"] ?? "")",
             due: remindAt
         )
         faeMessage = ok
-            ? "A Reminder is set for before the gift goes cold."
+            ? "A Reminder is set while the exchange is still waiting."
             : "The Reminder could not be set (check Reminders permission in Settings)."
         BookFeedback.play(ok ? .select : .error)
     }
@@ -14464,7 +14670,58 @@ enum StoryRecipeValidator {
         if prose.choices.contains(where: { choice in generic.contains { choice.title.lowercased().contains($0) || choice.prompt.lowercased().contains($0) } }) {
             failures.append("Anchor every choice to this exact scene."); score -= 10
         }
+        if let contract = blueprint.dramaticContract {
+            let requiredFields = [
+                contract.leadCharacterWant, contract.leadCharacterWorry,
+                contract.leadCharacterBlindSpot, contract.otherCharacterPressure,
+                contract.relationshipQuestion, contract.stakes
+            ]
+            if requiredFields.contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+                || contract.choiceEffects.count != StoryChoiceRole.allCases.count {
+                failures.append("Resolve the complete dramatic contract before prose generation.")
+                score -= 60
+            }
+            let pressureTerms = significantTerms(
+                contract.leadCharacterWant + " " + contract.leadCharacterWorry + " " + contract.otherCharacterPressure
+            )
+            let sceneTerms = Set(scene.split { !$0.isLetter }.map(String.init))
+            if pressureTerms.intersection(sceneTerms).count < min(4, max(2, pressureTerms.count)) {
+                failures.append("Stage the lead's want, worry, and the other character's counter-pressure in the opening.")
+                score -= 35
+            }
+            for choice in prose.choices {
+                guard let effect = contract.effect(for: choice.id) else {
+                    failures.append("Give every path a precommitted character effect.")
+                    score -= 30
+                    continue
+                }
+                let choiceText = "\(choice.title) \(choice.prompt)".lowercased()
+                let reactor = effect.requiredReactorName.split(separator: " ").first.map(String.init)?.lowercased()
+                    ?? effect.requiredReactorName.lowercased()
+                let lead = contract.leadCharacterName.split(separator: " ").first.map(String.init)?.lowercased()
+                    ?? contract.leadCharacterName.lowercased()
+                if !choiceText.contains(reactor) && !choiceText.contains(lead) {
+                    failures.append("Make the \(choice.kindLabel) path name who it pressures: \(effect.requiredReactorName) or \(contract.leadCharacterName).")
+                    score -= 15
+                }
+            }
+            let choiceActions = prose.choices.map { significantTerms($0.prompt) }
+            if choiceActions.count == 3,
+               choiceActions[0].intersection(choiceActions[1]).count >= min(choiceActions[0].count, choiceActions[1].count),
+               choiceActions[1].intersection(choiceActions[2]).count >= min(choiceActions[1].count, choiceActions[2].count) {
+                failures.append("Make the three choices exert genuinely different pressure on the characters.")
+                score -= 20
+            }
+        }
         return StoryRecipeValidation(score: score, failures: failures)
+    }
+
+    private static func significantTerms(_ text: String) -> Set<String> {
+        let stop: Set<String> = [
+            "about", "after", "again", "because", "before", "between", "could", "their",
+            "there", "these", "those", "through", "under", "which", "while", "with", "would"
+        ]
+        return Set(text.lowercased().split { !$0.isLetter }.map(String.init).filter { $0.count >= 4 && !stop.contains($0) })
     }
 }
 
@@ -14480,6 +14737,10 @@ struct StoryPageResultContext: Equatable {
 
     var committedLanding: String? {
         StoryTurnLanding.resolve(draft.turnLandings, choiceID: selectedChoice.id)
+    }
+
+    var dramaticEffect: StoryDramaticChoiceEffect? {
+        draft.dramaticContract?.effect(for: selectedChoice.id)
     }
 
     var fallbackResult: String {
@@ -14715,6 +14976,17 @@ enum StoryPageResultPromptBuilder {
             \(recipeResultRule) Do not restate the chosen action as a sentence—show its consequence.
             """
         } ?? ""
+        let dramaticBlock = context.dramaticEffect.map { effect in
+            """
+
+            THIS CHOICE'S CHARACTER CONSEQUENCE IS PRECOMMITTED:
+            Required reactor: \(effect.requiredReactorName)
+            Required visible reaction: \(effect.requiredReaction)
+            Changed fact that becomes canon: \(effect.changedFact)
+            What the reader's choice changes: \(effect.readerChoiceEffect)
+            The result must show all four. Do not substitute a different character, reaction, or emotional outcome.
+            """
+        } ?? ""
 
         let voice = context.draft.genreName.isEmpty
             ? ""
@@ -14752,7 +15024,7 @@ enum StoryPageResultPromptBuilder {
         \(context.selectedChoice.prompt)
 
         HIDDEN MOVEMENT TO DRAMATIZE WITHOUT NAMING AS MECHANICS:
-        \(context.selectedChoice.effectLine)\(inkbonesBlock)
+        \(context.selectedChoice.effectLine)\(dramaticBlock)\(inkbonesBlock)
 
         RECENT THREAD MEMORY:
         \(prior.isEmpty ? "No prior turns." : prior)\(context.draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(context.draft.surface.payload.metadata["storyQuillDirective"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(context.draft.surface.payload.metadata[BookVoicePatina.metadataKey]?.nonEmpty.map { "\n\n\($0)" } ?? "")
@@ -14764,6 +15036,7 @@ enum StoryPageResultPromptBuilder {
         - Make the consequence specific to the selected action, not generic.
         - \(context.draft.blueprint == nil ? "Make most of this result spoken exchange and include no more than one small physical action." : recipeResultRule)
         - Let one relationship, secret, refusal, promise, or question gain weight.
+        - Make the named reactor answer, trust, hide, refuse, admit, decide, or revise something on the page; atmosphere is not a reaction.
         - If this is Progress Arc, let the thread move one step.
         - If this is Slice of Life, let an ordinary detail deepen.
         - If this is Surprise, reveal a strange related angle that still belongs here.
@@ -14790,7 +15063,7 @@ enum StoryPagePromptBuilder {
     Never write filler: no generic wisdom, no abstract emotional summary, no "tapestry", "echoes", "journey", "profound", or "quiet magic".
     """
 
-    static func prompt(for draft: StoryPageSceneDraft, nowPlaying: String? = nil) -> String {
+    static func prompt(for draft: StoryPageSceneDraft, nowPlaying: String? = nil, radioNarrativeEcho: RadioNarrativeEcho? = nil) -> String {
         if draft.surface.type == .academyClass {
             return academyLessonPrompt(for: draft)
         }
@@ -14860,6 +15133,25 @@ enum StoryPagePromptBuilder {
             let groundingRule = StoryFormRegistry.isWorldLedRecipe(id: blueprint.recipeID)
                 ? "Real-day atmosphere — let it tint light, weather, and hour only. Never quote, discuss, or explain the reader's pages or day; the world is running its own errand: \(blueprint.grounding.text)"
                 : "This exact material MUST drive the scene as causation, evidence, a topic, or a threatened thing — never wallpaper: \(blueprint.grounding.text)"
+            let dramaticContract = blueprint.dramaticContract.map { contract in
+                let effects = contract.choiceEffects.map { effect in
+                    "- \(effect.role.title): \(effect.requiredReactorName) must \(effect.requiredReaction) Changed fact: \(effect.changedFact)"
+                }.joined(separator: "\n")
+                return """
+
+                DRAMATIC CONTRACT — decided before prose:
+                Who is here: \(contract.leadCharacterName) and \(contract.otherCharacterName).
+                What \(contract.leadCharacterName) wants: \(contract.leadCharacterWant)
+                What they worry about: \(contract.leadCharacterWorry)
+                What they may be wrong about: \(contract.leadCharacterBlindSpot)
+                Pressure from \(contract.otherCharacterName): \(contract.otherCharacterPressure)
+                Relationship question: \(contract.relationshipQuestion)
+                Stakes if nobody answers: \(contract.stakes)
+                The three reader paths must pressure the relationship differently:
+                \(effects)
+                The opening must visibly stage the want, worry or blind spot, and counter-pressure. Do not answer the relationship question yet.
+                """
+            } ?? ""
             engine = """
 
 
@@ -14871,6 +15163,7 @@ enum StoryPagePromptBuilder {
             Beats, in order:
             \(StoryVignetteBeats.snackSized(blueprint.beats).enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"))
             Required change by the end: \(blueprint.turn.statement)
+            \(dramaticContract)
             Grounding: \(blueprint.groundingDirective)
             Tone: \(blueprint.toneDirective)
             Scene mode: \(modeRule)
@@ -14940,7 +15233,7 @@ enum StoryPagePromptBuilder {
         \(setting)
 
         REAL MATERIAL:
-        \(signals)\(pressures)\(memories)\(talismanMoves)\(faeDirective)\(RadioAtmosphere.promptSection(nowPlaying))\(draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(draft.surface.payload.metadata["storyQuillDirective"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(draft.surface.payload.metadata[BookVoicePatina.metadataKey]?.nonEmpty.map { "\n\n\($0)" } ?? "")
+        \(signals)\(pressures)\(memories)\(talismanMoves)\(faeDirective)\(RadioAtmosphere.promptSection(nowPlaying))\(RadioNarrativeEchoPrompt.section(radioNarrativeEcho))\(draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(draft.surface.payload.metadata["storyQuillDirective"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(draft.surface.payload.metadata[BookVoicePatina.metadataKey]?.nonEmpty.map { "\n\n\($0)" } ?? "")
         \(continuation)\(mechanicPlan)
 
         OUTPUT FORMAT, EXACTLY:
@@ -14966,7 +15259,7 @@ enum StoryPagePromptBuilder {
         SURPRISE_PROMPT:
         One sentence under 16 words: the specific action the reader takes.
 
-        Choice rule: every choice must name a specific person, spoken line, object, or fact from SCENE — something said, asked, refused, given, opened, followed, or protected.\(draft.blueprint.map { " Choices should offer: \($0.choiceDirective)" } ?? "") Never use generic titles like "Stay With It", "Follow the Thread", or "Look Closer".
+        Choice rule: every choice must name a specific person, spoken line, object, or fact from SCENE — something said, asked, refused, given, opened, followed, or protected. Every choice must visibly put pressure on the named character assigned to that path, while leaving its result unwritten.\(draft.blueprint.map { " Choices should offer: \($0.choiceDirective)" } ?? "") Never use generic titles like "Stay With It", "Follow the Thread", or "Look Closer".
         Do not write any result sections; The Book writes the consequence after the reader chooses.
         """
     }
@@ -15604,6 +15897,7 @@ private extension SurfacePage {
         metadata["selector"] = constraints["selector"] ?? "gemma-custom-run"
         metadata["runAuthoringMode"] = constraints["runAuthoringMode"] ?? "generated"
         metadata["compassMode"] = "runStart"
+        metadata["compassRunPrepared"] = "true"
         metadata["privacy"] = "private local practice"
 
         let body = """
@@ -15663,6 +15957,8 @@ struct StoryPageSceneDraft: Equatable {
     var preparedResults: [String: String]
     var continuationContext: String?
     var mechanicMandate: StoryPageMechanicMandate
+
+    var dramaticContract: StoryDramaticContract? { blueprint?.dramaticContract }
 
     init(surface: SurfacePage) {
         self.surface = surface
@@ -15744,6 +16040,8 @@ struct StoryPageSceneDraft: Equatable {
                 statement: turnStatement, register: StoryRegister(rawValue: turnRegister) ?? .quiet,
                 landings: turnLandings
             )
+            let dramaticContract = metadata[StoryDramaticContract.metadataKey]
+                .flatMap(StoryDramaticContract.init(encodedMetadata:))
             blueprint = StorySceneBlueprint(
                 recipeID: recipeID,
                 recipeName: metadata["storyRecipeName"] ?? recipeID,
@@ -15760,7 +16058,8 @@ struct StoryPageSceneDraft: Equatable {
                 toneDirective: metadata["storyRecipeToneDirective"] ?? "",
                 choiceDirective: metadata["storyRecipeChoiceDirective"] ?? "",
                 continuationDirective: metadata["storyRecipeContinuationDirective"] ?? "",
-                turn: resolvedTurn
+                turn: resolvedTurn,
+                dramaticContract: dramaticContract
             )
         } else {
             blueprint = nil

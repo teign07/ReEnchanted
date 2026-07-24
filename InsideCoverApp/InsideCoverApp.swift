@@ -63,6 +63,9 @@ struct LockedBookRoot: View {
                 await appLock.authenticate()
             }
         }
+        .task {
+            await StandingOrderTrialReminder.reconcileCurrentTrial()
+        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .background:

@@ -809,18 +809,32 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(midday.first?.payload.metadata["checkInWindowID"], "midday")
     }
 
-    func testGreyPressureAddsOneSentenceSouvenirVariant() {
+    func testReaderReportedGreyPressureAddsOneSentenceSouvenirVariant() {
         let adapter = SouvenirPageSourceAdapter()
+        let now = localDate(hour: 13)
         let day = BookDay(id: "2026-06-01", date: localDate(hour: 0), pages: [])
         var inputs = richInputs()
-        inputs.quietDays = 3
+        inputs.selfFacts = [
+            SelfFact(
+                id: "test-rut-depth",
+                questionID: "rut-depth",
+                question: "How deep is the Rut right now?",
+                answer: "4-7: in the rut",
+                bookTranslation: "The reader reports some Rut pressure.",
+                sensitivity: .comfort,
+                usePermission: .privateContext,
+                tags: ["rut", "state"],
+                createdAt: now,
+                updatedAt: now
+            )
+        ]
         inputs.narrative = NarrativeSourceSnapshot(activeThreadCount: 0, relationshipCount: 0, beliefWeight: 0)
 
         let pages = adapter.candidates(
             for: day,
             context: CuratorContext.make(for: day),
             inputs: inputs,
-            now: localDate(hour: 13)
+            now: now
         )
 
         let grey = pages.first { $0.payload.metadata["variant"] == "grey-edge" }
@@ -832,6 +846,7 @@ final class BookCuratorTests: XCTestCase {
 
     func testGreyPressureSouvenirDoesNotAppearAfterWindowSouvenirIsKept() {
         let adapter = SouvenirPageSourceAdapter()
+        let now = localDate(hour: 13, minute: 30)
         let day = BookDay(
             id: "2026-06-01",
             date: localDate(hour: 0),
@@ -847,14 +862,27 @@ final class BookCuratorTests: XCTestCase {
             ]
         )
         var inputs = richInputs()
-        inputs.quietDays = 3
+        inputs.selfFacts = [
+            SelfFact(
+                id: "test-rut-depth",
+                questionID: "rut-depth",
+                question: "How deep is the Rut right now?",
+                answer: "4-7: in the rut",
+                bookTranslation: "The reader reports some Rut pressure.",
+                sensitivity: .comfort,
+                usePermission: .privateContext,
+                tags: ["rut", "state"],
+                createdAt: now,
+                updatedAt: now
+            )
+        ]
         inputs.narrative = NarrativeSourceSnapshot(activeThreadCount: 0, relationshipCount: 0, beliefWeight: 0)
 
         let pages = adapter.candidates(
             for: day,
             context: CuratorContext.make(for: day),
             inputs: inputs,
-            now: localDate(hour: 13, minute: 30)
+            now: now
         )
 
         XCTAssertTrue(pages.isEmpty)
@@ -2311,14 +2339,57 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testEveningBraidDoesNotEvictFirstReadingMilestone() {
+        let today = dayAwaitingFirstReading()
+        var inputs = richInputs()
+        inputs.days = [
+            BookDay(
+                id: "2026-05-30",
+                date: localDate(year: 2026, month: 5, day: 30, hour: 0),
+                pages: [
+                    BookPage(
+                        id: "first-reading-history-1",
+                        type: .souvenir,
+                        createdAt: localDate(year: 2026, month: 5, day: 30, hour: 12),
+                        promptText: "Catch one bright particular.",
+                        userInput: "Rain silvered the fire escape.",
+                        tags: ["souvenir"]
+                    )
+                ]
+            ),
+            BookDay(
+                id: "2026-05-31",
+                date: localDate(year: 2026, month: 5, day: 31, hour: 0),
+                pages: [
+                    BookPage(
+                        id: "first-reading-history-2",
+                        type: .souvenir,
+                        createdAt: localDate(year: 2026, month: 5, day: 31, hour: 12),
+                        promptText: "Catch one bright particular.",
+                        userInput: "The old brick held the evening heat.",
+                        tags: ["souvenir"]
+                    ),
+                    BookPage(
+                        id: "first-reading-history-3",
+                        type: .diary,
+                        createdAt: localDate(year: 2026, month: 5, day: 31, hour: 17),
+                        promptText: "Keep one true sentence.",
+                        userInput: "A crow waited for the storm before I noticed it.",
+                        tags: ["diary"]
+                    )
+                ]
+            )
+        ]
         let pages = BookCurator.surfacedPages(
-            for: dayAwaitingFirstReading(),
-            inputs: richInputs(),
-            now: localDate(hour: 21, minute: 31),
+            for: today,
+            inputs: inputs,
+            now: localDate(year: 2026, month: 6, day: 1, hour: 21, minute: 31),
             limit: 3
         )
 
-        XCTAssertTrue(pages.contains { $0.payload.metadata["firstReading"] == "true" })
+        XCTAssertTrue(
+            pages.contains { $0.payload.metadata["firstReading"] == "true" },
+            "Desk: \(pages.map { "\($0.type.rawValue):\($0.id)" })"
+        )
         XCTAssertTrue(pages.contains { $0.type == .bookOfYou })
         XCTAssertEqual(
             pages.first(where: { $0.type == .bookOfYou })?.type.deskLane,
@@ -3616,6 +3687,236 @@ final class BookCuratorTests: XCTestCase {
             result.map(\.id),
             ["desk-weather-s01", "desk-diary-s01", "desk-souvenir-s01"]
         )
+    }
+
+    func testSessionIntentionRoundTripsThroughPrivatePageMetadata() throws {
+        let now = localDate(year: 2026, month: 7, day: 22, hour: 10)
+        let intention = BookSessionIntention(
+            id: "book-session-test",
+            dayID: BookDay.id(for: now),
+            movement: .livingContinuity,
+            ambition: .return,
+            evidencePageIDs: ["page-tuesday"],
+            evidenceReason: "An earlier Page has acquired a second life.",
+            createdAt: now,
+            expiresAt: now.addingTimeInterval(6 * 3600),
+            seed: "session-seed"
+        )
+        let decorated = intention.applying(
+            to: rankedCandidate(.bookRemembered, score: 80),
+            role: .door
+        )
+        let decoded = try XCTUnwrap(BookSessionIntention.read(from: decorated))
+
+        XCTAssertEqual(decoded, intention)
+        XCTAssertEqual(decorated.payload.metadata[BookSessionIntention.metadataRole], BookSessionRole.door.rawValue)
+        XCTAssertTrue(decorated.readerLearningTags.contains("book-session:livingcontinuity"))
+    }
+
+    func testRememberedPageCarriesItsOriginalSessionReceiptForward() {
+        let now = localDate(year: 2026, month: 7, day: 22, hour: 10)
+        let intention = BookSessionIntention(
+            id: "book-session-original",
+            dayID: "2026-05-01",
+            movement: .freshSight,
+            ambition: .glint,
+            evidencePageIDs: ["earlier-evidence"],
+            evidenceReason: "One ordinary thing became vivid.",
+            createdAt: now.addingTimeInterval(-80 * 86_400),
+            expiresAt: now.addingTimeInterval(-79 * 86_400),
+            seed: "old-session"
+        )
+        let page = BookPage(
+            id: "old-glint",
+            type: .souvenir,
+            createdAt: now.addingTimeInterval(-80 * 86_400),
+            promptText: "Keep one exact thing.",
+            userInput: "The chipped blue cup held a square of morning.",
+            tags: intention.archiveReceiptTags,
+            origin: .userAuthored
+        )
+        let visitation = BookRememberedVisitation(
+            page: page,
+            score: 70,
+            reason: "Today's light found the same blue.",
+            todayConnections: ["Blue returned in today's Page."],
+            action: "Look for the next patch of blue."
+        )
+        let surface = visitation.surface(
+            source: BookPageSourceRegistry.source(for: .bookRemembered),
+            day: BookDay(id: BookDay.id(for: now), date: now, pages: []),
+            now: now
+        )
+
+        XCTAssertTrue(surface.readerLearningTags.contains("book-session-movement:freshsight"))
+        XCTAssertTrue(surface.payload.metadata["originalBookSessionReceipts"]?.contains("book-session-id:book-session-original") == true)
+    }
+
+    func testActiveSessionIntentionSurvivesARebuild() {
+        let now = localDate(year: 2026, month: 7, day: 22, hour: 10)
+        let day = BookDay(id: BookDay.id(for: now), date: Calendar.current.startOfDay(for: now), pages: [])
+        let active = BookSessionIntention(
+            id: "book-session-stable",
+            dayID: day.id,
+            movement: .exactLanguage,
+            ambition: .glint,
+            evidencePageIDs: [],
+            evidenceReason: "The reader supplied exact words.",
+            createdAt: now,
+            expiresAt: now.addingTimeInterval(6 * 3600),
+            seed: "stable-seed"
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.activeBookSessionIntention = active
+        let candidates = [rankedCandidate(.diary, score: 60), rankedCandidate(.quotes, score: 60)]
+
+        let resolved = BookSessionDirector.intention(
+            for: day,
+            inputs: inputs,
+            candidates: candidates,
+            preferences: .none,
+            distressActive: false,
+            now: now.addingTimeInterval(60)
+        )
+
+        XCTAssertEqual(resolved, active)
+    }
+
+    func testIntentionLedDeskAssignsDoorEchoAndHorizon() {
+        let now = localDate(year: 2026, month: 7, day: 22, hour: 10)
+        let intention = BookSessionIntention(
+            id: "book-session-roles",
+            dayID: BookDay.id(for: now),
+            movement: .livingContinuity,
+            ambition: .connection,
+            evidencePageIDs: ["old-page"],
+            evidenceReason: "An old Page can answer the present.",
+            createdAt: now,
+            expiresAt: now.addingTimeInterval(6 * 3600),
+            seed: "roles-seed"
+        )
+        var mood = CuratorMood.neutral
+        mood.keptPageCount = 80
+        let candidates = [
+            rankedCandidate(.bookRemembered, score: 80),
+            rankedCandidate(.bookNotices, score: 75),
+            rankedCandidate(.lore, score: 70),
+            rankedCandidate(.weather, score: 68)
+        ]
+
+        let pages = BookCurator.rankedPages(
+            from: candidates,
+            limit: 3,
+            mood: mood,
+            now: now,
+            intention: intention,
+            selectionSeed: intention.seed
+        ).map(\.page)
+        let roles = Set(pages.compactMap { $0.payload.metadata[BookSessionIntention.metadataRole] })
+
+        XCTAssertEqual(roles, Set(BookSessionRole.allCases.map(\.rawValue)))
+        XCTAssertTrue(pages.allSatisfy {
+            $0.payload.metadata[BookSessionIntention.metadataID] == intention.id
+        })
+    }
+
+    func testBeliefChangesFrequencyWithoutBecomingGuaranteeOrVeto() {
+        let now = localDate(year: 2026, month: 7, day: 22, hour: 10)
+        let high = SurfacePage(
+            id: "high-belief-weather",
+            type: .weather,
+            sourceID: "high-belief-weather",
+            intent: .capture,
+            score: 60,
+            prompt: "Weather",
+            detail: "The weather is present."
+        )
+        let low = SurfacePage(
+            id: "low-belief-souvenir",
+            type: .souvenir,
+            sourceID: "low-belief-souvenir",
+            intent: .capture,
+            score: 60,
+            prompt: "Souvenir",
+            detail: "One ordinary detail."
+        )
+        let profiles = [
+            "high-belief-weather": PageBeliefProfile(
+                sourceID: "high-belief-weather",
+                type: .weather,
+                title: "Weather",
+                belief: 100,
+                narrativeWeight: 20,
+                cadence: "test",
+                note: "test"
+            ),
+            "low-belief-souvenir": PageBeliefProfile(
+                sourceID: "low-belief-souvenir",
+                type: .souvenir,
+                title: "Souvenir",
+                belief: 0,
+                narrativeWeight: 20,
+                cadence: "test",
+                note: "test"
+            )
+        ]
+        let preferences = CuratorSurfacePreferences(pageBeliefProfiles: profiles)
+        var highCount = 0
+        var lowCount = 0
+
+        for index in 0..<600 {
+            let seed = "belief-distribution-\(index)"
+            let intention = BookSessionIntention(
+                id: "book-session-\(index)",
+                dayID: BookDay.id(for: now),
+                movement: .freshSight,
+                ambition: .glint,
+                evidencePageIDs: [],
+                evidenceReason: "One ordinary thing can become vivid.",
+                createdAt: now,
+                expiresAt: now.addingTimeInterval(6 * 3600),
+                seed: seed
+            )
+            let selected = BookCurator.rankedPages(
+                from: [high, low],
+                limit: 1,
+                preferences: preferences,
+                mood: .neutral,
+                now: now,
+                intention: intention,
+                selectionSeed: seed
+            ).first?.page.id
+            if selected == high.id { highCount += 1 }
+            if selected == low.id { lowCount += 1 }
+        }
+
+        XCTAssertGreaterThan(highCount, lowCount)
+        XCTAssertGreaterThan(lowCount, 0, "Zero Belief must remain a genuine possibility.")
+        XCTAssertLessThan(highCount, 600, "Maximum Belief must not become certainty.")
+    }
+
+    func testZeroBeliefExactPageReturnsAfterLongerRest() {
+        let now = localDate(year: 2026, month: 7, day: 22, hour: 10)
+        let page = rankedCandidate(.quotes, score: 60)
+        let old = SurfaceHistoryRecord(lastShownAt: now.addingTimeInterval(-31 * 3600), recentShowCount: 1)
+        let history = [page.curatorContentNoveltyKey: old]
+        let profile = PageBeliefProfile(
+            sourceID: page.sourceID,
+            type: page.type,
+            title: "Quotes",
+            belief: 0,
+            narrativeWeight: 20,
+            cadence: "test",
+            note: "test"
+        )
+        let preferences = CuratorSurfacePreferences(pageBeliefProfiles: [page.sourceID: profile])
+
+        XCTAssertTrue(CuratorNoveltyPolicy.allowsAutomaticSurface(
+            page,
+            history: history,
+            preferences: preferences,
+            now: now
+        ))
     }
 
     private func deskCard(

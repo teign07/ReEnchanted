@@ -69,10 +69,10 @@ final class AlmanacTests: XCTestCase {
         // Litha pushes the grey back hard; Samhain lets it nearer.
         XCTAssertLessThan(Almanac.greyShift(on: date(2026, 6, 21)), 0)
         XCTAssertGreaterThan(Almanac.greyShift(on: date(2026, 10, 31)), 0)
-        // Wired into the curator's grey computation (clamped to 0...3).
-        let lithaGrey = NothingTide.greyLevel(quietDays: 4, narrativeHeat: 0, distressActive: false,
+        // Wired into the curator's evidence-led grey computation (clamped to 0...3).
+        let lithaGrey = NothingTide.greyLevel(readerRutPressure: 2, narrativeHeat: 0, distressActive: false,
                                               celebrationGreyShift: Almanac.greyShift(on: date(2026, 6, 21)))
-        let plainGrey = NothingTide.greyLevel(quietDays: 4, narrativeHeat: 0, distressActive: false)
+        let plainGrey = NothingTide.greyLevel(readerRutPressure: 2, narrativeHeat: 0, distressActive: false)
         XCTAssertLessThan(lithaGrey, plainGrey)
         // Distress still wins: no grey, no celebration override.
         XCTAssertEqual(NothingTide.greyLevel(quietDays: 4, narrativeHeat: 0, distressActive: true,

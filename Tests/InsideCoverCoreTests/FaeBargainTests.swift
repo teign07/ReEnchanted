@@ -30,7 +30,7 @@ final class FaeBargainTests: XCTestCase {
         XCTAssertNotNil(state.lastBargainOfferedAt)
     }
 
-    func testAcceptFrontsAWorkingGiftAndOwedDebt() {
+    func testAcceptFrontsAWorkingGiftAndWaitingExchange() {
         var state = FaePlayerState()
         let offerTime = Date()
         let proposed = FaeEconomy.offerBargain(into: &state, kind: .sentenceSalamander, slot: slot, now: offerTime)
@@ -78,7 +78,7 @@ final class FaeBargainTests: XCTestCase {
         XCTAssertFalse(FaeEconomy.canOfferBargain(state: state, now: Date()))
     }
 
-    func testLapseColdsGiftAndClosesMarket() {
+    func testElapsedExchangeLetsTheFaeMoveOnWithoutChangingGiftOrStanding() {
         var state = FaePlayerState()
         let offered = Date().addingTimeInterval(-Double(FaeEconomy.paymentWindowHours + 1) * 3_600)
         let proposed = FaeEconomy.offerBargain(into: &state, kind: .punctuationPixie, slot: slot, now: offered)
@@ -86,12 +86,48 @@ final class FaeBargainTests: XCTestCase {
         let lapsed = FaeEconomy.sweepLapses(into: &state, now: Date())
         XCTAssertEqual(lapsed.count, 1)
         XCTAssertEqual(state.bargains.first?.status, .lapsed)
-        XCTAssertEqual(state.gifts.first?.isCold, true)
-        XCTAssertFalse(state.gifts.first?.isActive ?? true, "a cold gift stops working — real stakes")
-        XCTAssertTrue(state.marketIsClosed(for: .punctuationPixie))
-        XCTAssertEqual(state.warmth(for: .punctuationPixie), -FaeEconomy.warmthPerLapse)
-        XCTAssertEqual(state.claim(for: .punctuationPixie), FaeEconomy.claimPerOffer + FaeEconomy.claimPerLapse)
-        XCTAssertEqual(FaeEconomy.claimBand(for: state.claim(for: .punctuationPixie)), "quiet")
+        XCTAssertEqual(state.gifts.first?.isCold, false)
+        XCTAssertTrue(state.gifts.first?.isActive ?? false)
+        XCTAssertFalse(state.marketIsClosed(for: .punctuationPixie))
+        XCTAssertEqual(state.warmth(for: .punctuationPixie), 0)
+        XCTAssertEqual(state.claim(for: .punctuationPixie), 0)
+        XCTAssertTrue(state.omens.isEmpty)
+    }
+
+    func testLegacyColdGiftDecodesWarmAndInMemoryStateIsReconciled() throws {
+        let legacy = """
+        {
+          "id": "legacy-card",
+          "faeKind": "goblin",
+          "name": "an old calling card",
+          "descriptionText": "A card from an earlier save.",
+          "effect": "callingCard",
+          "isCold": true,
+          "acquiredAt": 0,
+          "chargesRemaining": 1
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(FaeGift.self, from: legacy)
+        XCTAssertFalse(decoded.isCold)
+        XCTAssertTrue(decoded.isActive)
+
+        var state = FaePlayerState()
+        state.gifts = [FaeGift(
+            id: "in-memory-card",
+            faeKind: .goblin,
+            name: "a waiting card",
+            descriptionText: "Still belongs to the reader.",
+            effect: .callingCard,
+            isCold: true,
+            acquiredAt: Date(),
+            chargesRemaining: 1,
+            boundSourceID: nil
+        )]
+
+        XCTAssertFalse(FaeEconomy.sweepLapses(into: &state).isEmpty)
+        XCTAssertFalse(state.gifts[0].isCold)
+        XCTAssertTrue(state.gifts[0].isActive)
     }
 
     func testDeliveryPaysWarmthAndAttention() {
@@ -112,13 +148,13 @@ final class FaeBargainTests: XCTestCase {
         XCTAssertEqual(state.openBargains.count, 0)
     }
 
-    func testRepairThawsGiftAndReopensMarket() {
+    func testVoluntaryLateAnswerReceivesTheSameWarmWelcome() {
         var state = FaePlayerState()
         let offered = Date().addingTimeInterval(-Double(FaeEconomy.paymentWindowHours + 1) * 3_600)
         let bargain = FaeEconomy.offerBargain(into: &state, kind: .deepLoreDwarf, slot: slot, now: offered)
         FaeEconomy.acceptBargain(bargainID: bargain.id, into: &state, now: offered)
         FaeEconomy.sweepLapses(into: &state, now: Date())
-        XCTAssertTrue(state.marketIsClosed(for: .deepLoreDwarf))
+        XCTAssertFalse(state.marketIsClosed(for: .deepLoreDwarf))
 
         FaeEconomy.deliver(
             bargainID: bargain.id,
@@ -128,13 +164,9 @@ final class FaeBargainTests: XCTestCase {
             into: &state
         )
         XCTAssertEqual(state.bargains.first?.status, .delivered)
-        XCTAssertEqual(state.gifts.first?.isCold, false, "repair thaws the cold gift")
-        XCTAssertFalse(state.marketIsClosed(for: .deepLoreDwarf), "repaired debt reopens the market")
-        XCTAssertEqual(
-            state.claim(for: .deepLoreDwarf),
-            FaeEconomy.claimPerOffer + FaeEconomy.claimPerLapse - FaeEconomy.claimReliefPerRepair,
-            "repair lowers Claim but keeps the story of the lapse visible"
-        )
+        XCTAssertEqual(state.gifts.first?.isCold, false)
+        XCTAssertEqual(state.warmth(for: .deepLoreDwarf), FaeEconomy.warmthPerDelivery)
+        XCTAssertEqual(state.claim(for: .deepLoreDwarf), 0)
     }
 
     func testLiteraryElfCourtTiltsUnseelieWhenClaimIsHigh() {
@@ -162,10 +194,9 @@ final class FaeBargainTests: XCTestCase {
         XCTAssertEqual(state.claim(for: .bookSprite), 7)
     }
 
-    func testChooseFaeAvoidsClosedMarkets() {
+    func testPastExchangesNeverRemoveAFaeFromFutureOffers() {
         var state = FaePlayerState()
-        // Lapse every species except the goblin, then the only open market is the goblin.
-        for kind in FaeKind.allCases where kind != .goblin {
+        for kind in FaeKind.allCases {
             var s = state
             let offered = Date().addingTimeInterval(-Double(FaeEconomy.paymentWindowHours + 1) * 3_600)
             let proposed = FaeEconomy.offerBargain(into: &s, kind: kind, slot: "\(slot)-\(kind.rawValue)", now: offered)
@@ -174,10 +205,10 @@ final class FaeBargainTests: XCTestCase {
             state.bargains.append(contentsOf: s.bargains)
             state.gifts.append(contentsOf: s.gifts)
         }
-        for kind in FaeKind.allCases where kind != .goblin {
-            XCTAssertTrue(state.marketIsClosed(for: kind))
+        for kind in FaeKind.allCases {
+            XCTAssertFalse(state.marketIsClosed(for: kind))
         }
-        XCTAssertEqual(FaeEconomy.chooseFae(state: state, slot: slot), .goblin)
+        XCTAssertTrue(FaeKind.allCases.contains(FaeEconomy.chooseFae(state: state, slot: slot)))
     }
 
     func testSeasonMoodMapping() {
@@ -242,8 +273,8 @@ final class FaeBargainTests: XCTestCase {
         XCTAssertTrue((pages.first?.payload.body ?? "").contains("The exchange is already real"))
         XCTAssertTrue((pages.first?.payload.body ?? "").contains("The gift is"))
         XCTAssertTrue((pages.first?.payload.metadata["giftUseLine"] ?? "").contains("Inventory under Fae Gifts"))
-        XCTAssertTrue((pages.first?.payload.metadata["deadlineLine"] ?? "").contains("to pay"))
-        XCTAssertTrue((pages.first?.payload.metadata["consequenceLine"] ?? "").contains("goes cold"))
+        XCTAssertTrue((pages.first?.payload.metadata["deadlineLine"] ?? "").contains("exchange waits"))
+        XCTAssertTrue((pages.first?.payload.metadata["consequenceLine"] ?? "").contains("stays warm"))
     }
 
     func testEachFaeKindGetsADistinctBargainScene() {
@@ -275,7 +306,7 @@ final class FaeBargainTests: XCTestCase {
         XCTAssertTrue(scenes.contains { $0.contains("ledger") && $0.contains("Marginalia Goblin") })
     }
 
-    func testAdapterSurfacesARepairWhenLapsed() {
+    func testPastExchangeLeavesTheAutomaticDeskButRemainsVoluntarilyReadable() {
         var state = FaePlayerState()
         let offered = Date().addingTimeInterval(-Double(FaeEconomy.paymentWindowHours + 1) * 3_600)
         acceptedBargain(into: &state, kind: .goblin, slot: slot, now: offered)
@@ -286,12 +317,15 @@ final class FaeBargainTests: XCTestCase {
         let pages = FaeBargainPageSourceAdapter().candidates(
             for: day, context: CuratorContext.make(for: day), inputs: inputs, now: Date()
         )
-        XCTAssertEqual(pages.first?.payload.metadata["status"], "lapsed")
-        XCTAssertEqual(pages.first?.payload.metadata["isRepair"], "true")
-        XCTAssertEqual(pages.first?.payload.headline, "The Bargain Went Wild")
-        XCTAssertEqual(pages.first?.payload.metadata["claimBand"], "quiet")
-        XCTAssertTrue((pages.first?.payload.body ?? "").contains("The gift has gone cold"))
-        XCTAssertTrue((pages.first?.payload.metadata["consequenceLine"] ?? "").contains("Repair the debt"))
+        XCTAssertTrue(pages.isEmpty)
+
+        let past = FaeBargainPageSourceAdapter.surface(for: state.bargains[0], state: state, now: Date())
+        XCTAssertEqual(past.payload.metadata["status"], "lapsed")
+        XCTAssertEqual(past.payload.metadata["hasMovedOn"], "true")
+        XCTAssertEqual(past.payload.metadata["isRepair"], "false")
+        XCTAssertEqual(past.payload.headline, "The Fae Wandered On")
+        XCTAssertTrue(past.payload.body.contains("Nothing went cold"))
+        XCTAssertTrue((past.payload.metadata["consequenceLine"] ?? "").contains("stayed warm"))
     }
 
     func testBookFaePageSurfacesAsOldLawStoryInteraction() {
@@ -356,26 +390,26 @@ final class FaeBargainTests: XCTestCase {
         XCTAssertTrue((page?.payload.metadata["relationshipPressures"] ?? "").contains("Active omen"))
     }
 
-    func testLapsedAndRepairedBargainsLeaveStoryOmens() {
+    func testElapsedAndLaterAnsweredExchangesDoNotCreatePenaltyOmens() {
         var state = FaePlayerState()
         let offered = fixedDate(2026, 6, 10)
         let lapsedAt = offered.addingTimeInterval(Double(FaeEconomy.paymentWindowHours + 1) * 3_600)
-        let repairedAt = lapsedAt.addingTimeInterval(3_600)
+        let answeredAt = lapsedAt.addingTimeInterval(3_600)
         let bargain = acceptedBargain(into: &state, kind: .sentenceSalamander, slot: slot, now: offered)
 
         FaeEconomy.sweepLapses(into: &state, now: lapsedAt)
-        XCTAssertTrue(state.activeOmens(for: .sentenceSalamander, on: lapsedAt).contains { $0.title == "Cold Gift" })
+        XCTAssertTrue(state.activeOmens(for: .sentenceSalamander, on: lapsedAt).isEmpty)
 
         FaeEconomy.deliver(
             bargainID: bargain.id,
             report: "The warmest moment was the cup held in both hands.",
             faeResponse: "The coal remembers.",
-            reward: "The debt thaws.",
+            reward: "The late answer is welcome.",
             into: &state,
-            now: repairedAt
+            now: answeredAt
         )
 
-        XCTAssertTrue(state.activeOmens(for: .sentenceSalamander, on: repairedAt).contains { $0.title == "Debt Repaired" })
+        XCTAssertTrue(state.activeOmens(for: .sentenceSalamander, on: answeredAt).isEmpty)
         XCTAssertEqual(state.bargains.first?.status, .delivered)
     }
 
@@ -394,15 +428,14 @@ final class FaeBargainTests: XCTestCase {
         let lifted = FaeGiftEffects.reshelvedSourceIDs(state: state, surfaceHistory: [:])
         XCTAssertEqual(lifted.count, 1, "a warm Reshelving gift lifts exactly one rested source")
 
-        // Cold it by lapsing, and the lift stops.
+        // The exchange window can pass, but the already-given gift keeps working.
         var lapsing = state
         let offered = Date().addingTimeInterval(-Double(FaeEconomy.paymentWindowHours + 1) * 3_600)
         lapsing.bargains = []
         lapsing.gifts = []
         acceptedBargain(into: &lapsing, kind: .punctuationPixie, slot: slot, now: offered)
         FaeEconomy.sweepLapses(into: &lapsing, now: Date())
-        XCTAssertTrue(FaeGiftEffects.reshelvedSourceIDs(state: lapsing, surfaceHistory: [:]).isEmpty,
-                      "a cold Reshelving gift lifts nothing")
+        XCTAssertEqual(FaeGiftEffects.reshelvedSourceIDs(state: lapsing, surfaceHistory: [:]).count, 1)
     }
 
     func testReshelvingHonorsAnExplicitBoundSource() {

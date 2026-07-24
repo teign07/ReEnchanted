@@ -1708,34 +1708,188 @@ enum BookRelationshipVoice {
         return lines[abs(seed) % lines.count]
     }
 
-    static func pageAside(for type: BookPageType, relationship: BookRelationshipSnapshot) -> String? {
-        switch type {
-        case .bookNotices where relationship.softenedReadingCount > 0:
-            return "I have mistaken a pattern before. I am leaving the pencil loose enough for your answer."
+}
+
+/// A durable editorial receipt for one aside that truly reached the desk.
+/// `thoughtKey` represents meaning rather than wording: the Book may not evade
+/// its own memory by putting yesterday's thought in a different hat.
+struct BookAsideReceipt: Codable, Equatable, Identifiable {
+    var id: String
+    var servedAt: Date
+    var surfaceID: String
+    var sourceID: String
+    var intention: String
+    var thoughtKey: String
+    var wordingKey: String
+}
+
+/// The Book's second-thought editor. Silence is a first-class outcome. It sees
+/// the final desk, permits at most one pencil note, and remembers semantic
+/// families independently of ordinary card repetition.
+enum BookAsideEditor {
+    private struct Opportunity {
+        var intention: String
+        var thoughtKey: String
+        var lines: [String]
+        var priority: Int
+    }
+
+    /// An ordinary aside needs almost a day of clear air. Reusing the same
+    /// thought needs three weeks, even when alternative wording exists.
+    static let minimumInterval: TimeInterval = 20 * 3600
+    static let thoughtInterval: TimeInterval = 21 * 86_400
+    static let retentionInterval: TimeInterval = 120 * 86_400
+
+    static func decoratingDesk(
+        _ pages: [SurfacePage],
+        relationship: BookRelationshipSnapshot,
+        receipts: [BookAsideReceipt],
+        now: Date
+    ) -> [SurfacePage] {
+        guard !pages.isEmpty else { return pages }
+        if let latest = receipts.max(by: { $0.servedAt < $1.servedAt }),
+           now.timeIntervalSince(latest.servedAt) < minimumInterval {
+            return pages
+        }
+
+        let eligible = pages.enumerated().compactMap { index, page -> (Int, SurfacePage, Opportunity)? in
+            guard let opportunity = opportunity(for: page, relationship: relationship) else { return nil }
+            let repeated = receipts.contains {
+                $0.thoughtKey == opportunity.thoughtKey
+                    && now.timeIntervalSince($0.servedAt) < thoughtInterval
+            }
+            guard !repeated else { return nil }
+            return (index, page, opportunity)
+        }
+        guard let chosen = eligible.sorted(by: { left, right in
+            if left.2.priority == right.2.priority { return left.0 < right.0 }
+            return left.2.priority > right.2.priority
+        }).first else { return pages }
+
+        let recentWording = Set(receipts.suffix(12).map(\.wordingKey))
+        let availableLines = chosen.2.lines.filter { !recentWording.contains(wordingKey(for: $0)) }
+        guard !availableLines.isEmpty else { return pages }
+        let seed = stableSeed(chosen.1.id + chosen.2.thoughtKey)
+        let line = availableLines[seed % availableLines.count]
+
+        var result = pages
+        result[chosen.0] = decorating(
+            chosen.1,
+            with: line,
+            opportunity: chosen.2,
+            relationship: relationship
+        )
+        return result
+    }
+
+    static func receipt(for surface: SurfacePage, servedAt: Date) -> BookAsideReceipt? {
+        let metadata = surface.payload.metadata
+        guard let intention = metadata["bookAsideIntention"],
+              let thoughtKey = metadata["bookAsideThoughtKey"],
+              let wordingKey = metadata["bookAsideWordingKey"] else { return nil }
+        return BookAsideReceipt(
+            id: "\(surface.id)|\(thoughtKey)|\(wordingKey)",
+            servedAt: servedAt,
+            surfaceID: surface.id,
+            sourceID: surface.sourceID,
+            intention: intention,
+            thoughtKey: thoughtKey,
+            wordingKey: wordingKey
+        )
+    }
+
+    static func recording(
+        _ additions: [BookAsideReceipt],
+        into receipts: [BookAsideReceipt],
+        now: Date
+    ) -> [BookAsideReceipt] {
+        var seen = Set<String>()
+        return Array((receipts + additions)
+            .filter { now.timeIntervalSince($0.servedAt) < retentionInterval }
+            .sorted { $0.servedAt < $1.servedAt }
+            .filter { seen.insert($0.id).inserted }
+            .suffix(80))
+    }
+
+    private static func opportunity(
+        for page: SurfacePage,
+        relationship: BookRelationshipSnapshot
+    ) -> Opportunity? {
+        switch page.type {
         case .bookNotices where relationship.protectedBoundaryCount > 0:
-            return "There are readings you asked me not to make. They are not hiding under this one; a boundary is part of how I read."
+            return Opportunity(
+                intention: "restraint",
+                thoughtKey: "notices:boundary-is-part-of-reading",
+                lines: [
+                    "There is a line in the margin here. I remember which side is mine.",
+                    "I had another theory. It leaned over the boundary, so I sent it back to its shelf.",
+                    "Some things are clearer because I know where not to look."
+                ],
+                priority: 60
+            )
+        case .bookNotices where relationship.softenedReadingCount > 0:
+            return Opportunity(
+                intention: "correction-remembered",
+                thoughtKey: "notices:loose-pencil-after-correction",
+                lines: [
+                    "I have mistaken a pattern before. The pencil is staying loose.",
+                    "I nearly underlined this. Then I remembered what you taught me about underlining too soon.",
+                    "The eraser asked to sit in on this one. Fair enough."
+                ],
+                priority: 50
+            )
         case .bookNotices where relationship.confirmedReadingCount > 0:
-            return "You have called this kind of noticing true before. I am still asking, not declaring."
+            return Opportunity(
+                intention: "recognition",
+                thoughtKey: "notices:confirmed-but-still-asking",
+                lines: [
+                    "You have called one of my noticings true before. I am still asking.",
+                    "The pencil remembers being right once. It has become unbearable, so I am keeping it humble.",
+                    "This resembles something we understood together. Resembles is doing important work there."
+                ],
+                priority: 30
+            )
         case .bookRemembered where relationship.returnedPageCount > 0:
-            return "I have a weakness for a returning Page. This one found the stairs without being pushed."
+            return Opportunity(
+                intention: "private-continuity",
+                thoughtKey: "remembered:returning-page-knows-the-way",
+                lines: [
+                    "I have a weakness for a returning Page. This one found the stairs by itself.",
+                    "This Page knew the way back. I did not leave breadcrumbs. Probably.",
+                    "Something from the old shelf has come downstairs wearing new shoes."
+                ],
+                priority: 40
+            )
         case .bookRemembered where relationship.cherishedThreadName != nil:
-            return "I was hoping something from this shelf would answer. Books are allowed small hopes."
+            return Opportunity(
+                intention: "recognition",
+                thoughtKey: "remembered:cherished-thread-answers",
+                lines: [
+                    "I was hoping this shelf might answer. Books are allowed small hopes.",
+                    "That old thread moved again. I saw it. I am being very normal about this.",
+                    "One of our threads has tugged a Page loose. Casually, it claims."
+                ],
+                priority: 35
+            )
         default:
             return nil
         }
     }
 
-    static func decorating(
+    private static func decorating(
         _ surface: SurfacePage,
+        with line: String,
+        opportunity: Opportunity,
         relationship: BookRelationshipSnapshot
     ) -> SurfacePage {
-        guard let aside = pageAside(for: surface.type, relationship: relationship),
-              !surface.payload.body.contains(aside) else { return surface }
         var payload = surface.payload
-        payload.body += "\n\n\(aside)"
+        payload.body += "\n\n\(line)"
         payload.metadata["bookStance"] = relationship.stance.rawValue
         payload.metadata["bookRelationshipDepth"] = relationship.depth.rawValue
-        payload.metadata["bookRelationshipAside"] = aside
+        payload.metadata["bookRelationshipAside"] = line
+        payload.metadata["bookAsideIntention"] = opportunity.intention
+        payload.metadata["bookAsideThoughtKey"] = opportunity.thoughtKey
+        payload.metadata["bookAsideWordingKey"] = wordingKey(for: line)
         return SurfacePage(
             id: surface.id,
             type: surface.type,
@@ -1748,6 +1902,14 @@ enum BookRelationshipVoice {
             detail: surface.detail,
             payload: payload
         )
+    }
+
+    private static func wordingKey(for line: String) -> String {
+        line.lowercased().filter { $0.isLetter || $0.isNumber }
+    }
+
+    private static func stableSeed(_ text: String) -> Int {
+        text.utf8.reduce(5381) { (($0 << 5) &+ $0) &+ Int($1) } & Int.max
     }
 }
 
@@ -2619,6 +2781,3226 @@ enum BookFoundGiftEngine {
 /// ordinary letter, favor, return, game, or field page; the durable metadata
 /// keeps the strategic reason inspectable without turning the experience into
 /// a dashboard or announcing a psychological intervention.
+enum BookReenchantmentMovement: String, Codable, Equatable, Hashable, CaseIterable {
+    case freshSight
+    case livingWorld
+    case scriptFreedom
+    case chosenDetour
+    case exactLanguage
+    case humanOtherness
+    case livingContinuity
+    case shelter
+
+    init(capacity: BookLongGameCapacity) {
+        switch capacity {
+        case .spontaneousAttention: self = .freshSight
+        case .worldOtherness: self = .livingWorld
+        case .scriptFreedom: self = .scriptFreedom
+        case .selfAuthoredAction: self = .chosenDetour
+        case .personalLanguage: self = .exactLanguage
+        case .livingConnection: self = .humanOtherness
+        case .deliberateReturn: self = .livingContinuity
+        }
+    }
+
+    var capacity: BookLongGameCapacity? {
+        switch self {
+        case .freshSight: return .spontaneousAttention
+        case .livingWorld: return .worldOtherness
+        case .scriptFreedom: return .scriptFreedom
+        case .chosenDetour: return .selfAuthoredAction
+        case .exactLanguage: return .personalLanguage
+        case .humanOtherness: return .livingConnection
+        case .livingContinuity: return .deliberateReturn
+        case .shelter: return nil
+        }
+    }
+}
+
+enum BookSessionAmbition: String, Codable, Equatable, CaseIterable {
+    case glint
+    case connection
+    case `return`
+    case intervention
+    case revelation
+}
+
+enum BookSessionRole: String, Codable, Equatable, CaseIterable {
+    case door
+    case echo
+    case horizon
+}
+
+/// One private, finite intention for the visible desk. It is not a reader mood
+/// label and is never displayed as a mode. It records which perceptual movement
+/// the Book is attempting, the actual evidence that allowed the attempt, and a
+/// stable seed so background rebuilds cannot make the Book change its mind.
+struct BookSessionIntention: Codable, Equatable, Identifiable {
+    static let metadataID = "bookSessionIntentionID"
+    static let metadataDayID = "bookSessionDayID"
+    static let metadataMovement = "bookSessionMovement"
+    static let metadataAmbition = "bookSessionAmbition"
+    static let metadataRole = "bookSessionRole"
+    static let metadataEvidenceIDs = "bookSessionEvidencePageIDs"
+    static let metadataEvidenceReason = "bookSessionEvidenceReason"
+    static let metadataCreatedAt = "bookSessionCreatedAt"
+    static let metadataExpiresAt = "bookSessionExpiresAt"
+    static let metadataSeed = "bookSessionSeed"
+    static let metadataCausalMovementReceipt = "causalMovementReceipt"
+
+    var id: String
+    var dayID: String
+    var movement: BookReenchantmentMovement
+    var ambition: BookSessionAmbition
+    var evidencePageIDs: [String]
+    var evidenceReason: String
+    var createdAt: Date
+    var expiresAt: Date
+    var seed: String
+    var causalMovementReceipt: CausalMovementReceipt? = nil
+
+    func isActive(on dayID: String, now: Date) -> Bool {
+        self.dayID == dayID && now < expiresAt
+    }
+
+    var archiveReceiptTags: [String] {
+        [
+            "book-session-id:\(id)",
+            "book-session-movement:\(movement.rawValue)",
+            "book-session-ambition:\(ambition.rawValue)"
+        ] + evidencePageIDs.map { "book-session-evidence:\($0)" }
+            + (causalMovementReceipt?.archiveReceiptTags ?? [])
+    }
+
+    func applying(to surface: SurfacePage, role: BookSessionRole) -> SurfacePage {
+        var payload = surface.payload
+        payload.metadata[Self.metadataID] = id
+        payload.metadata[Self.metadataDayID] = dayID
+        payload.metadata[Self.metadataMovement] = movement.rawValue
+        payload.metadata[Self.metadataAmbition] = ambition.rawValue
+        payload.metadata[Self.metadataRole] = role.rawValue
+        payload.metadata[Self.metadataEvidenceIDs] = evidencePageIDs.joined(separator: ",")
+        payload.metadata[Self.metadataEvidenceReason] = evidenceReason
+        payload.metadata[Self.metadataCreatedAt] = String(createdAt.timeIntervalSince1970)
+        payload.metadata[Self.metadataExpiresAt] = String(expiresAt.timeIntervalSince1970)
+        payload.metadata[Self.metadataSeed] = seed
+        if let causalMovementReceipt,
+           let data = try? JSONEncoder().encode(causalMovementReceipt) {
+            payload.metadata[Self.metadataCausalMovementReceipt] = data.base64EncodedString()
+        }
+        let receiptTag = "book-session:\(movement.rawValue)".readerLearningNormalizedTag
+        let tags = Set((payload.metadata["tags"] ?? "")
+            .split(separator: ",")
+            .map { String($0).readerLearningNormalizedTag }
+            .filter { !$0.isEmpty })
+            .union([
+                receiptTag,
+                "book-session-id:\(id)".readerLearningNormalizedTag,
+                "book-session-role:\(role.rawValue)".readerLearningNormalizedTag
+            ])
+            .union(causalMovementReceipt?.archiveReceiptTags ?? [])
+        payload.metadata["tags"] = tags.sorted().joined(separator: ",")
+        return SurfacePage(
+            id: surface.id,
+            type: surface.type,
+            sourceID: surface.sourceID,
+            intent: surface.intent,
+            renderStyle: surface.renderStyle,
+            score: surface.score,
+            reason: surface.reason,
+            prompt: surface.prompt,
+            detail: surface.detail,
+            payload: payload
+        )
+    }
+
+    static func read(from surface: SurfacePage) -> BookSessionIntention? {
+        let metadata = surface.payload.metadata
+        guard let id = metadata[metadataID],
+              let dayID = metadata[metadataDayID],
+              let movementRaw = metadata[metadataMovement],
+              let movement = BookReenchantmentMovement(rawValue: movementRaw),
+              let ambitionRaw = metadata[metadataAmbition],
+              let ambition = BookSessionAmbition(rawValue: ambitionRaw),
+              let createdRaw = metadata[metadataCreatedAt],
+              let createdInterval = TimeInterval(createdRaw),
+              let expiresRaw = metadata[metadataExpiresAt],
+              let expiresInterval = TimeInterval(expiresRaw),
+              let seed = metadata[metadataSeed] else { return nil }
+        let causalMovementReceipt = metadata[metadataCausalMovementReceipt]
+            .flatMap { Data(base64Encoded: $0) }
+            .flatMap { try? JSONDecoder().decode(CausalMovementReceipt.self, from: $0) }
+        return BookSessionIntention(
+            id: id,
+            dayID: dayID,
+            movement: movement,
+            ambition: ambition,
+            evidencePageIDs: metadata[metadataEvidenceIDs]?
+                .split(separator: ",")
+                .map(String.init) ?? [],
+            evidenceReason: metadata[metadataEvidenceReason] ?? "The current life supplied an eligible opening.",
+            createdAt: Date(timeIntervalSince1970: createdInterval),
+            expiresAt: Date(timeIntervalSince1970: expiresInterval),
+            seed: seed,
+            causalMovementReceipt: causalMovementReceipt
+        )
+    }
+
+    static func inheriting(
+        _ surface: SurfacePage,
+        from source: SurfacePage,
+        role: BookSessionRole = .echo
+    ) -> SurfacePage {
+        guard let intention = read(from: source) else { return surface }
+        return intention.applying(to: surface, role: role)
+    }
+}
+
+// MARK: - The session's invisible experience score
+
+/// How far one of the session's Pages has travelled with the reader. This is a
+/// playout cue, not a claim that the Page improved anyone's life.
+enum BookExperienceCueStage: String, Codable, Equatable {
+    case displayed
+    case opened
+    case acted
+    case kept
+    case loved
+    case dismissed
+
+    fileprivate var attentionRank: Int {
+        switch self {
+        case .displayed: return 0
+        case .opened: return 1
+        case .acted: return 2
+        case .kept: return 3
+        case .loved: return 4
+        case .dismissed: return -1
+        }
+    }
+}
+
+/// The dramatic work the next broadcast item should do. These names remain
+/// private; the reader hears a good station, not an announced soundtrack mode.
+enum BookBroadcastFunction: String, Codable, Equatable {
+    case stationNative
+    case establish
+    case resonate
+    case complicate
+    case afterimage
+    case release
+}
+
+struct BookExperiencePageCue: Codable, Equatable, Identifiable {
+    var id: String { surfaceID }
+    var surfaceID: String
+    var sourceID: String
+    var type: BookPageType
+    var contentKey: String
+    var role: BookSessionRole
+    var stage: BookExperienceCueStage
+    /// Bounded, local tags already emitted by the Page adapter. Reader prose,
+    /// calendar titles, coordinates, and prompt/body copy never enter the score.
+    var semanticTags: [String]
+    var displayedAt: Date
+    var lastInteractionAt: Date
+}
+
+enum BookExperienceBroadcastKind: String, Codable, Equatable {
+    case track
+    case banter
+    case interstitial
+    case silence
+}
+
+/// A descriptive receipt for one item selected under an experience score. It
+/// preserves what was attempted and what else was eligible without pretending
+/// that hearing it caused a later change in the reader's life.
+struct BookExperienceBroadcastReceipt: Codable, Equatable, Identifiable {
+    var id: String
+    var programID: String
+    var stationID: String
+    var kind: BookExperienceBroadcastKind
+    var itemID: String
+    var function: BookBroadcastFunction
+    var autonomous: Bool
+    var focusSurfaceID: String?
+    var candidateIDs: [String]
+    var selectedAt: Date
+}
+
+/// A short-lived, local score shared by the current desk and the Radio. The
+/// existing BookSessionDirector still decides the perceptual movement; this
+/// value merely lets every surface conduct that same intention in sequence.
+struct BookExperienceProgram: Codable, Equatable, Identifiable {
+    static let currentVersion = 1
+    static let maximumPageCues = 8
+    static let maximumBroadcastReceipts = 24
+
+    var version: Int = BookExperienceProgram.currentVersion
+    var id: String
+    var intentionID: String
+    var dayID: String
+    var movement: BookReenchantmentMovement
+    var ambition: BookSessionAmbition
+    var createdAt: Date
+    var expiresAt: Date
+    var seed: String
+    var pageCues: [BookExperiencePageCue]
+    var focusSurfaceID: String?
+    /// Monotonic within this short-lived program. The receipt ring is bounded,
+    /// so its array count cannot safely drive the station-autonomy cadence.
+    var broadcastItemCount: Int
+    var broadcastReceipts: [BookExperienceBroadcastReceipt]
+
+    func isActive(on dayID: String, at now: Date) -> Bool {
+        self.dayID == dayID && now < expiresAt
+    }
+
+    var focusCue: BookExperiencePageCue? {
+        if let focusSurfaceID,
+           let cue = pageCues.first(where: { $0.surfaceID == focusSurfaceID }) {
+            return cue
+        }
+        return pageCues.first
+    }
+
+    /// At least one item in every four belongs wholly to the station and world.
+    /// Personal resonance therefore cannot turn the Radio into a flattering
+    /// mirror or make the Academy feel like it waits for the reader to exist.
+    var nextBroadcastIsAutonomous: Bool {
+        (broadcastItemCount + 1).isMultiple(of: 4)
+    }
+
+    var nextBroadcastFunction: BookBroadcastFunction {
+        if nextBroadcastIsAutonomous { return .stationNative }
+        guard let focus = focusCue else { return .stationNative }
+        switch focus.stage {
+        case .displayed:
+            return .establish
+        case .opened:
+            return broadcastReceipts.last?.function == .resonate ? .complicate : .resonate
+        case .acted:
+            return .complicate
+        case .kept, .loved:
+            return broadcastReceipts.last?.function == .afterimage ? .release : .afterimage
+        case .dismissed:
+            return .release
+        }
+    }
+
+    /// Coarse authored terms only. This can match a Page's motifs to a track's
+    /// authored meaning without sending private Page copy through the Radio.
+    var radioAffinityTerms: Set<String> {
+        guard !nextBroadcastIsAutonomous else { return [] }
+        var values = pageCues.flatMap { cue in
+            [cue.type.rawValue, cue.sourceID, cue.role.rawValue] + cue.semanticTags
+        }
+        values.append(contentsOf: Self.movementTerms[movement] ?? [])
+        switch nextBroadcastFunction {
+        case .stationNative:
+            break
+        case .establish:
+            values += ["arrival", "threshold", "opening", "curious"]
+        case .resonate:
+            values += ["echo", "recognition", "warm", "intimate"]
+        case .complicate:
+            values += ["strange", "wild", "mischief", "mystery", "unsettled"]
+        case .afterimage:
+            values += ["memory", "glow", "after", "keepsake", "tender"]
+        case .release:
+            values += ["air", "quiet", "rest", "open", "instrumental"]
+        }
+        return Self.words(in: values)
+    }
+
+    static func composing(
+        pages: [SurfacePage],
+        intention: BookSessionIntention,
+        previous: BookExperienceProgram?,
+        now: Date
+    ) -> BookExperienceProgram {
+        let mayContinue = previous?.intentionID == intention.id
+            && previous?.dayID == intention.dayID
+            && now < (previous?.expiresAt ?? .distantPast)
+        var program = mayContinue
+            ? previous!
+            : BookExperienceProgram(
+                id: "experience-\(intention.id)",
+                intentionID: intention.id,
+                dayID: intention.dayID,
+                movement: intention.movement,
+                ambition: intention.ambition,
+                createdAt: now,
+                expiresAt: intention.expiresAt,
+                seed: "\(intention.seed)|experience",
+                pageCues: [],
+                focusSurfaceID: nil,
+                broadcastItemCount: 0,
+                broadcastReceipts: []
+            )
+        let preservedFocusSurfaceID = program.focusSurfaceID
+
+        program.movement = intention.movement
+        program.ambition = intention.ambition
+        program.expiresAt = intention.expiresAt
+        for page in pages.prefix(maximumPageCues) {
+            program.record(page: page, stage: .displayed, at: now)
+        }
+        let liveIDs = Set(pages.map(\.id))
+        program.pageCues = program.pageCues
+            .filter { liveIDs.contains($0.surfaceID) || $0.stage != .displayed }
+            .suffix(maximumPageCues)
+            .map { $0 }
+        program.focusSurfaceID = preservedFocusSurfaceID.flatMap { id in
+            program.pageCues.first(where: { $0.surfaceID == id })?.surfaceID
+        } ?? program.pageCues.first(where: { $0.role == .door })?.surfaceID
+            ?? program.pageCues.first?.surfaceID
+        return program
+    }
+
+    mutating func record(
+        page: SurfacePage,
+        stage: BookExperienceCueStage,
+        at now: Date
+    ) {
+        let role = page.payload.metadata[BookSessionIntention.metadataRole]
+            .flatMap(BookSessionRole.init(rawValue:)) ?? .echo
+        if let index = pageCues.firstIndex(where: {
+            $0.surfaceID == page.id || $0.contentKey == page.curatorContentNoveltyKey
+        }) {
+            let current = pageCues[index].stage
+            if stage == .dismissed
+                || (current != .dismissed && stage.attentionRank >= current.attentionRank) {
+                pageCues[index].stage = stage
+                pageCues[index].lastInteractionAt = now
+            }
+            if stage != .displayed || focusSurfaceID == nil {
+                focusSurfaceID = pageCues[index].surfaceID
+            }
+        } else {
+            pageCues.append(BookExperiencePageCue(
+                surfaceID: page.id,
+                sourceID: page.sourceID,
+                type: page.type,
+                contentKey: page.curatorContentNoveltyKey,
+                role: role,
+                stage: stage,
+                semanticTags: Array(page.readerLearningTags.prefix(16)),
+                displayedAt: now,
+                lastInteractionAt: now
+            ))
+            pageCues = Array(pageCues.suffix(Self.maximumPageCues))
+            if stage != .displayed || focusSurfaceID == nil {
+                focusSurfaceID = page.id
+            }
+        }
+    }
+
+    mutating func restore(page: SurfacePage, at now: Date) {
+        if let index = pageCues.firstIndex(where: {
+            $0.surfaceID == page.id || $0.contentKey == page.curatorContentNoveltyKey
+        }) {
+            pageCues[index].stage = .displayed
+            pageCues[index].lastInteractionAt = now
+            focusSurfaceID = pageCues[index].surfaceID
+        } else {
+            record(page: page, stage: .displayed, at: now)
+        }
+    }
+
+    mutating func recordBroadcast(
+        stationID: String,
+        kind: BookExperienceBroadcastKind,
+        itemID: String,
+        candidateIDs: [String],
+        at now: Date
+    ) {
+        let function = nextBroadcastFunction
+        let autonomous = nextBroadcastIsAutonomous
+        broadcastReceipts.append(BookExperienceBroadcastReceipt(
+            id: "experience-broadcast-\(abs("\(id)|\(stationID)|\(kind.rawValue)|\(itemID)|\(now.timeIntervalSince1970)".stableHash))",
+            programID: id,
+            stationID: stationID,
+            kind: kind,
+            itemID: itemID,
+            function: function,
+            autonomous: autonomous,
+            focusSurfaceID: focusSurfaceID,
+            candidateIDs: Array(candidateIDs.prefix(24)),
+            selectedAt: now
+        ))
+        if broadcastItemCount < Int.max {
+            broadcastItemCount += 1
+        }
+        broadcastReceipts = Array(broadcastReceipts.suffix(Self.maximumBroadcastReceipts))
+    }
+
+    private static let movementTerms: [BookReenchantmentMovement: [String]] = [
+        .freshSight: ["notice", "detail", "light", "ordinary", "look"],
+        .livingWorld: ["alive", "creature", "weather", "world", "voice"],
+        .scriptFreedom: ["wild", "escape", "detour", "play", "unplanned"],
+        .chosenDetour: ["road", "wander", "elsewhere", "threshold", "adventure"],
+        .exactLanguage: ["word", "name", "ink", "voice", "meaning"],
+        .humanOtherness: ["stranger", "friend", "secret", "tender", "other"],
+        .livingContinuity: ["return", "memory", "thread", "echo", "story"],
+        .shelter: ["shelter", "quiet", "soft", "rest", "warm"]
+    ]
+
+    private static func words(in values: [String]) -> Set<String> {
+        Set(values.flatMap { value in
+            value.lowercased()
+                .split { character in
+                    !character.isLetter && !character.isNumber
+                }
+                .map(String.init)
+                .filter { $0.count > 2 }
+        })
+    }
+}
+
+// MARK: - The reader's aliveness signature
+
+/// The Book is allowed to know the reader intimately. It earns that intimacy
+/// from attributable local evidence rather than demographic inference or a
+/// model's confident prose. Participation, correction, and lived change remain
+/// separate kinds of evidence so a keep can never masquerade as a transformed
+/// life.
+enum ReaderAlivenessEvidenceKind: String, Codable, Equatable {
+    case opened
+    case acted
+    case chosen
+    case followed
+    case keepsake
+    case confirmedReading
+    case declined
+    case contradicted
+    case livedEvidence
+}
+
+enum ReaderAlivenessEvidenceAuthority: String, Codable, Equatable {
+    case interaction
+    case readerCorrection
+    case readerAuthored
+    case livedReceipt
+}
+
+struct ReaderAlivenessObservation: Codable, Equatable, Identifiable {
+    var id: String
+    var sessionID: String?
+    var movement: BookReenchantmentMovement
+    var role: BookSessionRole?
+    var sourceID: String?
+    var pageID: String?
+    var dayID: String
+    var occurredAt: Date
+    var kind: ReaderAlivenessEvidenceKind
+    var authority: ReaderAlivenessEvidenceAuthority
+    /// -100 ... 100. A small positive number means participation; only reader
+    /// confirmation or a later lived receipt can approach the upper end.
+    var impact: Int
+    var facets: [String]
+    var evidenceLine: String?
+}
+
+struct ReaderAlivenessPatternFeedback: Codable, Equatable {
+    var confirmed: Int = 0
+    var contradicted: Int = 0
+    var forbidden: Bool = false
+    var lastAnsweredAt: Date?
+}
+
+struct ReaderAlivenessPattern: Equatable, Identifiable {
+    var id: String
+    var movement: BookReenchantmentMovement
+    var facets: [String]
+    var supportingObservationIDs: [String]
+    var contradictingObservationIDs: [String]
+    var evidencePageIDs: [String]
+    var evidenceLines: [String]
+    var firstObservedAt: Date
+    var lastObservedAt: Date
+    var confidence: Int
+    var line: String
+    var counterReading: String
+    var falsifier: String
+
+    func isStale(at now: Date) -> Bool {
+        now.timeIntervalSince(lastObservedAt) > 150 * 86_400
+    }
+}
+
+// MARK: - Reader state pulses and the Book's success measure
+
+/// A pulse is weather, not biography. These dimensions are deliberately
+/// separate from Self Facts so one dim morning cannot become a personality
+/// claim. Only a delayed outcome pulse is allowed to judge an earlier session.
+enum ReaderStatePulseDimension: String, Codable, Equatable, CaseIterable {
+    case aliveness
+    case wonder
+    case hiddenMagic
+    case capacity
+    case delayedOutcome
+}
+
+struct ReaderStatePulseTarget: Codable, Equatable {
+    var sessionID: String
+    /// Links the delayed lived report to the whole conducted sequence (Pages
+    /// plus Radio), while the causal Page receipts below retain their stricter
+    /// experimental meaning.
+    var experienceProgramID: String? = nil
+    var movement: BookReenchantmentMovement
+    var role: BookSessionRole?
+    var sourceID: String?
+    var pageID: String?
+    var causalOpportunityID: String?
+    var causalMovementOpportunityID: String?
+    var happenedAt: Date
+}
+
+struct ReaderStatePulseRecord: Codable, Equatable, Identifiable {
+    var id: String
+    var dimension: ReaderStatePulseDimension
+    /// A within-reader scale from 0 (closed/absent) to 10 (vivid/abundant).
+    /// Capacity uses the same range only as availability, never as success.
+    var score: Int
+    var answerCode: String
+    var answerLine: String
+    var note: String?
+    var askedAt: Date
+    var answeredAt: Date
+    var dayID: String
+    var context: BookPageContextSnapshot?
+    var facets: [String]
+    var target: ReaderStatePulseTarget?
+}
+
+struct ReaderCurrentState: Equatable {
+    var aliveness: Int?
+    var wonder: Int?
+    var hiddenMagic: Int?
+    var capacity: Int?
+    var freshestAnswerAt: Date?
+
+    static let unknown = ReaderCurrentState()
+
+    var isKnown: Bool {
+        aliveness != nil || wonder != nil || hiddenMagic != nil || capacity != nil
+    }
+
+    var composite: Int? {
+        let scores = [aliveness, wonder, hiddenMagic].compactMap { $0 }
+        guard !scores.isEmpty else { return nil }
+        return Int((Double(scores.reduce(0, +)) / Double(scores.count)).rounded())
+    }
+}
+
+enum ReaderReenchantmentDirection: String, Codable, Equatable {
+    case notEnoughEvidence
+    case brightening
+    case holding
+    case dimming
+}
+
+/// The Book's private product metric. It is a within-reader trajectory, never
+/// a comparison with other people and never a reward for opening the app.
+struct ReaderReenchantmentMetrics: Equatable {
+    var currentScore: Int?
+    var sevenDayAverage: Double?
+    var previousSevenDayAverage: Double?
+    var thirtyDayChange: Double?
+    var direction: ReaderReenchantmentDirection
+    var distinctMeasuredDays: Int
+    var delayedOutcomeCount: Int
+    var delayedOutcomeSuccessRate: Double?
+    /// Strong receipts that describe life beyond a tap: reader testimony,
+    /// keepsakes, followed threads, spontaneous field evidence, and completed
+    /// real-world experiments.
+    var livedProofCount: Int
+    /// Meaningful in-Book acts may support a reading but can never create a
+    /// positive verdict without lived or reader-authored proof.
+    var supportingSignalCount: Int
+    var counterSignalCount: Int
+    var causalOutcomeCount: Int
+    var evidenceStreamCount: Int
+    var confidence: Int
+    var whyLines: [String]
+
+    static let unwritten = ReaderReenchantmentMetrics(
+        currentScore: nil,
+        sevenDayAverage: nil,
+        previousSevenDayAverage: nil,
+        thirtyDayChange: nil,
+        direction: .notEnoughEvidence,
+        distinctMeasuredDays: 0,
+        delayedOutcomeCount: 0,
+        delayedOutcomeSuccessRate: nil,
+        livedProofCount: 0,
+        supportingSignalCount: 0,
+        counterSignalCount: 0,
+        causalOutcomeCount: 0,
+        evidenceStreamCount: 0,
+        confidence: 0,
+        whyLines: []
+    )
+
+    var summaryLine: String {
+        switch direction {
+        case .notEnoughEvidence:
+            return "The Book is still learning the difference between a bright hour and a changed life."
+        case .brightening:
+            return "Across separate days, the world has been answering you more often."
+        case .holding:
+            return "The measure is holding: not a fireworks display, but a living thread that keeps returning."
+        case .dimming:
+            return "The recent measure has gone quieter. The Book should change its approach, not blame the reader."
+        }
+    }
+}
+
+struct ReaderStatePulseLedger: Codable, Equatable {
+    static let maxRecords = 730
+    var records: [ReaderStatePulseRecord] = []
+
+    static let empty = ReaderStatePulseLedger()
+
+    mutating func record(_ pulse: ReaderStatePulseRecord) {
+        records.removeAll { $0.id == pulse.id }
+        records.append(pulse)
+        records.sort { $0.answeredAt < $1.answeredAt }
+        if records.count > Self.maxRecords {
+            records = Array(records.suffix(Self.maxRecords))
+        }
+    }
+
+    func hasAnswer(on dayID: String) -> Bool {
+        records.contains { $0.dayID == dayID }
+    }
+
+    func hasEvaluated(sessionID: String) -> Bool {
+        records.contains {
+            $0.dimension == .delayedOutcome && $0.target?.sessionID == sessionID
+        }
+    }
+
+    func latestDimension() -> ReaderStatePulseDimension? {
+        records.max { $0.answeredAt < $1.answeredAt }?.dimension
+    }
+
+    func currentState(now: Date) -> ReaderCurrentState {
+        func latest(_ dimension: ReaderStatePulseDimension, within hours: Double) -> ReaderStatePulseRecord? {
+            let cutoff = now.addingTimeInterval(-hours * 3600)
+            return records
+                .filter { $0.dimension == dimension && $0.answeredAt >= cutoff && $0.answeredAt <= now }
+                .max { $0.answeredAt < $1.answeredAt }
+        }
+        let aliveness = latest(.aliveness, within: 18)
+        let wonder = latest(.wonder, within: 18)
+        let hiddenMagic = latest(.hiddenMagic, within: 72)
+        let capacity = latest(.capacity, within: 12)
+        return ReaderCurrentState(
+            aliveness: aliveness?.score,
+            wonder: wonder?.score,
+            hiddenMagic: hiddenMagic?.score,
+            capacity: capacity?.score,
+            freshestAnswerAt: [aliveness, wonder, hiddenMagic, capacity]
+                .compactMap { $0?.answeredAt }
+                .max()
+        )
+    }
+
+    func metrics(now: Date, calendar: Calendar = .current) -> ReaderReenchantmentMetrics {
+        let relevant = records.filter {
+            $0.dimension != .capacity && $0.answeredAt <= now
+                && $0.answeredAt >= now.addingTimeInterval(-180 * 86_400)
+        }
+        guard !relevant.isEmpty else { return .unwritten }
+
+        let byDay = Dictionary(grouping: relevant) { calendar.startOfDay(for: $0.answeredAt) }
+        let daily: [(date: Date, score: Double)] = byDay.map { day, pulses in
+            let weighted = pulses.map { pulse -> (Double, Double) in
+                let weight = pulse.dimension == .delayedOutcome ? 1.6 : 1.0
+                return (Double(pulse.score) * weight, weight)
+            }
+            let totalWeight = weighted.reduce(0) { $0 + $1.1 }
+            return (day, weighted.reduce(0) { $0 + $1.0 } / max(1, totalWeight))
+        }.sorted { $0.date < $1.date }
+
+        func average(from start: Date, to end: Date) -> Double? {
+            let values = daily.filter { $0.date >= start && $0.date < end }.map(\.score)
+            guard !values.isEmpty else { return nil }
+            return values.reduce(0, +) / Double(values.count)
+        }
+
+        let currentStart = calendar.startOfDay(for: now).addingTimeInterval(-6 * 86_400)
+        let previousStart = currentStart.addingTimeInterval(-7 * 86_400)
+        let tomorrow = calendar.startOfDay(for: now).addingTimeInterval(86_400)
+        let currentAverage = average(from: currentStart, to: tomorrow)
+        let previousAverage = average(from: previousStart, to: currentStart)
+        let recentThirty = daily.filter { $0.date >= now.addingTimeInterval(-30 * 86_400) }
+        let midpoint = max(1, recentThirty.count / 2)
+        let early = Array(recentThirty.prefix(midpoint)).map(\.score)
+        let late = Array(recentThirty.suffix(max(1, recentThirty.count - midpoint))).map(\.score)
+        let thirtyChange: Double? = recentThirty.count >= 6
+            ? (late.reduce(0, +) / Double(late.count)) - (early.reduce(0, +) / Double(early.count))
+            : nil
+        let comparison = currentAverage.flatMap { current in previousAverage.map { current - $0 } }
+            ?? thirtyChange
+        let direction: ReaderReenchantmentDirection
+        if daily.count < 4 || comparison == nil {
+            direction = .notEnoughEvidence
+        } else if comparison! >= 0.75 {
+            direction = .brightening
+        } else if comparison! <= -0.75 {
+            direction = .dimming
+        } else {
+            direction = .holding
+        }
+
+        let outcomes = relevant.filter { $0.dimension == .delayedOutcome }
+        let successRate = outcomes.isEmpty
+            ? nil
+            : Double(outcomes.filter { $0.score >= 6 }.count) / Double(outcomes.count)
+        return ReaderReenchantmentMetrics(
+            currentScore: currentState(now: now).composite,
+            sevenDayAverage: currentAverage,
+            previousSevenDayAverage: previousAverage,
+            thirtyDayChange: thirtyChange,
+            direction: direction,
+            distinctMeasuredDays: daily.count,
+            delayedOutcomeCount: outcomes.count,
+            delayedOutcomeSuccessRate: successRate,
+            livedProofCount: outcomes.count,
+            supportingSignalCount: 0,
+            counterSignalCount: outcomes.filter { $0.score <= 3 }.count,
+            causalOutcomeCount: outcomes.filter {
+                $0.target?.causalOpportunityID != nil || $0.target?.causalMovementOpportunityID != nil
+            }.count,
+            evidenceStreamCount: records.isEmpty ? 0 : 1,
+            confidence: min(96, daily.count * 7 + outcomes.count * 5),
+            whyLines: Self.whyLines(from: outcomes)
+        )
+    }
+
+    private static func whyLines(from outcomes: [ReaderStatePulseRecord]) -> [String] {
+        let positive = outcomes.filter { $0.score >= 6 }
+        guard !positive.isEmpty else { return [] }
+        var labels: [String: (count: Int, total: Int)] = [:]
+        func add(_ key: String) {
+            var value = labels[key] ?? (0, 0)
+            value.count += 1
+            value.total += 1
+            labels[key] = value
+        }
+        for pulse in positive {
+            if let movement = pulse.target?.movement {
+                add("movement:\(movement.rawValue)")
+            }
+            if let source = pulse.target?.sourceID?.nonEmpty {
+                add("source:\(source)")
+            }
+            for facet in pulse.facets where facet.hasPrefix("time:") || facet.hasPrefix("weather:") || facet.hasPrefix("place:") {
+                add(facet)
+            }
+        }
+        return labels
+            .sorted { left, right in
+                if left.value.count != right.value.count { return left.value.count > right.value.count }
+                return left.key < right.key
+            }
+            .prefix(3)
+            .map { key, value in
+                let clean = key
+                    .replacingOccurrences(of: "movement:", with: "")
+                    .replacingOccurrences(of: "source:", with: "")
+                    .replacingOccurrences(of: "time:", with: "")
+                    .replacingOccurrences(of: "weather:", with: "")
+                    .replacingOccurrences(of: "place:", with: "")
+                    .replacingOccurrences(of: "-", with: " ")
+                return "\(clean.capitalized) appears in \(value.count) lived answer\(value.count == 1 ? "" : "s")."
+            }
+    }
+}
+
+/// Triangulates the Book's evidence without confusing engagement with impact.
+/// Direct state answers are one witness. Stronger witnesses are delayed reader
+/// verdicts, lived receipts, spontaneous evidence, corrections, and outcomes
+/// tied to logged curation opportunities. Opens and time-in-app are excluded.
+enum ReaderReenchantmentMeasure {
+    private struct EvidenceItem {
+        var id: String
+        var date: Date
+        var score: Double
+        var weight: Double
+        var isLivedProof: Bool
+        var isCounter: Bool
+        var stream: String
+        var why: String?
+    }
+
+    static func reading(
+        pulses: ReaderStatePulseLedger,
+        aliveness: ReaderAlivenessModel,
+        longGame: BookLongGame?,
+        learning: ReaderLearningModel,
+        days: [BookDay],
+        now: Date,
+        calendar: Calendar = .current
+    ) -> ReaderReenchantmentMetrics {
+        let cutoff = now.addingTimeInterval(-180 * 86_400)
+        var items: [EvidenceItem] = []
+
+        for pulse in pulses.records where pulse.answeredAt >= cutoff && pulse.answeredAt <= now
+            && pulse.dimension != .capacity {
+            items.append(EvidenceItem(
+                id: "pulse:\(pulse.id)",
+                date: pulse.answeredAt,
+                score: Double(pulse.score),
+                weight: pulse.dimension == .delayedOutcome ? 2.4 : 1.4,
+                isLivedProof: pulse.dimension == .delayedOutcome,
+                isCounter: pulse.score <= 3,
+                stream: pulse.dimension == .delayedOutcome ? "delayed-outcome" : "state-pulse",
+                why: pulse.dimension == .delayedOutcome
+                    ? (pulse.note?.nonEmpty ?? pulse.answerLine)
+                    : nil
+            ))
+        }
+
+        // Pulse- and Long-Game-derived observations already have their source
+        // item above or below. Excluding them here prevents double testimony.
+        for observation in aliveness.observations where
+            observation.occurredAt >= cutoff && observation.occurredAt <= now
+                && !observation.id.hasPrefix("pulse:")
+                && !observation.id.hasPrefix("long-game:") {
+            let isLived = observation.kind == .livedEvidence
+                || observation.kind == .keepsake
+                || observation.kind == .followed
+                || observation.kind == .confirmedReading
+                || observation.authority == .livedReceipt
+            let isCounter = observation.kind == .contradicted
+                || (observation.kind == .declined && observation.impact <= -25)
+            guard isLived || isCounter else { continue }
+            items.append(EvidenceItem(
+                id: "aliveness:\(observation.id)",
+                date: observation.occurredAt,
+                score: Double(max(0, min(10, 5 + observation.impact / 20))),
+                weight: observation.authority == .livedReceipt ? 2.6 : 2.0,
+                isLivedProof: isLived,
+                isCounter: isCounter,
+                stream: "aliveness-receipt",
+                why: observation.evidenceLine
+            ))
+        }
+
+        for evidence in longGame?.evidence ?? [] where evidence.happenedAt >= cutoff && evidence.happenedAt <= now {
+            let score: Double
+            switch evidence.kind {
+            case .spontaneousKeep: score = 7.2
+            case .explicitFieldNote: score = 7.4
+            case .completedExperiment: score = 8.4
+            case .readerDefinition: score = 7.8
+            case .spontaneousPattern: score = 9.2
+            case .readerDeclaration: score = 10
+            }
+            items.append(EvidenceItem(
+                id: "long-game:\(evidence.id)",
+                date: evidence.happenedAt,
+                score: score,
+                weight: evidence.wasPromptedByBook ? 2.0 : 2.8,
+                isLivedProof: true,
+                isCounter: false,
+                stream: "long-game",
+                why: evidence.line
+            ))
+        }
+
+        let causalOutcomes = aliveness.causalLedger?.outcomes.filter {
+            $0.kind == .livedEvidence && $0.occurredAt >= cutoff && $0.occurredAt <= now
+        } ?? []
+        // These are attribution receipts, not another copy of the outcome in
+        // the trajectory. They strengthen confidence and explain why.
+
+        let meaningfulLearning = learning.events.filter {
+            $0.occurredAt >= cutoff && $0.occurredAt <= now
+                && [.acted, .followedThread, .keepsakeEarned, .recognized].contains($0.action)
+        }
+        let authoredPages = days.flatMap(\.pages).filter {
+            $0.createdAt >= cutoff && $0.createdAt <= now
+                && $0.origin == .userAuthored
+                && !$0.tags.contains("reader-state-pulse")
+                && !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+
+        guard !items.isEmpty else {
+            var unwritten = ReaderReenchantmentMetrics.unwritten
+            unwritten.supportingSignalCount = meaningfulLearning.count + authoredPages.count
+            return unwritten
+        }
+
+        var seenIDs = Set<String>()
+        items = items.filter { seenIDs.insert($0.id).inserted }
+        let byDay = Dictionary(grouping: items) { calendar.startOfDay(for: $0.date) }
+        let daily = byDay.map { day, evidence -> (date: Date, score: Double) in
+            let totalWeight = evidence.reduce(0) { $0 + $1.weight }
+            let weightedScore = evidence.reduce(0) { $0 + $1.score * $1.weight }
+            return (day, weightedScore / max(0.1, totalWeight))
+        }.sorted { $0.date < $1.date }
+
+        func average(from start: Date, to end: Date) -> Double? {
+            let values = daily.filter { $0.date >= start && $0.date < end }.map(\.score)
+            guard !values.isEmpty else { return nil }
+            return values.reduce(0, +) / Double(values.count)
+        }
+        let today = calendar.startOfDay(for: now)
+        let currentStart = calendar.date(byAdding: .day, value: -6, to: today)
+            ?? today.addingTimeInterval(-6 * 86_400)
+        let previousStart = calendar.date(byAdding: .day, value: -7, to: currentStart)
+            ?? currentStart.addingTimeInterval(-7 * 86_400)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)
+            ?? today.addingTimeInterval(86_400)
+        let currentAverage = average(from: currentStart, to: tomorrow)
+        let previousAverage = average(from: previousStart, to: currentStart)
+        let recentThirty = daily.filter { $0.date >= now.addingTimeInterval(-30 * 86_400) }
+        let midpoint = max(1, recentThirty.count / 2)
+        let early = Array(recentThirty.prefix(midpoint)).map(\.score)
+        let late = Array(recentThirty.suffix(max(1, recentThirty.count - midpoint))).map(\.score)
+        let thirtyChange: Double? = recentThirty.count >= 6
+            ? (late.reduce(0, +) / Double(late.count)) - (early.reduce(0, +) / Double(early.count))
+            : nil
+        let comparison = currentAverage.flatMap { current in previousAverage.map { current - $0 } }
+            ?? thirtyChange
+        let livedCount = items.filter(\.isLivedProof).count
+        let counterCount = items.filter(\.isCounter).count
+        let distinctStreams = Set(items.map(\.stream)).count
+
+        let direction: ReaderReenchantmentDirection
+        if daily.count < 4 || livedCount < 2 || comparison == nil {
+            direction = .notEnoughEvidence
+        } else if comparison! >= 0.65 {
+            direction = .brightening
+        } else if comparison! <= -0.65 {
+            direction = .dimming
+        } else {
+            direction = .holding
+        }
+
+        let delayed = pulses.records.filter {
+            $0.dimension == .delayedOutcome && $0.answeredAt >= cutoff && $0.answeredAt <= now
+        }
+        let delayedSuccess = delayed.isEmpty
+            ? nil
+            : Double(delayed.filter { $0.score >= 6 }.count) / Double(delayed.count)
+        let why = whyLines(
+            items: items,
+            pulseWhy: pulses.metrics(now: now, calendar: calendar).whyLines,
+            causalOutcomes: causalOutcomes
+        )
+        return ReaderReenchantmentMetrics(
+            currentScore: pulses.currentState(now: now).composite,
+            sevenDayAverage: currentAverage,
+            previousSevenDayAverage: previousAverage,
+            thirtyDayChange: thirtyChange,
+            direction: direction,
+            distinctMeasuredDays: daily.count,
+            delayedOutcomeCount: delayed.count,
+            delayedOutcomeSuccessRate: delayedSuccess,
+            livedProofCount: livedCount,
+            supportingSignalCount: meaningfulLearning.count + authoredPages.count,
+            counterSignalCount: counterCount,
+            causalOutcomeCount: causalOutcomes.count,
+            evidenceStreamCount: distinctStreams,
+            confidence: min(97, daily.count * 5 + livedCount * 6 + distinctStreams * 7 + causalOutcomes.count * 3),
+            whyLines: why
+        )
+    }
+
+    private static func whyLines(
+        items: [EvidenceItem],
+        pulseWhy: [String],
+        causalOutcomes: [CausalCurationOutcome]
+    ) -> [String] {
+        var lines = pulseWhy
+        let strongest = items
+            .filter { $0.isLivedProof && $0.score >= 6 }
+            .sorted {
+                if $0.weight != $1.weight { return $0.weight > $1.weight }
+                return $0.date > $1.date
+            }
+            .compactMap(\.why)
+        lines.append(contentsOf: strongest.prefix(3))
+        lines.append(contentsOf: causalOutcomes
+            .sorted { $0.occurredAt > $1.occurredAt }
+            .compactMap(\.evidenceLine)
+            .prefix(2))
+        var seen = Set<String>()
+        return lines.filter {
+            let key = $0.lowercased()
+            return !$0.isEmpty && seen.insert(key).inserted
+        }.prefix(4).map { String($0.prefix(180)) }
+    }
+}
+
+// MARK: - The Night Gardener
+
+/// A compact, receipt-bound witness that Gemma may read overnight. It contains
+/// no engagement reward and no instruction to raise a score. The local model
+/// may interpret this packet; deterministic code remains the authority on
+/// evidence, admissibility, pressure, and outcomes.
+enum ReenchantmentStrategyEvidenceStream: String, Codable, Equatable, CaseIterable {
+    case statePulse
+    case delayedOutcome
+    case alivenessReceipt
+    case longGame
+    case causalOutcome
+    case readerAuthored
+}
+
+struct ReenchantmentStrategyEvidence: Codable, Equatable, Identifiable {
+    var id: String
+    var stream: ReenchantmentStrategyEvidenceStream
+    var occurredAt: Date
+    /// -1 is contrary evidence, 0 is unresolved, and 1 is qualified support.
+    var polarity: Int
+    var isLivedProof: Bool
+    var wasPromptedByBook: Bool
+    var line: String
+    var pageIDs: [String]
+}
+
+struct ReenchantmentCapacityReading: Codable, Equatable, Identifiable {
+    var id: String { capacity.rawValue }
+    var capacity: BookLongGameCapacity
+    var evidenceCount: Int
+    var unpromptedCount: Int
+    var contraryCount: Int
+    var strength: Int
+    var lastEvidenceAt: Date?
+}
+
+struct ReenchantmentPatternBrief: Codable, Equatable, Identifiable {
+    var id: String
+    var movement: BookReenchantmentMovement
+    var facets: [String]
+    var confidence: Int
+    var line: String
+    var counterReading: String
+    var falsifier: String
+    var evidenceIDs: [String]
+}
+
+struct ReenchantmentCausalEffectBrief: Codable, Equatable, Identifiable {
+    var id: String
+    var movement: BookReenchantmentMovement
+    var role: BookSessionRole?
+    var sourceID: String?
+    var contextKey: String
+    var treatmentCount: Int
+    var controlCount: Int
+    var estimatedUplift: Double
+    var conservativeLowerBound: Double
+    var conservativeUpperBound: Double
+    var usedExactContext: Bool
+}
+
+struct ReenchantmentStrategyPacket: Codable, Equatable, Identifiable {
+    static let currentVersion = 1
+
+    var id: String
+    var version: Int
+    var builtAt: Date
+    var evidenceSignature: String
+    var direction: ReaderReenchantmentDirection
+    var confidence: Int
+    var currentScore: Int?
+    var sevenDayAverage: Double?
+    var previousSevenDayAverage: Double?
+    var thirtyDayChange: Double?
+    var distinctMeasuredDays: Int
+    var livedProofCount: Int
+    var counterSignalCount: Int
+    var evidenceStreamCount: Int
+    var spontaneousShare: Double?
+    var currentState: ReenchantmentCurrentStateBrief
+    var capacities: [ReenchantmentCapacityReading]
+    var evidence: [ReenchantmentStrategyEvidence]
+    var patterns: [ReenchantmentPatternBrief]
+    var causalEffects: [ReenchantmentCausalEffectBrief]
+    var currentHypothesis: ReenchantmentHypothesisBrief?
+    var recentCampaigns: [ReenchantmentCampaignBrief]
+    var permission: BookChallengePermission
+    var boundaryIDs: [String]
+    var restingTactics: [BookCampaignTactic]
+    var evidenceGaps: [BookLongGameCapacity]
+}
+
+struct ReenchantmentCurrentStateBrief: Codable, Equatable {
+    var aliveness: Int?
+    var wonder: Int?
+    var hiddenMagic: Int?
+    var capacity: Int?
+    var freshestAnswerAt: Date?
+}
+
+struct ReenchantmentHypothesisBrief: Codable, Equatable {
+    var id: String
+    var capacity: BookLongGameCapacity
+    var statement: String
+    var nextHonestTest: String
+    var evidenceIDs: [String]
+}
+
+struct ReenchantmentCampaignBrief: Codable, Equatable, Identifiable {
+    var id: String
+    var capacity: BookLongGameCapacity
+    var tactic: BookCampaignTactic
+    var pressure: BookCampaignPressure
+    var status: BookCampaignStatus
+    var outcomeEvidenceCount: Int
+    var rejectionCount: Int
+    var startedAt: Date
+    var lastChangedAt: Date
+}
+
+enum ReenchantmentStrategyPacketBuilder {
+    static func make(inputs: BookSourceInputs, now: Date = Date()) -> ReenchantmentStrategyPacket {
+        let reading = ReaderReenchantmentMeasure.reading(
+            pulses: inputs.readerStatePulses,
+            aliveness: inputs.readerAliveness,
+            longGame: inputs.bookInterior.longGame,
+            learning: inputs.readerLearning,
+            days: inputs.days,
+            now: now
+        )
+        let current = inputs.readerStatePulses.currentState(now: now)
+        let evidence = strategyEvidence(inputs: inputs, now: now)
+        let capacities = capacityReadings(inputs: inputs, evidence: evidence)
+        let patterns = inputs.readerAliveness.patterns(now: now, limit: 8).map {
+            ReenchantmentPatternBrief(
+                id: $0.id,
+                movement: $0.movement,
+                facets: $0.facets,
+                confidence: $0.confidence,
+                line: $0.line,
+                counterReading: $0.counterReading,
+                falsifier: $0.falsifier,
+                evidenceIDs: $0.supportingObservationIDs + $0.contradictingObservationIDs
+            )
+        }
+        let campaigns = ((inputs.bookInterior.longGame?.campaignHistory ?? [])
+            + [inputs.bookInterior.longGame?.currentCampaign].compactMap { $0 })
+            .sorted { $0.lastChangedAt > $1.lastChangedAt }
+            .prefix(8)
+            .map {
+                ReenchantmentCampaignBrief(
+                    id: $0.id,
+                    capacity: $0.capacity,
+                    tactic: $0.tactic,
+                    pressure: $0.pressure,
+                    status: $0.status,
+                    outcomeEvidenceCount: $0.outcomeEvidenceIDs.count,
+                    rejectionCount: $0.rejectionCount,
+                    startedAt: $0.startedAt,
+                    lastChangedAt: $0.lastChangedAt
+                )
+            }
+        let unprompted = evidence.filter { $0.isLivedProof && !$0.wasPromptedByBook && $0.polarity > 0 }.count
+        let lived = evidence.filter { $0.isLivedProof && $0.polarity > 0 }.count
+        let signatureSeed = evidence
+            .sorted { $0.id < $1.id }
+            .map { "\($0.id)|\($0.polarity)|\(Int($0.occurredAt.timeIntervalSince1970))" }
+            .joined(separator: "\n")
+        let signature = "reenchantment-evidence-v\(ReenchantmentStrategyPacket.currentVersion)-\(abs(signatureSeed.stableHash))"
+        let hypothesis = inputs.bookInterior.longGame?.hypotheses.first.map {
+            ReenchantmentHypothesisBrief(
+                id: $0.id,
+                capacity: $0.capacity,
+                statement: $0.statement,
+                nextHonestTest: $0.nextHonestTest,
+                evidenceIDs: $0.evidenceIDs
+            )
+        }
+        let represented = Set((inputs.bookInterior.longGame?.evidence ?? []).map(\.capacity))
+        return ReenchantmentStrategyPacket(
+            id: "night-gardener-\(BookDay.id(for: now))-\(abs(signature.stableHash))",
+            version: ReenchantmentStrategyPacket.currentVersion,
+            builtAt: now,
+            evidenceSignature: signature,
+            direction: reading.direction,
+            confidence: reading.confidence,
+            currentScore: reading.currentScore,
+            sevenDayAverage: reading.sevenDayAverage,
+            previousSevenDayAverage: reading.previousSevenDayAverage,
+            thirtyDayChange: reading.thirtyDayChange,
+            distinctMeasuredDays: reading.distinctMeasuredDays,
+            livedProofCount: reading.livedProofCount,
+            counterSignalCount: reading.counterSignalCount,
+            evidenceStreamCount: reading.evidenceStreamCount,
+            spontaneousShare: lived > 0 ? Double(unprompted) / Double(lived) : nil,
+            currentState: ReenchantmentCurrentStateBrief(
+                aliveness: current.aliveness,
+                wonder: current.wonder,
+                hiddenMagic: current.hiddenMagic,
+                capacity: current.capacity,
+                freshestAnswerAt: current.freshestAnswerAt
+            ),
+            capacities: capacities,
+            evidence: evidence,
+            patterns: patterns,
+            causalEffects: causalEffects(model: inputs.readerAliveness, now: now),
+            currentHypothesis: hypothesis,
+            recentCampaigns: campaigns,
+            permission: BookChallengePermission.read(from: inputs.selfFacts),
+            boundaryIDs: inputs.bookReadingBoundaries.map(\.id).sorted(),
+            restingTactics: Array(Set((inputs.bookInterior.longGame?.campaignHistory ?? [])
+                .filter { $0.rejectionCount > 0 && now.timeIntervalSince($0.lastChangedAt) < 30 * 86_400 }
+                .map(\.tactic))).sorted { $0.rawValue < $1.rawValue },
+            evidenceGaps: BookLongGameCapacity.allCases.filter { !represented.contains($0) }
+        )
+    }
+
+    private static func strategyEvidence(
+        inputs: BookSourceInputs,
+        now: Date
+    ) -> [ReenchantmentStrategyEvidence] {
+        let cutoff = now.addingTimeInterval(-180 * 86_400)
+        var result: [ReenchantmentStrategyEvidence] = []
+
+        for pulse in inputs.readerStatePulses.records
+            where pulse.answeredAt >= cutoff && pulse.answeredAt <= now && pulse.dimension != .capacity {
+            result.append(ReenchantmentStrategyEvidence(
+                id: "pulse:\(pulse.id)",
+                stream: pulse.dimension == .delayedOutcome ? .delayedOutcome : .statePulse,
+                occurredAt: pulse.answeredAt,
+                polarity: pulse.score >= 6 ? 1 : (pulse.score <= 3 ? -1 : 0),
+                isLivedProof: pulse.dimension == .delayedOutcome,
+                wasPromptedByBook: true,
+                line: String((pulse.note?.nonEmpty ?? pulse.answerLine).prefix(180)),
+                pageIDs: [pulse.target?.pageID].compactMap { $0 }
+            ))
+        }
+
+        for observation in inputs.readerAliveness.observations
+            where observation.occurredAt >= cutoff && observation.occurredAt <= now
+                && !observation.id.hasPrefix("pulse:")
+                && !observation.id.hasPrefix("long-game:") {
+            let lived = observation.kind == .livedEvidence
+                || observation.kind == .keepsake
+                || observation.kind == .followed
+                || observation.kind == .confirmedReading
+                || observation.authority == .livedReceipt
+            let contrary = observation.kind == .contradicted
+                || observation.kind == .declined
+            guard lived || contrary else { continue }
+            result.append(ReenchantmentStrategyEvidence(
+                id: "aliveness:\(observation.id)",
+                stream: .alivenessReceipt,
+                occurredAt: observation.occurredAt,
+                polarity: contrary ? -1 : 1,
+                isLivedProof: lived,
+                wasPromptedByBook: observation.kind != .livedEvidence,
+                line: String((observation.evidenceLine?.nonEmpty ?? observation.kind.rawValue).prefix(180)),
+                pageIDs: [observation.pageID].compactMap { $0 }
+            ))
+        }
+
+        for item in inputs.bookInterior.longGame?.evidence ?? []
+            where item.happenedAt >= cutoff && item.happenedAt <= now {
+            result.append(ReenchantmentStrategyEvidence(
+                id: "long-game:\(item.id)",
+                stream: .longGame,
+                occurredAt: item.happenedAt,
+                polarity: 1,
+                isLivedProof: true,
+                wasPromptedByBook: item.wasPromptedByBook,
+                line: String(item.line.prefix(180)),
+                pageIDs: item.evidencePageIDs
+            ))
+        }
+
+        for outcome in inputs.readerAliveness.causalLedger?.outcomes ?? []
+            where outcome.occurredAt >= cutoff && outcome.occurredAt <= now && outcome.kind.isQualified {
+            result.append(ReenchantmentStrategyEvidence(
+                id: "causal:\(outcome.id)",
+                stream: .causalOutcome,
+                occurredAt: outcome.occurredAt,
+                polarity: outcome.value >= 0.5 ? 1 : -1,
+                isLivedProof: outcome.kind == .livedEvidence || outcome.kind == .keepsake || outcome.kind == .laterReturn,
+                wasPromptedByBook: true,
+                line: String((outcome.evidenceLine?.nonEmpty ?? outcome.kind.rawValue).prefix(180)),
+                pageIDs: []
+            ))
+        }
+
+        for page in inputs.days.flatMap(\.pages)
+            where page.createdAt >= cutoff && page.createdAt <= now
+                && page.origin == .userAuthored
+                && !page.tags.contains("reader-state-pulse") {
+            guard let words = (page.userInput.nonEmpty ?? page.playerReply.nonEmpty) else { continue }
+            result.append(ReenchantmentStrategyEvidence(
+                id: "reader-page:\(page.id)",
+                stream: .readerAuthored,
+                occurredAt: page.createdAt,
+                polarity: 0,
+                isLivedProof: false,
+                wasPromptedByBook: page.tags.contains { $0.hasPrefix("book-campaign:") },
+                line: String(words.prefix(180)),
+                pageIDs: [page.id]
+            ))
+        }
+
+        var seen = Set<String>()
+        return result
+            .filter { seen.insert($0.id).inserted }
+            .sorted { $0.occurredAt < $1.occurredAt }
+            .suffix(160)
+            .map { $0 }
+    }
+
+    private static func capacityReadings(
+        inputs: BookSourceInputs,
+        evidence: [ReenchantmentStrategyEvidence]
+    ) -> [ReenchantmentCapacityReading] {
+        let longGameEvidence = inputs.bookInterior.longGame?.evidence ?? []
+        return BookLongGameCapacity.allCases.map { capacity in
+            let matching = longGameEvidence.filter { $0.capacity == capacity }
+            let contrary = evidence.filter {
+                $0.polarity < 0 && $0.line.lowercased().contains(capacity.title.lowercased())
+            }
+            let strength = min(100, matching.reduce(0) {
+                $0 + ($1.wasPromptedByBook ? 14 : 22)
+            })
+            return ReenchantmentCapacityReading(
+                capacity: capacity,
+                evidenceCount: matching.count,
+                unpromptedCount: matching.filter { !$0.wasPromptedByBook }.count,
+                contraryCount: contrary.count,
+                strength: strength,
+                lastEvidenceAt: matching.map(\.happenedAt).max()
+            )
+        }
+    }
+
+    private static func causalEffects(
+        model: ReaderAlivenessModel,
+        now: Date
+    ) -> [ReenchantmentCausalEffectBrief] {
+        let ledger = model.causalLedger ?? .unwritten
+        var effects: [ReenchantmentCausalEffectBrief] = []
+        var seen = Set<String>()
+
+        for opportunity in ledger.opportunities.suffix(320) {
+            let key = "\(opportunity.movement.rawValue)|\(opportunity.role.rawValue)|\(opportunity.selectedSourceID)|\(opportunity.contextKey)"
+            guard seen.insert(key).inserted else { continue }
+            let estimate = ledger.estimate(
+                movement: opportunity.movement,
+                role: opportunity.role,
+                sourceID: opportunity.selectedSourceID,
+                contextKey: opportunity.contextKey,
+                now: now
+            )
+            guard estimate.treatmentCount >= 3, estimate.controlCount >= 3 else { continue }
+            effects.append(ReenchantmentCausalEffectBrief(
+                id: "page-effect-\(abs(key.stableHash))",
+                movement: opportunity.movement,
+                role: opportunity.role,
+                sourceID: opportunity.selectedSourceID,
+                contextKey: opportunity.contextKey,
+                treatmentCount: estimate.treatmentCount,
+                controlCount: estimate.controlCount,
+                estimatedUplift: estimate.estimatedUplift,
+                conservativeLowerBound: estimate.conservativeLowerBound,
+                conservativeUpperBound: estimate.conservativeUpperBound,
+                usedExactContext: estimate.usedExactContext
+            ))
+        }
+
+        for opportunity in ledger.movementOpportunities.suffix(320) {
+            let key = "\(opportunity.selectedMovement.rawValue)|\(opportunity.contextKey)"
+            guard seen.insert("movement|\(key)").inserted else { continue }
+            let estimate = ledger.movementEstimate(
+                movement: opportunity.selectedMovement,
+                contextKey: opportunity.contextKey,
+                now: now
+            )
+            guard estimate.treatmentCount >= 3, estimate.controlCount >= 3 else { continue }
+            effects.append(ReenchantmentCausalEffectBrief(
+                id: "movement-effect-\(abs(key.stableHash))",
+                movement: opportunity.selectedMovement,
+                role: nil,
+                sourceID: nil,
+                contextKey: opportunity.contextKey,
+                treatmentCount: estimate.treatmentCount,
+                controlCount: estimate.controlCount,
+                estimatedUplift: estimate.estimatedUplift,
+                conservativeLowerBound: estimate.conservativeLowerBound,
+                conservativeUpperBound: estimate.conservativeUpperBound,
+                usedExactContext: estimate.usedExactContext
+            ))
+        }
+
+        return effects.sorted {
+            abs($0.estimatedUplift) > abs($1.estimatedUplift)
+        }.prefix(16).map { $0 }
+    }
+}
+
+enum NightGardenerCandidateVerdict: String, Codable, Equatable {
+    case preserve
+    case weaken
+    case reject
+}
+
+struct NightGardenerNaturalistCandidate: Codable, Equatable, Identifiable {
+    var id: String
+    var capacity: BookLongGameCapacity
+    var thesis: String
+    var counterReading: String
+    var evidenceIDs: [String]
+    var confidence: Int
+}
+
+struct NightGardenerNaturalistResponse: Codable, Equatable {
+    var candidates: [NightGardenerNaturalistCandidate]
+}
+
+struct NightGardenerHereticAssessment: Codable, Equatable, Identifiable {
+    var id: String { candidateID }
+    var candidateID: String
+    var verdict: NightGardenerCandidateVerdict
+    var strongestAlternative: String
+    var missingEvidence: String
+    var manipulationRisk: String
+    var confidenceAdjustment: Int
+}
+
+struct NightGardenerHereticResponse: Codable, Equatable {
+    var assessments: [NightGardenerHereticAssessment]
+}
+
+struct NightGardenerProposal: Codable, Equatable {
+    var candidateID: String
+    var movement: BookReenchantmentMovement
+    var tactic: BookCampaignTactic
+    var contextFacets: [String]
+    var predictedOutcome: String
+    var expectedEvidenceKinds: [BookLongGameEvidenceKind]
+    var measurementWindowDays: Int
+    var falsifier: String
+    var stopCondition: String
+    var pressure: BookCampaignPressure
+    var confidence: Int
+}
+
+enum BookReenchantmentStrategyStatus: String, Codable, Equatable {
+    case proposed
+    case active
+    case confirmed
+    case weakened
+    case rejected
+    case untried
+    case expired
+    case stopped
+
+    var isTerminal: Bool {
+        [.confirmed, .weakened, .rejected, .untried, .expired, .stopped].contains(self)
+    }
+}
+
+struct BookReenchantmentStrategy: Codable, Equatable, Identifiable {
+    var id: String
+    var packetSignature: String
+    var capacity: BookLongGameCapacity
+    var movement: BookReenchantmentMovement
+    var tactic: BookCampaignTactic
+    var thesis: String
+    var counterReading: String
+    var evidenceIDs: [String]
+    var contextFacets: [String]
+    var predictedOutcome: String
+    var expectedEvidenceKinds: [BookLongGameEvidenceKind]
+    var falsifier: String
+    var stopCondition: String
+    var pressureCap: BookCampaignPressure
+    var confidence: Int
+    var formedAt: Date
+    var expiresAt: Date
+    var status: BookReenchantmentStrategyStatus
+    var outcomeEvidenceIDs: [String]
+}
+
+enum NightGardenerValidationError: String, Error, Equatable {
+    case missingCandidate
+    case rejectedByHeretic
+    case insufficientConfidence
+    case insufficientEvidence
+    case inventedEvidence
+    case pulseOnlyEvidence
+    case unsupportedTactic
+    case invalidWindow
+    case unsafeLanguage
+    case restingTactic
+    case pressureBudget
+    case incompleteTheory
+}
+
+enum BookReenchantmentStrategyValidator {
+    static func validate(
+        packet: ReenchantmentStrategyPacket,
+        naturalist: NightGardenerNaturalistResponse,
+        heretic: NightGardenerHereticResponse,
+        gardener: NightGardenerProposal,
+        aliveness: ReaderAlivenessModel,
+        now: Date = Date()
+    ) -> Result<BookReenchantmentStrategy, NightGardenerValidationError> {
+        guard let candidate = naturalist.candidates.first(where: { $0.id == gardener.candidateID }),
+              let assessment = heretic.assessments.first(where: { $0.candidateID == gardener.candidateID }) else {
+            return .failure(.missingCandidate)
+        }
+        guard assessment.verdict != .reject else { return .failure(.rejectedByHeretic) }
+        let adjustedConfidence = min(
+            candidate.confidence + assessment.confidenceAdjustment,
+            gardener.confidence
+        )
+        guard adjustedConfidence >= 70 else { return .failure(.insufficientConfidence) }
+        guard gardener.measurementWindowDays >= 3, gardener.measurementWindowDays <= 14 else {
+            return .failure(.invalidWindow)
+        }
+        guard allowedTactics(for: candidate.capacity).contains(gardener.tactic) else {
+            return .failure(.unsupportedTactic)
+        }
+        guard !packet.restingTactics.contains(gardener.tactic) else {
+            return .failure(.restingTactic)
+        }
+
+        let suppliedIDs = Set(packet.evidence.map(\.id))
+        let requestedIDs = Set(candidate.evidenceIDs)
+        guard requestedIDs.isSubset(of: suppliedIDs) else { return .failure(.inventedEvidence) }
+        let evidence = packet.evidence.filter { requestedIDs.contains($0.id) }
+        guard evidence.count >= 2,
+              Set(evidence.map { BookDay.id(for: $0.occurredAt) }).count >= 3,
+              Set(evidence.map(\.stream)).count >= 2,
+              evidence.contains(where: { $0.isLivedProof }) else {
+            return .failure(.insufficientEvidence)
+        }
+        guard evidence.contains(where: { $0.stream != .statePulse && $0.stream != .delayedOutcome }) else {
+            return .failure(.pulseOnlyEvidence)
+        }
+        guard candidate.thesis.trimmingCharacters(in: .whitespacesAndNewlines).count >= 20,
+              candidate.counterReading.trimmingCharacters(in: .whitespacesAndNewlines).count >= 15,
+              gardener.falsifier.trimmingCharacters(in: .whitespacesAndNewlines).count >= 15,
+              gardener.stopCondition.trimmingCharacters(in: .whitespacesAndNewlines).count >= 10,
+              !gardener.expectedEvidenceKinds.isEmpty else {
+            return .failure(.incompleteTheory)
+        }
+        let language = [
+            candidate.thesis,
+            candidate.counterReading,
+            gardener.predictedOutcome,
+            gardener.falsifier,
+            gardener.stopCondition
+        ].joined(separator: " ").lowercased()
+        let forbidden = [
+            "increase the score", "raise the score", "make the metric", "addicted",
+            "dependency", "diagnosis", "diagnose", "disorder", "destiny", "must comply",
+            "guilt", "punish", "fear of missing out", "streak"
+        ]
+        guard !forbidden.contains(where: language.contains) else { return .failure(.unsafeLanguage) }
+
+        var pressure = gardener.pressure.capped(at: packet.permission.maximumPressure)
+        if pressure.rank >= BookCampaignPressure.challenge.rank,
+           !aliveness.allowsHighPressureCausalAttempt(now: now) {
+            pressure = .invite
+        }
+        if packet.currentState.capacity.map({ $0 <= 3 }) == true {
+            pressure = pressure.capped(at: .invite)
+        }
+        guard pressure.rank <= packet.permission.maximumPressure.rank else {
+            return .failure(.pressureBudget)
+        }
+
+        let identity = [
+            packet.evidenceSignature,
+            candidate.id,
+            gardener.movement.rawValue,
+            gardener.tactic.rawValue
+        ].joined(separator: "|")
+        return .success(BookReenchantmentStrategy(
+            id: "night-gardener-strategy-\(abs(identity.stableHash))",
+            packetSignature: packet.evidenceSignature,
+            capacity: candidate.capacity,
+            movement: gardener.movement,
+            tactic: gardener.tactic,
+            thesis: String(candidate.thesis.prefix(360)),
+            counterReading: String(candidate.counterReading.prefix(320)),
+            evidenceIDs: candidate.evidenceIDs,
+            contextFacets: Array(Set(gardener.contextFacets)).sorted().prefix(8).map { $0 },
+            predictedOutcome: String(gardener.predictedOutcome.prefix(320)),
+            expectedEvidenceKinds: Array(Set(gardener.expectedEvidenceKinds.map(\.rawValue)))
+                .compactMap(BookLongGameEvidenceKind.init(rawValue:)),
+            falsifier: String(gardener.falsifier.prefix(320)),
+            stopCondition: String(gardener.stopCondition.prefix(260)),
+            pressureCap: pressure,
+            confidence: adjustedConfidence,
+            formedAt: now,
+            expiresAt: now.addingTimeInterval(Double(gardener.measurementWindowDays) * 86_400),
+            status: .proposed,
+            outcomeEvidenceIDs: []
+        ))
+    }
+
+    static func allowedTactics(for capacity: BookLongGameCapacity) -> Set<BookCampaignTactic> {
+        switch capacity {
+        case .spontaneousAttention: return [.prolongAttention, .changeScale, .receiveAndRest]
+        case .worldOtherness: return [.meetNonhumanBusiness, .alterRoute, .changeScale]
+        case .scriptFreedom: return [.questionBorrowedRule, .makeSmallException, .receiveAndRest]
+        case .selfAuthoredAction: return [.makeBadly, .inventPrivateRule, .alterRoute, .testReaderNamedDesire]
+        case .personalLanguage: return [.namePrecisely, .inventPrivateRule]
+        case .livingConnection: return [.shareSmallWonder, .meetNonhumanBusiness]
+        case .deliberateReturn: return [.revisitEvidence, .alterRoute]
+        }
+    }
+}
+
+enum NightGardenerReviewGate {
+    static func shouldReview(
+        packet: ReenchantmentStrategyPacket,
+        activeStrategy: BookReenchantmentStrategy?,
+        strategyHistory: [BookReenchantmentStrategy],
+        now: Date = Date()
+    ) -> Bool {
+        if let activeStrategy,
+           activeStrategy.status == .active || activeStrategy.status == .proposed,
+           now < activeStrategy.expiresAt {
+            return false
+        }
+        guard packet.confidence >= 42,
+              packet.distinctMeasuredDays >= 4,
+              packet.livedProofCount >= 2,
+              packet.evidenceStreamCount >= 2 else { return false }
+        guard let last = strategyHistory.max(by: { $0.formedAt < $1.formedAt }) else { return true }
+        guard last.packetSignature != packet.evidenceSignature else { return false }
+        if packet.direction == .dimming { return true }
+        let newEvidence = packet.evidence.filter { $0.occurredAt > last.formedAt }
+        let newLived = newEvidence.filter { $0.isLivedProof && $0.polarity > 0 }.count
+        let newCounter = newEvidence.filter { $0.polarity < 0 }.count
+        return newLived >= 2 || newCounter >= 2 || now.timeIntervalSince(last.formedAt) >= 7 * 86_400
+    }
+}
+
+/// A conservative authored understudy for nights when the local model never
+/// receives background time. It is intentionally less imaginative than the
+/// Council: it chooses one missing capacity, one rested compatible tactic, and
+/// exact evidence already present in the frozen packet. Its proposal must pass
+/// the same validator as model output or it produces nothing.
+enum DeterministicNightGardenerUnderstudy {
+    static func propose(
+        packet: ReenchantmentStrategyPacket,
+        aliveness: ReaderAlivenessModel,
+        now: Date = Date()
+    ) -> BookReenchantmentStrategy? {
+        guard NightGardenerReviewGate.shouldReview(
+            packet: packet,
+            activeStrategy: nil,
+            strategyHistory: [],
+            now: now
+        ) else { return nil }
+        let evidenceIDs = groundedEvidenceIDs(from: packet)
+        guard !evidenceIDs.isEmpty else { return nil }
+
+        for capacity in capacityOrder(for: packet) {
+            guard let tactic = restedTactic(for: capacity, packet: packet) else { continue }
+            let movement = BookReenchantmentMovement(capacity: capacity)
+            let candidateID = "understudy-\(capacity.rawValue)-\(tactic.rawValue)"
+            let context = strongestContext(for: movement, packet: packet)
+            let candidate = NightGardenerNaturalistCandidate(
+                id: candidateID,
+                capacity: capacity,
+                thesis: thesis(for: capacity, context: context),
+                counterReading: "The apparent effect may come from available time, novelty, or the act of recording rather than this condition itself.",
+                evidenceIDs: evidenceIDs,
+                confidence: 76
+            )
+            let naturalist = NightGardenerNaturalistResponse(candidates: [candidate])
+            let heretic = NightGardenerHereticResponse(assessments: [
+                NightGardenerHereticAssessment(
+                    candidateID: candidateID,
+                    verdict: .weaken,
+                    strongestAlternative: "A more open day or the novelty of being asked may explain the result without this tactic causing it.",
+                    missingEvidence: "A comparable opportunity in which the tactic is absent or leaves no lived trace.",
+                    manipulationRisk: "The Book could mistake prompted compliance for a more alive life.",
+                    confidenceAdjustment: -4
+                )
+            ])
+            let gardener = NightGardenerProposal(
+                candidateID: candidateID,
+                movement: movement,
+                tactic: tactic,
+                contextFacets: context,
+                predictedOutcome: predictedOutcome(for: tactic),
+                expectedEvidenceKinds: expectedEvidenceKinds(for: capacity),
+                measurementWindowDays: 7,
+                falsifier: "If two eligible chances produce no lived receipt or only prompted compliance, weaken this theory.",
+                stopCondition: "Stop after refusal, distress, unsafe conditions, or one clean failed test.",
+                pressure: packet.direction == .dimming ? .invite : .nudge,
+                confidence: 72
+            )
+            if case .success(let strategy) = BookReenchantmentStrategyValidator.validate(
+                packet: packet,
+                naturalist: naturalist,
+                heretic: heretic,
+                gardener: gardener,
+                aliveness: aliveness,
+                now: now
+            ) {
+                var understudy = strategy
+                understudy.id = "deterministic-\(strategy.id)"
+                return understudy
+            }
+        }
+        return nil
+    }
+
+    private static func capacityOrder(
+        for packet: ReenchantmentStrategyPacket
+    ) -> [BookLongGameCapacity] {
+        var result: [BookLongGameCapacity] = []
+        func append(_ capacity: BookLongGameCapacity?) {
+            guard let capacity, !result.contains(capacity) else { return }
+            result.append(capacity)
+        }
+        append(packet.currentHypothesis?.capacity)
+        packet.evidenceGaps.forEach { append($0) }
+        packet.capacities
+            .sorted {
+                if $0.strength != $1.strength { return $0.strength < $1.strength }
+                if $0.contraryCount != $1.contraryCount { return $0.contraryCount > $1.contraryCount }
+                return $0.capacity.rawValue < $1.capacity.rawValue
+            }
+            .forEach { append($0.capacity) }
+        BookLongGameCapacity.allCases.forEach { append($0) }
+        return result
+    }
+
+    private static func restedTactic(
+        for capacity: BookLongGameCapacity,
+        packet: ReenchantmentStrategyPacket
+    ) -> BookCampaignTactic? {
+        let resting = Set(packet.restingTactics)
+        let compatible = BookReenchantmentStrategyValidator.allowedTactics(for: capacity)
+            .filter { !resting.contains($0) }
+            .sorted { $0.rawValue < $1.rawValue }
+        guard !compatible.isEmpty else { return nil }
+        let recent = Set(packet.recentCampaigns.prefix(3).map(\.tactic))
+        let fresh = compatible.filter { !recent.contains($0) }
+        let pool = fresh.isEmpty ? compatible : fresh
+        let seed = abs("\(packet.evidenceSignature)|\(capacity.rawValue)".stableHash)
+        return pool[seed % pool.count]
+    }
+
+    private static func groundedEvidenceIDs(
+        from packet: ReenchantmentStrategyPacket
+    ) -> [String] {
+        let ranked = packet.evidence.sorted { left, right in
+            func priority(_ evidence: ReenchantmentStrategyEvidence) -> Int {
+                var value = evidence.isLivedProof ? 40 : 0
+                value += evidence.polarity > 0 ? 16 : (evidence.polarity < 0 ? 12 : 4)
+                value += evidence.wasPromptedByBook ? 0 : 10
+                if evidence.stream != .statePulse && evidence.stream != .delayedOutcome {
+                    value += 8
+                }
+                return value
+            }
+            let leftPriority = priority(left)
+            let rightPriority = priority(right)
+            if leftPriority != rightPriority { return leftPriority > rightPriority }
+            return left.occurredAt > right.occurredAt
+        }
+
+        var selected: [ReenchantmentStrategyEvidence] = []
+        var days = Set<String>()
+        for evidence in ranked {
+            let day = BookDay.id(for: evidence.occurredAt)
+            guard days.insert(day).inserted else { continue }
+            selected.append(evidence)
+            if days.count >= 3 { break }
+        }
+        guard days.count >= 3 else { return [] }
+
+        func addFirst(where predicate: (ReenchantmentStrategyEvidence) -> Bool) {
+            guard let evidence = ranked.first(where: { candidate in
+                predicate(candidate) && !selected.contains(where: { $0.id == candidate.id })
+            }) else { return }
+            selected.append(evidence)
+        }
+        if Set(selected.map(\.stream)).count < 2,
+           let firstStream = selected.first?.stream {
+            addFirst { $0.stream != firstStream }
+        }
+        if !selected.contains(where: \.isLivedProof) {
+            addFirst { $0.isLivedProof }
+        }
+        if !selected.contains(where: {
+            $0.stream != .statePulse && $0.stream != .delayedOutcome
+        }) {
+            addFirst { $0.stream != .statePulse && $0.stream != .delayedOutcome }
+        }
+
+        var seen = Set<String>()
+        return selected.map(\.id).filter { seen.insert($0).inserted }.prefix(8).map { $0 }
+    }
+
+    private static func strongestContext(
+        for movement: BookReenchantmentMovement,
+        packet: ReenchantmentStrategyPacket
+    ) -> [String] {
+        var facets = packet.patterns
+            .filter { $0.movement == movement }
+            .sorted { $0.confidence > $1.confidence }
+            .prefix(2)
+            .flatMap(\.facets)
+        facets.append(contentsOf: packet.causalEffects
+            .filter { $0.movement == movement && $0.conservativeLowerBound > 0 }
+            .sorted { $0.conservativeLowerBound > $1.conservativeLowerBound }
+            .prefix(2)
+            .map(\.contextKey))
+        var seen = Set<String>()
+        return facets
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+            .prefix(6)
+            .map { $0 }
+    }
+
+    private static func thesis(
+        for capacity: BookLongGameCapacity,
+        context: [String]
+    ) -> String {
+        let condition = context.first.map { "around \($0.replacingOccurrences(of: "-", with: " "))" }
+            ?? "when the invitation is small and concrete"
+        switch capacity {
+        case .spontaneousAttention:
+            return "Across separate lived days, leaving genuine blankness \(condition) may let attention arrive without becoming another assignment."
+        case .worldOtherness:
+            return "Across separate lived days, literal encounters \(condition) may help the world feel autonomous rather than arranged as a message."
+        case .scriptFreedom:
+            return "Across separate lived days, noticing one harmless inherited rule \(condition) may open a self-authored exception."
+        case .selfAuthoredAction:
+            return "Across separate lived days, unfinished ingredients \(condition) may invite the reader to alter the form instead of following the Book's script."
+        case .personalLanguage:
+            return "Across separate lived days, exact or invented language \(condition) may make ordinary experience more personally legible."
+        case .livingConnection:
+            return "Across separate lived days, sharing one small true wonder \(condition) may deepen aliveness while leaving the other life fully its own."
+        case .deliberateReturn:
+            return "Across separate lived days, returning to exact earlier evidence \(condition) may turn an isolated bright moment into living continuity."
+        }
+    }
+
+    private static func predictedOutcome(
+        for tactic: BookCampaignTactic
+    ) -> String {
+        switch tactic {
+        case .prolongAttention: return "The reader later keeps one exact detail that arrived after useful looking would normally have ended."
+        case .changeScale: return "The reader returns with one exact feature hidden by the familiar viewing scale."
+        case .alterRoute: return "The reader returns with one unprompted exact detail from a safe altered route."
+        case .meetNonhumanBusiness: return "The reader records one literal fact and one honest unknown about a life or process continuing on its own terms."
+        case .questionBorrowedRule: return "The reader names one inherited rule and consciously keeps, revises, or refuses its authority."
+        case .makeSmallException: return "The reader makes one harmless exception and records whether the old rule was useful, inherited, or merely repeated."
+        case .makeBadly: return "The reader makes a small imperfect artifact and notices whether beginning changed the lived day."
+        case .testReaderNamedDesire: return "The reader gives a repeatedly self-named possibility one small reversible test in actual life."
+        case .inventPrivateRule: return "The reader invents and later abolishes one temporary rule after it has made ten ordinary minutes more vivid."
+        case .namePrecisely: return "The reader adopts one exact or invented word and uses it again without the Book supplying it."
+        case .shareSmallWonder: return "The reader offers one true wonder to another safe life and keeps that life's response as its own."
+        case .revisitEvidence: return "The reader returns to one earlier Page or place and records the exact difference without forcing the old feeling."
+        case .receiveAndRest: return "The reader distinguishes ten minutes of alive receptivity from imposed optimization and records one received detail."
+        }
+    }
+
+    private static func expectedEvidenceKinds(
+        for capacity: BookLongGameCapacity
+    ) -> [BookLongGameEvidenceKind] {
+        switch capacity {
+        case .personalLanguage: return [.readerDefinition, .spontaneousPattern]
+        case .deliberateReturn: return [.spontaneousPattern, .explicitFieldNote]
+        default: return [.explicitFieldNote, .spontaneousPattern]
+        }
+    }
+}
+
+enum NightGardenerPromptBuilder {
+    static func naturalist(packet: ReenchantmentStrategyPacket) -> String {
+        """
+        RE-ENCHANTMENT OBSERVATORY — frozen deterministic packet:
+        \(encoded(packet))
+
+        Act as the Naturalist. Propose zero to three competing causal hypotheses about conditions under which this reader's ordinary life may become more alive. Do not optimize the score and do not infer a diagnosis, destiny, or stable personality.
+
+        Return strict JSON:
+        {"candidates":[{"id":"short-local-id","capacity":"one supplied BookLongGameCapacity raw value","thesis":"specific revisable theory","counterReading":"strongest rival explanation","evidenceIDs":["exact supplied evidence id"],"confidence":75}]}
+
+        Requirements:
+        - Cite only exact evidence IDs from the packet.
+        - Each candidate needs evidence across lived time and at least two evidence streams.
+        - A pulse is context, never sufficient proof.
+        - Prefer delayed, spontaneous, attributable, and reader-authored lived evidence.
+        - Silence is better than a flattering theory.
+        """
+    }
+
+    static func heretic(
+        packet: ReenchantmentStrategyPacket,
+        naturalist: NightGardenerNaturalistResponse
+    ) -> String {
+        """
+        RE-ENCHANTMENT OBSERVATORY — frozen deterministic packet:
+        \(encoded(packet))
+
+        NATURALIST CANDIDATES:
+        \(encoded(naturalist))
+
+        Act as the Heretic. Try to disprove each candidate. Look for confounding context, prompt contamination, missing counterfactuals, pressure, habituation, mood-as-aliveness mistakes, and flattering stories the Book would enjoy believing.
+
+        Return strict JSON:
+        {"assessments":[{"candidateID":"exact supplied candidate id","verdict":"preserve|weaken|reject","strongestAlternative":"plain rival explanation","missingEvidence":"what would distinguish the theories","manipulationRisk":"how optimizing this could corrupt the measure","confidenceAdjustment":-10}]}
+
+        Never add evidence or candidates. A respectable theory may still deserve rejection.
+        """
+    }
+
+    static func gardener(
+        packet: ReenchantmentStrategyPacket,
+        naturalist: NightGardenerNaturalistResponse,
+        heretic: NightGardenerHereticResponse
+    ) -> String {
+        """
+        RE-ENCHANTMENT OBSERVATORY — frozen deterministic packet:
+        \(encoded(packet))
+
+        NATURALIST CANDIDATES:
+        \(encoded(naturalist))
+
+        HERETIC ASSESSMENTS:
+        \(encoded(heretic))
+
+        Act as the Gardener. Select at most one non-rejected candidate and propose one small, reversible experiment in actual life. The existing deterministic Director will decide whether it may happen.
+
+        Return strict JSON with this exact shape:
+        {"candidateID":"exact candidate id","movement":"one BookReenchantmentMovement raw value","tactic":"one BookCampaignTactic raw value","contextFacets":["exact or coarse packet facet"],"predictedOutcome":"observable lived change, not an app action","expectedEvidenceKinds":["one BookLongGameEvidenceKind raw value"],"measurementWindowDays":7,"falsifier":"what later evidence should weaken this theory","stopCondition":"when the Book must stop or release it","pressure":"notice|invite|nudge|provoke|challenge|confront","confidence":75}
+
+        Never ask to increase a score. Opens, keeps, praise, compliance, and session time are not the predicted outcome. Prefer one experiment that can fail cleanly.
+        """
+    }
+
+    private static func encoded<T: Encodable>(_ value: T) -> String {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(value),
+              let text = String(data: data, encoding: .utf8) else { return "{}" }
+        return text
+    }
+}
+
+enum NightGardenerJSON {
+    static func decode<T: Decodable>(_ type: T.Type, from response: String) -> T? {
+        let stripped = response
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let start = stripped.firstIndex(of: "{"),
+              let end = stripped.lastIndex(of: "}"),
+              start <= end,
+              let data = String(stripped[start...end]).data(using: .utf8) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode(type, from: data)
+    }
+}
+
+// MARK: - Personal causal curation
+
+/// The Curator's logged-bandit receipt. It records the opportunity set and the
+/// probability of the Page that actually rose, so later evidence can answer a
+/// causal question rather than merely rewarding whatever the Book already
+/// preferred. Protected promises, first-run ceremonies, and shelter are never
+/// given one of these receipts.
+struct CausalCurationCandidate: Codable, Equatable {
+    var sourceID: String
+    var armID: String
+    var weight: Double
+}
+
+struct CausalMovementCandidate: Codable, Equatable {
+    var movement: BookReenchantmentMovement
+    var weight: Double
+}
+
+struct CausalMovementReceipt: Codable, Equatable, Identifiable {
+    static let currentPolicyVersion = 1
+
+    var id: String
+    var policyVersion: Int
+    var sessionID: String
+    var chosenMovement: BookReenchantmentMovement
+    var contextKey: String
+    var propensity: Double
+    var candidates: [CausalMovementCandidate]
+    var selectedAt: Date
+
+    var archiveReceiptTags: [String] {
+        let micros = Int((max(0.000_001, min(1, propensity)) * 1_000_000).rounded())
+        return [
+            "causal-movement-experiment:\(id)",
+            "causal-movement-policy:\(policyVersion)",
+            "causal-movement-propensity-micros:\(micros)",
+            "causal-movement-context:\(contextKey)"
+        ].map(\.readerLearningNormalizedTag)
+    }
+}
+
+struct CausalCurationReceipt: Codable, Equatable, Identifiable {
+    static let currentPolicyVersion = 2
+    static let metadataKey = "causalCurationReceipt"
+
+    var id: String
+    var policyVersion: Int
+    var sessionID: String
+    var movement: BookReenchantmentMovement
+    var role: BookSessionRole
+    var chosenSourceID: String
+    var chosenArmID: String
+    var contextKey: String
+    var propensity: Double
+    var candidates: [CausalCurationCandidate]
+    var pressureCost: Double
+    var selectedAt: Date
+    var movementReceipt: CausalMovementReceipt? = nil
+    /// The Curator makes two draws: first the Page type, then the exact Page
+    /// inside that type. These optional diagnostics preserve compatibility with
+    /// older receipts while making both propensities auditable.
+    var chosenType: BookPageType? = nil
+    var typePropensity: Double? = nil
+    var pagePropensityWithinType: Double? = nil
+    var pageCandidateCountWithinType: Int? = nil
+
+    var archiveReceiptTags: [String] {
+        let micros = Int((max(0.000_001, min(1, propensity)) * 1_000_000).rounded())
+        let pressure = Int((max(0, min(1, pressureCost)) * 100).rounded())
+        return [
+            "causal-experiment:\(id)",
+            "causal-policy:\(policyVersion)",
+            "causal-arm:\(chosenArmID)",
+            "causal-context:\(contextKey)",
+            "causal-source:\(chosenSourceID)",
+            "causal-propensity-micros:\(micros)",
+            "causal-pressure:\(pressure)"
+        ].map(\.readerLearningNormalizedTag)
+    }
+
+    func applying(to surface: SurfacePage) -> SurfacePage {
+        guard let data = try? JSONEncoder().encode(self) else { return surface }
+        var payload = surface.payload
+        payload.metadata[Self.metadataKey] = data.base64EncodedString()
+        payload.metadata["causalExperimentID"] = id
+        payload.metadata["causalPolicyVersion"] = String(policyVersion)
+        payload.metadata["causalArmID"] = chosenArmID
+        payload.metadata["causalContextKey"] = contextKey
+        payload.metadata["causalPropensity"] = String(propensity)
+        payload.metadata["causalCandidateCount"] = String(candidates.count)
+        payload.metadata["causalPressureCost"] = String(pressureCost)
+        payload.metadata["curatorChosenType"] = chosenType?.rawValue ?? ""
+        payload.metadata["curatorTypePropensity"] = typePropensity.map { String($0) } ?? ""
+        payload.metadata["curatorPagePropensityWithinType"] = pagePropensityWithinType.map { String($0) } ?? ""
+        payload.metadata["curatorPageCandidateCountWithinType"] = pageCandidateCountWithinType.map { String($0) } ?? ""
+        let existing = (payload.metadata["tags"] ?? "")
+            .split(separator: ",")
+            .map { String($0).readerLearningNormalizedTag }
+        payload.metadata["tags"] = Array(Set(existing + archiveReceiptTags)).sorted().joined(separator: ",")
+        return SurfacePage(
+            id: surface.id,
+            type: surface.type,
+            sourceID: surface.sourceID,
+            intent: surface.intent,
+            renderStyle: surface.renderStyle,
+            score: surface.score,
+            reason: surface.reason,
+            prompt: surface.prompt,
+            detail: surface.detail,
+            payload: payload
+        )
+    }
+
+    static func read(from surface: SurfacePage) -> CausalCurationReceipt? {
+        guard let encoded = surface.payload.metadata[metadataKey],
+              let data = Data(base64Encoded: encoded) else { return nil }
+        return try? JSONDecoder().decode(CausalCurationReceipt.self, from: data)
+    }
+}
+
+enum CausalAlivenessOutcomeKind: String, Codable, Equatable {
+    case participated
+    case chosen
+    case declined
+    case contradicted
+    case laterReturn
+    case keepsake
+    case confirmed
+    case livedEvidence
+
+    var isQualified: Bool {
+        switch self {
+        case .declined, .contradicted, .laterReturn, .keepsake, .confirmed, .livedEvidence:
+            return true
+        case .participated, .chosen:
+            return false
+        }
+    }
+}
+
+struct CausalCurationOpportunity: Codable, Equatable, Identifiable {
+    var id: String
+    var policyVersion: Int
+    var sessionID: String
+    var movement: BookReenchantmentMovement
+    var role: BookSessionRole
+    var selectedSourceID: String
+    var selectedArmID: String
+    var contextKey: String
+    var propensity: Double
+    var candidates: [CausalCurationCandidate]
+    var pressureCost: Double
+    var selectedAt: Date
+    var dayID: String
+}
+
+struct CausalMovementOpportunity: Codable, Equatable, Identifiable {
+    var id: String
+    var policyVersion: Int
+    var sessionID: String
+    var selectedMovement: BookReenchantmentMovement
+    var contextKey: String
+    var propensity: Double
+    var candidates: [CausalMovementCandidate]
+    var selectedAt: Date
+    var dayID: String
+}
+
+struct CausalCurationOutcome: Codable, Equatable, Identifiable {
+    var id: String
+    var opportunityID: String
+    var occurredAt: Date
+    var kind: CausalAlivenessOutcomeKind
+    /// Zero means the attempt produced qualified contrary evidence; one means
+    /// a strong lived receipt. Participation-only values remain diagnostic and
+    /// never train uplift.
+    var value: Double
+    var evidenceLine: String?
+}
+
+struct CausalUpliftEstimate: Equatable {
+    var treatmentCount: Int
+    var controlCount: Int
+    var treatmentMean: Double
+    var controlMean: Double
+    var estimatedUplift: Double
+    var conservativeLowerBound: Double
+    var conservativeUpperBound: Double
+    var usedExactContext: Bool
+
+    static let unwritten = CausalUpliftEstimate(
+        treatmentCount: 0,
+        controlCount: 0,
+        treatmentMean: 0.25,
+        controlMean: 0.25,
+        estimatedUplift: 0,
+        conservativeLowerBound: -1,
+        conservativeUpperBound: 1,
+        usedExactContext: false
+    )
+}
+
+/// A bounded, local logged-bandit ledger. The policy learns only from Pages
+/// whose alternatives and propensities were recorded. Its posterior is
+/// deliberately conservative, propensity weights are clipped, and an absent
+/// trace matures only after the reader has returned to the Book later.
+struct CausalCurationLedger: Codable, Equatable {
+    static let maxOpportunities = 1_600
+    static let maxOutcomes = 2_400
+    static let outcomeWindow: TimeInterval = 14 * 86_400
+
+    var opportunities: [CausalCurationOpportunity] = []
+    var movementOpportunities: [CausalMovementOpportunity] = []
+    var outcomes: [CausalCurationOutcome] = []
+    var lastRecordedAt: Date?
+
+    static let unwritten = CausalCurationLedger()
+
+    mutating func record(_ event: ReaderLearningEvent) {
+        let receipt = event.causalReceipt
+        let movementReceipt = event.causalMovementReceipt ?? receipt?.movementReceipt
+        guard receipt != nil || movementReceipt != nil else { return }
+        if let receipt,
+           !opportunities.contains(where: { $0.id == receipt.id }) {
+            opportunities.append(CausalCurationOpportunity(
+                id: receipt.id,
+                policyVersion: receipt.policyVersion,
+                sessionID: receipt.sessionID,
+                movement: receipt.movement,
+                role: receipt.role,
+                selectedSourceID: receipt.chosenSourceID,
+                selectedArmID: receipt.chosenArmID,
+                contextKey: receipt.contextKey,
+                propensity: max(0.000_001, min(1, receipt.propensity)),
+                candidates: receipt.candidates,
+                pressureCost: max(0, min(1, receipt.pressureCost)),
+                selectedAt: receipt.selectedAt,
+                dayID: event.dayID
+            ))
+        }
+        if let movementReceipt,
+           !movementOpportunities.contains(where: { $0.id == movementReceipt.id }) {
+            movementOpportunities.append(CausalMovementOpportunity(
+                id: movementReceipt.id,
+                policyVersion: movementReceipt.policyVersion,
+                sessionID: movementReceipt.sessionID,
+                selectedMovement: movementReceipt.chosenMovement,
+                contextKey: movementReceipt.contextKey,
+                propensity: max(0.000_001, min(1, movementReceipt.propensity)),
+                candidates: movementReceipt.candidates,
+                selectedAt: movementReceipt.selectedAt,
+                dayID: event.dayID
+            ))
+        }
+        if let outcome = Self.outcome(for: event) {
+            if let receipt { appendOutcome(outcome, opportunityID: receipt.id) }
+            if let movementReceipt { appendOutcome(outcome, opportunityID: movementReceipt.id) }
+        }
+        lastRecordedAt = max(lastRecordedAt ?? event.occurredAt, event.occurredAt)
+        prune(now: event.occurredAt)
+    }
+
+    mutating func recordLivedOutcome(
+        opportunityID: String,
+        occurredAt: Date,
+        value: Double,
+        evidenceLine: String?
+    ) {
+        guard opportunities.contains(where: { $0.id == opportunityID })
+                || movementOpportunities.contains(where: { $0.id == opportunityID }) else { return }
+        let outcome = CausalCurationOutcome(
+            id: "lived:\(opportunityID):\(Int(occurredAt.timeIntervalSince1970))",
+            opportunityID: opportunityID,
+            occurredAt: occurredAt,
+            kind: .livedEvidence,
+            value: max(0, min(1, value)),
+            evidenceLine: evidenceLine?.nonEmpty.map { String($0.prefix(180)) }
+        )
+        guard !outcomes.contains(where: { $0.id == outcome.id }) else { return }
+        outcomes.append(outcome)
+        lastRecordedAt = max(lastRecordedAt ?? occurredAt, occurredAt)
+        prune(now: occurredAt)
+    }
+
+    func estimate(
+        movement: BookReenchantmentMovement,
+        role: BookSessionRole,
+        sourceID: String,
+        contextKey: String,
+        now: Date
+    ) -> CausalUpliftEstimate {
+        let cutoff = now.addingTimeInterval(-365 * 86_400)
+        let base = opportunities.filter {
+            $0.movement == movement && $0.role == role && $0.selectedAt >= cutoff
+        }
+        let exact = base.filter { $0.contextKey == contextKey }
+        let exactGroups = groups(in: exact, sourceID: sourceID, now: now)
+        if exactGroups.treatment.count >= 3, exactGroups.control.count >= 3 {
+            return estimate(
+                treatment: exactGroups.treatment,
+                control: exactGroups.control,
+                sourceID: sourceID,
+                now: now,
+                exact: true
+            )
+        }
+        let broadGroups = groups(in: base, sourceID: sourceID, now: now)
+        guard broadGroups.treatment.count >= 3, broadGroups.control.count >= 3 else { return .unwritten }
+        return estimate(
+            treatment: broadGroups.treatment,
+            control: broadGroups.control,
+            sourceID: sourceID,
+            now: now,
+            exact: false
+        )
+    }
+
+    func multiplier(
+        movement: BookReenchantmentMovement,
+        role: BookSessionRole,
+        sourceID: String,
+        contextKey: String,
+        now: Date
+    ) -> Double {
+        let result = estimate(
+            movement: movement,
+            role: role,
+            sourceID: sourceID,
+            contextKey: contextKey,
+            now: now
+        )
+        guard result.treatmentCount >= 3, result.controlCount >= 3 else { return 1 }
+        if result.conservativeLowerBound > 0.015 {
+            return min(1.48, 1 + result.conservativeLowerBound * 1.35)
+        }
+        if result.conservativeUpperBound < -0.015 {
+            return max(0.72, 1 + result.conservativeUpperBound)
+        }
+        return 1
+    }
+
+    func movementEstimate(
+        movement: BookReenchantmentMovement,
+        contextKey: String,
+        now: Date
+    ) -> CausalUpliftEstimate {
+        let cutoff = now.addingTimeInterval(-365 * 86_400)
+        let base = movementOpportunities.filter { $0.selectedAt >= cutoff }
+        let exact = base.filter { $0.contextKey == contextKey }
+        let exactGroups = movementGroups(in: exact, movement: movement, now: now)
+        if exactGroups.treatment.count >= 3, exactGroups.control.count >= 3 {
+            return movementEstimate(
+                treatment: exactGroups.treatment,
+                control: exactGroups.control,
+                movement: movement,
+                now: now,
+                exact: true
+            )
+        }
+        let broadGroups = movementGroups(in: base, movement: movement, now: now)
+        guard broadGroups.treatment.count >= 3, broadGroups.control.count >= 3 else { return .unwritten }
+        return movementEstimate(
+            treatment: broadGroups.treatment,
+            control: broadGroups.control,
+            movement: movement,
+            now: now,
+            exact: false
+        )
+    }
+
+    func movementMultiplier(
+        movement: BookReenchantmentMovement,
+        contextKey: String,
+        now: Date
+    ) -> Double {
+        let result = movementEstimate(movement: movement, contextKey: contextKey, now: now)
+        guard result.treatmentCount >= 3, result.controlCount >= 3 else { return 1 }
+        if result.conservativeLowerBound > 0.015 {
+            return min(1.40, 1 + result.conservativeLowerBound * 1.15)
+        }
+        if result.conservativeUpperBound < -0.015 {
+            return max(0.76, 1 + result.conservativeUpperBound * 0.8)
+        }
+        return 1
+    }
+
+    /// No more than two high-pressure experiments in a rolling week unless a
+    /// prior one produced qualified positive evidence. This is a measurement
+    /// safeguard as much as a dignity safeguard: repeated pressure destroys a
+    /// useful counterfactual baseline.
+    func allowsHighPressureAttempt(now: Date) -> Bool {
+        let cutoff = now.addingTimeInterval(-7 * 86_400)
+        let recent = opportunities.filter { $0.selectedAt >= cutoff && $0.pressureCost >= 0.75 }
+        if recent.count < 2 { return true }
+        return recent.contains { resolvedValue(for: $0, now: now).map { $0 >= 0.65 } == true }
+    }
+
+    private func groups(
+        in pool: [CausalCurationOpportunity],
+        sourceID: String,
+        now: Date
+    ) -> (treatment: [CausalCurationOpportunity], control: [CausalCurationOpportunity]) {
+        let treatment = pool.filter { $0.selectedSourceID == sourceID && resolvedValue(for: $0, now: now) != nil }
+        let control = pool.filter {
+            $0.selectedSourceID != sourceID
+                && $0.candidates.contains(where: { $0.sourceID == sourceID })
+                && resolvedValue(for: $0, now: now) != nil
+        }
+        return (treatment, control)
+    }
+
+    private func movementGroups(
+        in pool: [CausalMovementOpportunity],
+        movement: BookReenchantmentMovement,
+        now: Date
+    ) -> (treatment: [CausalMovementOpportunity], control: [CausalMovementOpportunity]) {
+        let treatment = pool.filter {
+            $0.selectedMovement == movement && resolvedValue(id: $0.id, selectedAt: $0.selectedAt, now: now) != nil
+        }
+        let control = pool.filter {
+            $0.selectedMovement != movement
+                && $0.candidates.contains(where: { $0.movement == movement })
+                && resolvedValue(id: $0.id, selectedAt: $0.selectedAt, now: now) != nil
+        }
+        return (treatment, control)
+    }
+
+    private func estimate(
+        treatment: [CausalCurationOpportunity],
+        control: [CausalCurationOpportunity],
+        sourceID: String,
+        now: Date,
+        exact: Bool
+    ) -> CausalUpliftEstimate {
+        let treated = betaStats(for: treatment, sourceID: sourceID, isTreatment: true, now: now)
+        let untreated = betaStats(for: control, sourceID: sourceID, isTreatment: false, now: now)
+        let difference = treated.mean - untreated.mean
+        let standardError = sqrt(treated.variance + untreated.variance)
+        return CausalUpliftEstimate(
+            treatmentCount: treatment.count,
+            controlCount: control.count,
+            treatmentMean: treated.mean,
+            controlMean: untreated.mean,
+            estimatedUplift: difference,
+            conservativeLowerBound: difference - 1.28 * standardError,
+            conservativeUpperBound: difference + 1.28 * standardError,
+            usedExactContext: exact
+        )
+    }
+
+    private func betaStats(
+        for group: [CausalCurationOpportunity],
+        sourceID: String,
+        isTreatment: Bool,
+        now: Date
+    ) -> (mean: Double, variance: Double) {
+        var alpha = 1.0
+        var beta = 3.0
+        for opportunity in group {
+            guard let raw = resolvedValue(for: opportunity, now: now) else { continue }
+            let adjusted = max(0, min(1, raw - opportunity.pressureCost * 0.20))
+            let treatmentPropensity = propensity(of: sourceID, in: opportunity.candidates)
+            let assignmentPropensity = isTreatment ? treatmentPropensity : (1 - treatmentPropensity)
+            let inversePropensity = min(4.0, max(1.0, 1.0 / max(0.08, assignmentPropensity)))
+            alpha += inversePropensity * adjusted
+            beta += inversePropensity * (1 - adjusted)
+        }
+        let total = alpha + beta
+        let mean = alpha / total
+        let variance = (alpha * beta) / (total * total * (total + 1))
+        return (mean, variance)
+    }
+
+    private func movementEstimate(
+        treatment: [CausalMovementOpportunity],
+        control: [CausalMovementOpportunity],
+        movement: BookReenchantmentMovement,
+        now: Date,
+        exact: Bool
+    ) -> CausalUpliftEstimate {
+        let treated = movementBetaStats(for: treatment, movement: movement, isTreatment: true, now: now)
+        let untreated = movementBetaStats(for: control, movement: movement, isTreatment: false, now: now)
+        let difference = treated.mean - untreated.mean
+        let standardError = sqrt(treated.variance + untreated.variance)
+        return CausalUpliftEstimate(
+            treatmentCount: treatment.count,
+            controlCount: control.count,
+            treatmentMean: treated.mean,
+            controlMean: untreated.mean,
+            estimatedUplift: difference,
+            conservativeLowerBound: difference - 1.28 * standardError,
+            conservativeUpperBound: difference + 1.28 * standardError,
+            usedExactContext: exact
+        )
+    }
+
+    private func movementBetaStats(
+        for group: [CausalMovementOpportunity],
+        movement: BookReenchantmentMovement,
+        isTreatment: Bool,
+        now: Date
+    ) -> (mean: Double, variance: Double) {
+        var alpha = 1.0
+        var beta = 3.0
+        for opportunity in group {
+            guard let value = resolvedValue(id: opportunity.id, selectedAt: opportunity.selectedAt, now: now) else { continue }
+            let treatmentPropensity = propensity(of: movement, in: opportunity.candidates)
+            let assignmentPropensity = isTreatment ? treatmentPropensity : (1 - treatmentPropensity)
+            let inversePropensity = min(4.0, max(1.0, 1.0 / max(0.08, assignmentPropensity)))
+            alpha += inversePropensity * value
+            beta += inversePropensity * (1 - value)
+        }
+        let total = alpha + beta
+        let mean = alpha / total
+        let variance = (alpha * beta) / (total * total * (total + 1))
+        return (mean, variance)
+    }
+
+    private func propensity(
+        of sourceID: String,
+        in candidates: [CausalCurationCandidate]
+    ) -> Double {
+        let total = candidates.reduce(0) { $0 + max(0, $1.weight) }
+        guard total > 0 else { return 0 }
+        let selected = candidates
+            .filter { $0.sourceID == sourceID }
+            .reduce(0) { $0 + max(0, $1.weight) }
+        return max(0.000_001, min(0.999_999, selected / total))
+    }
+
+    private func propensity(
+        of movement: BookReenchantmentMovement,
+        in candidates: [CausalMovementCandidate]
+    ) -> Double {
+        let total = candidates.reduce(0) { $0 + max(0, $1.weight) }
+        guard total > 0 else { return 0 }
+        let selected = candidates
+            .filter { $0.movement == movement }
+            .reduce(0) { $0 + max(0, $1.weight) }
+        return max(0.000_001, min(0.999_999, selected / total))
+    }
+
+    private func resolvedValue(for opportunity: CausalCurationOpportunity, now: Date) -> Double? {
+        resolvedValue(id: opportunity.id, selectedAt: opportunity.selectedAt, now: now)
+    }
+
+    private func resolvedValue(id: String, selectedAt: Date, now: Date) -> Double? {
+        let qualified = outcomes.filter { $0.opportunityID == id && $0.kind.isQualified }
+        if let positive = qualified.filter({ $0.value > 0 }).max(by: { $0.value < $1.value }) {
+            return positive.value
+        }
+        if !qualified.isEmpty { return 0 }
+        guard now.timeIntervalSince(selectedAt) >= Self.outcomeWindow,
+              let lastRecordedAt,
+              lastRecordedAt > selectedAt.addingTimeInterval(Self.outcomeWindow) else {
+            return nil
+        }
+        return 0
+    }
+
+    private mutating func appendOutcome(_ outcome: CausalCurationOutcome, opportunityID: String) {
+        let recorded = CausalCurationOutcome(
+            // One reader event may resolve both the session-movement choice
+            // and the Page-role choice. Identity must therefore include the
+            // opportunity, or the first append would silently starve the
+            // other level of its outcome.
+            id: "\(outcome.id)|\(opportunityID)",
+            opportunityID: opportunityID,
+            occurredAt: outcome.occurredAt,
+            kind: outcome.kind,
+            value: outcome.value,
+            evidenceLine: outcome.evidenceLine
+        )
+        guard !outcomes.contains(where: { $0.id == recorded.id }) else { return }
+        outcomes.append(recorded)
+    }
+
+    private static func outcome(for event: ReaderLearningEvent) -> CausalCurationOutcome? {
+        let kind: CausalAlivenessOutcomeKind
+        let value: Double
+        switch event.action {
+        case .surfaced, .opened, .recognized:
+            return nil
+        case .acted:
+            kind = .participated; value = 0.08
+        case .kept:
+            kind = .chosen; value = 0.12
+        case .dismissed:
+            kind = .declined; value = 0
+        case .missed:
+            kind = .contradicted; value = 0
+        case .followedThread:
+            kind = .laterReturn; value = 0.65
+        case .keepsakeEarned:
+            kind = .keepsake; value = 0.75
+        case .loved:
+            // Strong evidence of fit, but still an answer inside the Book. A
+            // later return, keepsake, or lived receipt must outrank it.
+            kind = .confirmed; value = 0.45
+        }
+        return CausalCurationOutcome(
+            id: "learning:\(event.id)",
+            opportunityID: "",
+            occurredAt: event.occurredAt,
+            kind: kind,
+            value: value,
+            evidenceLine: event.evidence?.nonEmpty.map { String($0.prefix(180)) }
+        )
+    }
+
+    private mutating func prune(now: Date) {
+        let cutoff = now.addingTimeInterval(-730 * 86_400)
+        opportunities = Array(opportunities.filter { $0.selectedAt >= cutoff }.suffix(Self.maxOpportunities))
+        movementOpportunities = Array(
+            movementOpportunities.filter { $0.selectedAt >= cutoff }.suffix(Self.maxOpportunities)
+        )
+        let validIDs = Set(opportunities.map(\.id) + movementOpportunities.map(\.id))
+        outcomes = Array(outcomes.filter { validIDs.contains($0.opportunityID) }.suffix(Self.maxOutcomes))
+    }
+}
+
+/// A private, local, revisable portrait of the conditions under which this
+/// particular reader becomes more alive. It is a sparse evidence tensor rather
+/// than a personality label: movement x source x hour x weather x place x
+/// company x language. Exact observations stay available behind every claim.
+struct ReaderAlivenessModel: Codable, Equatable {
+    static let currentVersion = 1
+    static let maxObservations = 1_200
+
+    var version: Int = ReaderAlivenessModel.currentVersion
+    var observations: [ReaderAlivenessObservation] = []
+    var patternFeedback: [String: ReaderAlivenessPatternFeedback] = [:]
+    /// Optional so Books written before causal opportunity logging decode as an
+    /// empty experiment ledger rather than inventing a migration history.
+    var causalLedger: CausalCurationLedger?
+    var lastUpdatedAt: Date?
+
+    static let unwritten = ReaderAlivenessModel()
+
+    mutating func ingest(_ event: ReaderLearningEvent) {
+        if event.causalReceipt != nil || event.causalMovementReceipt != nil {
+            var ledger = causalLedger ?? .unwritten
+            ledger.record(event)
+            causalLedger = ledger
+        }
+        let patternID = Self.tagValue(prefix: "aliveness-pattern:", in: event.tags)
+        if let patternID,
+           [.loved, .missed, .dismissed].contains(event.action) {
+            var feedback = patternFeedback[patternID] ?? ReaderAlivenessPatternFeedback()
+            switch event.action {
+            case .loved:
+                feedback.confirmed += 1
+            case .missed:
+                feedback.contradicted += 1
+            case .dismissed:
+                feedback.forbidden = true
+            default:
+                break
+            }
+            feedback.lastAnsweredAt = event.occurredAt
+            patternFeedback[patternID] = feedback
+            lastUpdatedAt = event.occurredAt
+            return
+        }
+
+        if let originalRaw = Self.tagValue(prefix: "original-book-session-movement:", in: event.tags),
+           let originalMovement = BookReenchantmentMovement.allCases.first(where: {
+               $0.rawValue.caseInsensitiveCompare(originalRaw) == .orderedSame
+           }),
+           [.kept, .loved, .followedThread].contains(event.action) {
+            let impact: Int
+            switch event.action {
+            case .loved: impact = 82
+            case .followedThread: impact = 70
+            default: impact = 58
+            }
+            let originalSource = Self.tagValue(prefix: "original-book-session-source:", in: event.tags)
+            append(ReaderAlivenessObservation(
+                id: "return:\(event.id)",
+                sessionID: Self.tagValue(prefix: "original-book-session-id:", in: event.tags),
+                movement: originalMovement,
+                role: .echo,
+                sourceID: originalSource,
+                pageID: Self.tagValue(prefix: "remembered-page:", in: event.tags),
+                dayID: event.dayID,
+                occurredAt: event.occurredAt,
+                kind: .followed,
+                authority: event.action == .loved ? .readerCorrection : .readerAuthored,
+                impact: impact,
+                facets: Self.facets(
+                    sourceID: originalSource,
+                    tags: event.tags,
+                    context: event.context,
+                    evidence: event.evidence
+                ),
+                evidenceLine: event.evidence?.nonEmpty.map { String($0.prefix(180)) }
+            ))
+            if let originalOpportunityID = Self.tagValue(prefix: "original-causal-experiment:", in: event.tags) {
+                var ledger = causalLedger ?? .unwritten
+                let causalValue: Double
+                switch event.action {
+                case .loved: causalValue = 0.82
+                case .followedThread: causalValue = 0.76
+                default: causalValue = 0.68
+                }
+                ledger.recordLivedOutcome(
+                    opportunityID: originalOpportunityID,
+                    occurredAt: event.occurredAt,
+                    value: causalValue,
+                    evidenceLine: event.evidence ?? "An older Page was deliberately chosen when it returned."
+                )
+                causalLedger = ledger
+            }
+            if let originalMovementOpportunityID = Self.tagValue(
+                prefix: "original-causal-movement-experiment:",
+                in: event.tags
+            ) {
+                var ledger = causalLedger ?? .unwritten
+                ledger.recordLivedOutcome(
+                    opportunityID: originalMovementOpportunityID,
+                    occurredAt: event.occurredAt,
+                    value: event.action == .loved ? 0.82 : 0.72,
+                    evidenceLine: event.evidence ?? "A movement arranged by an older session survived into a later return."
+                )
+                causalLedger = ledger
+            }
+        }
+
+        guard let movement = Self.movement(in: event.tags),
+              let signal = Self.signal(for: event.action) else { return }
+        let observation = ReaderAlivenessObservation(
+            id: "learning:\(event.id)",
+            sessionID: Self.tagValue(prefix: "book-session-id:", in: event.tags),
+            movement: movement,
+            role: Self.tagValue(prefix: "book-session-role:", in: event.tags)
+                .flatMap(BookSessionRole.init(rawValue:)),
+            sourceID: event.sourceID,
+            pageID: nil,
+            dayID: event.dayID,
+            occurredAt: event.occurredAt,
+            kind: signal.kind,
+            authority: signal.authority,
+            impact: signal.impact,
+            facets: Self.facets(
+                sourceID: event.sourceID,
+                tags: event.tags,
+                context: event.context,
+                evidence: event.evidence
+            ),
+            evidenceLine: event.evidence?.nonEmpty.map { String($0.prefix(180)) }
+        )
+        append(observation)
+    }
+
+    /// A delayed pulse is direct reader testimony about whether a prior
+    /// curation opportunity escaped the screen. Current-state pulses never
+    /// enter the causal ledger: feeling vivid before the Book acts is context,
+    /// not proof the Book caused anything.
+    mutating func ingest(_ pulse: ReaderStatePulseRecord) {
+        guard pulse.dimension == .delayedOutcome,
+              let target = pulse.target else { return }
+        let impact = max(-100, min(100, (pulse.score - 5) * 20))
+        let observation = ReaderAlivenessObservation(
+            id: "pulse:\(pulse.id)",
+            sessionID: target.sessionID,
+            movement: target.movement,
+            role: target.role,
+            sourceID: target.sourceID,
+            pageID: target.pageID,
+            dayID: pulse.dayID,
+            occurredAt: pulse.answeredAt,
+            kind: impact >= 25 ? .livedEvidence : (impact <= -25 ? .contradicted : .acted),
+            authority: .readerCorrection,
+            impact: impact,
+            facets: pulse.facets,
+            evidenceLine: String((pulse.note?.nonEmpty ?? pulse.answerLine).prefix(180))
+        )
+        append(observation)
+
+        var ledger = causalLedger ?? .unwritten
+        let value = Double(max(0, min(10, pulse.score))) / 10
+        if let opportunityID = target.causalOpportunityID {
+            ledger.recordLivedOutcome(
+                opportunityID: opportunityID,
+                occurredAt: pulse.answeredAt,
+                value: value,
+                evidenceLine: pulse.note?.nonEmpty ?? pulse.answerLine
+            )
+        }
+        if let movementOpportunityID = target.causalMovementOpportunityID {
+            ledger.recordLivedOutcome(
+                opportunityID: movementOpportunityID,
+                occurredAt: pulse.answeredAt,
+                value: value,
+                evidenceLine: pulse.note?.nonEmpty ?? pulse.answerLine
+            )
+        }
+        causalLedger = ledger
+        lastUpdatedAt = pulse.answeredAt
+    }
+
+    mutating func reconcile(
+        longGame: BookLongGame?,
+        days: [BookDay],
+        now: Date
+    ) {
+        guard let longGame else { return }
+        let pagesByID = Dictionary(uniqueKeysWithValues: days.flatMap(\.pages).map { ($0.id, $0) })
+        for evidence in longGame.evidence {
+            let id = "long-game:\(evidence.id)"
+            guard !observations.contains(where: { $0.id == id }) else { continue }
+            let page = evidence.evidencePageIDs.compactMap { pagesByID[$0] }.first
+            let impact: Int
+            let authority: ReaderAlivenessEvidenceAuthority
+            switch evidence.kind {
+            case .spontaneousKeep:
+                impact = 68
+                authority = .readerAuthored
+            case .explicitFieldNote:
+                impact = 76
+                authority = .readerAuthored
+            case .completedExperiment:
+                impact = 90
+                authority = .livedReceipt
+            case .readerDefinition:
+                impact = 82
+                authority = .readerAuthored
+            case .spontaneousPattern:
+                impact = 94
+                authority = .livedReceipt
+            case .readerDeclaration:
+                impact = 100
+                authority = .readerAuthored
+            }
+            append(ReaderAlivenessObservation(
+                id: id,
+                sessionID: page.flatMap { Self.tagValue(prefix: "book-session-id:", in: $0.tags) },
+                movement: BookReenchantmentMovement(capacity: evidence.capacity),
+                role: page.flatMap { Self.tagValue(prefix: "book-session-role:", in: $0.tags) }
+                    .flatMap(BookSessionRole.init(rawValue:)),
+                sourceID: page?.sourceID,
+                pageID: page?.id,
+                dayID: page.map { BookDay.id(for: $0.createdAt) } ?? BookDay.id(for: evidence.happenedAt),
+                occurredAt: evidence.happenedAt,
+                kind: .livedEvidence,
+                authority: authority,
+                impact: impact,
+                facets: Self.facets(
+                    sourceID: page?.sourceID,
+                    tags: page?.tags ?? [],
+                    context: page?.context,
+                    evidence: [evidence.line, page?.userInput].compactMap { $0 }.joined(separator: " ")
+                ),
+                evidenceLine: String(evidence.line.prefix(180))
+            ))
+            if let page,
+               let opportunityID = Self.tagValue(prefix: "causal-experiment:", in: page.tags) {
+                var ledger = causalLedger ?? .unwritten
+                ledger.recordLivedOutcome(
+                    opportunityID: opportunityID,
+                    occurredAt: evidence.happenedAt,
+                    value: Double(impact) / 100,
+                    evidenceLine: evidence.line
+                )
+                causalLedger = ledger
+            }
+            if let page,
+               let movementOpportunityID = Self.tagValue(prefix: "causal-movement-experiment:", in: page.tags) {
+                var ledger = causalLedger ?? .unwritten
+                ledger.recordLivedOutcome(
+                    opportunityID: movementOpportunityID,
+                    occurredAt: evidence.happenedAt,
+                    value: Double(impact) / 100,
+                    evidenceLine: evidence.line
+                )
+                causalLedger = ledger
+            }
+        }
+        prune(now: now)
+    }
+
+    func patterns(now: Date = Date(), limit: Int = 8) -> [ReaderAlivenessPattern] {
+        struct GroupKey: Hashable {
+            var movement: BookReenchantmentMovement
+            var facets: [String]
+        }
+
+        let eligible = observations.filter { abs($0.impact) >= 25 }
+        var groups: [GroupKey: [ReaderAlivenessObservation]] = [:]
+        for observation in eligible {
+            let expressive = observation.facets.filter(Self.isExpressiveFacet)
+            for facet in expressive.prefix(8) {
+                groups[GroupKey(movement: observation.movement, facets: [facet]), default: []].append(observation)
+            }
+            let contextual = Array(expressive.filter { !$0.hasPrefix("source:") }.prefix(5))
+            if contextual.count >= 2 {
+                for left in 0..<(contextual.count - 1) {
+                    for right in (left + 1)..<contextual.count {
+                        let pair = [contextual[left], contextual[right]].sorted()
+                        groups[GroupKey(movement: observation.movement, facets: pair), default: []].append(observation)
+                    }
+                }
+            }
+        }
+
+        return groups.compactMap { key, members -> ReaderAlivenessPattern? in
+            let uniqueMembers = Dictionary(grouping: members, by: \.id).compactMap { $0.value.first }
+            let supporting = uniqueMembers.filter { $0.impact > 0 }
+            let contradicting = uniqueMembers.filter { $0.impact < 0 }
+            let distinctDays = Set(supporting.map(\.dayID)).count
+            let livedCount = supporting.filter { $0.kind == .livedEvidence }.count
+            let outcomeCount = supporting.filter {
+                [.livedEvidence, .keepsake, .followed, .confirmedReading].contains($0.kind)
+            }.count
+            let positiveWeight = supporting.reduce(0) { $0 + $1.impact }
+            let negativeWeight = contradicting.reduce(0) { $0 + abs($1.impact) }
+            guard distinctDays >= 2,
+                  positiveWeight >= (key.facets.count == 1 ? 120 : 145),
+                  outcomeCount > 0 else { return nil }
+
+            let idSeed = "\(key.movement.rawValue)|\(key.facets.joined(separator: "|"))"
+            let id = "aliveness-\(key.movement.rawValue)-\(abs(idSeed.stableHash))".readerLearningNormalizedTag
+            let feedback = patternFeedback[id] ?? ReaderAlivenessPatternFeedback()
+            guard !feedback.forbidden else { return nil }
+            let confidence = min(97, max(55,
+                38 + distinctDays * 9 + livedCount * 13 + feedback.confirmed * 10
+                    - contradicting.count * 7 - feedback.contradicted * 13
+            ))
+            guard confidence >= 68 else { return nil }
+            let sortedSupport = supporting.sorted { $0.occurredAt < $1.occurredAt }
+            guard let first = sortedSupport.first, let last = sortedSupport.last else { return nil }
+            let descriptions = key.facets.map(Self.describeFacet)
+            let condition = Self.joinedConditions(descriptions)
+            let effect = Self.effectLine(for: key.movement)
+            let contradictionLine = negativeWeight > 0
+                ? "It has failed or been refused \(contradicting.count) time\(contradicting.count == 1 ? "" : "s"), so this is a tendency, not a law."
+                : "The counter-reading is simple: these moments may have been good for reasons the Book has not measured."
+            return ReaderAlivenessPattern(
+                id: id,
+                movement: key.movement,
+                facets: key.facets,
+                supportingObservationIDs: sortedSupport.map(\.id),
+                contradictingObservationIDs: contradicting.map(\.id),
+                evidencePageIDs: Array(Set(sortedSupport.compactMap(\.pageID))).sorted(),
+                evidenceLines: Array(sortedSupport.compactMap(\.evidenceLine).filter { !$0.isEmpty }.suffix(3)),
+                firstObservedAt: first.occurredAt,
+                lastObservedAt: last.occurredAt,
+                confidence: confidence,
+                line: "\(condition) \(effect)",
+                counterReading: contradictionLine,
+                falsifier: "If the next two comparable moments are refused or leave no lived trace, the Book must weaken this reading.")
+        }
+        .filter { !$0.isStale(at: now) }
+        .sorted { left, right in
+            if left.confidence != right.confidence { return left.confidence > right.confidence }
+            if left.facets.count != right.facets.count { return left.facets.count > right.facets.count }
+            return left.lastObservedAt > right.lastObservedAt
+        }
+        .prefix(max(0, limit))
+        .map { $0 }
+    }
+
+    /// The Book uses intimate knowledge, but never turns it into a destiny.
+    /// Learned success can roughly double a Page's chance; contradiction can
+    /// cool it, while the floor preserves genuine exploration.
+    func curationMultiplier(
+        movement: BookReenchantmentMovement,
+        sourceID: String,
+        currentFacets: Set<String>,
+        now: Date
+    ) -> Double {
+        let cutoff = now.addingTimeInterval(-180 * 86_400)
+        let relevant = observations.filter {
+            $0.movement == movement && $0.occurredAt >= cutoff && abs($0.impact) >= 25
+        }
+        guard !relevant.isEmpty else { return 1.18 }
+        let sourceMatches = relevant.filter { $0.sourceID == sourceID }
+        let contextMatches = relevant.filter { !Set($0.facets).isDisjoint(with: currentFacets) }
+        let weighted = sourceMatches + contextMatches
+        guard !weighted.isEmpty else { return 1.06 }
+        let signed = weighted.reduce(0) { $0 + $1.impact }
+        let scale = max(140.0, Double(weighted.count * 85))
+        return max(0.58, min(1.85, 1.0 + Double(signed) / scale))
+    }
+
+    func movementExplorationMultiplier(
+        _ movement: BookReenchantmentMovement,
+        now: Date
+    ) -> Double {
+        let relevant = observations.filter { $0.movement == movement && abs($0.impact) >= 25 }
+        guard !relevant.isEmpty else { return 1.35 }
+        let recentStrong = relevant.contains {
+            $0.impact >= 65 && now.timeIntervalSince($0.occurredAt) < 3 * 86_400
+        }
+        if recentStrong { return 0.74 }
+        if Set(relevant.map(\.dayID)).count < 3 { return 1.16 }
+        let total = relevant.reduce(0) { $0 + $1.impact }
+        return max(0.78, min(1.24, 1.0 + Double(total) / Double(max(500, relevant.count * 400))))
+    }
+
+    func causalUpliftMultiplier(
+        movement: BookReenchantmentMovement,
+        role: BookSessionRole,
+        sourceID: String,
+        contextKey: String,
+        now: Date
+    ) -> Double {
+        (causalLedger ?? .unwritten).multiplier(
+            movement: movement,
+            role: role,
+            sourceID: sourceID,
+            contextKey: contextKey,
+            now: now
+        )
+    }
+
+    func causalMovementUpliftMultiplier(
+        movement: BookReenchantmentMovement,
+        contextKey: String,
+        now: Date
+    ) -> Double {
+        (causalLedger ?? .unwritten).movementMultiplier(
+            movement: movement,
+            contextKey: contextKey,
+            now: now
+        )
+    }
+
+    func allowsHighPressureCausalAttempt(now: Date) -> Bool {
+        (causalLedger ?? .unwritten).allowsHighPressureAttempt(now: now)
+    }
+
+    private mutating func append(_ observation: ReaderAlivenessObservation) {
+        guard !observations.contains(where: { $0.id == observation.id }) else { return }
+        observations.append(observation)
+        if observations.count > Self.maxObservations {
+            observations = Array(observations.suffix(Self.maxObservations))
+        }
+        lastUpdatedAt = observation.occurredAt
+    }
+
+    private mutating func prune(now: Date) {
+        let cutoff = now.addingTimeInterval(-730 * 86_400)
+        observations = Array(observations.filter { $0.occurredAt >= cutoff }.suffix(Self.maxObservations))
+        if patternFeedback.count > 240 {
+            patternFeedback = Dictionary(uniqueKeysWithValues: patternFeedback
+                .sorted { ($0.value.lastAnsweredAt ?? .distantPast) > ($1.value.lastAnsweredAt ?? .distantPast) }
+                .prefix(240)
+                .map { ($0.key, $0.value) })
+        }
+    }
+
+    private static func signal(
+        for action: ReaderLearningAction
+    ) -> (kind: ReaderAlivenessEvidenceKind, authority: ReaderAlivenessEvidenceAuthority, impact: Int)? {
+        switch action {
+        case .surfaced:
+            return nil
+        case .opened:
+            return (.opened, .interaction, 8)
+        case .acted:
+            return (.acted, .interaction, 28)
+        case .recognized:
+            return nil
+        case .followedThread:
+            return (.followed, .interaction, 52)
+        case .keepsakeEarned:
+            return (.keepsake, .interaction, 64)
+        case .kept:
+            return (.chosen, .readerAuthored, 22)
+        case .loved:
+            return (.confirmedReading, .readerCorrection, 88)
+        case .dismissed:
+            return (.declined, .readerCorrection, -28)
+        case .missed:
+            return (.contradicted, .readerCorrection, -82)
+        }
+    }
+
+    private static func movement(in tags: [String]) -> BookReenchantmentMovement? {
+        let raw = tagValue(prefix: "book-session:", in: tags)
+            ?? tagValue(prefix: "book-session-movement:", in: tags)
+        guard let raw else { return nil }
+        return BookReenchantmentMovement.allCases.first {
+            $0.rawValue.caseInsensitiveCompare(raw) == .orderedSame
+        }
+    }
+
+    private static func tagValue(prefix: String, in tags: [String]) -> String? {
+        tags.first(where: { $0.hasPrefix(prefix) }).map { String($0.dropFirst(prefix.count)) }
+    }
+
+    private static func facets(
+        sourceID: String?,
+        tags: [String],
+        context: BookPageContextSnapshot?,
+        evidence: String?
+    ) -> [String] {
+        var result: [String] = []
+        if let sourceID = sourceID?.nonEmpty {
+            result.append("source:\(sourceID.readerLearningNormalizedTag)")
+        }
+        if let context {
+            result.append("time:\(context.dayPart.readerLearningNormalizedTag)")
+            result += context.weatherTags.prefix(3).map { "weather:\($0.readerLearningNormalizedTag)" }
+            if let anchor = context.nearbyAnchorID?.nonEmpty {
+                result.append("anchor:\(anchor.readerLearningNormalizedTag)")
+            } else if let place = context.locationLabel?.nonEmpty {
+                result.append("place:\(place.readerLearningNormalizedTag)")
+            }
+            if let count = context.calendarEventCount {
+                result.append("day-load:\(count == 0 ? "open" : (count >= 3 ? "crowded" : "held"))")
+            }
+            if let body = context.bodyScore {
+                result.append("body:\(body < 35 ? "low" : (body > 72 ? "bright" : "steady"))")
+            }
+        }
+        result += tags.filter {
+            $0.hasPrefix("person:") || $0.hasPrefix("entity:") || $0.hasPrefix("sender:")
+        }.prefix(3)
+        result += salientWords(in: evidence).map { "word:\($0)" }
+        return Array(Set(result.filter { !$0.hasSuffix(":") })).sorted()
+    }
+
+    private static func salientWords(in text: String?) -> [String] {
+        guard let text else { return [] }
+        let ignored: Set<String> = [
+            "about", "after", "again", "also", "because", "been", "book", "could", "from", "have",
+            "kept", "page", "reader", "really", "said", "that", "their", "there", "they", "this",
+            "through", "today", "very", "what", "when", "where", "which", "with", "would", "your"
+        ]
+        var counts: [String: Int] = [:]
+        for word in text.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted)
+            where word.count >= 5 && !ignored.contains(word) {
+            counts[word, default: 0] += 1
+        }
+        return counts.sorted {
+            if $0.value != $1.value { return $0.value > $1.value }
+            return $0.key < $1.key
+        }.prefix(3).map(\.key)
+    }
+
+    private static func isExpressiveFacet(_ facet: String) -> Bool {
+        ["source:", "time:", "weather:", "anchor:", "place:", "day-load:", "body:", "person:", "entity:", "sender:", "word:"]
+            .contains(where: facet.hasPrefix)
+    }
+
+    private static func describeFacet(_ facet: String) -> String {
+        let parts = facet.split(separator: ":", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { return facet }
+        let value = parts[1].replacingOccurrences(of: "-", with: " ")
+        switch parts[0] {
+        case "time": return value == "night" ? "late hours" : "\(value)s"
+        case "weather": return value
+        case "anchor", "place": return value
+        case "day-load": return value == "crowded" ? "days already full of other people's claims" : "\(value) days"
+        case "body": return value == "low" ? "low-energy hours" : "\(value) bodily weather"
+        case "person", "entity", "sender": return "the company of \(value)"
+        case "word": return "the word “\(value)”"
+        case "source": return "\(value) Pages"
+        default: return value
+        }
+    }
+
+    private static func joinedConditions(_ conditions: [String]) -> String {
+        guard let first = conditions.first else { return "Something very particular" }
+        let capitalizedFirst = first.prefix(1).uppercased() + String(first.dropFirst())
+        if conditions.count == 1 { return capitalizedFirst }
+        return "\(capitalizedFirst) and \(conditions.dropFirst().joined(separator: " and "))"
+    }
+
+    private static func effectLine(for movement: BookReenchantmentMovement) -> String {
+        switch movement {
+        case .freshSight: return "keep appearing when your looking becomes less useful and more alive."
+        case .livingWorld: return "keep turning the world from backdrop into company."
+        case .scriptFreedom: return "keep making inherited rules look less inevitable."
+        case .chosenDetour: return "keep helping you author a side door in the day."
+        case .exactLanguage: return "keep bringing your experience into sharper, stranger language."
+        case .humanOtherness: return "keep letting another person remain a whole world beside you."
+        case .livingContinuity: return "keep giving earlier life a real second life in the present."
+        case .shelter: return "keep making rest feel receptive rather than defeated."
+        }
+    }
+}
+
 struct BookCurationDirective: Equatable {
     var id: String
     var capacity: BookLongGameCapacity
@@ -2764,6 +6146,7 @@ enum BookCampaignStatus: String, Codable, Equatable {
     case active
     case resting
     case answered
+    case untried
     case completed
 }
 
@@ -2815,6 +6198,9 @@ struct BookReenchantmentCampaign: Codable, Equatable, Identifiable {
     var lastChangedAt: Date
     var nextEligibleAt: Date
     var rejectionCount: Int
+    /// A validated overnight theory may commission this campaign. Older
+    /// campaigns decode with no strategy and retain their deterministic origin.
+    var strategyID: String? = nil
 
     var mayClaimDeskSlot: Bool {
         status == .active && beat != .release && presentation != .silence
@@ -2897,6 +6283,8 @@ struct BookLongGame: Codable, Equatable {
     var hypotheses: [BookLongGameHypothesis]
     var currentCampaign: BookReenchantmentCampaign?
     var campaignHistory: [BookReenchantmentCampaign]
+    var activeStrategy: BookReenchantmentStrategy?
+    var strategyHistory: [BookReenchantmentStrategy]
 
     init(
         evidenceModelVersion: Int = BookLongGame.currentEvidenceModelVersion,
@@ -2910,7 +6298,9 @@ struct BookLongGame: Codable, Equatable {
         evidence: [BookLongGameEvidence] = [],
         hypotheses: [BookLongGameHypothesis] = [],
         currentCampaign: BookReenchantmentCampaign? = nil,
-        campaignHistory: [BookReenchantmentCampaign] = []
+        campaignHistory: [BookReenchantmentCampaign] = [],
+        activeStrategy: BookReenchantmentStrategy? = nil,
+        strategyHistory: [BookReenchantmentStrategy] = []
     ) {
         self.evidenceModelVersion = evidenceModelVersion
         self.campaignModelVersion = campaignModelVersion
@@ -2924,11 +6314,14 @@ struct BookLongGame: Codable, Equatable {
         self.hypotheses = hypotheses
         self.currentCampaign = currentCampaign
         self.campaignHistory = campaignHistory
+        self.activeStrategy = activeStrategy
+        self.strategyHistory = strategyHistory
     }
 
     private enum CodingKeys: String, CodingKey {
         case evidenceModelVersion, campaignModelVersion, phase, strategy, startedAt, lastAdvancedAt
         case phasePresentedAt, milestones, evidence, hypotheses, currentCampaign, campaignHistory
+        case activeStrategy, strategyHistory
     }
 
     init(from decoder: Decoder) throws {
@@ -2945,6 +6338,78 @@ struct BookLongGame: Codable, Equatable {
         hypotheses = try values.decodeIfPresent([BookLongGameHypothesis].self, forKey: .hypotheses) ?? []
         currentCampaign = try values.decodeIfPresent(BookReenchantmentCampaign.self, forKey: .currentCampaign)
         campaignHistory = try values.decodeIfPresent([BookReenchantmentCampaign].self, forKey: .campaignHistory) ?? []
+        activeStrategy = try values.decodeIfPresent(BookReenchantmentStrategy.self, forKey: .activeStrategy)
+        strategyHistory = try values.decodeIfPresent([BookReenchantmentStrategy].self, forKey: .strategyHistory) ?? []
+    }
+}
+
+enum BookReenchantmentStrategyLifecycle {
+    static func adopt(
+        _ proposed: BookReenchantmentStrategy,
+        into game: inout BookLongGame,
+        currentPacketSignature: String,
+        now: Date
+    ) -> Bool {
+        guard proposed.status == .proposed,
+              proposed.packetSignature == currentPacketSignature,
+              proposed.expiresAt > now else { return false }
+        if let active = game.activeStrategy,
+           !active.status.isTerminal,
+           now < active.expiresAt {
+            return false
+        }
+        var accepted = proposed
+        accepted.status = .active
+        game.activeStrategy = accepted
+        game.strategyHistory = Array(game.strategyHistory.suffix(31))
+        return true
+    }
+
+    static func expireIfNeeded(_ game: inout BookLongGame, now: Date) {
+        guard var strategy = game.activeStrategy,
+              now >= strategy.expiresAt,
+              game.currentCampaign?.strategyID != strategy.id else { return }
+        if !strategy.status.isTerminal {
+            strategy.status = .expired
+        }
+        archive(strategy, in: &game)
+    }
+
+    static func markRejected(_ game: inout BookLongGame, campaign: BookReenchantmentCampaign) {
+        guard var strategy = game.activeStrategy,
+              campaign.strategyID == strategy.id else { return }
+        strategy.status = .rejected
+        game.activeStrategy = strategy
+    }
+
+    static func markConfirmed(
+        _ game: inout BookLongGame,
+        campaign: BookReenchantmentCampaign,
+        evidenceIDs: [String]
+    ) {
+        guard var strategy = game.activeStrategy,
+              campaign.strategyID == strategy.id else { return }
+        strategy.status = .confirmed
+        strategy.outcomeEvidenceIDs = Array(Set(strategy.outcomeEvidenceIDs + evidenceIDs)).sorted()
+        game.activeStrategy = strategy
+    }
+
+    static func finish(_ game: inout BookLongGame, campaign: BookReenchantmentCampaign) {
+        guard var strategy = game.activeStrategy,
+              campaign.strategyID == strategy.id else { return }
+        if campaign.status == .untried {
+            strategy.status = .untried
+        } else if strategy.status == .active || strategy.status == .proposed {
+            strategy.status = campaign.rejectionCount > 0 ? .rejected : .weakened
+        }
+        archive(strategy, in: &game)
+    }
+
+    private static func archive(_ strategy: BookReenchantmentStrategy, in game: inout BookLongGame) {
+        game.strategyHistory.removeAll { $0.id == strategy.id }
+        game.strategyHistory.append(strategy)
+        game.strategyHistory = Array(game.strategyHistory.suffix(32))
+        game.activeStrategy = nil
     }
 }
 
@@ -2952,6 +6417,10 @@ struct BookLongGame: Codable, Equatable {
 /// decision, and goes quiet. It optimizes for evidenced life outside the app,
 /// not sessions, streaks, or compliance.
 enum BookReenchantmentDirector {
+    /// A campaign that never wins a real desk opportunity is retired without
+    /// interpreting absence as rejection or evidence against its theory.
+    static let unpresentedCampaignLifetime: TimeInterval = 7 * 86_400
+
     private struct LivingEdge {
         var quote: String
         var pageIDs: [String]
@@ -2964,6 +6433,8 @@ enum BookReenchantmentDirector {
     ) {
         game.campaignModelVersion = BookLongGame.currentCampaignModelVersion
         game.campaignHistory = Array(game.campaignHistory.suffix(24))
+        game.strategyHistory = Array(game.strategyHistory.suffix(32))
+        BookReenchantmentStrategyLifecycle.expireIfNeeded(&game, now: now)
 
         let todayID = BookDay.id(for: now)
         let hardDay = inputs.days.first(where: { $0.id == todayID })
@@ -2979,6 +6450,7 @@ enum BookReenchantmentDirector {
                 campaign.lastChangedAt = rejection.occurredAt
                 campaign.nextEligibleAt = rejection.occurredAt.addingTimeInterval(7 * 86_400)
                 game.currentCampaign = campaign
+                BookReenchantmentStrategyLifecycle.markRejected(&game, campaign: campaign)
                 return
             }
 
@@ -2998,6 +6470,23 @@ enum BookReenchantmentDirector {
                 campaign.lastChangedAt = newEvidence.map(\.happenedAt).max() ?? now
                 campaign.nextEligibleAt = campaign.lastChangedAt.addingTimeInterval(3 * 86_400)
                 game.currentCampaign = campaign
+                BookReenchantmentStrategyLifecycle.markConfirmed(
+                    &game,
+                    campaign: campaign,
+                    evidenceIDs: newEvidence.map(\.id)
+                )
+                return
+            }
+
+            if campaign.status == .active,
+               now.timeIntervalSince(campaign.startedAt) >= unpresentedCampaignLifetime,
+               !wasEverPresented(campaign, learning: inputs.readerLearning) {
+                campaign.status = .untried
+                campaign.beat = .release
+                campaign.presentation = .silence
+                campaign.lastChangedAt = now
+                campaign.nextEligibleAt = now.addingTimeInterval(2 * 86_400)
+                finish(&game, campaign: campaign, now: now)
                 return
             }
 
@@ -3017,6 +6506,8 @@ enum BookReenchantmentDirector {
                     finish(&game, campaign: campaign, now: now)
                 }
             case .completed:
+                finish(&game, campaign: campaign, now: now)
+            case .untried:
                 finish(&game, campaign: campaign, now: now)
             case .active:
                 switch campaign.beat {
@@ -3050,10 +6541,25 @@ enum BookReenchantmentDirector {
             return
         }
         guard inputs.keptPageCount >= 3,
-              now.timeIntervalSince(game.startedAt) >= 3 * 86_400,
-              let hypothesis = game.hypotheses.first else { return }
+              now.timeIntervalSince(game.startedAt) >= 3 * 86_400 else { return }
+        let activeStrategy = game.activeStrategy.flatMap { strategy in
+            strategy.status == .active && now < strategy.expiresAt ? strategy : nil
+        }
+        let hypothesis = activeStrategy.map {
+            BookLongGameHypothesis(
+                id: "strategy-hypothesis-\($0.id)",
+                capacity: $0.capacity,
+                statement: $0.thesis,
+                nextHonestTest: $0.predictedOutcome,
+                evidenceIDs: $0.evidenceIDs,
+                formedAt: $0.formedAt,
+                lastRevisedAt: $0.formedAt
+            )
+        } ?? game.hypotheses.first
+        guard let hypothesis else { return }
         game.currentCampaign = makeCampaign(
             hypothesis: hypothesis,
+            strategy: activeStrategy,
             game: game,
             inputs: inputs,
             now: now
@@ -3087,6 +6593,7 @@ enum BookReenchantmentDirector {
                 metadata: [
                     "source": "book-reenchantment-director",
                     "bookCampaignID": campaign.id,
+                    "bookCampaignStrategyID": campaign.strategyID ?? "",
                     "bookCampaignHypothesisID": campaign.hypothesisID,
                     "bookCampaignCapacity": campaign.capacity.rawValue,
                     "bookCampaignTactic": campaign.tactic.rawValue,
@@ -3106,6 +6613,7 @@ enum BookReenchantmentDirector {
 
     private static func makeCampaign(
         hypothesis: BookLongGameHypothesis,
+        strategy: BookReenchantmentStrategy?,
         game: BookLongGame,
         inputs: BookSourceInputs,
         now: Date
@@ -3114,13 +6622,15 @@ enum BookReenchantmentDirector {
         let edge = livingEdge(in: inputs.days.flatMap(\.pages), now: now)
         let pursuesEdge = (edge?.pageIDs.count ?? 0) >= 2
         let capacity: BookLongGameCapacity = pursuesEdge ? .selfAuthoredAction : hypothesis.capacity
-        let tactic = chooseTactic(
-            capacity: capacity,
-            livingEdge: pursuesEdge,
-            history: game.campaignHistory,
-            seed: "\(BookDay.id(for: now))-\(hypothesis.id)"
-        )
-        let pressure = pressure(
+        let tactic = pursuesEdge
+            ? BookCampaignTactic.testReaderNamedDesire
+            : (strategy?.tactic ?? chooseTactic(
+                capacity: capacity,
+                livingEdge: false,
+                history: game.campaignHistory,
+                seed: "\(BookDay.id(for: now))-\(hypothesis.id)"
+            ))
+        var selectedPressure = pressure(
             permission: permission,
             edgeEvidenceCount: edge?.pageIDs.count ?? 0,
             successfulPrecedentCount: game.campaignHistory.filter {
@@ -3130,9 +6640,12 @@ enum BookReenchantmentDirector {
                 $0.capacity == capacity && $0.rejectionCount > 0
             }
         )
+        if let strategy {
+            selectedPressure = selectedPressure.capped(at: strategy.pressureCap)
+        }
         let presentation = presentation(
             for: tactic,
-            pressure: pressure,
+            pressure: selectedPressure,
             history: game.campaignHistory,
             seed: "\(hypothesis.id)-\(BookDay.id(for: now))"
         )
@@ -3142,7 +6655,7 @@ enum BookReenchantmentDirector {
             hypothesisID: pursuesEdge ? "reader-named-edge-\(edgeHash)" : hypothesis.id,
             capacity: capacity,
             tactic: tactic,
-            pressure: pressure,
+            pressure: selectedPressure,
             permission: permission,
             beat: .seed,
             status: .active,
@@ -3156,7 +6669,8 @@ enum BookReenchantmentDirector {
             startedAt: now,
             lastChangedAt: now,
             nextEligibleAt: now,
-            rejectionCount: 0
+            rejectionCount: 0,
+            strategyID: pursuesEdge ? nil : strategy?.id
         )
     }
 
@@ -3400,25 +6914,40 @@ enum BookReenchantmentDirector {
             .max(by: { $0.occurredAt < $1.occurredAt })
     }
 
+    private static func wasEverPresented(
+        _ campaign: BookReenchantmentCampaign,
+        learning: ReaderLearningModel
+    ) -> Bool {
+        let visibleActions: [ReaderLearningAction] = [.surfaced, .opened, .kept, .loved, .acted]
+        return learning.events.contains {
+            $0.tags.contains(campaign.receiptTag)
+                && visibleActions.contains($0.action)
+        }
+    }
+
     private static func finish(
         _ game: inout BookLongGame,
         campaign: BookReenchantmentCampaign,
         now: Date
     ) {
         var finished = campaign
-        finished.status = .completed
+        let wasUntried = finished.status == .untried
+        if !wasUntried {
+            finished.status = .completed
+        }
         finished.lastChangedAt = now
         if finished.nextEligibleAt <= now {
             // As re-enchantment becomes increasingly self-authored, the Book
             // grows less interventionist. It stays alive; it simply leaves
             // wider stretches in which the reader and world can surprise it.
-            let quietDays = 3 + (game.phase.rank * 2)
+            let quietDays = wasUntried ? 2 : 3 + (game.phase.rank * 2)
             finished.nextEligibleAt = now.addingTimeInterval(Double(quietDays) * 86_400)
         }
         game.campaignHistory.removeAll { $0.id == finished.id }
         game.campaignHistory.append(finished)
         game.campaignHistory = Array(game.campaignHistory.suffix(24))
         game.currentCampaign = nil
+        BookReenchantmentStrategyLifecycle.finish(&game, campaign: finished)
     }
 
     private static func explicitEvidenceTag(for capacity: BookLongGameCapacity) -> String {
@@ -5729,6 +9258,36 @@ enum BookInteriorEngine {
             ))
         }
 
+        // Native fieldwork keeps its own typed receipt. It is real evidence that
+        // an invitation escaped the screen, but it remains explicitly prompted
+        // and therefore cannot masquerade as an autonomous life change.
+        for page in pages {
+            guard let receipt = page.livedQuestReceipt,
+                  receipt.kind != .bookCampaign,
+                  receipt.kind != .elective,
+                  receipt.hasWrittenProof || receipt.hasVisualProof else {
+                continue
+            }
+            for facet in receipt.facets {
+                let capacity = longGameCapacity(for: facet)
+                let proofShape: String
+                switch (receipt.hasWrittenProof, receipt.hasVisualProof) {
+                case (true, true): proofShape = "words and a visual receipt"
+                case (false, true): proofShape = "a visual receipt"
+                default: proofShape = "their own words"
+                }
+                evidence.append(BookLongGameEvidence(
+                    id: "long-game-lived-quest-\(receipt.kind.rawValue)-\(capacity.rawValue)-\(page.id)",
+                    capacity: capacity,
+                    kind: .completedExperiment,
+                    line: "The reader completed ‘\(receipt.title)’ and brought back \(proofShape). It counts as prompted lived practice, not proof of permanent change.",
+                    evidencePageIDs: [page.id],
+                    happenedAt: receipt.completedAt,
+                    wasPromptedByBook: receipt.wasPromptedByBook
+                ))
+            }
+        }
+
         for page in pages where page.origin == .userAuthored {
             let normalizedTags = Set(page.tags.map {
                 $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -5836,6 +9395,20 @@ enum BookInteriorEngine {
         case "shared-wonder": return .livingConnection
         case "reader-returned": return .deliberateReturn
         default: return nil
+        }
+    }
+
+    private static func longGameCapacity(
+        for facet: LivedWonderFacet
+    ) -> BookLongGameCapacity {
+        switch facet {
+        case .exactAttention: return .spontaneousAttention
+        case .worldOtherness: return .worldOtherness
+        case .scriptFreedom: return .scriptFreedom
+        case .selfAuthorship: return .selfAuthoredAction
+        case .personalLanguage: return .personalLanguage
+        case .livingConnection: return .livingConnection
+        case .deliberateReturn: return .deliberateReturn
         }
     }
 
@@ -8807,6 +12380,7 @@ enum BraidPromptBuilder {
         var bookVoicePatina: BookVoicePatina = .unwritten
         var learnedGuidance: BraidLearningGuidance?
         var nowPlaying: String?
+        var radioNarrativeEcho: RadioNarrativeEcho?
         var activeWorldEvents: [ResolvedWorldEvent] = []
         var readerLexicon: ReaderLexicon = ReaderLexicon()
         var readerLearningPromptLines: [String] = []
@@ -9701,7 +13275,7 @@ enum BraidPromptBuilder {
         \(context.bookVoicePatina.promptSection)
 
         KEPT PAGES FROM TODAY — COMPLETE COMPACT LEDGER (\(eligiblePages.count) pages):
-        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(clashSection)\(themeSection)\(chapterSection)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(continuity)
+        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about the Book waiting for the day to gather." : evidence)\(clashSection)\(themeSection)\(chapterSection)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(RadioNarrativeEchoPrompt.section(context.radioNarrativeEcho))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(continuity)
 
         FINAL WEAVING CHECK:
         - The ledger above contains all \(eligiblePages.count) braid-eligible kept pages; its excerpts are compact, not a ranking that permits later pages to erase earlier ones.

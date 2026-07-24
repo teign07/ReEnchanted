@@ -44,6 +44,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case anchor
     case academyClass
     case elective
+    case wickerDare
     case packPage
     case wordNegotiation
     case gamePage
@@ -173,6 +174,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Classes & Clubs"
         case .elective:
             return "Quests"
+        case .wickerDare:
+            return "Wicker's Dares"
         case .packPage:
             return "Pack Page"
         case .wordNegotiation:
@@ -294,6 +297,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Class"
         case .elective:
             return "Elective"
+        case .wickerDare:
+            return "Dare"
         case .packPage:
             return "Pack"
         case .wordNegotiation:
@@ -415,6 +420,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "graduationcap"
         case .elective:
             return "envelope.badge"
+        case .wickerDare:
+            return "flame"
         case .packPage:
             return "puzzlepiece.extension"
         case .wordNegotiation:
@@ -808,18 +815,6 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "when clusters gather",
             note: "The Book's visible map of clusters, constellations, themes, and evidence pages."
-        ),
-        BookPageSource(
-            id: MomentaryThreadFollowUp.sourceID,
-            type: .bookConnections,
-            title: "The Thread That Answered",
-            shortTitle: "Answered Thread",
-            symbolName: "point.3.connected.trianglepath.dotted",
-            origin: .userAuthored,
-            privacy: .privateLocal,
-            isActive: true,
-            cadence: "immediately after a substantial keep",
-            note: "One causal follow-up made from the reader's exact kept words."
         ),
         BookPageSource(
             id: "the-book-remembered",
@@ -1326,6 +1321,18 @@ enum BookPageSourceRegistry {
             note: "Characters ask small real-world quests tied to their unwritten interests. Five at most fit the flyleaf."
         ),
         BookPageSource(
+            id: "wickers-dares",
+            type: .wickerDare,
+            title: "Wicker's Dares",
+            shortTitle: "Dares",
+            symbolName: "flame",
+            origin: .generated,
+            privacy: .localSensitive,
+            isActive: true,
+            cadence: "rare and irregular",
+            note: "Mischievous, voluntary dares that make ordinary life feel more alive. Real places are named only from fresh local signals."
+        ),
+        BookPageSource(
             id: "game-page",
             type: .gamePage,
             title: "Game Page",
@@ -1512,7 +1519,7 @@ enum BookPageSourceRegistry {
             return 30
         case .todaysSky, .bookJump, .radio:
             return 30
-        case .weather, .gossip, .note, .facultyResearch, .letter, .academyClass, .elective:
+        case .weather, .gossip, .note, .facultyResearch, .letter, .academyClass, .elective, .wickerDare:
             return 26
         case .theBleed:
             return 30
@@ -1565,7 +1572,7 @@ enum BookPageSourceRegistry {
             return 24
         case .bookJump:
             return 30
-        case .weather, .gossip, .note, .facultyResearch, .letter, .askTheBook, .enchantment, .academyClass, .elective:
+        case .weather, .gossip, .note, .facultyResearch, .letter, .askTheBook, .enchantment, .academyClass, .elective, .wickerDare:
             return 22
         case .theBleed:
             return 26
@@ -1703,26 +1710,16 @@ struct MagicMomentState: Codable, Equatable {
 }
 
 enum MagicMomentGovernor {
-    static let meaningfulActionsToArm = 3
+    static let livedDaysToArm = 3
 
-    /// Records one substantive, uniquely identified act of attention. There is
-    /// no random draw: the surprise is what the Book notices, not whether the
-    /// reader's attention counted. Repeated delivery of the same action is a
-    /// no-op, which also makes notification/app lifecycle retries harmless.
+    /// Source-compatible tombstone for the old in-app action counter. Page
+    /// actions are not lived evidence, so this path can never warm a reveal.
     static func recordingMeaningfulAction(
         _ state: MagicMomentState,
         key: String,
         now: Date = Date()
     ) -> MagicMomentState {
-        var updated = state
-        guard !key.isEmpty, key != state.lastMeaningfulActionKey else { return updated }
-        updated.lastMeaningfulActionKey = key
-        updated.lastSessionAt = now
-        updated.sessionCount += 1
-        updated.sessionsSinceMoment += 1
-        guard !updated.isArmed else { return updated }
-        updated.isArmed = updated.sessionsSinceMoment >= meaningfulActionsToArm
-        return updated
+        state
     }
 
     static func consuming(
@@ -1735,6 +1732,27 @@ enum MagicMomentGovernor {
         updated.sessionsSinceMoment = 0
         updated.lastMomentAt = now
         updated.lastMomentKey = key
+        return updated
+    }
+
+    /// Reconciles the legacy persisted counter with actual Long Game receipts.
+    /// The old names stay for save compatibility; only distinct qualifying lived
+    /// days after the last reveal can arm a new moment.
+    static func reconcilingLivedEvidence(
+        _ state: MagicMomentState,
+        evidence: [BookLongGameEvidence],
+        now: Date = Date()
+    ) -> MagicMomentState {
+        var updated = state
+        guard !updated.isArmed else { return updated } // grandfather an already armed save
+        let qualifying: Set<BookLongGameEvidenceKind> = [.spontaneousKeep, .explicitFieldNote, .completedExperiment, .spontaneousPattern, .readerDeclaration]
+        let days = Set(evidence.filter { receipt in
+            qualifying.contains(receipt.kind)
+                && receipt.happenedAt <= now
+                && (updated.lastMomentAt.map { receipt.happenedAt > $0 } ?? true)
+        }.map { BookDay.id(for: $0.happenedAt) })
+        updated.sessionsSinceMoment = days.count
+        updated.isArmed = days.count >= livedDaysToArm
         return updated
     }
 }
@@ -1972,6 +1990,283 @@ struct HiddenMagicFinding: Codable, Equatable {
     var proofPrompt: String
     var expressionModes: [HiddenMagicExpressionMode]
     var foundAt: Date
+}
+
+/// The kinds of lived work that can leave a receipt in the archive.
+///
+/// This is intentionally smaller than the Book's full page taxonomy. A receipt
+/// means the Page asked for something outside its own interface and the reader
+/// brought back evidence. The receipt gives continuity, achievements, and the
+/// Long Game one typed object to read without turning every kept Page into a
+/// quest completion.
+enum LivedQuestKind: String, Codable, CaseIterable, Equatable {
+    case playfulMission
+    case wickerDare
+    case wonderCompass
+    case academyFieldwork
+    case pactErrand
+    case faeBargain
+    case bookCampaign
+    case elective
+
+    var title: String {
+        switch self {
+        case .playfulMission: return "Playful Mission"
+        case .wickerDare: return "Wicker Dare"
+        case .wonderCompass: return "Wonder Compass"
+        case .academyFieldwork: return "Academy Fieldwork"
+        case .pactErrand: return "Pact Errand"
+        case .faeBargain: return "Fae Bargain"
+        case .bookCampaign: return "A Small Experiment"
+        case .elective: return "Unwritten Elective"
+        }
+    }
+}
+
+/// Observable capacities a lived quest may practice. These mirror the Long
+/// Game's human meanings without importing its strategic machinery into the
+/// archive model, which is also read by lighter-weight app targets.
+enum LivedWonderFacet: String, Codable, CaseIterable, Equatable {
+    case exactAttention
+    case worldOtherness
+    case scriptFreedom
+    case selfAuthorship
+    case personalLanguage
+    case livingConnection
+    case deliberateReturn
+
+    var title: String {
+        switch self {
+        case .exactAttention: return "Exact Attention"
+        case .worldOtherness: return "A World With Its Own Business"
+        case .scriptFreedom: return "Freedom From the Default Script"
+        case .selfAuthorship: return "Self-Authored Magic"
+        case .personalLanguage: return "Language of Your Own"
+        case .livingConnection: return "Wonder With Another Life"
+        case .deliberateReturn: return "Return With a Difference"
+        }
+    }
+}
+
+/// Typed proof that a Page escaped the screen.
+///
+/// The reader's evidence remains on the containing `BookPage`; this receipt
+/// preserves the invitation, the requested proof, and the kind of lived
+/// capacity involved. That is enough for a later Page to say why this mattered
+/// without copying private media or pretending completion proved a permanent
+/// transformation.
+struct LivedQuestReceipt: Codable, Equatable {
+    static let currentVersion = 1
+
+    var version: Int = currentVersion
+    var kind: LivedQuestKind
+    var questID: String
+    var title: String
+    var invitation: String
+    var proofPrompt: String
+    var facets: [LivedWonderFacet]
+    var sourceTags: [String]
+    var hasWrittenProof: Bool
+    var hasVisualProof: Bool
+    var completedAt: Date
+    var wasPromptedByBook: Bool
+
+    static func from(
+        surface: SurfacePage,
+        readerInput: String,
+        mediaAssets: [BookPageMediaAsset],
+        completedAt: Date
+    ) -> LivedQuestReceipt? {
+        let metadata = surface.payload.metadata
+        let resolved: (kind: LivedQuestKind, id: String)?
+
+        if let id = metadata["playfulMissionID"]?.nonEmpty {
+            resolved = (.playfulMission, id)
+        } else if let id = metadata["wickerDareID"]?.nonEmpty {
+            resolved = (.wickerDare, id)
+        } else if let id = metadata["runID"]?.nonEmpty,
+                  metadata["compassStep"]?.nonEmpty != nil || surface.type == .wonderCompass {
+            resolved = (.wonderCompass, id)
+        } else if let id = metadata["academyActivityID"]?.nonEmpty
+                    ?? metadata["academyActivity"]?.nonEmpty {
+            resolved = (.academyFieldwork, id)
+        } else if let id = metadata["pactErrandID"]?.nonEmpty
+                    ?? metadata["errandID"]?.nonEmpty
+                    ?? metadata["pactErrand"]?.nonEmpty {
+            resolved = (.pactErrand, id)
+        } else if let id = metadata["faeBargainID"]?.nonEmpty
+                    ?? metadata["bargainID"]?.nonEmpty {
+            resolved = (.faeBargain, id)
+        } else if let id = metadata["bookCampaignID"]?.nonEmpty {
+            resolved = (.bookCampaign, id)
+        } else if let id = metadata["electiveID"]?.nonEmpty {
+            resolved = (.elective, id)
+        } else {
+            resolved = nil
+        }
+
+        guard let resolved else { return nil }
+
+        let sourceTags = normalizedTags(metadata["tags"], additional: [
+            metadata["missionTags"],
+            metadata["wickerDareTags"],
+            metadata["bookCampaignOutcomeTag"],
+            surface.sourceID,
+            surface.type.rawValue
+        ])
+        let title = metadata["playfulMissionTitle"]?.nonEmpty
+            ?? metadata["wickerDareTitle"]?.nonEmpty
+            ?? metadata["electiveTitle"]?.nonEmpty
+            ?? metadata["academyActivityTitle"]?.nonEmpty
+            ?? surface.payload.headline.nonEmpty
+            ?? resolved.kind.title
+        let invitation = metadata["missionPrompt"]?.nonEmpty
+            ?? metadata["mission"]?.nonEmpty
+            ?? metadata["wickerDarePrompt"]?.nonEmpty
+            ?? metadata["electiveAsk"]?.nonEmpty
+            ?? metadata["academyActivityInvitation"]?.nonEmpty
+            ?? metadata["terms"]?.nonEmpty
+            ?? metadata["bookCampaignIntendedEffect"]?.nonEmpty
+            ?? surface.payload.body.nonEmpty
+            ?? surface.prompt
+        let proofPrompt = metadata["souvenirPrompt"]?.nonEmpty
+            ?? metadata["placeholder"]?.nonEmpty
+            ?? metadata["electivePractice"]?.nonEmpty
+            ?? metadata["proofPrompt"]?.nonEmpty
+            ?? metadata["terms"]?.nonEmpty
+            ?? "Bring back one exact thing."
+        let facetSignals = normalizedTags(
+            nil,
+            additional: [title, invitation, proofPrompt] + sourceTags.map(Optional.some)
+        )
+        let facets = facets(for: facetSignals, kind: resolved.kind)
+        let trimmedInput = readerInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasVisualProof = mediaAssets.contains { asset in
+            switch asset.kind {
+            case .bundledImage, .renderedImageFile, .photoLibraryAsset:
+                return true
+            case .audioFile:
+                return false
+            }
+        }
+
+        return LivedQuestReceipt(
+            kind: resolved.kind,
+            questID: resolved.id,
+            title: title,
+            invitation: invitation,
+            proofPrompt: proofPrompt,
+            facets: facets,
+            sourceTags: sourceTags,
+            hasWrittenProof: !trimmedInput.isEmpty,
+            hasVisualProof: hasVisualProof,
+            completedAt: completedAt,
+            wasPromptedByBook: true
+        )
+    }
+
+    /// Builds the same receipt for a Flyleaf quest, whose proof is written
+    /// directly into `UnwrittenElective` rather than passing through the
+    /// ordinary SurfacePage keep path.
+    static func from(
+        elective: UnwrittenElective,
+        completedAt: Date
+    ) -> LivedQuestReceipt {
+        var sourceTags = [
+            "elective",
+            "entity:\(elective.characterID)"
+        ]
+        if elective.bookFavorID != nil {
+            sourceTags.append("book-favor")
+        }
+        if elective.proofPhotoURL?.nonEmpty != nil {
+            sourceTags.append("photo")
+        }
+        if elective.proofLocationSummary?.nonEmpty != nil {
+            sourceTags.append("place")
+        }
+        let facetSignals = normalizedTags(
+            nil,
+            additional: sourceTags.map(Optional.some) + [
+                elective.title,
+                elective.ask,
+                elective.whyItMatters,
+                elective.practiceShape
+            ]
+        )
+
+        return LivedQuestReceipt(
+            kind: .elective,
+            questID: elective.id,
+            title: elective.title,
+            invitation: elective.ask,
+            proofPrompt: elective.practiceShape,
+            facets: facets(for: facetSignals, kind: .elective),
+            sourceTags: sourceTags.sorted(),
+            hasWrittenProof: elective.proof?.nonEmpty != nil
+                || elective.proofLocationSummary?.nonEmpty != nil,
+            hasVisualProof: elective.proofPhotoURL?.nonEmpty != nil,
+            completedAt: completedAt,
+            wasPromptedByBook: true
+        )
+    }
+
+    private static func normalizedTags(
+        _ raw: String?,
+        additional: [String?]
+    ) -> [String] {
+        let values = ([raw] + additional)
+            .compactMap { $0 }
+            .flatMap { value in
+                value
+                    .components(separatedBy: CharacterSet(charactersIn: ",;\n"))
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                    .filter { !$0.isEmpty }
+            }
+        return Array(Set(values)).sorted()
+    }
+
+    private static func facets(
+        for tags: [String],
+        kind: LivedQuestKind
+    ) -> [LivedWonderFacet] {
+        let text = tags.joined(separator: " ")
+        var result: [LivedWonderFacet] = []
+
+        func include(_ facet: LivedWonderFacet, when terms: [String]) {
+            guard terms.contains(where: text.contains), !result.contains(facet) else { return }
+            result.append(facet)
+        }
+
+        include(.worldOtherness, when: [
+            "animal", "bird", "creature", "plant", "nature", "weather", "sky",
+            "world-otherness", "not-a-message", "history", "decay", "growth"
+        ])
+        include(.scriptFreedom, when: [
+            "defiance", "borrowed-rule", "default", "rule", "routine", "goblin",
+            "cost", "shadow-cost", "permission", "dehabituation"
+        ])
+        include(.selfAuthorship, when: [
+            "make", "making", "mischief", "invent", "repair", "gift", "offering",
+            "route", "detour", "self-authored", "reader-ritual"
+        ])
+        include(.personalLanguage, when: [
+            "word", "name", "naming", "title", "definition", "language",
+            "true-name", "sentence", "punctuation"
+        ])
+        include(.livingConnection, when: [
+            "person", "people", "kindness", "coworker", "stranger", "share",
+            "shared-wonder", "relationship", "witness", "offering"
+        ])
+        include(.deliberateReturn, when: [
+            "return", "revisit", "anchor", "again", "difference", "remember"
+        ])
+
+        if result.isEmpty || kind == .playfulMission || kind == .wonderCompass || kind == .wickerDare {
+            result.insert(.exactAttention, at: 0)
+        }
+        return Array(result.prefix(3))
+    }
 }
 
 /// A compact, private vocabulary of what a kept page actually contained and
@@ -2466,6 +2761,9 @@ struct BookPage: Codable, Identifiable, Equatable {
     var externalReference: BookPageExternalReference?
     /// Typed relational receipt used by The Company You Kept.
     var relationshipReceipt: RelationshipPageReceipt?
+    /// Typed proof that a Page commissioned something in ordinary life and the
+    /// reader brought evidence back.
+    var livedQuestReceipt: LivedQuestReceipt?
 
     init(
         id: String = UUID().uuidString,
@@ -2489,7 +2787,8 @@ struct BookPage: Codable, Identifiable, Equatable {
         monthlyEditionArtifact: KeptMonthlyEditionArtifact? = nil,
         tarotReadingArtifact: TarotReadingArtifact? = nil,
         externalReference: BookPageExternalReference? = nil,
-        relationshipReceipt: RelationshipPageReceipt? = nil
+        relationshipReceipt: RelationshipPageReceipt? = nil,
+        livedQuestReceipt: LivedQuestReceipt? = nil
     ) {
         self.id = id
         self.type = type
@@ -2513,6 +2812,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         self.tarotReadingArtifact = tarotReadingArtifact
         self.externalReference = externalReference
         self.relationshipReceipt = relationshipReceipt
+        self.livedQuestReceipt = livedQuestReceipt
     }
 
     enum CodingKeys: String, CodingKey {
@@ -2538,6 +2838,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         case tarotReadingArtifact
         case externalReference
         case relationshipReceipt
+        case livedQuestReceipt
     }
 
     init(from decoder: Decoder) throws {
@@ -2564,6 +2865,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         tarotReadingArtifact = try container.decodeIfPresent(TarotReadingArtifact.self, forKey: .tarotReadingArtifact)
         externalReference = try container.decodeIfPresent(BookPageExternalReference.self, forKey: .externalReference)
         relationshipReceipt = try container.decodeIfPresent(RelationshipPageReceipt.self, forKey: .relationshipReceipt)
+        livedQuestReceipt = try container.decodeIfPresent(LivedQuestReceipt.self, forKey: .livedQuestReceipt)
     }
 }
 

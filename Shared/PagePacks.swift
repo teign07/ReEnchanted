@@ -234,11 +234,19 @@ struct PageTriggerContext {
     }
 
     var greyPressure: Int {
+        let rut = NothingTide.rutAssessment(
+            inputs: inputs,
+            distressActive: false,
+            now: now,
+            calendar: calendar
+        )
         let level = NothingTide.greyLevel(
-            quietDays: quietDays,
+            readerRutPressure: rut.mayNameRut ? rut.pressure : 0,
             narrativeHeat: inputs.narrative?.recentEventCount ?? 0,
             distressActive: false,
-            celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: inputs.hemisphere, calendar: calendar) + inputs.nothingGreyOffset
+            celebrationGreyShift: Almanac.greyShift(on: now, hemisphere: inputs.hemisphere, calendar: calendar)
+                + (inputs.faeState.activeGifts.contains { $0.effect == .quieting } ? -1 : 0)
+                + inputs.nothingGreyOffset
         )
         return level * 100 / 3
     }
@@ -545,20 +553,22 @@ enum PageArchetypePackRegistry {
                     activeHours: [21, 22, 23],
                     renderStyleRaw: "loreLetter",
                     symbolName: "circle.dotted",
-                    tags: ["nothing", "night", "fourth-wall", "rut-warning"]
+                    tags: ["nothing", "night", "fourth-wall", "rut-warning"],
+                    trigger: PageTrigger(minGrey: 34)
                 ),
                 PageArchetype(
                     id: "grey-margin",
                     title: "The Grey Margin",
                     headline: "Almost Taken",
-                    detail: "Quiet days let the grey sneak in. One little sentence holds it back.",
-                    reason: "The margins have been quiet, and Routine always notices quiet.",
-                    bodyTemplate: "The margins have been quiet for a little while — no shame in that; days do what days do. But Routine collects unnoticed time, and something from the quiet days has started going grey. Write one sentence about anything true from the last few days — a meal, a sound, a small errand — and it stays in the Book for good.",
+                    detail: "Something ordinary felt rubbed smooth. One exact detail gives it texture again.",
+                    reason: "The reader's own Rut evidence gives the Book a gentle reason to look closer.",
+                    bodyTemplate: "Something in ordinary life has begun to feel too smooth, the way a familiar word goes strange when you repeat it. Pick one detail the Rut would flatten — a meal, a sound, a small errand, the exact light on an object — and name what made this instance unlike all the others. The grey cannot file away a thing described that precisely.",
                     score: 50,
                     cadenceHours: 12,
                     renderStyleRaw: "loreLetter",
                     symbolName: "circle.dotted",
-                    tags: ["nothing", "return", "gentle"]
+                    tags: ["nothing", "gentle", "reader-evidence"],
+                    trigger: PageTrigger(minGrey: 34)
                 ),
                 PageArchetype(
                     id: "returning-reader-threshold",
@@ -1466,6 +1476,9 @@ struct ReEnchantedSaveFile: Codable {
     /// First-run steps the reader engaged with, so a restored Book never
     /// replays onboarding the reader already lived past on the old phone.
     var firstRunEngaged: [String]? = nil
+    /// The Book's scarce-aside memory travels with a sealed copy so restoring
+    /// onto a new device does not make it repeat old confidences.
+    var bookAsideReceipts: [BookAsideReceipt]? = nil
     /// Permanent Pagewright and Book-wide marginalia achievements. Optional so
     /// sealed copies made before the achievement catalog still import cleanly.
     var marginaliaAchievementIDs: [String]? = nil
@@ -1606,6 +1619,22 @@ struct PlayerVaultData: Codable, Equatable {
     var pageBelief: [String: Int] = [:]
     var tutorSeen: [String] = []
     var surfaceHistory: [String: SurfaceHistoryRecord]?
+    /// The private purpose currently holding the visible desk together. It is
+    /// optional for backwards-compatible decoding and expires on its own.
+    var activeBookSessionIntention: BookSessionIntention?
+    /// The current session's invisible score across Pages, Radio, cast, and
+    /// silence. It is optional so older Books open without a migration fiction.
+    var activeExperienceProgram: BookExperienceProgram?
+    /// The Book's local, evidence-backed portrait of the particular conditions
+    /// under which this reader becomes more alive. Optional so every older
+    /// vault opens with an unwritten portrait rather than a migration fiction.
+    var readerAliveness: ReaderAlivenessModel?
+    /// Brief reader-reported weather and delayed outcome receipts. This stays
+    /// separate from Self Facts because today's state is not a permanent trait.
+    var readerStatePulses: ReaderStatePulseLedger?
+    /// Optional for clean decoding of Books saved before asides acquired a
+    /// memory of their own.
+    var bookAsideReceipts: [BookAsideReceipt]?
     var readerLearning: ReaderLearningModel?
     var ownedPacks: [String]?
     var currentArc: StoryArc?
@@ -1620,6 +1649,9 @@ struct PlayerVaultData: Codable, Equatable {
     var castAgency: CastAgencyState?
     var bookJump: BookJumpState?
     var radio: RadioPlaybackState?
+    /// A local, ephemeral proof that a registered recording began. It is not
+    /// listening evidence and is deliberately absent from sealed-copy data.
+    var lastRadioTrackPlay: RadioTrackPlayReceipt?
     var compassKnownPlaces: [CompassKnownPlace]?
     var readerLexicon: ReaderLexicon?
     var storyRecipeBoosts: [String: Int]?
@@ -1729,14 +1761,12 @@ struct BookShopFreeGift: Identifiable, Codable, Equatable {
     var contents: String
 }
 
-/// One billing cadence of the Standing Order. All three tiers grant the same
-/// all-packs entitlement (`PackEntitlements.standingOrderPackID`) and carry the
-/// same 10-day free trial — they differ only in how often the ledger renews.
-/// The paywall renders these; the goblin-market shelf still shows the annual as
-/// the single representative Standing Order card.
+/// One billing cadence of the Standing Order. Both tiers grant the same
+/// all-packs entitlement (`PackEntitlements.standingOrderPackID`) and differ
+/// only in how often the ledger renews. StoreKit remains the authority on
+/// whether a particular reader is eligible for the configured free trial.
 struct StandingOrderTier: Identifiable, Equatable {
     enum Cadence: String, Equatable {
-        case weekly
         case monthly
         case annual
     }
@@ -1751,8 +1781,39 @@ struct StandingOrderTier: Identifiable, Equatable {
     var periodUnit: String
     /// A plain-language value note, e.g. "Best value — 2 months free".
     var valueNote: String?
-    /// Every tier ships the same trial; kept per-tier for clarity in the sheet.
-    var freeTrialDays: Int = 10
+    /// Debug/local-counter preview of the intended trial. Production UI may
+    /// show a trial only after StoreKit confirms this reader's eligibility.
+    var freeTrialDays: Int = 30
+}
+
+/// The billing reminder's testable contract. Platform notification code lives
+/// in the app target, but the date and wording stay here so "one day before"
+/// cannot quietly drift into a vague calendar-day estimate.
+struct StandingOrderTrialReminderPlan: Equatable {
+    var fireDate: Date
+    var trialEndsAt: Date
+    var title: String
+    var body: String
+
+    static func make(
+        trialEndsAt: Date,
+        price: String,
+        periodUnit: String,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> StandingOrderTrialReminderPlan? {
+        guard trialEndsAt > now,
+              let fireDate = calendar.date(byAdding: .day, value: -1, to: trialEndsAt),
+              fireDate > now else {
+            return nil
+        }
+        return StandingOrderTrialReminderPlan(
+            fireDate: fireDate,
+            trialEndsAt: trialEndsAt,
+            title: "Your free trial ends tomorrow",
+            body: "If it is still set to renew, Apple charges \(price)/\(periodUnit) tomorrow. Keep it or cancel in Settings — either way, every page you made stays yours."
+        )
+    }
 }
 
 enum BookShopCatalog {
@@ -1764,11 +1825,21 @@ enum BookShopCatalog {
             id: "listing-standing-order-annual",
             packID: PackEntitlements.standingOrderPackID,
             family: .standingOrder,
-            title: "The Standing Order",
+            title: "The Standing Order · Annual",
             goblinPitch: "One line in the ledger, renewed yearly, and every folio the Empire prints walks itself to your shelf. The clerk calls it the only honest bargain in the building.",
-            contents: "Every paid pack on this shelf today, and every new one the Goblins print while the order stands — word hoards, world events, sound bindings, all of it — bound to your save automatically.",
+            contents: "Every paid pack on this shelf today, plus one fresh authored content pack each month while the order stands: new Pages, quests, rituals, events, sounds, places, characters, or other living additions, bound to your save automatically.",
             productID: "com.openclaw.enchantify.insidecover.pass.standing-order.annual",
             fallbackDisplayPrice: "$39.99"
+        ),
+        BookShopListing(
+            id: "listing-standing-order-monthly",
+            packID: PackEntitlements.standingOrderPackID,
+            family: .standingOrder,
+            title: "The Standing Order · Monthly",
+            goblinPitch: "One line in the ledger, renewed each month, and every folio the Empire prints walks itself to your shelf. The clerk keeps the ink wet in case you change your mind.",
+            contents: "Every paid pack on this shelf today, plus one fresh authored content pack each month while the order stands: new Pages, quests, rituals, events, sounds, places, characters, or other living additions, bound to your save automatically.",
+            productID: "com.openclaw.enchantify.insidecover.pass.standing-order.monthly",
+            fallbackDisplayPrice: "$6.99"
         ),
         BookShopListing(
             id: "listing-dictionary-rebellion",
@@ -1793,20 +1864,11 @@ enum BookShopCatalog {
         )
     ]
 
-    /// The three cadences of the Standing Order, cheapest cadence first. All
-    /// grant the all-packs entitlement; all carry the 10-day trial. Product IDs
-    /// live in the same App Store Connect subscription group so the store
-    /// handles upgrade/downgrade proration.
+    /// The two cadences of the Standing Order, cheapest cadence first. Both
+    /// grant the all-packs entitlement. Product IDs live in the same App Store
+    /// Connect subscription group so the store handles eligibility and
+    /// upgrade/downgrade proration.
     static let standingOrderTiers: [StandingOrderTier] = [
-        StandingOrderTier(
-            id: "standing-order-weekly",
-            cadence: .weekly,
-            productID: "com.openclaw.enchantify.insidecover.pass.standing-order.weekly",
-            title: "Weekly",
-            fallbackDisplayPrice: "$3.99",
-            periodUnit: "week",
-            valueNote: "Try it lightly"
-        ),
         StandingOrderTier(
             id: "standing-order-monthly",
             cadence: .monthly,
@@ -1823,15 +1885,21 @@ enum BookShopCatalog {
             title: "Annual",
             fallbackDisplayPrice: "$39.99",
             periodUnit: "year",
-            valueNote: "Best value — about 2 months free"
+            valueNote: "Save 52%"
         )
+    ]
+
+    /// Retired products remain recognizable so an older receipt can still
+    /// restore the Standing Order even though the plan is no longer offered.
+    private static let retiredStandingOrderProductIDs: Set<String> = [
+        "com.openclaw.enchantify.insidecover.pass.standing-order.weekly"
     ]
 
     /// Every product identifier that grants the Standing Order, across all
     /// cadences plus the legacy annual listing. Used to recognize any tier's
     /// receipt as the same all-packs entitlement.
     static var standingOrderProductIDs: Set<String> {
-        var ids = Set(standingOrderTiers.map(\.productID))
+        var ids = Set(standingOrderTiers.map(\.productID)).union(retiredStandingOrderProductIDs)
         for listing in listings where listing.packID == PackEntitlements.standingOrderPackID {
             ids.insert(listing.productID)
         }

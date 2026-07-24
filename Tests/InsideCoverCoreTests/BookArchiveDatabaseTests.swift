@@ -110,6 +110,164 @@ final class BookArchiveDatabaseTests: XCTestCase {
         XCTAssertEqual(media.metadata["plateID"], "character-headmistress-seraphina-thorne")
     }
 
+    func testCompleteBookPagePersistsThroughSwiftDataReload() throws {
+        let harness = try DatabaseHarness()
+        let database = BookArchiveDatabase(storeURL: harness.storeURL)
+        let sourcePage = BookPage(
+            id: "source-page",
+            type: .souvenir,
+            createdAt: date(day: 1, hour: 10),
+            promptText: "What stayed?",
+            userInput: "The rain wrote silver commas on the library window."
+        )
+        let issue = WeeklyIssue(
+            number: 1,
+            startDate: date(day: 1, hour: 0),
+            endDate: date(day: 7, hour: 23),
+            dateRange: "Jun 1–7",
+            keptCount: 1,
+            highlights: [sourcePage.userInput],
+            setAsideLine: nil,
+            pages: [sourcePage]
+        )
+        let weeklyArtifact = KeptWeeklyIssueArtifact(
+            issue: issue,
+            card: WeeklyIssueShareCard.make(issue: issue),
+            readerName: "Reader",
+            editorialNote: "The week kept its punctuation.",
+            closingNote: "It is kept.",
+            cardPath: "/archive/issue-1.png",
+            pdfPath: "/archive/issue-1.pdf",
+            keptAt: date(day: 7, hour: 23)
+        )
+        let edition = MonthlyEditionBuilder.edition(
+            from: [
+                BookDay(
+                    id: "2026-06-01",
+                    date: date(day: 1, hour: 0),
+                    pages: [sourcePage]
+                )
+            ],
+            readerName: "Reader",
+            startDate: date(day: 1, hour: 0),
+            endDate: date(day: 30, hour: 23),
+            generatedAt: date(day: 30, hour: 23),
+            calendar: calendar
+        )
+        let monthlyArtifact = KeptMonthlyEditionArtifact(
+            edition: edition,
+            monthKey: "2026-06",
+            pdfPath: "/archive/2026-06.pdf",
+            keptAt: date(day: 30, hour: 23)
+        )
+        let page = BookPage(
+            id: "complete-page",
+            type: .bindery,
+            createdAt: date(day: 30, hour: 23),
+            promptText: "The month, bound",
+            userInput: "The rain kept returning in different handwriting.",
+            playerReply: "Keep the window in the final chapter.",
+            tags: ["edition", "rain"],
+            usedInBookOfYou: true,
+            sourceID: "monthly-bindery",
+            origin: .generated,
+            privacy: .privateLocal,
+            promptVersion: "archive-regression-v1",
+            mediaAssets: [
+                BookPageMediaAsset(
+                    kind: .renderedImageFile,
+                    reference: "/archive/2026-06-cover.png",
+                    caption: "June cover",
+                    sourceID: "monthly-bindery"
+                )
+            ],
+            attentionFingerprint: AttentionFingerprint(
+                subjectTokens: ["library", "rain"],
+                visualTokens: ["silver", "window"],
+                voiceTokens: [],
+                contextTokens: ["evening"],
+                modalities: ["words"]
+            ),
+            sensoryFolio: SensoryFolio(
+                observations: [
+                    SensoryObservation(
+                        dimension: .weather,
+                        value: "rain",
+                        confidence: 0.94,
+                        extractorID: "archive-regression"
+                    )
+                ],
+                vectors: [
+                    SensoryVector(
+                        kind: .languageSemantic,
+                        modelID: "archive-regression",
+                        values: [0.2, 0.8]
+                    )
+                ]
+            ),
+            hiddenMagicFinding: HiddenMagicFinding(
+                lensID: "silver-commas",
+                sense: .sight,
+                action: "Watch the rain write.",
+                proofPrompt: "What punctuation did the window choose?",
+                expressionModes: [.words, .photograph],
+                foundAt: date(day: 1, hour: 10)
+            ),
+            weeklyIssueArtifact: weeklyArtifact,
+            monthlyEditionArtifact: monthlyArtifact,
+            externalReference: BookPageExternalReference(
+                title: "A public rain atlas",
+                sourceName: "The Weather Cabinet",
+                url: "https://example.com/rain",
+                fetchedAt: date(day: 1, hour: 9),
+                provenance: "public-reference"
+            ),
+            relationshipReceipt: RelationshipPageReceipt(
+                personID: "sam",
+                personName: "Sam",
+                kind: .witness,
+                bookOffer: "Show Sam the silver commas.",
+                readerAftermath: "Sam saw semicolons.",
+                sharedInterest: "rain",
+                relationshipMode: "friend",
+                evidenceAuthority: "reader-authored-aftermath"
+            )
+        )
+
+        try database.saveDays([
+            BookDay(id: "2026-06-30", date: date(day: 30, hour: 0), pages: [page])
+        ])
+
+        let reloaded = try XCTUnwrap(
+            BookArchiveDatabase(storeURL: harness.storeURL)
+                .pages(matching: BookPageQuery(type: .bindery, limit: 10))
+                .first
+        )
+
+        XCTAssertEqual(reloaded, page)
+    }
+
+    func testStoredPageWithoutCompletePayloadStillDecodesLegacyFields() {
+        let page = BookPage(
+            id: "legacy-stored-page",
+            type: .souvenir,
+            createdAt: date(day: 1, hour: 12),
+            promptText: "A legacy prompt",
+            userInput: "A legacy page remains readable.",
+            playerReply: "And keeps its reply.",
+            tags: ["legacy"],
+            usedInBookOfYou: true,
+            sourceID: "legacy-source",
+            origin: .imported,
+            privacy: .publicReference,
+            promptVersion: "legacy-v1"
+        )
+        let stored = StoredArchivePage(page: page)
+        stored.pageData = nil
+
+        XCTAssertEqual(stored.bookPage, page)
+    }
+
     func testUpsertReplacesCalendarDayAndPreservesOtherDays() throws {
         let harness = try DatabaseHarness()
         let database = BookArchiveDatabase(storeURL: harness.storeURL)

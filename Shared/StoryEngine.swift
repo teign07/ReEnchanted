@@ -756,7 +756,15 @@ enum BookJumpEngine {
         return startSurface(work: work, day: day, inputs: inputs, score: manual ? 68 : 58, now: now)
     }
 
-    static func start(from surface: SurfacePage, now: Date = Date()) -> BookJumpState {
+    /// Starts a shelf-selected jump without discarding the reader's prior Jump
+    /// history, borrowed rules, or books already resting after a choice-driven
+    /// collapse. This mirrors `startCustom`, which has always opened into the
+    /// existing ledger.
+    static func start(
+        from surface: SurfacePage,
+        into state: BookJumpState = BookJumpState(),
+        now: Date = Date()
+    ) -> BookJumpState {
         let metadata = surface.payload.metadata
         let workID = metadata["bookID"] ?? "alice-wonderland"
         let work = self.work(id: workID) ?? publicDomainShelf[0]
@@ -795,7 +803,9 @@ enum BookJumpEngine {
             ],
             lastDirection: nil
         )
-        return BookJumpState(active: active, returned: [])
+        var updated = state
+        updated.active = active
+        return updated
     }
 
     static func advance(_ state: BookJumpState, line: String, direction: String? = nil, now: Date = Date()) -> BookJumpState {
@@ -901,39 +911,12 @@ enum BookJumpEngine {
         return (updated, lost, active.title)
     }
 
-    /// Overnight, an active jump left unstable lets Routine gain a margin.
-    /// If it overruns, the jump collapses. Returns the new state and any loss.
+    /// Performs time-based housekeeping without treating time away from the app
+    /// as a failed choice. An active jump waits at exactly the depth and
+    /// stability where the reader left it; only explicit Jump actions can raise
+    /// its story stakes. The legacy result shape remains for save/UI migration.
     static func dailyDecay(_ state: BookJumpState, now: Date = Date()) -> (state: BookJumpState, collapsed: Bool, lostBelief: Int, bookTitle: String) {
-        guard let active = state.active else {
-            // No active jump: just prune expired rules.
-            var pruned = state
-            pruned.borrowedRules = activeRules(in: state.borrowedRules, at: now)
-            return (pruned, false, 0, "")
-        }
-        let calendar = Calendar.current
-        let dayGap = calendar.dateComponents([.day], from: active.updatedAt, to: now).day ?? 0
-        guard dayGap >= 1 else {
-            var pruned = state
-            pruned.borrowedRules = activeRules(in: state.borrowedRules, at: now)
-            return (pruned, false, 0, "")
-        }
-        var advanced = active
-        advanced.degradation += 1
-        if advanced.degradation > 4 {
-            let result = collapse(state, now: now)
-            return (result.state, true, result.lostBelief, result.bookTitle)
-        }
-        advanced.updatedAt = now
-        advanced.beats.append(BookJumpBeat(
-            id: "beat-decay-\(Int(now.timeIntervalSince1970))",
-            at: now,
-            action: .advance,
-            depth: advanced.depth,
-            degradation: advanced.degradation,
-            line: "The page blurred a little further overnight."
-        ))
         var updated = state
-        updated.active = advanced
         updated.borrowedRules = activeRules(in: state.borrowedRules, at: now)
         return (updated, false, 0, "")
     }
@@ -1435,6 +1418,221 @@ struct StoryTurn: Codable, Equatable {
     }
 }
 
+/// Recipe-authored pressure beneath a Story Turn. The Turn says what changes;
+/// this says why the change matters to the people in the room. Templates are
+/// resolved from the actual cast, canon, and relationship edge before prose is
+/// generated, so the model cannot choose a convenient personality afterward.
+struct StoryRecipeCharacterPressureTemplate: Codable, Equatable {
+    var leadCharacterWorryTemplate: String
+    var leadCharacterBlindSpotTemplate: String
+    var otherCharacterPressureTemplate: String
+    var relationshipQuestionTemplate: String
+    var stakesTemplate: String
+    var requiredCharacterReactionTemplate: String
+    var readerChoiceEffectTemplate: String
+}
+
+/// One reader path's precommitted emotional consequence. It names who must
+/// react and the exact fact that becomes canon, rather than merely requesting
+/// a different mood for each button.
+struct StoryDramaticChoiceEffect: Codable, Equatable {
+    var choiceID: String
+    var role: StoryChoiceRole
+    var requiredReactorID: String
+    var requiredReactorName: String
+    var requiredReaction: String
+    var readerChoiceEffect: String
+    var changedFact: String
+    var memorySummary: String
+    var warmthDelta: Int
+    var tensionDelta: Int
+    var familiarityDelta: Int
+}
+
+/// The five dramatic questions a Story Page must answer before the prose
+/// writer is allowed into the room. This is the causal fiction substrate: the
+/// opening stages it, the selected result resolves it, and the kept page turns
+/// the selected effect into relationship and memory state.
+struct StoryDramaticContract: Codable, Equatable {
+    static let currentVersion = 1
+    static let metadataKey = "storyDramaticContractV1"
+
+    var version: Int = currentVersion
+    var recipeID: String
+    var leadCharacterID: String
+    var leadCharacterName: String
+    var leadCharacterWant: String
+    var leadCharacterWorry: String
+    var leadCharacterBlindSpot: String
+    var otherCharacterID: String
+    var otherCharacterName: String
+    var otherCharacterPressure: String
+    var relationshipID: String
+    var relationshipQuestion: String
+    var stakes: String
+    var choiceEffects: [StoryDramaticChoiceEffect]
+
+    init(
+        version: Int = currentVersion,
+        recipeID: String,
+        leadCharacterID: String,
+        leadCharacterName: String,
+        leadCharacterWant: String,
+        leadCharacterWorry: String,
+        leadCharacterBlindSpot: String,
+        otherCharacterID: String,
+        otherCharacterName: String,
+        otherCharacterPressure: String,
+        relationshipID: String,
+        relationshipQuestion: String,
+        stakes: String,
+        choiceEffects: [StoryDramaticChoiceEffect]
+    ) {
+        self.version = version
+        self.recipeID = recipeID
+        self.leadCharacterID = leadCharacterID
+        self.leadCharacterName = leadCharacterName
+        self.leadCharacterWant = leadCharacterWant
+        self.leadCharacterWorry = leadCharacterWorry
+        self.leadCharacterBlindSpot = leadCharacterBlindSpot
+        self.otherCharacterID = otherCharacterID
+        self.otherCharacterName = otherCharacterName
+        self.otherCharacterPressure = otherCharacterPressure
+        self.relationshipID = relationshipID
+        self.relationshipQuestion = relationshipQuestion
+        self.stakes = stakes
+        self.choiceEffects = choiceEffects
+    }
+
+    func effect(for choiceID: String) -> StoryDramaticChoiceEffect? {
+        let wanted = StoryTurnLanding.normalizedChoiceID(choiceID)
+        return choiceEffects.first { StoryTurnLanding.normalizedChoiceID($0.choiceID) == wanted }
+    }
+
+    var encodedMetadata: String? {
+        guard let data = try? JSONEncoder().encode(self) else { return nil }
+        return data.base64EncodedString()
+    }
+
+    init?(encodedMetadata: String) {
+        guard let data = Data(base64Encoded: encodedMetadata),
+              let decoded = try? JSONDecoder().decode(Self.self, from: data) else { return nil }
+        self = decoded
+    }
+}
+
+/// A compact, local receipt for the chosen emotional outcome. It travels on
+/// the kept BookPage because Surface metadata does not survive archiving. The
+/// consequence resolver verifies and applies this exact receipt later.
+struct StoryDramaticOutcomeReceipt: Codable, Equatable {
+    static let tagPrefix = "story-dramatic-outcome-v1:"
+
+    var version: Int = StoryDramaticContract.currentVersion
+    var recipeID: String
+    var choiceID: String
+    var turnKind: StoryTurnKind
+    var leadCharacterID: String
+    var leadCharacterName: String
+    var otherCharacterID: String
+    var otherCharacterName: String
+    var reactorID: String
+    var reactorName: String
+    var relationshipID: String
+    var relationshipQuestion: String
+    var requiredReaction: String
+    var changedFact: String
+    var memorySummary: String
+    var warmthDelta: Int
+    var tensionDelta: Int
+    var familiarityDelta: Int
+
+    init(contract: StoryDramaticContract, effect: StoryDramaticChoiceEffect, turnKind: StoryTurnKind) {
+        recipeID = contract.recipeID
+        choiceID = effect.choiceID
+        self.turnKind = turnKind
+        leadCharacterID = contract.leadCharacterID
+        leadCharacterName = contract.leadCharacterName
+        otherCharacterID = contract.otherCharacterID
+        otherCharacterName = contract.otherCharacterName
+        reactorID = effect.requiredReactorID
+        reactorName = effect.requiredReactorName
+        relationshipID = contract.relationshipID
+        relationshipQuestion = contract.relationshipQuestion
+        requiredReaction = effect.requiredReaction
+        changedFact = effect.changedFact
+        memorySummary = effect.memorySummary
+        warmthDelta = effect.warmthDelta
+        tensionDelta = effect.tensionDelta
+        familiarityDelta = effect.familiarityDelta
+    }
+
+    var encodedTag: String? {
+        guard let data = try? JSONEncoder().encode(self) else { return nil }
+        let base64URL = data.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return Self.tagPrefix + base64URL
+    }
+
+    static func decode(tag: String) -> Self? {
+        guard tag.hasPrefix(tagPrefix) else { return nil }
+        var value = String(tag.dropFirst(tagPrefix.count))
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let padding = (4 - value.count % 4) % 4
+        value += String(repeating: "=", count: padding)
+        guard let data = Data(base64Encoded: value) else { return nil }
+        return try? JSONDecoder().decode(Self.self, from: data)
+    }
+
+    static func receipts(in tags: [String]) -> [Self] {
+        tags.compactMap(decode(tag:))
+    }
+}
+
+struct StoryDramaticValidation: Equatable {
+    var score: Int
+    var failures: [String]
+    var isAcceptable: Bool { failures.isEmpty }
+}
+
+/// Deterministic checks for the result half of the dramatic contract. The
+/// prose may vary; the named reactor and committed changed fact may not vanish.
+enum StoryDramaticResultValidator {
+    static func validate(_ prose: String, effect: StoryDramaticChoiceEffect) -> StoryDramaticValidation {
+        var score = 100
+        var failures: [String] = []
+        let lowered = prose.lowercased()
+        let reactor = effect.requiredReactorName.split(separator: " ").first.map(String.init)?.lowercased()
+            ?? effect.requiredReactorName.lowercased()
+        if !reactor.isEmpty, !lowered.contains(reactor) {
+            failures.append("Make \(effect.requiredReactorName) visibly react to this choice.")
+            score -= 45
+        }
+        if !StoryTurnValidator.asserts(prose, landing: effect.changedFact, character: effect.requiredReactorName) {
+            failures.append("Enact this exact changed fact: \(effect.changedFact)")
+            score -= 40
+        }
+        let reactionTerms = significantWords(in: effect.requiredReaction)
+        let proseTerms = Set(lowered.split { !$0.isLetter }.map(String.init))
+        if reactionTerms.intersection(proseTerms).count < min(2, max(1, reactionTerms.count)) {
+            failures.append("Show the required reaction instead of summarizing around it: \(effect.requiredReaction)")
+            score -= 25
+        }
+        return StoryDramaticValidation(score: score, failures: failures)
+    }
+
+    static func landed(_ prose: String, effect: StoryDramaticChoiceEffect) -> String {
+        StoryTurnValidator.landed(prose, landing: "\(effect.requiredReactorName) \(effect.requiredReaction) \(effect.changedFact)")
+    }
+
+    private static func significantWords(in text: String) -> Set<String> {
+        let stop: Set<String> = ["about", "after", "again", "because", "before", "between", "their", "there", "these", "those", "through", "under", "which", "while", "with", "would"]
+        return Set(text.lowercased().split { !$0.isLetter }.map(String.init).filter { $0.count >= 4 && !stop.contains($0) })
+    }
+}
+
 /// Lightweight check that a generated beat actually enacted the committed
 /// change instead of drifting back into atmosphere. Used to gate climax and
 /// result prose with a regenerate-once-then-state-it-plainly rail.
@@ -1513,11 +1711,15 @@ enum StoryTurnLanding {
     /// parser, "slice-of-life" from the packet. Normalize before lookup so the
     /// result rail and the landing instruction actually fire.
     static func resolve(_ landings: [String: String], choiceID: String) -> String? {
-        let compact = choiceID.lowercased().filter { $0.isLetter || $0.isNumber }
+        let compact = normalizedChoiceID(choiceID)
         let key = ["sliceoflife": "slice-of-life",
                    "progressarc": "progress-arc",
                    "surprise": "surprise"][compact] ?? choiceID
         return landings[key]?.nonEmpty
+    }
+
+    static func normalizedChoiceID(_ choiceID: String) -> String {
+        choiceID.lowercased().filter { $0.isLetter || $0.isNumber }
     }
 }
 
@@ -2200,7 +2402,8 @@ enum StoryScenePacketBuilder {
         for day: BookDay,
         inputs: BookSourceInputs,
         now: Date = Date(),
-        semanticScorer: StacksSemanticScoring? = nil
+        semanticScorer: StacksSemanticScoring? = nil,
+        recipeVariantIndex: Int = 0
     ) -> StoryScenePacket {
         let inputs = inputs.resolvingWorldEvents(for: day, now: now)
         let tags = contextTags(for: day, inputs: inputs, now: now)
@@ -2241,11 +2444,17 @@ enum StoryScenePacketBuilder {
         if let arc = inputs.currentArc {
             realSignals.append("CURRENT ARC: \u{201C}\(arc.title)\u{201D} is in its \(arc.phase.rawValue) phase. \(ArcKeeper.directive(for: arc.phase))")
         }
+        let rut = NothingTide.rutAssessment(
+            inputs: inputs,
+            distressActive: false,
+            now: now
+        )
         let greyLevel = NothingTide.greyLevel(
-            quietDays: inputs.quietDays,
+            readerRutPressure: rut.mayNameRut ? rut.pressure : 0,
             narrativeHeat: inputs.narrative?.recentEventCount ?? 0,
             distressActive: false,
-            celebrationGreyShift: inputs.nothingGreyOffset
+            celebrationGreyShift: (inputs.faeState.activeGifts.contains { $0.effect == .quieting } ? -1 : 0)
+                + inputs.nothingGreyOffset
         )
         if let greySignal = NothingTide.storySignal(forGreyLevel: greyLevel) {
             realSignals.append(greySignal)
@@ -2289,7 +2498,8 @@ enum StoryScenePacketBuilder {
         )
         let recipePick = selectRecipe(
             tags: tags, entities: availableEntities(inputs: inputs), thread: primaryThread, grounding: grounding,
-            hasNothingPressure: greyLevel > 0, inputs: inputs, day: day, slot: slot, now: now
+            hasNothingPressure: greyLevel > 0, inputs: inputs, day: day, slot: slot, now: now,
+            variantIndex: recipeVariantIndex
         )
         if let recipe = recipePick?.recipe {
             selectedEntities = entities(for: recipe, selected: selectedEntities, inputs: inputs, slotKey: "\(day.id)-\(slot)")
@@ -2325,7 +2535,7 @@ enum StoryScenePacketBuilder {
                 ? worldLedGrounding(realSignals: realSignals, now: now)
                 : grounding
             return makeBlueprint(packID: picked.packID, recipe: picked.recipe, grounding: sceneGrounding,
-                entities: selectedEntities, thread: primaryThread, form: storyForm,
+                entities: selectedEntities, relationships: selectedRelationships, thread: primaryThread, form: storyForm,
                 slotKey: "\(day.id)-\(slot)", quillName: inputs.chosenQuill?.displayName)
         }
         let turn = blueprint?.turn ?? turn(
@@ -2355,7 +2565,8 @@ enum StoryScenePacketBuilder {
         )
 
         return StoryScenePacket(
-            id: "story-packet-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 4))",
+            id: "story-packet-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 4))"
+                + (recipeVariantIndex == 0 ? "" : "-variant-\(recipeVariantIndex)"),
             packID: NarrativePackRegistry.corePackID,
             title: title,
             playableThreadTitle: playableThreadTitle,
@@ -2461,7 +2672,7 @@ enum StoryScenePacketBuilder {
     private static func selectRecipe(
         tags: Set<String>, entities: [NarrativeWorldEntity], thread: NarrativeStoryThread?,
         grounding: StoryGrounding, hasNothingPressure: Bool, inputs: BookSourceInputs,
-        day: BookDay, slot: String, now: Date
+        day: BookDay, slot: String, now: Date, variantIndex: Int = 0
     ) -> (packID: String, recipe: StoryRecipe)? {
         let characters = entities.filter { $0.kind == .character }
         let recentPages = day.capturedPages + inputs.days.flatMap(\.capturedPages)
@@ -2493,7 +2704,7 @@ enum StoryScenePacketBuilder {
         let all = StoryFormRegistry.recipesWithPackIDs
         var pool = all.filter { eligible($0.recipe, enforceCooldown: true) }
         if pool.isEmpty { pool = all.filter { eligible($0.recipe, enforceCooldown: false) } }
-        return pool.max { left, right in
+        func rankedAfter(_ left: (packID: String, recipe: StoryRecipe), _ right: (packID: String, recipe: StoryRecipe)) -> Bool {
             func score(_ item: (packID: String, recipe: StoryRecipe)) -> Int {
                 let affinity = tags.intersection(Set(item.recipe.preferredTags)).count * 4
                 let consequenceBoost = min(max(inputs.storyRecipeBoosts[item.recipe.id] ?? 0, 0), 12)
@@ -2514,11 +2725,20 @@ enum StoryScenePacketBuilder {
             }
             return score(left) < score(right)
         }
+        var remaining = pool
+        var picked: (packID: String, recipe: StoryRecipe)?
+        for _ in 0...max(0, variantIndex) {
+            guard let next = remaining.max(by: rankedAfter) else { break }
+            picked = next
+            remaining.removeAll { $0.packID == next.packID && $0.recipe.id == next.recipe.id }
+        }
+        return picked ?? pool.max(by: rankedAfter)
     }
 
     private static func makeBlueprint(
         packID: String, recipe: StoryRecipe, grounding: StoryGrounding,
-        entities: [NarrativeWorldEntity], thread: NarrativeStoryThread?, form: StoryForm,
+        entities: [NarrativeWorldEntity], relationships: [NarrativeRelationshipEdge],
+        thread: NarrativeStoryThread?, form: StoryForm,
         slotKey: String, quillName: String? = nil
     ) -> StorySceneBlueprint? {
         let cast = entities.filter { $0.kind == .character }
@@ -2554,14 +2774,185 @@ enum StoryScenePacketBuilder {
                 "surprise": fill(selectedTurn.surpriseLandingTemplate)
             ]
         )
+        let relationship = relationships.first { edge in
+            let ids = Set([edge.sourceEntityID, edge.targetEntityID])
+            guard ids.contains(lead.id) else { return false }
+            return companion.map { ids.contains($0.id) } ?? true
+        } ?? relationships.first
+        let dramaticContract = makeDramaticContract(
+            recipe: recipe,
+            lead: lead,
+            companion: companion,
+            relationship: relationship,
+            turn: turn,
+            baseValues: values
+        )
         return StorySceneBlueprint(
             recipeID: recipe.id, recipeName: recipe.name, recipePackID: packID, sceneMode: recipe.sceneMode,
             leadID: lead.id, leadName: lead.name, companionID: companion?.id, companionName: companion?.name,
             premise: fill(recipe.premiseTemplate), grounding: grounding, beats: StoryVignetteBeats.snackSized(recipe.beats.map(fill)),
             groundingDirective: fill(recipe.groundingDirective), toneDirective: fill(recipe.toneDirective),
             choiceDirective: fill(recipe.choiceDirective), continuationDirective: fill(recipe.continuationDirective),
-            turn: turn
+            turn: turn, dramaticContract: dramaticContract
         )
+    }
+
+    /// Resolves recipe pressure against the cast's binding canon. Core recipes
+    /// author this template explicitly; legacy reader packs receive the same
+    /// safe fallback so an older pack can still produce a character-complete
+    /// contract instead of falling back to atmospheric plot.
+    static func makeDramaticContract(
+        recipe: StoryRecipe,
+        lead: NarrativeWorldEntity,
+        companion: NarrativeWorldEntity?,
+        relationship: NarrativeRelationshipEdge?,
+        turn: StoryTurn,
+        baseValues: [String: String] = [:]
+    ) -> StoryDramaticContract {
+        let otherID = companion?.id ?? "the-book"
+        let otherName = companion?.name ?? "the reader"
+        let relationshipID = relationship?.id ?? "\(lead.id)--\(otherID)"
+        let relationshipPressure = relationship.map {
+            "\($0.note) Warmth \($0.warmth), tension \($0.tension), trust \($0.trust)."
+        } ?? "They do not yet know whether this moment will make them closer, warier, or simply more honest."
+        let template = recipe.characterPressure ?? defaultCharacterPressureTemplate
+        var values = baseValues
+        values["lead"] = lead.name
+        values["companion"] = otherName
+        values["leadGoal"] = lead.goals.first?.nonEmpty ?? lead.unwrittenInterest?.nonEmpty ?? turn.want
+        values["leadFault"] = lead.faults.first?.nonEmpty ?? "mistaking certainty for proof"
+        values["leadBelief"] = lead.beliefs.first?.nonEmpty ?? "specific evidence matters more than appearances"
+        values["companionGoal"] = companion?.goals.first?.nonEmpty ?? "to decide what answer is honest"
+        values["companionFault"] = companion?.faults.first?.nonEmpty ?? "withholding an answer until the pressure is real"
+        values["companionBelief"] = companion?.beliefs.first?.nonEmpty ?? "a choice should change what happens next"
+        values["relationshipPressure"] = relationshipPressure
+        values["turnWant"] = turn.want
+        values["turnObstacle"] = turn.obstacle
+        values["turnStatement"] = turn.statement
+        func fill(_ source: String) -> String {
+            values.reduce(source) { result, pair in
+                result.replacingOccurrences(of: "{{\(pair.key)}}", with: pair.value)
+            }
+        }
+        let reactor = companion ?? lead
+        let effects = StoryChoiceRole.allCases.map { role -> StoryDramaticChoiceEffect in
+            let choiceID: String
+            let landingKey: String
+            switch role {
+            case .sliceOfLife: choiceID = "slice-of-life"; landingKey = "slice-of-life"
+            case .progressArc: choiceID = "progress-arc"; landingKey = "progress-arc"
+            case .surprise: choiceID = "surprise"; landingKey = "surprise"
+            }
+            let changedFact = turn.landings[landingKey] ?? turn.statement
+            let reaction = requiredReaction(
+                kind: turn.kind,
+                role: role,
+                leadName: lead.name,
+                reactorName: reactor.name,
+                want: turn.want,
+                authoredBase: fill(template.requiredCharacterReactionTemplate)
+            )
+            let movement = readerChoiceEffect(
+                role: role,
+                leadName: lead.name,
+                reactorName: reactor.name,
+                authoredBase: fill(template.readerChoiceEffectTemplate)
+            )
+            let deltas: (warmth: Int, tension: Int, familiarity: Int)
+            switch role {
+            case .sliceOfLife: deltas = (1, 0, 1)
+            case .progressArc: deltas = (0, -1, 1)
+            case .surprise: deltas = (0, 1, 1)
+            }
+            return StoryDramaticChoiceEffect(
+                choiceID: choiceID,
+                role: role,
+                requiredReactorID: reactor.id,
+                requiredReactorName: reactor.name,
+                requiredReaction: reaction,
+                readerChoiceEffect: movement,
+                changedFact: changedFact,
+                memorySummary: "In \(recipe.name), \(reactor.name) remembers this became true: \(changedFact)",
+                warmthDelta: deltas.warmth,
+                tensionDelta: deltas.tension,
+                familiarityDelta: deltas.familiarity
+            )
+        }
+        return StoryDramaticContract(
+            recipeID: recipe.id,
+            leadCharacterID: lead.id,
+            leadCharacterName: lead.name,
+            leadCharacterWant: turn.want,
+            leadCharacterWorry: fill(template.leadCharacterWorryTemplate),
+            leadCharacterBlindSpot: fill(template.leadCharacterBlindSpotTemplate),
+            otherCharacterID: otherID,
+            otherCharacterName: otherName,
+            otherCharacterPressure: fill(template.otherCharacterPressureTemplate),
+            relationshipID: relationshipID,
+            relationshipQuestion: fill(template.relationshipQuestionTemplate),
+            stakes: fill(template.stakesTemplate),
+            choiceEffects: effects
+        )
+    }
+
+    private static let defaultCharacterPressureTemplate = StoryRecipeCharacterPressureTemplate(
+        leadCharacterWorryTemplate: "{{lead}} worries that {{turnObstacle}} — and that asking plainly will prove the worry right.",
+        leadCharacterBlindSpotTemplate: "{{lead}} believes {{leadBelief}}, but {{leadFault}} may be distorting what {{companion}} actually means.",
+        otherCharacterPressureTemplate: "{{companion}} wants {{companionGoal}}; {{companionBelief}}. {{relationshipPressure}}",
+        relationshipQuestionTemplate: "Will {{companion}} answer {{lead}}'s want honestly enough to change what they believe about each other?",
+        stakesTemplate: "If nobody answers the want, {{turnObstacle}} remains the relationship's working truth.",
+        requiredCharacterReactionTemplate: "answer the pressure created by {{turnWant}}",
+        readerChoiceEffectTemplate: "forces the relationship question to receive a different answer"
+    )
+
+    private static func requiredReaction(
+        kind: StoryTurnKind,
+        role: StoryChoiceRole,
+        leadName: String,
+        reactorName: String,
+        want: String,
+        authoredBase: String
+    ) -> String {
+        let move: String
+        switch (kind, role) {
+        case (.revealWant, .sliceOfLife): move = "acknowledges what \(leadName) wants without making them defend it"
+        case (.revealWant, .progressArc): move = "answers \(leadName)'s want with a specific yes, no, or condition"
+        case (.revealWant, .surprise): move = "reveals a counter-want that changes how \(leadName)'s request can be heard"
+        case (.changeOfHeart, .sliceOfLife): move = "lets one ordinary kindness revise their first judgment of \(leadName)"
+        case (.changeOfHeart, .progressArc): move = "states exactly what changed their mind about \(leadName)"
+        case (.changeOfHeart, .surprise): move = "admits their old judgment was protecting something else"
+        case (.factLearned, .sliceOfLife): move = "names the small fact they now accept"
+        case (.factLearned, .progressArc): move = "uses the learned fact to make a consequential decision"
+        case (.factLearned, .surprise): move = "admits the fact means the opposite of what they expected"
+        case (.smallDecision, .sliceOfLife): move = "accepts the smallest honest version of the decision"
+        case (.smallDecision, .progressArc): move = "commits aloud to the decision and its next consequence"
+        case (.smallDecision, .surprise): move = "chooses a third answer that exposes what the argument was really about"
+        case (.handOff, .sliceOfLife): move = "receives or refuses the hand-off plainly, without ceremony"
+        case (.handOff, .progressArc): move = "accepts responsibility for what changes hands next"
+        case (.handOff, .surprise): move = "redirects the hand-off to the person who was truly implicated"
+        case (.relationshipShift, .sliceOfLife): move = "shows by one ordinary answer whether \(leadName) is welcome closer"
+        case (.relationshipShift, .progressArc): move = "answers the disagreement in a way that changes trust between them"
+        case (.relationshipShift, .surprise): move = "admits the hidden loyalty, fear, or favor underneath the disagreement"
+        case (.realNoticing, .sliceOfLife): move = "confirms the noticed detail mattered to them too"
+        case (.realNoticing, .progressArc): move = "acts on the noticed detail so it changes what happens next"
+        case (.realNoticing, .surprise): move = "reveals they noticed the same detail for an entirely different reason"
+        }
+        return "\(authoredBase); \(reactorName) \(move)."
+    }
+
+    private static func readerChoiceEffect(
+        role: StoryChoiceRole,
+        leadName: String,
+        reactorName: String,
+        authoredBase: String
+    ) -> String {
+        let path: String
+        switch role {
+        case .sliceOfLife: path = "lets an ordinary act change how close \(reactorName) permits \(leadName) to come"
+        case .progressArc: path = "requires \(reactorName) to commit to an answer that cannot be reset next page"
+        case .surprise: path = "makes \(reactorName) disclose the sideways truth the original question missed"
+        }
+        return "The reader's choice \(authoredBase); it \(path)."
     }
 
     /// Builds the page's promise: one concrete seed to plant in the opening and
@@ -5238,6 +5629,85 @@ enum CompassRunStep: String, CaseIterable, Identifiable {
     }
 }
 
+/// The intake is deliberately a short sequence instead of a dashboard. A
+/// Compass Run works best when the reader makes one small decision at a time;
+/// showing every constraint at once makes the beginning feel like paperwork.
+enum CompassRunConstraintStep: String, CaseIterable, Identifiable {
+    case location
+    case time
+    case energy
+    case companions
+    case budget
+    case considerations
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .location: return "Location"
+        case .time: return "Time"
+        case .energy: return "Energy"
+        case .companions: return "Company"
+        case .budget: return "Budget"
+        case .considerations: return "Considerations"
+        }
+    }
+
+    var question: String {
+        switch self {
+        case .location: return "Where can this run happen?"
+        case .time: return "How much time belongs to it?"
+        case .energy: return "How much spark do you have?"
+        case .companions: return "Who is coming with you?"
+        case .budget: return "What may the run spend?"
+        case .considerations: return "What must the Compass be kind about?"
+        }
+    }
+
+    var guidance: String {
+        switch self {
+        case .location:
+            return "Choose a known kind of place, or let the Book read your current place without keeping precise coordinates."
+        case .time:
+            return "A true ten-minute run is better than an imaginary afternoon."
+        case .energy:
+            return "This shrinks the distance and effort. Low energy is useful information, not a failed run."
+        case .companions:
+            return "The same place needs a different little adventure for one person, a friend, or children."
+        case .budget:
+            return "The Compass can make a complete run from no money at all."
+        case .considerations:
+            return "Choose any that matter today, or choose none. These are rails the run must respect."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .location: return "mappin.and.ellipse"
+        case .time: return "timer"
+        case .energy: return "battery.50percent"
+        case .companions: return "person.2"
+        case .budget: return "dollarsign.circle"
+        case .considerations: return "heart.text.clipboard"
+        }
+    }
+
+    var ordinal: Int {
+        Self.allCases.firstIndex(of: self).map { $0 + 1 } ?? 1
+    }
+
+    var next: CompassRunConstraintStep? {
+        guard let index = Self.allCases.firstIndex(of: self) else { return nil }
+        let nextIndex = Self.allCases.index(after: index)
+        return nextIndex < Self.allCases.endIndex ? Self.allCases[nextIndex] : nil
+    }
+
+    var previous: CompassRunConstraintStep? {
+        guard let index = Self.allCases.firstIndex(of: self), index > Self.allCases.startIndex else { return nil }
+        return Self.allCases[Self.allCases.index(before: index)]
+    }
+}
+
 enum CompassPlaceContext: String, CaseIterable, Identifiable {
     case current
     case home
@@ -5522,6 +5992,230 @@ struct PromptWhisper: Identifiable, Equatable, Codable {
     /// `nil` means this is a one-line prompt rather than a photographic
     /// mission. Kept optional so older queued whispers decode unchanged.
     var allowsPhoto: Bool? = nil
+}
+
+struct WickerDare: Equatable {
+    var id: String
+    var title: String
+    var challenge: String
+    var proofPrompt: String
+    var tags: [String]
+    var place: LocalPlaceSignal? = nil
+}
+
+/// Wicker pushes farther than the Wonder Compass, but never past consent,
+/// legality, property rules, or the reader's ability to say no without penalty.
+enum WickerDareRegistry {
+    static let immediate: [WickerDare] = [
+        WickerDare(
+            id: "tongue-out",
+            title: "A Tiny Act of Defiance",
+            challenge: "Stick your tongue out at something right now. Not a person—choose an object, rule, weather system, or entire Tuesday that has grown too important.",
+            proofPrompt: "What received the tongue, and did it deserve it?",
+            tags: ["wicker-dare", "immediate", "mischief", "anywhere"]
+        ),
+        WickerDare(
+            id: "wrong-way-round",
+            title: "One Thing Backwards",
+            challenge: "Wear, carry, arrange, or begin one harmless thing backwards for ten minutes. Let the world notice only if it is paying proper attention.",
+            proofPrompt: "What went backwards, and what became newly visible?",
+            tags: ["wicker-dare", "immediate", "mischief", "comfort-edge"]
+        ),
+        WickerDare(
+            id: "object-compliment",
+            title: "Publicly Admire the Inanimate",
+            challenge: "Give one ordinary object a sincere compliment out loud. Quietly counts. Wicker would prefer witnesses, but Wicker is not in charge of your consent.",
+            proofPrompt: "What did you compliment, exactly?",
+            tags: ["wicker-dare", "immediate", "voice", "comfort-edge"]
+        ),
+        WickerDare(
+            id: "unnecessary-flourish",
+            title: "Add a Flourish",
+            challenge: "Complete the next ordinary action with one completely unnecessary flourish: a bow after closing a door, a grand reveal of your keys, a magician's hand over a finished cup of tea.",
+            proofPrompt: "Which action was promoted into a performance?",
+            tags: ["wicker-dare", "immediate", "performance", "anywhere"]
+        ),
+        WickerDare(
+            id: "stranger-color",
+            title: "Wear the Unreasonable Color",
+            challenge: "Put on or carry the color you usually decide is 'too much.' Give it one honest outing, even if the outing is only across the room.",
+            proofPrompt: "Which color escaped, and where did you take it?",
+            tags: ["wicker-dare", "immediate", "style", "comfort-edge"]
+        ),
+        WickerDare(
+            id: "tiny-manifesto",
+            title: "Declare Something Ridiculous",
+            challenge: "Write a one-sentence manifesto for a harmless thing you care about too much. Read it aloud to the room as if history has finally caught up.",
+            proofPrompt: "Keep the manifesto.",
+            tags: ["wicker-dare", "immediate", "creative", "voice"]
+        ),
+        WickerDare(
+            id: "ten-second-dance",
+            title: "Dance Before Permission Arrives",
+            challenge: "Dance for ten seconds with no music and no claim that you know how. Seated dancing, finger dancing, and one violently committed shoulder all count.",
+            proofPrompt: "Which part of you joined first?",
+            tags: ["wicker-dare", "immediate", "movement", "comfort-edge", "accessible"]
+        ),
+        WickerDare(
+            id: "read-to-the-air",
+            title: "Give the Air a Reading",
+            challenge: "Read four lines of something you love aloud to an open window, a hallway, a tree, or an otherwise unqualified audience. Use your real voice.",
+            proofPrompt: "Which lines escaped, and what heard them?",
+            tags: ["wicker-dare", "voice", "creative", "comfort-edge"]
+        ),
+        WickerDare(
+            id: "tiny-gift",
+            title: "Make a Gift Too Small to Owe",
+            challenge: "Make a tiny gift in under five minutes—a doodle, folded scrap, ridiculous title, found-color photograph, or six good words—and offer it to someone who can comfortably say no.",
+            proofPrompt: "What did you make, and how was it offered?",
+            tags: ["wicker-dare", "creative", "social", "consent", "comfort-edge"]
+        ),
+        WickerDare(
+            id: "odd-question",
+            title: "Ask the Better Question",
+            challenge: "Ask someone you know one oddly specific question instead of 'How are you?' Try: What object has been your ally today? What sound should be illegal? What tiny thing went right?",
+            proofPrompt: "Which question did you risk, and what came back?",
+            tags: ["wicker-dare", "social", "conversation", "comfort-edge"]
+        ),
+        WickerDare(
+            id: "formal-portrait",
+            title: "Grant It a State Portrait",
+            challenge: "Take an absurdly dignified portrait of the least dignified object available. Give it a full ceremonial title. No tidying the subject first.",
+            proofPrompt: "Keep the portrait and its title.",
+            tags: ["wicker-dare", "creative", "photo", "anywhere"]
+        ),
+        WickerDare(
+            id: "visible-mending",
+            title: "Refuse to Hide the Repair",
+            challenge: "Repair, tape, tie, patch, or prop up one small broken thing and make the repair deliberately visible. Let the scar be better dressed than the wound.",
+            proofPrompt: "What did you mend, and how did the repair announce itself?",
+            tags: ["wicker-dare", "making", "mischief", "comfort-edge"]
+        ),
+        WickerDare(
+            id: "strange-accessory",
+            title: "Wear the Thing You Keep Almost Wearing",
+            challenge: "Wear one harmless thing you normally remove before anyone sees it: the loud pin, strange hat, theatrical scarf, too-many-rings arrangement, or improvised paper crown. Give it at least ten honest minutes.",
+            proofPrompt: "What finally got worn?",
+            tags: ["wicker-dare", "style", "comfort-edge", "self-expression"]
+        ),
+        WickerDare(
+            id: "first-sentence-sky",
+            title: "Tell the Sky First",
+            challenge: "Step to a window or safe threshold and tell the sky one true sentence before you tell anyone else. It may be tender, furious, vain, delighted, or about lunch.",
+            proofPrompt: "What did the sky hear first?",
+            tags: ["wicker-dare", "voice", "truth", "comfort-edge", "accessible"]
+        ),
+        WickerDare(
+            id: "micro-adventure-invite",
+            title: "Issue a Suspicious Invitation",
+            challenge: "Invite someone to a twenty-minute micro-adventure: inspect one unfamiliar aisle, find the best doorway in town, split a pastry, hunt a color, or walk nowhere important. Make declining easy.",
+            proofPrompt: "What adventure did you propose?",
+            tags: ["wicker-dare", "social", "outward", "consent", "comfort-edge"]
+        ),
+        WickerDare(
+            id: "route-mutiny",
+            title: "Mutiny Against the Usual Route",
+            challenge: "Change one safe piece of a familiar route today: the other side of the street, a different doorway, one extra corner, or simply face the opposite direction before beginning. Wheels and windows count.",
+            proofPrompt: "Where did the route stop being obedient?",
+            tags: ["wicker-dare", "outward", "movement", "accessible", "comfort-edge"]
+        ),
+        WickerDare(
+            id: "kind-note",
+            title: "Leave an Anonymous Bright Spot",
+            challenge: "Write one specific, non-creepy kindness on a scrap—'Your window garden is excellent,' 'This place smells like good mornings,' 'Whoever fixed this: splendid work.' Give it directly, or leave it only where notes are welcome.",
+            proofPrompt: "What did the note notice?",
+            tags: ["wicker-dare", "creative", "public", "consent", "comfort-edge"]
+        ),
+        WickerDare(
+            id: "one-minute-character",
+            title: "Borrow a More Dangerous Name",
+            challenge: "For one minute, give yourself a title fit for the person doing this exact day: Keeper of the Last Clean Spoon, Duchess of Unanswered Email, Minor Saint of Trying Again. Introduce yourself to the room.",
+            proofPrompt: "What title did you dare to claim?",
+            tags: ["wicker-dare", "voice", "imagination", "anywhere"]
+        ),
+        WickerDare(
+            id: "beautifully-overdressed-task",
+            title: "Overdress the Errand",
+            challenge: "Make one ordinary task slightly too ceremonial. Use the good cup for water. Put on perfume to take out the rubbish. Carry the grocery list like sealed orders. Choose your own ridiculous elevation.",
+            proofPrompt: "Which errand received honors it had not earned?",
+            tags: ["wicker-dare", "ritual", "style", "comfort-edge"]
+        ),
+        WickerDare(
+            id: "honest-opinion",
+            title: "Retire One Polite Lie",
+            challenge: "Replace one harmless automatic opinion with the oddly specific truth. Not 'fine'—'the soup tastes like a rainy windowsill.' Not 'I like it'—name the exact part you like. Do not use honesty as a knife.",
+            proofPrompt: "Which vague answer did you replace, and with what?",
+            tags: ["wicker-dare", "truth", "voice", "comfort-edge"]
+        )
+    ]
+
+    static func dare(for day: BookDay, inputs: BookSourceInputs, now: Date) -> WickerDare {
+        let slot = SurfaceCadence.slotID(for: now, hours: 12)
+        let eligiblePlaces = inputs.nearbyPlaces.filter(isSuitablePublicPlace)
+        let shouldUsePlace = !eligiblePlaces.isEmpty
+            && abs("\(day.id)-\(slot)-wicker-place".stableHash % 3) != 0
+
+        if shouldUsePlace {
+            let place = eligiblePlaces[
+                abs("\(day.id)-\(slot)-wicker-destination".stableHash) % eligiblePlaces.count
+            ]
+            return placeDare(place)
+        }
+        let onboardingMode = inputs.selfFacts.first {
+            $0.questionID == "onboarding-wicker-mode" && $0.usePermission != .doNotUse
+        }?.answer
+        let preferredIDs: Set<String>
+        switch onboardingMode {
+        case "slice-of-life":
+            preferredIDs = ["object-compliment", "formal-portrait", "honest-opinion", "first-sentence-sky"]
+        case "arc":
+            preferredIDs = ["unnecessary-flourish", "visible-mending", "micro-adventure-invite", "route-mutiny", "beautifully-overdressed-task"]
+        case "surprise":
+            preferredIDs = ["wrong-way-round", "tiny-manifesto", "strange-accessory", "one-minute-character", "tongue-out"]
+        default:
+            preferredIDs = []
+        }
+        let shapedPool = immediate.filter { preferredIDs.contains($0.id) }
+        let pool = shapedPool.isEmpty ? immediate : shapedPool
+        return pool[
+            abs("\(day.id)-\(slot)-wicker-immediate-\(onboardingMode ?? "unwritten")".stableHash) % pool.count
+        ]
+    }
+
+    private static func isSuitablePublicPlace(_ place: LocalPlaceSignal) -> Bool {
+        // Category is the safety signal. Names can contain misleading words
+        // ("Left Bank Books", "Old School Cafe") that must not veto a benign
+        // public destination.
+        let text = place.category.lowercased()
+        let excluded = [
+            "hospital", "clinic", "doctor", "funeral", "cemetery", "school",
+            "police", "court", "bank", "pharmacy", "religious", "church"
+        ]
+        return !excluded.contains(where: text.contains)
+    }
+
+    private static func placeDare(_ place: LocalPlaceSignal) -> WickerDare {
+        let text = "\(place.name) \(place.category)".lowercased()
+        if ["library", "book", "co-op", "coop", "community", "arts", "gallery", "cafe", "coffee"]
+            .contains(where: text.contains) {
+            return WickerDare(
+                id: "creative-drop-\(place.id)",
+                title: "Leave Evidence You Were Alive",
+                challenge: "Make one tiny piece of your own work—a poem, drawing, six-word story, or peculiar little blessing—and take it to \(place.name). Ask before leaving it, or use a board, free table, or other place clearly meant for public offerings. Sign it or don't.",
+                proofPrompt: "What did you make, and where was it welcomed?",
+                tags: ["wicker-dare", "creative", "public", "outward", "comfort-edge", "real-place"],
+                place: place
+            )
+        }
+        return WickerDare(
+            id: "local-curiosity-\(place.id)",
+            title: "Ask the Question You Nearly Swallowed",
+            challenge: "Go to \(place.name) when it is open and ask one sincere, slightly unusual question about the place: what is overlooked, what has been there longest, or what the staff secretly think is wonderful. If they are busy, abort with style and notice one thing for yourself.",
+            proofPrompt: "What did you ask—or what did you notice when the moment said no?",
+            tags: ["wicker-dare", "public", "conversation", "outward", "comfort-edge", "real-place"],
+            place: place
+        )
+    }
 }
 
 enum PlayfulMissionRegistry {
@@ -6472,6 +7166,7 @@ struct StoryRecipe: Identifiable, Codable, Equatable {
     var premiseTemplate: String
     var beats: [String]
     var turns: [StoryRecipeTurnTemplate]
+    var characterPressure: StoryRecipeCharacterPressureTemplate? = nil
     var preferredTags: [String]
     var preferredFormIDs: [String]
     var preferredGenreIDs: [String]
@@ -6505,6 +7200,7 @@ struct StorySceneBlueprint: Codable, Equatable {
     var choiceDirective: String
     var continuationDirective: String
     var turn: StoryTurn
+    var dramaticContract: StoryDramaticContract? = nil
 }
 
 struct StoryGenre: Identifiable, Codable, Equatable {
@@ -6743,9 +7439,18 @@ enum StoryFormRegistry {
         grounding: String, tone: String, choices: String, continuation: String,
         cooldown: Int = 18, suppressedBy: [BookPageType] = [], suppressionHours: Int = 0
     ) -> StoryRecipe {
-        StoryRecipe(
+        let characterPressure = StoryRecipeCharacterPressureTemplate(
+            leadCharacterWorryTemplate: "{{lead}} worries that {{turnObstacle}} — and that asking plainly will prove the worry right.",
+            leadCharacterBlindSpotTemplate: "{{lead}} believes {{leadBelief}}, but {{leadFault}} may be distorting what {{companion}} actually means.",
+            otherCharacterPressureTemplate: "{{companion}} wants {{companionGoal}}; {{companionBelief}}. {{relationshipPressure}}",
+            relationshipQuestionTemplate: "Will {{companion}} answer {{lead}}'s want honestly enough to change what they believe about each other?",
+            stakesTemplate: "If nobody answers the want, {{turnObstacle}} remains the relationship's working truth.",
+            requiredCharacterReactionTemplate: "answer the pressure created by {{turnWant}}",
+            readerChoiceEffectTemplate: "forces the relationship question to receive a different answer"
+        )
+        return StoryRecipe(
             id: id, name: name, baseWeight: weight, requirements: requirements, sceneMode: mode,
-            premiseTemplate: premise, beats: beats, turns: [turn], preferredTags: tags,
+            premiseTemplate: premise, beats: beats, turns: [turn], characterPressure: characterPressure, preferredTags: tags,
             preferredFormIDs: forms, preferredGenreIDs: genres, excludedFormIDs: [], excludedGenreIDs: [],
             requiredEntityIDs: [], requiredEntityTags: [], groundingDirective: grounding,
             toneDirective: tone, choiceDirective: choices, continuationDirective: continuation,
@@ -7101,7 +7806,11 @@ enum StoryFormRegistry {
         return enabledPacks().flatMap(\.genres).filter { seen.insert($0.id).inserted }
     }
 
-    static let recipeTemplateTokens: Set<String> = ["lead", "companion", "grounding", "thread", "form", "quill"]
+    static let recipeTemplateTokens: Set<String> = [
+        "lead", "companion", "grounding", "thread", "form", "quill",
+        "leadGoal", "leadFault", "leadBelief", "companionGoal", "companionFault", "companionBelief",
+        "relationshipPressure", "turnWant", "turnObstacle", "turnStatement"
+    ]
 
     static var recipesWithPackIDs: [(packID: String, recipe: StoryRecipe)] {
         var seen = Set<String>()
@@ -7165,11 +7874,23 @@ enum StoryFormRegistry {
     static func recipeIsValid(_ recipe: StoryRecipe) -> Bool {
         guard !recipe.id.isEmpty, !recipe.name.isEmpty, recipe.baseWeight > 0,
               !recipe.premiseTemplate.isEmpty, !recipe.beats.isEmpty, !recipe.turns.isEmpty else { return false }
-        let strings = [recipe.premiseTemplate, recipe.groundingDirective, recipe.toneDirective,
+        var strings = [recipe.premiseTemplate, recipe.groundingDirective, recipe.toneDirective,
                        recipe.choiceDirective, recipe.continuationDirective]
-            + recipe.beats
-            + recipe.turns.flatMap { [$0.wantTemplate, $0.obstacleTemplate, $0.statementTemplate,
-                                      $0.sliceLandingTemplate, $0.progressLandingTemplate, $0.surpriseLandingTemplate] }
+        strings.append(contentsOf: recipe.beats)
+        for turn in recipe.turns {
+            strings.append(contentsOf: [
+                turn.wantTemplate, turn.obstacleTemplate, turn.statementTemplate,
+                turn.sliceLandingTemplate, turn.progressLandingTemplate, turn.surpriseLandingTemplate
+            ])
+        }
+        if let pressure = recipe.characterPressure {
+            strings.append(contentsOf: [
+                pressure.leadCharacterWorryTemplate, pressure.leadCharacterBlindSpotTemplate,
+                pressure.otherCharacterPressureTemplate, pressure.relationshipQuestionTemplate,
+                pressure.stakesTemplate, pressure.requiredCharacterReactionTemplate,
+                pressure.readerChoiceEffectTemplate
+            ])
+        }
         let pattern = #"\{\{([a-zA-Z0-9_-]+)\}\}"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return false }
         for string in strings {

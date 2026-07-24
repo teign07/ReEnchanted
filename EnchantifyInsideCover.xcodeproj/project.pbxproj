@@ -30,6 +30,7 @@
 		010000000000000000000021 /* LivingTextInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000119 /* LivingTextInput.swift */; };
 		010000000000000000000022 /* TarotPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000011A /* TarotPageView.swift */; };
 		020000000000000000000200 /* PageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000100 /* PageModel.swift */; };
+		020000000000000000000212 /* BookInterruptionBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000112 /* BookInterruptionBudget.swift */; };
 		020000000000000000000211 /* Tarot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000111 /* Tarot.swift */; };
 		020000000000000000000201 /* SurfaceAndCurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000101 /* SurfaceAndCurator.swift */; };
 		020000000000000000000202 /* NarrativeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000102 /* NarrativeCore.swift */; };
@@ -126,6 +127,7 @@
 		01000000000000000000011A /* TarotPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TarotPageView.swift; sourceTree = "<group>"; };
 		010000000000000000000201 /* InsideCoverApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InsideCoverApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		020000000000000000000100 /* PageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageModel.swift; sourceTree = "<group>"; };
+		020000000000000000000112 /* BookInterruptionBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookInterruptionBudget.swift; sourceTree = "<group>"; };
 		020000000000000000000101 /* SurfaceAndCurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfaceAndCurator.swift; sourceTree = "<group>"; };
 		020000000000000000000102 /* NarrativeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NarrativeCore.swift; sourceTree = "<group>"; };
 		020000000000000000000103 /* StoryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryEngine.swift; sourceTree = "<group>"; };
@@ -245,6 +247,7 @@
 				030000000000000000000107 /* PressedPhotograph.swift */,
 				030000000000000000000108 /* PlainInkExport.swift */,
 				020000000000000000000100 /* PageModel.swift */,
+				020000000000000000000112 /* BookInterruptionBudget.swift */,
 				020000000000000000000111 /* Tarot.swift */,
 				020000000000000000000101 /* SurfaceAndCurator.swift */,
 				020000000000000000000102 /* NarrativeCore.swift */,
@@ -452,6 +455,7 @@
 				010000000000000000000020 /* SentenceBuilder.swift in Sources */,
 				030000000000000000000200 /* StacksSearch.swift in Sources */,
 				020000000000000000000200 /* PageModel.swift in Sources */,
+				020000000000000000000212 /* BookInterruptionBudget.swift in Sources */,
 				020000000000000000000211 /* Tarot.swift in Sources */,
 				020000000000000000000201 /* SurfaceAndCurator.swift in Sources */,
 				020000000000000000000202 /* NarrativeCore.swift in Sources */,

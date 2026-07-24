@@ -111,55 +111,25 @@ final class AlmanacModelTests: XCTestCase {
         )
     }
 
-    func testSealTiersAtBoundaries() {
-        XCTAssertEqual(ThreadOfTheMonth.seal(forLitDays: 0), .unbound)
-        XCTAssertEqual(ThreadOfTheMonth.seal(forLitDays: 2), .unbound)
-        XCTAssertEqual(ThreadOfTheMonth.seal(forLitDays: 3), .inked)
-        XCTAssertEqual(ThreadOfTheMonth.seal(forLitDays: 7), .inked)
-        XCTAssertEqual(ThreadOfTheMonth.seal(forLitDays: 8), .sealed)
-        XCTAssertEqual(ThreadOfTheMonth.seal(forLitDays: 15), .ribboned)
-        XCTAssertEqual(ThreadOfTheMonth.seal(forLitDays: 22), .bound)
-        XCTAssertEqual(ThreadOfTheMonth.seal(forLitDays: 31), .bound)
-    }
-
-    func testMilestonesAreTheSealThresholds() {
-        XCTAssertEqual(ThreadOfTheMonth.milestones, [3, 8, 15, 22])
-    }
-
-    func testMilestoneCrossedFiresOnceAtThreshold() {
-        // Reaching the count exactly is the crossing; overshooting the same step
-        // still reports the threshold that fell inside it.
-        XCTAssertEqual(ThreadOfTheMonth.milestoneCrossed(from: 2, to: 3), 3)
-        XCTAssertNil(ThreadOfTheMonth.milestoneCrossed(from: 3, to: 4))
-        XCTAssertNil(ThreadOfTheMonth.milestoneCrossed(from: 5, to: 6))
-        XCTAssertEqual(ThreadOfTheMonth.milestoneCrossed(from: 7, to: 8), 8)
-        // A non-increasing step never crosses anything.
-        XCTAssertNil(ThreadOfTheMonth.milestoneCrossed(from: 8, to: 8))
-        XCTAssertNil(ThreadOfTheMonth.milestoneCrossed(from: 9, to: 8))
-    }
-
-    func testProgressReportsNextSealAndDistance() {
-        let days = (1...5).map { day(2027, 3, $0, pages: 1) } // 5 lit days -> inked
+    func testProgressReportsOnlyWhatTheMonthAlreadyHolds() {
+        let days = [
+            day(2027, 3, 1, pages: 2),
+            day(2027, 3, 2, pages: 1),
+            day(2027, 3, 3, pages: 3),
+            day(2027, 3, 4, pages: 1),
+            day(2027, 3, 5, pages: 2),
+            day(2027, 2, 28, pages: 8)
+        ]
         let progress = ThreadOfTheMonth.progress(forMonthContaining: date(2027, 3, 15), days: days, calendar: calendar)
         XCTAssertEqual(progress.litDays, 5)
-        XCTAssertEqual(progress.seal, .inked)
-        XCTAssertEqual(progress.nextSeal, .sealed)
-        XCTAssertEqual(progress.litDaysToNextSeal, 3) // 8 - 5
-        XCTAssertEqual(progress.daysInMonth, 31)
+        XCTAssertEqual(progress.keptPages, 9)
+        XCTAssertTrue(calendar.isDate(progress.monthStart, inSameDayAs: date(2027, 3, 1)))
     }
 
-    func testProgressAtTopTierHasNoNextSeal() {
+    func testProgressHasNoTierOrDistanceToAQuota() {
         let days = (1...22).map { day(2027, 3, $0, pages: 1) }
         let progress = ThreadOfTheMonth.progress(forMonthContaining: date(2027, 3, 15), days: days, calendar: calendar)
-        XCTAssertEqual(progress.seal, .bound)
-        XCTAssertNil(progress.nextSeal)
-        XCTAssertEqual(progress.litDaysToNextSeal, 0)
-    }
-
-    func testThreadNoteNamesTheMonthAndCountAndIsAlmanacVoiced() {
-        let note = KeepMarginalia.threadNote(litDays: 8, seal: .sealed, monthName: "March")
-        XCTAssertEqual(note.castSlug, "almanac")
-        XCTAssertTrue(note.line.contains("8"))
-        XCTAssertTrue(note.line.contains("March"))
+        XCTAssertEqual(progress.litDays, 22)
+        XCTAssertEqual(progress.keptPages, 22)
     }
 }

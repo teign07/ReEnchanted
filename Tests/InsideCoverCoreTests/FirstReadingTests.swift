@@ -17,8 +17,20 @@ final class FirstReadingTests: XCTestCase {
 
     private func inputs(with pages: [BookPage]) -> BookSourceInputs {
         var inputs = BookSourceInputs.empty
-        inputs.days = [BookDay(id: "2026-07-01", date: date(1), pages: pages)]
+        inputs.days = Dictionary(grouping: pages) { BookDay.id(for: $0.createdAt) }
+            .map { id, pages in BookDay(id: id, date: pages[0].createdAt, pages: pages) }
         return inputs
+    }
+
+    private func accumulatedPages() -> [BookPage] {
+        [
+            souvenir("The kitchen window held the last of the gold light.", on: 1),
+            souvenir("Rain all afternoon, and I did not mind it once.", on: 1, hour: 18),
+            souvenir("A quiet mug of coffee before anyone else woke.", on: 2),
+            souvenir("The porch boards were warm under my feet.", on: 2, hour: 19),
+            souvenir("A small bird argued with the garden gate.", on: 3),
+            souvenir("The moon found the water glass after dark.", on: 3, hour: 20)
+        ]
     }
 
     private func candidates(_ inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
@@ -28,16 +40,11 @@ final class FirstReadingTests: XCTestCase {
 
     // MARK: - Surfacing
 
-    func testSurfacesWithThreeReflectablePages() {
-        let inputs = inputs(with: [
-            souvenir("The kitchen window held the last of the gold light.", on: 1),
-            souvenir("Rain all afternoon, and I did not mind it once.", on: 1),
-            souvenir("A quiet mug of coffee before anyone else woke.", on: 1)
-        ])
-        let surfaced = candidates(inputs, now: date(1, hour: 20))
+    func testSurfacesAfterEvidenceAccumulatesAcrossThreeDays() {
+        let surfaced = candidates(inputs(with: accumulatedPages()), now: date(3, hour: 21))
         XCTAssertEqual(surfaced.first?.type, .bookNotices)
         XCTAssertEqual(surfaced.first?.payload.metadata["firstReading"], "true")
-        XCTAssertEqual(surfaced.first?.payload.metadata["reflectedPageCount"], "3")
+        XCTAssertEqual(surfaced.first?.payload.metadata["reflectedPageCount"], "6")
         // The proof: the reader's own words are quoted back.
         XCTAssertTrue(surfaced.first?.payload.body.contains("gold light") == true)
     }
@@ -48,6 +55,13 @@ final class FirstReadingTests: XCTestCase {
             souvenir("Rain all afternoon, and I did not mind it once.", on: 1)
         ])
         XCTAssertTrue(candidates(inputs, now: date(1, hour: 20)).isEmpty)
+    }
+
+    func testDoesNotSurfaceFromOneLargeSitting() {
+        let pages = (0..<8).map {
+            souvenir("A substantial kept sentence number \($0) from the same evening.", on: 1, hour: 8 + $0)
+        }
+        XCTAssertTrue(candidates(inputs(with: pages), now: date(3, hour: 20)).isEmpty)
     }
 
     func testReflectableBookOverloadDoesNotDuplicateToday() {
@@ -64,41 +78,33 @@ final class FirstReadingTests: XCTestCase {
     }
 
     func testDoesNotSurfaceOnceLibraryIsDeep() {
-        // Eight kept pages: past the early window, real noticing should carry it.
-        let pages = (1...8).map { souvenir("A real kept line number \($0), with substance.", on: 1, hour: $0) }
-        XCTAssertTrue(candidates(inputs(with: pages), now: date(1, hour: 20)).isEmpty)
+        let pages = (1...12).map { souvenir("A real kept line number \($0), with substance.", on: (($0 - 1) / 4) + 1, hour: ($0 % 4) + 8) }
+        XCTAssertTrue(candidates(inputs(with: pages), now: date(3, hour: 20)).isEmpty)
     }
 
     // MARK: - Once-only
 
     func testDoesNotRepeatAfterKept() {
-        var pages = [
-            souvenir("The kitchen window held the last of the gold light.", on: 1),
-            souvenir("Rain all afternoon, and I did not mind it once.", on: 1),
-            souvenir("A quiet mug of coffee before anyone else woke.", on: 1)
-        ]
+        var pages = accumulatedPages()
         // The kept reading carries the milestone tag.
         pages.append(BookPage(type: .bookNotices, createdAt: date(1, hour: 21),
                               promptText: "The Book Reads Back", userInput: "",
                               tags: ["first-reading", "book-notices"]))
-        XCTAssertTrue(candidates(inputs(with: pages), now: date(2, hour: 20)).isEmpty)
+        XCTAssertTrue(candidates(inputs(with: pages), now: date(4, hour: 20)).isEmpty)
     }
 
     // MARK: - Privacy
 
     func testBodyAndFuelStayPrivate() {
-        // Two private logs plus three souvenirs: only the souvenirs are counted
+        // Two private logs plus six souvenirs: only the souvenirs are counted
         // and reflected. The private input must never appear in the body.
         var pages = [
             BookPage(type: .body, createdAt: date(1, hour: 8), promptText: "Body", userInput: "secret ache in my left knee"),
             BookPage(type: .fuel, createdAt: date(1, hour: 9), promptText: "Fuel", userInput: "skipped lunch again today"),
-            souvenir("The porch was warm and the street was quiet.", on: 1),
-            souvenir("A candle burned down while I read.", on: 1),
-            souvenir("The harbor fog came in without a sound.", on: 1)
-        ]
+        ] + accumulatedPages()
         pages.shuffle()
-        let surfaced = candidates(inputs(with: pages), now: date(1, hour: 20))
-        XCTAssertEqual(surfaced.first?.payload.metadata["reflectedPageCount"], "3")
+        let surfaced = candidates(inputs(with: pages), now: date(3, hour: 21))
+        XCTAssertEqual(surfaced.first?.payload.metadata["reflectedPageCount"], "6")
         let body = surfaced.first?.payload.body ?? ""
         XCTAssertFalse(body.contains("knee"))
         XCTAssertFalse(body.contains("lunch"))
@@ -144,49 +150,14 @@ final class FirstReadingTests: XCTestCase {
         XCTAssertFalse(body.contains("Not a life yet"))
     }
 
-    // MARK: - Reaches the shelf (end-to-end through the curator)
+    // MARK: - Returning sessions
 
-    /// A returning reader who kept three pages on an earlier session: welcome
-    /// and tips already served.
     private func returningReaderInputs() -> BookSourceInputs {
         var inputs = BookSourceInputs.empty
-        inputs.days = [BookDay(id: "2026-07-01", date: date(1), pages: [
-            souvenir("The kitchen window held the last of the gold light.", on: 1, hour: 9),
-            souvenir("Rain all afternoon, and I did not mind it once.", on: 1, hour: 14),
-            souvenir("A quiet mug of coffee before anyone else woke.", on: 1, hour: 20)
-        ])]
+        inputs = self.inputs(with: accumulatedPages())
         inputs.surfaceHistory["source:labyrinth-welcome"] = SurfaceHistoryRecord(lastShownAt: date(1, hour: 8), recentShowCount: 1)
         inputs.surfaceHistory["source:help-and-tips"] = SurfaceHistoryRecord(lastShownAt: date(1, hour: 8), recentShowCount: 1)
         return inputs
-    }
-
-    /// Even on a busy desk, the reader can reach the First Reading — it ranks
-    /// well ahead of ordinary daily filler and is re-offered until engaged.
-    func testFirstReadingIsReachableOnABusyDesk() {
-        let today = BookDay(id: "2026-07-02", date: date(2), pages: [])
-        let shelf = BookCurator.surfacedPages(for: today, inputs: returningReaderInputs(), now: date(2, hour: 21), limit: 6)
-        XCTAssertTrue(
-            shelf.contains { $0.payload.metadata["firstReading"] == "true" },
-            "The First Reading should be reachable on the reader's returning session."
-        )
-    }
-
-    /// On a calm evening — no fresh Bleed edition waiting, no active Wonder
-    /// mission — the First Reading makes the three-slot home shelf.
-    func testFirstReadingMakesTheShelfOnACalmDesk() {
-        var inputs = returningReaderInputs()
-        // A reader who kept pages today has already opened today's Bleed and run
-        // their compass; those announcement/mission cards rest. The compass
-        // family fatigues under its unified variety key ("compass:wonder-compass"),
-        // which every compass page — run, notice, or Sense mission — now shares.
-        inputs.surfaceHistory["source:the-bleed"] = SurfaceHistoryRecord(lastShownAt: date(2, hour: 8), recentShowCount: 1)
-        inputs.surfaceHistory["compass:wonder-compass"] = SurfaceHistoryRecord(lastShownAt: date(2, hour: 8), recentShowCount: 1)
-        let today = BookDay(id: "2026-07-02", date: date(2), pages: [])
-        let shelf = BookCurator.surfacedPages(for: today, inputs: inputs, now: date(2, hour: 21), limit: 3)
-        XCTAssertTrue(
-            shelf.contains { $0.payload.metadata["firstReading"] == "true" },
-            "On a calm desk the First Reading should reach the home shelf."
-        )
     }
 
     /// The milestone yields to a hard day: gentleness leads, the reading waits.

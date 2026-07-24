@@ -781,7 +781,7 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
         case .spells:
             return "Open a Compass Run or Enchantment."
         case .pages:
-            return "Tune which Pages the Book notices."
+            return "Find open threads and tune which Pages the Book notices."
         case .bindery:
             return "Make, share, print, and preserve kept pages."
         case .book:
@@ -1184,22 +1184,29 @@ struct GlowCommandMenu: View {
                 }
             }
         case .pages:
-            menuButton(
-                title: "The Flyleaf",
-                detail: "Open the quests tucked into the Book's inside cover.",
-                systemImage: "bookmark",
-                compact: compact
-            ) {
-                onSelectAction(.openFlyleaf)
-            }
-            pageBeliefSubmenu(compact: compact)
-            menuButton(
-                title: "The Pact Map",
-                detail: "Watch the Talismans contest the Book's shelves and your real-world doors.",
-                systemImage: "map",
-                compact: compact
-            ) {
-                onSelectAction(.openPactMap)
+            ForEach(GlowPagesMenuLayout.orderedSections, id: \.self) { item in
+                switch item {
+                case .flyleaf:
+                    menuButton(
+                        title: "The Flyleaf",
+                        detail: "All the quests, favors, runs, bargains, and errands currently tucked into the Book.",
+                        systemImage: "bookmark.fill",
+                        compact: compact
+                    ) {
+                        onSelectAction(.openFlyleaf)
+                    }
+                case .pageBelief:
+                    pageBeliefSubmenu(compact: compact)
+                case .pactMap:
+                    menuButton(
+                        title: "The Pact Map",
+                        detail: "Watch the Talismans contest the Book's shelves and your real-world doors.",
+                        systemImage: "map",
+                        compact: compact
+                    ) {
+                        onSelectAction(.openPactMap)
+                    }
+                }
             }
         case .bindery:
             binderySubmenu(compact: compact)
@@ -2864,17 +2871,17 @@ struct FaeGiftCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Label(gift.name, systemImage: gift.isCold ? "snowflake" : "gift")
+                Label(gift.name, systemImage: "gift")
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(gift.isCold ? BookPalette.ink.opacity(0.45) : BookPalette.lampGold)
+                    .foregroundStyle(BookPalette.lampGold)
                 Spacer()
-                Text(gift.isActive ? gift.effect.title : (gift.isCold ? "Cold" : "Spent"))
+                Text(gift.isActive ? gift.effect.title : "Resting")
                     .font(.caption2.weight(.bold))
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background((gift.isActive ? BookPalette.teal : BookPalette.ink).opacity(0.14), in: Capsule())
                     .foregroundStyle(gift.isActive ? BookPalette.teal : BookPalette.ink.opacity(0.5))
             }
-            Text(gift.isCold ? "\(gift.effect.effectLine) — dormant until the debt is repaid." : gift.effect.effectLine)
+            Text(gift.effect.effectLine)
                 .font(.caption)
                 .foregroundStyle(BookPalette.ink.opacity(0.65))
                 .fixedSize(horizontal: false, vertical: true)

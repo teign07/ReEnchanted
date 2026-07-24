@@ -1619,6 +1619,9 @@ enum WonderConciergeMode: String, CaseIterable {
 }
 
 enum BookSchedule {
+    private static let automaticBraidHour = 21
+    private static let automaticBraidMinute = 30
+
     /// The braid may be *offered* on the shelf from 6pm — an early-bird option,
     /// not an obligation. The automatic braid (`shouldAutoBraid`) still waits
     /// for the evening, so the ritual keeps its anticipation.
@@ -1627,7 +1630,43 @@ enum BookSchedule {
     }
 
     static func shouldAutoBraid(_ date: Date = Date(), calendar: Calendar = .current) -> Bool {
-        minutesSinceStartOfDay(for: date, calendar: calendar) >= 21 * 60 + 30
+        minutesSinceStartOfDay(for: date, calendar: calendar)
+            >= automaticBraidHour * 60 + automaticBraidMinute
+    }
+
+    /// The next wall-clock threshold for the active-app braid clock. Calendar
+    /// arithmetic keeps the ritual at 9:30 p.m. across daylight-saving changes
+    /// instead of treating a day as an unconditional twenty-four hours.
+    static func nextAutoBraidDate(
+        after date: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Date {
+        let startOfToday = calendar.startOfDay(for: date)
+        let tonight = calendar.date(
+            bySettingHour: automaticBraidHour,
+            minute: automaticBraidMinute,
+            second: 0,
+            of: startOfToday
+        ) ?? startOfToday.addingTimeInterval(
+            TimeInterval(automaticBraidHour * 3600 + automaticBraidMinute * 60)
+        )
+        if date < tonight {
+            return tonight
+        }
+
+        let startOfTomorrow = calendar.date(
+            byAdding: .day,
+            value: 1,
+            to: startOfToday
+        ) ?? startOfToday.addingTimeInterval(86_400)
+        return calendar.date(
+            bySettingHour: automaticBraidHour,
+            minute: automaticBraidMinute,
+            second: 0,
+            of: startOfTomorrow
+        ) ?? startOfTomorrow.addingTimeInterval(
+            TimeInterval(automaticBraidHour * 3600 + automaticBraidMinute * 60)
+        )
     }
 
     private static func minutesSinceStartOfDay(for date: Date, calendar: Calendar) -> Int {
@@ -1667,17 +1706,39 @@ struct CuratorSurfacePreferences: Equatable {
     }
 
     func adjustedScore(for page: SurfacePage) -> Int {
-        let profile = pageBeliefProfiles[page.sourceID]
-            ?? BookPageSourceRegistry.beliefProfile(for: page.source)
+        let profile = beliefProfile(for: page)
         let baseline = BookPageSourceRegistry.defaultBelief(for: page.source)
         let effectiveBelief = max(profile.belief, startingPageBelief(for: page) ?? profile.belief)
         let beliefDelta = effectiveBelief - baseline
         let narrativeBias = (profile.narrativeWeight - 20) / 4
-        let beliefBias = beliefDelta / 2
+        // Belief remains visible in deterministic diagnostics, but its primary
+        // effect is the curator's tempered weighted choice. A smaller score
+        // nudge avoids turning high Belief into an automatic winner.
+        let beliefBias = beliefDelta / 5
         let automagicFloor = BookPageSourceRegistry.automagicSourceIDs.contains(page.sourceID) ? 68 : 0
-        let lowBeliefChance = lowBeliefChanceBoost(for: page, profile: profile)
         let learnedBias = readerLearning.scoreAdjustment(for: page)
-        return max(automagicFloor, page.score + narrativeBias + beliefBias + lowBeliefChance + learnedBias)
+        return max(automagicFloor, page.score + narrativeBias + beliefBias + learnedBias)
+    }
+
+    /// Belief is the reader's hand on the scale. Zero stays possible; one
+    /// hundred becomes substantially more likely without becoming inevitable.
+    func beliefSelectionMultiplier(for page: SurfacePage) -> Double {
+        let profile = beliefProfile(for: page)
+        let belief = max(profile.belief, startingPageBelief(for: page) ?? profile.belief)
+        if belief <= 50 {
+            return 0.25 + (Double(belief) * 0.015)
+        }
+        return 1.0 + (Double(belief - 50) * 0.034)
+    }
+
+    /// Belief can be placed on one exact Page, a semantic Page identity, or an
+    /// entire source family. The narrowest preference wins, so the reader can
+    /// teach the Curator which particular Pages inside a family feel alive.
+    func beliefProfile(for page: SurfacePage) -> PageBeliefProfile {
+        pageBeliefProfiles[page.curatorContentNoveltyKey]
+            ?? pageBeliefProfiles[page.varietyKey]
+            ?? pageBeliefProfiles[page.sourceID]
+            ?? BookPageSourceRegistry.beliefProfile(for: page.source)
     }
 
     private func startingPageBelief(for page: SurfacePage) -> Int? {
@@ -1688,11 +1749,6 @@ struct CuratorSurfacePreferences: Equatable {
         return max(0, min(100, value))
     }
 
-    private func lowBeliefChanceBoost(for page: SurfacePage, profile: PageBeliefProfile) -> Int {
-        guard profile.belief <= 10 else { return 0 }
-        let slot = abs("\(page.sourceID)-\(page.id)".stableHash) % 11
-        return slot == 0 ? 18 : 0
-    }
 }
 
 extension String {

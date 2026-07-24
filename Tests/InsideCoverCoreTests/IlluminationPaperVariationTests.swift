@@ -50,4 +50,25 @@ final class IlluminationPaperVariationTests: XCTestCase {
             second.compositionPlan.textSlots.map(\.paperAssetName)
         )
     }
+
+    func testDifferentSeedsChooseAndPlaceDifferentMarginalia() {
+        let first = IlluminatedPageComposer.compose(
+            analysis: .academyFallback,
+            sourceAssetName: "IlluminatedPhotoSource",
+            seed: 101
+        )
+        let second = IlluminatedPageComposer.compose(
+            analysis: .academyFallback,
+            sourceAssetName: "IlluminatedPhotoSource",
+            seed: 9_901
+        )
+
+        let firstMarginalia = first.compositionPlan.textSlots
+            .filter { $0.slotId.hasPrefix("marginalia-") }
+        let secondMarginalia = second.compositionPlan.textSlots
+            .filter { $0.slotId.hasPrefix("marginalia-") }
+
+        XCTAssertNotEqual(firstMarginalia.map(\.body), secondMarginalia.map(\.body))
+        XCTAssertNotEqual(firstMarginalia.map(\.position), secondMarginalia.map(\.position))
+    }
 }

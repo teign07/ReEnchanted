@@ -31,6 +31,11 @@ final class StoredArchivePage {
     var mediaAssetsData: Data?
     var contextData: Data?
     var tarotReadingData: Data? = nil
+    /// The complete archive value. The individual columns above remain useful
+    /// for SwiftData identity, sorting, and lightweight migration from existing
+    /// stores; this payload prevents new `BookPage` evidence from being silently
+    /// omitted whenever the value type grows.
+    var pageData: Data? = nil
     var day: StoredArchiveDay?
 
     init(page: BookPage) {
@@ -49,9 +54,18 @@ final class StoredArchivePage {
         mediaAssetsData = try? JSONEncoder().encode(page.mediaAssets)
         contextData = page.context.flatMap { try? JSONEncoder().encode($0) }
         tarotReadingData = page.tarotReadingArtifact.flatMap { try? JSONEncoder().encode($0) }
+        pageData = try? JSONEncoder().encode(page)
     }
 
     var bookPage: BookPage {
+        if let pageData,
+           let page = try? JSONDecoder().decode(BookPage.self, from: pageData) {
+            return page
+        }
+
+        // Rows created before the complete payload was added still retain the
+        // original archive fields. They decode here and acquire `pageData` the
+        // next time their day is persisted.
         let decodedTags = (try? JSONDecoder().decode([String].self, from: tagsData)) ?? []
         let decodedMediaAssets = mediaAssetsData
             .flatMap { try? JSONDecoder().decode([BookPageMediaAsset].self, from: $0) } ?? []

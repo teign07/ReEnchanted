@@ -94,11 +94,98 @@ final class BookPersonalityTests: XCTestCase {
             )
         )
 
-        let decorated = BookRelationshipVoice.decorating(surface, relationship: relationship)
+        let decorated = BookAsideEditor.decoratingDesk(
+            [surface],
+            relationship: relationship,
+            receipts: [],
+            now: Date(timeIntervalSince1970: 1_700_000_000)
+        )[0]
 
         XCTAssertEqual(decorated.payload.metadata["evidencePageIDs"], "page-a,page-b")
         XCTAssertEqual(decorated.payload.metadata["bookStance"], "contrite")
-        XCTAssertTrue(decorated.payload.body.contains("pencil loose"))
+        XCTAssertEqual(decorated.payload.metadata["bookAsideIntention"], "correction-remembered")
+        XCTAssertNotNil(decorated.payload.metadata["bookAsideThoughtKey"])
+        XCTAssertNotNil(decorated.payload.metadata["bookAsideWordingKey"])
+    }
+
+    func testAsideEditorPermitsOnlyOneAsideAcrossTheDesk() {
+        let relationship = relationship(softened: 1, returned: 2)
+        let pages = [surface(id: "notice", type: .bookNotices), surface(id: "remembered", type: .bookRemembered)]
+
+        let decorated = BookAsideEditor.decoratingDesk(
+            pages, relationship: relationship, receipts: [], now: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+
+        XCTAssertEqual(decorated.filter { $0.payload.metadata["bookRelationshipAside"] != nil }.count, 1)
+        XCTAssertEqual(decorated[0].payload.metadata["bookAsideIntention"], "correction-remembered")
+    }
+
+    func testAsideEditorKeepsQuietDuringGlobalClearAir() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let relationship = relationship(softened: 1)
+        let first = BookAsideEditor.decoratingDesk(
+            [surface(id: "notice-a", type: .bookNotices)], relationship: relationship, receipts: [], now: now
+        )[0]
+        let receipt = try! XCTUnwrap(BookAsideEditor.receipt(for: first, servedAt: now))
+
+        let next = BookAsideEditor.decoratingDesk(
+            [surface(id: "notice-b", type: .bookNotices)],
+            relationship: relationship,
+            receipts: [receipt],
+            now: now.addingTimeInterval(19 * 3600)
+        )[0]
+
+        XCTAssertNil(next.payload.metadata["bookRelationshipAside"])
+    }
+
+    func testAsideEditorRejectsTheSameThoughtEvenAfterGlobalCooldown() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let relationship = relationship(softened: 1)
+        let first = BookAsideEditor.decoratingDesk(
+            [surface(id: "notice-a", type: .bookNotices)], relationship: relationship, receipts: [], now: now
+        )[0]
+        let receipt = try! XCTUnwrap(BookAsideEditor.receipt(for: first, servedAt: now))
+
+        let next = BookAsideEditor.decoratingDesk(
+            [surface(id: "notice-b", type: .bookNotices)],
+            relationship: relationship,
+            receipts: [receipt],
+            now: now.addingTimeInterval(3 * 86_400)
+        )[0]
+
+        XCTAssertNil(next.payload.metadata["bookRelationshipAside"])
+    }
+
+    func testAsideReceiptLedgerIsBoundedAndExpiresOldThoughts() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let old = BookAsideReceipt(
+            id: "old", servedAt: now.addingTimeInterval(-121 * 86_400), surfaceID: "a",
+            sourceID: "source", intention: "recognition", thoughtKey: "old-thought", wordingKey: "old-words"
+        )
+        let current = BookAsideReceipt(
+            id: "current", servedAt: now, surfaceID: "b",
+            sourceID: "source", intention: "recognition", thoughtKey: "new-thought", wordingKey: "new-words"
+        )
+
+        XCTAssertEqual(BookAsideEditor.recording([current], into: [old], now: now), [current])
+    }
+
+    private func relationship(softened: Int = 0, returned: Int = 0) -> BookRelationshipSnapshot {
+        BookRelationshipSnapshot(
+            stance: .curious, depth: .trusted, keptPageCount: 20,
+            confirmedReadingCount: 0, softenedReadingCount: softened,
+            protectedBoundaryCount: 0, returnedPageCount: returned,
+            taughtRules: [], cherishedThreadName: returned > 0 ? "Harbor" : nil,
+            latestWager: nil, recentReadingStatus: nil
+        )
+    }
+
+    private func surface(id: String, type: BookPageType) -> SurfacePage {
+        SurfacePage(
+            id: id, type: type, sourceID: "source-\(id)", intent: .reflect,
+            renderStyle: .loreLetter, score: 70, reason: "A reason.", prompt: "A prompt.",
+            detail: "A detail.", payload: BookPagePayload(headline: "A Page", body: "The body.")
+        )
     }
 
     func testCharacterAndRelationshipPacketsStaySpecificAndCorrectable() {

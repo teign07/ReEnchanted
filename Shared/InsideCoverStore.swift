@@ -1863,6 +1863,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "a classroom door standing ajar" : "a lesson leaving chalk dust of \(clipped)"
         case .elective:
             return clipped.isEmpty ? "a quest tucked into the flyleaf" : "a quest answered with \(clipped)"
+        case .wickerDare:
+            return clipped.isEmpty ? "one of Wicker's dares left smoldering in the margin" : "Wicker's dare returning with \(clipped)"
         case .packPage:
             return clipped.isEmpty ? "a page from an installed pack" : "an installed page noting \(clipped)"
         case .wordNegotiation:

@@ -1695,7 +1695,7 @@ enum StacksSearchEngine {
                 kind: .elective,
                 title: elective.title,
                 body: "\(elective.characterName)\n\(elective.ask)\n\(elective.practiceShape)",
-                dateLabel: elective.isActive ? "Active" : "Completed",
+                dateLabel: elective.isReleased ? "Resting" : (elective.isActive ? "Active" : "Completed"),
                 referenceID: elective.id
             ))
         }
@@ -1990,7 +1990,7 @@ enum StacksSearchEngine {
                 id: "elective-\(elective.id)",
                 kind: .elective,
                 title: elective.title,
-                snippet: "\(elective.isActive ? "Active" : "Completed") · for \(elective.characterName). \(String(elective.ask.prefix(110)))",
+                snippet: "\(elective.isReleased ? "Resting" : (elective.isActive ? "Active" : "Completed")) · for \(elective.characterName). \(String(elective.ask.prefix(110)))",
                 dateLabel: "",
                 score: score,
                 referenceID: elective.id

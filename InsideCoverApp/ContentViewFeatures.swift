@@ -60,6 +60,7 @@ extension ContentView {
     }
 
     var bookwideMarginaliaAchievementContext: BookwideMarginaliaAchievement.Context {
+        let keptPages = days.flatMap(\.pages)
         let completedCompassRuns = Set(
             completedCompassRunLedger
                 .split(separator: ",")
@@ -71,12 +72,13 @@ extension ContentView {
             .filter { !$0.souvenir.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .count ?? 0
         return BookwideMarginaliaAchievement.Context(
-            pages: days.flatMap(\.pages),
+            pages: keptPages,
             anchors: anchorLedger,
             entityBeliefOffsets: entityBeliefLedger,
             completedBookJumps: completedBookJumps,
             completedCompassRuns: completedCompassRuns,
-            completedElectives: electives.filter { $0.completedAt != nil }.count,
+            electives: electives,
+            longGameEvidence: vault.data.bookInterior?.longGame?.evidence ?? [],
             hasChosenQuill: vault.data.chosenQuill != nil
         )
     }
@@ -94,20 +96,34 @@ extension ContentView {
             .map { "\($0.key.rawValue):\($0.value.count)" }
             .sorted()
             .joined(separator: "|")
+        let livedQuestCounts = Dictionary(grouping: context.livedQuestReceipts, by: \.kind)
+            .map { "\($0.key.rawValue):\($0.value.count)" }
+            .sorted()
+            .joined(separator: "|")
+        let livedWonderFacets = context.distinctLivedWonderFacetRawValues.sorted().joined(separator: "|")
+        let longGameCounts = Dictionary(grouping: context.longGameEvidence, by: \.capacity)
+            .map { "\($0.key.rawValue):\($0.value.count)" }
+            .sorted()
+            .joined(separator: "|")
         return [
             "\(context.pages.count)",
             "\(context.keptDayIDs.count)",
             typeCounts,
             weatherCounts,
-            "\(context.pages.filter { $0.context?.dayPart == "night" }.count)",
+            "\(context.readerEvidencePages.filter { $0.context?.dayPart == "night" }.count)",
             "\(context.pages.filter(\.hasMarginaliaAchievementVisual).count)",
             "\(context.readerAnchors.count)",
             "\(Set(context.readerAnchors.map(\.kind)).count)",
-            "\(context.anchors.reduce(0) { $0 + $1.visitCount })",
+            "\(context.readerAnchors.reduce(0) { $0 + $1.visitCount })",
             "\(context.entityBeliefOffsets[ShadowWonder.duskThornTalismanID] ?? 0)",
             "\(context.completedBookJumps)",
             "\(context.completedCompassRuns)",
             "\(context.completedElectives)",
+            livedQuestCounts,
+            livedWonderFacets,
+            longGameCounts,
+            context.sensoryModalities.sorted().joined(separator: "|"),
+            context.distinctReaderProofKindRawValues.sorted().joined(separator: "|"),
             context.hasChosenQuill ? "quill" : "waiting"
         ].joined(separator: "§")
     }
@@ -138,7 +154,7 @@ extension ContentView {
         let additionalCount = newlyCompleted.count - 1
         let line = additionalCount > 0
             ? "\(first.name), and \(additionalCount) more \(additionalCount == 1 ? "achievement" : "achievements"). \(rewardCount) new marks are waiting in Pagewright."
-            : "\(first.name). \(rewardCount) new \(rewardCount == 1 ? "mark is" : "marks are") waiting in Pagewright."
+            : "\(first.name), from \(first.track.title). \(rewardCount) new \(rewardCount == 1 ? "mark is" : "marks are") waiting in Pagewright."
         let note = KeepMarginalia.Note(
             castSlug: "marginalia-goblin",
             castName: "Marginalia Goblin",
@@ -146,9 +162,12 @@ extension ContentView {
             line: line,
             carryOutLine: "Earned marks stay open. The ledger does not ask twice."
         )
+        let completedTracks = Set(newlyCompleted.map { $0.track.rawValue })
         let announcementTitle = additionalCount > 0
-            ? "\(newlyCompleted.count) MARGINALIA ACHIEVEMENTS"
-            : first.name.uppercased()
+            ? (completedTracks.count == 1
+                ? "\(newlyCompleted.count) \(first.track.announcementLabel)"
+                : "\(newlyCompleted.count) MARGINALIA ACHIEVEMENTS")
+            : "\(first.track.announcementLabel) · \(first.name.uppercased())"
         marginaliaAchievementAnnouncementTicket += 1
         let ticket = marginaliaAchievementAnnouncementTicket
         Task { @MainActor in
@@ -587,6 +606,64 @@ extension ContentView {
 
     @MainActor
     func completeOnboarding(_ result: OnboardingFlowView.Result) {
+        let momentFate = result.momentFate.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hiddenMagicStance = result.hiddenMagicStance.trimmingCharacters(in: .whitespacesAndNewlines)
+        let momentFateAnswer = [
+            "keep": "I keep them",
+            "forget": "I mean to, then forget",
+            "blur": "Most days blur before I notice"
+        ][momentFate] ?? momentFate
+        let hiddenMagicAnswer = [
+            "yes": "Yes. I forget to look.",
+            "maybe": "Maybe. I want to notice.",
+            "prove": "Not yet. Show me."
+        ][hiddenMagicStance] ?? hiddenMagicStance
+        let rutStrongest = result.rutStrongest.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rutAnswer = [
+            "work": "Work swallows the day",
+            "phone": "My phone eats the edges",
+            "chores": "Chores all blur together",
+            "exhaustion": "I'm tired before I begin",
+            "sameness": "My days feel the same",
+            "later": "I keep waiting for later"
+        ][rutStrongest] ?? rutStrongest
+        let mostAlive = result.mostAlive.trimmingCharacters(in: .whitespacesAndNewlines)
+        let mostAliveAnswer = [
+            "making": "Making something",
+            "outside": "Outside somewhere",
+            "people": "With people I love",
+            "movement": "Moving my body",
+            "learning": "Learning something",
+            "solitude": "Alone and unhurried",
+            "helping": "Helping someone",
+            "story": "Lost in a story"
+        ][mostAlive] ?? mostAlive
+        let magicSource = result.magicSource.trimmingCharacters(in: .whitespacesAndNewlines)
+        let magicSourceAnswer = [
+            "music": "Music landing just right",
+            "weather": "Wild weather",
+            "places": "Places with a charge",
+            "coincidence": "Strange coincidences",
+            "details": "Tiny beautiful details",
+            "laughter": "Making someone laugh",
+            "imagination": "Dreams and imagination",
+            "love": "People I love",
+            "unsure": "I'm not sure yet"
+        ][magicSource] ?? magicSource
+        let snack = result.snack.trimmingCharacters(in: .whitespacesAndNewlines)
+        let favoritePerson = result.favoritePerson.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = result.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let belief = result.belief.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sleeveWord = result.sleeveWord.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tastePreference = result.tastePreference.trimmingCharacters(in: .whitespacesAndNewlines)
+        let comfortBoundary = result.comfortBoundary.trimmingCharacters(in: .whitespacesAndNewlines)
+        let whisperCadence = result.whisperCadence.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wickerMode = result.wickerMode.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wickerTier = result.wickerTier.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wickerThread = result.wickerThread.trimmingCharacters(in: .whitespacesAndNewlines)
+        let firstSouvenir = result.firstSouvenir.trimmingCharacters(in: .whitespacesAndNewlines)
+        let drawnChapterID = result.drawnChapterID.trimmingCharacters(in: .whitespacesAndNewlines)
+
         withAnimation(.easeInOut(duration: 0.4)) {
             didCompleteStoryOnboarding = true
         }
@@ -598,74 +675,181 @@ extension ContentView {
             vault.data.firstRunEngaged = []
             vault.save()
         }
-        saveOnboardingFact(
-            questionID: "onboarding-snack",
-            question: "What is your favorite snack to eat while reading?",
-            answer: result.snack,
-            tags: ["snack", "delight", "onboarding"]
-        )
-        if !result.favoritePerson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if !momentFate.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-moment-fate",
+                question: "What usually happens to small moments you notice?",
+                answer: momentFateAnswer,
+                tags: ["attention", "lived-experience", "onboarding", "moment-fate:\(momentFate)"]
+            )
+        }
+        if !hiddenMagicStance.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-hidden-magic",
+                question: "Do you think there is hidden magic in your life right now?",
+                answer: hiddenMagicAnswer,
+                tags: ["hidden-magic", "lived-experience", "onboarding", "hidden-magic:\(hiddenMagicStance)"]
+            )
+        }
+        if !rutStrongest.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-rut-strongest",
+                question: "Where is the Rut of Routine strongest for you?",
+                answer: rutAnswer,
+                tags: [
+                    "rut-of-routine",
+                    "attention",
+                    "lived-experience",
+                    "curation-signal",
+                    "onboarding",
+                    "rut-context:\(rutStrongest)"
+                ],
+                bookTranslation: "The Rut of Routine is strongest around \(rutAnswer.lowercased()). Look for small, specific moments there without blame or productivity pressure."
+            )
+        }
+        if !mostAlive.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-most-alive",
+                question: "Where do you feel most alive?",
+                answer: mostAliveAnswer,
+                tags: [
+                    "most-alive",
+                    "attention",
+                    "lived-experience",
+                    "curation-signal",
+                    "onboarding",
+                    "alive-context:\(mostAlive)"
+                ],
+                bookTranslation: "The reader feels most alive \(mostAliveAnswer.lowercased()). Treat this as a live wire to notice and return, not a fixed identity."
+            )
+        }
+        if !magicSource.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-magic-source",
+                question: "What makes you feel magical?",
+                answer: magicSourceAnswer,
+                tags: [
+                    "wonder",
+                    "hidden-magic",
+                    "lived-experience",
+                    "curation-signal",
+                    "onboarding",
+                    "magic-source:\(magicSource)"
+                ],
+                bookTranslation: magicSource == "unsure"
+                    ? "The reader isn't sure what feels magical yet. Offer concrete evidence without demanding belief."
+                    : "One reliable source of wonder for the reader is \(magicSourceAnswer.lowercased()). Begin there sometimes, but leave room to surprise them."
+            )
+        }
+        if !snack.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-snack",
+                question: "What is your favorite snack to eat while reading?",
+                answer: snack,
+                tags: ["snack", "delight", "onboarding"]
+            )
+        }
+        if !favoritePerson.isEmpty {
             saveOnboardingFact(
                 questionID: "onboarding-favorite-person",
                 question: "Who is one of your favorite people?",
-                answer: result.favoritePerson,
+                answer: favoritePerson,
                 tags: ["person", "favorite-person", "people-of-the-book", "onboarding"],
                 sensitivity: .identity,
                 usePermission: .privateContext
             )
             _ = introducePerson(
-                name: result.favoritePerson,
+                name: favoritePerson,
                 words: "One of my favorite people"
             )
         }
-        saveOnboardingFact(
-            questionID: "onboarding-name",
-            question: "What should the Book call you?",
-            answer: result.name,
-            tags: ["name", "identity", "onboarding"]
-        )
-        saveOnboardingFact(
-            questionID: "onboarding-belief",
-            question: "What do you believe in?",
-            answer: result.belief,
-            tags: ["belief", "core", "onboarding"]
-        )
-        saveOnboardingFact(
-            questionID: "onboarding-sleeve-word",
-            question: "Which word caught on your sleeve?",
-            answer: result.sleeveWord,
-            tags: ["arrival", "sleeve-word", "onboarding"]
-        )
-        saveOnboardingFact(
-            questionID: "onboarding-taste",
-            question: "What should the Book bring you more of?",
-            answer: result.tastePreference,
-            tags: ["taste", "curation", "onboarding"]
-        )
-        saveOnboardingFact(
-            questionID: "onboarding-comfort-boundary",
-            question: "How sharp should the Book get?",
-            answer: result.comfortBoundary,
-            tags: ["comfort", "tone", "grey", "onboarding"]
-        )
-        saveOnboardingFact(
-            questionID: "onboarding-whisper-cadence",
-            question: "When should the Book tap the glass?",
-            answer: result.whisperCadence,
-            tags: ["notifications", "whispers", "onboarding"]
-        )
-        saveOnboardingFact(
-            questionID: "onboarding-wicker-mode",
-            question: "How did you answer Wicker?",
-            answer: result.wickerMode,
-            tags: ["wicker", "story-shape", "belief-roll", "onboarding"]
-        )
-        saveOnboardingFact(
-            questionID: "onboarding-wicker-roll",
-            question: "Did your first Wicker Belief roll hold?",
-            answer: result.wickerMode.isEmpty ? "" : (result.wickerRollSucceeded ? "success" : "failure"),
-            tags: ["wicker", "belief-roll", result.wickerRollSucceeded ? "success" : "failure", "onboarding"]
-        )
+        if !name.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-name",
+                question: "What should the Book call you?",
+                answer: name,
+                tags: ["name", "identity", "onboarding"]
+            )
+        }
+        if !belief.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-belief",
+                question: "What do you believe in?",
+                answer: belief,
+                tags: ["belief", "core", "onboarding"]
+            )
+        }
+        if !sleeveWord.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-sleeve-word",
+                question: "Which word caught on your sleeve?",
+                answer: sleeveWord,
+                tags: ["arrival", "sleeve-word", "onboarding"]
+            )
+        }
+        if !tastePreference.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-taste",
+                question: "What should the Book bring you more of?",
+                answer: tastePreference,
+                tags: ["taste", "curation", "onboarding"]
+            )
+        }
+        if !comfortBoundary.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-comfort-boundary",
+                question: "How sharp should the Book get?",
+                answer: comfortBoundary,
+                tags: ["comfort", "tone", "grey", "onboarding"]
+            )
+        }
+        if !whisperCadence.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-whisper-cadence",
+                question: "When should the Book tap the glass?",
+                answer: whisperCadence,
+                tags: ["notifications", "whispers", "onboarding"]
+            )
+        }
+        if !wickerMode.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-wicker-mode",
+                question: "How did you answer Wicker?",
+                answer: wickerMode,
+                tags: ["wicker", "story-shape", "belief-roll", "onboarding"]
+            )
+            saveOnboardingFact(
+                questionID: "onboarding-wicker-roll",
+                question: "Did your first Wicker Belief roll hold?",
+                answer: result.wickerRollSucceeded ? "success" : "failure",
+                tags: ["wicker", "belief-roll", result.wickerRollSucceeded ? "success" : "failure", "onboarding"]
+            )
+            if result.wickerRoll > 0 {
+                saveOnboardingFact(
+                    questionID: "onboarding-wicker-roll-number",
+                    question: "What did the Inkbones show?",
+                    answer: "\(result.wickerRoll)",
+                    tags: ["wicker", "inkbones", "roll", "onboarding"]
+                )
+            }
+            if !wickerTier.isEmpty {
+                saveOnboardingFact(
+                    questionID: "onboarding-wicker-tier",
+                    question: "What shape did the Wicker result take?",
+                    answer: wickerTier,
+                    tags: ["wicker", "rivalry", "outcome:\(wickerTier)", "onboarding"]
+                )
+            }
+            if !wickerThread.isEmpty {
+                saveOnboardingFact(
+                    questionID: "onboarding-wicker-thread",
+                    question: "What thread did Wicker leave in the story?",
+                    answer: wickerThread,
+                    tags: ["wicker", "rivalry", "story-thread", "curation-signal", "onboarding"],
+                    bookTranslation: "Wicker's first challenge left a live thread. Call it back in future Wicker pages, dares, and story consequences instead of treating onboarding as disposable."
+                )
+            }
+        }
         for wagerID in result.confirmedWagers {
             guard let wager = FirstWagers.wager(id: wagerID) else { continue }
             saveOnboardingFact(
@@ -675,28 +859,38 @@ extension ContentView {
                 tags: ["wager", FirstWagers.confirmedTag, "onboarding", "barnum"]
             )
         }
-        applyOnboardingChapterAffinity(result.drawnChapterID)
-        applyOnboardingWhisperPreference(result.whisperCadence)
-        if !result.firstSouvenir.isEmpty {
+        if AcademyChapterRegistry.chapter(id: drawnChapterID) != nil {
+            applyOnboardingChapterAffinity(drawnChapterID)
+        }
+        if !whisperCadence.isEmpty {
+            applyOnboardingWhisperPreference(whisperCadence)
+        }
+        if !firstSouvenir.isEmpty {
             saveOnboardingFact(
                 questionID: "onboarding-first-souvenir",
                 question: "What was the first true sentence you kept?",
-                answer: result.firstSouvenir,
+                answer: firstSouvenir,
                 tags: ["souvenir", "first-page", "onboarding"]
             )
-            keepOnboardingSouvenirIfNeeded(result.firstSouvenir)
+            keepOnboardingSouvenirIfNeeded(firstSouvenir)
         }
-        if result.investedBelief, !result.belief.isEmpty {
+        if let edition = result.firstDoorEdition {
+            keepFirstDoorEditionIfNeeded(
+                edition,
+                pdfPath: result.firstDoorEditionPDFPath
+            )
+        }
+        if result.investedBelief, !belief.isEmpty {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
                 beliefScore = max(0, beliefScore - 3)
             }
             saveCustomCastMember(CustomCastMemberDraft(
-                name: result.belief,
+                name: belief,
                 kind: .motif,
                 meaning: "The player's stated core belief, planted with 3 Belief on their first day in the Labyrinth.",
-                description: "Spoken aloud to Zara Finch at the threshold: \"\(result.belief)\"",
+                description: "Spoken aloud to Zara Finch at the threshold: \"\(belief)\"",
                 traits: ["planted", "core"],
-                beliefs: [result.belief],
+                beliefs: [belief],
                 goals: ["shape what finds the player here"],
                 tags: ["core-belief", "onboarding", "belief-invested", "glow-bright"],
                 imageData: nil,
@@ -711,22 +905,27 @@ extension ContentView {
             await publishPostOnboardingDesk()
         }
 
-        statusMessage = result.name.isEmpty
+        statusMessage = name.isEmpty
             ? "The Academy doors are open."
-            : "The Academy doors are open, \(result.name)."
+            : "The Academy doors are open, \(name)."
 
-        // The Standing Order offer comes first; onboarding then ends on its own
-        // ceremonial peak — the reader's first edition, bound — fired once the
-        // paywall closes, so the celebration is the true final beat.
-        let willOfferStandingOrder = !didOfferStandingOrder && !PackEntitlements.hasStandingOrder
+        // The explicit free-Book exit bypasses the offer. Readers who finish
+        // the proof funnel can see the Standing Order once; everyone still
+        // reaches the free Book and its closing celebration.
+        let willOfferStandingOrder = !result.skipped
+            && !didOfferStandingOrder
+            && !PackEntitlements.hasStandingOrder
         if willOfferStandingOrder {
             didOfferStandingOrder = true
             // Celebration is owed after the paywall dismisses.
-            pendingFirstEditionReaderName = result.name
+            pendingFirstEditionReaderName = name
+            standingOrderPersonalization = StandingOrderPersonalization(onboarding: result)
             showStandingOrderPaywall = true
-        } else {
-            // No offer to make — go straight to the finale celebration.
-            celebrateFirstEdition(readerName: result.name)
+        } else if result.firstDoorEdition != nil {
+            // No offer to make — go straight to the finale celebration, but
+            // only when an edition was actually bound. The explicit skip opens
+            // the free Book immediately and never claims a nonexistent artifact.
+            celebrateFirstEdition(readerName: name)
         }
     }
 
@@ -739,19 +938,9 @@ extension ContentView {
             answer: chapter.name,
             tags: ["chapter", "talisman", "belief", "onboarding", chapter.id]
         )
-        let amount = min(3, beliefScore)
-        guard amount > 0 else { return }
-        let talisman = GlowEntityMenuItem(
-            id: chapter.talismanID,
-            name: chapter.talismanName,
-            kind: "talisman",
-            glow: 0,
-            line: chapter.storyBias
-        )
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
-            beliefScore = max(0, beliefScore - amount)
-        }
-        adjustEntityBelief(talisman, delta: amount, kind: .beliefInvested, playerBeliefDelta: -amount)
+        // This is the argument the reader lets speak first, not a team choice
+        // or an invisible currency purchase. Explicit Glow binding can happen
+        // later, inside the Book, after the reader has seen what it means.
     }
 
     func applyOnboardingWhisperPreference(_ cadence: String) {
@@ -760,23 +949,7 @@ extension ContentView {
         let chosen = BookWhisperCadence(rawValue: trimmed) ?? .inside
         bookWhispersEnabled = chosen.enablesBookWhispers
         promptWhispersEnabled = chosen.enablesPromptWhispers
-        BookWhispers.refreshSchedule(
-            enabled: bookWhispersEnabled,
-            cadence: chosen,
-            electives: electives,
-            whisperController: whisperController,
-            festivalWhisper: festivalWhisperToday,
-            bookInterior: sourceInputs.bookInterior
-        )
-        BookWhispers.refreshPromptWhispers(
-            enabled: promptWhispersEnabled,
-            cadence: chosen,
-            day: today,
-            inputs: sourceInputs,
-            whisperController: whisperController,
-            whisperSovereign: whisperSovereign,
-            eventWhisper: worldEventWhisperToday
-        )
+        refreshBookWhispers(cadence: chosen)
     }
 
     func keepOnboardingSouvenirIfNeeded(_ answer: String) {
@@ -813,6 +986,57 @@ extension ContentView {
         persist(day: day, message: "Your first true sentence is already tucked into Today's Margins.")
     }
 
+    /// Keeps onboarding's earned PDF on the Book of You shelf. The full
+    /// `MonthlyEdition` travels with the archive page, so the reading copy can
+    /// be pressed again even if its original file is ever displaced.
+    @MainActor
+    func keepFirstDoorEditionIfNeeded(_ edition: MonthlyEdition, pdfPath: String) {
+        let trimmedPath = pdfPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty,
+              FileManager.default.fileExists(atPath: trimmedPath) else {
+            statusMessage = "The first edition was bound, but its shelf copy could not be found."
+            return
+        }
+
+        let monthKey = "first-door"
+        let tag = "monthly-edition:\(monthKey)"
+        let artifact = KeptMonthlyEditionArtifact(
+            edition: edition,
+            monthKey: monthKey,
+            pdfPath: trimmedPath,
+            keptAt: Date()
+        )
+        let body = ([edition.foreword] + edition.sections.prefix(3).map(\.title))
+            .compactMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty }
+            .joined(separator: "\n\n")
+
+        var archiveDay = today
+        if let dayIndex = days.firstIndex(where: { day in day.pages.contains { $0.tags.contains(tag) } }),
+           let pageIndex = days[dayIndex].pages.firstIndex(where: { $0.tags.contains(tag) }) {
+            archiveDay = days[dayIndex]
+            var page = archiveDay.pages[pageIndex]
+            page.promptText = "The First Door"
+            page.userInput = body
+            page.sourceID = "first-door-edition"
+            page.origin = .generated
+            page.tags = ["first-door", "first-edition", "monthly-edition", tag, "edition", "bindery"]
+            page.monthlyEditionArtifact = artifact
+            archiveDay.pages[pageIndex] = page
+        } else {
+            archiveDay.pages.append(BookPage(
+                id: "first-door-edition",
+                type: .bindery,
+                promptText: "The First Door",
+                userInput: body,
+                tags: ["first-door", "first-edition", "monthly-edition", tag, "edition", "bindery"],
+                sourceID: "first-door-edition",
+                origin: .generated,
+                monthlyEditionArtifact: artifact
+            ))
+        }
+        persist(day: archiveDay, message: "Your first edition is kept in the Book of You.")
+    }
+
     @MainActor
     func keepPromptWhisperReply(_ whisper: PromptWhisper, answer: String) {
         guard let page = PromptWhisperKeep.page(for: whisper, answer: answer, now: Date()) else { return }
@@ -835,7 +1059,7 @@ extension ContentView {
                 && $0.tags.contains("onboarding-illuminated-photo")
                 && $0.mediaAssets.contains { $0.metadata["assetLocalIdentifier"] == draft.assetLocalIdentifier }
         }) else {
-            statusMessage = "That illuminated plate is already tucked into Today's Margins."
+            statusMessage = "That illuminated photograph is already tucked into Today's Margins."
             return
         }
 
@@ -931,8 +1155,22 @@ extension ContentView {
         var inputs = sourceInputs
         inputs.bookInterior = base
         let updated = BookInteriorEngine.reconciled(base, inputs: inputs, now: now)
-        guard updated != base else { return }
-        vault.data.bookInterior = updated
+        let reconciledMoment = MagicMomentGovernor.reconcilingLivedEvidence(
+            vault.data.magicMoment ?? MagicMomentState(),
+            evidence: updated.longGame?.evidence ?? [],
+            now: now
+        )
+        var aliveness = vault.data.readerAliveness ?? .unwritten
+        let beforeAliveness = aliveness
+        aliveness.reconcile(longGame: updated.longGame, days: days, now: now)
+        guard updated != base || aliveness != beforeAliveness || reconciledMoment != vault.data.magicMoment else { return }
+        if updated != base {
+            vault.data.bookInterior = updated
+        }
+        if aliveness != beforeAliveness {
+            vault.data.readerAliveness = aliveness
+        }
+        vault.data.magicMoment = reconciledMoment
         vault.save()
     }
 
@@ -989,8 +1227,49 @@ extension ContentView {
         electiveLedgerData = encoded
         surfaceRefreshDate = Date()
         rebuildSurfaceCache()
-        BookWhispers.refreshSchedule(enabled: bookWhispersEnabled, cadence: bookWhisperCadence, electives: list, whisperController: whisperController, festivalWhisper: festivalWhisperToday, bookInterior: sourceInputs.bookInterior)
-        BookWhispers.refreshPromptWhispers(enabled: promptWhispersEnabled, cadence: bookWhisperCadence, day: today, inputs: sourceInputs, whisperController: whisperController, whisperSovereign: whisperSovereign, eventWhisper: worldEventWhisperToday)
+        refreshBookWhispers()
+    }
+
+    /// A chosen quest remains optional after acceptance. Resting it preserves
+    /// the historical note, frees its flyleaf slot, and deliberately mints no
+    /// completion proof or reward.
+    @MainActor
+    func releaseElective(id: String, now: Date = Date()) {
+        var list = electives
+        guard let index = list.firstIndex(where: { $0.id == id && $0.isActive }) else { return }
+        let elective = list[index]
+        list[index].releasedAt = now
+
+        if let favorID = elective.bookFavorID {
+            let base = vault.data.bookInterior ?? BookInteriorState(awakenedAt: now)
+            vault.data.bookInterior = BookInteriorEngine.recordingFavorReleased(
+                base,
+                favorID: favorID,
+                now: now
+            )
+            vault.save()
+        }
+
+        saveElectives(list)
+        statusMessage = elective.bookFavorID == nil
+            ? "\(elective.characterName)'s note is resting. Nothing is owed."
+            : "The favor is resting. The Book will not make your no mean anything else."
+    }
+
+    func refreshBookWhispers(cadence: BookWhisperCadence? = nil) {
+        BookWhispers.refreshAll(context: .init(
+            cadence: cadence ?? bookWhisperCadence,
+            day: today,
+            inputs: sourceInputs,
+            electives: electives,
+            people: vault.data.people ?? PeopleLedger(),
+            calendarEvents: calendarEvents,
+            whisperController: whisperController,
+            whisperSovereign: whisperSovereign,
+            eventWhisper: worldEventWhisperToday,
+            festivalWhisper: festivalWhisperToday,
+            bookInterior: sourceInputs.bookInterior
+        ))
     }
 
 
@@ -1113,7 +1392,11 @@ extension ContentView {
                 sourceID: "unwritten-elective",
                 origin: .userAuthored,
                 privacy: .privateLocal,
-                mediaAssets: [photoAsset].compactMap { $0 }
+                mediaAssets: [photoAsset].compactMap { $0 },
+                livedQuestReceipt: LivedQuestReceipt.from(
+                    elective: elective,
+                    completedAt: elective.completedAt ?? Date()
+                )
             )
             var day = today
             day.pages.append(proofPage)
@@ -1306,6 +1589,7 @@ extension ContentView {
             people: vault.data.people,
             continuity: continuity,
             firstRunEngaged: vault.data.firstRunEngaged,
+            bookAsideReceipts: vault.data.bookAsideReceipts,
             marginaliaAchievementIDs: Array(
                 Set(completedMarginaliaAchievementLedger.split(separator: ",").map(String.init))
             ).sorted()
@@ -2092,9 +2376,19 @@ extension ContentView {
     func openKeptMonthlyEdition(_ page: BookPage) {
         guard let artifact = page.monthlyEditionArtifact else { return }
         do {
-            let directory = try monthlyEditionArchiveDirectory()
-            let pdfURL = directory.appendingPathComponent("Monthly-Edition-\(artifact.monthKey).pdf")
+            let storedPath = artifact.pdfPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            let pdfURL: URL
+            if !storedPath.isEmpty {
+                pdfURL = URL(fileURLWithPath: storedPath)
+            } else {
+                let directory = try monthlyEditionArchiveDirectory()
+                pdfURL = directory.appendingPathComponent("Monthly-Edition-\(artifact.monthKey).pdf")
+            }
             if !FileManager.default.fileExists(atPath: pdfURL.path) {
+                try FileManager.default.createDirectory(
+                    at: pdfURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
                 try MonthlyEditionPDFWriter.write(artifact.edition, to: pdfURL)
             }
             monthlyEditionReader = MonthlyEditionReader(edition: artifact.edition, pdfURL: pdfURL)
@@ -2619,9 +2913,11 @@ extension ContentView {
             }
             if let importedMagicMoment = save.magicMoment {
                 let current = vault.data.magicMoment ?? MagicMomentState()
-                vault.data.magicMoment = importedMagicMoment.sessionCount > current.sessionCount
-                    ? importedMagicMoment
-                    : current
+                // Recency wins; an already armed imported reveal is grandfathered.
+                let importedIsNewer = (importedMagicMoment.lastMomentAt ?? importedMagicMoment.lastSessionAt ?? .distantPast)
+                    > (current.lastMomentAt ?? current.lastSessionAt ?? .distantPast)
+                vault.data.magicMoment = importedIsNewer || (importedMagicMoment.isArmed && !current.isArmed)
+                    ? importedMagicMoment : current
             }
             if let importedObservations = save.bookObservations {
                 var merged = Dictionary(
@@ -2688,6 +2984,13 @@ extension ContentView {
             if let importedEngaged = save.firstRunEngaged {
                 let current = Set(vault.data.firstRunEngaged ?? [])
                 vault.data.firstRunEngaged = current.union(importedEngaged).sorted()
+            }
+            if let importedAsideReceipts = save.bookAsideReceipts {
+                vault.data.bookAsideReceipts = BookAsideEditor.recording(
+                    importedAsideReceipts,
+                    into: vault.data.bookAsideReceipts ?? [],
+                    now: Date()
+                )
             }
             if let importedAchievements = save.marginaliaAchievementIDs {
                 let current = Set(
@@ -3429,19 +3732,36 @@ extension ContentView {
 
     private func purchaseThankYouPage(packID: String, title: String, openedArchive: Bool) -> SurfacePage {
         let isStandingOrder = packID == PackEntitlements.standingOrderPackID
-        let headline = isStandingOrder
-            ? "The Standing Order is open. Thank you."
-            : "\(title) is bound. Thank you."
+        let headline = isStandingOrder ? "The bargain followed you home." : "\(title) is bound. Thank you."
         let archiveLine = openedArchive
             ? "\n\nThe first archive door is already open; its arc will unfold from today."
             : "\n\nNew pages from this binding can now find their way to the desk."
-        let body = """
-        Creator's Note
+        let body: String
+        if isStandingOrder {
+            body = """
+            A Page from the Other Side of the Cover
 
-        Thank you for helping keep ReEnchanted alive. This Book is built out of small strange things: pages that notice back, sounds from the margins, odd little doors, and real bindings you can keep.
+            The First Door closes behind you with the soft, final sound of a promise finding its place.
 
-        Your support buys the quiet practical magic too: time to write, draw, tune, test, and keep the Book kind. No hovering receipt should have to sit above your feed forever; this note is just a warm slip of paper, here long enough to be read, then ready to be swiped away.\(archiveLine)
-        """
+            “A deal with the fae is never only a price,” the Book writes. “You offered me a Standing Order. While it stands, I owe you movement.”
+
+            Somewhere in the stacks, new characters look up. A sealed mystery changes shelves. A song clears its throat. Next month's folio starts walking toward you.
+
+            The Book has not purchased your attention. It has promised to keep earning it.
+
+            Then the cover falls open onto Home.
+
+            It looks like the life you already had, with one more door in it.
+            """
+        } else {
+            body = """
+            Creator's Note
+
+            Thank you for helping keep ReEnchanted alive. This Book is built out of small strange things: pages that notice back, sounds from the margins, odd little doors, and real bindings you can keep.
+
+            Your support buys the quiet practical magic too: time to write, draw, tune, test, and keep the Book kind. No hovering receipt should have to sit above your feed forever; this note is just a warm slip of paper, here long enough to be read, then ready to be swiped away.\(archiveLine)
+            """
+        }
 
         return SurfacePage(
             id: "purchase-thanks-\(packID)-\(Int(Date().timeIntervalSince1970))",
@@ -3450,7 +3770,9 @@ extension ContentView {
             intent: .importReference,
             renderStyle: .loreLetter,
             score: 98,
-            reason: "A creator's note arrived with the binding.",
+            reason: isStandingOrder
+                ? "The faerie bargain crossed the threshold and became the first Page of the next chapter."
+                : "A creator's note arrived with the binding.",
             prompt: headline,
             detail: "A readable thank-you page, tucked into Pages Rising.",
             payload: BookPagePayload(
@@ -3458,8 +3780,8 @@ extension ContentView {
                 body: body,
                 metadata: [
                     "source": "creator-thanks",
-                    "surfaceLabel": "Thank you",
-                    "symbol": "heart.fill",
+                    "surfaceLabel": isStandingOrder ? "The Bargain" : "Thank you",
+                    "symbol": isStandingOrder ? "seal.fill" : "heart.fill",
                     "purchaseThankYou": "true",
                     "packID": packID,
                     "packTitle": title,
@@ -3481,6 +3803,7 @@ extension ContentView {
         surfaceRefreshDate = Date()
         rebuildSurfaceCache()
         if packID == PackEntitlements.standingOrderPackID {
+            StandingOrderTrialReminder.cancel()
             statusMessage = "The Standing Order has quietly closed. Nothing is taken \u{2014} every page you wrote is still yours, bound in plain ink, and the lamp stays lit. Reopen the order whenever you like."
         }
     }
@@ -4157,13 +4480,80 @@ enum PagewrightTemplate: String, CaseIterable, Identifiable {
 }
 
 struct BookwideMarginaliaAchievement {
+    enum Track: String, Equatable {
+        case livingWonder
+        case bookcraftApprenticeship
+
+        var title: String {
+            switch self {
+            case .livingWonder: return "Living Wonder"
+            case .bookcraftApprenticeship: return "Bookcraft Apprenticeship"
+            }
+        }
+
+        var shortTitle: String {
+            switch self {
+            case .livingWonder: return "Living Wonder"
+            case .bookcraftApprenticeship: return "Bookcraft"
+            }
+        }
+
+        var announcementLabel: String {
+            switch self {
+            case .livingWonder: return "LIVING WONDER ACHIEVEMENTS"
+            case .bookcraftApprenticeship: return "BOOKCRAFT ACHIEVEMENTS"
+            }
+        }
+    }
+
+    enum ReaderProofKind: String, Equatable {
+        case words
+        case photograph
+        case voice
+        case place
+        case weather
+
+        var title: String {
+            switch self {
+            case .words: return "words"
+            case .photograph: return "photograph"
+            case .voice: return "voice"
+            case .place: return "place"
+            case .weather: return "weather"
+            }
+        }
+    }
+
     indirect enum Trigger {
         case keptPages(Int)
         case keptPageType(BookPageType, Int)
+        case keptPageTypeAcrossDays(BookPageType, count: Int, distinctDays: Int)
+        case distinctKeptPageTypes(Int)
         case distinctKeptDays(Int)
         case keptInWeather(tags: Set<String>?, count: Int)
+        case keptInWeatherAcrossDays(tags: Set<String>?, count: Int, distinctDays: Int)
         case keptAtNight(Int)
+        case keptAtNightAcrossDays(count: Int, distinctDays: Int)
         case keptVisualPages(Int)
+        case readerProofPages(kinds: [ReaderProofKind], count: Int, distinctDays: Int)
+        case distinctReaderProofKinds(Int)
+        case sensoryModalities(Int)
+        case livedQuestReceipts(
+            kinds: [LivedQuestKind]?,
+            facets: [LivedWonderFacet]?,
+            count: Int,
+            distinctDays: Int
+        )
+        case multimodalLivedQuestReceipts(Int)
+        case distinctLivedWonderFacets(Int)
+        case longGameEvidence(
+            capacity: BookLongGameCapacity?,
+            kinds: [BookLongGameEvidenceKind]?,
+            count: Int,
+            distinctDays: Int,
+            unpromptedOnly: Bool
+        )
+        case distinctLongGameCapacities(Int, unpromptedOnly: Bool)
         case anchorsCreated(Int)
         case distinctAnchorKinds(Int)
         case anchorVisits(Int)
@@ -4180,20 +4570,67 @@ struct BookwideMarginaliaAchievement {
                 return context.pages.count >= count
             case .keptPageType(let type, let count):
                 return context.pages.filter { $0.type == type }.count >= count
+            case .keptPageTypeAcrossDays(let type, let count, let distinctDays):
+                let matching = context.readerEvidencePages.filter { $0.type == type }
+                return matching.count >= count
+                    && Set(matching.map { BookDay.id(for: $0.createdAt) }).count >= distinctDays
+            case .distinctKeptPageTypes(let count):
+                return Set(context.pages.map(\.type)).count >= count
             case .distinctKeptDays(let count):
                 return context.keptDayIDs.count >= count
             case .keptInWeather(let tags, let count):
                 return context.weatherKeptCount(tags: tags) >= count
+            case .keptInWeatherAcrossDays(let tags, let count, let distinctDays):
+                let matching = context.weatherKeptPages(tags: tags)
+                return matching.count >= count
+                    && Set(matching.map { BookDay.id(for: $0.createdAt) }).count >= distinctDays
             case .keptAtNight(let count):
-                return context.pages.filter { $0.context?.dayPart == "night" }.count >= count
+                return context.readerEvidencePages.filter { $0.context?.dayPart == "night" }.count >= count
+            case .keptAtNightAcrossDays(let count, let distinctDays):
+                let matching = context.readerEvidencePages.filter { $0.context?.dayPart == "night" }
+                return matching.count >= count
+                    && Set(matching.map { BookDay.id(for: $0.createdAt) }).count >= distinctDays
             case .keptVisualPages(let count):
                 return context.pages.filter(\.hasMarginaliaAchievementVisual).count >= count
+            case .readerProofPages(let kinds, let count, let distinctDays):
+                let matching = context.readerProofPages(matchingAny: kinds)
+                return matching.count >= count
+                    && Set(matching.map { BookDay.id(for: $0.createdAt) }).count >= distinctDays
+            case .distinctReaderProofKinds(let count):
+                return context.distinctReaderProofKindRawValues.count >= count
+            case .sensoryModalities(let count):
+                return context.sensoryModalities.count >= count
+            case .livedQuestReceipts(let kinds, let facets, let count, let distinctDays):
+                let matching = context.livedQuestReceipts(kinds: kinds, facets: facets)
+                return matching.count >= count
+                    && Set(matching.map { BookDay.id(for: $0.completedAt) }).count >= distinctDays
+            case .multimodalLivedQuestReceipts(let count):
+                return context.livedQuestReceipts
+                    .filter { $0.hasWrittenProof && $0.hasVisualProof }
+                    .count >= count
+            case .distinctLivedWonderFacets(let count):
+                return context.distinctLivedWonderFacetRawValues.count >= count
+            case .longGameEvidence(let capacity, let kinds, let count, let distinctDays, let unpromptedOnly):
+                let matching = context.matchingLongGameEvidence(
+                    capacity: capacity,
+                    kinds: kinds,
+                    unpromptedOnly: unpromptedOnly
+                )
+                return matching.count >= count
+                    && Set(matching.map { BookDay.id(for: $0.happenedAt) }).count >= distinctDays
+            case .distinctLongGameCapacities(let count, let unpromptedOnly):
+                let matching = context.matchingLongGameEvidence(
+                    capacity: nil,
+                    kinds: nil,
+                    unpromptedOnly: unpromptedOnly
+                )
+                return Set(matching.map { $0.capacity.rawValue }).count >= count
             case .anchorsCreated(let count):
                 return context.readerAnchors.count >= count
             case .distinctAnchorKinds(let count):
                 return Set(context.readerAnchors.map(\.kind)).count >= count
             case .anchorVisits(let count):
-                return context.anchors.reduce(0) { $0 + $1.visitCount } >= count
+                return context.readerAnchors.reduce(0) { $0 + $1.visitCount } >= count
             case .shadowWonder:
                 return (context.entityBeliefOffsets[ShadowWonder.duskThornTalismanID] ?? 0) > 0
             case .completedBookJumps(let count):
@@ -4216,25 +4653,80 @@ struct BookwideMarginaliaAchievement {
             case .keptPageType(let type, let count):
                 let current = context.pages.filter { $0.type == type }.count
                 return "\(min(current, count))/\(count) \(type.shortTitle.lowercased()) pages"
+            case .keptPageTypeAcrossDays(let type, let count, let distinctDays):
+                let matching = context.readerEvidencePages.filter { $0.type == type }
+                let days = Set(matching.map { BookDay.id(for: $0.createdAt) }).count
+                return "\(min(matching.count, count))/\(count) \(type.shortTitle.lowercased()) pages · \(min(days, distinctDays))/\(distinctDays) lived days"
+            case .distinctKeptPageTypes(let count):
+                let current = Set(context.pages.map(\.type)).count
+                return "\(min(current, count))/\(count) kinds of Page tried"
             case .distinctKeptDays(let count):
                 return "\(min(context.keptDayIDs.count, count))/\(count) kept days"
             case .keptInWeather(let tags, let count):
                 let current = context.weatherKeptCount(tags: tags)
                 let label = tags?.sorted().joined(separator: " or ") ?? "recorded weather"
                 return "\(min(current, count))/\(count) pages kept in \(label)"
+            case .keptInWeatherAcrossDays(let tags, let count, let distinctDays):
+                let matching = context.weatherKeptPages(tags: tags)
+                let days = Set(matching.map { BookDay.id(for: $0.createdAt) }).count
+                let label = tags?.sorted().joined(separator: " or ") ?? "recorded weather"
+                return "\(min(matching.count, count))/\(count) pages kept in \(label) · \(min(days, distinctDays))/\(distinctDays) lived days"
             case .keptAtNight(let count):
-                let current = context.pages.filter { $0.context?.dayPart == "night" }.count
+                let current = context.readerEvidencePages.filter { $0.context?.dayPart == "night" }.count
                 return "\(min(current, count))/\(count) pages kept at night"
+            case .keptAtNightAcrossDays(let count, let distinctDays):
+                let matching = context.readerEvidencePages.filter { $0.context?.dayPart == "night" }
+                let days = Set(matching.map { BookDay.id(for: $0.createdAt) }).count
+                return "\(min(matching.count, count))/\(count) night pages · \(min(days, distinctDays))/\(distinctDays) different nights"
             case .keptVisualPages(let count):
                 let current = context.pages.filter(\.hasMarginaliaAchievementVisual).count
                 return "\(min(current, count))/\(count) visual pages"
+            case .readerProofPages(let kinds, let count, let distinctDays):
+                let matching = context.readerProofPages(matchingAny: kinds)
+                let days = Set(matching.map { BookDay.id(for: $0.createdAt) }).count
+                let label = kinds.map(\.title).joined(separator: " or ")
+                return "\(min(matching.count, count))/\(count) \(label) receipts · \(min(days, distinctDays))/\(distinctDays) lived days"
+            case .distinctReaderProofKinds(let count):
+                let current = context.distinctReaderProofKindRawValues.count
+                return "\(min(current, count))/\(count) proof kinds brought back"
+            case .sensoryModalities(let count):
+                return "\(min(context.sensoryModalities.count, count))/\(count) ways of noticing kept"
+            case .livedQuestReceipts(let kinds, let facets, let count, let distinctDays):
+                let matching = context.livedQuestReceipts(kinds: kinds, facets: facets)
+                let days = Set(matching.map { BookDay.id(for: $0.completedAt) }).count
+                return "\(min(matching.count, count))/\(count) lived receipts · \(min(days, distinctDays))/\(distinctDays) lived days"
+            case .multimodalLivedQuestReceipts(let count):
+                let current = context.livedQuestReceipts
+                    .filter { $0.hasWrittenProof && $0.hasVisualProof }
+                    .count
+                return "\(min(current, count))/\(count) receipts with words and a photograph"
+            case .distinctLivedWonderFacets(let count):
+                let current = context.distinctLivedWonderFacetRawValues.count
+                return "\(min(current, count))/\(count) kinds of lived wonder"
+            case .longGameEvidence(let capacity, let kinds, let count, let distinctDays, let unpromptedOnly):
+                let matching = context.matchingLongGameEvidence(
+                    capacity: capacity,
+                    kinds: kinds,
+                    unpromptedOnly: unpromptedOnly
+                )
+                let days = Set(matching.map { BookDay.id(for: $0.happenedAt) }).count
+                let label = capacity?.title.lowercased() ?? "lived wonder"
+                return "\(min(matching.count, count))/\(count) \(label) receipts · \(min(days, distinctDays))/\(distinctDays) lived days"
+            case .distinctLongGameCapacities(let count, let unpromptedOnly):
+                let matching = context.matchingLongGameEvidence(
+                    capacity: nil,
+                    kinds: nil,
+                    unpromptedOnly: unpromptedOnly
+                )
+                let current = Set(matching.map { $0.capacity.rawValue }).count
+                return "\(min(current, count))/\(count) kinds of lived change"
             case .anchorsCreated(let count):
                 return "\(min(context.readerAnchors.count, count))/\(count) Anchors made"
             case .distinctAnchorKinds(let count):
                 let current = Set(context.readerAnchors.map(\.kind)).count
                 return "\(min(current, count))/\(count) Anchor kinds"
             case .anchorVisits(let count):
-                let current = context.anchors.reduce(0) { $0 + $1.visitCount }
+                let current = context.readerAnchors.reduce(0) { $0 + $1.visitCount }
                 return "\(min(current, count))/\(count) Anchor visits"
             case .shadowWonder:
                 return isComplete(in: context) ? "Shadow Wonder awake" : "Dusk Thorn still waiting"
@@ -4258,25 +4750,167 @@ struct BookwideMarginaliaAchievement {
         var entityBeliefOffsets: [String: Int]
         var completedBookJumps: Int
         var completedCompassRuns: Int
-        var completedElectives: Int
+        var electives: [UnwrittenElective]
+        var longGameEvidence: [BookLongGameEvidence]
         var hasChosenQuill: Bool
 
         var keptDayIDs: Set<String> {
             Set(pages.map { BookDay.id(for: $0.createdAt) })
         }
 
+        var readerEvidencePages: [BookPage] {
+            pages.filter { hasReaderEvidence($0) }
+        }
+
+        var completedElectives: Int {
+            electives.filter { $0.completedAt != nil }.count
+        }
+
         var readerAnchors: [AnchorRecord] {
             anchors.filter { $0.id.hasPrefix("user-anchor-") }
         }
 
-        func weatherKeptCount(tags: Set<String>?) -> Int {
+        var livedQuestReceipts: [LivedQuestReceipt] {
+            var byQuest: [String: LivedQuestReceipt] = [:]
+            for receipt in pages.compactMap(\.livedQuestReceipt)
+            where receipt.hasWrittenProof || receipt.hasVisualProof {
+                let key = "\(receipt.kind.rawValue)|\(receipt.questID)"
+                if let current = byQuest[key], current.completedAt >= receipt.completedAt {
+                    continue
+                }
+                byQuest[key] = receipt
+            }
+            return byQuest.values.sorted { $0.completedAt < $1.completedAt }
+        }
+
+        var distinctLivedWonderFacetRawValues: Set<String> {
+            Set(livedQuestReceipts.flatMap(\.facets).map(\.rawValue))
+        }
+
+        var sensoryModalities: Set<String> {
+            Set(pages
+                .filter { $0.origin == .userAuthored || $0.origin == .imported }
+                .flatMap { $0.resolvedSensoryFolio.modalities })
+        }
+
+        var distinctReaderProofKindRawValues: Set<String> {
+            var values = Set(pages.flatMap { readerProofKinds(for: $0) }.map(\.rawValue))
+            for elective in electives where elective.completedAt != nil {
+                if elective.proof?.nonEmpty != nil { values.insert(ReaderProofKind.words.rawValue) }
+                if elective.proofPhotoURL?.nonEmpty != nil { values.insert(ReaderProofKind.photograph.rawValue) }
+                if elective.proofLocationSummary?.nonEmpty != nil { values.insert(ReaderProofKind.place.rawValue) }
+            }
+            return values
+        }
+
+        func livedQuestReceipts(
+            kinds: [LivedQuestKind]?,
+            facets: [LivedWonderFacet]?
+        ) -> [LivedQuestReceipt] {
+            livedQuestReceipts.filter { receipt in
+                let matchesKind = kinds?.contains(receipt.kind) ?? true
+                let matchesFacet = facets.map { wanted in
+                    receipt.facets.contains { wanted.contains($0) }
+                } ?? true
+                return matchesKind && matchesFacet
+            }
+        }
+
+        func matchingLongGameEvidence(
+            capacity: BookLongGameCapacity?,
+            kinds: [BookLongGameEvidenceKind]?,
+            unpromptedOnly: Bool
+        ) -> [BookLongGameEvidence] {
+            longGameEvidence.filter { receipt in
+                (capacity.map { receipt.capacity == $0 } ?? true)
+                    && (kinds?.contains(receipt.kind) ?? true)
+                    && (!unpromptedOnly || !receipt.wasPromptedByBook)
+            }
+        }
+
+        func readerProofPages(matchingAny kinds: [ReaderProofKind]) -> [BookPage] {
             pages.filter { page in
+                let proofKinds = readerProofKinds(for: page)
+                return kinds.isEmpty
+                    ? !proofKinds.isEmpty
+                    : proofKinds.contains { kinds.contains($0) }
+            }
+        }
+
+        private func readerProofKinds(for page: BookPage) -> [ReaderProofKind] {
+            guard page.origin == .userAuthored || page.origin == .imported else { return [] }
+            var kinds: [ReaderProofKind] = []
+
+            func append(_ kind: ReaderProofKind) {
+                guard !kinds.contains(kind) else { return }
+                kinds.append(kind)
+            }
+
+            if page.userInput.nonEmpty != nil || page.playerReply.nonEmpty != nil {
+                append(.words)
+            }
+            for asset in page.mediaAssets {
+                switch asset.kind {
+                case .photoLibraryAsset:
+                    append(.photograph)
+                case .renderedImageFile:
+                    if asset.metadata["proofPhoto"] == "true"
+                        || asset.metadata["uneditedPhoto"] == "true"
+                        || asset.metadata["proofImagePath"]?.nonEmpty != nil {
+                        append(.photograph)
+                    }
+                case .audioFile:
+                    append(.voice)
+                case .bundledImage:
+                    break
+                }
+            }
+            if page.context?.nearbyAnchorID?.nonEmpty != nil
+                || page.context?.locationLabel?.nonEmpty != nil
+                || page.type == .location
+                || page.type == .anchor {
+                append(.place)
+            }
+            if !(page.context?.weatherTags ?? []).isEmpty || page.type == .weather {
+                append(.weather)
+            }
+            return kinds
+        }
+
+        func weatherKeptPages(tags: Set<String>?) -> [BookPage] {
+            readerEvidencePages.filter { page in
                 let pageTags = Set(page.context?.weatherTags ?? [])
                 if let tags {
                     return !pageTags.isDisjoint(with: tags)
                 }
                 return page.type == .weather || !pageTags.isEmpty
-            }.count
+            }
+        }
+
+        func weatherKeptCount(tags: Set<String>?) -> Int {
+            weatherKeptPages(tags: tags).count
+        }
+
+        private func hasReaderEvidence(_ page: BookPage) -> Bool {
+            if page.userInput.nonEmpty != nil || page.playerReply.nonEmpty != nil {
+                return true
+            }
+            if let receipt = page.livedQuestReceipt,
+               receipt.hasWrittenProof || receipt.hasVisualProof {
+                return true
+            }
+            return page.mediaAssets.contains { asset in
+                switch asset.kind {
+                case .photoLibraryAsset, .audioFile:
+                    return true
+                case .renderedImageFile:
+                    return asset.metadata["proofPhoto"] == "true"
+                        || asset.metadata["uneditedPhoto"] == "true"
+                        || asset.metadata["proofImagePath"]?.nonEmpty != nil
+                case .bundledImage:
+                    return false
+                }
+            }
         }
     }
 
@@ -4286,6 +4920,7 @@ struct BookwideMarginaliaAchievement {
     var hint: String
     var trigger: Trigger
     var rewardAssetIDs: [String]
+    var track: Track
 
     func isComplete(in context: Context) -> Bool {
         trigger.isComplete(in: context)
@@ -4312,54 +4947,74 @@ struct BookwideMarginaliaAchievement {
         )
     }()
 
-    static let all: [BookwideMarginaliaAchievement] = [
+    static let all: [BookwideMarginaliaAchievement] = catalog([
         achievement(
             "first-margin", "The First Margin",
             "The Book only needs one kept thing before it starts writing in the corners.",
             "Keep your first page anywhere in the Book.",
             .keptPages(1),
-            ["illumination_paper_deckled", "illumination_reported_small"]
+            ["illumination_paper_deckled", "illumination_reported_small"],
+            track: .bookcraftApprenticeship
         ),
         achievement(
-            "shelf-begun", "A Shelf Begun",
-            "Five kept pages are no longer a pile. They are a shelf.",
-            "Keep five pages of any kind.",
-            .keptPages(5),
-            ["illumination_blank_summary", "tape_01"]
+            "shelf-begun", "Three Doors Tried",
+            "A shelf gets interesting when its doors do not all open into the same room.",
+            "Keep pages from three different parts of the Book.",
+            .distinctKeptPageTypes(3),
+            ["illumination_blank_summary", "tape_01"],
+            track: .bookcraftApprenticeship
         ),
         achievement(
-            "archive-stirs", "The Archive Stirs",
-            "Twenty-five pages make enough paper for the archive to turn over in its sleep.",
-            "Keep twenty-five pages across the Book.",
-            .keptPages(25),
+            "archive-stirs", "The Archive Finds Roots",
+            "Three invitations escaped the paper and returned carrying dirt from actual days.",
+            "Complete three lived quests with proof across at least two days, touching two kinds of lived wonder.",
+            .all([
+                .livedQuestReceipts(kinds: nil, facets: nil, count: 3, distinctDays: 2),
+                .distinctLivedWonderFacets(2)
+            ]),
             ["illumination_library_acquired", "illumination_edge_remembers"]
         ),
         achievement(
-            "hundred-leaves", "One Hundred Leaves",
-            "A hundred pages have learned the particular sound of your attention.",
-            "Keep one hundred pages.",
-            .keptPages(100),
+            "hundred-leaves", "A Life with Seven Doors",
+            "Attention, otherness, freedom, invention, language, company, return. The whole house has answered.",
+            "Gather at least twelve pieces of lived evidence across seven days, touching all seven Long Game capacities.",
+            .all([
+                .distinctLongGameCapacities(7, unpromptedOnly: false),
+                .longGameEvidence(
+                    capacity: nil,
+                    kinds: nil,
+                    count: 12,
+                    distinctDays: 7,
+                    unpromptedOnly: false
+                )
+            ]),
             ["illumination_archive_quiet", "illumination_margins_speak", "overlay_speckles_01"]
         ),
         achievement(
             "first-souvenir", "Something to Bring Home",
             "One true sentence can carry an entire day by the handle.",
-            "Keep one One-Sentence Souvenir.",
-            .keptPageType(.souvenir, 1),
+            "Write and keep one One-Sentence Souvenir from your actual day.",
+            .keptPageTypeAcrossDays(.souvenir, count: 1, distinctDays: 1),
             ["illumination_small_astonishments"]
         ),
         achievement(
-            "five-souvenirs", "The Small Astonishments Drawer",
-            "Five carried sentences are enough to begin a private museum.",
-            "Keep five One-Sentence Souvenirs.",
-            .keptPageType(.souvenir, 5),
+            "five-souvenirs", "A Language of One's Own",
+            "The ordinary world changed slightly when you gave one piece of it a name only you would use.",
+            "Create one lived receipt of personal language: a private definition, true name, or reader-made phrase.",
+            .longGameEvidence(
+                capacity: .personalLanguage,
+                kinds: nil,
+                count: 1,
+                distinctDays: 1,
+                unpromptedOnly: false
+            ),
             ["illumination_witness_ordinary", "illumination_ordinary_wonder"]
         ),
         achievement(
-            "twelve-souvenirs", "A Dozen Days, Carried",
-            "Twelve days have each surrendered one sentence worth taking.",
-            "Keep twelve One-Sentence Souvenirs.",
-            .keptPageType(.souvenir, 12),
+            "twelve-souvenirs", "Hidden Magic Has Three Doors",
+            "Words found one entrance. Two other senses found doors the sentence had missed.",
+            "Keep reader-authored evidence through three different sensory modes, such as words, photograph, voice, place, or weather.",
+            .sensoryModalities(3),
             ["illumination_passage_ticket", "illumination_unannounced", "illumination_thyme_stamp"]
         ),
         achievement(
@@ -4372,8 +5027,8 @@ struct BookwideMarginaliaAchievement {
         achievement(
             "weather-ledger", "The Weather Ledger",
             "The sky has signed three separate pages. The ledger believes you now.",
-            "Keep three pages with recorded real-world weather.",
-            .keptInWeather(tags: nil, count: 3),
+            "Keep three pages with recorded real-world weather on three different days.",
+            .keptInWeatherAcrossDays(tags: nil, count: 3, distinctDays: 3),
             ["illumination_field_note_harbor", "illumination_observation_small"]
         ),
         achievement(
@@ -4414,15 +5069,15 @@ struct BookwideMarginaliaAchievement {
         achievement(
             "bright-weather", "Three Bright Witnesses",
             "Three pages were kept while the world had its lamps on.",
-            "Keep three pages while the recorded weather is bright.",
-            .keptInWeather(tags: ["bright"], count: 3),
+            "Keep three pages on different days while the recorded weather is bright.",
+            .keptInWeatherAcrossDays(tags: ["bright"], count: 3, distinctDays: 3),
             ["illumination_pressed_fern", "illumination_lamp_remembered"]
         ),
         achievement(
             "night-keeper", "Keeper After Midnight",
             "Three pages know what your attention sounds like after dark.",
-            "Keep three pages during the night.",
-            .keptAtNight(3),
+            "Keep three pages on three different nights.",
+            .keptAtNightAcrossDays(count: 3, distinctDays: 3),
             ["illumination_moon_row", "illumination_starlight"]
         ),
         achievement(
@@ -4455,23 +5110,38 @@ struct BookwideMarginaliaAchievement {
         ),
         achievement(
             "shadow-wonder", "Shadow Wonder",
-            "You fed the Dusk Thorn, and it answered from the beautiful worn edge.",
-            "Raise the Dusk Thorn from no Belief to positive Belief.",
-            .shadowWonder,
+            "You fed the Dusk Thorn, then found one real thing whose strangeness did not need to be about you.",
+            "Raise the Dusk Thorn to positive Belief and bring back one lived receipt of the world's otherness.",
+            .all([
+                .shadowWonder,
+                .longGameEvidence(
+                    capacity: .worldOtherness,
+                    kinds: nil,
+                    count: 1,
+                    distinctDays: 1,
+                    unpromptedOnly: false
+                )
+            ]),
             ["illumination_belief_margin", "illumination_moon_marker", "illumination_brown_feather"]
         ),
         achievement(
-            "rest-five", "Five Quiet Centers",
-            "Five times, you let rest be a page instead of an absence.",
-            "Keep five Center Pages.",
-            .keptPageType(.rest, 5),
+            "rest-five", "Rest Refused the Default",
+            "One inherited rule expected usefulness. You made a humane exception and left the rule outside.",
+            "Bring back one lived receipt of refusing a default script or making a self-authored exception.",
+            .longGameEvidence(
+                capacity: .scriptFreedom,
+                kinds: nil,
+                count: 1,
+                distinctDays: 1,
+                unpromptedOnly: false
+            ),
             ["illumination_quiet_pages", "illumination_moss_return"]
         ),
         achievement(
-            "visible-proof", "Visible Proof",
-            "Three pages brought back light in a form the eye could keep.",
-            "Keep three pages containing photographs or rendered images.",
-            .keptVisualPages(3),
+            "visible-proof", "Proof in Two Hands",
+            "The same lived thing came home twice: once in your words, and once carrying light.",
+            "Complete one lived quest with both written and visual proof.",
+            .multimodalLivedQuestReceipts(1),
             ["illumination_frame_attention", "illumination_ink_proof"]
         ),
         achievement(
@@ -4479,13 +5149,20 @@ struct BookwideMarginaliaAchievement {
             "You went into an old story and came home carrying one true thing.",
             "Complete one Book Jump and return with a souvenir.",
             .completedBookJumps(1),
-            ["illumination_moth_ticket"]
+            ["illumination_moth_ticket"],
+            track: .bookcraftApprenticeship
         ),
         achievement(
-            "three-book-jumps", "Frequent Visitor to Impossible Libraries",
-            "Three stories have stamped your return papers.",
-            "Complete three Book Jumps and return with souvenirs.",
-            .completedBookJumps(3),
+            "three-book-jumps", "A Door You Invented",
+            "The Book did not assign this door. You made it, opened it, and returned with the hinge.",
+            "Bring back one unprompted lived receipt of a ritual, detour, quest, or piece of magic you authored yourself.",
+            .longGameEvidence(
+                capacity: .selfAuthoredAction,
+                kinds: nil,
+                count: 1,
+                distinctDays: 1,
+                unpromptedOnly: true
+            ),
             ["illumination_wander_record", "illumination_dreams_ticket"]
         ),
         achievement(
@@ -4507,41 +5184,61 @@ struct BookwideMarginaliaAchievement {
             "You did not merely choose an instrument. One of them chose back.",
             "Complete the Pen Choosing and keep your chosen quill.",
             .chosenQuill,
-            ["illumination_inkwell", "illumination_script_strip"]
+            ["illumination_inkwell", "illumination_script_strip"],
+            track: .bookcraftApprenticeship
         ),
         achievement(
             "first-elective", "Fieldwork Submitted",
-            "A professor asked for proof from the real world, and you brought it.",
+            "Someone in the Book asked for proof from the real world, and you brought it.",
             "Complete one Unwritten Elective.",
             .completedElectives(1),
             ["illumination_clover_tag", "illumination_lavender_stamp"]
         ),
         achievement(
-            "three-tarot-readings", "Three Dealings with Chance",
-            "Three spreads have answered without pretending to be verdicts.",
-            "Keep three Tarot readings.",
-            .keptPageType(.tarot, 3),
-            ["illumination_constellation", "illumination_luna_moth"]
+            "three-tarot-readings", "A First Dealing with Chance",
+            "One spread has shown how the cards ask questions without pretending to be verdicts.",
+            "Keep one Tarot reading.",
+            .keptPageType(.tarot, 1),
+            ["illumination_constellation", "illumination_luna_moth"],
+            track: .bookcraftApprenticeship
         ),
         achievement(
-            "three-letters", "Letters Know the Way",
-            "Three letters have crossed the Margins and found a place to land.",
-            "Keep three Letter pages.",
-            .keptPageType(.letter, 3),
+            "three-letters", "Wonder Had Company",
+            "A small astonishment crossed from one life into another and became larger without becoming louder.",
+            "Bring back one lived receipt of sharing wonder, witnessing another life, or making a true connection.",
+            .longGameEvidence(
+                capacity: .livingConnection,
+                kinds: nil,
+                count: 1,
+                distinctDays: 1,
+                unpromptedOnly: false
+            ),
             ["illumination_letters_margins", "illumination_daylight_missed"]
         ),
         achievement(
             "three-plain-pages", "The Sacred Dumb Door",
-            "Three times, you asked for no prompt and wrote anyway.",
-            "Keep three Plain Pages.",
-            .keptPageType(.plainPage, 3),
+            "Across separate days, you opened the door without waiting for the Book to knock.",
+            "Keep unprompted Plain Page evidence on three different days.",
+            .longGameEvidence(
+                capacity: .spontaneousAttention,
+                kinds: [.spontaneousKeep],
+                count: 3,
+                distinctDays: 3,
+                unpromptedOnly: true
+            ),
             ["scrap_note_torn_01"]
         ),
         achievement(
             "remembered-three", "The Book Remembered",
-            "Three old pages returned with reasons, not merely recurrence.",
-            "Keep three Book Remembered pages.",
-            .keptPageType(.bookRemembered, 3),
+            "You returned because the earlier thing still had a live question, not because a counter asked you to.",
+            "Bring back one lived receipt of deliberate return.",
+            .longGameEvidence(
+                capacity: .deliberateReturn,
+                kinds: nil,
+                count: 1,
+                distinctDays: 1,
+                unpromptedOnly: false
+            ),
             ["illumination_keep_moment", "illumination_found_margins"]
         ),
         achievement(
@@ -4549,16 +5246,38 @@ struct BookwideMarginaliaAchievement {
             "Loose days became an artifact with a spine.",
             "Keep one Bindery page, weekly issue, or edition.",
             .keptPageType(.bindery, 1),
-            ["illumination_living_story", "illumination_lanterns_lit"]
+            ["illumination_living_story", "illumination_lanterns_lit"],
+            track: .bookcraftApprenticeship
         ),
         achievement(
-            "seven-kept-days", "A Week with Margins",
-            "Seven different days have each left something behind.",
-            "Keep pages on seven different days.",
-            .distinctKeptDays(7),
+            "seven-kept-days", "Seven Days Were Alive",
+            "Seven actual days sent receipts. None of them had to preserve a streak to count.",
+            "Bring back lived evidence across seven different days. The days do not need to be consecutive.",
+            .longGameEvidence(
+                capacity: nil,
+                kinds: nil,
+                count: 7,
+                distinctDays: 7,
+                unpromptedOnly: false
+            ),
             ["illumination_blank_date"]
         )
-    ]
+    ])
+
+    private static func catalog(
+        _ achievements: [BookwideMarginaliaAchievement]
+    ) -> [BookwideMarginaliaAchievement] {
+        let ids = achievements.map(\.id)
+        precondition(Set(ids).count == ids.count, "Marginalia achievement IDs must be unique.")
+        let rewards = achievements.flatMap(\.rewardAssetIDs)
+        precondition(Set(rewards).count == rewards.count, "A marginalia mark may belong to only one achievement.")
+        let livingWonderCount = achievements.filter { $0.track == .livingWonder }.count
+        precondition(
+            livingWonderCount * 4 >= achievements.count * 3,
+            "At least three quarters of Book-wide achievements must reward lived wonder."
+        )
+        return achievements
+    }
 
     private static func achievement(
         _ id: String,
@@ -4566,7 +5285,8 @@ struct BookwideMarginaliaAchievement {
         _ riddle: String,
         _ hint: String,
         _ trigger: Trigger,
-        _ rewardAssetIDs: [String]
+        _ rewardAssetIDs: [String],
+        track: Track = .livingWonder
     ) -> BookwideMarginaliaAchievement {
         precondition((1...3).contains(rewardAssetIDs.count), "Marginalia achievements must reveal 1–3 marks.")
         return BookwideMarginaliaAchievement(
@@ -4575,7 +5295,8 @@ struct BookwideMarginaliaAchievement {
             riddle: riddle,
             hint: hint,
             trigger: trigger,
-            rewardAssetIDs: rewardAssetIDs
+            rewardAssetIDs: rewardAssetIDs,
+            track: track
         )
     }
 }
@@ -4797,8 +5518,18 @@ private struct PagewrightMarginaliaAchievement {
     var riddle: String
     var requirements: [Requirement]
 
+    var track: BookwideMarginaliaAchievement.Track {
+        for requirement in requirements {
+            if case .bookwide(let id) = requirement,
+               let achievement = BookwideMarginaliaAchievement.achievement(id: id) {
+                return achievement.track
+            }
+        }
+        return .bookcraftApprenticeship
+    }
+
     var title: String {
-        "\(name) — \(Self.assetDisplayName(assetID))"
+        "\(track.title) · \(name) — \(Self.assetDisplayName(assetID))"
     }
 
     var hiddenHint: String {
@@ -4806,7 +5537,7 @@ private struct PagewrightMarginaliaAchievement {
     }
 
     var requirementSummary: String {
-        requirements.map(\.title).joined(separator: " · ")
+        "\(track.shortTitle) · \(requirements.map(\.title).joined(separator: " · "))"
     }
 
     func revealedHint(in context: Context) -> String {
@@ -5345,7 +6076,7 @@ struct PagewrightSheet: View {
         withAnimation(.spring(response: 0.44, dampingFraction: 0.82)) {
             marginaliaUnlockNotice = MarginaliaUnlockNotice(
                 questID: questID,
-                title: achievement.name,
+                title: "\(achievement.track.shortTitle) · \(achievement.name)",
                 markCount: rewardCount,
                 additionalQuestCount: max(0, newlyCompleted.count - 1)
             )
@@ -6189,12 +6920,12 @@ struct PagewrightSheet: View {
     private func markAchievementSubtitle(for asset: IlluminationAsset) -> String {
         let achievement = PagewrightMarginaliaAchievement.achievement(for: asset)
         if isMarginaliaUnlocked(asset) {
-            return "Earned · \(achievement.name)"
+            return "\(achievement.track.shortTitle) · Earned · \(achievement.name)"
         }
         if isMarginaliaHintRevealed(asset) {
             return achievement.requirementSummary
         }
-        return achievement.name
+        return "\(achievement.track.shortTitle) · \(achievement.name)"
     }
 
     private func markCategoryButton(_ category: PagewrightMarkTrayCategory) -> some View {
