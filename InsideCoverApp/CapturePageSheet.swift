@@ -1181,7 +1181,11 @@ struct CapturePageSheet: View {
     @State private var proofPhotoImage: UIImage?
     @State private var proofPhotoURL: URL?
     @State private var proofPhotoMessage = ""
-    @State private var didSeedCompassControls = false
+    /// The surface these controls were seeded from. Keyed on identity rather
+    /// than a one-shot flag because the sheet can stay mounted while `surface`
+    /// changes — `compassRunReadyView` navigates within it — which left a second
+    /// run showing the previous run's answers and resuming mid-questionnaire.
+    @State private var seededCompassSurfaceID: String?
     @State private var compassConstraintStep: CompassRunConstraintStep = .location
     @State private var compassPlaceContextID = CompassPlaceContext.current.rawValue
     @State private var compassLocation = ""
@@ -8594,6 +8598,11 @@ struct CapturePageSheet: View {
         .onAppear {
             seedCompassRunControlsIfNeeded()
         }
+        // onAppear does not fire again when the sheet stays mounted and only the
+        // surface changes, which is exactly how a second run arrives.
+        .onChange(of: surface.id) { _, _ in
+            seedCompassRunControlsIfNeeded()
+        }
     }
 
     private var compassRunReadyView: some View {
@@ -8985,8 +8994,10 @@ struct CapturePageSheet: View {
     }
 
     private func seedCompassRunControlsIfNeeded() {
-        guard !didSeedCompassControls else { return }
-        didSeedCompassControls = true
+        guard seededCompassSurfaceID != surface.id else { return }
+        seededCompassSurfaceID = surface.id
+        // A new run always begins at the first question.
+        compassConstraintStep = .location
         let place = surface.payload.metadata["place"]?.nonEmpty
         let context = surface.payload.metadata["placeContextID"]
             .flatMap(CompassPlaceContext.init(rawValue:))
