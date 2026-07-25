@@ -1657,6 +1657,9 @@ struct PlayerVaultData: Codable, Equatable {
     /// Disputed events several characters read differently, and about which the
     /// Book itself may turn out to be wrong.
     var contestedQuestions: [ContestedQuestion]?
+    /// Remarks the Academy has already made, so it never repeats one.
+    var academyDispatchSaidIDs: [String]?
+    var academyDispatchLastSpokeAt: Date?
     var bookJump: BookJumpState?
     var radio: RadioPlaybackState?
     /// A local, ephemeral proof that a registered recording began. It is not

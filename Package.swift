@@ -31,6 +31,7 @@ let package = Package(
                 "WorldAccounts.swift",
                 "AcademySeason.swift",
                 "ContestedQuestions.swift",
+                "AcademyDispatch.swift",
                 "PageModel.swift",
                 "Tarot.swift",
                 "SurfaceAndCurator.swift",

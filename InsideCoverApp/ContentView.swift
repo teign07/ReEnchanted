@@ -9283,10 +9283,17 @@ struct ContentView: View {
         vault.data.castAgency = state
         vault.data.castUndertakings = undertakings
         vault.data.placeStates = places
-        vault.data.contestedQuestions = advanceContestedQuestions(
+        let questions = advanceContestedQuestions(
             undertakings: undertakings,
             places: places,
             movements: state.recentMovements,
+            now: now
+        )
+        vault.data.contestedQuestions = questions
+        speakAcademyDispatchIfThereIsSomethingToSay(
+            undertakings: undertakings,
+            questions: questions,
+            places: places,
             now: now
         )
         // One transition leaves several small marks for about a week. This can
@@ -9339,6 +9346,37 @@ struct ContentView: View {
             return movement
         }
         return nil
+    }
+
+    /// The Academy occasionally remarks on its own business.
+    ///
+    /// Not a variable-ratio reward: there is no empty pull, no near-miss, and
+    /// nothing that hints something was almost there. It is unpredictable
+    /// because the world's business genuinely is — most of the time there is
+    /// nothing to say, and even with something to say the Book often does not
+    /// bother. A withheld remark stays in the ledger and stays eligible, so
+    /// nothing is ever missed by not looking.
+    func speakAcademyDispatchIfThereIsSomethingToSay(
+        undertakings: [CastUndertaking],
+        questions: [ContestedQuestion],
+        places: [String: PlaceState],
+        now: Date
+    ) {
+        guard let dispatch = AcademyDispatchDesk.next(
+            undertakings: undertakings,
+            questions: questions,
+            places: places,
+            pressures: vault.data.worldPressures ?? [],
+            alreadySaidIDs: Set(vault.data.academyDispatchSaidIDs ?? []),
+            lastSpokeAt: vault.data.academyDispatchLastSpokeAt,
+            now: now
+        ) else { return }
+
+        statusMessage = dispatch.line
+        vault.data.academyDispatchSaidIDs = Array(
+            ((vault.data.academyDispatchSaidIDs ?? []) + [dispatch.id]).suffix(60)
+        )
+        vault.data.academyDispatchLastSpokeAt = now
     }
 
     /// Advance the Academy's arguments. One live question at a time; a room's
