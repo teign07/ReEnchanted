@@ -128,6 +128,12 @@ private struct CastAgencyMovementRow: View {
                     Text(kindLabel)
                     Text(movement.targetName)
                         .lineLimit(1)
+                    // Something that happened while nobody was reading. Stated,
+                    // not counted: this is a texture, never a backlog badge.
+                    if !movement.witnessed && movement.discoveredAt == nil {
+                        Text("unseen")
+                            .foregroundStyle(BookPalette.teal.opacity(0.8))
+                    }
                 }
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(BookPalette.ink.opacity(0.52))
@@ -679,6 +685,7 @@ struct ContentView: View {
         inputs.castUndertakings = vault.data.castUndertakings ?? []
         inputs.worldPressures = WorldPressureEngine.active(vault.data.worldPressures ?? [], now: Date())
         inputs.placeStates = vault.data.placeStates ?? [:]
+        inputs.contestedQuestions = (vault.data.contestedQuestions ?? []).filter(\.isLive)
         inputs.faeState = vault.data.fae ?? FaePlayerState()
         inputs.pactWar = vault.data.pactWar ?? PactWarState()
         inputs.radio = vault.data.radio ?? .off
@@ -6889,10 +6896,13 @@ struct ContentView: View {
         }
     }
 
+    /// The ledger is pull, not push: the world never announces itself, but the
+    /// reader can always come and look. The ring holds a season now, so show
+    /// enough of it to read as history rather than as the last four things.
     var castLedgerMovements: [CastAgencyMovement] {
         Array((vault.data.castAgency?.recentMovements ?? [])
             .sorted { $0.createdAt > $1.createdAt }
-            .prefix(4))
+            .prefix(16))
     }
 
     @ViewBuilder
@@ -9246,7 +9256,17 @@ struct ContentView: View {
             // The Cast's own business advances on the same clock, at day scale.
             // Most slots will not move one, and the reader is present for
             // almost none of the ones that do.
-            let step = CastUndertakingEngine.advancing(undertakings, now: slot.date, slotID: slot.id)
+            // Steer toward where the Academy is already busy, so independently
+            // advancing threads can wander into the same room.
+            let hot = CastUndertakingEngine.hotActorIDs(
+                pressures: vault.data.worldPressures ?? [],
+                places: places,
+                recentMovements: state.recentMovements,
+                now: slot.date
+            )
+            let step = CastUndertakingEngine.advancing(
+                undertakings, now: slot.date, slotID: slot.id, hotActorIDs: hot
+            )
             undertakings = step.undertakings
             lastAdvancedUndertaking = step.advanced ?? lastAdvancedUndertaking
             draftInputs.castUndertakings = undertakings
@@ -9263,6 +9283,12 @@ struct ContentView: View {
         vault.data.castAgency = state
         vault.data.castUndertakings = undertakings
         vault.data.placeStates = places
+        vault.data.contestedQuestions = advanceContestedQuestions(
+            undertakings: undertakings,
+            places: places,
+            movements: state.recentMovements,
+            now: now
+        )
         // One transition leaves several small marks for about a week. This can
         // never add a Page — it colours copy the reader was already going to see.
         vault.data.worldPressures = WorldPressureEngine.minting(
@@ -9315,6 +9341,56 @@ struct ContentView: View {
         return nil
     }
 
+    /// Advance the Academy's arguments. One live question at a time; a room's
+    /// physical evidence can later contradict whoever the Book backed, and that
+    /// embarrassment becomes an ordinary fault-and-repair episode rather than a
+    /// second correction path.
+    func advanceContestedQuestions(
+        undertakings: [CastUndertaking],
+        places: [String: PlaceState],
+        movements: [CastAgencyMovement],
+        now: Date
+    ) -> [ContestedQuestion] {
+        var questions = (vault.data.contestedQuestions ?? []).map {
+            ContestedQuestionEngine.resting($0, now: now)
+        }
+
+        // A mature room's refusal is the physical evidence that can embarrass
+        // the Book's provisional reading.
+        if let index = questions.firstIndex(where: { $0.status == .open }),
+           let placeID = questions[index].placeID,
+           let refusal = places[placeID]?.refusal,
+           now.timeIntervalSince(questions[index].openedAt) > 3 * 86_400 {
+            questions[index] = ContestedQuestionEngine.complicating(
+                questions[index],
+                withTrace: "The room disagrees: it \(refusal).",
+                now: now
+            )
+            if let fault = ContestedQuestionEngine.faultEpisode(from: questions[index], now: now) {
+                var interior = vault.data.bookInterior ?? BookInteriorState(awakenedAt: now)
+                // One live fault at a time, and never re-admit one already
+                // repaired — the same contract `reconcileFault` keeps.
+                if interior.currentFault == nil,
+                   !interior.faultHistory.contains(where: { $0.id == fault.id }) {
+                    interior.currentFault = fault
+                    vault.data.bookInterior = interior
+                }
+            }
+        }
+
+        if let opened = ContestedQuestionEngine.opening(
+            movements: movements,
+            undertakings: undertakings,
+            places: places,
+            entities: NarrativePackRegistry.entities + customCastMembers.map(\.entity),
+            existing: questions,
+            now: now
+        ), !questions.contains(where: { $0.id == opened.id }) {
+            questions.append(opened)
+        }
+        return Array(questions.suffix(12))
+    }
+
     /// The Academy's own season, assembled from the world ledger for binding.
     /// Read-only: building an edition must never advance the world.
     var academySeasonInputs: AcademySeasonEdition.Inputs {
@@ -9343,9 +9419,16 @@ struct ContentView: View {
             .split(separator: ",").map(String.init).filter { !$0.isEmpty }
         // Only movements that actually name a room leave a mark in one.
         let locations = NarrativePackRegistry.entities.filter { $0.kind == .location }
-        guard let place = locations.first(where: { location in
-            !Set(location.tags).intersection(tags).isEmpty
-        }) else { return places }
+        let candidates = locations
+            .filter { !Set($0.tags).intersection(tags).isEmpty }
+            .map(\.id)
+        // A room that already has history pulls an ambiguous incident toward
+        // itself, so arguments keep happening where arguments happen.
+        guard let placeID = PlaceMemoryEngine.preferredPlace(
+            among: candidates,
+            states: places,
+            tags: tags
+        ) else { return places }
 
         let incident = PlaceIncident(
             id: "incident-\(movement.id)",
@@ -9354,7 +9437,7 @@ struct ContentView: View {
             tags: tags,
             occurredAt: movement.createdAt
         )
-        return PlaceMemoryEngine.recording(places, incident: incident, placeID: place.id)
+        return PlaceMemoryEngine.recording(places, incident: incident, placeID: placeID)
     }
 
     /// The reader met a piece of the Academy's own history — by keeping it or by
@@ -11069,11 +11152,6 @@ struct ContentView: View {
 
         var draftInputs = sourceInputs
         draftInputs.preparedGossipPageSurface = nil
-        let hasStoryMaterial = !today.capturedPages.isEmpty
-            || draftInputs.weather != nil
-            || draftInputs.body != nil
-            || draftInputs.narrative?.recentTags.isEmpty == false
-        guard hasStoryMaterial else { return false }
 
         generation.isPreparingGossipPage = true
         defer { generation.isPreparingGossipPage = false }
@@ -11083,6 +11161,31 @@ struct ContentView: View {
             inputs: draftInputs,
             now: surfaceRefreshDate
         )
+
+        // World-seeded and belated Pages are already finished prose: they report
+        // the Academy's own business, which the world clock wrote deterministically
+        // and which owes nothing to the reader's day. Sending them through a
+        // writer would only risk paraphrasing the ledger — and gating them on
+        // the reader having supplied material was the reason a quiet day made
+        // the Academy invisible even though it had kept moving.
+        if draft.payload.metadata["worldSeeded"] == "true"
+            || draft.payload.metadata["belated"] == "true" {
+            generation.preparedGossipPageSurface = draft.preparedGossipPageCopy(
+                prose: draft.payload.body,
+                slotID: slot
+            )
+            surfaceRefreshDate = Date()
+            generation.gossipPageRecovery.recordSuccess()
+            return true
+        }
+
+        // Ordinary gossip still reads the reader's day, so it still needs one.
+        let hasStoryMaterial = !today.capturedPages.isEmpty
+            || draftInputs.weather != nil
+            || draftInputs.body != nil
+            || draftInputs.narrative?.recentTags.isEmpty == false
+        guard hasStoryMaterial else { return false }
+
         let realInterestClippings = await RealInterestGossipSearcher().clippings(
             from: selfFacts,
             dayID: today.id,

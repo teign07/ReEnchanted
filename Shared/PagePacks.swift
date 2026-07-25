@@ -1654,6 +1654,9 @@ struct PlayerVaultData: Codable, Equatable {
     var worldPressures: [WorldPressure]?
     /// What the Academy's rooms remember, keyed by location entity ID.
     var placeStates: [String: PlaceState]?
+    /// Disputed events several characters read differently, and about which the
+    /// Book itself may turn out to be wrong.
+    var contestedQuestions: [ContestedQuestion]?
     var bookJump: BookJumpState?
     var radio: RadioPlaybackState?
     /// A local, ephemeral proof that a registered recording began. It is not

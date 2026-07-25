@@ -85,6 +85,32 @@ struct PlaceState: Codable, Equatable, Identifiable {
 }
 
 enum PlaceMemoryEngine {
+    /// Which room an incident belongs in, when more than one could claim it.
+    ///
+    /// The other half of opportunistic convergence: a room that already has
+    /// history pulls ambiguous incidents toward itself, so a corridor known for
+    /// arguments keeps collecting them and eventually becomes the place where
+    /// the argument happens. Rooms with no history are still reachable — this
+    /// breaks ties, it does not close the door.
+    static func preferredPlace(
+        among candidates: [String],
+        states: [String: PlaceState],
+        tags: [String]
+    ) -> String? {
+        guard !candidates.isEmpty else { return nil }
+        return candidates.max { left, right in
+            let leftHeat = heat(of: states[left], tags: tags)
+            let rightHeat = heat(of: states[right], tags: tags)
+            return leftHeat == rightHeat ? left > right : leftHeat < rightHeat
+        }
+    }
+
+    private static func heat(of state: PlaceState?, tags: [String]) -> Int {
+        guard let state else { return 0 }
+        let matching = tags.map { state.reputation(for: $0) }.max() ?? 0
+        return matching * 2 + (state.refusal == nil ? 0 : 3) + min(4, state.incidents.count)
+    }
+
     /// Places accumulate from world movements that name them, so place memory is
     /// downstream of the world clock rather than a parallel system.
     static func recording(

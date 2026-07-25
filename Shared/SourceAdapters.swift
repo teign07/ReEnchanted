@@ -56,6 +56,8 @@ struct BookSourceInputs: Equatable {
     /// What the Academy's rooms remember. A room with a reputation can be cast
     /// in gossip as an actor rather than a setting.
     var placeStates: [String: PlaceState] = [:]
+    /// Live multi-party arguments about the Academy's own business.
+    var contestedQuestions: [ContestedQuestion] = []
     var faeState: FaePlayerState = FaePlayerState()
     var pactWar: PactWarState = PactWarState()
     var hemisphere: Hemisphere = .northern

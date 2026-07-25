@@ -239,18 +239,40 @@ enum CastUndertakingEngine {
         return result
     }
 
+    /// How strongly the world steers toward where things are already happening.
+    /// This is the whole convergence mechanism: rather than waiting for three
+    /// independent threads to coincide by chance — which, measured over 180
+    /// simulated days, happens never — the world simply prefers to advance
+    /// business that is adjacent to business already underway. Institutions
+    /// behave this way. Things pile up where things are already piling up.
+    static let heatBias = 3
+
     /// At most one undertaking advances per world slot. The Academy has many
     /// people in it; they do not all have a development on the same afternoon.
+    ///
+    /// `hotActorIDs` are people already involved in a live pressure, a mature
+    /// room's history, or a recent movement. Passing none preserves the old
+    /// uniform behaviour exactly.
     static func advancing(
         _ undertakings: [CastUndertaking],
         now: Date,
-        slotID: String
+        slotID: String,
+        hotActorIDs: Set<String> = []
     ) -> (undertakings: [CastUndertaking], advanced: CastUndertaking?) {
         var result = undertakings
-        let eligible = result.indices
+        var eligible = result.indices
             .filter { result[$0].isRunning && now >= result[$0].nextEligibleAt }
             .sorted { result[$0].nextEligibleAt < result[$1].nextEligibleAt }
         guard !eligible.isEmpty else { return (result, nil) }
+
+        // Weighting by repetition rather than by score keeps the selection a
+        // single deterministic modulo and leaves every eligible thread reachable.
+        if !hotActorIDs.isEmpty {
+            let hot = eligible.filter { hotActorIDs.contains(result[$0].actorID) }
+            if !hot.isEmpty, hot.count < eligible.count {
+                eligible += Array(repeating: hot, count: max(0, heatBias - 1)).flatMap { $0 }
+            }
+        }
 
         let choice = eligible[abs("\(slotID)|undertaking-pick".stableHash) % eligible.count]
         var undertaking = result[choice]
@@ -274,6 +296,32 @@ enum CastUndertakingEngine {
         }
         result[choice] = undertaking
         return (result, undertaking)
+    }
+
+    /// Who the Academy is currently busy around: people in a live pressure,
+    /// people a room has taken to, and people who moved recently. This is the
+    /// input that lets independently advancing threads wander into the same
+    /// room instead of politely avoiding each other.
+    static func hotActorIDs(
+        pressures: [WorldPressure],
+        places: [String: PlaceState],
+        recentMovements: [CastAgencyMovement],
+        now: Date,
+        recentWindowDays: Double = 3
+    ) -> Set<String> {
+        var hot = Set<String>()
+        for pressure in pressures where pressure.isActive(at: now) {
+            hot.formUnion(pressure.subjectIDs)
+        }
+        for place in places.values where place.mayActInsteadOfHost {
+            hot.formUnion(place.favoredOccupantIDs)
+        }
+        let cutoff = now.addingTimeInterval(-recentWindowDays * 86_400)
+        for movement in recentMovements where movement.createdAt >= cutoff {
+            hot.insert(movement.actorID)
+            hot.insert(movement.targetID)
+        }
+        return hot
     }
 
     private static func nextEligible(after now: Date, seed: String) -> Date {

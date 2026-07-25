@@ -30,6 +30,7 @@ let package = Package(
                 "PlaceMemory.swift",
                 "WorldAccounts.swift",
                 "AcademySeason.swift",
+                "ContestedQuestions.swift",
                 "PageModel.swift",
                 "Tarot.swift",
                 "SurfaceAndCurator.swift",
