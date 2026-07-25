@@ -408,6 +408,47 @@ continuous living world:
 - **Journal parity:** Diary pages now draw from a broad, family-balanced prompt
   catalog, can select against real local page evidence, carry prompt provenance,
   offer one deeper question, and become gentler late at night.
+- **A sovereign Academy:** the world clock no longer waits to be watched.
+  `CastAgencyState` is now a bounded world ledger: a returning reader's missed
+  slots are backfilled (12-slot horizon, at most six per return, so a two-week
+  and a two-month absence inherit the same handful), quiet days still advance
+  the cast, and the turn is silent — the old "Cast turn:" status toast is gone,
+  because a mechanism built to prove things happen without the reader should not
+  interrupt them to say so. Movements are born unwitnessed; keeping decides
+  witness, never occurrence.
+- **Belated discovery:** unwitnessed history can surface late through the
+  existing Gossip surface, framed as already concluded ("You missed this one"),
+  deterministic per slot so a refresh cannot reroll for a better find. A belated
+  Page reports; it never re-spends the Belief its movement already cost.
+- **Cast undertakings:** ten major cast members each carry one five-beat
+  undertaking — Penny proving somebody alters archived headlines, Wicker getting
+  into a sealed room without technically entering it, Serenity establishing a
+  detour that outlives the official corridor, Trencher cooking the one page of a
+  water-damaged book he cannot read. They advance at day scale on the world
+  clock, can stall or conclude and rest, and assign the reader nothing. They
+  exist to be the **non-reader seed**: roughly 30% of world slots now bypass tag
+  overlap with the reader's archive entirely and carry no reader callback, and
+  gossip volume no longer scales with how much the reader wrote.
+- **World pressure:** one emergent transition (a rivalry crossing, an alliance,
+  an undertaking beat) leaves several small marks for about a week across the
+  Bleed, the margin band, letter footnotes, class descriptions, portraits, and
+  the shop — including a required complaint from somebody uninvolved. At most
+  two active. A pressure may never mint a Page, claim a desk slot, or spend an
+  interruption seat.
+- **Places with memory:** the authored `.location` entities now accumulate
+  incidents, favoured occupants, and eventually a refusal — the Great Hall that
+  amplifies only interruptions, the Stacks that misplace the same category of
+  book and deny involvement. A room with both history and a refusal can be cast
+  as an actor rather than a setting. The Book never adjudicates whether a
+  building is alive; both readings are offered and neither is settled.
+- **Imperfect knowledge:** one ledger movement can reach the reader as two or
+  three accounts — filed, rumour, self-serving letter, physical trace, or the
+  Book's own hedged reading — which may contradict each other without corrupting
+  world state. The Book records the disagreement rather than resolving it.
+- **The Academy's own season:** monthly and annual editions can now bind the
+  world's history beside the reader's — who changed their mind, what stayed
+  unresolved, projects that continued without witnesses, and always, last, one
+  event the Book cannot account for.
 - **The Open Window:** the home desk is now balanced across outward attention,
   inward reflection, and story/world continuity. Moon, weather, and anchored
   places can ring condition-based bells, while slow door pages and milestones
@@ -4706,6 +4747,38 @@ Important app files:
   `Shared/ReEnchantedWidgetIntents.swift` (interactive Radio/Compass App Intents
   and the open-Compass handoff).
 
+## The Sovereign Academy
+
+The world simulation's own layer, added on top of the existing cast, gossip, and
+relationship machinery. Design law: `docs/sovereign-academy-plan.md`.
+
+| Concern | Type | File |
+|---|---|---|
+| World ledger + catch-up | `CastAgencyState`, `CastAgencyCatchUp` | `Shared/WorldSystems.swift` |
+| Belated discovery | `BelatedWorldDiscovery` | `Shared/WorldSystems.swift` |
+| The cast's own business | `CastUndertaking`, `CastUndertakingRegistry`, `CastUndertakingEngine` | `Shared/CastUndertakings.swift` |
+| Cross-surface consequence | `WorldPressure`, `WorldPressureEngine` | `Shared/WorldPressure.swift` |
+| Rooms with memory | `PlaceState`, `PlaceMemoryEngine` | `Shared/PlaceMemory.swift` |
+| Conflicting testimony | `WorldAccount`, `WorldAccountEngine` | `Shared/WorldAccounts.swift` |
+| The Academy's season | `AcademySeasonEdition` | `Shared/AcademySeason.swift` |
+
+The world clock is driven by `runCastAgencyTurnIfNeeded` in
+`InsideCoverApp/ContentView.swift`. It runs at launch-idle and on curation, is
+silent by design, and is the single place where movements, undertakings, place
+incidents, and pressures all advance together.
+
+**Invariants that must survive future work:**
+
+- Keeping decides witness, not occurrence. Dismissing does not unhappen an event.
+- World motion is never a notification, and never evidence about the reader —
+  it must not reach `ReaderAlivenessModel`, Long Game evidence, or Magic Moment
+  arming.
+- More consequence per event, never more Pages. No pass may claim a desk slot or
+  an interruption seat.
+- Missing history is never a penalty, a backlog, or something to catch up on.
+- Ambiguity about places is deliberate. The Book does not adjudicate sentience.
+- The Witness Law holds: real people never act in world simulation.
+
 ## Shared Core Files
 
 Important shared files:
@@ -5034,6 +5107,22 @@ The system spine is now a real **narrative simulation**: play creates events,
 events reshape Belief, the relationship field, the Pact War, and the Fae economy;
 those feed back into what surfaces and how the cast speaks; and the Almanac turns
 the whole thing with the real sky and seasons.
+
+That simulation is now also **sovereign**. The machinery had long been able to
+move the world without the reader; what it lacked was the nerve to. It advanced
+one slot, only on days the reader supplied material, and then announced itself.
+All three are fixed: the clock backfills a bounded run of missed slots, quiet
+days still move, and the turn is silent. Cast undertakings supply business that
+is already underway, which is what finally lets a share of the Academy's motion
+be selected by the world's own concerns rather than by tag overlap with the
+reader's kept pages — a committee can now form about whether ladders count as
+corridors without the reader being implicated in it. Consequences outlive their
+originating surface, rooms accumulate reputations and start refusing things, one
+event can arrive as several disagreeing accounts, and the year binds the
+Academy's history beside the reader's with one admitted mystery in it. The design
+law throughout is `docs/sovereign-academy-plan.md`: **more consequence per event,
+never more Pages** — no pass may mint a Page, claim a desk slot, spend an
+interruption seat, or let world motion become evidence about the reader's life.
 
 Open directions worth pursuing next:
 

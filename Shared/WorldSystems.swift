@@ -9267,14 +9267,44 @@ enum BeliefEconomyEngine {
 /// The offscreen Cast clock. It lets the cast act once per four-hour turn even
 /// when a Gossip Page never makes it to the reader's desk, while still making
 /// the move visible and dedupable.
+///
+/// This is the Academy's own small canon. Keeping a Page decides whether the
+/// reader *witnessed* a movement; it never decides whether the movement
+/// happened. Dismissal does not unhappen anything, and an absence leaves
+/// history the reader can later find rather than a backlog they owe.
 struct CastAgencyState: Codable, Equatable {
+    /// History, not a debug list: deep enough for a season's worth of belated
+    /// discovery, bounded so the vault cannot grow without limit.
+    static let movementRingSize = 40
+
     var resolvedSlotIDs: Set<String> = []
     var recentMovements: [CastAgencyMovement] = []
 
     mutating func remember(_ movement: CastAgencyMovement, keepingRecentSlots recentSlots: Set<String>) {
         resolvedSlotIDs.insert(movement.slotID)
         resolvedSlotIDs = resolvedSlotIDs.intersection(recentSlots.union([movement.slotID]))
-        recentMovements = Array(([movement] + recentMovements).prefix(12))
+        recentMovements = Array(([movement] + recentMovements).prefix(Self.movementRingSize))
+    }
+
+    /// Movements the reader has never met. These are the Academy's unread
+    /// history — available for belated discovery, never presented as a debt.
+    var unwitnessedMovements: [CastAgencyMovement] {
+        recentMovements.filter { !$0.witnessed && $0.discoveredAt == nil }
+    }
+
+    /// A Gossip Page for this slot actually reached the reader.
+    mutating func markWitnessed(slotID: String) {
+        guard !slotID.isEmpty else { return }
+        for index in recentMovements.indices where recentMovements[index].slotID == slotID {
+            recentMovements[index].witnessed = true
+        }
+    }
+
+    /// The reader found an older movement after the fact. Recording the moment
+    /// keeps the same discovery from being offered twice.
+    mutating func markDiscovered(movementID: String, at date: Date) {
+        guard let index = recentMovements.firstIndex(where: { $0.id == movementID }) else { return }
+        recentMovements[index].discoveredAt = date
     }
 
     mutating func markEmptySlot(_ slotID: String, keepingRecentSlots recentSlots: Set<String>) {
@@ -9304,6 +9334,12 @@ struct CastAgencyMovement: Codable, Equatable, Identifiable {
     var amount: Int
     var line: String
     var createdAt: Date
+    /// Did a Gossip Page carrying this movement ever reach the reader? Every
+    /// movement is born unwitnessed: the world acts first and is reported
+    /// afterwards, if at all.
+    var witnessed: Bool
+    /// When the reader found this movement belatedly, if they ever did.
+    var discoveredAt: Date?
 
     init(
         slotID: String,
@@ -9314,7 +9350,9 @@ struct CastAgencyMovement: Codable, Equatable, Identifiable {
         targetName: String,
         amount: Int,
         line: String,
-        createdAt: Date
+        createdAt: Date,
+        witnessed: Bool = false,
+        discoveredAt: Date? = nil
     ) {
         self.id = "\(slotID)-\(kind.rawValue)-\(actorID)-\(targetID)"
         self.slotID = slotID
@@ -9326,6 +9364,143 @@ struct CastAgencyMovement: Codable, Equatable, Identifiable {
         self.amount = amount
         self.line = line
         self.createdAt = createdAt
+        self.witnessed = witnessed
+        self.discoveredAt = discoveredAt
+    }
+
+    // Older vaults predate witness tracking. Their movements were all shown to
+    // the reader at the moment they happened, so they decode as witnessed and
+    // never resurface as a false discovery.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        slotID = try container.decode(String.self, forKey: .slotID)
+        kind = try container.decode(Kind.self, forKey: .kind)
+        actorID = try container.decode(String.self, forKey: .actorID)
+        actorName = try container.decode(String.self, forKey: .actorName)
+        targetID = try container.decode(String.self, forKey: .targetID)
+        targetName = try container.decode(String.self, forKey: .targetName)
+        amount = try container.decode(Int.self, forKey: .amount)
+        line = try container.decode(String.self, forKey: .line)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        witnessed = try container.decodeIfPresent(Bool.self, forKey: .witnessed) ?? true
+        discoveredAt = try container.decodeIfPresent(Date.self, forKey: .discoveredAt)
+    }
+}
+
+/// How the reader meets history they were not present for.
+///
+/// Going quiet is only half of sovereignty: a world that moves silently and is
+/// never found is just an expensive no-op. This is the other half — an older,
+/// unwitnessed movement can surface late, as a thing already concluded rather
+/// than an event waiting politely to be attended.
+///
+/// It is never a backlog. Nothing here counts, expires, accumulates pressure,
+/// or asks the reader to catch up.
+enum BelatedWorldDiscovery {
+    /// Enough unmet history that a find reads as depth rather than as the Book
+    /// showing its work.
+    static let minimumUnmetHistory = 2
+    /// Most gossip is still current news. Discovery is the uncommon case.
+    static let chancePercent = 28
+
+    /// Deterministic per slot: pulling to refresh cannot reroll for a better
+    /// find, and the same slot always yields the same discovery.
+    static func candidate(
+        in state: CastAgencyState,
+        currentSlotID: String,
+        now: Date
+    ) -> CastAgencyMovement? {
+        let pool = state.unwitnessedMovements
+            .filter { $0.slotID != currentSlotID && $0.createdAt < now }
+            .sorted { $0.createdAt < $1.createdAt }
+        guard pool.count >= minimumUnmetHistory else { return nil }
+        guard abs("\(currentSlotID)|belated-gate".stableHash) % 100 < chancePercent else { return nil }
+        let index = abs("\(currentSlotID)|belated-pick".stableHash) % pool.count
+        return pool[index]
+    }
+
+    /// How long ago, in the vague way a person actually reports gossip. Never a
+    /// timestamp — precision would make it a log entry.
+    static func elapsedPhrase(from created: Date, to now: Date, calendar: Calendar = .current) -> String {
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: created), to: calendar.startOfDay(for: now)).day ?? 0
+        switch days {
+        case ..<1: return "earlier today"
+        case 1: return "yesterday"
+        case 2...6: return "a few days ago"
+        default: return "last week"
+        }
+    }
+
+    struct Framing: Equatable {
+        var headline: String
+        var prompt: String
+        var detail: String
+    }
+
+    /// The Academy reports what already happened. It does not apologise for the
+    /// reader's absence, and it does not suggest they should have been there.
+    static func framing(for movement: CastAgencyMovement, now: Date, calendar: Calendar = .current) -> Framing {
+        let when = elapsedPhrase(from: movement.createdAt, to: now, calendar: calendar)
+        let openings = [
+            "You missed this one.",
+            "This happened without you.",
+            "Nobody thought to mention it at the time.",
+            "The margins had already moved on."
+        ]
+        let closings = [
+            "The Academy did not wait to be watched.",
+            "It has been sitting in the corridor ever since.",
+            "No one has corrected the record, so it stands.",
+            "It went unremarked, which is not the same as unimportant."
+        ]
+        let opening = openings[abs("\(movement.id)|open".stableHash) % openings.count]
+        let closing = closings[abs("\(movement.id)|close".stableHash) % closings.count]
+        return Framing(
+            headline: opening,
+            prompt: "Something you weren't there for",
+            detail: "\(when.prefix(1).uppercased() + when.dropFirst()): \(movement.line) \(closing)"
+        )
+    }
+}
+
+/// Which four-hour world slots still owe a turn. The Academy keeps acting while
+/// the cover is closed, but a returning reader inherits a handful of fragments
+/// rather than a complete changelog: a two-week absence and a two-month absence
+/// produce the same bounded handful.
+enum CastAgencyCatchUp {
+    /// Two days of slots. Older history is gone rather than queued.
+    static let horizonSlots = 12
+    /// The most the world will advance in one return.
+    static let maximumPerReturn = 6
+    static let slotHours = 4
+
+    struct Slot: Equatable {
+        var id: String
+        var date: Date
+    }
+
+    static func pendingSlots(
+        resolved: Set<String>,
+        now: Date,
+        horizon: Int = horizonSlots,
+        maximum: Int = maximumPerReturn,
+        calendar: Calendar = .current
+    ) -> [Slot] {
+        var slots: [Slot] = []
+        var seen = Set<String>()
+        // Oldest first, so a returning reader's history accumulates in the
+        // order it actually happened.
+        for offset in stride(from: max(0, horizon - 1), through: 0, by: -1) {
+            guard let date = calendar.date(byAdding: .hour, value: -slotHours * offset, to: now) else { continue }
+            let id = SurfaceCadence.slotID(for: date, hours: slotHours, calendar: calendar)
+            guard !resolved.contains(id), seen.insert(id).inserted else { continue }
+            slots.append(Slot(id: id, date: date))
+        }
+        // Keep the most recent run and let anything older simply be gone. Taking
+        // the oldest instead would leave the world stranded days behind the
+        // reader, needing several returns to reach the present.
+        return Array(slots.suffix(maximum))
     }
 }
 

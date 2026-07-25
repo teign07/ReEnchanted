@@ -3585,7 +3585,131 @@ enum StoryScenePacketBuilder {
 }
 
 enum GossipSimulationBuilder {
+    /// Metadata key carrying the ledger movement a belated Page reports, so the
+    /// app can mark it discovered and never offer the same find twice.
+    static let discoveredMovementKey = "belatedMovementID"
+    static let undertakingKey = "undertakingID"
+
+    /// How much of the Academy's motion is proudly none of the reader's
+    /// business. Below this, the world reads as a mirror; far above it, the
+    /// world stops feeling like it shares a building with them.
+    static let worldSeededPercent = 30
+
+    /// Deterministic per slot: whether this turn belongs to the world's own
+    /// business rather than to anything the reader wrote.
+    static func isWorldSeededSlot(slotID: String) -> Bool {
+        abs("\(slotID)|world-seeded".stableHash) % 100 < worldSeededPercent
+    }
+
     static func surface(for day: BookDay, inputs: BookSourceInputs, now: Date = Date()) -> SurfacePage {
+        // Sometimes the margins carry old news instead of new. A discovery Page
+        // reports a movement that already happened and applies nothing: the
+        // Belief and relationship effects were spent on the world clock, at the
+        // time, whether or not anyone was reading.
+        let slotID = SurfaceCadence.slotID(for: now, hours: 4)
+        if let found = BelatedWorldDiscovery.candidate(
+            in: inputs.castAgency,
+            currentSlotID: slotID,
+            now: now
+        ) {
+            return belatedSurface(for: found, now: now)
+        }
+        // Some turns belong wholly to the Academy. These carry no callback to
+        // the reader's archive, no constellation, and no invitation — the point
+        // is that a committee can form about ladders and corridors without the
+        // reader being implicated in it.
+        if isWorldSeededSlot(slotID: slotID),
+           let undertaking = worldBusiness(in: inputs.castUndertakings, slotID: slotID) {
+            return undertakingSurface(for: undertaking, slotID: slotID)
+        }
+        return currentSurface(for: day, inputs: inputs, now: now)
+    }
+
+    static func worldBusiness(in undertakings: [CastUndertaking], slotID: String) -> CastUndertaking? {
+        let running = undertakings.filter { $0.isRunning && $0.currentStage != nil }
+            .sorted { $0.id < $1.id }
+        guard !running.isEmpty else { return nil }
+        return running[abs("\(slotID)|world-business".stableHash) % running.count]
+    }
+
+    private static func undertakingSurface(for undertaking: CastUndertaking, slotID: String) -> SurfacePage {
+        let source = BookPageSourceRegistry.source(for: .gossip)
+        let stage = undertaking.currentStage
+        let actorName = NarrativePackRegistry.entities.first { $0.id == undertaking.actorID }?.name
+            ?? undertaking.actorID
+        return SurfacePage(
+            id: "\(source.id)-business-\(undertaking.id)-\(undertaking.stageIndex)",
+            type: .gossip,
+            sourceID: source.id,
+            intent: .simulate,
+            renderStyle: .graphEvent,
+            score: 44,
+            reason: "The Academy has business of its own today.",
+            prompt: "Elsewhere in the Academy",
+            detail: stage?.line ?? undertaking.pursuit,
+            payload: BookPagePayload(
+                headline: undertaking.title,
+                body: [
+                    stage?.line,
+                    stage.map { "Left behind: \($0.trace)" }
+                ]
+                    .compactMap { $0 }
+                    .joined(separator: "\n\n"),
+                metadata: [
+                    "source": source.id,
+                    undertakingKey: undertaking.id,
+                    "actorID": undertaking.actorID,
+                    "actorName": actorName,
+                    "worldSeeded": "true",
+                    // No relationshipMoves, no pageBeliefMoves, no reader
+                    // callback. This turn is not about them.
+                    "tags": (["gossip", "world-business"] + (stage?.tags ?? [])).joined(separator: ",")
+                ]
+            )
+        )
+    }
+
+    private static func belatedSurface(for movement: CastAgencyMovement, now: Date) -> SurfacePage {
+        let source = BookPageSourceRegistry.source(for: .gossip)
+        let framing = BelatedWorldDiscovery.framing(for: movement, now: now)
+        // History reaches the reader as testimony, not as a database row. The
+        // accounts may disagree; the Book records that rather than settling it.
+        let accounts = WorldAccountEngine.accounts(for: movement)
+        let resolution = WorldAccountEngine.resolution(for: accounts)
+        let body = ([framing.detail]
+            + accounts.map(\.line)
+            + [resolution].compactMap { $0 })
+            .joined(separator: "\n\n")
+        return SurfacePage(
+            id: "\(source.id)-belated-\(movement.id)",
+            type: .gossip,
+            sourceID: source.id,
+            intent: .simulate,
+            renderStyle: .graphEvent,
+            score: 46,
+            reason: "Something the Academy finished while the cover was closed.",
+            prompt: framing.prompt,
+            detail: framing.detail,
+            payload: BookPagePayload(
+                headline: framing.headline,
+                body: body,
+                metadata: [
+                    "source": source.id,
+                    discoveredMovementKey: movement.id,
+                    "accountKinds": accounts.map { $0.kind.rawValue }.joined(separator: ","),
+                    "accountsDisagree": accounts.contains(where: \.contradictsSibling) ? "true" : "false",
+                    "actorID": movement.actorID,
+                    "actorName": movement.actorName,
+                    // Deliberately no relationshipMoves or pageBeliefMoves: this
+                    // Page reports history, it does not re-spend it.
+                    "belated": "true",
+                    "tags": "gossip,belated,world-ledger"
+                ]
+            )
+        )
+    }
+
+    private static func currentSurface(for day: BookDay, inputs: BookSourceInputs, now: Date) -> SurfacePage {
         let turns = simulationTurns(for: day, inputs: inputs, now: now)
         let primary = turns.first ?? simulationTurn(for: day, inputs: inputs, now: now, offset: 0)
         let source = BookPageSourceRegistry.source(for: .gossip)
@@ -3686,7 +3810,12 @@ enum GossipSimulationBuilder {
     }
 
     private static func simulationTurns(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [GossipSimulationTurn] {
-        let count = min(3, max(2, 1 + day.capturedPages.count / 3))
+        // Deliberately not a function of how much the reader wrote. Scaling the
+        // Academy's activity to the reader's output made a quiet day look like a
+        // quiet world, which is exactly backwards: the world is equally busy
+        // whether or not anybody is taking notes.
+        let slotID = SurfaceCadence.slotID(for: now, hours: 4)
+        let count = 2 + abs("\(slotID)|turn-count".stableHash) % 2
         return (0..<count).map { offset in
             simulationTurn(for: day, inputs: inputs, now: now, offset: offset)
         }

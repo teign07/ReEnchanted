@@ -1963,7 +1963,8 @@ extension ContentView {
                 startDate: monthStart,
                 endDate: end,
                 generatedAt: now,
-                includePrivateWeatherSummary: includePrivateWeatherInMonthlyBinding
+                includePrivateWeatherSummary: includePrivateWeatherInMonthlyBinding,
+                academySeason: academySeasonInputs
             )
         }
         let edition: MonthlyEdition
@@ -1981,7 +1982,8 @@ extension ContentView {
                 themes: vault.data.themes ?? [],
                 readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
                 now: now,
-                includePrivateWeatherSummary: includePrivateWeatherInMonthlyBinding
+                includePrivateWeatherSummary: includePrivateWeatherInMonthlyBinding,
+                academySeason: academySeasonInputs
             )
             if auto.isEmpty, let latestMonth = bindableEditionMonths.first?.start {
                 auto = buildMonth(starting: latestMonth)

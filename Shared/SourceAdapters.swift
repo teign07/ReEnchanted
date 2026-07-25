@@ -42,6 +42,20 @@ struct BookSourceInputs: Equatable {
     var electives: [UnwrittenElective] = []
     var entityBeliefOffsets: [String: Int] = [:]
     var relationshipField: [String: RelationshipTie] = [:]
+    /// The Academy's own small canon: what the cast did on the world clock,
+    /// including the movements no Page ever reported. Belated discovery reads
+    /// from here.
+    var castAgency: CastAgencyState = CastAgencyState()
+    /// What the Cast is already in the middle of. This is the seed that lets a
+    /// share of world motion be selected by the world's own business instead of
+    /// by tag overlap with the reader's kept pages.
+    var castUndertakings: [CastUndertaking] = []
+    /// Live consequences of recent emergent transitions. These colour existing
+    /// surfaces; they never add one.
+    var worldPressures: [WorldPressure] = []
+    /// What the Academy's rooms remember. A room with a reputation can be cast
+    /// in gossip as an actor rather than a setting.
+    var placeStates: [String: PlaceState] = [:]
     var faeState: FaePlayerState = FaePlayerState()
     var pactWar: PactWarState = PactWarState()
     var hemisphere: Hemisphere = .northern

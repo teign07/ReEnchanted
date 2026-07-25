@@ -675,6 +675,10 @@ struct ContentView: View {
         inputs.electives = electives
         inputs.entityBeliefOffsets = entityBeliefLedger
         inputs.relationshipField = vault.data.relationshipField ?? [:]
+        inputs.castAgency = vault.data.castAgency ?? CastAgencyState()
+        inputs.castUndertakings = vault.data.castUndertakings ?? []
+        inputs.worldPressures = WorldPressureEngine.active(vault.data.worldPressures ?? [], now: Date())
+        inputs.placeStates = vault.data.placeStates ?? [:]
         inputs.faeState = vault.data.fae ?? FaePlayerState()
         inputs.pactWar = vault.data.pactWar ?? PactWarState()
         inputs.radio = vault.data.radio ?? .off
@@ -8174,6 +8178,7 @@ struct ContentView: View {
         weaveRelationshipField(for: page)
         applyGossipRelationshipMoves(from: surface)
         applyGossipPageBeliefMoves(from: surface)
+        recordWorldLedgerEncounter(for: surface)
         saveSelfFactIfNeeded(surface: surface, answer: input)
         adoptChosenQuillIfNeeded(surface: surface)
         saveFacultyEntryIfNeeded(surface: surface, page: page, answer: input, tags: tags, dayID: day.id)
@@ -9207,37 +9212,66 @@ struct ContentView: View {
         vault.save()
     }
 
+    /// Advance the Academy's own clock. This runs silently and on purpose: the
+    /// world does not announce its diligence, and a reader returning after an
+    /// absence should find that things happened — not be handed a report that
+    /// they did. Belated discovery, not notification, is how they meet it.
     func runCastAgencyTurnIfNeeded(now: Date = Date()) {
         guard didCompleteStoryOnboarding else { return }
-        let slotID = SurfaceCadence.slotID(for: now, hours: 4)
         var state = vault.data.castAgency ?? CastAgencyState()
-        guard !state.hasResolved(slotID: slotID) else { return }
+        let pending = CastAgencyCatchUp.pendingSlots(resolved: state.resolvedSlotIDs, now: now)
+        guard !pending.isEmpty else { return }
 
-        let inputs = sourceInputs
-        let hasStoryMaterial = !today.capturedPages.isEmpty
-            || inputs.weather != nil
-            || inputs.body != nil
-            || inputs.narrative?.recentTags.isEmpty == false
-        guard hasStoryMaterial else { return }
-
+        // A hard day still stops the world from spending the reader's Belief.
         let context = CuratorContext.make(for: today)
         guard !context.distress.isActive else { return }
 
-        var draftInputs = inputs
+        // Deliberately no story-material gate. A quiet day used to freeze the
+        // Academy, which is exactly the thing that made the world feel like a
+        // projection of the reader rather than a place with its own business.
+        var draftInputs = sourceInputs
         draftInputs.preparedGossipPageSurface = nil
-        let surface = GossipSimulationBuilder.surface(for: today, inputs: draftInputs, now: now)
-        let movement = applySingleCastAgencyMove(from: surface, slotID: slotID, now: now)
+
         let recentSlots = recentCastAgencySlots(around: now)
-        if let movement {
-            state.remember(movement, keepingRecentSlots: recentSlots)
-            isCastLedgerExpanded = true
-            statusMessage = "Cast turn: \(movement.line)"
-            surfaceRefreshDate = now
-        } else {
-            state.markEmptySlot(slotID, keepingRecentSlots: recentSlots)
+        var didMove = false
+        var undertakings = CastUndertakingEngine.seeded(
+            existing: vault.data.castUndertakings ?? [],
+            now: now
+        )
+        var lastAdvancedUndertaking: CastUndertaking?
+        var places = vault.data.placeStates ?? [:]
+        for slot in pending {
+            // The Cast's own business advances on the same clock, at day scale.
+            // Most slots will not move one, and the reader is present for
+            // almost none of the ones that do.
+            let step = CastUndertakingEngine.advancing(undertakings, now: slot.date, slotID: slot.id)
+            undertakings = step.undertakings
+            lastAdvancedUndertaking = step.advanced ?? lastAdvancedUndertaking
+            draftInputs.castUndertakings = undertakings
+
+            let surface = GossipSimulationBuilder.surface(for: today, inputs: draftInputs, now: slot.date)
+            if let movement = applySingleCastAgencyMove(from: surface, slotID: slot.id, now: slot.date) {
+                state.remember(movement, keepingRecentSlots: recentSlots)
+                places = recordPlaceIncident(from: movement, surface: surface, into: places)
+                didMove = true
+            } else {
+                state.markEmptySlot(slot.id, keepingRecentSlots: recentSlots)
+            }
         }
         vault.data.castAgency = state
+        vault.data.castUndertakings = undertakings
+        vault.data.placeStates = places
+        // One transition leaves several small marks for about a week. This can
+        // never add a Page — it colours copy the reader was already going to see.
+        vault.data.worldPressures = WorldPressureEngine.minting(
+            into: vault.data.worldPressures ?? [],
+            relationshipField: vault.data.relationshipField ?? [:],
+            advancedUndertaking: lastAdvancedUndertaking,
+            castName: { castName(for: $0) },
+            now: now
+        )
         vault.save()
+        if didMove { surfaceRefreshDate = now }
     }
 
     func recentCastAgencySlots(around now: Date) -> Set<String> {
@@ -9277,6 +9311,69 @@ struct ContentView: View {
             return movement
         }
         return nil
+    }
+
+    /// The Academy's own season, assembled from the world ledger for binding.
+    /// Read-only: building an edition must never advance the world.
+    var academySeasonInputs: AcademySeasonEdition.Inputs {
+        let undertakings = vault.data.castUndertakings ?? []
+        let actorIDs = Set(undertakings.map(\.actorID)
+            + (vault.data.castAgency?.recentMovements ?? []).flatMap { [$0.actorID, $0.targetID] })
+        return AcademySeasonEdition.Inputs(
+            movements: vault.data.castAgency?.recentMovements ?? [],
+            undertakings: undertakings,
+            pressures: vault.data.worldPressures ?? [],
+            placeStates: vault.data.placeStates ?? [:],
+            castName: Dictionary(
+                uniqueKeysWithValues: actorIDs.map { ($0, castName(for: $0)) }
+            )
+        )
+    }
+
+    /// Rooms accumulate history from the world movements that happen in them.
+    /// A corridor that keeps hosting arguments eventually gets a name for it.
+    func recordPlaceIncident(
+        from movement: CastAgencyMovement,
+        surface: SurfacePage,
+        into places: [String: PlaceState]
+    ) -> [String: PlaceState] {
+        let tags = (surface.payload.metadata["tags"] ?? "")
+            .split(separator: ",").map(String.init).filter { !$0.isEmpty }
+        // Only movements that actually name a room leave a mark in one.
+        let locations = NarrativePackRegistry.entities.filter { $0.kind == .location }
+        guard let place = locations.first(where: { location in
+            !Set(location.tags).intersection(tags).isEmpty
+        }) else { return places }
+
+        let incident = PlaceIncident(
+            id: "incident-\(movement.id)",
+            line: movement.line,
+            participantIDs: [movement.actorID, movement.targetID],
+            tags: tags,
+            occurredAt: movement.createdAt
+        )
+        return PlaceMemoryEngine.recording(places, incident: incident, placeID: place.id)
+    }
+
+    /// The reader met a piece of the Academy's own history — by keeping it or by
+    /// waving it past. Either way they have now met it, so it stops being unmet
+    /// history and never returns as a second discovery.
+    ///
+    /// This records witness only. It never applies an effect: a belated Page
+    /// reports a movement whose Belief and relationship cost was already spent
+    /// on the world clock, at the time, with nobody watching.
+    func recordWorldLedgerEncounter(for surface: SurfacePage) {
+        guard surface.type == .gossip else { return }
+        var state = vault.data.castAgency ?? CastAgencyState()
+        let before = state
+        if let movementID = surface.payload.metadata[GossipSimulationBuilder.discoveredMovementKey] {
+            state.markDiscovered(movementID: movementID, at: Date())
+        } else if let slotID = surface.payload.metadata["slotID"] {
+            state.markWitnessed(slotID: slotID)
+        }
+        guard state != before else { return }
+        vault.data.castAgency = state
+        vault.save()
     }
 
     /// Apply the character-to-character Belief moves a gossip page recorded:
@@ -11306,6 +11403,8 @@ struct ContentView: View {
         recordMagicMomentInteraction(surface, status: .questioned)
         BookFeedback.play(.dismissPage)
         deskRound.pass(surface)
+        // Waving history past still counts as having met it.
+        recordWorldLedgerEncounter(for: surface)
         if surface.payload.metadata[BookSessionIntention.metadataRole] == BookSessionRole.door.rawValue,
            vault.data.activeBookSessionIntention?.id
             == surface.payload.metadata[BookSessionIntention.metadataID] {

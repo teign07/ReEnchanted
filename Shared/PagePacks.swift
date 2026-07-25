@@ -1647,6 +1647,13 @@ struct PlayerVaultData: Codable, Equatable {
     var relationshipField: [String: RelationshipTie]?
     var beliefEconomy: BeliefEconomyState?
     var castAgency: CastAgencyState?
+    /// The Cast's own business. Advances on the world clock and owes the reader
+    /// nothing.
+    var castUndertakings: [CastUndertaking]?
+    /// Emergent state transitions leaving marks across existing surfaces.
+    var worldPressures: [WorldPressure]?
+    /// What the Academy's rooms remember, keyed by location entity ID.
+    var placeStates: [String: PlaceState]?
     var bookJump: BookJumpState?
     var radio: RadioPlaybackState?
     /// A local, ephemeral proof that a registered recording began. It is not

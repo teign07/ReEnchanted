@@ -370,10 +370,13 @@ final class RadioBanterTests: XCTestCase {
         // Through the selector: the Mossy-Footsteps outro is reachable only when
         // that song just finished; the Folktronica intro must not appear when a
         // different song is queued next.
-        let state = RadioPlaybackState(activeStationID: "fae-fi", startedAt: Date())
+        // Pinned like the rest of this file: the banter slot is
+        // Int(now.timeIntervalSince(seedDate) / 900), so a wall-clock seed made
+        // which banters were reachable depend on when the suite happened to run.
+        let state = RadioPlaybackState(activeStationID: "fae-fi", startedAt: Date(timeIntervalSince1970: 1_750_000_000))
         let ctx = RadioWorldContext(timeOfDay: "day")
         var sawOutro = false, sawWrongIntro = false
-        var t = Date()
+        var t = Date(timeIntervalSince1970: 1_750_000_000)
         for _ in 0..<60 {
             if let b = RadioStationRegistry.nextBanter(
                 state: state, context: ctx,

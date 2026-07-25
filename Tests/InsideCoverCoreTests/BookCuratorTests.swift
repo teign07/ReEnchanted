@@ -1714,7 +1714,39 @@ final class BookCuratorTests: XCTestCase {
             ($0.unwrittenInterest ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         })
         XCTAssertTrue(corePack.entities.first { $0.id == "dr-inkrest" }?.unwrittenInterest?.contains("déjà vu") == true)
-        XCTAssertTrue(corePack.entities.first { $0.id == "penny-blackletter" }?.unwrittenInterest?.contains("small presses") == true)
+        XCTAssertTrue(corePack.entities.first { $0.id == "penny-blackletter" }?.unwrittenInterest?.contains("shoebox") == true)
+    }
+
+    /// An unwritten interest is what a character privately studies *in the
+    /// world*. Naming the Book's own mechanics there points the character back
+    /// at the app instead of at the reader's life, and the text surfaces to the
+    /// reader verbatim ("Privately studies: …"), so it must stay jargon-free.
+    func testUnwrittenInterestsNameTheWorldRatherThanTheAppsMechanics() throws {
+        let corePack = try XCTUnwrap(NarrativePackRegistry.enabledPacks.first { $0.id == NarrativePackRegistry.corePackID })
+        let appJargon = ["Compass Run", "GPS anchor", "Book Jumping", "quiet-life page", "kept page", "Page Type", "Belief"]
+
+        for entity in corePack.entities.filter({ $0.kind == .character }) {
+            let interest = entity.unwrittenInterest ?? ""
+            for jargon in appJargon {
+                XCTAssertFalse(
+                    interest.localizedCaseInsensitiveContains(jargon),
+                    "\(entity.id) privately studies the app's own \"\(jargon)\" instead of something in the reader's world"
+                )
+            }
+        }
+    }
+
+    func testKitchenMasterCarriesTheFoodDomain() throws {
+        let corePack = try XCTUnwrap(NarrativePackRegistry.enabledPacks.first { $0.id == NarrativePackRegistry.corePackID })
+        let trencher = try XCTUnwrap(corePack.entities.first { $0.id == "ambrose-trencher" })
+
+        XCTAssertEqual(trencher.kind, .character)
+        XCTAssertEqual(trencher.chapter, "Emberheart")
+        XCTAssertTrue(trencher.tags.contains("food"))
+        XCTAssertTrue(trencher.tags.contains("kitchens"))
+        // Staff, not faculty: he is the one Cast member who is not teaching.
+        XCTAssertTrue(trencher.tags.contains("staff"))
+        XCTAssertFalse(trencher.tags.contains("faculty"))
     }
 
     func testCoreNarrativeCharactersAllHaveChapters() throws {
@@ -2656,8 +2688,9 @@ final class BookCuratorTests: XCTestCase {
         // plate. This count is independent of how the reference library loads, so
         // it locks the set even though the bundled JSON is unavailable under SwiftPM.
         // 22 base Cast + the Dictionary Rebellion pack's two illustrated cast
-        // members: Professor Mook and Pippa Pilcrow.
-        XCTAssertEqual(CastDossier.bios.count, 24, "Expected 24 bespoke Cast dossiers")
+        // members (Professor Mook and Pippa Pilcrow) + Ambrose Trencher, the
+        // cafeteria cook, whose plate art is still pending.
+        XCTAssertEqual(CastDossier.bios.count, 25, "Expected 25 bespoke Cast dossiers")
 
         // Every bespoke dossier reads like real, longer narrative prose in the
         // Book's voice and never leaks the dossier production metadata.

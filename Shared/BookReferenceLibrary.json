@@ -4159,6 +4159,42 @@
       ]
     },
     {
+      "id": "ambrose-trencher",
+      "characterName": "Ambrose Trencher",
+      "slug": "ambrose-trencher",
+      "status": "canonical",
+      "chapter": "Emberheart",
+      "core": "The Academy's cafeteria cook — not faculty, not a student, the one person who feeds every faction and belongs to none. Broad and unhurried, late fifties, iron-grey crop and a heavy salt-streaked beard, forearms marked with old burns and knife nicks. Warm, blunt, deadpan, and quietly ravenous: he serves potato soup while waxing poetic about dishes he has never tasted. Wears a hairnet with total dignity. Hoards obscure cookbooks and cuts you off halfway through thanking him.",
+      "signature": "his estate-sale copy of The Middlemost Cookery held against his chest, spine taped, and a wooden spoon worn concave on one side",
+      "palette": "smoke grey, ember orange, butter gold",
+      "silhouette": "planted and unhurried behind a steam-table serving line, ladle in one hand, mid-sentence about something far more exotic than what he is serving",
+      "continuity": "Preserve these identifiers across images; clothes, pose, age-light, and mood may vary with the scene.",
+      "avoid": "celebrity chef glamour, white toque, fine-dining plating, tidy academic portrait, inconsistent signature object, polished digital fantasy portrait",
+      "assetName": "LabyrinthCharacterAmbroseTrencher",
+      "intendedAssetName": "LabyrinthCharacterAmbroseTrencher",
+      "prompt": "Create an Enchantify Academy character dossier illustration in the house style: sparse graphite and ink linework, watercolor washes, jewel-color accents, and character-specific parchment marginalia. A single character, centered, knowing and a little uncanny — not a generic portrait. Subject: Ambrose Trencher — the Academy's cafeteria cook, broad and unhurried, late fifties, iron-grey cropped hair and a heavy salt-streaked beard, old burn marks and knife nicks along both forearms, reading glasses pushed up on his forehead, a hairnet worn with complete dignity, and a canvas apron so long-stained the marks read like a map. Warm and blunt, caught mid-sentence in the steam behind a plain steam-table serving line while ladling ordinary soup — the expression of a man describing a far more wondrous dish than the one in his hands. Signature: a battered obscure cookbook under one arm, spine mended with tape, and a wooden spoon worn concave on one side. Palette: smoke grey, ember orange, butter gold.",
+      "negativePrompt": "Avoid celebrity-chef glamour, white toque, fine-dining plating, glossy anime, polished digital fantasy portrait, room-first composition, and inconsistent signature object.",
+      "marginalia": [
+        "file tab labeled Ambrose Trencher",
+        "signature evidence: a taped-spine cookbook and a spoon worn to a curve",
+        "jewel-color swatches: smoke grey, ember orange, butter gold",
+        "margin note: \"serves the soup, dreams the other thing\"",
+        "margin note: \"he will not let you finish saying it\""
+      ],
+      "tags": [
+        "canonical",
+        "character",
+        "emberheart",
+        "cafeteria",
+        "food",
+        "cooking",
+        "longing",
+        "staff",
+        "illustration",
+        "ambrose-trencher"
+      ]
+    },
+    {
       "id": "professor-kyle-momort",
       "characterName": "Professor Kyle Momort",
       "slug": "professor-kyle-momort",

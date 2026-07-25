@@ -162,7 +162,8 @@ enum MonthlyEditionBuilder {
         readerName: String = "friend",
         now: Date = Date(),
         calendar: Calendar = .current,
-        includePrivateWeatherSummary: Bool = false
+        includePrivateWeatherSummary: Bool = false,
+        academySeason: AcademySeasonEdition.Inputs = AcademySeasonEdition.Inputs()
     ) -> MonthlyEdition {
         let currentMonthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? calendar.startOfDay(for: now)
         let start = calendar.date(byAdding: .month, value: -1, to: currentMonthStart) ?? currentMonthStart
@@ -181,7 +182,8 @@ enum MonthlyEditionBuilder {
             endDate: end,
             generatedAt: now,
             calendar: calendar,
-            includePrivateWeatherSummary: includePrivateWeatherSummary
+            includePrivateWeatherSummary: includePrivateWeatherSummary,
+            academySeason: academySeason
         )
     }
 
@@ -299,7 +301,8 @@ enum MonthlyEditionBuilder {
         endDate: Date,
         generatedAt: Date = Date(),
         calendar: Calendar = .current,
-        includePrivateWeatherSummary: Bool = false
+        includePrivateWeatherSummary: Bool = false,
+        academySeason: AcademySeasonEdition.Inputs = AcademySeasonEdition.Inputs()
     ) -> MonthlyEdition {
         let monthDays = BookArchiveExport(days: days, calendar: calendar).days.filter { day in
             day.date >= calendar.startOfDay(for: startDate) && day.date <= calendar.startOfDay(for: endDate)
@@ -398,6 +401,16 @@ enum MonthlyEditionBuilder {
                 limit: 48
             )
         ].filter { !$0.items.isEmpty }
+            // The Academy's own history, bound beside the reader's. Absent
+            // entirely when the world had a quiet month.
+            + [
+                AcademySeasonEdition.section(
+                    for: academySeason,
+                    start: startDate,
+                    end: endDate,
+                    now: generatedAt
+                )
+            ].compactMap { $0 }
 
         return MonthlyEdition(
             title: title,
