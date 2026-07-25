@@ -4424,6 +4424,8 @@ struct ContentView: View {
             return "Steadfast cryptid scholar"
         case "lydia-boggle":
             return "Wry glint professor"
+        case "ambrose-trencher":
+            return "Blunt, feeding cafeteria cook"
         case "professor-kyle-momort":
             return "Kinetic wayfinding professor"
         case "professor-eleanor-euphony":

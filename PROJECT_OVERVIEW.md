@@ -117,11 +117,12 @@ meaningful contribution, it has not yet become part of the Book.
 - Shared SwiftPM package: `InsideCoverCore`
 - Supported runtime target: iOS 17+
 - Shared-core test target: `Tests/InsideCoverCoreTests`
-- Current verified shared suite (July 24, 2026): **1,475 tests executed, three
-  environment-dependent tests skipped, zero failures**. The suite is broad and
+- Current verified shared suite (July 25, 2026): **1,579 tests executed, one
+  environment-dependent test skipped, zero failures**. The suite is broad and
   changes frequently, so treat this as a dated checkpoint rather than a
-  permanent count. The current unsigned generic-iOS Debug build also completes
-  successfully with the local-brain dependencies enabled.
+  permanent count. A **signed** iOS device Debug build also completes
+  successfully with the local-brain dependencies enabled, with the widget
+  extension embedded and validated.
 - Release gate: `scripts/verify-ios-release.sh` runs the full shared suite,
   builds a signed universal iOS app, and inspects the actual app and widget
   bundles for bundle identity, signing team, WidgetKit embedding, and both
@@ -408,6 +409,45 @@ continuous living world:
 - **Journal parity:** Diary pages now draw from a broad, family-balanced prompt
   catalog, can select against real local page evidence, carry prompt provenance,
   offer one deeper question, and become gentler late at night.
+- **A finite desk visit:** `BookDeskRound` gives Pages Rising at most three
+  logical slots keyed by `deskSlotKey`. Opening or passing resolves a slot,
+  `opened` outranks `passed`, and Undo returns only a never-opened pass. When all
+  three resolve the desk shows a resting boundary — *"That was the desk."* — and
+  the only continuation is an explicit **Turn three more**. No infinite scroll,
+  no automatic refill, no session-length goal.
+- **The Enchanted Snack first beat:** `EnchantedSnackFirstBeat` classifies which
+  Pages are prose-first and gives only those one compact single-line action above
+  the longer text — one word is enough, never auto-focused, optional, submit
+  once. Native rituals (Tarot, Radio, games, Compass runs, Playful Missions,
+  transactions, kept readbacks) keep their own first move and are visually
+  unchanged.
+- **Song meaning as one lingering trace:** `RadioTrackMeaning` gives bundled
+  tracks short authored non-lyric hooks; a `RadioTrackPlayReceipt` is recorded
+  only when a real file-backed track actually starts — never for missing assets,
+  failed playback, procedural fallbacks, or platform stubs.
+  `RadioNarrativeEcho` expires after 24 hours, fails closed for removed or locked
+  packs, and may lend at most one image to the nightly braid or a Story Page as
+  *authored atmosphere*, never as evidence about what the reader felt. Lyrics are
+  never transcribed, reconstructed, or paraphrased.
+- **One interruption budget:** `BookInterruptionBudget` replaces independently
+  racing whisper refreshes with two seats per local day — morning and evening —
+  allocated exactly per cadence (`.inside` none, `.both` at most one per window).
+  Specific expiring context *replaces* a generic occupant rather than adding
+  volume. External Anchor doorbells are removed; under the foreground/when-in-use
+  location contract, Anchor arrival stays an in-app proximity event.
+- **Magic earned across lived days:** `MagicMomentGovernor` now arms only on
+  qualifying `BookLongGameEvidence` across **three distinct `BookDay`s**. Several
+  receipts in one day count once, three actions in one session do not arm, micro
+  actions do not arm, and `readerDefinition` does not qualify alone.
+- **A hierarchical Curator:** the two-stage choice is now explicit — first the
+  Page Type, then the exact Page inside it. More variants no longer buy a type
+  more lottery tickets, exact-page Belief steers within a type without
+  guaranteeing or vetoing, and causal receipts separate type-level from
+  individual-page propensities.
+- **Wicker Dares:** a `wickerDare` page type carrying 20+ authored dares that
+  push farther than the Wonder Compass but never past consent, legality, property
+  rules, or the reader's ability to decline without penalty. A dare never invents
+  a local business and never names a sensitive nearby place.
 - **A sovereign Academy:** the world clock no longer waits to be watched.
   `CastAgencyState` is now a bounded world ledger: a returning reader's missed
   slots are backfilled (12-slot horizon, at most six per return, so a two-week
@@ -1076,140 +1116,121 @@ surface -> keep/dismiss -> archive -> event/memory -> curation -> return
 ### Where it lives and how it is gated
 
 The onboarding flow is **`OnboardingFlowView`** in
-`InsideCoverApp/BookSurfaceViews.swift` (around line 3361), branded in-world as
-**The First Door**. It is a full-screen story sequence — parchment reading
-card with a stage pill, animated header, step dots, shimmer/page-tilt, and a
-sparkle aura — not a settings wizard.
+`InsideCoverApp/BookSurfaceViews.swift`, branded in-world as **The First Door**.
+It is a full-screen story sequence — parchment reading card with a stage pill,
+animated header, step dots, shimmer/page-tilt, and a sparkle aura — not a
+settings wizard.
 
 `ContentView` presents it as an overlay only when
 `!didCompleteStoryOnboarding && !isOpeningMovieVisible` (i.e. after the opening
-movie, on a fresh install). The gate is **`@AppStorage("didCompleteStoryOnboarding")`**
-(`ContentView.swift:199`); `completeOnboarding` flips it to `true`, so the sequence
-runs exactly once per install and never again until that flag is cleared. While
-it is up, the Glow menu is suppressed.
+movie, on a fresh install). The gate is
+**`@AppStorage("didCompleteStoryOnboarding")`**; `completeOnboarding` flips it to
+`true`. While it is up, the Glow menu is suppressed.
 
-`OnboardingFlowView` is initialized with two callbacks:
+`onboardingFlowVersion` is checked against `currentOnboardingFlowVersion`
+(currently **6**), so a materially rewritten First Door can be re-offered to
+installs that only saw an older shape.
 
-- `onGlowUnlocked` → `ContentView.revealGlowPillIfNeeded` — fired **mid-flow**
-  (`notifyGlowUnlockedIfNeeded`: once `step >= 4` and the belief field is
-  non-empty) so the Glow pill animates into the chrome the moment the reader
-  names a first belief, before the sequence even ends.
-- `onFinished` → `completeOnboarding(result)`.
+### The current shape: mission-focused and skippable
 
-### The First Door beats
+The flow is now **`stepCount = 13`** (step 0 plus twelve beats), down from the
+original 14 and the later 16. The reduction is deliberate: the earlier flow
+collected preferences the Book could infer, and delayed the moment the reader
+found out what the app is *for*.
 
-`stepCount = 14` (steps 0–13). Each carries a stage name, header line, SF Symbol,
-and in-world prose. Steps that collect input gate their continue button until the
-field is filled.
+Two structural changes matter most:
+
+- **It is skippable at any point.** The stage pill carries an "Open the free
+  Book now" button, which calls `finishWithDefaults()` and records
+  `Result.skipped`. Nobody is trapped in the ceremony.
+- **It ends by binding a real artefact.** The finale produces an actual
+  `MonthlyEdition` — *Book of You: The First Door* — and a PDF on disk
+  (`firstDoorEdition`, `firstDoorEditionPDFPath`). The reader leaves onboarding
+  already holding a bound first edition of themselves rather than a promise that
+  one will exist later.
+
+### The beats
 
 | # | Stage | Title | What happens / collects |
 |---|-------|-------|--------------------------|
-| 0 | Arrival | **The Cover Opens** | The reader falls through the app's own screen into Enchantify Academy. The prose is broken by micro-actions: touch the first wet word, choose the sleeve word, and hold to steady the page. |
-| 1 | The Unwritten | **The Chapter Without an Ending** | Zara Finch frames the reader's ordinary life as the Great Unwritten Chapter — the one book no one in the Academy can jump into. The reader drags `UNWRITTEN` into the margin before continuing. |
-| 2 | Guide | **The Guide** | Zara introduces herself (portrait) and asks the reader's **favorite reading snack** → `snack`. |
-| 3 | Name | **The Name the Book Knows** | Collects the **preferred reader name** → `name` (used in letters, Welcome, generated text). |
-| 4 | Belief | **Belief and the Grey** | The Rut of Routine, Belief, and Glow are explained via a **core-belief** prompt → `belief`. Once non-empty, an inline panel offers **Plant 3 Belief** vs **Keep it for now** → `investedBelief`. (This is where the Glow pill reveals.) |
-| 5 | Chapters | **The School's Argument** | The five Academy Chapters are introduced (rendered from `AcademyChapterRegistry.publicChapters`). Chapter **Binding is explicitly deferred**, but Zara asks which Chapter tugs first → `drawnChapterID`; that talisman warms by 3 Belief and teaches that the strongest talisman influences page frequency, invitations, and atmosphere. |
-| 6 | First Page | **The First Page Rises** | A **practice page**: the reader chooses **Keep** or **Let it wait** (`rehearsalChoice`); choosing Keep reveals a one-sentence field → `firstSouvenir`. Teaches the core keep/dismiss loop in a no-stakes sandbox. |
-| 7 | Illumination | **The Plate Illuminates** | Optional illuminated-photo demo: the reader can choose or take a photo, and the app creates a local illuminated plate with `IlluminatedPageComposer` / `IlluminatedPageRenderer` **without calling Gemma**. It teaches the photo feature without blocking onboarding. |
-| 8 | Cast | **The Cast Notices** | Letters, memory, disagreement, and the weight of real-world action are explained. Shows a tappable cast glimpse (Zara, Finn, Penny, Orion) that opens portraits via QuickLook. |
-| 9 | Wicker | **Wicker Interrupts** | Zara and the reader bump into Wicker. The reader chooses **Slice of Life**, **Arc**, or **Surprise** → `wickerMode`; each option makes a deterministic Belief roll and stores success/failure → `wickerRollSucceeded`, then carries that result into the final braid. |
-| 10 | Taste | **What Should Find You** | Collects a first curation bias → `tastePreference` (letters, errands, cozy noticing, weather/place, eerie story threads, or funny oddities). |
-| 11 | Edge | **How Sharp Should It Get** | Collects a first tone boundary → `comfortBoundary` (`gentle`, `balanced`, or `strange`). |
-| 12 | Whispers | **When the Book Taps the Glass** | Collects a notification preference → `whisperCadence` (`morning`, `evening`, or `inside`) and later maps it to the existing Book Whispers switch. |
-| 13 | Threshold | **The First Door Writes Back** | The Book braids the reader's micro-actions, answers, keep/wait choice, Wicker result, taste, tone, and whisper rule into a personalized mini-story, then hands the reader to the home shelf. |
+| 0 | First Page | *(opening)* | The reader falls through the app's own screen: touch the first wet word, choose the sleeve word, hold to steady the Page → `sleeveWord` |
+| 1 | Through the Page | **Through the Page** | Zara Finch explains the Great Unwritten — nobody inside the Book can enter the reader's ordinary world; they know it only through kept Pages. Introduces the Rut of Routine. |
+| 2 | The Rut | **Where Is the Rut Strongest?** | → `rutStrongest` (work, phone, chores, exhaustion, sameness, later) |
+| 3 | Your Live Wire | **Where Do You Feel Most Alive?** | → `mostAlive` (making, outside, people, movement, learning, solitude, helping, story) |
+| 4 | Your Kind of Magic | **What Makes You Feel Magical?** | → `magicSource` (music, weather, places, coincidence, details, laughter, imagination, love, unsure) |
+| 5 | Margin Ration | **A Margin Ration** | The snack beat, reframed as a ration for the margins → `snack` |
+| 6 | Your Signature | **The Name the Book Knows** | → `name` |
+| 7 | Living Belief | **Belief Makes Living Ink** | Belief and Glow explained → `belief`, then **Plant 3 Belief** vs **Keep it for now** → `investedBelief`. The Glow pill reveals here. |
+| 8 | Your First Pages | **What Should Find You First?** | → `tastePreference` |
+| 9 | *(tone)* | **How Sharp Should the Book Get?** | → `comfortBoundary` (`gentle` "Invite me", `balanced` "Nudge me", `strange` "Call me on my nonsense") |
+| 10 | Five Arguments | **Five Arguments Read Your Page** | The cast reads what the reader has given and disagrees about it — the first taste of the Book's multi-voice reading. |
+| 11 | A Consequence | **Wicker Disagrees** | The Wicker duel → `wickerMode`, and now a **graded** outcome: `wickerRoll`, `wickerTier`, `wickerThread`, `wickerRollSucceeded`, with distinct triumph / hold / glance prose rather than pass-fail. |
+| 12 | Your First Edition | **The First Door Writes Back** | Braids everything into a personalised mini-story and **binds the first edition PDF**. |
+
+Also collected across the flow: `momentFate` (does the reader already keep small
+moments?), `hiddenMagicStance` (is the magic there, or must the Book prove it?),
+`favoritePerson`, `firstSouvenir`, `drawnChapterID`, `whisperCadence`, and
+`confirmedWagers` (the night-one honest-Barnum guesses).
 
 ### What completion does
 
-`completeOnboarding(_ result:)` (`ContentViewFeatures.swift:166`) consumes an
-`OnboardingFlowView.Result { snack, name, belief, investedBelief, firstSouvenir,
-sleeveWord, drawnChapterID, wickerMode, wickerRollSucceeded, tastePreference,
-comfortBoundary, whisperCadence }`:
+`completeOnboarding(_ result:)` (`ContentViewFeatures.swift`) persists **Self
+Facts** for each answer — id `onboarding:<questionID>`, `sensitivity: .delight`,
+`usePermission: .privateContext`, tagged `onboarding` plus topic tags — and then:
 
-- Persists **Self Facts** for snack, name, belief, sleeve word, first drawn
-  Chapter, Wicker mode / roll result, taste, comfort boundary, whisper cadence,
-  and (if written) the first souvenir via
-  `saveOnboardingFact` — each a `SelfFact` with id
-  `onboarding:<questionID>`, `sensitivity: .delight`, and
-  `usePermission: .privateContext`, tagged `onboarding` plus topic tags.
-- Applies `whisperCadence` to the existing `bookWhispersEnabled` switch:
-  `inside` keeps notifications off; morning/evening enable Book Whispers and
-  save the exact preference as memory for later tuning.
-- Applies `drawnChapterID` as a real early talisman bias: subtracts up to **3**
-  Belief from the reader and invests it in the selected Chapter talisman through
-  `adjustEntityBelief`, feeding ascendant talisman influence immediately.
-- If the first souvenir was written, keeps it as a real **souvenir page** tagged
-  `first-run-souvenir` / `onboarding-first-souvenir`, so the first sentence is
-  archive material instead of only a profile fact.
-- If `investedBelief` is true: subtracts **3** from `beliefScore` and mints a
-  **custom cast member** (`saveCustomCastMember`) of kind `.motif` from the
-  stated belief — `startingGlow: 34`, tags `["core-belief","onboarding",
-  "belief-invested","glow-bright"]` — so the reader's first belief enters the
-  world model as a real, Glowing entity that can recur and pull story toward
-  itself.
-- Sets `didCompleteStoryOnboarding = true` and a name-aware status message
-  ("The Academy doors are open, <name>.").
+- applies `whisperCadence` to `bookWhispersEnabled` (`inside` keeps
+  notifications off);
+- applies `drawnChapterID` as a real early talisman bias, moving up to **3**
+  Belief through `adjustEntityBelief`;
+- keeps a written `firstSouvenir` as a real souvenir page tagged
+  `first-run-souvenir` / `onboarding-first-souvenir`;
+- if `investedBelief`, subtracts **3** from `beliefScore` and mints a **custom
+  cast member** of kind `.motif` from the stated belief (`startingGlow: 34`), so
+  the reader's first belief enters the world model as a Glowing entity;
+- persists `confirmedWagers` as `first-wager` Self Facts, later paid off by
+  `FirstReading.wagerReceipt(...)` as receipts grounded in the reader's own kept
+  words. Barnum belongs only to this cold-start window; the mature app stays
+  Barnum-free.
+- sets `didCompleteStoryOnboarding = true`.
 
-The First Door teaches the actual loop (offer → keep/wait → archive → the Book
-remembers) and the core vocabulary (Routine, Belief, Glow, Chapters), and it
-explains the app as a living book of kept pages — never as a productivity app.
+### After the First Door
 
-> **Note:** the beat table above is the original 14-step shape; the flow is now
-> `stepCount = 16`. Two additions worth knowing:
->
-> - **Night-one wagers (honest Barnum).** The Cast step embeds
->   `onboardingWagerBeat`: the Book ventures three `FirstWagers` guesses framed
->   as wagers ("before I've read a page of you"). Tapped confirmations persist as
->   `first-wager` Self Facts and are paid off later by
->   `FirstReading.wagerReceipt(...)` as receipts grounded in the reader's own
->   kept words. Barnum belongs only to this cold-start window; the mature app
->   stays Barnum-free.
-> - **The appointment is named.** The finale adds a "Your first appointment"
->   card pointing at the evening braid ("come back and read your story; early
->   bird? ready from six"), matched by the retitled default braid whisper.
+`FirstRunPageSequence` gives Welcome, Origin, local-brain, enchantment,
+Calendar, Compass, and first-mission beats one-card ceremonies, and **owns Pages
+Rising until engagement**: `mergingCurrentStep(...)` excludes ordinary cards
+until the ceremonial Page is opened or deliberately dismissed. Durable
+`PlayerVaultData.firstRunEngaged` keys — not served-history — advance the
+sequence; served history is consulted once to migrate older installs.
+`publishPostOnboardingDesk()` atomically replaces the hidden pre-onboarding desk
+with a freshly curated post-answer one.
 
-The daily loop is also more legible after onboarding: the braid may be **offered
-from 6pm** (`BookSchedule.isBraidSurfaceTime`; auto-braid still waits for the
-evening via `shouldAutoBraid`), the **first braid of an install** may fire early
-once ≥3 pages are kept so a morning onboarder closes the write→read-back circuit
-in session one (`BookOfYouPageSourceAdapter.mayShowBraid`), and daytime keeps
-carry a quiet "thread caught" anticipation cue
-(`KeepMarginalia.braidGatheringLine`).
-
-After completion, two private local source adapters keep the first week sticky:
+Two private local source adapters keep the first week sticky:
 
 - `FirstDoorOriginPageSourceAdapter` (`sourceID: first-door-origin`) renders a
-  private origin page from the reader's first name, snack, belief, and first
-  sentence. The first-run sequence shows it after the welcome page and before
-  the local-brain step when onboarding answers exist.
+  private origin page from the reader's name, snack, belief, and first sentence.
 - `FirstDoorApprenticeshipPageSourceAdapter` (`sourceID:
-  first-door-apprenticeship`) surfaces one small practice per day for days 0–6
-  after onboarding, keyed by `first-door-apprenticeship:<day>` so each practice
-  appears at most once. The path includes the free Bookshop folio, local-brain
-  setup, whisper review, Ask the Book, rereading the week, and an App Store
-  rating warmup.
+  first-door-apprenticeship`) surfaces one small practice per day for days 0–6,
+  keyed by `first-door-apprenticeship:<day>`: the free Bookshop folio,
+  local-brain setup, whisper review, Ask the Book, rereading the week, and an
+  App Store rating warmup.
 - `ContentView.maybeRequestFirstDoorAppReview()` asks StoreKit for a rating only
   after onboarding is complete, at least two archive days have kept pages, and
   the reader has kept at least five pages.
 
-These steps now **own Pages Rising until engagement**. `FirstRunPageSequence`
-returns only the current ceremonial Page, and `mergingCurrentStep(...)` excludes
-ordinary cards until that Page is opened or deliberately dismissed. Durable
-`PlayerVaultData.firstRunEngaged` keys—not served-history—advance the sequence;
-served history is consulted only once to migrate older installs past ceremonies
-they already lived through. `publishPostOnboardingDesk()` is the matching handoff
-on completion: it publishes a freshly curated post-answer desk instead of
-stabilizing the stale cards that were built beneath onboarding.
+The daily loop is also legible from day one: the braid may be **offered from
+6pm** (`BookSchedule.isBraidSurfaceTime`), auto-braid targets **21:30**
+(`BookSchedule.nextAutoBraidDate`), the **first braid of an install** may fire
+early once ≥3 pages are kept so a morning onboarder closes the
+write→read-back circuit in session one (`BookOfYouPageSourceAdapter.mayShowBraid`),
+and daytime keeps carry a quiet "thread caught" cue
+(`KeepMarginalia.braidGatheringLine`).
 
 Relevant files:
 
-- `InsideCoverApp/BookSurfaceViews.swift` (`OnboardingFlowView`, the First Door beats)
-- `InsideCoverApp/ContentView.swift` (presentation, `didCompleteStoryOnboarding`
-  gate, `revealGlowPillIfNeeded`)
-- `InsideCoverApp/ContentViewFeatures.swift` (`completeOnboarding`,
-  `saveOnboardingFact`, first-souvenir keeping)
-- `Shared/SourceAdapters.swift`
-- `Shared/PageModel.swift`
+- `InsideCoverApp/BookSurfaceViews.swift` (`OnboardingFlowView`, the beats)
+- `InsideCoverApp/ContentView.swift` (presentation, gate, `revealGlowPillIfNeeded`)
+- `InsideCoverApp/ContentViewFeatures.swift` (`completeOnboarding`, `saveOnboardingFact`)
+- `Shared/SourceAdapters.swift`, `Shared/PageModel.swift`
 
 ## Page Model
 
@@ -1228,7 +1249,7 @@ pactDispatch, pactVerdict, pactErrand, festival, twoReadings, castBond, todaysSk
 bookJump, enchantment, anchor, academyClass, elective, packPage,
 wordNegotiation, gamePage, calendar, helpTips, welcome, marginsAtlas,
 bookConnections, bookRemembered, bookNotices, glowInvitation, theBleed,
-inventory, bindery, plainPage, bookPocket
+inventory, bindery, plainPage, bookPocket, wickerDare
 ```
 
 Important model types:
@@ -3985,6 +4006,21 @@ Examples from the bundled core cast:
 - **Zara Finch** is loyal, quick, practical, and vigilant about trust and safe
   paths.
 - **Wicker Eddies** tests weak premises, doubt, and false magic.
+- **Ambrose Trencher** cooks the Academy's ordinary weekday lunch line. He is
+  deliberately **neither faculty nor student** — before him the whole Cast was
+  professors and pupils, which quietly made every character's interest an
+  academic one — and he **feeds every faction and belongs to none**, so he can
+  carry news, defuse, or witness across factions without taking a side. His
+  domain is food, the one thing every reader already practises daily. He
+  privately collects the handwriting of the dead: obscure cookbooks from estate
+  sales, marginal corrections, the grease-thumbed page that reveals which recipe
+  was actually loved. Warm, blunt, unhurried, exacting; deadpan; no small talk.
+  His faults are the character — he feeds people instead of talking to them, he
+  can turn a hard feeling into a hot plate so smoothly neither party notices the
+  sentence that went unsaid, and **he will not let anyone finish thanking him**
+  (which hooks the Duskthorn "never say thank you" thread and the planned Nov
+  2026 gratitude pack). Chapter Emberheart. He is in the **core pack, not
+  gated**: food is too fundamental to lock behind a seasonal purchase.
 - **Gwendolyn Mythwright** holds archives, impossible zoology, maritime
   mysteries, and evidence that makes wonder less lonely.
 
@@ -4787,6 +4823,20 @@ Important shared files:
   durable page/day models, context/fingerprint/Sensory Folio records, voice
   cadence receipts, and page Belief.
 - `Shared/SourceAdapters.swift` - page source adapters and source input bundle.
+- `Shared/BookInterruptionBudget.swift` - the pure two-seat-per-day notification
+  planner (`BookInterruptionKind/Window/Candidate/Plan`) and the explicit
+  in-app-only Anchor policy.
+- `Shared/CastUndertakings.swift` - the Cast's own business: `CastUndertaking`,
+  the authored five-beat `CastUndertakingRegistry` ladders, and the world-clock
+  `CastUndertakingEngine`.
+- `Shared/WorldPressure.swift` - emergent transitions leaving bounded
+  fingerprints across existing surfaces.
+- `Shared/PlaceMemory.swift` - durable room state: incidents, reputations,
+  favoured occupants, and refusals.
+- `Shared/WorldAccounts.swift` - several disagreeing tellings of one ledger
+  movement.
+- `Shared/AcademySeason.swift` - the Academy's own history bound into monthly and
+  annual editions.
 - `Shared/Tarot.swift` - complete versioned deck, spreads, draw engine, local
   interpretation, daily adapter, and persisted reading/source receipts.
 - `Shared/SurfaceAndCurator.swift` - curation, readiness, action routing,
@@ -4959,7 +5009,58 @@ Coverage areas include:
   foreword/closing),
 - monthly-edition binding curation (`EditionCurator`), set-aside accounting, and
   duplicate collapse,
-- Academy class/club turn metadata.
+- Academy class/club turn metadata,
+- the finite desk round: slot capacity and uniqueness, open idempotence, pass and
+  Undo, `opened` outranking `passed`, cadence-rotated IDs resolving the original
+  logical slot, and completion after three unique resolutions,
+- Enchanted Snack classification: prose-first versus native, specialized metadata
+  overriding a generic type, kept readbacks staying native, and exact-word
+  recognition,
+- Radio narrative echo: legacy `RadioTrack` JSON without meaning, user-pack
+  sanitization bounds, all bundled tracks carrying bounded authored meaning,
+  24-hour expiry and fail-closed behaviour, prompt safeguards, and reader-facing
+  captions free of production placeholders,
+- the interruption budget: every cadence, at most one winner per window,
+  contextual replacement without added volume, day rollover, consumed-seat
+  suppression, and the explicit in-app-only Anchor policy,
+- Magic Moments across lived days: three same-day actions not arming, three
+  distinct qualifying days arming, duplicate daily receipts, excluded reader
+  definitions and micro actions, the consumption boundary, and legacy
+  grandfathering,
+- the hierarchical Curator: more variants not buying a type more lottery tickets,
+  within-type individual selection, exact-page Belief steering without guarantee
+  or veto, and causal receipts separating type from page propensity,
+- the Night Gardener: grounded adversarial strategy, rejection of invented
+  evidence and pulse-only theories, the heretic's veto of a flattering theory,
+  pressure capped at reader permission, and the deterministic understudy,
+- Wicker Dares: catalogue breadth, voluntary boundary, never inventing a local
+  business, and sensitive nearby places excluded as destinations,
+- world sovereignty: bounded catch-up (a two-week and a two-month absence
+  inheriting the same handful), oldest-first ordering, idempotence, quiet days
+  still advancing the world, unwitnessed birth, bounded ledger ring, and legacy
+  movement JSON decoding as already-witnessed,
+- belated discovery: minimum unmet history, current-slot exclusion, determinism
+  against refresh, discovery removing a movement from the pool, vague rather than
+  timestamped elapsed phrasing, framing that never scolds the reader for being
+  absent, and belated Pages carrying no Belief or relationship moves,
+- cast undertakings: well-formed authored ladders belonging to real cast
+  entities, one running undertaking per character, day-scale advance, stall and
+  conclude-then-rest, stage index never escaping the ladder, no ladder assigning
+  the reader anything, the world-seeded share holding deterministically, and
+  gossip volume no longer scaling with the reader's page count,
+- world pressure: minting from a real transition, ordinary disagreements not
+  qualifying, the two-pressure cap, expiry freeing a slot, marks spread across
+  several surfaces, and every dispute inconveniencing somebody uninvolved,
+- place memory: incident accumulation and bounds, earned reputation thresholds,
+  favoured occupants versus passing visitors, stable refusals that never harden
+  into rules, and the Book staying agnostic about whether a building is alive,
+- world accounts: several but not many tellings, distinct kinds, permitted
+  contradiction, the first telling never being the one that drifts, the Book
+  refusing to settle a contradiction, and accounts never inventing an event or
+  carrying an effect,
+- the Academy's season: building from the ledger, a quiet season producing no
+  section rather than a blank one, unwitnessed work appearing, the unexplained
+  entry always present and always last, and the section never reading as metrics.
 
 Common test command:
 
@@ -4986,6 +5087,32 @@ xcodebuild \
   -derivedDataPath /private/tmp/InsideCoverDerivedData \
   build
 ```
+
+Signed device build and install (the local brain only runs on device):
+
+```sh
+xcodebuild -project EnchantifyInsideCover.xcodeproj -scheme InsideCoverApp \
+  -destination 'generic/platform=iOS' -configuration Debug \
+  -allowProvisioningUpdates build
+
+xcrun devicectl list devices          # find the device UDID
+xcrun devicectl device install app --device <UDID> \
+  ~/Library/Developer/Xcode/DerivedData/EnchantifyInsideCover-*/Build/Products/Debug-iphoneos/InsideCoverApp.app
+```
+
+Prefer `generic/platform=iOS` over a device-specific `-destination` when
+building: targeting the device by id fails with *"Timed out waiting for all
+destinations"* if the phone is locked or asleep, whereas a generic device build
+produces the same installable, signed `.app` and only needs the device present
+for the `devicectl` install step.
+
+**Test determinism:** tests must never seed from `Date()`. Time-seeded tests look
+green locally and fail intermittently in full runs — `RadioBanterTests` did
+exactly this, because the banter slot is
+`Int(now.timeIntervalSince(seedDate) / 900)`, so which banters were reachable
+depended on when the suite happened to run. Pin to a fixed epoch (that file uses
+`Date(timeIntervalSince1970: 1_750_000_000)`) or a fixed calendar day, as commit
+`64b99ba` did for the curator tests.
 
 ## Development Guidance
 
