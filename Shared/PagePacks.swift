@@ -1699,6 +1699,9 @@ struct PlayerVaultData: Codable, Equatable {
     /// Reader facts and inferred patterns remain in their existing evidence
     /// stores rather than being duplicated here.
     var bookInterior: BookInteriorState?
+    /// The Book's bounded standing authority, current autonomous Working, and
+    /// attributable receipts. Optional so older Books open with the door shut.
+    var bookWorkings: BookWorkingLedger?
 }
 
 // MARK: - The BookShop

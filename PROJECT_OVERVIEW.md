@@ -62,6 +62,41 @@ The aim is not to make real life resemble a fantasy franchise. It is to let
 fiction loosen Routine's monopoly on interpretation until reality itself feels
 inhabited again.
 
+### Autonomous Workings Beyond The Covers
+
+The Book may now hold one deliberately bounded set of **house keys**. The
+reader opens a standing pact in the existing Colophon, choosing the appetite
+(about one, up to three, or up to five Workings in a rolling week) and which
+outside doors are permitted. Individual Workings are then surprising: there is
+no per-event confirmation button that turns magic into a command palette.
+Consent is upstream; surprise is downstream; revocation is immediate.
+
+`BookWorkingEngine` is the pure coordinator. It gives live character business
+first claim on authorship when Wicker, Serenity, or Trencher is already in the
+middle of a relevant undertaking; otherwise the Book may sign its own name. A
+Working begins at least three hours ahead, keeps a cadence-specific minimum
+gap, chooses a free 5–10 PM patch with a fifteen-minute calendar buffer, and
+goes quiet during distress. The default **Alive** pact permits at most three in
+seven days and at least thirty-six hours between them.
+
+The first real effect set is intentionally narrow and native to iPhone:
+
+- an idempotent event in **ReEnchanted — Openings** (or the default calendar if
+  the dedicated local calendar cannot be created);
+- one attributable summons that competes for an existing
+  `BookInterruptionBudget` morning/evening seat and never creates a third seat;
+- a private-safe widget mark that says something has been arranged without
+  explaining the surprise away.
+
+Each effect records executed, failed, or cancelled state. After the window has
+actually elapsed, a stable Souvenir Page returns with those honest receipts and
+asks for one exact detail. Keeping it creates a typed `.bookWorking`
+`LivedQuestReceipt`; the fiction therefore acquires a consequence from lived
+life instead of congratulating itself for scheduling something. Closing the
+pact cancels the pending summons, removes any still-accessible Book-authored
+calendar event, and gives the Book's keys back without guilt, penalty, or
+narrative retaliation.
+
 ### What The Reader Actually Experiences
 
 The interface is intentionally much simpler than the architecture. The reader

@@ -4028,6 +4028,21 @@ enum BookWhispers {
                     )
                 }
 
+                for working in previous where working.kind == .working && working.fireAt > now {
+                    add(
+                        id: working.candidateID,
+                        dayID: working.dayID,
+                        window: working.window,
+                        kind: .working,
+                        isSpecific: true,
+                        priority: 65,
+                        fireAt: working.fireAt,
+                        title: working.title,
+                        body: working.body,
+                        prompt: working.prompt
+                    )
+                }
+
                 for charge in PeopleOfTheBook.preMeetingCharges(
                     ledger: context.people,
                     events: context.calendarEvents,
@@ -4374,6 +4389,116 @@ enum BookWhispers {
             center.add(request)
             saveReservations(updated, now: now)
         })
+    }
+
+    /// Gives one future Working an existing morning/evening seat. This can
+    /// replace an ordinary braid or prompt, but never another contextual hinge;
+    /// the Book therefore remains inside the same two-seat daily budget.
+    static func offerWorking(_ working: BookWorking, now: Date = Date()) async -> Bool {
+        let cadence = BookWhisperCadence.resolved(
+            bookWhispersEnabled: UserDefaults.standard.bool(forKey: "bookWhispersEnabled"),
+            promptWhispersEnabled: UserDefaults.standard.bool(forKey: "promptWhispersEnabled")
+        )
+        let calendar = Calendar.current
+        let hour = calendar.component(.hour, from: working.startsAt)
+        let window: BookInterruptionWindow = hour < 16 ? .morning : .evening
+        guard working.startsAt > now,
+              (window == .morning ? cadence.allowsMorning : cadence.allowsEvening) else {
+            return false
+        }
+
+        let dayID = BookDay.id(for: working.startsAt, calendar: calendar)
+        let seatID = "\(dayID)|\(window.rawValue)"
+        let candidateID = "book-working-\(working.id)"
+        if loadReservations().contains(where: {
+            $0.candidateID == candidateID && $0.fireAt > now
+        }) {
+            return true
+        }
+        let center = UNUserNotificationCenter.current()
+        let granted: Bool = await withCheckedContinuation { continuation in
+            center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                continuation.resume(returning: granted)
+            }
+        }
+        guard granted else { return false }
+
+        let prompt = PromptWhisper(
+            id: candidateID,
+            kind: .mission,
+            title: working.title,
+            body: working.summons,
+            keepPrompt: working.invitation,
+            tags: ["book-working", "entity:\(working.initiatorID)"]
+        )
+        let candidate = BookInterruptionCandidate(
+            id: prompt.id,
+            dayID: dayID,
+            window: window,
+            kind: .working,
+            isSpecific: true,
+            priority: 65,
+            expiresAt: working.startsAt
+        )
+        let reservation = SeatReservation(
+            candidateID: candidate.id,
+            identifier: seatRequestIdentifier(dayID: dayID, window: window),
+            dayID: dayID,
+            window: window,
+            kind: .working,
+            isSpecific: true,
+            fireAt: working.startsAt,
+            title: prompt.title,
+            body: prompt.body,
+            prompt: prompt
+        )
+        let request = notificationRequest(for: reservation, calendar: calendar)
+        var updated: [SeatReservation] = []
+        return refreshGeneration.supersedeIf({
+            let currentCadence = BookWhisperCadence.resolved(
+                bookWhispersEnabled: UserDefaults.standard.bool(forKey: "bookWhispersEnabled"),
+                promptWhispersEnabled: UserDefaults.standard.bool(forKey: "promptWhispersEnabled")
+            )
+            let current = loadReservations()
+            let currentConsumed = Set(current.filter { $0.fireAt <= now }.map(\.seatID))
+            let currentCandidates = current.filter {
+                $0.seatID == seatID && $0.fireAt > now
+            }.map {
+                BookInterruptionCandidate(
+                    id: $0.candidateID,
+                    dayID: $0.dayID,
+                    window: $0.window,
+                    kind: $0.kind,
+                    isSpecific: $0.isSpecific,
+                    priority: $0.isSpecific ? 140 : 0,
+                    expiresAt: $0.fireAt
+                )
+            }
+            guard BookInterruptionBudget.plan(
+                candidates: currentCandidates + [candidate],
+                cadence: currentCadence,
+                consumed: currentConsumed
+            ).winners.contains(where: { $0.id == candidate.id }) else {
+                return false
+            }
+            updated = current.filter { $0.seatID != seatID }
+            updated.append(reservation)
+            return true
+        }, perform: {
+            center.add(request)
+            saveReservations(updated, now: now)
+        })
+    }
+
+    static func cancelWorking(_ working: BookWorking, now: Date = Date()) {
+        let candidateID = "book-working-\(working.id)"
+        var reservations = loadReservations()
+        let matches = reservations.filter { $0.candidateID == candidateID }
+        guard !matches.isEmpty else { return }
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: matches.map(\.identifier))
+        reservations.removeAll { $0.candidateID == candidateID }
+        saveReservations(reservations, now: now)
     }
     #endif
 
@@ -5287,7 +5412,10 @@ enum CalendarDoorway {
         #endif
     }
 
-    static func upcomingEvents(now: Date = Date()) async -> [CalendarEventSignal] {
+    static func upcomingEvents(
+        now: Date = Date(),
+        horizonDays: Int = 2
+    ) async -> [CalendarEventSignal] {
         #if canImport(EventKit)
         let store = EKEventStore()
         let granted: Bool
@@ -5299,11 +5427,13 @@ enum CalendarDoorway {
         guard granted else { return [] }
         let calendar = Calendar.current
         let start = now.addingTimeInterval(-3600)
-        let end = calendar.date(byAdding: .day, value: 2, to: now) ?? now.addingTimeInterval(2 * 86_400)
+        let days = max(1, min(7, horizonDays))
+        let end = calendar.date(byAdding: .day, value: days, to: now)
+            ?? now.addingTimeInterval(TimeInterval(days) * 86_400)
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
         return store.events(matching: predicate)
             .filter { !$0.isAllDay || calendar.isDate($0.startDate, inSameDayAs: now) }
-            .prefix(24)
+            .prefix(days > 2 ? 64 : 24)
             .map { event in
                 CalendarEventSignal(
                     id: event.eventIdentifier ?? UUID().uuidString,
@@ -5320,7 +5450,8 @@ enum CalendarDoorway {
 }
 
 /// Writes the world back out into the reader's real Reminders and Calendar -
-/// the most literal way the Book bleeds off the screen. Always user-initiated.
+/// the most literal way the Book bleeds off the screen. Ordinary methods are
+/// user-initiated; Workings require the separate standing authority pact.
 enum EventKitWriter {
     static func addReminder(title: String, notes: String, due: Date?) async -> Bool {
         #if canImport(EventKit)
@@ -5401,6 +5532,81 @@ enum EventKitWriter {
         event.endDate = end
         event.calendar = calendar
         do { try store.save(event, span: .thisEvent, commit: true); return true } catch { return false }
+        #else
+        return false
+        #endif
+    }
+
+    static func arrangeBookWorking(_ working: BookWorking) async -> Bool {
+        #if canImport(EventKit)
+        let store = EKEventStore()
+        let granted: Bool
+        if #available(iOS 17.0, *) {
+            granted = (try? await store.requestFullAccessToEvents()) ?? false
+        } else {
+            granted = (try? await store.requestAccess(to: .event)) ?? false
+        }
+        guard granted, let fallback = store.defaultCalendarForNewEvents else { return false }
+        let marker = "ReEnchanted Working: \(working.id)"
+        let predicate = store.predicateForEvents(
+            withStart: working.startsAt.addingTimeInterval(-60),
+            end: working.endsAt.addingTimeInterval(60),
+            calendars: nil
+        )
+        if store.events(matching: predicate).contains(where: { ($0.notes ?? "").contains(marker) }) {
+            return true
+        }
+
+        let calendarTitle = "ReEnchanted — Openings"
+        let calendar: EKCalendar
+        if let existing = store.calendars(for: .event).first(where: { $0.title == calendarTitle }) {
+            calendar = existing
+        } else {
+            let proposed = EKCalendar(for: .event, eventStore: store)
+            proposed.title = calendarTitle
+            proposed.source = fallback.source
+            if (try? store.saveCalendar(proposed, commit: true)) != nil {
+                calendar = proposed
+            } else {
+                calendar = fallback
+            }
+        }
+        let event = EKEvent(eventStore: store)
+        event.title = working.title
+        event.notes = [working.invitation, "Arranged by \(working.initiatorName).", marker]
+            .joined(separator: "\n\n")
+        event.startDate = working.startsAt
+        event.endDate = working.endsAt
+        event.calendar = calendar
+        do { try store.save(event, span: .thisEvent, commit: true); return true } catch { return false }
+        #else
+        return false
+        #endif
+    }
+
+    static func removeBookWorking(_ working: BookWorking) async -> Bool {
+        #if canImport(EventKit)
+        let store = EKEventStore()
+        let status = EKEventStore.authorizationStatus(for: .event)
+        if #available(iOS 17.0, *) {
+            guard status == .fullAccess else { return false }
+        } else {
+            guard status == .authorized else { return false }
+        }
+        let marker = "ReEnchanted Working: \(working.id)"
+        let predicate = store.predicateForEvents(
+            withStart: working.startsAt.addingTimeInterval(-60),
+            end: working.endsAt.addingTimeInterval(60),
+            calendars: nil
+        )
+        let matches = store.events(matching: predicate).filter { ($0.notes ?? "").contains(marker) }
+        do {
+            for event in matches { try store.remove(event, span: .thisEvent, commit: false) }
+            if !matches.isEmpty { try store.commit() }
+            return true
+        } catch {
+            return false
+        }
         #else
         return false
         #endif

@@ -13,7 +13,8 @@ enum ReEnchantedWidgetSnapshotWriter {
         radio: RadioPlaybackState?,
         radioIsPlaying: Bool,
         activeWorldEvents: [ResolvedWorldEvent] = [],
-        bookInterior: BookInteriorState = .unawakened
+        bookInterior: BookInteriorState = .unawakened,
+        bookWorking: BookWorking? = nil
     ) {
         let snapshot = makeSnapshot(
             today: today,
@@ -24,7 +25,8 @@ enum ReEnchantedWidgetSnapshotWriter {
             radio: radio,
             radioIsPlaying: radioIsPlaying,
             activeWorldEvents: activeWorldEvents,
-            bookInterior: bookInterior
+            bookInterior: bookInterior,
+            bookWorking: bookWorking
         )
         try? ReEnchantedWidgetSnapshotStore.save(snapshot)
         #if canImport(WidgetKit)
@@ -41,7 +43,8 @@ enum ReEnchantedWidgetSnapshotWriter {
         radio: RadioPlaybackState?,
         radioIsPlaying: Bool,
         activeWorldEvents: [ResolvedWorldEvent] = [],
-        bookInterior: BookInteriorState = .unawakened
+        bookInterior: BookInteriorState = .unawakened,
+        bookWorking: BookWorking? = nil
     ) -> ReEnchantedWidgetSnapshot {
         let readerName = selfFacts
             .first { $0.id == "onboarding:onboarding-name" }?
@@ -62,7 +65,7 @@ enum ReEnchantedWidgetSnapshotWriter {
             detail: beliefDetail(for: beliefScore),
             level: max(0, min(100, beliefScore))
         )
-        let interior = interiorStatus(from: bookInterior)
+        let interior = interiorStatus(from: bookInterior, working: bookWorking)
 
         return ReEnchantedWidgetSnapshot(
             generatedAt: Date(),
@@ -99,7 +102,18 @@ enum ReEnchantedWidgetSnapshotWriter {
         )
     }
 
-    private static func interiorStatus(from interior: BookInteriorState) -> ReEnchantedWidgetBookInterior? {
+    private static func interiorStatus(
+        from interior: BookInteriorState,
+        working: BookWorking?
+    ) -> ReEnchantedWidgetBookInterior? {
+        if let working, working.status == .arranged || working.status == .prepared {
+            return ReEnchantedWidgetBookInterior(
+                title: "Something Has Been Arranged",
+                line: "\(working.initiatorName) has left a private mark beyond the open Book.",
+                symbolName: "key.fill",
+                urlPath: "today"
+            )
+        }
         guard interior.isAwake else { return nil }
         if let secret = interior.secret, secret.status == .ready {
             return ReEnchantedWidgetBookInterior(

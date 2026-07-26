@@ -12,6 +12,7 @@ enum EmergentPageMaturity {
 
 struct BookSourceInputs: Equatable {
     var days: [BookDay] = []
+    var bookWorkings: BookWorkingLedger = .empty
     var bookInterior: BookInteriorState = .unawakened
     var magicMoment: MagicMomentState = MagicMomentState()
     var bookObservations: [BookObservationRecord] = []
@@ -12577,6 +12578,83 @@ struct PublicMarginsCommunityPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+/// The second half of a Working. The surprise happens outside the covers; only
+/// after its real-world window has elapsed does the Book ask what actually
+/// happened. Keeping the Page turns the answer into ordinary lived evidence.
+struct BookWorkingReturnPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .souvenir)
+
+    func candidates(
+        for day: BookDay,
+        context: CuratorContext,
+        inputs: BookSourceInputs,
+        now: Date
+    ) -> [SurfacePage] {
+        guard source.isActive, !context.distress.isActive else { return [] }
+        let returnedIDs = Set(inputs.days.flatMap(\.pages).compactMap { page in
+            page.livedQuestReceipt?.kind == .bookWorking
+                ? page.livedQuestReceipt?.questID
+                : nil
+        })
+        guard let working = inputs.bookWorkings.history
+            .filter({
+                $0.status == .elapsed
+                    && $0.returnedAt == nil
+                    && $0.endsAt <= now
+                    && !returnedIDs.contains($0.id)
+            })
+            .max(by: { $0.endsAt < $1.endsAt }) else {
+            return []
+        }
+
+        let outsideMarks = working.effects.compactMap { effect -> String? in
+            guard effect.status == .executed else { return nil }
+            switch effect.kind {
+            case .calendarOpening: return "an opening in the calendar"
+            case .notificationSummons: return "a summons placed in a governed whisper seat"
+            case .widgetMark: return "a mark beyond the open Book"
+            }
+        }
+        let receiptLine = outsideMarks.isEmpty
+            ? "The attempt left no confirmed mark outside the covers. The Book is recording that honestly."
+            : "It left \(naturalList(outsideMarks))."
+        return [SurfacePage(
+            id: "book-working-return-\(working.id)",
+            type: .souvenir,
+            sourceID: source.id,
+            intent: .capture,
+            renderStyle: .loreLetter,
+            score: 94,
+            reason: "\(working.initiatorName)'s real-world Working has ended and is owed an honest consequence.",
+            prompt: working.returnPrompt,
+            detail: "\(working.initiatorName) arranged this. The Book kept the receipts.",
+            payload: BookPagePayload(
+                headline: "After \(working.title)",
+                body: "\(working.invitation)\n\n\(receiptLine)\n\n\(working.returnPrompt)",
+                metadata: [
+                    "source": source.id,
+                    "bookWorkingID": working.id,
+                    "bookWorkingRecipeID": working.recipeID,
+                    "bookWorkingInitiator": working.initiatorName,
+                    "mission": working.invitation,
+                    "proofPrompt": working.returnPrompt,
+                    "placeholder": "One exact detail from what happened…",
+                    "tags": "book-working,lived-world,return,exact-attention,entity:\(working.initiatorID)"
+                ]
+            )
+        )]
+    }
+
+    private func naturalList(_ values: [String]) -> String {
+        switch values.count {
+        case 0: return "no confirmed mark"
+        case 1: return values[0]
+        case 2: return "\(values[0]) and \(values[1])"
+        default: return values.dropLast().joined(separator: ", ") + ", and " + values.last!
+        }
+    }
+}
+
 enum BookPageSourceAdapters {
     static let active: [BookPageSourceAdapter] = [
         InventoryPageSourceAdapter(),
@@ -12651,7 +12729,8 @@ enum BookPageSourceAdapters {
         GossipPageSourceAdapter(),
         CastIllustrationPageSourceAdapter(),
         OuterStacksAnchorPageSourceAdapter(),
-        LocationPageSourceAdapter()
+        LocationPageSourceAdapter(),
+        BookWorkingReturnPageSourceAdapter()
     ]
 
     static func adapter(for type: BookPageType) -> BookPageSourceAdapter? {

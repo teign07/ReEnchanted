@@ -2007,6 +2007,7 @@ enum LivedQuestKind: String, Codable, CaseIterable, Equatable {
     case pactErrand
     case faeBargain
     case bookCampaign
+    case bookWorking
     case elective
 
     var title: String {
@@ -2018,6 +2019,7 @@ enum LivedQuestKind: String, Codable, CaseIterable, Equatable {
         case .pactErrand: return "Pact Errand"
         case .faeBargain: return "Fae Bargain"
         case .bookCampaign: return "A Small Experiment"
+        case .bookWorking: return "A Working"
         case .elective: return "Unwritten Elective"
         }
     }
@@ -2097,6 +2099,8 @@ struct LivedQuestReceipt: Codable, Equatable {
         } else if let id = metadata["faeBargainID"]?.nonEmpty
                     ?? metadata["bargainID"]?.nonEmpty {
             resolved = (.faeBargain, id)
+        } else if let id = metadata["bookWorkingID"]?.nonEmpty {
+            resolved = (.bookWorking, id)
         } else if let id = metadata["bookCampaignID"]?.nonEmpty {
             resolved = (.bookCampaign, id)
         } else if let id = metadata["electiveID"]?.nonEmpty {

@@ -26,6 +26,7 @@ let package = Package(
                 "SentenceBuilder.swift",
                 "BookArchiveDatabase.swift",
                 "BookInterruptionBudget.swift",
+                "BookWorkings.swift",
                 "CastUndertakings.swift",
                 "WorldPressure.swift",
                 "PlaceMemory.swift",

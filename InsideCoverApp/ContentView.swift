@@ -282,6 +282,7 @@ struct ContentView: View {
     @State var isChoosingWonderCompassPassage = false
     @State var isRequestingHealthKit = false
     @State var isSourceSettingsPresented = false
+    @State var isBookWorkingAuthorityPresented = false
     @State var isCustomCastSheetPresented = false
     @State var isBraidingTablePresented = false
     @State var surfaceRefreshDate = Date()
@@ -659,6 +660,7 @@ struct ContentView: View {
             return livingDay
         }
         inputs.greyPageThreats = greyLedger
+        inputs.bookWorkings = vault.data.bookWorkings ?? .empty
         inputs.bookInterior = vault.data.bookInterior ?? .unawakened
         inputs.magicMoment = vault.data.magicMoment ?? MagicMomentState()
         inputs.bookObservations = vault.data.bookObservations ?? []
@@ -1914,8 +1916,10 @@ struct ContentView: View {
                         refreshBookInterior()
                         refreshOpeningVoice()
                         if bookCalendarEnabled {
-                            calendarEvents = await CalendarDoorway.upcomingEvents()
+                            let horizon = (vault.data.bookWorkings ?? .empty).authority.isEnabled ? 5 : 2
+                            calendarEvents = await CalendarDoorway.upcomingEvents(horizonDays: horizon)
                         }
+                        await tendBookWorkings()
                         refreshBookWhispers()
                         handlePendingRadioWidgetCommand()
                         handlePendingCompassWidgetCommand()
@@ -2139,6 +2143,15 @@ struct ContentView: View {
                     publicMarginsOutgoingOptIn: $publicMarginsOutgoingOptIn
                 ) { sourceID, isEnabled in
                     setSourceEnabled(sourceID: sourceID, isEnabled: isEnabled)
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $isBookWorkingAuthorityPresented) {
+                BookWorkingAuthoritySheet(
+                    authority: (vault.data.bookWorkings ?? .empty).authority
+                ) { authority in
+                    applyBookWorkingAuthority(authority)
                 }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
@@ -2863,9 +2876,11 @@ struct ContentView: View {
             BookWhispers.refreshAnchorDoorbells(enabled: promptWhispersEnabled, anchors: anchorLedger)
         }
         if bookCalendarEnabled {
-            calendarEvents = await CalendarDoorway.upcomingEvents()
+            let horizon = (vault.data.bookWorkings ?? .empty).authority.isEnabled ? 5 : 2
+            calendarEvents = await CalendarDoorway.upcomingEvents(horizonDays: horizon)
             surfaceRefreshDate = Date()
         }
+        await tendBookWorkings()
         if didCompleteStoryOnboarding { refreshBookWhispers() }
         PackEntitlements.ownedPackIDs = Set(vault.data.ownedPacks ?? [])
         tendArc()
@@ -7377,6 +7392,14 @@ struct ContentView: View {
 
                     ColophonDedicationCard()
 
+                    BookWorkingAuthorityCard(
+                        authority: (vault.data.bookWorkings ?? .empty).authority,
+                        hasCurrentWorking: (vault.data.bookWorkings ?? .empty).current != nil
+                    ) {
+                        BookFeedback.play(.openPage)
+                        isBookWorkingAuthorityPresented = true
+                    }
+
                     HStack {
                         Text("Doorway settings live here now.")
                             .font(.caption.weight(.semibold))
@@ -8195,6 +8218,7 @@ struct ContentView: View {
             checkInAnchorIfNeeded(surface, tags: tags)
         }
         acceptElectiveIfNeeded(surface: surface)
+        recordBookWorkingReturnIfNeeded(surface: surface, at: keptAt)
         applyBookJumpActionIfNeeded(surface: surface, input: input)
         applyBookFaeChoiceIfNeeded(surface: surface, tags: tags)
         if surface.payload.metadata["chapterBinding"] == "true" {
@@ -13290,7 +13314,8 @@ struct ContentView: View {
             radio: radioManager.playback,
             radioIsPlaying: radioManager.isPlaying,
             activeWorldEvents: sourceInputs.resolvingWorldEvents(for: today, now: Date()).activeWorldEvents,
-            bookInterior: sourceInputs.bookInterior
+            bookInterior: sourceInputs.bookInterior,
+            bookWorking: sourceInputs.bookWorkings.current
         )
     }
 

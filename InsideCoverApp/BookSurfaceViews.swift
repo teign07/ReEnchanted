@@ -5064,6 +5064,129 @@ extension View {
     }
 }
 
+struct BookWorkingAuthorityCard: View {
+    let authority: BookWorkingAuthority
+    let hasCurrentWorking: Bool
+    let onOpen: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: authority.isEnabled ? "key.fill" : "key")
+                .font(.title3)
+                .foregroundStyle(authority.isEnabled ? BookPalette.lampGold : BookPalette.nightText.opacity(0.48))
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("The Book's Hands")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.9))
+                Text(statusLine)
+                    .font(.caption2)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Button(authority.isEnabled ? "Pact" : "Open") { onOpen() }
+                .font(.caption.weight(.bold))
+                .buttonStyle(.bordered)
+                .tint(authority.isEnabled ? BookPalette.lampGold : BookPalette.teal)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(BookPalette.paper.opacity(0.62))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(BookPalette.nightText.opacity(0.1), lineWidth: 0.7)
+                )
+        )
+    }
+
+    private var statusLine: String {
+        guard authority.isEnabled else {
+            return "The house keys are sealed. Open one standing pact if the Book may arrange surprises beyond its pages."
+        }
+        if hasCurrentWorking {
+            return "Something has been arranged. The receipts will tell the truth afterward."
+        }
+        return "\(authority.appetite.detail) Between \(authority.earliestHour):00 and \(authority.latestHour):00; never per-event permission buttons."
+    }
+}
+
+struct BookWorkingAuthoritySheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: BookWorkingAuthority
+    let onSave: (BookWorkingAuthority) -> Void
+
+    init(
+        authority: BookWorkingAuthority,
+        onSave: @escaping (BookWorkingAuthority) -> Void
+    ) {
+        _draft = State(initialValue: authority)
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Toggle("Let the Book arrange Workings", isOn: $draft.isEnabled)
+                        .tint(BookPalette.lampGold)
+                } header: {
+                    Text("A standing pact")
+                } footer: {
+                    Text("You choose the powers and frequency once. The Book or a character chooses the moment. You can close the pact here at any time.")
+                }
+
+                if draft.isEnabled {
+                    Section("How alive should it be?") {
+                        Picker("Appetite", selection: $draft.appetite) {
+                            ForEach(BookWorkingAppetite.allCases) { appetite in
+                                Text(appetite.title).tag(appetite)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        Text(draft.appetite.detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Section {
+                        Toggle("Make openings in Calendar", isOn: $draft.allowsCalendarOpenings)
+                            .tint(BookPalette.teal)
+                        Toggle("Use a governed whisper seat", isOn: $draft.allowsNotificationSummons)
+                            .tint(BookPalette.lampGold)
+                    } header: {
+                        Text("House keys")
+                    } footer: {
+                        Text("Workings use free patches between 5:00 PM and 10:00 PM, leave a fifteen-minute buffer around other events, and never add a third notification seat to a day.")
+                    }
+
+                    Section("What the pact cannot mean") {
+                        Label("No purchases, messages, deletions, or public posts", systemImage: "nosign")
+                        Label("No claim that an effect happened without a receipt", systemImage: "checkmark.seal")
+                        Label("No punishment, streak, or meaning attached to saying no", systemImage: "hand.raised")
+                    }
+                    .font(.caption)
+                }
+            }
+            .navigationTitle("The Book's Hands")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(draft.isEnabled ? "Bind Pact" : "Seal") {
+                        onSave(draft)
+                        dismiss()
+                    }
+                    .disabled(draft.isEnabled && !draft.hasAnOutsideDoorway)
+                }
+            }
+        }
+    }
+}
+
 private func openingProgress(_ value: Double, from start: Double, to end: Double) -> Double {
     guard end > start else { return value >= end ? 1 : 0 }
     return smoothstep(min(max((value - start) / (end - start), 0), 1))

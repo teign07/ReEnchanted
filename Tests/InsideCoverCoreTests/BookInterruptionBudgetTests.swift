@@ -98,4 +98,24 @@ final class BookInterruptionBudgetTests: XCTestCase {
             ["festival"]
         )
     }
+
+    func testWorkingTakesAGenericSeatButYieldsToAnotherContextualHinge() {
+        let genericAndWorking = [
+            candidate("braid", .evening, kind: .braid),
+            candidate("working", .evening, kind: .working, specific: true, priority: 65)
+        ]
+        XCTAssertEqual(
+            BookInterruptionBudget.plan(candidates: genericAndWorking, cadence: .evening).winners.map(\.id),
+            ["working"]
+        )
+
+        let festivalAndWorking = [
+            candidate("festival", .evening, kind: .festival, specific: true, priority: 120),
+            candidate("working", .evening, kind: .working, specific: true, priority: 65)
+        ]
+        XCTAssertEqual(
+            BookInterruptionBudget.plan(candidates: festivalAndWorking, cadence: .evening).winners.map(\.id),
+            ["festival"]
+        )
+    }
 }

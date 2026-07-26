@@ -1273,6 +1273,116 @@ extension ContentView {
         ))
     }
 
+    @MainActor
+    func tendBookWorkings(now: Date = Date()) async {
+        guard didCompleteStoryOnboarding else { return }
+        let original = vault.data.bookWorkings ?? .empty
+        let context = CuratorContext.make(for: today, recentDays: days)
+        let plan = BookWorkingEngine.reconcile(
+            ledger: original,
+            context: BookWorkingContext(
+                now: now,
+                calendarEvents: calendarEvents,
+                distressActive: context.distress.isActive,
+                activeUndertakings: (vault.data.castUndertakings ?? []).filter(\.isRunning)
+            )
+        )
+        var ledger = plan.ledger
+        if ledger != original {
+            vault.data.bookWorkings = ledger
+            vault.save()
+            surfaceRefreshDate = now
+        }
+        guard let working = ledger.current else { return }
+
+        for effect in working.effects where effect.status == .planned {
+            let succeeded: Bool
+            let detail: String
+            switch effect.kind {
+            case .calendarOpening:
+                succeeded = await EventKitWriter.arrangeBookWorking(working)
+                detail = succeeded ? "The opening was written to Calendar." : "Calendar did not accept the opening."
+            case .notificationSummons:
+                #if canImport(UserNotifications)
+                succeeded = await BookWhispers.offerWorking(working, now: now)
+                #else
+                succeeded = false
+                #endif
+                detail = succeeded ? "A governed whisper seat was reserved." : "No permitted whisper seat was available."
+            case .widgetMark:
+                succeeded = true
+                detail = "The closed Book carries a private-safe mark."
+            }
+            ledger.recordEffect(
+                workingID: working.id,
+                kind: effect.kind,
+                succeeded: succeeded,
+                detail: detail,
+                at: Date()
+            )
+            vault.data.bookWorkings = ledger
+            vault.save()
+        }
+        if ledger.current?.effects.contains(where: { $0.kind == .calendarOpening && $0.status == .executed }) == true {
+            calendarEvents = await CalendarDoorway.upcomingEvents(horizonDays: 5)
+        }
+        surfaceRefreshDate = Date()
+        writeWidgetSnapshot()
+    }
+
+    @MainActor
+    func applyBookWorkingAuthority(_ proposed: BookWorkingAuthority) {
+        var authority = proposed
+        var ledger = vault.data.bookWorkings ?? .empty
+        if authority.isEnabled {
+            authority.grantedAt = authority.grantedAt ?? Date()
+            authority.earliestHour = max(6, min(21, authority.earliestHour))
+            authority.latestHour = max(authority.earliestHour + 1, min(23, authority.latestHour))
+            ledger.authority = authority
+            vault.data.bookWorkings = ledger
+            vault.save()
+            if authority.allowsCalendarOpenings { bookCalendarEnabled = true }
+            if authority.allowsNotificationSummons {
+                bookWhispersEnabled = true
+                promptWhispersEnabled = true
+            }
+            statusMessage = "The pact is open. The next Working will be a surprise; its limits will not be."
+            Task { @MainActor in
+                if bookCalendarEnabled {
+                    calendarEvents = await CalendarDoorway.upcomingEvents(horizonDays: 5)
+                }
+                await tendBookWorkings()
+                refreshBookWhispers()
+            }
+        } else {
+            ledger.authority = authority
+            vault.data.bookWorkings = ledger
+            vault.save()
+            Task { @MainActor in await revokeBookWorkingAuthority() }
+        }
+    }
+
+    @MainActor
+    func revokeBookWorkingAuthority(now: Date = Date()) async {
+        var ledger = vault.data.bookWorkings ?? .empty
+        ledger.authority.isEnabled = false
+        let current = ledger.current
+        vault.data.bookWorkings = ledger
+        vault.save()
+        if let current {
+            #if canImport(UserNotifications)
+            BookWhispers.cancelWorking(current, now: now)
+            #endif
+            _ = await EventKitWriter.removeBookWorking(current)
+            _ = ledger.cancelCurrent(at: now)
+        }
+        vault.data.bookWorkings = ledger
+        vault.save()
+        surfaceRefreshDate = now
+        refreshBookWhispers()
+        statusMessage = "The Book has put down the house keys. No Working is owed."
+    }
+
 
     func acceptElectiveIfNeeded(surface: SurfacePage) {
         guard surface.type == .elective,
@@ -1316,6 +1426,14 @@ extension ContentView {
         statusMessage = elective.bookFavorID == nil
             ? "\(elective.characterName)'s quest is tucked into the flyleaf."
             : "The favor is tucked into the flyleaf. The Book will keep its promise without keeping score."
+    }
+
+    func recordBookWorkingReturnIfNeeded(surface: SurfacePage, at date: Date) {
+        guard let workingID = surface.payload.metadata["bookWorkingID"]?.nonEmpty else { return }
+        var ledger = vault.data.bookWorkings ?? .empty
+        ledger.recordReturn(workingID: workingID, at: date)
+        vault.data.bookWorkings = ledger
+        vault.save()
     }
 
     private func matchedQuestPlace(for surface: SurfacePage) -> LocalPlaceSignal? {
