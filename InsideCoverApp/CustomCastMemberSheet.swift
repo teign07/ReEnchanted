@@ -59,7 +59,7 @@ struct CustomCastMemberSheet: View {
                         editor(
                             "What does this entry mean to you?",
                             text: $meaning,
-                            prompt: "Why does it deserve Belief? What should the game understand about it?",
+                            prompt: "Why does it deserve Belief? What should the Book remember about it?",
                             minHeight: 120
                         )
                         editor(
@@ -88,7 +88,7 @@ struct CustomCastMemberSheet: View {
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Give Belief") {
+                    Button("Invite") {
                         onSave(draft)
                         dismiss()
                     }
@@ -122,10 +122,10 @@ struct CustomCastMemberSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Give Belief to something new", systemImage: "sparkle.magnifyingglass")
+            Label("Invite something new into the Cast", systemImage: "sparkle.magnifyingglass")
                 .font(.headline.weight(.bold))
                 .foregroundStyle(BookPalette.lampGold)
-            Text("The Book will add it to the Cast, the World Register, and the Belief menu. High Glow helps it surface, but low Glow never disappears entirely.")
+            Text("The Book will add it to the Cast and the World Register. If its Glow quiets later, it will rest in the margins rather than disappear.")
                 .font(.system(.callout, design: .serif))
                 .foregroundStyle(BookPalette.nightText.opacity(0.82))
                 .fixedSize(horizontal: false, vertical: true)

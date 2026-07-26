@@ -121,6 +121,52 @@ final class StoryPageDramaticContractTests: XCTestCase {
         XCTAssertTrue(valid.isAcceptable, valid.failures.joined(separator: " | "))
     }
 
+    func testChoiceClosureMarksEveryRoadNotTaken() {
+        let tags = StoryChoiceClosure.tags(
+            chosenChoiceID: "progress-arc",
+            availableChoiceIDs: ["slice-of-life", "progress-arc", "surprise"],
+            chosenText: "Carry the promise forward."
+        )
+        XCTAssertTrue(tags.contains("story-path-chosen:progressarc"))
+        XCTAssertTrue(tags.contains("story-path-closed:sliceoflife"))
+        XCTAssertTrue(tags.contains("story-path-closed:surprise"))
+        XCTAssertFalse(tags.contains("story-path-closed:progressarc"))
+    }
+
+    func testBetrayalClosureBecomesHighWeightCharacterMemory() throws {
+        let contract = sampleContract()
+        let effect = try XCTUnwrap(contract.effect(for: "surprise"))
+        let receipt = StoryDramaticOutcomeReceipt(
+            contract: contract,
+            effect: effect,
+            turnKind: .relationshipShift
+        )
+        let receiptTag = try XCTUnwrap(receipt.encodedTag)
+        let closureTags = StoryChoiceClosure.tags(
+            chosenChoiceID: "surprise",
+            availableChoiceIDs: ["slice-of-life", "progress-arc", "surprise"],
+            chosenText: "Betray the promise and abandon the map."
+        )
+        let page = BookPage(
+            type: .narrativeOS,
+            promptText: "A Story Page",
+            userInput: "Chosen path: Something Surprising",
+            tags: ["choice:surprise", "entity:zara", "entity:stonebrook", receiptTag] + closureTags
+        )
+
+        let consequence = StoryConsequenceResolver.resolvedConsequence(
+            forChoiceID: "surprise",
+            page: page
+        )
+        XCTAssertTrue(consequence.eventTags.contains("story-betrayal-remembered"))
+        XCTAssertTrue(consequence.eventTags.contains("story-path-closed:progressarc"))
+        XCTAssertTrue(consequence.entityMemoryWrites.contains {
+            $0.entityID == "stonebrook"
+                && $0.narrativeWeight == 9
+                && $0.summary.contains("betrayal")
+        })
+    }
+
     private func sampleContract() -> StoryDramaticContract {
         let effects = [
             StoryDramaticChoiceEffect(

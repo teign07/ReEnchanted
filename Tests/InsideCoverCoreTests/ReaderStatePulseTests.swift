@@ -153,6 +153,69 @@ final class ReaderStatePulseTests: XCTestCase {
         XCTAssertGreaterThan(reading.sevenDayAverage ?? 0, reading.previousSevenDayAverage ?? 10)
     }
 
+    func testStrongRecentLivedProofDoesNotBecomeDimmingBecauseEarlierProofWasHigher() {
+        var pulses = ReaderStatePulseLedger.empty
+        for (offset, score) in [(-11, 9), (-8, 9), (-5, 7), (-1, 7)] {
+            pulses.record(pulse(
+                id: "strong-\(offset)",
+                dimension: .delayedOutcome,
+                score: score,
+                at: now.addingTimeInterval(TimeInterval(offset) * 86_400)
+            ))
+        }
+        var aliveness = ReaderAlivenessModel.unwritten
+        for offset in [-6, -3, 0] {
+            let date = now.addingTimeInterval(TimeInterval(offset) * 86_400)
+            aliveness.ingest(ReaderLearningEvent(
+                id: "dismissed-\(offset)",
+                dayID: BookDay.id(for: date),
+                occurredAt: date,
+                action: .dismissed,
+                surfaceID: "surface-\(offset)",
+                sourceID: "not-for-me",
+                type: .wonderCompass,
+                varietyKey: "not-for-me",
+                hour: 12,
+                tags: ["book-session:freshSight"]
+            ))
+        }
+
+        let reading = ReaderReenchantmentMeasure.reading(
+            pulses: pulses,
+            aliveness: aliveness,
+            longGame: nil,
+            learning: ReaderLearningModel(),
+            days: [],
+            now: now
+        )
+        XCTAssertEqual(reading.direction, .holding)
+        XCTAssertEqual(reading.counterSignalCount, 0)
+        XCTAssertEqual(reading.livedProofCount, 4)
+    }
+
+    func testRecentCounterEvidenceCanStillDeclareDimming() {
+        var pulses = ReaderStatePulseLedger.empty
+        for (offset, score) in [(-11, 8), (-8, 8), (-5, 2), (-1, 2)] {
+            pulses.record(pulse(
+                id: "counter-\(offset)",
+                dimension: .delayedOutcome,
+                score: score,
+                at: now.addingTimeInterval(TimeInterval(offset) * 86_400)
+            ))
+        }
+
+        let reading = ReaderReenchantmentMeasure.reading(
+            pulses: pulses,
+            aliveness: .unwritten,
+            longGame: nil,
+            learning: ReaderLearningModel(),
+            days: [],
+            now: now
+        )
+        XCTAssertEqual(reading.direction, .dimming)
+        XCTAssertEqual(reading.counterSignalCount, 2)
+    }
+
     func testEngagementAloneCannotDeclareAChangedLife() {
         var learning = ReaderLearningModel()
         for offset in 0..<20 {

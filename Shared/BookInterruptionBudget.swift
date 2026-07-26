@@ -1,6 +1,8 @@
 import Foundation
 
-enum BookInterruptionKind: String, Codable, Equatable { case ordinary, person, weather, braid, festival, interior, favor, anchor }
+enum BookInterruptionKind: String, Codable, Equatable {
+    case ordinary, person, weather, braid, festival, interior, favor, anchor, outcome
+}
 enum BookInterruptionWindow: String, Codable, CaseIterable, Equatable { case morning, evening }
 struct BookInterruptionCandidate: Equatable {
     var id: String

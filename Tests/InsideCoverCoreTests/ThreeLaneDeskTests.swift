@@ -206,6 +206,41 @@ final class ThreeLaneDeskTests: XCTestCase {
         XCTAssertLessThanOrEqual(compositionCount, 1)
     }
 
+    func testVisibleDeskDoesNotStackAMissionWithASecondFeltAsk() {
+        let mission = candidate(
+            .wonderCompass,
+            score: 96,
+            id: "mission",
+            sourceID: "mission",
+            copy: "Find the lowest sound",
+            metadata: ["curatorActionCommission": "true"]
+        )
+        let moodQuestion = candidate(
+            .mood,
+            score: 94,
+            id: "mood-question",
+            sourceID: "mood-question",
+            copy: "What's the weather like inside you?"
+        )
+        let candidates = [
+            mission,
+            moodQuestion,
+            candidate(.letter, score: 80),
+            candidate(.lore, score: 70),
+            candidate(.weather, score: 60)
+        ]
+
+        let pages = BookCurator.rankedPages(
+            from: candidates,
+            limit: 3,
+            mood: openMood(types: candidates.map(\.type)),
+            now: fixedDate(hour: 12)
+        ).map(\.page)
+
+        XCTAssertEqual(pages.count, 3)
+        XCTAssertEqual(pages.filter(\.isReaderFacingAsk).count, 1)
+    }
+
     // MARK: - Wide queries
 
     func testWideQueryBalancesVisiblePrefixThenKeepsADeepBench() {

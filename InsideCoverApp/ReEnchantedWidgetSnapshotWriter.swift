@@ -56,6 +56,7 @@ enum ReEnchantedWidgetSnapshotWriter {
         let radio = radioStatus(from: radio, isPlaying: radioIsPlaying, activeWorldEvents: activeWorldEvents)
         let worldEvent = worldEventStatus(from: activeWorldEvents)
         let enchantments = enchantmentShortcuts()
+        let question = questionPrompt(from: surfaces)
         let belief = ReEnchantedWidgetBelief(
             title: "Glow",
             detail: beliefDetail(for: beliefScore),
@@ -75,7 +76,26 @@ enum ReEnchantedWidgetSnapshotWriter {
             worldEvent: worldEvent,
             enchantments: enchantments,
             belief: belief,
+            question: question,
             bookInterior: interior
+        )
+    }
+
+    private static func questionPrompt(from surfaces: [SurfacePage]) -> ReEnchantedWidgetQuestion? {
+        guard let surface = surfaces.first(where: {
+            $0.payload.metadata["readerStatePulse"] == "true"
+        }) else {
+            return nil
+        }
+        return ReEnchantedWidgetQuestion(
+            id: surface.id,
+            title: surface.payload.headline.nonEmpty ?? "A question from the Book",
+            prompt: privateSafeLine(
+                body: surface.payload.body.nonEmpty ?? surface.detail,
+                fallback: surface.prompt
+            ),
+            symbolName: "questionmark.bubble",
+            urlPath: "question"
         )
     }
 
@@ -132,8 +152,8 @@ enum ReEnchantedWidgetSnapshotWriter {
         }
         if let game = interior.longGame, game.phasePresentedAt == nil {
             return ReEnchantedWidgetBookInterior(
-                title: "The Long Game",
-                line: "The campaign has entered: \(game.phase.title).",
+                title: "The Book Has Been Trying Something",
+                line: "A quiet experiment has left a new note in the margins.",
                 symbolName: "map",
                 urlPath: "today"
             )

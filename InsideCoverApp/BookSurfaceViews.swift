@@ -656,7 +656,12 @@ private struct BookClusterCard: View {
     var body: some View {
         BookConnectionCardShell(accent: BookPalette.teal) {
             VStack(alignment: .leading, spacing: 10) {
-                connectionHeader(title: cluster.name, subtitle: "\(cluster.strength)% glow · \(cluster.motifs.count) motifs", symbol: "sparkles.rectangle.stack", accent: BookPalette.teal)
+                connectionHeader(
+                    title: cluster.name,
+                    subtitle: cluster.strength >= 70 ? "These things have begun arriving together." : "A few ordinary things are starting to rhyme.",
+                    symbol: "sparkles.rectangle.stack",
+                    accent: BookPalette.teal
+                )
                 Text(cluster.line)
                     .font(.callout)
                     .foregroundStyle(BookPalette.nightText.opacity(0.78))
@@ -678,7 +683,9 @@ private struct BookConstellationCard: View {
             VStack(alignment: .leading, spacing: 10) {
                 connectionHeader(
                     title: constellation.displayName,
-                    subtitle: "\(constellation.phase.title) · \(constellation.sightingCount) sightings · peak \(constellation.strengthPeak)",
+                    subtitle: constellation.isNamed
+                        ? "The Book knows this shape by name."
+                        : "A shape is beginning to gather.",
                     symbol: constellation.isNamed ? "star.fill" : "star",
                     accent: BookPalette.lampGold
                 )
@@ -2722,10 +2729,10 @@ struct SurfaceCard: View {
 
     private var openActionLabel: String {
         guard SurfaceReadinessState(surface: surface).needsLocalBrainToOpen,
-              let kind = BeliefEconomyPolicy.generationKind(for: surface) else {
+              BeliefEconomyPolicy.generationKind(for: surface) != nil else {
             return "Open the page"
         }
-        return "Open · \(kind.cost) Belief"
+        return "Open — the page will borrow some Belief"
     }
 
     /// True when the shelf card is a Shadow Wonder variant of an ordinary page
@@ -4025,11 +4032,33 @@ struct SourceToggleRow: View {
 }
 
 struct FragmentRow: View {
+    struct ExternalActions {
+        var learningAllowed: Bool
+        var weavingAllowed: Bool
+        var sourceURL: URL?
+        var attachments: [BookPageExternalAttachment]
+        var onToggleLearning: () -> Void
+        var onToggleWeaving: () -> Void
+    }
+
     let page: BookPage
+    let externalActions: ExternalActions?
     let onOpen: () -> Void
     let onRemove: () -> Void
 
     @State private var dragOffset: CGFloat = 0
+
+    init(
+        page: BookPage,
+        externalActions: ExternalActions? = nil,
+        onOpen: @escaping () -> Void,
+        onRemove: @escaping () -> Void
+    ) {
+        self.page = page
+        self.externalActions = externalActions
+        self.onOpen = onOpen
+        self.onRemove = onRemove
+    }
 
     private let dismissThreshold: CGFloat = 82
     private let horizontalDragRatio: CGFloat = 1.6
@@ -4103,17 +4132,65 @@ struct FragmentRow: View {
                 onOpen()
             }
             .overlay(alignment: .topTrailing) {
-                Button {
-                    onRemove()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(BookPalette.ink.opacity(0.42))
-                        .padding(10)
+                VStack(spacing: 0) {
+                    Button {
+                        onRemove()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(BookPalette.ink.opacity(0.42))
+                            .padding(10)
+                    }
+                    .buttonStyle(.bookPress())
+                    .accessibilityLabel("Remove \(page.type.title) from Today's Margins")
+
+                    if let actions = externalActions {
+                        Menu {
+                            Button {
+                                actions.onToggleLearning()
+                            } label: {
+                                Label(
+                                    actions.learningAllowed
+                                        ? "Keep, but don't teach curation"
+                                        : "Let this teach curation",
+                                    systemImage: actions.learningAllowed ? "brain.head.profile.slash" : "brain.head.profile"
+                                )
+                            }
+                            Button {
+                                actions.onToggleWeaving()
+                            } label: {
+                                Label(
+                                    actions.weavingAllowed
+                                        ? "Keep out of stories"
+                                        : "Let the Book weave with this",
+                                    systemImage: actions.weavingAllowed ? "text.badge.xmark" : "text.badge.plus"
+                                )
+                            }
+                            if let sourceURL = actions.sourceURL {
+                                Link(destination: sourceURL) {
+                                    Label("Open original", systemImage: "arrow.up.right.square")
+                                }
+                            }
+                            ForEach(actions.attachments) { attachment in
+                                Link(destination: URL(fileURLWithPath: attachment.filePath)) {
+                                    Label(
+                                        attachment.originalFilename?.nonEmpty ?? "Open attachment",
+                                        systemImage: attachment.kind == "image" ? "photo" : "doc"
+                                    )
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle.fill")
+                                .font(.title3)
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(BookPalette.teal.opacity(0.70))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                        }
+                        .accessibilityLabel("Options for this imported scrap")
+                    }
                 }
-                .buttonStyle(.bookPress())
-                .accessibilityLabel("Remove \(page.type.title) from Today's Margins")
             }
             .overlay(alignment: .trailing) {
                 SwipeDismissHandle()
@@ -7847,10 +7924,10 @@ struct OnboardingFlowView: View {
 
         var badge: String {
             switch self {
-            case .triumph: return "The Inkbones crack the margin open"
-            case .hold: return "Belief holds"
-            case .glance: return "Belief frays, but holds"
-            case .cost: return "Wicker catches a thread"
+            case .triumph: return "Better than you hoped"
+            case .hold: return "It lands"
+            case .glance: return "It just about holds"
+            case .cost: return "He gets one over on you"
             }
         }
 
@@ -7876,10 +7953,10 @@ struct OnboardingFlowView: View {
         /// the braid, and whether Wicker walks off with an edge over you.
         var threadKept: String {
             switch self {
-            case .triumph: return "Wicker leaves with nothing. You keep the edge."
-            case .hold: return "A clean thread goes into the braid."
-            case .glance: return "A frayed-but-holding thread goes into the braid."
-            case .cost: return "Wicker pockets a thread of yours. You'll want it back."
+            case .triumph: return "Wicker walks away with nothing. Rare, for him."
+            case .hold: return "Wicker walks away with nothing."
+            case .glance: return "Wicker doesn't get much, but he got something."
+            case .cost: return "Wicker pockets a piece of your story. You'll want it back."
             }
         }
     }
@@ -8012,7 +8089,7 @@ struct OnboardingFlowView: View {
     @State private var onboardingPhotoImage: UIImage?
     @State private var onboardingPhotoDraft: IlluminatedPhotoDraft?
     @State private var onboardingPhotoPreviewURL: URL?
-    @State private var onboardingPhotoMessage = "Choose or take one ordinary photo. The Book illuminates it here without asking Gemma."
+    @State private var onboardingPhotoMessage = "Pick a photo, or take one. It never leaves your phone."
     @State private var isOnboardingPhotoLoading = false
     @State private var isOnboardingCameraPresented = false
     @State private var isOnboardingPhotoPreviewPresented = false
@@ -8079,16 +8156,16 @@ struct OnboardingFlowView: View {
     // settings form: each is a small ritual that gives the Book something it
     // can visibly return before the Standing Order appears.
     private let stepCount = 13
-    private let currentOnboardingFlowVersion = 6
+    private let currentOnboardingFlowVersion = 7
     private let momentFateChoices = [
         OnboardingChoice(id: "keep", title: "I keep them", detail: "I already save small moments somewhere.", symbol: "bookmark"),
         OnboardingChoice(id: "forget", title: "I mean to, then forget", detail: "I notice, but the day usually carries it off.", symbol: "wind"),
         OnboardingChoice(id: "blur", title: "Most days blur first", detail: "I want more small interruptions that bring me back.", symbol: "cloud.fog")
     ]
     private let hiddenMagicChoices = [
-        OnboardingChoice(id: "yes", title: "Yes. I forget to look.", detail: "The magic's there. My attention wanders.", symbol: "eye"),
-        OnboardingChoice(id: "maybe", title: "Maybe. I want to notice.", detail: "I'm willing to look without pretending.", symbol: "sparkle.magnifyingglass"),
-        OnboardingChoice(id: "prove", title: "Not yet. Show me.", detail: "I'd rather have evidence than a promise.", symbol: "questionmark.diamond")
+        OnboardingChoice(id: "yes", title: "Yes. There it was.", detail: "The room changed when I looked twice.", symbol: "eye"),
+        OnboardingChoice(id: "maybe", title: "A little.", detail: "Something shifted, even if I can't name it.", symbol: "sparkle.magnifyingglass"),
+        OnboardingChoice(id: "prove", title: "Not yet. Show me more.", detail: "One glimpse isn't evidence yet.", symbol: "questionmark.diamond")
     ]
     private let rutChoices = [
         OnboardingChoice(id: "work", title: "Work swallows the day", detail: "", symbol: "briefcase"),
@@ -8142,8 +8219,8 @@ struct OnboardingFlowView: View {
     private let wickerChoices = [
         WickerModeChoice(
             id: "slice-of-life",
-            title: "Slice of Life",
-            detail: "Answer him with one concrete ordinary detail.",
+            title: "Something Small and True",
+            detail: "Tell him one exact, unglamorous detail from your actual life.",
             symbol: "mug",
             difficulty: 42,
             triumphLine: "You give him one exact, unglamorous detail. It lands so cleanly the sneer slides off his face. A shelf leans closer. “Beginner's luck,” Wicker says, which is what people say when the beginner has just beaten them.",
@@ -8153,8 +8230,8 @@ struct OnboardingFlowView: View {
         ),
         WickerModeChoice(
             id: "arc",
-            title: "Arc",
-            detail: "Turn the interruption into a promise of motion.",
+            title: "Where This Is Going",
+            detail: "Don't answer the insult. Tell him where your story is headed.",
             symbol: "arrow.triangle.turn.up.right.diamond",
             difficulty: 56,
             triumphLine: "You name where this is going before he can name what's wrong with it. The corridor tilts toward a door that wasn't there a breath ago. “Cheap architecture,” Wicker mutters, glaring at the door as if it cheated.",
@@ -8164,8 +8241,8 @@ struct OnboardingFlowView: View {
         ),
         WickerModeChoice(
             id: "surprise",
-            title: "Surprise",
-            detail: "Refuse the expected answer and let something odd through.",
+            title: "Something He Won't Expect",
+            detail: "Refuse the obvious reply and let something odd out instead.",
             symbol: "sparkles",
             difficulty: 64,
             triumphLine: "Your answer arrives so far sideways that Wicker forgets to be superior for one entire second. A shelf laughs in dry, rustling paper. He'll deny this. The Book has already underlined it twice.",
@@ -8568,7 +8645,7 @@ struct OnboardingFlowView: View {
                             .font(.caption2.weight(.black))
                             .tracking(1.4)
                             .foregroundStyle(BookPalette.lampGold.opacity(0.78))
-                        Text(step == 0 ? "Opening the Book" : "Step \(step) of \(stepCount - 1)")
+                        Text(step == 0 ? "Opening the Book" : "One small Page at a time")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(BookPalette.nightText.opacity(0.62))
                     }
@@ -8694,98 +8771,78 @@ struct OnboardingFlowView: View {
             .defaultScrollAnchor(.top)
             .onChange(of: step) { _, _ in
                 scheduleOnboardingHeaderFade()
-                DispatchQueue.main.async {
-                    withAnimation(reduceMotion ? .none : .easeOut(duration: 0.18)) {
-                        scrollProxy.scrollTo("onboarding-page-top", anchor: .top)
-                    }
-                }
+                turnOnboardingPage(to: "onboarding-page-top", with: scrollProxy)
                 notifyGlowUnlockedIfNeeded()
             }
             .onChange(of: openingMiniStep) { _, _ in
                 guard step == 0 else { return }
                 scheduleOnboardingHeaderFade()
                 scheduleOpeningOvertureTitleFadeIfNeeded()
-                DispatchQueue.main.async {
-                    // The bitten Page reveals the Rut's receipt below the control.
-                    // Keep that answer in view even on the roomy iPad page, where
-                    // the opening otherwise remains pinned to the top.
-                    if keepsOpeningTopVisible && openingMiniStep != 2 {
-                        scrollProxy.scrollTo("onboarding-page-top", anchor: .top)
-                    } else {
-                        withAnimation(reduceMotion ? .none : .easeOut(duration: 0.18)) {
-                            scrollProxy.scrollTo(openingMiniScrollTargetID, anchor: .top)
-                        }
-                    }
-                }
+                // The bitten Page reveals the Rut's receipt below the control.
+                // Keep that answer in view even on the roomy iPad page, where
+                // the opening otherwise remains pinned to the top.
+                let target = (keepsOpeningTopVisible && openingMiniStep != 2)
+                    ? "onboarding-page-top"
+                    : openingMiniScrollTargetID
+                turnOnboardingPage(to: target, with: scrollProxy)
+            }
+            .onChange(of: conclusionMiniStep) { _, _ in
+                turnOnboardingPage(to: "onboarding-page-top", with: scrollProxy)
+            }
+            .onChange(of: didReadFirstDoorWriteback) { _, didRead in
+                guard didRead else { return }
+                revealOnboarding("onboarding-personalized-return", with: scrollProxy)
             }
             .onChange(of: belief) { _, _ in
                 notifyGlowUnlockedIfNeeded()
             }
             .onChange(of: didRevealRoutineEvidence) { _, didReveal in
                 guard step == 0, openingMiniStep == 2, didReveal else { return }
-                DispatchQueue.main.async {
-                    withAnimation(reduceMotion ? .none : .easeOut(duration: 0.28)) {
-                        scrollProxy.scrollTo("onboarding-opening-routine-evidence", anchor: .top)
-                    }
-                }
+                revealOnboarding("onboarding-opening-routine-evidence", with: scrollProxy)
             }
             .onChange(of: momentFate) { _, answer in
                 guard step == 0, openingMiniStep == 3, !answer.isEmpty else { return }
-                DispatchQueue.main.async {
-                    withAnimation(reduceMotion ? .none : .easeOut(duration: 0.28)) {
-                        scrollProxy.scrollTo("onboarding-moment-reflection", anchor: .center)
-                    }
-                }
+                revealOnboarding("onboarding-moment-reflection", with: scrollProxy)
             }
             .onChange(of: hiddenMagicStance) { _, answer in
                 guard step == 0, openingMiniStep == 4, !answer.isEmpty else { return }
-                DispatchQueue.main.async {
-                    withAnimation(reduceMotion ? .none : .easeOut(duration: 0.28)) {
-                        scrollProxy.scrollTo("onboarding-hidden-magic-reflection", anchor: .center)
-                    }
-                }
+                revealOnboarding("onboarding-hidden-magic-reflection", with: scrollProxy)
             }
             .onChange(of: rutStrongest) { _, answer in
                 guard step == 2, !answer.isEmpty else { return }
-                DispatchQueue.main.async {
-                    withAnimation(reduceMotion ? .none : .easeOut(duration: 0.28)) {
-                        scrollProxy.scrollTo("onboarding-rut-reflection", anchor: .center)
-                    }
-                }
+                revealOnboarding("onboarding-rut-reflection", with: scrollProxy)
             }
             .onChange(of: mostAlive) { _, answer in
                 guard step == 3, !answer.isEmpty else { return }
-                DispatchQueue.main.async {
-                    withAnimation(reduceMotion ? .none : .easeOut(duration: 0.28)) {
-                        scrollProxy.scrollTo("onboarding-alive-reflection", anchor: .center)
-                    }
-                }
+                revealOnboarding("onboarding-alive-reflection", with: scrollProxy)
             }
             .onChange(of: magicSource) { _, answer in
                 guard step == 4, !answer.isEmpty else { return }
-                DispatchQueue.main.async {
-                    withAnimation(reduceMotion ? .none : .easeOut(duration: 0.28)) {
-                        scrollProxy.scrollTo("onboarding-magic-source-reflection", anchor: .center)
-                    }
-                }
+                revealOnboarding("onboarding-magic-source-reflection", with: scrollProxy)
             }
             .onChange(of: didSteadyFirstPage) { _, didStand in
                 guard step == 1, didStand else { return }
-                DispatchQueue.main.async {
-                    withAnimation(reduceMotion ? .none : .easeOut(duration: 0.28)) {
-                        scrollProxy.scrollTo("onboarding-arrival-standing", anchor: .top)
-                    }
-                }
+                revealOnboarding("onboarding-arrival-standing", with: scrollProxy)
             }
             .onChange(of: wickerThrowID) { _, _ in
                 guard wickerOutcome != nil else { return }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                    withAnimation(reduceMotion ? .none : .easeOut(duration: 0.34)) {
-                        scrollProxy.scrollTo("onboarding-wicker-inkbones", anchor: .center)
-                    }
-                }
+                revealOnboarding("onboarding-wicker-inkbones", with: scrollProxy, delay: 0.12)
             }
             .scrollDismissesKeyboard(.interactively)
+            .modifier(
+                OnboardingLateRevealScrolling(
+                    step: step,
+                    snack: snack,
+                    name: name,
+                    investedBelief: investedBelief,
+                    whisperCadence: whisperCadence,
+                    didRevealDayThirtyAfter: didRevealDayThirtyAfter,
+                    didRevealHabitScience: didRevealHabitScience,
+                    reveal: { id, delay in
+                        revealOnboarding(id, with: scrollProxy, delay: delay)
+                    }
+                )
+            )
         }
     }
 
@@ -8919,22 +8976,22 @@ struct OnboardingFlowView: View {
     private let firstPressNarrativeChoices = [
         FirstPressNarrativeChoice(
             id: "slice-of-life",
-            title: "Slice of Life",
-            detail: "Tell the Page to keep the ordinary evidence ordinary.",
+            title: "Something Small and True",
+            detail: "Keep it ordinary. Don't let the Page improve it.",
             symbol: "mug",
             outcomeLine: "The Page answered, \"Then I wouldn't improve it.\" The ordinary detail stayed ordinary, and that was why it held: no thunder, no prophecy, just one true thing made harder to lose."
         ),
         FirstPressNarrativeChoice(
             id: "arc",
-            title: "Arc",
-            detail: "Ask the Page where this moment's trying to go.",
+            title: "Where This Is Going",
+            detail: "Ask the Page where this moment is trying to lead.",
             symbol: "arrow.triangle.turn.up.right.diamond",
             outcomeLine: "The Page answered, \"Then I'd give it a hinge.\" A thin gold arrow appeared under the line. It pointed at you, then at the door, then at you again, which wasn't helpful but was definitely a plot."
         ),
         FirstPressNarrativeChoice(
             id: "surprise",
-            title: "Surprise",
-            detail: "Let the Page do the uninvited thing.",
+            title: "Something Unexpected",
+            detail: "Stand back and let the Page do the uninvited thing.",
             symbol: "sparkles",
             outcomeLine: "The Page answered, \"Then you left room for what you didn't mean.\" The margin sneezed out a gold comma, a little door appeared where punctuation had no business being, and neither one explained itself."
         )
@@ -9043,6 +9100,39 @@ struct OnboardingFlowView: View {
         }
     }
 
+    /// Turns to a new onboarding page and pins it to the top of the reading
+    /// area. Scrolls twice on purpose: once immediately, so the reader never
+    /// sees the old scroll offset on the new page, and once after layout has
+    /// settled, because a taller or shorter page can otherwise leave the reader
+    /// looking at its middle.
+    private func turnOnboardingPage(to id: String, with proxy: ScrollViewProxy) {
+        proxy.scrollTo(id, anchor: .top)
+        DispatchQueue.main.async {
+            proxy.scrollTo(id, anchor: .top)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            withAnimation(reduceMotion ? .none : .easeOut(duration: 0.18)) {
+                proxy.scrollTo(id, anchor: .top)
+            }
+        }
+    }
+
+    /// Brings content that has just been revealed *below* a control to the top
+    /// of the reading area, so the reader never has to go looking for the thing
+    /// their own tap produced. The delay lets the inserted view lay out first —
+    /// scrolling to an id in the same runloop as its insertion lands short.
+    private func revealOnboarding(
+        _ id: String,
+        with proxy: ScrollViewProxy,
+        delay: Double = 0.08
+    ) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            withAnimation(reduceMotion ? .none : .easeOut(duration: 0.30)) {
+                proxy.scrollTo(id, anchor: .top)
+            }
+        }
+    }
+
     private func scheduleOnboardingHeaderFade() {
         onboardingHeaderFadeTask?.cancel()
         withAnimation(reduceMotion ? .easeOut(duration: 0.18) : .spring(response: 0.34, dampingFraction: 0.9)) {
@@ -9100,7 +9190,7 @@ struct OnboardingFlowView: View {
 
     private var stagePill: some View {
         HStack(spacing: 8) {
-	            Label("Step \(step) of \(stepCount - 1)", systemImage: onboardingSymbol)
+	            Label("THE FIRST DOOR", systemImage: onboardingSymbol)
 	                .font(.subheadline.weight(.bold))
 	                .foregroundStyle(BookPalette.teal)
 	            Spacer(minLength: 0)
@@ -9161,76 +9251,76 @@ struct OnboardingFlowView: View {
 
             case 1:
                 guidePortrait(mood: "Zara turns the Page sideways, looking for the place the grey gets in.")
-                onboardingTitle("Where Is the Rut Strongest?")
+                onboardingTitle("Where Does Your Life Go On Autopilot?")
                 onboardingProse("""
-                "No speeches," Zara says. "Just point to the door it uses most."
+                "No speeches," Zara says. "Just point at the door it comes through most."
 
-                "Where does your life disappear into autopilot?"
+                "Where do whole hours go missing on you?"
                 """)
                 onboardingChipChoices(choices: rutChoices, selection: $rutStrongest)
                 if !rutStrongest.isEmpty {
                     onboardingPreviewCard(
                         symbol: "scope",
-                        title: "The Book marks the weak seam",
+                        title: "Right, that's the one",
                         body: rutReflection
                     )
                     .id("onboarding-rut-reflection")
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
-                continueButton("Mark the seam", disabled: rutStrongest.isEmpty)
+                continueButton("That's the one", disabled: rutStrongest.isEmpty)
 
             case 2:
-                onboardingTitle("Where Do You Feel Most Alive?")
+                onboardingTitle("And Where Do You Feel Most Awake?")
                 onboardingProse("""
-                Zara taps the part of the Page the grey couldn't touch.
+                Zara taps the corner of the Page the grey couldn't get to.
 
-                "Now the opposite. When do you feel unmistakably here?"
+                "Opposite question. When are you completely, unmistakably here?"
                 """)
                 onboardingChipChoices(choices: aliveChoices, selection: $mostAlive)
                 if !mostAlive.isEmpty {
                     onboardingPreviewCard(
                         symbol: "waveform.path.ecg",
-                        title: "A live wire appears",
+                        title: "Good. It'll come back to this",
                         body: aliveReflection
                     )
                     .id("onboarding-alive-reflection")
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
-                continueButton("Keep the live wire", disabled: mostAlive.isEmpty)
+                continueButton("Keep that", disabled: mostAlive.isEmpty)
 
             case 3:
-                onboardingTitle("What Makes You Feel Magical?")
+                onboardingTitle("What Actually Feels Like Magic?")
                 onboardingProse("""
-                "Not what looks magical in a photograph," Zara says. "What actually puts a charge in your life?"
+                "Not what photographs well," Zara says. "What genuinely puts a charge through you."
 
-                "Choose the first true answer. The Book can learn the rest."
+                "First honest answer. Don't overthink it — there's time for the rest."
                 """)
                 onboardingChipChoices(choices: magicSourceChoices, selection: $magicSource)
                 if !magicSource.isEmpty {
                     onboardingPreviewCard(
                         symbol: "sparkles",
-                        title: "Your magic has a texture",
+                        title: "So that's your kind",
                         body: magicSourceReflection
                     )
                     .id("onboarding-magic-source-reflection")
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
-                continueButton("Give the Book a first clue", disabled: magicSource.isEmpty)
+                continueButton("That's my kind", disabled: magicSource.isEmpty)
 
             case 4:
-                guidePortrait(mood: "Zara's decided there's one urgent question before any paperwork.")
-                onboardingTitle("A Margin Ration")
+                guidePortrait(mood: "Zara has one urgent question, and it isn't a serious one.")
+                onboardingTitle("What Do You Snack On?")
                 onboardingProse("""
-                "What's your favorite snack to eat while reading? Mine's sharp green apples. They keep me awake when the footnotes get long."
+                "While you're reading, I mean. Mine's sharp green apples. They keep me awake when the footnotes get long."
 
-                She holds her pencil ready. "The Book can learn grand things later. Tiny specifics are how it stops sounding like everybody's Book."
+                She's already holding the pencil. "Big questions later. Small true things are how a Book stops sounding like everybody's Book."
                 """)
-                onboardingField("My reading snack is...", text: $snack)
+                onboardingField("I snack on...", text: $snack)
                 if let answer = snack.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
                     onboardingPreviewCard(
                         symbol: "takeoutbag.and.cup.and.straw",
-                        title: "A margin ration appears",
-                        body: "The Book writes \(answer) beside your Page in tiny, serious ink. Specificity is how doors learn handles."
+                        title: "Noted, very seriously",
+                        body: "\(answer) goes in the margin, in tiny careful ink, like it matters. It sort of does."
                     )
                     .overlay(alignment: .topLeading) {
                         OnboardingSparkleSettle()
@@ -9240,18 +9330,19 @@ struct OnboardingFlowView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 }
                 continueButton(
-                    "Put it in the margin",
+                    "Write it down",
                     disabled: snack.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 )
 
             case 5:
-                onboardingTitle("The Name the Book Knows")
+                onboardingTitle("What Should It Call You?")
                 onboardingProse("""
-                Zara taps a blank line. "Not your full legal anything. Just the name that feels like yours when someone says it kindly."
+                Zara taps a blank line. "Not your legal anything. The name that sounds right when someone says it kindly."
                 """)
                 onboardingField("What should the Book call you?", text: $name)
                 if let answer = name.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
                     onboardingNameSignature(answer)
+                        .id("onboarding-name-signature")
                         .transition(.opacity.combined(with: .scale(scale: 0.96)))
                     onboardingPreviewCard(
                         symbol: "person.crop.circle.badge.checkmark",
@@ -9260,22 +9351,23 @@ struct OnboardingFlowView: View {
                     )
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
-                continueButton("Give the name some weight", disabled: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                continueButton("That's my name", disabled: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             case 6:
-                onboardingTitle("Belief Makes Living Ink")
+                onboardingTitle("What Do You Believe?")
                 onboardingProse("""
-                A grey absence worries at the corner of your Page. One word pales.
+                The grey creeps back at the corner of your Page. A word starts to fade.
 
-                "The Rut of Routine," Zara says. "It turns a life into wallpaper. Belief's how we tell the Book what mustn't go grey."
+                "That's Routine," Zara says. "It turns a whole life into wallpaper. The only thing that holds it off is something you actually believe."
 
-                She trades you hers first: "I believe every book's a door."
+                She goes first: "I believe every book is a door."
 
-                "What do you believe in enough to help it stay real?"
+                "Your turn. Anything you'd argue for."
                 """)
                 onboardingField("I believe...", text: $belief)
                 if let answer = belief.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
                     onboardingBeliefSigil(answer)
+                        .id("onboarding-belief-sigil")
                         .overlay {
                             LivingInkBurst(
                                 trigger: beliefPlantBurst,
@@ -9290,10 +9382,10 @@ struct OnboardingFlowView: View {
                     if investedBelief {
                         onboardingPreviewCard(
                             symbol: "person.crop.circle.badge.checkmark",
-                            title: "\"\(answer)\" joined the Cast",
-                            body: "It can now return in Pages, connect moments that share its meaning, and pull future story toward what matters to you."
+                            title: "\"\(answer)\" is in the story now",
+                            body: "It'll turn up again — in pages, in the moments that agree with it, in where the story decides to go next."
                         )
-                        continueButton("Let the shelves answer")
+                        continueButton("Good")
                     } else {
                         onboardingBeliefEconomyCard
 
@@ -9301,7 +9393,7 @@ struct OnboardingFlowView: View {
                             plantBeliefWithCeremony()
                         } label: {
                             Label(
-                                isPlantingBelief ? "Joining the Cast..." : "Make it a Cast Member · 3 Belief",
+                                isPlantingBelief ? "Writing it in..." : "Put it in the story",
                                 systemImage: "person.crop.circle.badge.plus"
                             )
                                 .font(.subheadline.weight(.black))
@@ -9312,7 +9404,7 @@ struct OnboardingFlowView: View {
                         .tint(BookPalette.teal)
                         .disabled(isPlantingBelief)
 
-                        secondaryOnboardingButton("Keep the answer without investing", systemImage: "hand.raised") {
+                        secondaryOnboardingButton("Just keep the answer for now", systemImage: "hand.raised") {
                             investedBelief = false
                             advance()
                         }
@@ -9320,40 +9412,40 @@ struct OnboardingFlowView: View {
                 }
 
             case 7:
-                onboardingTitle("What Should Find You First?")
+                onboardingTitle("What Should Turn Up First?")
                 onboardingProse("""
-                Blank catalog cards sort themselves into six impatient piles.
+                Blank cards sort themselves into six impatient piles.
 
-                "Every Page you keep or dismiss teaches the Book," Zara says. "But which shelf should knock first?"
+                "The Book learns from everything you keep and everything you throw away," Zara says. "But something has to knock first."
 
-                "Choose an appetite, not an identity. It's a first door, not a cage."
+                "Pick what you're hungry for today. You're not signing up to be a type of person."
                 """)
                 onboardingChoiceList(choices: tasteChoices, selection: $tastePreference)
-                continueButton("Tilt the shelves", disabled: tastePreference.isEmpty)
+                continueButton("Start with that", disabled: tastePreference.isEmpty)
 
             case 8:
-                onboardingTitle("How Sharp Should the Book Get?")
+                onboardingTitle("How Hard Should It Push?")
                 onboardingProse("""
-                The grey bite at the Page's edge pauses, listening.
+                The grey bite at the Page's edge stops, listening.
 
-                "The Book can be gentle. It can also be eerie, challenging, and a little too exact," Zara says. "Tell it how hard to press at first. You can teach it differently later."
+                "This Book can be gentle," Zara says. "It can also be strange, and pointed, and a bit too accurate about you. Say how hard to push to start with — you can change its mind later."
                 """)
                 onboardingChoiceList(choices: comfortChoices, selection: $comfortBoundary)
-                continueButton("Set the edge", disabled: comfortBoundary.isEmpty)
+                continueButton("Start there", disabled: comfortBoundary.isEmpty)
 
             case 9:
-                onboardingTitle("Five Arguments Read Your Page")
+                onboardingTitle("Five People Want To Read It")
                 onboardingProse("""
                 Five banners lean toward the answer still warm in your hands.
 
-                "Not teams. Not Houses in prettier robes. Arguments."
+                "These aren't teams, and they're definitely not houses with nicer robes," Zara says. "They're five arguments about what makes an ordinary life worth anything. They don't agree."
 
-                "Each Chapter has a different belief about what makes an ordinary life matter. Tap one and hear what it thinks your Page means."
+                "Tap one. Hear what it thinks your page means."
                 """)
                 onboardingChapterAffinityPicker
-                continueButton("Give this argument the first word", disabled: drawnChapterID.isEmpty)
+                continueButton("Let them go first", disabled: drawnChapterID.isEmpty)
                 if drawnChapterID.isEmpty {
-                    secondaryOnboardingButton("Let the Book choose", systemImage: "sparkles") {
+                    secondaryOnboardingButton("You pick for me", systemImage: "sparkles") {
                         drawnChapterID = bookChosenChapterID
                         advance()
                     }
@@ -9377,6 +9469,7 @@ struct OnboardingFlowView: View {
                     switch conclusionMiniStep {
                     case 0:
                         onboardingPersonalizedReturn
+                            .id("onboarding-personalized-return")
                             .modifier(OnboardingSectionArrivalModifier(kind: .artifact, delay: 0.08))
                         onboardingConclusionButton("See the next thirty days") {
                             conclusionMiniStep = 1
@@ -9466,14 +9559,14 @@ struct OnboardingFlowView: View {
         guard step > 0 else { return "First Page" }
         switch step - 1 {
         case 0: return "Through the Page"
-        case 1: return "The Rut's Door"
-        case 2: return "Your Live Wire"
+        case 1: return "Autopilot"
+        case 2: return "Wide Awake"
         case 3: return "Your Kind of Magic"
-        case 4: return "Margin Ration"
-        case 5: return "Your Signature"
-        case 6: return "Living Belief"
-        case 7: return "Your First Pages"
-        case 8: return "The Book's Edge"
+        case 4: return "Snacks"
+        case 5: return "Your Name"
+        case 6: return "What You Believe"
+        case 7: return "First Pages"
+        case 8: return "How Hard to Push"
         case 9: return "Five Arguments"
         case 10: return "A Consequence"
         default: return "Your First Edition"
@@ -9481,20 +9574,20 @@ struct OnboardingFlowView: View {
     }
 
     private var onboardingHeaderLine: String {
-        guard step > 0 else { return "Ordinary life becomes a storybook artifact." }
+        guard step > 0 else { return "An ordinary day, turned into something you can hold." }
         switch step - 1 {
-        case 0: return "The Page pulls you inside and shows what it fights."
-        case 1: return "You show the Book where your life goes grey."
-        case 2: return "You name the part of life that wakes you up."
-        case 3: return "Wonder gets its first true texture."
-        case 4: return "One tiny detail gives the Book a human texture."
-        case 5: return "The Book needs one name for its margins."
-        case 6: return "Something you believe asks for weight."
-        case 7: return "The shelves learn what should knock first."
-        case 8: return "You decide how hard the story may press."
-        case 9: return "Five old arguments disagree about your Page."
-        case 10: return "Someone inside remembers what you chose."
-        default: return "The Book returns your ordinary moment as an edition."
+        case 0: return "The Page pulls you in and shows you what it's up against."
+        case 1: return "Show it where your life goes grey."
+        case 2: return "Now the part that wakes you up."
+        case 3: return "What magic actually means to you."
+        case 4: return "One small true thing, so it isn't everybody's Book."
+        case 5: return "It needs something to call you."
+        case 6: return "One thing you'd argue for."
+        case 7: return "What you'd like to hear from first."
+        case 8: return "How hard the story is allowed to push."
+        case 9: return "Five old arguments, disagreeing about you."
+        case 10: return "Somebody in here remembers what you chose."
+        default: return "Your ordinary moment comes back as a real edition."
         }
     }
 
@@ -9526,7 +9619,7 @@ struct OnboardingFlowView: View {
     }
 
     private var onboardingResumeProgressLine: String {
-        step == 0 ? "First Page: \(openingMiniStageName)" : "Step \(step) of \(stepCount - 1)"
+        step == 0 ? "First Page: \(openingMiniStageName)" : "Return to \(onboardingStageName)"
     }
 
     private var openingMiniStageName: String {
@@ -9569,27 +9662,31 @@ struct OnboardingFlowView: View {
                 onboardingOpeningOverture
                 onboardingOpeningHeroIntro
                 onboardingOpeningCard
-                openingMiniContinueButton("Touch the wet timestamp") {
+                openingMiniContinueButton("The ink is still wet. Touch it.") {
                     advanceOpeningMiniStep()
                 }
             case 1:
                 onboardingOpeningPress
                     .id("onboarding-opening-press")
-                onboardingFirstPressLocalPreview
-                if !firstPressTrimmedText.isEmpty {
+                if firstPressTrimmedText.isEmpty {
+                    onboardingFirstPressLocalPreview
+                } else {
                     onboardingNoticedLine
                         .transition(.opacity.combined(with: .move(edge: .top)))
+                    onboardingOpeningKeepDecision
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    onboardingFirstPressLocalPreview
                 }
                 openingMiniContinueButton(
-                    firstPressTrimmedText.isEmpty ? "Choose one true thing" : "Press it into the page",
-                    disabled: firstPressTrimmedText.isEmpty
+                    firstPressTrimmedText.isEmpty
+                        ? "Find one true thing"
+                        : (rehearsalChoice == nil ? "Keep it or let it wait" : "Let the Rut try"),
+                    disabled: firstPressTrimmedText.isEmpty || rehearsalChoice == nil
                 ) {
                     advanceOpeningMiniStep()
                 }
             case 2:
-                onboardingProse("""
-                The Page has your true thing now. Then a grey bite appears at the edge of the hour it just saved. One word begins to vanish.
-                """)
+                onboardingProse(firstPressRutArrivalProse)
                 .id("onboarding-opening-grey-bite")
                 onboardingRoutineRevealAction
 
@@ -9630,12 +9727,12 @@ struct OnboardingFlowView: View {
                 }
 
             case 4:
-                onboardingTitle("Where Is the Magic?")
+                onboardingTitle("Did the Ordinary Thing Move?")
                     .id("onboarding-opening-hidden-magic")
                 onboardingProse("""
-                Wet ink gathers into one last question before the Page decides what kind of story it'll be.
+                The ink gathers itself into one last question.
 
-                "Do you think there's hidden magic in your actual life right now?"
+                "Be honest. Did that ordinary thing feel a little less ordinary when you looked twice?"
                 """)
                 onboardingChoiceList(choices: hiddenMagicChoices, selection: $hiddenMagicStance)
                 if !hiddenMagicStance.isEmpty {
@@ -9648,7 +9745,7 @@ struct OnboardingFlowView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
                 openingMiniContinueButton(
-                    "Choose how the Page should read you",
+                    "Now decide how it reads you",
                     disabled: hiddenMagicStance.isEmpty
                 ) {
                     advanceOpeningMiniStep()
@@ -9660,13 +9757,10 @@ struct OnboardingFlowView: View {
 
                 if didChooseFirstPressNarrative {
                     onboardingFirstPressLocalPreview
-                    onboardingOpeningKeepDecision
-                    if rehearsalChoice != nil {
-                        onboardingProse(firstPressTransitionProse)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                        onboardingStoryCardShareButton
-                        onboardingOpenBookTab
-                    }
+                    onboardingProse(firstPressTransitionProse)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    onboardingStoryCardShareButton
+                    onboardingOpenBookTab
                 }
             }
         }
@@ -9747,11 +9841,11 @@ struct OnboardingFlowView: View {
                 }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("YOUR FIRST PAGE - ALREADY WRITTEN")
+                Text("YOUR FIRST PAGE, ALREADY WRITTEN")
                     .font(.system(size: 11, weight: .black))
                     .tracking(1.2)
                     .foregroundStyle(BookPalette.teal)
-                Text("Your ordinary life becomes a storybook page.")
+                Text("An ordinary day, turned into a page from a storybook.")
                     .font(.system(.title2, design: .serif).weight(.bold))
                     .foregroundStyle(BookPalette.ink)
                     .fixedSize(horizontal: false, vertical: true)
@@ -9832,7 +9926,7 @@ struct OnboardingFlowView: View {
 
             Text(firstPressTrimmedText.isEmpty
                 ? "The Page slipped out the moment you found the Book — \(arrivalClockTime), \(arrivalWeekdayName) \(firstPressTimeName). It noticed you arrive."
-                : "The page just re-formed around your detail. That's the whole loop: notice one true thing, and the Book makes it keepable.")
+                : "That was already happening before I asked. Routine had filed it as scenery. You just made it an event.")
                 .font(.system(.callout, design: .serif))
                 .foregroundStyle(BookPalette.ink.opacity(0.74))
                 .lineSpacing(2)
@@ -9849,7 +9943,7 @@ struct OnboardingFlowView: View {
 
     private var onboardingOpeningPress: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Give the Page a sentence only you could notice, or use one of mine. Yours are best.")
+            Text("A ten-second mission")
                 .font(.system(.title3, design: .serif).weight(.semibold))
                 .foregroundStyle(BookPalette.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -9862,7 +9956,7 @@ struct OnboardingFlowView: View {
                     .padding(.top, 2)
                     .accessibilityHidden(true)
 
-                Text("If you need help, give the world the pen: What does your shirt want right now? What is it whispering against your skin?")
+                Text("Look away from the screen. Find the nearest ordinary thing that seems to have an opinion about this room. What tiny thing is it doing that gives it away?")
                     .font(.system(.callout, design: .serif).italic())
                     .foregroundStyle(BookPalette.ink.opacity(0.72))
                     .lineSpacing(2)
@@ -9872,6 +9966,11 @@ struct OnboardingFlowView: View {
             .modifier(OnboardingGhostInModifier(delay: 0.10))
 
             onboardingEmbeddedDetailField
+
+            Text("Write one sentence, change one of mine, or keep it exactly as it is. An unimpressed answer counts if it's true.")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(BookPalette.ink.opacity(0.58))
+                .fixedSize(horizontal: false, vertical: true)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(firstPressPresets) { preset in
@@ -10001,7 +10100,7 @@ struct OnboardingFlowView: View {
     private var onboardingEmbeddedDetailField: some View {
         VStack(alignment: .leading, spacing: 0) {
             TextField(
-                "",
+                "The lamp keeps leaning over the chair like it wants the seat.",
                 text: firstPressTextBinding,
                 axis: .vertical
             )
@@ -10093,12 +10192,12 @@ struct OnboardingFlowView: View {
 
     private var onboardingOpeningKeepDecision: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("THE PAGE WAITS FOR ONE VERB")
+            Text("THE PAGE ANSWERED. NOW YOU DO.")
                 .font(.system(size: 10, weight: .black))
                 .tracking(1.1)
                 .foregroundStyle(BookPalette.ink.opacity(0.46))
 
-            Text("Keep this moment, or let it wait. The Book should learn from both.")
+            Text("Keep this moment, or let it wait. Both choices teach the Book how to read your life.")
                 .font(.system(.callout, design: .serif))
                 .foregroundStyle(BookPalette.ink.opacity(0.72))
                 .fixedSize(horizontal: false, vertical: true)
@@ -10503,7 +10602,7 @@ struct OnboardingFlowView: View {
     private var onboardingPersonalizedReturn: some View {
         let ration = snack.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "an unnamed reading snack"
         let planted = belief.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "one still-unwritten belief"
-        let narrative = selectedFirstPressNarrativeChoice?.title ?? "Slice of Life"
+        let narrative = selectedFirstPressNarrativeChoice?.title ?? "Something Small and True"
         let decision = rehearsalChoice == .keep
             ? "You kept \(firstDoorChapterSubject) before the day could carry it off."
             : "You let the Page wait, and I kept your no as carefully as a yes."
@@ -10512,7 +10611,7 @@ struct OnboardingFlowView: View {
         } ?? "The five Chapters are still arguing over what your Page means."
         let consequence = wickerOutcome.flatMap { outcome in
             wickerChoice(for: outcome.choiceID).map { choice in
-                "\(argument) Your first instinct was \(narrative); when Wicker interrupted, you chose \(choice.title.lowercased()) and rolled \(outcome.roll): \(outcome.tier.badge.lowercased())."
+                "\(argument) Your first instinct was \(narrative); when Wicker interrupted, you chose \(choice.title.lowercased()). \(wickerConsequence(for: choice, tier: outcome.tier))"
             }
         } ?? "\(argument) The Page kept a clean margin where Wicker's answer would've gone."
 
@@ -10545,8 +10644,8 @@ struct OnboardingFlowView: View {
                 symbol: "person.crop.circle.badge.checkmark",
                 title: investedBelief ? "\"\(planted)\" joined the Cast" : "The answer is saved",
                 detail: investedBelief
-                    ? "You invested 3 Belief. It can now connect related moments, return across Pages, and pull story toward what it means."
-                    : "You named “\(planted)” without investing yet. It won't become a Cast Member unless you choose to give it Belief later."
+                    ? "You lent it Belief. It can now connect related moments, return across Pages, and pull story toward what it means."
+                    : "You named “\(planted)” without lending it Belief yet. It can join the Cast later, if you choose."
             )
             onboardingJourneyRow(
                 symbol: "rectangle.stack.badge.play",
@@ -10630,12 +10729,12 @@ struct OnboardingFlowView: View {
                 .foregroundStyle(BookPalette.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("What you pay attention to becomes your life.")
+            Text("What you pay attention to is your life. The rest doesn't get lived — it just passes.")
                 .font(.system(.body, design: .serif).weight(.black))
                 .foregroundStyle(BookPalette.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Look for wonder and hidden magic, then press each sighting into one true sentence. Your attention learns where to look. Life feels fuller because you caught more of what was actually there—not because I painted sparkles over it.")
+            Text("So: look for the wonder, then pin what you find into one true sentence. Your attention learns where to look. The month gets fuller because you caught more of what was already there — not because I painted sparkles over it.")
                 .font(.system(.body, design: .serif).weight(.semibold))
                 .foregroundStyle(BookPalette.ink.opacity(0.74))
                 .fixedSize(horizontal: false, vertical: true)
@@ -10645,7 +10744,7 @@ struct OnboardingFlowView: View {
                     .font(.system(size: 12, weight: .black))
                     .tracking(1.0)
                     .foregroundStyle(BookPalette.gold)
-                Text("Habits catch more easily on something that already happens. When should the Book tap the glass?")
+                Text("A new habit sticks best when it hangs off one you already have. When should I tap on the glass?")
                     .font(.system(.body, design: .serif).weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.78))
                     .fixedSize(horizontal: false, vertical: true)
@@ -10661,9 +10760,10 @@ struct OnboardingFlowView: View {
                         body: whisperCueReflection,
                         largeText: true
                     )
+                    .id("onboarding-whisper-hinge")
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 } else {
-                    Text("Choose one to continue. Silence is a real choice; the Book can wait inside the covers.")
+                    Text("Pick one to carry on. Silence counts too — I'm happy to wait inside the covers.")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(BookPalette.ink.opacity(0.62))
                         .fixedSize(horizontal: false, vertical: true)
@@ -10710,6 +10810,7 @@ struct OnboardingFlowView: View {
 
                 if didRevealDayThirtyAfter {
                     onboardingDayThirtyAfterCard
+                        .id("onboarding-day-thirty-after")
                         .transition(
                             .asymmetric(
                                 insertion: .opacity.combined(with: .move(edge: .top)),
@@ -10719,7 +10820,7 @@ struct OnboardingFlowView: View {
                 }
             }
 
-            Text("The research gives us two kind rules: thirty days is an opening chapter, not a finish line—and missing once doesn't erase a thing.")
+            Text("Two things the research is clear about: thirty days is an opening chapter, not a finish line. And missing days \u{2014} several of them, not just one \u{2014} does not undo the habit. Almost nobody builds one cleanly.")
                 .font(.system(.body, design: .serif).weight(.semibold))
                 .foregroundStyle(BookPalette.ink.opacity(0.72))
                 .fixedSize(horizontal: false, vertical: true)
@@ -10731,7 +10832,7 @@ struct OnboardingFlowView: View {
                 }
             } label: {
                 Label(
-                    didRevealHabitScience ? "Fold the research away" : "Show me the research",
+                    didRevealHabitScience ? "Close the research" : "Show me the research",
                     systemImage: didRevealHabitScience ? "chevron.up" : "text.book.closed"
                 )
                 .font(.body.weight(.bold))
@@ -10744,15 +10845,16 @@ struct OnboardingFlowView: View {
 
             if didRevealHabitScience {
                 onboardingHabitScienceCard
+                    .id("onboarding-habit-science")
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            Text("Give the loop one chance a day. By Day 30, you won't just know a month passed. You'll have up to thirty specific, magical moments the blur would've swallowed: proof of where your life actually went.")
+            Text("Give it one chance a day. Thirty days from now you won't just know that a month went by — you'll have up to thirty specific moments the blur would have eaten. Proof of where your life actually went.")
                 .font(.system(.body, design: .serif))
                 .foregroundStyle(BookPalette.ink.opacity(0.68))
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("The calendar won't give you more days. But when more moments stay, the month feels longer. That's the wonder habit: making more of your life stay.")
+            Text("Nobody can give you more days. But when more of them stay, the month feels longer. That's the whole trick: making more of your life stay.")
                 .font(.system(.body, design: .serif).weight(.semibold))
                 .foregroundStyle(BookPalette.ink.opacity(0.74))
                 .fixedSize(horizontal: false, vertical: true)
@@ -10914,33 +11016,33 @@ struct OnboardingFlowView: View {
                 }
             }
 
-            Text("Not a finish line. Not a streak. Thirty chances to teach your attention the same small route through the Book.")
+            Text("Not a finish line, and definitely not a streak. Thirty chances to teach your attention the same short route \u{2014} and you do not have to take all of them.")
                 .font(.system(.body, design: .serif).weight(.semibold))
                 .foregroundStyle(BookPalette.ink.opacity(0.80))
                 .fixedSize(horizontal: false, vertical: true)
 
             onboardingHabitScienceStat(
                 number: "30",
-                title: "rehearsals in this Book",
-                body: "Use a cue that already exists—your first drink, lunch, getting into bed. Open the Book. Notice one true thing. Keep one sentence. See what returns."
+                title: "goes at something you already do",
+                body: "Your first coffee, lunch, getting into bed. Open the Book there. Notice one true thing, keep one sentence, see what comes back."
             )
 
             onboardingHabitScienceStat(
                 number: "66",
                 title: "days was the median",
-                body: "In one real-world study of daily eating, drinking, or activity habits, the median time to reach near-maximum automaticity was 66 days. People varied enormously: 18 to 254 days. Day 30 is real progress, not a magic trick."
+                body: "In a real study of everyday habits, the median time for one to become near-automatic was 66 days — though people ranged from 18 days to 254. So Day 30 is real progress, not a finished job."
             )
 
             onboardingHabitScienceStat(
-                number: "1",
-                title: "missed chance didn't reset the habit",
-                body: "Missing one opportunity didn't materially derail habit formation. That's why the Book doesn't punish gaps, break a streak, or make you start over. Just notice again."
+                number: "0",
+                title: "days you have to do in a row",
+                body: "This is the part people get wrong. Missing a day didn't set anyone in the study back \u{2014} and the people who did build the habit missed plenty of days along the way. Patchy, uneven, on-and-off is not the failed version of this. It is the normal one, and it still works."
             )
 
             onboardingHabitScienceStat(
                 number: "101",
-                title: "people kept 30-day diaries",
-                body: "Their daily savoring was tied to happier momentary mood and strengthened the effect of positive events. The study didn't test this app. The Book borrows the principle: don't only have the moment. Pause, name it precisely, and help it land."
+                title: "people kept a 30-day diary",
+                body: "The ones who paused to savour things were in better spirits, and their good days counted for more. Nobody tested this app — I'm just borrowing the principle. Don't only have the moment. Stop, name it exactly, let it land."
             )
 
             VStack(alignment: .leading, spacing: 3) {
@@ -11074,7 +11176,7 @@ struct OnboardingFlowView: View {
                 .background(BookPalette.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
             } else {
-                Text("Choose a room, a coffee cup, somebody you love, the light right now—anything ordinary enough to be true. The illumination is composed here on your phone. No model download and no Gemma required.")
+                Text("A room, a coffee cup, someone you love, the light right now. Boring is fine — boring is usually the honest one. It gets decorated right here on your phone, and nothing gets uploaded anywhere.")
                     .font(.system(.callout, design: .serif))
                     .foregroundStyle(BookPalette.ink.opacity(0.68))
                     .fixedSize(horizontal: false, vertical: true)
@@ -11320,7 +11422,7 @@ struct OnboardingFlowView: View {
         let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now))
             ?? calendar.startOfDay(for: now)
         let readerName = name.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Reader"
-        let narrativeShape = selectedFirstPressNarrativeChoice?.title ?? "Slice of Life"
+        let narrativeShape = selectedFirstPressNarrativeChoice?.title ?? "Something Small and True"
         let decisionDescription = rehearsalChoice == .keep
             ? "The reader kept the first offered Page."
             : "The reader let the first offered Page wait, and the Book folded its words away."
@@ -11367,7 +11469,7 @@ struct OnboardingFlowView: View {
             userInput: """
             Margin ration: \(snack.trimmingCharacters(in: .whitespacesAndNewlines))
             First belief: \(belief.trimmingCharacters(in: .whitespacesAndNewlines))
-            \(investedBelief ? "Belief planted: 3" : "Belief planted: not yet")
+            \(investedBelief ? "The answer joined the Cast." : "The answer is resting in the margin.")
             Pages invited first: \(tasteTitle)
             Opening edge: \(comfortTitle)
             """,
@@ -11392,7 +11494,7 @@ struct OnboardingFlowView: View {
                 type: .souvenir,
                 createdAt: now.addingTimeInterval(240),
                 promptText: "Wicker reads the margin",
-                userInput: "Your first instinct was \(narrativeShape). When Wicker interrupted, you answered in \(mode.title) and threw the Inkbones. \(wickerConsequence(for: mode, tier: outcome.tier))",
+                userInput: "Your first instinct was \(narrativeShape). When Wicker interrupted, you answered with \(mode.title.lowercased()). \(wickerConsequence(for: mode, tier: outcome.tier))",
                 tags: ["onboarding", "wicker", mode.id],
                 sourceID: "first-door"
             ))
@@ -11537,6 +11639,23 @@ struct OnboardingFlowView: View {
             The artifact is the promise. One real detail is enough to begin.
 
             Now the cover opens the wrong way.
+            """
+        }
+    }
+
+    private var firstPressRutArrivalProse: String {
+        switch rehearsalChoice {
+        case .keep:
+            return """
+            You keep the Page. Before the stamp dries, something starts eating its edge. One word goes grey and begins to disappear.
+            """
+        case .wait:
+            return """
+            You let the Page wait. It starts folding itself away — but something grey reaches the edge first. One word begins to disappear.
+            """
+        case nil:
+            return """
+            The Page waits for your decision. Something grey waits with it.
             """
         }
     }
@@ -11952,13 +12071,13 @@ struct OnboardingFlowView: View {
 	                    .foregroundStyle(BookPalette.lampGold)
                     .frame(width: 28, height: 28)
                     .background(BookPalette.nightPanel.opacity(0.9), in: Circle())
-	                Text("Choose the shape of the answer")
+	                Text("Pick your answer")
 	                    .font(.subheadline.weight(.black))
 	                    .foregroundStyle(BookPalette.ink.opacity(0.76))
                 Spacer(minLength: 0)
             }
 
-	            Text("Each answer makes a Belief roll. Success isn't winning the scene forever; failure isn't losing it. It decides what kind of thread Wicker catches for the final braid.")
+	            Text("One answer, one roll of the dice — so pick the one you mean. You can't lose this: the scene ends either way. It only decides whether Wicker walks off with something of yours, or nothing at all.")
 	                .font(.system(.callout, design: .serif))
 	                .foregroundStyle(BookPalette.ink.opacity(0.64))
                 .fixedSize(horizontal: false, vertical: true)
@@ -11966,6 +12085,7 @@ struct OnboardingFlowView: View {
             VStack(spacing: 8) {
                 ForEach(wickerChoices) { choice in
                     let selected = wickerOutcome?.choiceID == choice.id
+                    let spent = wickerOutcome != nil && !selected
                     let wasFirstInstinct = selectedFirstPressNarrativeID == choice.id
                     Button {
                         resolveWicker(choice)
@@ -11991,9 +12111,13 @@ struct OnboardingFlowView: View {
                                             .padding(.vertical, 3)
                                             .background(BookPalette.violet.opacity(0.1), in: Capsule())
                                     }
-	                                    Text("DC \(choice.difficulty)")
-	                                        .font(.system(size: 11, weight: .black))
-	                                        .foregroundStyle(BookPalette.ink.opacity(0.46))
+	                                    Text(wickerRiskLabel(for: choice))
+	                                        .font(.system(size: 9, weight: .black))
+	                                        .tracking(0.6)
+	                                        .foregroundStyle(BookPalette.ink.opacity(0.5))
+	                                        .padding(.horizontal, 5)
+	                                        .padding(.vertical, 3)
+	                                        .background(BookPalette.ink.opacity(0.07), in: Capsule())
                                 }
 	                                Text(choice.detail)
 	                                    .font(.system(.callout, design: .serif))
@@ -12011,6 +12135,8 @@ struct OnboardingFlowView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    .disabled(wickerOutcome != nil)
+                    .opacity(spent ? 0.4 : 1)
                     .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
@@ -12058,11 +12184,11 @@ struct OnboardingFlowView: View {
                     .accessibilityLabel("Wicker, reading over the margin")
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("HE'S READ EVERYTHING")
+                    Text("EVERYTHING YOU'VE TOLD THE BOOK SO FAR")
                         .font(.system(size: 10, weight: .black))
                         .tracking(1.05)
                         .foregroundStyle(BookPalette.violet)
-                    Text("“You left quite a lot lying around,” Wicker says. “Let's see if any of it survives contact with me.”")
+                    Text("“You left an awful lot lying around,” Wicker says. “Let's see how much of it survives me.”")
                         .font(.system(.callout, design: .serif).italic())
                         .foregroundStyle(BookPalette.ink.opacity(0.76))
                         .fixedSize(horizontal: false, vertical: true)
@@ -12072,21 +12198,22 @@ struct OnboardingFlowView: View {
             VStack(alignment: .leading, spacing: 7) {
                 wickerMemoryRow(
                     symbol: "scope",
-                    text: "\(hiddenMagicTitle) · The Rut gets in through \(rutTitle.lowercased())."
+                    text: "Your life goes on autopilot around \(rutTitle.lowercased())."
                 )
                 wickerMemoryRow(
                     symbol: "sparkles",
-                    text: "Alive: \(mostAliveTitle.lowercased()) · Magic: \(magicSourceTitle.lowercased())."
+                    text: "You're most awake \(mostAliveTitle.lowercased()), and magic, to you, is \(magicSourceTitle.lowercased())."
                 )
                 wickerMemoryRow(
                     symbol: drawnChapter?.symbolName ?? "flag.2.crossed",
-                    text: "\(drawnChapter?.name ?? "No Chapter") argues first · You asked for \(tasteTitle.lowercased()) pages."
+                    text: drawnChapter.map { "You let \($0.name) speak first, and asked for \(tasteTitle.lowercased()) pages." }
+                        ?? "You asked for \(tasteTitle.lowercased()) pages."
                 )
                 wickerMemoryRow(
                     symbol: investedBelief ? "person.crop.circle.badge.checkmark" : "pencil.and.outline",
                     text: investedBelief
-                        ? "“\(namedOnboardingBelief)” is in your Cast."
-                        : "“\(namedOnboardingBelief)” is written down, but you haven't backed it with Belief."
+                        ? "You believe “\(namedOnboardingBelief)” — and you put weight behind it."
+                        : "You believe “\(namedOnboardingBelief)” — though you haven't backed it yet."
                 )
             }
 
@@ -12131,8 +12258,11 @@ struct OnboardingFlowView: View {
     }
 
     private func resolveWicker(_ choice: WickerModeChoice) {
+        // One answer, one throw. Tapping a second choice must not re-roll a
+        // result the reader has already seen.
+        guard wickerOutcome == nil else { return }
         isOnboardingFieldFocused = false
-        let roll = wickerRoll(for: choice)
+        let roll = wickerRoll()
         let tier = wickerTier(roll: roll, difficulty: choice.difficulty)
         wickerThrowID = UUID()
         withAnimation(.spring(response: 0.34, dampingFraction: 0.76)) {
@@ -12146,6 +12276,15 @@ struct OnboardingFlowView: View {
         BookFeedback.play(tier.succeeded ? .braidComplete : .select)
     }
 
+    /// Plain-language odds, because "DC 56" means nothing to a first-time reader.
+    private func wickerRiskLabel(for choice: WickerModeChoice) -> String {
+        switch choice.difficulty {
+        case ..<50: return "SAFE BET"
+        case 50..<60: return "A REACH"
+        default: return "LONG SHOT"
+        }
+    }
+
     private func wickerTier(roll: Int, difficulty: Int) -> WickerOutcomeTier {
         if roll <= 5 { return .cost }
         if roll >= 96 || roll >= difficulty + 28 { return .triumph }
@@ -12154,17 +12293,10 @@ struct OnboardingFlowView: View {
         return .cost
     }
 
-    private func wickerRoll(for choice: WickerModeChoice) -> Int {
-        let seed = [
-            name.trimmingCharacters(in: .whitespacesAndNewlines),
-            belief.trimmingCharacters(in: .whitespacesAndNewlines),
-            sleeveWord ?? "",
-            drawnChapterID,
-            choice.id
-        ].joined(separator: "|")
-        let base = abs(seed.stableHash) % 100
-        let beliefBonus = investedBelief ? 12 : 4
-        return min(100, base + beliefBonus)
+    private func wickerRoll() -> Int {
+        // The Inkbones decide this in the moment. Once revealed, the outcome
+        // remains persisted for this First Door, so reopening it cannot reroll.
+        Int.random(in: 1...100)
     }
 
     private func wickerChoice(for id: String) -> WickerModeChoice? {
@@ -12231,16 +12363,16 @@ struct OnboardingFlowView: View {
         isOnboardingFieldFocused = false
         withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
             selectedFirstPressNarrativeID = choice.id
-            didCompleteFirstPress = false
-            rehearsalChoice = nil
-            firstSouvenir = ""
+            if rehearsalChoice == .keep {
+                firstSouvenir = firstPressSouvenirLine
+            }
         }
         BookFeedback.play(.select)
     }
 
     private func keepFirstPressPage() {
         isOnboardingFieldFocused = false
-        guard didChooseFirstPressNarrative else {
+        guard !firstPressTrimmedText.isEmpty else {
             BookFeedback.play(.error)
             return
         }
@@ -12261,7 +12393,7 @@ struct OnboardingFlowView: View {
 
     private func letFirstPressPageWait() {
         isOnboardingFieldFocused = false
-        guard didChooseFirstPressNarrative else {
+        guard !firstPressTrimmedText.isEmpty else {
             BookFeedback.play(.error)
             return
         }
@@ -12722,7 +12854,7 @@ struct OnboardingFlowView: View {
                     Text("\"\(belief)\" can become a Cast Member")
                         .font(.subheadline.weight(.black))
                         .foregroundStyle(BookPalette.ink.opacity(0.78))
-                    Text("Give your answer 3 Belief and it becomes a living thread the Book can recognize and bring back.")
+                    Text("Lend your answer some Belief and it can become a living thread the Book recognizes and brings back.")
                         .font(.system(.callout, design: .serif))
                         .foregroundStyle(BookPalette.ink.opacity(0.66))
                         .fixedSize(horizontal: false, vertical: true)
@@ -12757,12 +12889,12 @@ struct OnboardingFlowView: View {
             )
             onboardingBeliefRule(
                 "SEE IT",
-                "The Glow Pill at the top is your Belief balance. The bigger its glow, the more Belief you have.",
+                "The Glow at the top tells you how warmly the Book is answering. You never need to count it.",
                 symbol: "sparkle"
             )
             onboardingBeliefRule(
                 "SPEND IT",
-                "Invest it in Cast Members, Pages, and parts of the Book you want more of. A high balance unlocks nothing, so don't hoard it.",
+                "Lend it to Cast Members, Pages, and parts of the Book you care about. The Book will tell you when it has enough.",
                 symbol: "arrow.up.right.circle"
             )
         }
@@ -13258,7 +13390,7 @@ struct OnboardingFlowView: View {
     @MainActor
     private func loadOnboardingPhoto(imageData data: Data) async {
         isOnboardingPhotoLoading = true
-        onboardingPhotoMessage = "The Book's gilding the edges locally. No Gemma, no waiting for a reader in the wall."
+        onboardingPhotoMessage = "The Book's gilding the edges. Won't be a moment."
         defer { isOnboardingPhotoLoading = false }
 
         #if canImport(UIKit)
@@ -13296,8 +13428,8 @@ struct OnboardingFlowView: View {
         didKeepOnboardingPhoto = false
         photoGildSweep = 0
         onboardingPhotoMessage = renderedURL == nil
-            ? "The Book couldn't finish the illuminated file this time. Choose another photograph or bind without one."
-            : "Your illuminated photograph is ready. It was composed locally, without Gemma."
+            ? "That one didn't come out. Try another photo, or carry on without one."
+            : "There it is. Made on your phone, kept on your phone."
         if renderedURL != nil {
             BookFeedback.play(.braidComplete)
             isOnboardingPhotoPreviewPresented = true
@@ -13663,7 +13795,7 @@ struct OnboardingFlowView: View {
 
         "Later, when you've got energy or interest, the three wax seals are shortcuts: body, sky, and ground. Tap them when you want the Book to listen in that direction."
 
-        "Give Belief to whatever you want the Book to treat as more real. More Belief means brighter Glow, more appearances, and more gravity in the story."
+        "Lend Belief to whatever you want the Book to hold closer. The Glow will tell you when something has brightened; you never need to mind the arithmetic."
 
         "At night, read your Book of You. It'll braid what you kept into a fuller page. Those pages become patterns, friendships, rivalries, and eventually the evidence the Chapters use when they Bind you."
 
@@ -13931,54 +14063,55 @@ struct OnboardingFlowView: View {
               let choice = wickerChoice(for: outcome.choiceID) else {
             return "Wicker stepped into the archway, but the Book left that page unchosen."
         }
-        return "When Wicker challenged the Page, you answered in \(choice.title.lowercased()) and threw the Inkbones. \(wickerConsequence(for: choice, tier: outcome.tier))"
+        return "When Wicker challenged the Page, you answered with \(choice.title.lowercased()). \(wickerConsequence(for: choice, tier: outcome.tier))"
     }
 
     private var firstDoorWickerIntroduction: String {
         let chapterLine = drawnChapter.map {
-            "“\($0.name),” he reads from the warm talisman. “So you think \(chapterArgument(for: $0).lowercased())”"
-        } ?? "He notices the undecided banners and looks disappointed by their manners."
-        let ration = snack.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "something unnamed"
+            "“And you've already picked a side. \($0.name).” He says it like a diagnosis."
+        } ?? "“You haven't even picked a side yet.”"
         let namedBelief = belief.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "an unnamed belief"
         let beliefLine = investedBelief
-            ? "He taps the glowing sigil around “\(namedBelief).” “Three Belief already? You've tipped your own idea before it's done any work.”"
-            : "He finds “\(namedBelief)” written lightly in the margin. “No Belief behind it. A slogan in a nice coat.”"
+            ? "He finds “\(namedBelief)” glowing in your margin. “You've already put weight behind it. Before it's done a day's work.”"
+            : "He finds “\(namedBelief)” pencilled faintly in your margin. “Nothing behind it. A slogan in a nice coat.”"
         let edgeLine: String
         switch comfortBoundary {
         case "gentle":
-            edgeLine = "The Page remembers that you asked to be invited, not shoved. It leaves room around his challenge, but it doesn't erase it."
+            edgeLine = "The Page shifts a little, making room. You did ask it to be kind."
         case "strange":
-            edgeLine = "The Page remembers that you gave it permission to call your nonsense. Its edge grows one small, delighted tooth."
+            edgeLine = "The Page leans in, delighted. You did give it permission to be strange."
         default:
-            edgeLine = "The Page remembers that you asked for a nudge. It presses his challenge into the margin without letting it take over."
+            edgeLine = "The Page holds steady, waiting to see what you do."
         }
         let magicChallenge: String
         switch hiddenMagicStance {
         case "yes":
-            magicChallenge = "He finds YES, I FORGET TO LOOK in the margin. “So magic exists whenever you fail to check. Convenient.”"
+            magicChallenge = "“Magic everywhere, is it? Handy, that. Means you never have to point at any.”"
         case "maybe":
-            magicChallenge = "He finds MAYBE, I WANT TO NOTICE in the margin. “Maybe's doubt wearing a hopeful little hat. Let's knock it off.”"
+            magicChallenge = "“Maybe,” he reads off your page. “That's doubt in a nicer hat.”"
         case "prove":
-            magicChallenge = "He finds NOT YET, SHOW ME in the margin and smiles. “Finally. Terms. I was worried you'd brought vibes.”"
+            magicChallenge = "“Not yet, show me,” he reads off your page, and looks almost pleased. “Terms. Finally.”"
         default:
-            magicChallenge = "He finds a blank where belief should be. “At least the Book hasn't forged your signature.”"
+            magicChallenge = "“You've left the important line blank. Bold.”"
         }
         return """
-        A boy in a green-black coat steps from behind a shelf at the exact worst moment.
+        A boy in a green-black coat steps out from behind a shelf at the worst possible moment. He is holding your page, and he has clearly read all of it.
 
-        “So this is the impossible reader. I expected taller.” Wicker looks down at \(firstDoorChapterSubject). \(magicChallenge) \(chapterLine)
+        “So you're the impossible reader.” He looks you up and down. “I expected taller.” \(magicChallenge)
 
-        A tiny pencilled parcel marked \(ration) scoots away from his elbow. “You crossed dimensions carrying that as your great human credential?” \(beliefLine)
+        Zara's jaw goes tight. “That's Wicker. He collects the beginnings of other people's stories. Don't hand him one for free.”
 
-        He reads where you lose time, where you feel alive, and what feels magical to you. Then he taps the \(selectedFirstPressNarrativeChoice?.title ?? "Slice of Life") mark you chose earlier. “First instinct. How binding.”
+        \(beliefLine) \(chapterLine)
 
-        \(edgeLine) The Book has remembered every answer. Now choose the shape of your reply—keep your first instinct or betray it—and throw the Inkbones.
+        \(edgeLine)
+
+        He's waiting. Say something back.
         """
     }
 
     private var firstDoorMiniStory: String {
         let reader = name.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Reader"
-        let narrative = selectedFirstPressNarrativeChoice?.title ?? "Slice of Life"
+        let narrative = selectedFirstPressNarrativeChoice?.title ?? "Something Small and True"
         let ration = snack.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "a still-secret reading snack"
         let namedBelief = belief.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "one small true thing"
         let decisionLine: String
@@ -14002,7 +14135,7 @@ struct OnboardingFlowView: View {
 
         You showed me where the Rut gets in: \(rutTitle.lowercased()). You feel most alive \(mostAliveTitle.lowercased()). The first kind of magic you asked me to recognize was \(magicSourceTitle.lowercased()). Those aren't labels. They're places to begin paying attention.
 
-        Zara asked for one tiny human fact and you gave her \(ration). The margin kept it. Then you named “\(namedBelief).” \(investedBelief ? "You invested three Belief, so those words joined the Cast and can pull future Pages toward what they mean." : "You kept the answer without investing, so it hasn't joined the Cast yet.")
+        Zara asked for one tiny human fact and you gave her \(ration). The margin kept it. Then you named “\(namedBelief).” \(investedBelief ? "You lent those words Belief, so they joined the Cast and can pull future Pages toward what they mean." : "You kept the answer without lending it Belief, so it hasn't joined the Cast yet.")
 
         You asked the shelves to lead with \(tasteTitle.lowercased()), and told me to begin \(comfortTitle.lowercased()). That didn't make a profile. It gave the living Book manners.
 
@@ -14117,6 +14250,51 @@ struct OnboardingFlowView: View {
             .contentShape(Rectangle())
             .onTapGesture { onTap() }
             .onAppear { settled = true }
+        }
+    }
+
+    /// Scroll handling for beats that reveal content only after the reader has
+    /// typed or toggled something. Extracted from the scroll view's own modifier
+    /// chain purely so the type-checker can cope — the chain had grown past what
+    /// it would solve in reasonable time.
+    private struct OnboardingLateRevealScrolling: ViewModifier {
+        let step: Int
+        let snack: String
+        let name: String
+        let investedBelief: Bool
+        let whisperCadence: String
+        let didRevealDayThirtyAfter: Bool
+        let didRevealHabitScience: Bool
+        let reveal: (String, Double) -> Void
+
+        func body(content: Content) -> some View {
+            content
+                .onChange(of: snack) { _, answer in
+                    guard step == 5, !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                    // Typed answers reveal their card a keystroke at a time; wait
+                    // for the reader to stop before moving the page under them.
+                    reveal("onboarding-page-top", 0.45)
+                }
+                .onChange(of: name) { _, answer in
+                    guard step == 6, !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                    reveal("onboarding-name-signature", 0.45)
+                }
+                .onChange(of: investedBelief) { _, invested in
+                    guard invested else { return }
+                    reveal("onboarding-belief-sigil", 0.08)
+                }
+                .onChange(of: whisperCadence) { _, cadence in
+                    guard !cadence.isEmpty else { return }
+                    reveal("onboarding-whisper-hinge", 0.08)
+                }
+                .onChange(of: didRevealDayThirtyAfter) { _, revealed in
+                    guard revealed else { return }
+                    reveal("onboarding-day-thirty-after", 0.08)
+                }
+                .onChange(of: didRevealHabitScience) { _, revealed in
+                    guard revealed else { return }
+                    reveal("onboarding-habit-science", 0.08)
+                }
         }
     }
 
@@ -14679,7 +14857,7 @@ struct OnboardingFlowView: View {
         onboardingPhotoImage = nil
         onboardingPhotoDraft = nil
         onboardingPhotoPreviewURL = nil
-        onboardingPhotoMessage = "Choose or take one photograph. The Book will illuminate it here, without asking Gemma."
+        onboardingPhotoMessage = "Pick a photo, or take one. It never leaves your phone."
         isOnboardingPhotoLoading = false
         isOnboardingCameraPresented = false
         isOnboardingPhotoPreviewPresented = false
@@ -15122,11 +15300,11 @@ private struct WickerBonesReveal: View {
                     .font(.title3.weight(.bold))
                     .foregroundStyle(BookPalette.lampGold)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Throw the Inkbones")
+                    Text("The Book rolls")
                         .font(.caption.weight(.black))
                         .textCase(.uppercase)
                         .foregroundStyle(BookPalette.lampGold)
-                    Text(revealed ? badge : "The Book cups the bones in its margin.")
+                    Text(revealed ? badge : "Rolling…")
                         .font(.subheadline.weight(.black))
                         .foregroundStyle(BookPalette.nightText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -15174,7 +15352,7 @@ private struct WickerBonesReveal: View {
                             .font(.caption.weight(.bold))
                             .foregroundStyle(BookPalette.nightText.opacity(0.7))
                         Spacer(minLength: 0)
-                        Text("Roll \(roll) vs \(difficulty)")
+                        Text("Rolled \(roll), needed \(difficulty)")
                             .font(.system(size: 11, weight: .black))
                             .foregroundStyle(BookPalette.nightText.opacity(0.5))
                             .monospacedDigit()
@@ -15198,7 +15376,7 @@ private struct WickerBonesReveal: View {
         }
         .shadow(color: BookPalette.ink.opacity(0.34), radius: 18, y: 10)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Threw the Inkbones. \(badge). Roll \(roll) against \(difficulty). \(consequence)")
+        .accessibilityLabel("\(badge). Rolled \(roll), needed \(difficulty). \(consequence)")
         .task(id: throwID) {
             thrown = false
             revealed = false

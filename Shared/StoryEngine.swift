@@ -115,14 +115,13 @@ struct BeliefCombatResult: Codable, Equatable {
     }
 
     var summaryLine: String {
-        let rollText = "rolled \(roll) against \(threshold)"
         if backlash > 0 {
-            return "\(attackerName) \(rollText): \(outcome.title); the attack backfired for \(backlash) Belief."
+            return "\(attackerName) pressed against \(targetName), but the pressure turned back on them."
         }
         if dealt > 0 {
-            return "\(attackerName) \(rollText): \(outcome.title); \(targetName) lost \(dealt) Belief."
+            return "\(attackerName) found a weak place in \(targetName), and its Glow receded."
         }
-        return "\(attackerName) \(rollText): \(outcome.title); nothing landed."
+        return "\(attackerName) tested \(targetName), but nothing gave way."
     }
 }
 
@@ -1041,7 +1040,7 @@ enum BookJumpEngine {
         Intention: \(intention)
         Guide: \(guide)
 
-        Keeping this page spends \(startCost) Belief and opens a controlled Book Jump. You remain yourself. The page takes one step only.
+        Keeping this page lends the door some Belief and opens a controlled Book Jump. You remain yourself. The page takes one step only.
         """
         return SurfacePage(
             id: "\(source.id)-start-\(work.id)-\(day.id)-\(Int(now.timeIntervalSince1970))",
@@ -1518,6 +1517,39 @@ struct StoryDramaticContract: Codable, Equatable {
         guard let data = Data(base64Encoded: encodedMetadata),
               let decoded = try? JSONDecoder().decode(Self.self, from: data) else { return nil }
         self = decoded
+    }
+}
+
+/// A kept choice closes the roads not taken. These compact tags survive after
+/// Surface metadata is gone and let later fiction distinguish an ordinary
+/// choice from a refusal or betrayal that a character should remember sharply.
+enum StoryChoiceClosure {
+    static let chosenPrefix = "story-path-chosen:"
+    static let closedPrefix = "story-path-closed:"
+    static let refusalTag = "story-refusal"
+    static let betrayalTag = "story-betrayal"
+
+    static func tags(
+        chosenChoiceID: String,
+        availableChoiceIDs: [String],
+        chosenText: String
+    ) -> [String] {
+        let chosen = StoryTurnLanding.normalizedChoiceID(chosenChoiceID)
+        var tags = [chosenPrefix + chosen]
+        tags.append(contentsOf: availableChoiceIDs
+            .map(StoryTurnLanding.normalizedChoiceID)
+            .filter { $0 != chosen }
+            .map { closedPrefix + $0 })
+
+        let text = chosenText.lowercased()
+        let betrayalWords = ["betray", "deceive", "abandon", "sell out", "break the promise", "lie to"]
+        let refusalWords = ["refuse", "reject", "deny", "withhold", "turn away", "walk away", "say no"]
+        if betrayalWords.contains(where: text.contains) {
+            tags.append(betrayalTag)
+        } else if refusalWords.contains(where: text.contains) {
+            tags.append(refusalTag)
+        }
+        return Array(Set(tags)).sorted()
     }
 }
 
@@ -3584,6 +3616,81 @@ enum StoryScenePacketBuilder {
     }
 }
 
+/// The common editorial shape for a Gossip Page, whether it rises on its own
+/// or is folded into The Bleed. The simulation owns the facts; this contract
+/// owns only their reader-facing form.
+enum GossipPageForm {
+    static let instructions = """
+    You are The Book inside ReEnchanted, writing a Gossip Page.
+    The app has already decided the simulation mechanics and supplied any real-world interest clippings. You may only polish those supplied materials into warm, strange, readable margin-gossip.
+    The simulation packet is source-of-truth. Turn each supplied simulation turn into in-world gossip; do not create your own events.
+    Do not add new actors, threads, actions, outcomes, rewards, quests, user actions, or real-world facts.
+    Do not mention sensors, APIs, code, prompts, JSON, searches, or simulation machinery.
+    \(BookVoice.animismLine)
+    Prose standard: simple concrete sentences; one exact object, gesture, or spoken line per entry; no vague wonder, hidden meaning, tapestry of, echoes of, quiet magic, profound, journey, or generic inspiration.
+    """
+
+    static let finishedPageRequirements = """
+    - Use the supplied turns as source-of-truth.
+    - Keep every actor, thread, action, visible trace, and consequence.
+    - Preserve which action caused which consequence.
+    - Write 3-5 short entries total, based only on supplied material.
+    - Include 2-3 Academy gossip entries when Academy turns are supplied.
+    - If real-world interest clippings are supplied, include 1-2 as ordinary-world margin gossip.
+    - Each entry must show what someone said, touched, carried, hid, dropped, overheard, or did.
+    - Prefer dialogue, tiny betrayals, social pressure, and visible character action over explanation.
+    - Use short, specific sentences. Let concrete nouns and verbs carry the joke.
+    - Keep fictional Academy consequences and real-world facts distinct while letting them sit on the same page.
+    - Preserve Chapter talisman moves as real world-state changes or failed attempts.
+    - Include one brief "What changed" section in-world.
+    - Do not expose hidden mechanics as game math.
+    - Do not invent anything not present in the packet.
+    - Do not imply the reader researched, visited, played, read, bought, or completed anything.
+    """
+
+    static func sourcePacket(for surface: SurfacePage) -> String {
+        let metadata = surface.payload.metadata
+        return """
+        GOSSIP PAGE MODE: \(metadata["worldSeeded"] == "true" ? "Academy business" : metadata["belated"] == "true" ? "belated report" : "current turns")
+        HEADLINE: \(surface.payload.headline)
+        ACTORS: \(metadata["actorNames"] ?? metadata["actorName"] ?? "not supplied")
+        THREADS: \(metadata["threadTitles"] ?? metadata["threadTitle"] ?? "not supplied")
+        ACTIONS: \(metadata["actionKinds"] ?? metadata["actionKind"] ?? "not supplied")
+        HIDDEN EFFECTS TO PRESERVE WITHOUT NAMING AS MECHANICS:
+        \(metadata["hiddenEffect"] ?? "none")
+
+        SIMULATION TURNS:
+        \(metadata["simulationPacket"] ?? "No raw turns supplied; preserve the filed report below exactly.")
+
+        FILED GOSSIP DRAFT:
+        \(metadata["gossipDraft"] ?? surface.payload.body)
+
+        \(metadata[CharacterCanonPacket.metadataKey] ?? "")
+        """
+    }
+
+    static func bleedColumnPrompt(title: String, packet: String, pennyCanon: String) -> String {
+        """
+        Edit one newspaper column in the same form and evidentiary law as a Gossip Page.
+        COLUMN: \(title)
+
+        \(pennyCanon)
+
+        SOURCE PACKET:
+        \(packet)
+
+        REQUIREMENTS:
+        \(finishedPageRequirements)
+        - This is a newspaper column, so omit the standalone Gossip Page title.
+        - Keep the "What changed" coda, but make it read like a tiny press-room box.
+        - Penny may add one dry editor's aside. It cannot add a fact.
+        - Keep the column under 320 words.
+
+        Return only the finished column.
+        """
+    }
+}
+
 enum GossipSimulationBuilder {
     /// Metadata key carrying the ledger movement a belated Page reports, so the
     /// app can mark it discovered and never offer the same find twice.
@@ -3849,17 +3956,17 @@ enum GossipSimulationBuilder {
         if let relationshipMove {
             switch relationshipMove.kind {
             case .invest:
-                consequences.append("\(relationshipMove.actorName) invested \(relationshipMove.amount) Belief in \(relationshipMove.targetName); they grew warmer.")
+                consequences.append("\(relationshipMove.actorName) lent some warmth to \(relationshipMove.targetName); they grew closer.")
             case .attack:
-                consequences.append("\(relationshipMove.actorName) chipped \(relationshipMove.amount) Belief from \(relationshipMove.targetName); the air between them tightened.")
+                consequences.append("\(relationshipMove.actorName) cooled toward \(relationshipMove.targetName); the air between them tightened.")
             }
         }
         if let pageBeliefMove {
             switch pageBeliefMove.kind {
             case .invest:
-                consequences.append("\(pageBeliefMove.actorName) gave \(pageBeliefMove.amount) Belief to \(pageBeliefMove.sourceTitle) Pages; that kind of page brightened.")
+                consequences.append("\(pageBeliefMove.actorName) warmed \(pageBeliefMove.sourceTitle) Pages; that kind of Page brightened.")
             case .attack:
-                consequences.append("\(pageBeliefMove.actorName) tried to take \(pageBeliefMove.amount) Belief from \(pageBeliefMove.sourceTitle) Pages; that kind of page cooled.")
+                consequences.append("\(pageBeliefMove.actorName) pushed against \(pageBeliefMove.sourceTitle) Pages; that kind of Page cooled.")
             }
         }
         var turnTagSet = Set(tags)
@@ -4346,9 +4453,9 @@ enum GossipSimulationBuilder {
         let talismanLines: [String] = talismanMove.map { move in
             let delta = move.ledgerDelta
             if delta == 0 {
-                return "\(move.summaryLine) No talisman Belief changed."
+                return "\(move.targetTalismanName) noticed, but did not move."
             }
-            return "\(move.summaryLine) \(move.targetTalismanName) \(delta > 0 ? "gained" : "lost") \(abs(delta)) Belief."
+            return "\(move.targetTalismanName) \(delta > 0 ? "grew warmer" : "receded into the margins")."
         }.map { [$0] } ?? []
 
         switch actionKind {
@@ -4359,21 +4466,21 @@ enum GossipSimulationBuilder {
             ] + talismanLines
         case .investBelief:
             return [
-                "\(actor.name) spent one quiet Belief.",
-                "\(thread.title) grew warmer by one line."
+                "\(actor.name) lent the thread a little quiet Belief.",
+                "\(thread.title) grew warmer."
             ] + talismanLines
         case .attackBelief:
             if let beliefCombat {
                 var lines = [
-                    "\(actor.name) spent \(beliefCombat.actualSpend) Belief against \(thread.title).",
+                    "\(actor.name) pressed their Glow against \(thread.title).",
                     beliefCombat.summaryLine
                 ]
                 if beliefCombat.dealt > 0 {
-                    lines.append("\(thread.title) dimmed from Glow \(beliefCombat.targetBeliefBefore) to \(beliefCombat.targetBeliefAfter).")
+                    lines.append("\(thread.title) dimmed.")
                 } else if beliefCombat.backlash > 0 {
-                    lines.append("\(actor.name)'s own Glow fell from \(beliefCombat.attackerBeliefBefore) to \(beliefCombat.attackerBeliefAfter).")
+                    lines.append("\(actor.name)'s own Glow fell back.")
                 } else {
-                    lines.append("\(thread.title) held its Glow at \(beliefCombat.targetBeliefBefore).")
+                    lines.append("\(thread.title) held its Glow.")
                 }
                 return lines + talismanLines
             }
@@ -4600,6 +4707,7 @@ enum SupportGuildSynthesisGenerator {
                 metadata: [
                     "source": source.id,
                     "slot": slot,
+                    "automaticRecurrenceSlot": "\(day.id):support-guild",
                     "vellumSection": sections["vellum"] ?? "",
                     "inkrestSection": sections["inkrest"] ?? "",
                     "bodyStatus": inputs.body.map { "\($0.status): \($0.phrase)" } ?? "",
@@ -6091,7 +6199,7 @@ struct WonderCompassRunSeed: Equatable {
 
             \(restPrompt)
 
-            Rest is the center of the Compass. Keep this page after the quiet minute, and the completed run adds 6 Belief.
+            Rest is the center of the Compass. Keep this page after the quiet minute, and the completed run warms the Book's Glow.
             """
         }
     }

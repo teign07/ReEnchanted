@@ -244,15 +244,9 @@ private struct InkbonesThrowOverlay: View {
                 }
                 Spacer(minLength: 8)
                 if reveal {
-                    HStack(spacing: 4) {
-                        Image(systemName: throwState.band.symbolName)
-                            .font(.caption.weight(.black))
-                            .foregroundStyle(throwState.band.accent)
-                        Text("\(throwState.roll)")
-                            .font(.system(.title2, design: .serif).weight(.black))
-                            .foregroundStyle(BookPalette.page)
-                            .monospacedDigit()
-                    }
+                    Image(systemName: throwState.band.symbolName)
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(BookPalette.page)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(throwState.band.accent.opacity(0.34), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -269,7 +263,7 @@ private struct InkbonesThrowOverlay: View {
             .accessibilityHidden(true)
 
             if reveal {
-                Text("\(throwState.texture) Roll \(throwState.roll) against \(throwState.threshold).")
+                Text(throwState.texture)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(BookPalette.nightText.opacity(0.74))
                     .fixedSize(horizontal: false, vertical: true)
@@ -296,7 +290,7 @@ private struct InkbonesThrowOverlay: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             reveal
-                ? "Threw the Inkbones. \(throwState.outcome). Roll \(throwState.roll) against \(throwState.threshold). \(throwState.texture)"
+                ? "Threw the Inkbones. \(throwState.outcome). \(throwState.texture)"
                 : "The Book is throwing the Inkbones."
         )
         .task(id: throwState.id) {
@@ -317,23 +311,13 @@ private struct InkbonesThrowOverlay: View {
 }
 
 /// The durable half of the reveal. The ceremonial overlay may leave, but the
-/// roll and the prose it shaped remain together on the Story Page.
+/// felt result and the prose it shaped remain together on the Story Page.
 private struct StoryInkbonesResultSummary: View {
     let resolution: StoryInkbonesResolution
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: 8) {
-                    bandLabel
-                    Spacer(minLength: 8)
-                    rollLabel
-                }
-                VStack(alignment: .leading, spacing: 6) {
-                    bandLabel
-                    rollLabel
-                }
-            }
+            bandLabel
 
             Text(resolution.band.texture)
                 .font(.caption.weight(.semibold))
@@ -351,7 +335,7 @@ private struct StoryInkbonesResultSummary: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(resolution.band.outcome). Roll \(resolution.roll) against \(resolution.threshold). \(resolution.band.texture)"
+            "\(resolution.band.outcome). \(resolution.band.texture)"
         )
     }
 
@@ -362,13 +346,6 @@ private struct StoryInkbonesResultSummary: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    private var rollLabel: some View {
-        Text("Roll \(resolution.roll) vs \(resolution.threshold)")
-            .font(.system(size: 11, weight: .black, design: .rounded))
-            .foregroundStyle(BookPalette.ink.opacity(0.58))
-            .monospacedDigit()
-            .fixedSize()
-    }
 }
 
 /// One tumbling "bone" of the Inkbones belief-throw. Internal (not private) so
@@ -1043,6 +1020,7 @@ struct CapturePageSheet: View {
     var onCompleteElective: (String, String, String?, String?) -> Void = { _, _, _, _ in }
     var onReleaseElective: (String) -> Void = { _ in }
     var onOpenFlyleafDoor: (FlyleafDoor) -> Void = { _ in }
+    var onAcceptFaeBargain: (String) -> SurfacePage? = { _ in nil }
     var onPayFaeBargain: (String, String, String) -> Void = { _, _, _ in }
     /// (chosenID, chosenName, otherID, otherName) when the reader sides in The Two Readings.
     var onTwoReadingsSided: (String, String, String, String) -> Void = { _, _, _, _ in }
@@ -1090,6 +1068,12 @@ struct CapturePageSheet: View {
     /// Records only a reader-initiated reply to a deterministic Book teaser.
     /// Creating or opening the teaser never invokes the local model.
     var onBookInitiativeAnswered: (String, String, Date) -> Void = { _, _, _ in }
+    var onExternalSparkContinuation: (String, ExternalSparkContinuation, Date) -> String = {
+        _, _, _ in ""
+    }
+    var onExternalSparkReturn: (String, ExternalSparkContinuation, String, Bool, Date) -> String = {
+        _, _, _, _, _ in ""
+    }
     var isShadowWonderActive: Bool = false
     var isEmbedded = false
     var onDismissRequest: (() -> Void)? = nil
@@ -1106,8 +1090,6 @@ struct CapturePageSheet: View {
     @State private var isTuckingPage = false
     @State private var centerGearOffset = 0
     @State private var text = ""
-    @State private var momentaryText = ""
-    @State private var momentaryOutcome: MomentaryActionOutcome?
     @State private var didRecordPageOpened = false
     @State private var playfulMissionOpenBurstTrigger = 0
     @State private var didPlayPlayfulMissionOpenBurst = false
@@ -1130,6 +1112,9 @@ struct CapturePageSheet: View {
     @State private var isGeneratingStoryResult = false
     @State private var generatingStoryResultChoiceID: String?
     @State private var storyContinuationMessage = ""
+    @State private var externalSparkContinuation: ExternalSparkContinuation?
+    @State private var externalSparkReturnLine = ""
+    @State private var externalSparkMessage = ""
     @State private var resolvedStoryMechanics: [String: String] = [:]
     @State private var activeInkbonesThrow: InkbonesThrow?
     @State private var academyActivityResponses: [String: String] = [:]
@@ -1157,8 +1142,11 @@ struct CapturePageSheet: View {
     @State private var inkrestMessage = ""
     @State private var faeReport = ""
     @State private var faeResponseText = ""
+    @State private var isFaeAccepting = false
     @State private var isFaePaying = false
     @State private var faeMessage = ""
+    @State private var greyThreatChoice: String?
+    @State private var greyRescueLine = ""
     @State private var festivalMessage = ""
     @State private var todaysSkyMessage = ""
     @State private var academyCalendarMessage = ""
@@ -1357,6 +1345,10 @@ struct CapturePageSheet: View {
 
     private var isKeptReadbackPage: Bool {
         surface.payload.metadata["keptPage"] == "true"
+    }
+
+    private var isExternalSparkReadbackPage: Bool {
+        isKeptReadbackPage && surface.payload.metadata["externalShare"] == "true"
     }
 
     private var isScrapbookReadbackPage: Bool {
@@ -1831,7 +1823,7 @@ struct CapturePageSheet: View {
             return "Finish the six questions"
         }
         if isBookJumpPage, bookJumpAction == .start {
-            return "Open the Spine · \(BookJumpEngine.startCost) Belief"
+            return "Open the Spine"
         }
         return "Keep this page"
     }
@@ -2822,6 +2814,7 @@ struct CapturePageSheet: View {
                     didRecordPageOpened = true
                     onPageOpened(surface, Date())
                 }
+                seedExternalSparkContinuation()
                 seedTarotReadingIfNeeded()
                 if isStandalonePlayfulMissionPage, !didPlayPlayfulMissionOpenBurst {
                     didPlayPlayfulMissionOpenBurst = true
@@ -2891,6 +2884,167 @@ struct CapturePageSheet: View {
             withAnimation(BookMotion.pageTurn(false)) {
                 openedPageTurnProgress = 0
             }
+        }
+    }
+
+    private func seedExternalSparkContinuation() {
+        guard externalSparkContinuation == nil else { return }
+        externalSparkContinuation = surface.payload.metadata["tags", default: ""]
+            .split(separator: ",")
+            .map(String.init)
+            .first(where: { $0.hasPrefix("external-continuation:") })
+            .flatMap {
+                ExternalSparkContinuation(
+                    rawValue: String($0.dropFirst("external-continuation:".count))
+                )
+            }
+    }
+
+    private var externalSparkWitnessText: String {
+        let title = surface.payload.metadata["sourceTitle"]?.nonEmpty ?? surface.prompt
+        return (externalSparkContinuation ?? .ask).witnessText(
+            title: title,
+            url: surface.payload.metadata["url"]
+        )
+    }
+
+    private var externalSparkPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Label("What should this become?", systemImage: "arrow.up.right.circle.fill")
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(BookPalette.lampGold)
+                Text("Choose one door. The original scrap stays exactly as it was.")
+                    .font(.caption)
+                    .foregroundStyle(openPageSecondaryText)
+            }
+
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 88), spacing: 8)],
+                spacing: 8
+            ) {
+                ForEach(ExternalSparkContinuation.allCases) { continuation in
+                    Button {
+                        guard let pageID = keptPageID else { return }
+                        externalSparkContinuation = continuation
+                        externalSparkMessage = onExternalSparkContinuation(
+                            pageID,
+                            continuation,
+                            Date()
+                        )
+                        BookFeedback.play(.select)
+                    } label: {
+                        Label(continuation.title, systemImage: continuation.symbolName)
+                            .font(.caption.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                            .foregroundStyle(
+                                externalSparkContinuation == continuation
+                                    ? BookPalette.nightText
+                                    : BookPalette.lampGold
+                            )
+                            .background(
+                                externalSparkContinuation == continuation
+                                    ? BookPalette.lampGold
+                                    : BookPalette.lampGold.opacity(0.10),
+                                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            if let continuation = externalSparkContinuation {
+                Text(continuation.invitation)
+                    .font(.system(.body, design: .serif, weight: .semibold))
+                    .foregroundStyle(openPagePrimaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        BookPalette.teal.opacity(0.10),
+                        in: RoundedRectangle(cornerRadius: 8)
+                    )
+
+                if continuation == .ask {
+                    ShareLink(item: externalSparkWitnessText) {
+                        Label(
+                            "Bring one person in",
+                            systemImage: "person.crop.circle.badge.plus"
+                        )
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            BookPalette.teal.opacity(0.16),
+                            in: RoundedRectangle(cornerRadius: 8)
+                        )
+                    }
+                    .foregroundStyle(BookPalette.teal)
+                }
+
+                TextField(
+                    "What happened out there? One true line.",
+                    text: $externalSparkReturnLine,
+                    axis: .vertical
+                )
+                .lineLimit(2...4)
+                .textFieldStyle(.roundedBorder)
+
+                HStack(spacing: 8) {
+                    Button("Nothing came of it") {
+                        guard let pageID = keptPageID else { return }
+                        externalSparkMessage = onExternalSparkReturn(
+                            pageID,
+                            continuation,
+                            "",
+                            false,
+                            Date()
+                        )
+                        BookFeedback.play(.dismissPage)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(BookPalette.violet)
+
+                    Button("Keep what happened") {
+                        guard let pageID = keptPageID else { return }
+                        let line = externalSparkReturnLine
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !line.isEmpty else { return }
+                        externalSparkMessage = onExternalSparkReturn(
+                            pageID,
+                            continuation,
+                            line,
+                            true,
+                            Date()
+                        )
+                        externalSparkReturnLine = ""
+                        BookFeedback.play(.braidComplete)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(BookPalette.teal)
+                    .disabled(
+                        externalSparkReturnLine
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            .isEmpty
+                    )
+                }
+            }
+
+            if !externalSparkMessage.isEmpty {
+                Text(externalSparkMessage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(openPageSecondaryText)
+            }
+        }
+        .padding(14)
+        .background(
+            BookPalette.nightPanel.opacity(0.56),
+            in: RoundedRectangle(cornerRadius: 10)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(BookPalette.lampGold.opacity(0.28), lineWidth: 1)
         }
     }
 
@@ -3100,10 +3254,6 @@ struct CapturePageSheet: View {
                 .shadow(color: BookPalette.lampGold.opacity(0.14), radius: 6, x: 0, y: 2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if case let .momentary(prompt) = MomentaryAttentionEngine.firstBeat(for: surface, learning: readerLearning) {
-                enchantedSnackFirstBeat(prompt)
-            }
-
             if !isStandalonePlayfulMissionPage {
                 Text(surface.detail)
                     .font(.body)
@@ -3146,6 +3296,10 @@ struct CapturePageSheet: View {
                 pageShareControl
             }
 
+            if isExternalSparkReadbackPage {
+                externalSparkPanel
+            }
+
             if isLocalBrainWorking, sheetHasLocalBrainActions, localPageOwnedScribeLabel == nil {
                 scribeWorkCard(pageOwnedScribeLabel ?? localBrainWorkLabel)
             }
@@ -3154,7 +3308,7 @@ struct CapturePageSheet: View {
                 pactFramingCard(
                     story,
                     title: surface.payload.metadata["pactShelfTalisman"].map { "\($0) is moving here" } ?? "A Talisman is moving here",
-                    subtitle: surface.payload.metadata["pactShelfTier"]
+                    subtitle: nil
                 )
             }
 
@@ -3162,7 +3316,7 @@ struct CapturePageSheet: View {
                 pactFramingCard(
                     framing,
                     title: surface.payload.metadata["pactTalisman"].map { "\($0) frames this page" } ?? "This shelf frames this page",
-                    subtitle: "Controlled+"
+                    subtitle: nil
                 )
             }
 
@@ -3170,7 +3324,7 @@ struct CapturePageSheet: View {
                 pactFramingCard(
                     epigraph,
                     title: surface.payload.metadata["pactDoorTalisman"].map { "\($0) holds this door" } ?? "This door is held",
-                    subtitle: "Real-world door"
+                    subtitle: "A threshold between worlds"
                 )
             }
 
@@ -3271,6 +3425,10 @@ struct CapturePageSheet: View {
                 AnyView(faeBargainView)
             }
 
+            if surface.payload.metadata["greyThreat"] == "true" {
+                AnyView(greyPageThreatView)
+            }
+
             if surface.type == .festival {
                 AnyView(festivalView)
             }
@@ -3357,37 +3515,6 @@ struct CapturePageSheet: View {
                 publicMarginsExportControl
             }
         }
-    }
-
-    @ViewBuilder
-    private func enchantedSnackFirstBeat(_ prompt: MomentaryActionPrompt) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(prompt.question).font(.subheadline.weight(.semibold))
-            HStack(spacing: 8) {
-                TextField(prompt.placeholder, text: $momentaryText)
-                    .textFieldStyle(.roundedBorder)
-                    .submitLabel(.done)
-                    .onSubmit { submitMomentary(prompt) }
-                    .disabled(momentaryOutcome != nil)
-                Button(prompt.buttonTitle) { submitMomentary(prompt) }
-                    .disabled(momentaryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || momentaryOutcome != nil)
-            }
-            Text("One word is enough.").font(.caption).foregroundStyle(openPageSecondaryText)
-            if let outcome = momentaryOutcome {
-                Text(outcome.recognitionLine).font(.caption).foregroundStyle(BookPalette.lampGold)
-                if let keepsake = outcome.keepsakeLine { Text(keepsake).font(.caption2).foregroundStyle(openPageSecondaryText) }
-                Button("Carry it out") { requestDismiss() }.font(.caption.weight(.semibold))
-            }
-        }
-        .padding(10)
-        .background(BookPalette.lampGold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-
-    private func submitMomentary(_ prompt: MomentaryActionPrompt) {
-        let trimmed = momentaryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, momentaryOutcome == nil else { return }
-        momentaryOutcome = onMomentaryAction(surface, trimmed, Date())
-        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { text = trimmed }
     }
 
     @ViewBuilder
@@ -3611,7 +3738,7 @@ struct CapturePageSheet: View {
                 .disabled(gamePhrases.count < 6)
 
                 if gamePhrases.count < 6 {
-                    Text("The Loom needs at least six usable phrases from kept pages before this game can open.")
+                    Text("The Loom needs a small handful of usable phrases from kept pages before this game can open.")
                         .font(.caption)
                         .foregroundStyle(openPageSecondaryText)
                 }
@@ -3636,7 +3763,9 @@ struct CapturePageSheet: View {
                     .foregroundStyle(openPageSecondaryText)
             }
             if !result.lockedLines.isEmpty {
-                Text("\(result.lockedLines.count) sentence \(result.lockedLines.count == 1 ? "line" : "lines") held before the run ended.")
+                Text(result.lockedLines.count == 1
+                     ? "A sentence-line held before the run ended."
+                     : "Several sentence-lines held before the run ended.")
                     .font(.caption)
                     .foregroundStyle(openPageSecondaryText)
             }
@@ -3657,7 +3786,10 @@ struct CapturePageSheet: View {
                     .font(.caption.weight(.black))
                     .foregroundStyle(BookPalette.teal)
                 Spacer()
-                Text("Folio \(sentenceRunnerFolioRunNumber)/\(SentenceRunnerFolio.runsToBind)")
+                Text(BookMechanicPresentation.progress(
+                    current: sentenceRunnerFolioRunNumber,
+                    total: SentenceRunnerFolio.runsToBind
+                ))
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(openPageSecondaryText.opacity(0.72))
             }
@@ -4376,6 +4508,39 @@ struct CapturePageSheet: View {
                 }
                 .accessibilityLabel("The Bleed pocket student newspaper")
 
+            if !surface.mediaAssets.isEmpty {
+                VStack(alignment: .leading, spacing: 9) {
+                    Text("PLATES FROM THE FILE")
+                        .font(.caption2.weight(.black))
+                        .tracking(0.8)
+                        .foregroundStyle(BookPalette.ink.opacity(0.68))
+
+                    ForEach(surface.mediaAssets.prefix(2)) { asset in
+                        HStack(alignment: .top, spacing: 10) {
+                            BookOfYouMediaThumbnail(
+                                asset: asset,
+                                width: 126,
+                                height: 96
+                            )
+                            Text(asset.caption.nonEmpty ?? "An image entered into the issue without a caption.")
+                                .font(.system(.caption, design: .serif).italic())
+                                .foregroundStyle(BookPalette.ink.opacity(0.72))
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                        }
+                    }
+                }
+                .padding(10)
+                .background(
+                    BookPalette.paper.opacity(0.48),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+                }
+            }
+
             if let bleedEditionText {
                 Text(bleedEditionText)
                     .font(.system(.body, design: .serif))
@@ -4451,7 +4616,12 @@ struct CapturePageSheet: View {
             formatter.dateFormat = "yyyy-MM-dd-HHmm"
             let url = FileManager.default.temporaryDirectory
                 .appendingPathComponent("TheBleed-\(formatter.string(from: Date())).pdf")
-            try BleedPDFWriter.write(headline: surface.payload.headline, body: body, to: url)
+            try BleedPDFWriter.write(
+                headline: surface.payload.headline,
+                body: body,
+                mediaAssets: surface.mediaAssets,
+                to: url
+            )
             bleedPDFURL = url
             bleedExportMessage = "The Bleed is bound for sharing."
             BookFeedback.play(.braidComplete)
@@ -5248,10 +5418,15 @@ struct CapturePageSheet: View {
                 Spacer(minLength: 0)
             }
 
-            HStack(spacing: 8) {
-                bookJumpMeter(label: "Depth", value: depth, maximum: BookJumpEngine.maxDepth, tint: BookPalette.teal)
-                bookJumpMeter(label: "Nothing", value: degradation, maximum: 4, tint: degradation >= 2 ? BookPalette.violet : BookPalette.lampGold)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(bookJumpDepthLine(depth))
+                Text(BookMechanicPresentation.pressure(current: degradation, limit: 4))
             }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(degradation >= 2 ? BookPalette.violet : BookPalette.teal)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(10)
+            .background(BookPalette.ink.opacity(0.045), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             Text(surface.payload.body)
                 .font(.system(.body, design: .serif))
@@ -5277,7 +5452,7 @@ struct CapturePageSheet: View {
 
             if action == .start {
                 Label(
-                    "Keeping this page spends \(BookJumpEngine.startCost) Belief and opens one controlled jump.",
+                    "Keeping this page lends the jump some Belief and opens the Spine.",
                     systemImage: "sparkles"
                 )
                 .font(.caption.weight(.semibold))
@@ -5309,21 +5484,17 @@ struct CapturePageSheet: View {
         }
     }
 
-    private func bookJumpMeter(label: String, value: Int, maximum: Int, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("\(label) \(Swift.max(0, Swift.min(maximum, value)))/\(maximum)")
-                .font(.caption2.weight(.heavy))
-                .foregroundStyle(tint)
-            HStack(spacing: 3) {
-                ForEach(0..<maximum, id: \.self) { index in
-                    Capsule()
-                        .fill(index < value ? tint : BookPalette.ink.opacity(0.12))
-                        .frame(height: 6)
-                }
-            }
+    private func bookJumpDepthLine(_ depth: Int) -> String {
+        switch depth {
+        case ...0:
+            return "The Spine is still close."
+        case 1:
+            return "The Spine is still within earshot."
+        case 2:
+            return "The book has begun closing behind you."
+        default:
+            return "You are deep in borrowed ink."
         }
-        .padding(10)
-        .background(BookPalette.ink.opacity(0.045), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     /// The reader steers an open jump: go deeper (more risk, richer return),
@@ -5347,7 +5518,7 @@ struct CapturePageSheet: View {
             }
             if canDeepen {
                 let advanceCost = BookJumpEngine.advanceCost(depth: depth)
-                Text("Go one page deeper · \(advanceCost) Belief — choose how the next scene turns:")
+                Text("The next page will take a little more Belief. Choose how it turns:")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.7))
                     .fixedSize(horizontal: false, vertical: true)
@@ -5464,7 +5635,7 @@ struct CapturePageSheet: View {
                         .stroke(BookPalette.lampGold.opacity(0.24), lineWidth: 1)
                 }
 
-            Text("The Book won't settle it. Whose reading do you keep closer? Your agreement gives them a point of Belief — and costs you one.")
+            Text("The Book won't settle it. Whose reading do you keep closer? Your agreement lends their reading a little Belief and takes a little from the margins.")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(BookPalette.nightText.opacity(0.78))
                 .fixedSize(horizontal: false, vertical: true)
@@ -5523,15 +5694,15 @@ struct CapturePageSheet: View {
 
     private var faeBargainView: some View {
         let metadata = surface.payload.metadata
+        let isOffer = metadata["status"] == FaeBargainStatus.offered.rawValue
         let hasMovedOn = metadata["hasMovedOn"] == "true" || metadata["status"] == FaeBargainStatus.lapsed.rawValue
         let faeName = metadata["faeName"] ?? "A Book Fae"
         let giftName = metadata["giftName"] ?? "a gift"
         let giftLine = metadata["giftEffectLine"] ?? ""
         let giftUseLine = metadata["giftUseLine"] ?? "Find it in Inventory under Fae Gifts."
         let terms = metadata["terms"] ?? surface.detail
-        let deadlineLine = metadata["deadlineLine"] ?? "the exchange window is ending"
         let consequenceLine = metadata["consequenceLine"]
-            ?? "When the window passes, the Fae wanders on. Your gift and standing stay as they are."
+            ?? "When the window passes, the gift goes cold and the old terms close a market door until repaired."
         return VStack(alignment: .leading, spacing: 14) {
             Text(surface.payload.body)
                 .font(.system(.body, design: .serif))
@@ -5539,9 +5710,8 @@ struct CapturePageSheet: View {
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // A fronted gift stays warm even when the exchange window passes.
             hourPageCallout(
-                title: "\(faeName) gave first: \(giftName)",
+                title: isOffer ? "\(faeName) is holding out: \(giftName)" : "\(faeName) gave first: \(giftName)",
                 symbol: "gift",
                 body: giftLine,
                 tint: BookPalette.lampGold
@@ -5554,21 +5724,62 @@ struct CapturePageSheet: View {
                 tint: BookPalette.teal
             )
 
-            hourPageCallout(
-                title: hasMovedOn ? "What the Fae once asked" : "What the Fae is asking",
-                symbol: "hands.sparkles",
-                body: terms,
-                tint: BookPalette.teal
-            )
+            if isOffer {
+                hourPageCallout(
+                    title: "The price, if you take it",
+                    symbol: "hands.sparkles",
+                    body: terms,
+                    tint: BookPalette.teal
+                )
 
-            hourPageCallout(
-                title: hasMovedOn ? "The world moved on" : "While the exchange waits",
-                symbol: hasMovedOn ? "leaf" : "hourglass",
-                body: hasMovedOn ? consequenceLine : "You have \(deadlineLine). \(consequenceLine)",
-                tint: hasMovedOn ? BookPalette.teal : BookPalette.lampGold
-            )
+                hourPageCallout(
+                    title: "The old law",
+                    symbol: "exclamationmark.seal",
+                    body: consequenceLine,
+                    tint: BookPalette.lampGold
+                )
 
-            if !hasMovedOn, faeResponseText.isEmpty, faeDeadline != nil {
+                Button {
+                    guard !isFaeAccepting,
+                          let bargainID = metadata["bargainID"] else { return }
+                    isFaeAccepting = true
+                    defer { isFaeAccepting = false }
+                    if let accepted = onAcceptFaeBargain(bargainID) {
+                        onNavigateToSurface(accepted)
+                    } else {
+                        faeMessage = "The offer slipped out of reach."
+                        BookFeedback.play(.error)
+                    }
+                } label: {
+                    Label(
+                        isFaeAccepting ? "The ink is binding..." : "Take the gift. Owe the price.",
+                        systemImage: "seal"
+                    )
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.bookPress())
+                .foregroundStyle(BookPalette.lampGold)
+                .disabled(isFaeAccepting)
+            } else {
+                hourPageCallout(
+                    title: hasMovedOn ? "The terms that remain" : "What the Fae is asking",
+                    symbol: "hands.sparkles",
+                    body: terms,
+                    tint: BookPalette.teal
+                )
+
+                hourPageCallout(
+                    title: hasMovedOn ? "What has gone cold" : "While the exchange waits",
+                    symbol: hasMovedOn ? "snowflake" : "hourglass",
+                    body: hasMovedOn ? consequenceLine : "The exchange is still open. \(consequenceLine)",
+                    tint: BookPalette.lampGold
+                )
+            }
+
+            if !isOffer, !hasMovedOn, faeResponseText.isEmpty, faeDeadline != nil {
                 Button {
                     Task { await setFaeBargainReminder() }
                 } label: {
@@ -5579,8 +5790,9 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.teal)
             }
 
-            if faeResponseText.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
+            if !isOffer {
+                if faeResponseText.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
                     Text(hasMovedOn ? "Answer anyway, if you want" : "Your field report")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(openPageSecondaryText)
@@ -5622,9 +5834,9 @@ struct CapturePageSheet: View {
                     if isFaePaying {
                         scribeWorkCard("fae-bargain")
                     }
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 10) {
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
                     Label(faeName, systemImage: "sparkles")
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(BookPalette.lampGold.opacity(0.9))
@@ -5640,12 +5852,13 @@ struct CapturePageSheet: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(BookPalette.teal)
                         .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(14)
-                .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+                    }
+                    .padding(14)
+                    .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+                    }
                 }
             }
 
@@ -5654,6 +5867,84 @@ struct CapturePageSheet: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(openPageSecondaryText)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var greyPageThreatView: some View {
+        let metadata = surface.payload.metadata
+        let status = GreyPageThreatStatus(
+            rawValue: metadata["greyThreatStatus"] ?? ""
+        ) ?? .marked
+        let title = metadata["greyTargetTitle"] ?? "the marked Page"
+        let deadline = metadata["deadline"].flatMap {
+            ISO8601DateFormatter().date(from: $0)
+        }
+        return VStack(alignment: .leading, spacing: 14) {
+            if status == .fading {
+                hourPageCallout(
+                    title: "What is actually at stake",
+                    symbol: "rectangle.dashed",
+                    body: "The raw Page remains in Stacks and export. The Grey can only take it from living memory: future resurfacing, quotation, connection, and story.",
+                    tint: BookPalette.lampGold
+                )
+
+                if let deadline {
+                    TimelineView(.periodic(from: Date(), by: 60)) { context in
+                        let remaining = max(0, deadline.timeIntervalSince(context.date))
+                        Text(remaining <= 3_600
+                             ? "The ink of “\(title)” is fading now."
+                             : "The window around “\(title)” is narrowing.")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(BookPalette.lampGold)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Button {
+                        greyThreatChoice = "rescue"
+                    } label: {
+                        Label("Bring it one new true detail", systemImage: "sparkles")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bookPress())
+                    .foregroundStyle(greyThreatChoice == "rescue" ? BookPalette.lampGold : BookPalette.teal)
+
+                    if greyThreatChoice == "rescue" {
+                        Text("Something this Page could not have known when it was first kept.")
+                            .font(.caption)
+                            .foregroundStyle(openPageSecondaryText)
+                        TextEditor(text: $greyRescueLine)
+                            .font(.body)
+                            .foregroundStyle(BookPalette.ink)
+                            .scrollContentBackground(.hidden)
+                            .padding(10)
+                            .frame(minHeight: 110)
+                            .dictationInput(text: $greyRescueLine)
+                            .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+                            }
+                    }
+
+                    Button {
+                        greyThreatChoice = "surrender"
+                        greyRescueLine = ""
+                    } label: {
+                        Label("Let this Page leave living memory", systemImage: "wind")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bookPress())
+                    .foregroundStyle(greyThreatChoice == "surrender" ? BookPalette.lampGold : BookPalette.teal)
+                }
+            } else if status == .erased {
+                hourPageCallout(
+                    title: "The scar is real",
+                    symbol: "rectangle.dashed",
+                    body: "“\(title)” remains readable in raw Stacks and export, but the living Book will no longer use it as memory.",
+                    tint: BookPalette.lampGold
+                )
             }
         }
     }
@@ -5909,7 +6200,7 @@ struct CapturePageSheet: View {
                 Label(
                     isCastingEnchantment
                         ? "Casting..."
-                        : "\(enchantmentResult == nil ? "Choose photo and cast" : "Cast on another photo") · \(BeliefGenerationKind.enchantment.cost) Belief",
+                        : "\(enchantmentResult == nil ? "Choose photo and cast" : "Cast on another photo") — the spell will borrow some Belief",
                     systemImage: "photo"
                 )
                     .font(.subheadline.weight(.bold))
@@ -5931,7 +6222,7 @@ struct CapturePageSheet: View {
                     isCameraPresented = true
                 } label: {
                     Label(
-                        "Take photo and cast · \(BeliefGenerationKind.enchantment.cost) Belief",
+                        "Take photo and cast",
                         systemImage: "camera"
                     )
                         .font(.subheadline.weight(.bold))
@@ -5948,7 +6239,7 @@ struct CapturePageSheet: View {
             #endif
 
             if readerBeliefScore < BeliefGenerationKind.enchantment.cost {
-                Text("This spell needs \(BeliefGenerationKind.enchantment.cost - readerBeliefScore) more Belief before it can take the photo into fiction.")
+                Text("The spell is waiting for the Book's Glow to warm.")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.58))
             }
@@ -7677,7 +7968,7 @@ struct CapturePageSheet: View {
                             Label(object.name, systemImage: "key.horizontal.fill")
                                 .font(.subheadline.weight(.bold))
                             Spacer()
-                            Text("\(BeliefLexicon.glowName(for: glow)) · \(glow)")
+                            Text(BookMechanicPresentation.glow(glow))
                                 .font(.caption2.weight(.black))
                                 .foregroundStyle(BookPalette.lampGold)
                         }
@@ -7691,7 +7982,7 @@ struct CapturePageSheet: View {
                                 .font(.caption)
                                 .foregroundStyle(BookPalette.ink.opacity(0.62))
                         }
-                        Text("An enduring Cast entity. Its Belief changes how brightly it Glows and how often it enters Pages, letters, gossip, and stories.")
+                        Text("An enduring member of the Cast. When it brightens, the Book remembers to make room for it.")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(BookPalette.teal.opacity(0.82))
                     }
@@ -7737,10 +8028,10 @@ struct CapturePageSheet: View {
         switch gift.effect {
             case .quieting:
                 if gift.isActive, let expiresAt = gift.expiresAt {
-                    Label("Quiet until \(expiresAt.formatted(date: .abbreviated, time: .shortened))", systemImage: "moon.zzz.fill")
+                    Label(expiresAt > Date() ? "Quieting is active" : "The quiet has lifted", systemImage: "moon.zzz.fill")
                         .font(.caption.weight(.bold)).foregroundStyle(BookPalette.teal)
                 } else {
-                    inventoryActionButton("Invoke for 24 hours", symbol: "moon.zzz") { useInventoryGift(gift.id, target: nil) }
+                    inventoryActionButton("Invoke until tomorrow", symbol: "moon.zzz") { useInventoryGift(gift.id, target: nil) }
                 }
             case .callingCard:
                 if gift.isActive {
@@ -7910,7 +8201,7 @@ struct CapturePageSheet: View {
                     onGenerateLetter(surface)
                 } label: {
                     Label(
-                        "Open and read · \(BeliefGenerationKind.letter.cost) Belief",
+                        "Open and read — the letter will borrow some Belief",
                         systemImage: "envelope.open"
                     )
                         .frame(maxWidth: .infinity)
@@ -7920,7 +8211,7 @@ struct CapturePageSheet: View {
                 .disabled(readerBeliefScore < BeliefGenerationKind.letter.cost)
 
                 if readerBeliefScore < BeliefGenerationKind.letter.cost {
-                    Text("The letter will wait. It needs \(BeliefGenerationKind.letter.cost - readerBeliefScore) more Belief to cross the stacks.")
+                    Text("The letter will wait until the margins warm.")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(BookPalette.ink.opacity(0.58))
                 }
@@ -7955,7 +8246,7 @@ struct CapturePageSheet: View {
                     onGenerateNote(surface)
                 } label: {
                     Label(
-                        "Unfold and read · \(BeliefGenerationKind.note.cost) Belief",
+                        "Unfold and read — the note will borrow a little Belief",
                         systemImage: "note.text"
                     )
                         .frame(maxWidth: .infinity)
@@ -7965,7 +8256,7 @@ struct CapturePageSheet: View {
                 .disabled(readerBeliefScore < BeliefGenerationKind.note.cost)
 
                 if readerBeliefScore < BeliefGenerationKind.note.cost {
-                    Text("The folded note needs one point of Belief before its ink will move.")
+                    Text("The folded note will wait until the margins warm.")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(BookPalette.ink.opacity(0.58))
                 }
@@ -8374,7 +8665,7 @@ struct CapturePageSheet: View {
                         Text("Penny Blackletter")
                             .font(.headline.weight(.semibold))
                             .foregroundStyle(BookPalette.ink)
-                        Text("Chapter 9 sentence desk - lesson \(lesson.order) of \(PennySentenceMasteryLesson.allCases.count)")
+                        Text("A sentence lesson from Chapter 9")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(BookPalette.ink.opacity(0.58))
                             .fixedSize(horizontal: false, vertical: true)
@@ -8473,20 +8764,9 @@ struct CapturePageSheet: View {
 
     private var compassRunConstraintForm: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 6) {
-                ForEach(CompassRunConstraintStep.allCases) { step in
-                    Capsule()
-                        .fill(step.ordinal <= compassConstraintStep.ordinal ? BookPalette.teal : BookPalette.ink.opacity(0.12))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 5)
-                }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Question \(compassConstraintStep.ordinal) of \(CompassRunConstraintStep.allCases.count)")
-
             VStack(alignment: .leading, spacing: 7) {
                 Label(
-                    "QUESTION \(compassConstraintStep.ordinal) OF \(CompassRunConstraintStep.allCases.count) · \(compassConstraintStep.title.uppercased())",
+                    compassConstraintStep.title.uppercased(),
                     systemImage: compassConstraintStep.symbol
                 )
                 .font(.caption.weight(.black))
@@ -9749,13 +10029,7 @@ struct CapturePageSheet: View {
                     turnsWritten: max(turnNumber - 1, 0),
                     formName: draft.formName
                 ).progressLabel
-                HStack(spacing: 6) {
-                    Text("Turn \(turnNumber) of \(storyTurns.count)")
-                    if !arcLabel.isEmpty {
-                        Text("·").foregroundStyle(BookPalette.gold.opacity(0.5))
-                        Text(arcLabel)
-                    }
-                }
+                Text(arcLabel.isEmpty ? "The story continues" : arcLabel)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(BookPalette.gold)
             }
@@ -9837,7 +10111,7 @@ struct CapturePageSheet: View {
                     VStack(alignment: .leading, spacing: 8) {
                         let inkbonesResolution = turn.inkbonesResolution(for: selectedStoryChoice)
                         Label(
-                            inkbonesResolution == nil ? "The page answers" : "The roll changes the story",
+                            inkbonesResolution == nil ? "The page answers" : "The bones change the story",
                             systemImage: inkbonesResolution == nil ? "sparkles" : "book.pages"
                         )
                             .font(.caption.weight(.bold))
@@ -11164,7 +11438,7 @@ struct CapturePageSheet: View {
             return
         }
         guard onSpendBeliefForGeneration(.enchantment) else {
-            enchantmentMessage = "This spell needs \(BeliefGenerationKind.enchantment.cost) Belief before its ink can wake."
+            enchantmentMessage = "This spell is waiting for the Book's Glow to warm."
             return
         }
 
@@ -11634,7 +11908,7 @@ struct CapturePageSheet: View {
         guard !isLocalBrainWorking else {
             if inkbonesResolution != nil {
                 storyTurns[turnIndex].generatedResults[choiceID] = context.fallbackResult
-                storyContinuationMessage = "The roll changed the scene without waking another local scribe."
+                storyContinuationMessage = "The bones changed the scene without waking another local scribe."
                 BookFeedback.play(.braidComplete)
             } else {
                 storyContinuationMessage = "The local brain is already writing. Let that ink dry first."
@@ -11811,6 +12085,13 @@ struct CapturePageSheet: View {
         }
         if surface.type == .faeBargain {
             return !isFaePaying && !faeResponseText.isEmpty
+        }
+        if surface.payload.metadata["greyThreat"] == "true" {
+            let status = surface.payload.metadata["greyThreatStatus"]
+            guard status == GreyPageThreatStatus.fading.rawValue else { return false }
+            if greyThreatChoice == "surrender" { return true }
+            return greyThreatChoice == "rescue"
+                && !greyRescueLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
         if surface.type == .twoReadings {
             return twoReadingsSide != nil
@@ -12024,7 +12305,7 @@ struct CapturePageSheet: View {
             Rest:
             \(metadata["restPrompt"] ?? "Put the phone face down for sixty seconds and let the run land.")
 
-            Keep this page after the quiet minute to complete the run and gain 6 Belief.
+            Keep this page after the quiet minute to complete the run. The Book's Glow will warm.
             """
         }
 
@@ -12064,6 +12345,15 @@ struct CapturePageSheet: View {
 
     private var preparedInput: String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if surface.payload.metadata["greyThreat"] == "true" {
+            if greyThreatChoice == "rescue" {
+                return greyRescueLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            if greyThreatChoice == "surrender" {
+                return "I let this Page leave the living Book."
+            }
+            return ""
+        }
         if surface.type == .tarot {
             return tarotReading?.archiveText ?? ""
         }
@@ -12349,6 +12639,16 @@ struct CapturePageSheet: View {
             ?? []
 
         var tags = metadataTags
+        if preparedSurface.payload.metadata["greyThreat"] == "true",
+           let threatID = preparedSurface.payload.metadata["greyThreatID"] {
+            tags.append("grey-threat")
+            tags.append("grey-threat:\(threatID)")
+            if greyThreatChoice == "rescue" {
+                tags.append("grey-threat-rescued")
+            } else if greyThreatChoice == "surrender" {
+                tags.append("grey-threat-surrendered")
+            }
+        }
         if preparedSurface.type == .tarot, let tarotReading {
             tags.append("tarot")
             tags.append("tarot-spread:\(tarotReading.spread.rawValue)")
@@ -12404,6 +12704,19 @@ struct CapturePageSheet: View {
             }
             if let selectedStoryChoice {
                 tags.append("choice:\(selectedStoryChoice.id)")
+                if let draft = storySceneDraft {
+                    let closureText = [
+                        selectedStoryChoice.title,
+                        selectedStoryChoice.prompt,
+                        selectedStoryChoice.effectLine,
+                        draft.result(for: selectedStoryChoice)
+                    ].joined(separator: " ")
+                    tags.append(contentsOf: StoryChoiceClosure.tags(
+                        chosenChoiceID: selectedStoryChoice.id,
+                        availableChoiceIDs: draft.choices.map(\.id),
+                        chosenText: closureText
+                    ))
+                }
                 if storyTurns.isEmpty,
                    let draft = storySceneDraft,
                    let contract = draft.dramaticContract,
@@ -12419,6 +12732,17 @@ struct CapturePageSheet: View {
             for turn in storyTurns {
                 if let choice = turn.selectedChoice {
                     tags.append("choice:\(choice.id)")
+                    let closureText = [
+                        choice.title,
+                        choice.prompt,
+                        choice.effectLine,
+                        turn.result(for: choice)
+                    ].joined(separator: " ")
+                    tags.append(contentsOf: StoryChoiceClosure.tags(
+                        chosenChoiceID: choice.id,
+                        availableChoiceIDs: turn.draft.choices.map(\.id),
+                        chosenText: closureText
+                    ))
                     if let contract = turn.draft.dramaticContract,
                        let effect = contract.effect(for: choice.id),
                        let receipt = StoryDramaticOutcomeReceipt(
@@ -12503,6 +12827,14 @@ struct CapturePageSheet: View {
             tags.append("two-readings")
             if let side = twoReadingsSide {
                 tags.append("sided:\(side)")
+                tags.append("\(StoryChoiceClosure.chosenPrefix)\(side)")
+                let metadata = preparedSurface.payload.metadata
+                let other = side == metadata["entityAID"]
+                    ? metadata["entityBID"]
+                    : metadata["entityAID"]
+                if let other = other?.nonEmpty {
+                    tags.append("\(StoryChoiceClosure.closedPrefix)\(other)")
+                }
             }
         }
         if preparedSurface.type == .bookJump {
@@ -13121,8 +13453,7 @@ struct CapturePageSheet: View {
         surface.payload.metadata["deadline"].flatMap { ISO8601DateFormatter().date(from: $0) }
     }
 
-    /// Set a real Reminder a few hours before the exchange leaves the active
-    /// desk. The gift and standing remain safe either way.
+    /// Set a real Reminder a few hours before the accepted exchange bites.
     private func setFaeBargainReminder() async {
         guard let deadline = faeDeadline else { return }
         let remindAt = max(Date().addingTimeInterval(60), deadline.addingTimeInterval(-3 * 3_600))
@@ -13131,7 +13462,7 @@ struct CapturePageSheet: View {
         let gift = metadata["giftName"] ?? "the gift"
         let ok = await EventKitWriter.addReminder(
             title: "A Fae exchange is still waiting",
-            notes: "\(fae) is waiting for this noticing. If the window passes, \(gift) stays warm and the Fae wanders on:\n\(metadata["terms"] ?? "")",
+            notes: "\(fae) is waiting for this noticing. If the window passes, \(gift) goes cold and their market door shuts until repaired:\n\(metadata["terms"] ?? "")",
             due: remindAt
         )
         faeMessage = ok
@@ -13439,7 +13770,7 @@ private enum SentenceRunnerFolio {
     static let runsToBind = 3
 
     static func title(completing run: Int) -> String {
-        run >= runsToBind ? "The Loom Folio is ready to bind." : "Folio thread \(run) of \(runsToBind)."
+        run >= runsToBind ? "The Loom Folio is ready to bind." : BookMechanicPresentation.progress(current: run, total: runsToBind)
     }
 }
 
@@ -13962,10 +14293,21 @@ private struct SentenceRunnerGameView: View {
                 }
 
                 HStack(spacing: 10) {
-                    runnerStat("Caught", caught.count, BookPalette.teal)
-                    runnerStat("Grey", nothingHits.count, BookPalette.ink.opacity(0.55))
-                    runnerStat("Line", currentLine.count, BookPalette.lampGold, suffix: "/3")
-                    runnerStat("Run", Int(progress * 100), BookPalette.lampGold, suffix: "%")
+                    runnerState(
+                        "Thread",
+                        caught.isEmpty ? "listening" : (targetCaught ? "carried" : "gathering"),
+                        BookPalette.teal
+                    )
+                    runnerState(
+                        "Margin",
+                        nothingHits.isEmpty ? "clear" : "grey-touched",
+                        nothingHits.isEmpty ? BookPalette.lampGold : BookPalette.ink.opacity(0.55)
+                    )
+                    runnerState(
+                        "Road",
+                        progress < 0.35 ? "opening" : (progress < 0.78 ? "running" : "nearly home"),
+                        BookPalette.lampGold
+                    )
                 }
 
                 GeometryReader { proxy in
@@ -14245,13 +14587,15 @@ private struct SentenceRunnerGameView: View {
         }
     }
 
-    private func runnerStat(_ title: String, _ value: Int, _ tint: Color, suffix: String = "") -> some View {
+    private func runnerState(_ title: String, _ value: String, _ tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title.uppercased())
                 .font(.caption2.weight(.black))
                 .foregroundStyle(BookPalette.nightText.opacity(0.58))
-            Text("\(value)\(suffix)")
-                .font(.title3.weight(.black))
+            Text(value)
+                .font(.caption.weight(.black))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
                 .foregroundStyle(tint)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -14853,15 +15197,7 @@ enum SentenceRunnerPromptBuilder {
 }
 
 enum GossipPagePromptBuilder {
-    static let instructions = """
-    You are The Book inside ReEnchanted, writing a Gossip Page.
-    The app has already decided the simulation mechanics and supplied any real-world interest clippings. You may only polish those supplied materials into warm, strange, readable margin-gossip.
-    The simulation packet is source-of-truth. Turn each supplied simulation turn into in-world gossip; do not create your own events.
-    Do not add new actors, threads, actions, outcomes, rewards, quests, user actions, or real-world facts.
-    Do not mention sensors, APIs, code, prompts, JSON, searches, or simulation machinery.
-    \(BookVoice.animismLine)
-    Prose standard: simple concrete sentences; one exact object, gesture, or spoken line per entry; no vague wonder, hidden meaning, tapestry of, echoes of, quiet magic, profound, journey, or generic inspiration.
-    """
+    static let instructions = GossipPageForm.instructions
 
     static func prompt(for surface: SurfacePage, nowPlaying: String? = nil) -> String {
         let metadata = surface.payload.metadata
@@ -14869,22 +15205,8 @@ enum GossipPagePromptBuilder {
         Rewrite the following deterministic Gossip Page simulation output as a finished page for the user.
 
         Requirements:
-        - Use the Simulation turns as source-of-truth.
-        - Keep every actor, thread, action, visible trace, and consequence from the Simulation turns.
-        - Preserve which action caused which consequence.
-        - Write 3-5 short entries total, based only on the supplied turns.
-        - Include 2-3 Academy gossip entries when Academy turns are supplied.
-        - If real-world interest clippings are supplied, include 1-2 of them as ordinary-world margin gossip.
-        - Each entry must show what someone said, touched, carried, hid, dropped, overheard, or did.
-        - Prefer dialogue, tiny betrayals, social pressure, and visible character action over explanation.
-        - Use short, specific sentences. Let concrete nouns and verbs carry the joke.
-        - Keep fictional Academy consequences and real-world facts distinct while letting them sit on the same page.
-        - If a Chapter talisman move appears in a turn, preserve it as a real world-state change or failed attempt; successful deltas will count when the page is kept.
-        - Include one brief "What changed" section in-world.
+        \(GossipPageForm.finishedPageRequirements)
         - Keep it under 320 words.
-        - Do not expose hidden mechanics as game math.
-        - Do not invent anything not present in the draft packet.
-        - Do not imply the user researched, visited, played, read, bought, or completed anything.
 
         Actors: \(metadata["actorNames"] ?? metadata["actorName"] ?? "unknown")
         Threads: \(metadata["threadTitles"] ?? metadata["threadTitle"] ?? "unknown")

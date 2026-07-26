@@ -105,6 +105,16 @@ final class PeopleOfTheBookTests: XCTestCase {
         XCTAssertTrue(suggestions(pages).isEmpty)
     }
 
+    func testCapitalizedPlaceBeforeDesignatorIsNotSuggestedAsAPerson() {
+        let pages = [
+            page("The green cart at Harbor Market squealed in the rain", at: daysAgo(18)),
+            page("A gull landed inside Harbor Market before lunch", at: daysAgo(14)),
+            page("Receipt paper crossed Harbor Market under the lights", at: daysAgo(8)),
+            page("The copper bell at Harbor Market rang once", at: daysAgo(2))
+        ]
+        XCTAssertTrue(suggestions(pages).isEmpty)
+    }
+
     func testCastCalendarAndAppWordsAreNeverSuggested() {
         let pages = [
             page("Talked with Zara about Tuesday and the Book", at: daysAgo(15)),

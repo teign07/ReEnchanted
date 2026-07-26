@@ -113,17 +113,71 @@ struct WritingVoiceProfile: Codable, Equatable {
     var diction: [String]
     var habits: [String]
     var avoid: [String]
+    /// Tiny original examples teach a small local model cadence more reliably
+    /// than another paragraph of adjectives. They are rhythm references only:
+    /// prompts explicitly forbid copying their facts into a new scene.
+    var exemplars: [String]
+
+    init(
+        register: String,
+        rhythm: String,
+        diction: [String],
+        habits: [String],
+        avoid: [String],
+        exemplars: [String] = []
+    ) {
+        self.register = register
+        self.rhythm = rhythm
+        self.diction = diction
+        self.habits = habits
+        self.avoid = avoid
+        self.exemplars = exemplars
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case register
+        case rhythm
+        case diction
+        case habits
+        case avoid
+        case exemplars
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        register = try values.decode(String.self, forKey: .register)
+        rhythm = try values.decode(String.self, forKey: .rhythm)
+        diction = try values.decodeIfPresent([String].self, forKey: .diction) ?? []
+        habits = try values.decodeIfPresent([String].self, forKey: .habits) ?? []
+        avoid = try values.decodeIfPresent([String].self, forKey: .avoid) ?? []
+        exemplars = try values.decodeIfPresent([String].self, forKey: .exemplars) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(register, forKey: .register)
+        try values.encode(rhythm, forKey: .rhythm)
+        try values.encode(diction, forKey: .diction)
+        try values.encode(habits, forKey: .habits)
+        try values.encode(avoid, forKey: .avoid)
+        if !exemplars.isEmpty {
+            try values.encode(exemplars, forKey: .exemplars)
+        }
+    }
 
     var promptDescription: String {
         let dictionLine = diction.isEmpty ? "Use vocabulary implied by the character." : diction.joined(separator: ", ")
         let habitLine = habits.isEmpty ? "Let the character's habits appear subtly." : habits.joined(separator: "; ")
         let avoidLine = avoid.isEmpty ? "Do not overperform the voice." : avoid.joined(separator: "; ")
+        let exemplarLine = exemplars.isEmpty
+            ? ""
+            : "\nCadence examples (copy the movement, never the facts): " + exemplars.map { "“\($0)”" }.joined(separator: " / ")
         return """
         Register: \(register)
         Rhythm: \(rhythm)
         Diction: \(dictionLine)
         Habits: \(habitLine)
-        Avoid: \(avoidLine)
+        Avoid: \(avoidLine)\(exemplarLine)
         """
     }
 }

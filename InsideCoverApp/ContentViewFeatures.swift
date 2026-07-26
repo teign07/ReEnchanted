@@ -552,7 +552,7 @@ extension ContentView {
             day: today,
             memory: memory
         ) {
-            body = "\(scene)\n\nKeeping this page checks in at the Anchor and offers up to \(AnchorRegistry.checkInBeliefReward) Belief from your Glow to the place."
+            body = "\(scene)\n\nKeeping this page checks in at the Anchor and offers it a little Belief from your Glow."
             metadata["visitScene"] = scene
             metadata["storyScene"] = scene
             if !memory.isEmpty {
@@ -667,14 +667,15 @@ extension ContentView {
         withAnimation(.easeInOut(duration: 0.4)) {
             didCompleteStoryOnboarding = true
         }
-        // The launch curator may already have served a Welcome underneath the
-        // onboarding cover. Establish the engagement ledger before saving the
-        // answers so that hidden service can never be mistaken for having read
-        // the card on a later launch.
-        if vault.data.firstRunEngaged == nil {
-            vault.data.firstRunEngaged = []
-            vault.save()
-        }
+        // Completing a real First Door begins a new visible first-run handoff.
+        // Do this unconditionally: development resets, interrupted onboarding,
+        // and restored vaults can all carry an older engagement ledger even
+        // though this reader has not seen the Welcome from this onboarding.
+        vault.data.firstRunEngaged = []
+        var firstRunDismissals = decodedDismissalLedger()
+        firstRunDismissals.dismissedAtByDay[today.id] = nil
+        dismissedSurfaceLedgerV2 = encodedDismissalLedger(firstRunDismissals)
+        vault.save()
         if !momentFate.isEmpty {
             saveOnboardingFact(
                 questionID: "onboarding-moment-fate",
@@ -887,7 +888,7 @@ extension ContentView {
             saveCustomCastMember(CustomCastMemberDraft(
                 name: belief,
                 kind: .motif,
-                meaning: "The player's stated core belief, planted with 3 Belief on their first day in the Labyrinth.",
+                meaning: "The player's stated core belief, planted with Belief on their first day in the Labyrinth.",
                 description: "Spoken aloud to Zara Finch at the threshold: \"\(belief)\"",
                 traits: ["planted", "core"],
                 beliefs: [belief],
@@ -1444,8 +1445,8 @@ extension ContentView {
             return
         }
         statusMessage = elective.bookFavorID == nil
-            ? "\(elective.characterName) will remember this. +\(UnwrittenElective.completionBeliefReward) Belief."
-            : "\(bookCompletionLine ?? "You brought the favor back. The Book will remember it.") +\(UnwrittenElective.completionBeliefReward) Belief."
+            ? "\(elective.characterName) will remember this. The Book's Glow warms."
+            : "\(bookCompletionLine ?? "You brought the favor back. The Book will remember it.") The Book's Glow warms."
         BookFeedback.play(.braidComplete)
     }
 
@@ -1815,9 +1816,48 @@ extension ContentView {
         }
         let kind = BleedEditionKind(rawValue: surface.payload.metadata["bleedEditionKind"] ?? "") ?? .morning
         let issueNumber = Int(surface.payload.metadata["bleedIssueNumber"] ?? "") ?? 1
+        let pressTime = Date()
+
+        // The first paper should not quietly print an empty noticeboard merely
+        // because the Calendar Doorway has never been offered. Ask once at the
+        // moment the issue needs it; a refusal remains a refusal.
+        if issueNumber == 1,
+           !didHandleBleedCalendarDoorway,
+           !bookCalendarEnabled,
+           CalendarDoorway.isAvailable {
+            didHandleBleedCalendarDoorway = true
+            switch CalendarDoorway.accessState {
+            case .notDetermined:
+                statusMessage = "The first issue needs its noticeboard. Penny is asking whether the Calendar Doorway may open..."
+                let events = await CalendarDoorway.upcomingEvents(now: pressTime)
+                if CalendarDoorway.accessState == .authorized {
+                    bookCalendarEnabled = true
+                    calendarEvents = events
+                }
+            case .authorized:
+                bookCalendarEnabled = true
+                calendarEvents = await CalendarDoorway.upcomingEvents(now: pressTime)
+            case .denied, .unavailable:
+                break
+            }
+        }
+
+        if bookCalendarEnabled {
+            calendarEvents = await CalendarDoorway.upcomingEvents(now: pressTime)
+        }
+
+        var pressInputs = sourceInputs
+        pressInputs.calendarIntegrationEnabled = bookCalendarEnabled
+        pressInputs.calendarEvents = calendarEvents
+        briefs = TheBleedEditionBuilder.refreshingAlmanacBriefs(
+            briefs,
+            kind: kind,
+            inputs: pressInputs,
+            now: pressTime
+        )
 
         if briefs.contains(where: { $0.id == "weather-desk" }) {
-            var weatherInputs = sourceInputs
+            var weatherInputs = pressInputs
             if weatherInputs.weather?.isAvailable != true {
                 statusMessage = "Penny is checking the window before the weather desk goes to type..."
                 _ = await refreshWeatherSignal(isUserInitiated: false, shouldEnchant: false)
@@ -1870,13 +1910,13 @@ extension ContentView {
     /// Binds the most recent edition (prepared or kept today) as a PDF.
     @MainActor
     func exportBleedPDF() {
-        let candidate: (headline: String, body: String)? = {
+        let candidate: (headline: String, body: String, mediaAssets: [BookPageMediaAsset])? = {
             if let prepared = generation.preparedBleedEditionSurface,
                let prose = prepared.payload.metadata["bleedProse"]?.nonEmpty {
-                return (prepared.payload.headline, prose)
+                return (prepared.payload.headline, prose, prepared.mediaAssets)
             }
             if let kept = today.pages.last(where: { $0.type == .theBleed && !$0.userInput.isEmpty }) {
-                return (kept.promptText.nonEmpty ?? "The Bleed", kept.userInput)
+                return (kept.promptText.nonEmpty ?? "The Bleed", kept.userInput, kept.mediaAssets)
             }
             return nil
         }()
@@ -1890,7 +1930,12 @@ extension ContentView {
             formatter.dateFormat = "yyyy-MM-dd-HHmm"
             let url = FileManager.default.temporaryDirectory
                 .appendingPathComponent("TheBleed-\(formatter.string(from: Date())).pdf")
-            try BleedPDFWriter.write(headline: candidate.headline, body: candidate.body, to: url)
+            try BleedPDFWriter.write(
+                headline: candidate.headline,
+                body: candidate.body,
+                mediaAssets: candidate.mediaAssets,
+                to: url
+            )
             preparedBleedPDFURL = url
             statusMessage = "The Bleed is bound for sharing."
             BookFeedback.play(.braidComplete)
@@ -3259,7 +3304,9 @@ extension ContentView {
                 sourceID: sourceID
             )
             var prose = first
-            if !firstAudit.passed,
+            var repairedAudit: CharacterFidelityAudit?
+            var selectedDraft: CharacterFidelityReceipt.SelectedDraft = .first
+            if firstAudit.shouldRepair,
                let repaired = await LocalBrainProse.write(
                     prompt: """
                     \(prompt)
@@ -3274,16 +3321,26 @@ extension ContentView {
                     tags: tags + ["character-repair"]
                ),
                !repaired.hasPrefix("{") {
-                let repairedAudit = await CharacterFidelityReviewer.audit(
+                let audit = await CharacterFidelityReviewer.audit(
                     prose: repaired,
                     canon: canon,
                     context: "repaired \(base.type.rawValue) surface \(base.payload.headline)",
                     sourceID: sourceID
                 )
-                if repairedAudit.passed || repairedAudit.score >= firstAudit.score {
+                repairedAudit = audit
+                if CharacterFidelityReviewer.prefersRepairedDraft(first: firstAudit, repaired: audit) {
                     prose = repaired
+                    selectedDraft = .repaired
                 }
             }
+            await CharacterFidelityReviewer.recordDecision(
+                sourceID: sourceID,
+                canon: canon,
+                prompt: prompt,
+                first: firstAudit,
+                repaired: repairedAudit,
+                selected: selectedDraft
+            )
             metadata[proseKey] = prose
             body = prose
         } else {
@@ -3485,7 +3542,9 @@ extension ContentView {
                 context: "Support Guild consultation between Dr. Vellum and Dr. Inkrest",
                 sourceID: "support-guild"
             )
-            if !firstAudit.passed,
+            var repairedAudit: CharacterFidelityAudit?
+            var selectedDraft: CharacterFidelityReceipt.SelectedDraft = .first
+            if firstAudit.shouldRepair,
                let repaired = await LocalBrainProse.write(
                     prompt: "\(prompt)\n\nCHARACTER CONTINUITY REPAIR:\n\(firstAudit.feedback)\nReturn every required labeled section again.",
                     instructions: instructions,
@@ -3494,16 +3553,26 @@ extension ContentView {
                     tags: ["support-guild", "dr-vellum", "dr-inkrest", "character-repair"]
                ),
                !repaired.hasPrefix("{") {
-                let repairedAudit = await CharacterFidelityReviewer.audit(
+                let audit = await CharacterFidelityReviewer.audit(
                     prose: repaired,
                     canon: canon,
                     context: "repaired Support Guild consultation",
                     sourceID: "support-guild"
                 )
-                if repairedAudit.passed || repairedAudit.score >= firstAudit.score {
+                repairedAudit = audit
+                if CharacterFidelityReviewer.prefersRepairedDraft(first: firstAudit, repaired: audit) {
                     raw = repaired
+                    selectedDraft = .repaired
                 }
             }
+            await CharacterFidelityReviewer.recordDecision(
+                sourceID: "support-guild",
+                canon: canon,
+                prompt: prompt,
+                first: firstAudit,
+                repaired: repairedAudit,
+                selected: selectedDraft
+            )
         }
         let parsed = SupportGuildProseParser.parse(raw, fallbackMetadata: metadata, fallbackBody: base.payload.body)
 
@@ -5535,7 +5604,7 @@ private struct PagewrightMarginaliaAchievement {
     }
 
     var hiddenHint: String {
-        "\(riddle)\nSpend 1 Belief to turn the riddle into exact instructions."
+        "\(riddle)\nLend the riddle a little Belief and it will turn into exact instructions."
     }
 
     var requirementSummary: String {
@@ -6875,7 +6944,7 @@ struct PagewrightSheet: View {
             presenting: pendingUnlockMarginalia
         ) { asset in
             if !isMarginaliaHintRevealed(asset) {
-                Button("Reveal hint for 1 Belief") {
+                Button("Ask the Book for a hint") {
                     tutorTouch("scrapbook-achievements")
                     revealMarginaliaHint(asset)
                 }
@@ -6892,9 +6961,9 @@ struct PagewrightSheet: View {
             if isMarginaliaUnlocked(asset) {
                 Text("\(achievement.title)\nUnlocked. Place it on the page.")
             } else if isMarginaliaHintRevealed(asset) {
-                Text("\(achievement.title)\n\(achievement.revealedHint(in: marginaliaAchievementContext))\nYou hold \(beliefScore) Belief.")
+                Text("\(achievement.title)\n\(achievement.revealedHint(in: marginaliaAchievementContext))\nThe Book's Glow is \(BookMechanicPresentation.glow(beliefScore).lowercased()).")
             } else {
-                Text("\(achievement.title)\n\(achievement.hiddenHint)\nYou hold \(beliefScore) Belief.")
+                Text("\(achievement.title)\n\(achievement.hiddenHint)\nThe Book's Glow is \(BookMechanicPresentation.glow(beliefScore).lowercased()).")
             }
         }
     }

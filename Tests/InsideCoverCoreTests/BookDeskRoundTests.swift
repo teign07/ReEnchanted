@@ -8,8 +8,9 @@ final class BookDeskRoundTests: XCTestCase {
 
     func testCapacityAndUniqueLogicalSlots() {
         var round = BookDeskRound()
-        round.begin(with: [page("a"), page("a", .diary, id: "rotated"), page("b"), page("c"), page("d")])
-        XCTAssertEqual(round.resolutions.count, 3)
+        let pages = (0..<12).map { page("p-\($0)") }
+        round.begin(with: [page("a"), page("a", .diary, id: "rotated")] + pages)
+        XCTAssertEqual(round.resolutions.count, BookDeskRound.huntCapacity)
     }
 
     func testOpenIsIdempotentAndOutranksPass() {
@@ -25,10 +26,30 @@ final class BookDeskRoundTests: XCTestCase {
         XCTAssertEqual(round.resolutions[original.deskSlotKey], .waiting)
     }
 
-    func testCompletesAfterThreeUniqueResolutionsAndIgnoresOutsidePage() {
-        var round = BookDeskRound(); let pages = [page("a"), page("b"), page("c")]
-        round.begin(with: pages); round.open(pages[0]); round.pass(pages[1]); round.open(page("outside"))
-        XCTAssertFalse(round.isComplete); round.pass(pages[2]); XCTAssertTrue(round.isComplete)
+    func testNineStraightPassesCompleteHuntAndOutsidePageIsIgnored() {
+        var round = BookDeskRound()
+        let pages = (0..<BookDeskRound.huntCapacity).map { page("p-\($0)") }
+        round.begin(with: pages)
+        round.open(page("outside"))
+        for page in pages.dropLast() { round.pass(page) }
+        XCTAssertFalse(round.isComplete)
+        round.pass(pages.last!)
+        XCTAssertTrue(round.isComplete)
+    }
+
+    func testOpeningCatchesVisibleTrioAndReturnsHiddenPagesToSleep() {
+        var round = BookDeskRound()
+        let pages = (0..<BookDeskRound.huntCapacity).map { page("p-\($0)") }
+        round.begin(with: pages)
+        round.catchPage(pages[1], visiblePages: Array(pages.prefix(BookDeskRound.visibleCapacity)))
+
+        XCTAssertEqual(round.slotKeys, Set(pages.prefix(3).map(\.deskSlotKey)))
+        XCTAssertEqual(round.resolutions[pages[1].deskSlotKey], .opened)
+        XCTAssertFalse(round.isComplete)
+
+        round.pass(pages[0])
+        round.pass(pages[2])
+        XCTAssertTrue(round.isComplete)
     }
 
     func testUntouchedEnrichmentRekeysRoundToVisiblePages() {

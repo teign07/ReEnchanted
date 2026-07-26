@@ -47,6 +47,8 @@ final class FirstReadingTests: XCTestCase {
         XCTAssertEqual(surfaced.first?.payload.metadata["reflectedPageCount"], "6")
         // The proof: the reader's own words are quoted back.
         XCTAssertTrue(surfaced.first?.payload.body.contains("gold light") == true)
+        XCTAssertEqual(surfaced.first?.payload.metadata["automaticRepeatRestDays"], "45")
+        XCTAssertEqual(surfaced.first?.payload.metadata["noveltyKey"], "first-reading")
     }
 
     func testDoesNotSurfaceWithTwoPages() {

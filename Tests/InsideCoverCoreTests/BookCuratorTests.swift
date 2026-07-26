@@ -637,7 +637,11 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(pages.first?.id, "wonder-notice")
     }
 
-    func testDeepSystemCardsStayLockedAfterFirstHoursUntilArchiveIsReady() {
+    /// The memory trio used to sit behind a keep counter. It no longer does:
+    /// each of those adapters refuses to build a page without real material
+    /// under it, so the counter only ever silenced a page that had something
+    /// to say. A young archive now gets the page, sized to what it knows.
+    func testDeepSystemCardsReachTheDeskInAYoungArchive() {
         let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
         var inputs = BookSourceInputs.empty
         inputs.selfFacts = [
@@ -668,10 +672,13 @@ final class BookCuratorTests: XCTestCase {
             now: now
         ).map(\.page)
 
-        XCTAssertEqual(pages.map(\.type), [.helpTips])
+        XCTAssertEqual(pages.map(\.type), [.bookConnections, .bookRemembered, .helpTips])
     }
 
-    func testMemorySystemCardsUnlockAfterFiftyKeptPages() {
+    /// The curator must not hold the memory trio back at any keep count. The
+    /// only thing that decides whether these pages exist is whether their
+    /// adapters found material; that is asserted where the adapters live.
+    func testMemorySystemCardsAreNotHeldBackByAKeepCount() {
         let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
         let candidates = [
             rankedCandidate(.bookConnections, score: 100),
@@ -679,27 +686,19 @@ final class BookCuratorTests: XCTestCase {
             rankedCandidate(.marginsAtlas, score: 98),
             rankedCandidate(.helpTips, score: 40)
         ]
+        let expected: [BookPageType] = [.bookConnections, .bookRemembered, .marginsAtlas, .helpTips]
 
-        var nearlyReady = BookSourceInputs.empty
-        nearlyReady.days = [dayWithKeptPageCount(49)]
-        let locked = BookCurator.rankedPages(
-            from: candidates,
-            limit: 4,
-            mood: CuratorMood.make(inputs: nearlyReady, now: now),
-            now: now
-        ).map(\.page.type)
-
-        var ready = BookSourceInputs.empty
-        ready.days = [dayWithKeptPageCount(50)]
-        let unlocked = BookCurator.rankedPages(
-            from: candidates,
-            limit: 4,
-            mood: CuratorMood.make(inputs: ready, now: now),
-            now: now
-        ).map(\.page.type)
-
-        XCTAssertEqual(locked, [.helpTips])
-        XCTAssertEqual(unlocked, [.bookConnections, .bookRemembered, .marginsAtlas, .helpTips])
+        for keptPageCount in [0, 1, 49, 50] {
+            var inputs = BookSourceInputs.empty
+            inputs.days = [dayWithKeptPageCount(keptPageCount)]
+            let pages = BookCurator.rankedPages(
+                from: candidates,
+                limit: 4,
+                mood: CuratorMood.make(inputs: inputs, now: now),
+                now: now
+            ).map(\.page.type)
+            XCTAssertEqual(pages, expected, "held back at \(keptPageCount) kept pages")
+        }
     }
 
     func testRecentlySurfacedPageTypeIsSuppressedBriefly() {
@@ -3080,7 +3079,7 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(eventDoor.payload.metadata["tags"]?.contains("event-outcome:definition-binder") == true)
     }
 
-    func testWorldEventDoorCanOpenPurchasedArchivedEvent() throws {
+    func testWorldEventDoorRemembersPurchasedArchivedEventWithoutReopeningIt() throws {
         defer { PackEntitlements.ownedPackIDs = [] }
         PackEntitlements.ownedPackIDs = ["starlit-paper-trial-archive"]
         let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
@@ -3091,11 +3090,12 @@ final class BookCuratorTests: XCTestCase {
 
         let eventDoor = try XCTUnwrap(manual)
         XCTAssertEqual(eventDoor.payload.metadata["worldEventIDs"], "starlit-paper-trial")
-        XCTAssertEqual(eventDoor.payload.metadata["worldEventMode"], WorldEventActivationMode.openedArchive.rawValue)
-        // The title heads the page; the body carries the in-world dispatch.
-        XCTAssertEqual(eventDoor.payload.headline, "The Starlit Paper Trial")
+        XCTAssertEqual(eventDoor.payload.metadata["worldEventAftermath"], "true")
+        XCTAssertEqual(eventDoor.payload.headline, "After The Starlit Paper Trial")
         XCTAssertTrue(eventDoor.prompt.contains("The Starlit Paper Trial"))
-        XCTAssertTrue(eventDoor.payload.metadata["tags"]?.contains("event-fieldwork") == true)
+        XCTAssertTrue(eventDoor.payload.body.contains("happened without your hand"))
+        XCTAssertTrue(eventDoor.payload.metadata["tags"]?.contains("event-missed") == true)
+        XCTAssertFalse(eventDoor.payload.metadata["tags"]?.contains("event-fieldwork") == true)
     }
 
     func testMonthlyEditionBindsWorldEventTracesFromKeptTags() throws {
@@ -3950,6 +3950,69 @@ final class BookCuratorTests: XCTestCase {
             preferences: preferences,
             now: now
         ))
+    }
+
+    func testDailyBellPagesAdvanceByOccurrenceInsteadOfExactCopyCooldown() throws {
+        let firstNow = localDate(year: 2026, month: 7, day: 22, hour: 8)
+        let secondNow = localDate(year: 2026, month: 7, day: 23, hour: 8)
+        let firstDay = BookDay(id: "2026-07-22", date: firstNow, pages: [])
+        let secondDay = BookDay(id: "2026-07-23", date: secondNow, pages: [])
+        let inputs = BookSourceInputs.empty
+        let pairs: [(String, SurfacePage, SurfacePage)] = try [
+            (
+                "Inner Weather",
+                XCTUnwrap(MoodPageSourceAdapter().candidates(
+                    for: firstDay,
+                    context: CuratorContext.make(for: firstDay),
+                    inputs: inputs,
+                    now: firstNow
+                ).first),
+                XCTUnwrap(MoodPageSourceAdapter().candidates(
+                    for: secondDay,
+                    context: CuratorContext.make(for: secondDay),
+                    inputs: inputs,
+                    now: secondNow
+                ).first)
+            ),
+            (
+                "Fuel Log",
+                XCTUnwrap(FuelLogPageSourceAdapter().candidates(
+                    for: firstDay,
+                    context: CuratorContext.make(for: firstDay),
+                    inputs: inputs,
+                    now: firstNow
+                ).first),
+                XCTUnwrap(FuelLogPageSourceAdapter().candidates(
+                    for: secondDay,
+                    context: CuratorContext.make(for: secondDay),
+                    inputs: inputs,
+                    now: secondNow
+                ).first)
+            )
+        ]
+
+        for (name, first, second) in pairs {
+            XCTAssertEqual(first.curatorContentNoveltyKey, second.curatorContentNoveltyKey, "\(name) should be allowed to keep familiar ritual wording.")
+            XCTAssertNotEqual(first.curatorAutomaticRecurrenceHistoryKey, second.curatorAutomaticRecurrenceHistoryKey)
+            let history = CuratorVarietyGovernor.recordingServed(
+                keys: first.curatorServedHistoryKeys,
+                into: [:],
+                now: firstNow
+            )
+
+            XCTAssertFalse(CuratorNoveltyPolicy.allowsAutomaticSurface(
+                first,
+                history: history,
+                preferences: .none,
+                now: firstNow.addingTimeInterval(3600)
+            ), "\(name) must not nag twice in one bell.")
+            XCTAssertTrue(CuratorNoveltyPolicy.allowsAutomaticSurface(
+                second,
+                history: history,
+                preferences: .none,
+                now: secondNow
+            ), "\(name) must be eligible again at the next day's bell.")
+        }
     }
 
     private func deskCard(

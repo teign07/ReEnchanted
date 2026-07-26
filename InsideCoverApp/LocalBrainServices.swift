@@ -769,8 +769,18 @@ enum MLXBraidTaskRunner {
         topP: Float = 0.9
     ) async throws -> String {
         let taskLabel = sourceID.isEmpty ? "gemma-task" : sourceID
-        return try await MLXLocalTextGenerator.run(
+        let budget = LocalBrainPromptBudget.fit(
             prompt: prompt,
+            instructions: instructions,
+            maxOutputTokens: maxTokens
+        )
+        if budget.wasCompacted {
+            appLog.info(
+                "Local brain compacted task \(taskLabel, privacy: .public); estimated input tokens: \(budget.estimatedInputTokens, privacy: .public); budget: \(budget.inputBudgetTokens, privacy: .public); character canon preserved: \(budget.preservedCharacterCanon, privacy: .public)"
+            )
+        }
+        return try await MLXLocalTextGenerator.run(
+            prompt: budget.prompt,
             instructions: instructions,
             maxTokens: maxTokens,
             label: taskLabel,
@@ -1285,12 +1295,20 @@ struct MLXStoryPageWriter: StoryPageWriting {
         }
         if let first, let firstEvaluation,
            firstEvaluation.recipe.isAcceptable,
-           firstEvaluation.fidelity.passed {
+           !firstEvaluation.fidelity.shouldRepair {
+            await CharacterFidelityReviewer.recordDecision(
+                sourceID: sourceID,
+                canon: draft.characterCanon,
+                prompt: prompt,
+                first: firstEvaluation.fidelity,
+                repaired: nil,
+                selected: .first
+            )
             return first
         }
 
         var repairLines = firstEvaluation?.recipe.failures ?? []
-        if let fidelity = firstEvaluation?.fidelity, !fidelity.passed {
+        if let fidelity = firstEvaluation?.fidelity, fidelity.shouldRepair {
             repairLines.append("Character continuity editor: \(fidelity.feedback)")
         }
         if repairLines.isEmpty {
@@ -1304,20 +1322,41 @@ struct MLXStoryPageWriter: StoryPageWriting {
             secondEvaluation = nil
         }
 
+        let selected: StoryPageProse
+        let selectedDraft: CharacterFidelityReceipt.SelectedDraft
         switch (first, firstEvaluation, second, secondEvaluation) {
         case let (a?, aEvaluation?, b?, bEvaluation?):
-            if bEvaluation.recipe.isAcceptable && bEvaluation.fidelity.passed { return b }
-            if aEvaluation.recipe.isAcceptable && aEvaluation.fidelity.passed { return a }
-            let aScore = aEvaluation.recipe.score + aEvaluation.fidelity.score
-            let bScore = bEvaluation.recipe.score + bEvaluation.fidelity.score
-            return bScore >= aScore ? b : a
+            if bEvaluation.recipe.isAcceptable && !bEvaluation.fidelity.shouldRepair {
+                selected = b
+                selectedDraft = .repaired
+            } else if aEvaluation.recipe.isAcceptable && !aEvaluation.fidelity.shouldRepair {
+                selected = a
+                selectedDraft = .first
+            } else {
+                let aScore = aEvaluation.recipe.score + aEvaluation.fidelity.score
+                let bScore = bEvaluation.recipe.score + bEvaluation.fidelity.score
+                selected = bScore >= aScore ? b : a
+                selectedDraft = bScore >= aScore ? .repaired : .first
+            }
         case let (a?, _, nil, _):
-            return a
+            selected = a
+            selectedDraft = .first
         case let (nil, _, b?, _):
-            return b
+            selected = b
+            selectedDraft = .repaired
         default:
-            return StoryPageProse(fallback: draft)
+            selected = StoryPageProse(fallback: draft)
+            selectedDraft = .first
         }
+        await CharacterFidelityReviewer.recordDecision(
+            sourceID: sourceID,
+            canon: draft.characterCanon,
+            prompt: prompt,
+            first: firstEvaluation?.fidelity ?? .unavailable,
+            repaired: secondEvaluation?.fidelity,
+            selected: selectedDraft
+        )
+        return selected
     }
 }
 
@@ -1366,22 +1405,48 @@ struct MLXStoryPageResultWriter: StoryPageResultWriting {
 
         let first = try await generate()
         let firstAudit = await evaluate(first, label: "First")
-        if firstAudit.fidelity.passed && firstAudit.dramatic.isAcceptable {
+        if !firstAudit.fidelity.shouldRepair && firstAudit.dramatic.isAcceptable {
+            await CharacterFidelityReviewer.recordDecision(
+                sourceID: sourceID,
+                canon: context.draft.characterCanon,
+                prompt: prompt,
+                first: firstAudit.fidelity,
+                repaired: nil,
+                selected: .first
+            )
             return first.nonEmpty ?? context.fallbackResult
         }
 
         var repairs = firstAudit.dramatic.failures
-        if !firstAudit.fidelity.passed { repairs.append("Character continuity editor: \(firstAudit.fidelity.feedback)") }
+        if firstAudit.fidelity.shouldRepair {
+            repairs.append("Character continuity editor: \(firstAudit.fidelity.feedback)")
+        }
         let second = (try? await generate(correction: "- " + repairs.joined(separator: "\n- "))) ?? first
         let secondAudit = await evaluate(second, label: "Repaired")
         let selected: String
-        let secondScore = secondAudit.fidelity.score + secondAudit.dramatic.score
-        let firstScore = firstAudit.fidelity.score + firstAudit.dramatic.score
-        if (secondAudit.fidelity.passed && secondAudit.dramatic.isAcceptable) || secondScore >= firstScore {
+        let selectedDraft: CharacterFidelityReceipt.SelectedDraft
+        if !secondAudit.fidelity.shouldRepair && secondAudit.dramatic.isAcceptable {
             selected = second.nonEmpty ?? context.fallbackResult
-        } else {
+            selectedDraft = .repaired
+        } else if !firstAudit.fidelity.shouldRepair && firstAudit.dramatic.isAcceptable {
             selected = first.nonEmpty ?? context.fallbackResult
+            selectedDraft = .first
+        } else {
+            let secondScore = secondAudit.fidelity.score + secondAudit.dramatic.score
+            let firstScore = firstAudit.fidelity.score + firstAudit.dramatic.score
+            selected = secondScore >= firstScore
+                ? (second.nonEmpty ?? context.fallbackResult)
+                : (first.nonEmpty ?? context.fallbackResult)
+            selectedDraft = secondScore >= firstScore ? .repaired : .first
         }
+        await CharacterFidelityReviewer.recordDecision(
+            sourceID: sourceID,
+            canon: context.draft.characterCanon,
+            prompt: prompt,
+            first: firstAudit.fidelity,
+            repaired: secondAudit.fidelity,
+            selected: selectedDraft
+        )
         guard let effect = context.dramaticEffect,
               !StoryDramaticResultValidator.validate(selected, effect: effect).isAcceptable else {
             return selected
@@ -1417,7 +1482,17 @@ struct MLXGossipPageWriter: GossipPageWriting {
             context: "Gossip Page simulation turns",
             sourceID: "gossip-page"
         )
-        guard !firstAudit.passed else { return first }
+        guard firstAudit.shouldRepair else {
+            await CharacterFidelityReviewer.recordDecision(
+                sourceID: "gossip-page",
+                canon: canon,
+                prompt: prompt,
+                first: firstAudit,
+                repaired: nil,
+                selected: .first
+            )
+            return first
+        }
         let second = (try? await generate(correction: firstAudit.feedback)) ?? first
         let secondAudit = await CharacterFidelityReviewer.audit(
             prose: second,
@@ -1425,7 +1500,16 @@ struct MLXGossipPageWriter: GossipPageWriting {
             context: "repaired Gossip Page simulation turns",
             sourceID: "gossip-page"
         )
-        return secondAudit.passed || secondAudit.score >= firstAudit.score ? second : first
+        let useSecond = CharacterFidelityReviewer.prefersRepairedDraft(first: firstAudit, repaired: secondAudit)
+        await CharacterFidelityReviewer.recordDecision(
+            sourceID: "gossip-page",
+            canon: canon,
+            prompt: prompt,
+            first: firstAudit,
+            repaired: secondAudit,
+            selected: useSecond ? .repaired : .first
+        )
+        return useSecond ? second : first
     }
 }
 
@@ -1507,7 +1591,17 @@ struct MLXFacultyResearchWriter: FacultyResearchWriting {
             context: "private research folio written by \(faculty)",
             sourceID: "faculty-research"
         )
-        guard !firstAudit.passed else { return first }
+        guard firstAudit.shouldRepair else {
+            await CharacterFidelityReviewer.recordDecision(
+                sourceID: "faculty-research",
+                canon: canon,
+                prompt: prompt,
+                first: firstAudit,
+                repaired: nil,
+                selected: .first
+            )
+            return first
+        }
         let second = (try? await generate(correction: firstAudit.feedback)) ?? first
         let secondAudit = await CharacterFidelityReviewer.audit(
             prose: second,
@@ -1515,7 +1609,16 @@ struct MLXFacultyResearchWriter: FacultyResearchWriting {
             context: "repaired private research folio written by \(faculty)",
             sourceID: "faculty-research"
         )
-        return secondAudit.passed || secondAudit.score >= firstAudit.score ? second : first
+        let useSecond = CharacterFidelityReviewer.prefersRepairedDraft(first: firstAudit, repaired: secondAudit)
+        await CharacterFidelityReviewer.recordDecision(
+            sourceID: "faculty-research",
+            canon: canon,
+            prompt: prompt,
+            first: firstAudit,
+            repaired: secondAudit,
+            selected: useSecond ? .repaired : .first
+        )
+        return useSecond ? second : first
     }
 }
 #endif
@@ -1637,7 +1740,17 @@ struct MLXCharacterLetterWriter: CharacterLetterWriting {
             context: "Letter from \(sender) to \(playerName)",
             sourceID: "letter-page"
         )
-        guard !firstAudit.passed else { return first }
+        guard firstAudit.shouldRepair else {
+            await CharacterFidelityReviewer.recordDecision(
+                sourceID: "letter-page",
+                canon: canon,
+                prompt: prompt,
+                first: firstAudit,
+                repaired: nil,
+                selected: .first
+            )
+            return first
+        }
         let second = (try? await generate(correction: firstAudit.feedback)) ?? first
         let secondAudit = await CharacterFidelityReviewer.audit(
             prose: second,
@@ -1645,7 +1758,16 @@ struct MLXCharacterLetterWriter: CharacterLetterWriting {
             context: "repaired letter from \(sender) to \(playerName)",
             sourceID: "letter-page"
         )
-        return secondAudit.passed || secondAudit.score >= firstAudit.score ? second : first
+        let useSecond = CharacterFidelityReviewer.prefersRepairedDraft(first: firstAudit, repaired: secondAudit)
+        await CharacterFidelityReviewer.recordDecision(
+            sourceID: "letter-page",
+            canon: canon,
+            prompt: prompt,
+            first: firstAudit,
+            repaired: secondAudit,
+            selected: useSecond ? .repaired : .first
+        )
+        return useSecond ? second : first
     }
 }
 #endif
@@ -3552,7 +3674,9 @@ enum LocalBrainProse {
         instructions: String,
         maxTokens: Int,
         sourceID: String,
-        tags: [String]
+        tags: [String],
+        temperature: Float = 0.68,
+        topP: Float = 0.9
     ) async -> String? {
         #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
         guard LocalModelManager.report().state == .ready else { return nil }
@@ -3561,7 +3685,9 @@ enum LocalBrainProse {
             instructions: instructions,
             maxTokens: maxTokens,
             sourceID: sourceID,
-            tags: tags
+            tags: tags,
+            temperature: temperature,
+            topP: topP
         )
         return response?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
         #else
@@ -3571,11 +3697,26 @@ enum LocalBrainProse {
 }
 
 struct CharacterFidelityAudit: Equatable {
-    var passed: Bool
+    enum Verdict: String, Codable, Equatable {
+        case pass
+        case repair
+        case unavailable
+    }
+
+    var verdict: Verdict
     var feedback: String
     var score: Int
 
-    static let pass = CharacterFidelityAudit(passed: true, feedback: "", score: 100)
+    var passed: Bool { verdict == .pass }
+    var shouldRepair: Bool { verdict == .repair }
+    var wasUnavailable: Bool { verdict == .unavailable }
+
+    static let pass = CharacterFidelityAudit(verdict: .pass, feedback: "", score: 100)
+    static let unavailable = CharacterFidelityAudit(
+        verdict: .unavailable,
+        feedback: "The character continuity editor was unavailable.",
+        score: 0
+    )
 
     static func parse(_ raw: String?) -> CharacterFidelityAudit {
         guard let raw = raw?
@@ -3583,10 +3724,7 @@ struct CharacterFidelityAudit: Equatable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nonEmpty
         else {
-            // A prose generation cannot have succeeded on-device without the
-            // same local brain being available to audit it. Nil mainly covers
-            // simulator/fallback builds, where there is no generated draft.
-            return .pass
+            return .unavailable
         }
         let firstLine = raw
             .components(separatedBy: .newlines)
@@ -3601,10 +3739,61 @@ struct CharacterFidelityAudit: Equatable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let issueCount = max(1, feedback.components(separatedBy: "\n-").count)
         return CharacterFidelityAudit(
-            passed: false,
+            verdict: .repair,
             feedback: feedback.nonEmpty ?? "The speaking characters are not yet distinct enough.",
             score: max(10, 65 - issueCount * 10)
         )
+    }
+}
+
+struct CharacterFidelityReceipt: Codable, Equatable, Identifiable {
+    enum SelectedDraft: String, Codable {
+        case first
+        case repaired
+    }
+
+    var id: String
+    var createdAt: Date
+    var sourceID: String
+    var characterIDs: [String]
+    var canonVersion: String
+    var firstVerdict: CharacterFidelityAudit.Verdict
+    var firstScore: Int
+    var repairAttempted: Bool
+    var repairedVerdict: CharacterFidelityAudit.Verdict?
+    var repairedScore: Int?
+    var selectedDraft: SelectedDraft
+    var estimatedPromptTokens: Int?
+}
+
+actor CharacterFidelityReceiptStore {
+    static let shared = CharacterFidelityReceiptStore()
+    static let defaultsKey = "characterFidelityReceipts.v1"
+    static let capacity = 240
+
+    private var receipts: [CharacterFidelityReceipt]
+
+    init(defaults: UserDefaults = .standard) {
+        if let data = defaults.data(forKey: Self.defaultsKey),
+           let decoded = try? JSONDecoder().decode([CharacterFidelityReceipt].self, from: data) {
+            receipts = decoded
+        } else {
+            receipts = []
+        }
+    }
+
+    func record(_ receipt: CharacterFidelityReceipt, defaults: UserDefaults = .standard) {
+        receipts.append(receipt)
+        if receipts.count > Self.capacity {
+            receipts.removeFirst(receipts.count - Self.capacity)
+        }
+        if let data = try? JSONEncoder().encode(receipts) {
+            defaults.set(data, forKey: Self.defaultsKey)
+        }
+    }
+
+    func recent(limit: Int = 80) -> [CharacterFidelityReceipt] {
+        Array(receipts.suffix(max(0, limit)))
     }
 }
 
@@ -3615,8 +3804,9 @@ enum CharacterFidelityReviewer {
         context: String,
         sourceID: String
     ) async -> CharacterFidelityAudit {
-        guard let canon = canon.nonEmpty, !prose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return .pass
+        guard let canon = canon.nonEmpty,
+              !prose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .unavailable
         }
         let response = await LocalBrainProse.write(
             prompt: """
@@ -3642,11 +3832,212 @@ enum CharacterFidelityReviewer {
             """,
             maxTokens: 220,
             sourceID: "\(sourceID)-character-audit",
-            tags: ["character-fidelity", "continuity-audit"]
+            tags: ["character-fidelity", "continuity-audit"],
+            temperature: 0,
+            topP: 1
         )
         return CharacterFidelityAudit.parse(response)
     }
+
+    static func prefersRepairedDraft(
+        first: CharacterFidelityAudit,
+        repaired: CharacterFidelityAudit
+    ) -> Bool {
+        if repaired.passed { return true }
+        if first.passed { return false }
+        if repaired.score != first.score {
+            return repaired.score > first.score
+        }
+        if first.wasUnavailable && repaired.wasUnavailable { return false }
+        return true
+    }
+
+    static func recordDecision(
+        sourceID: String,
+        canon: String,
+        prompt: String? = nil,
+        first: CharacterFidelityAudit,
+        repaired: CharacterFidelityAudit?,
+        selected: CharacterFidelityReceipt.SelectedDraft
+    ) async {
+        let receipt = CharacterFidelityReceipt(
+            id: UUID().uuidString,
+            createdAt: Date(),
+            sourceID: sourceID,
+            characterIDs: CharacterCanonPacket.characterIDs(in: canon),
+            canonVersion: CharacterCanonPacket.version,
+            firstVerdict: first.verdict,
+            firstScore: first.score,
+            repairAttempted: repaired != nil,
+            repairedVerdict: repaired?.verdict,
+            repairedScore: repaired?.score,
+            selectedDraft: selected,
+            estimatedPromptTokens: prompt.map(LocalBrainPromptBudget.estimatedTokens)
+        )
+        await CharacterFidelityReceiptStore.shared.record(receipt)
+        if CharacterGenerationRouteRegistry.contract(for: sourceID)?.enforcement == .sharedCanonAndAudit,
+           receipt.characterIDs.isEmpty {
+            appLog.error(
+                "Character generation route \(sourceID, privacy: .public) reached its decision without a character canon packet."
+            )
+        }
+        appLog.info(
+            "Character fidelity decision \(sourceID, privacy: .public); cast count: \(receipt.characterIDs.count, privacy: .public); first: \(receipt.firstVerdict.rawValue, privacy: .public); repaired: \(receipt.repairedVerdict?.rawValue ?? "none", privacy: .public); selected: \(selected.rawValue, privacy: .public)"
+        )
+    }
 }
+
+#if DEBUG
+struct CharacterVoiceEvaluationReport: Codable, Equatable {
+    struct Sample: Codable, Equatable {
+        var scenarioID: String
+        var repetition: Int
+        var characterIDs: [String]
+        var prose: String
+        var nameHiddenProse: String
+        var auditVerdict: CharacterFidelityAudit.Verdict
+        var auditScore: Int
+        var auditFeedback: String
+    }
+
+    var createdAt: Date
+    var modelID: String
+    var repetitions: Int
+    var samples: [Sample]
+    var savedPath: String?
+}
+
+/// Repeatable, synthetic on-device evaluation. It never inserts archive text,
+/// reader facts, location, or other private context. The saved report is meant
+/// for blinded human comparison; the same-model audit is included as a useful
+/// signal, not treated as proof of voice quality.
+enum CharacterVoiceE2BEvaluationRunner {
+    static func run(repetitions: Int = 3) async -> CharacterVoiceEvaluationReport {
+        let repetitions = max(1, min(repetitions, 5))
+        var samples: [CharacterVoiceEvaluationReport.Sample] = []
+        for scenario in CharacterVoiceEvaluationDeck.scenarios {
+            let entities = NarrativePackRegistry.entities.filter {
+                scenario.characterIDs.contains($0.id)
+            }
+            let canon = CharacterCanonPacket.promptSection(
+                for: entities,
+                contextLines: [
+                    "Synthetic evaluation only. \(scenario.scene)",
+                    "Identification clues: \(scenario.identificationClues.joined(separator: "; "))",
+                    "Forbidden voice transfers: \(scenario.forbiddenTransfers.joined(separator: "; "))"
+                ]
+            )
+            for repetition in 1...repetitions {
+                let prompt = """
+                DEVELOPMENT CHARACTER VOICE EVALUATION
+                Surface: \(scenario.surface)
+                Scene: \(scenario.scene)
+
+                \(canon)
+
+                Write 120-180 words of finished in-world prose. Every listed character must speak or act. Make the voices identifiable if their names are later hidden. Do not mention evaluation, canon, prompts, traits, or voice cards.
+                """
+                let prose = await LocalBrainProse.write(
+                    prompt: prompt,
+                    instructions: "Write only the synthetic ReEnchanted scene. This contains no reader data.",
+                    maxTokens: 360,
+                    sourceID: "character-voice-eval-\(scenario.id)",
+                    tags: ["development-evaluation", "character-voice", "synthetic"],
+                    temperature: 0.76,
+                    topP: 0.9
+                ) ?? ""
+                let audit = await CharacterFidelityReviewer.audit(
+                    prose: prose,
+                    canon: canon,
+                    context: "synthetic evaluation \(scenario.id), repetition \(repetition)",
+                    sourceID: "character-voice-eval"
+                )
+                samples.append(
+                    .init(
+                        scenarioID: scenario.id,
+                        repetition: repetition,
+                        characterIDs: scenario.characterIDs,
+                        prose: prose,
+                        nameHiddenProse: hideNames(in: prose, entities: entities),
+                        auditVerdict: audit.verdict,
+                        auditScore: audit.score,
+                        auditFeedback: audit.feedback
+                    )
+                )
+            }
+        }
+        var report = CharacterVoiceEvaluationReport(
+            createdAt: Date(),
+            modelID: LocalModelManager.report().preferredModelID,
+            repetitions: repetitions,
+            samples: samples,
+            savedPath: nil
+        )
+        report.savedPath = save(report: report)?.path
+        return report
+    }
+
+    private static func hideNames(
+        in prose: String,
+        entities: [NarrativeWorldEntity]
+    ) -> String {
+        entities.enumerated().reduce(prose) { text, pair in
+            text.replacingOccurrences(
+                of: pair.element.name,
+                with: "Speaker \(speakerLabel(pair.offset))",
+                options: [.caseInsensitive]
+            )
+        }
+    }
+
+    private static func speakerLabel(_ index: Int) -> String {
+        let labels = ["A", "B", "C", "D", "E"]
+        return labels[index % labels.count]
+    }
+
+    private static func save(report: CharacterVoiceEvaluationReport) -> URL? {
+        guard let data = try? JSONEncoder.characterVoiceEvaluation.encode(report) else {
+            return nil
+        }
+        let base = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        )[0]
+        let directory = base.appendingPathComponent(
+            "CharacterVoiceEvaluations",
+            isDirectory: true
+        )
+        do {
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true
+            )
+            let formatter = ISO8601DateFormatter()
+            let filename = formatter.string(from: report.createdAt)
+                .replacingOccurrences(of: ":", with: "-")
+            let url = directory.appendingPathComponent(
+                "character-voice-\(filename).json"
+            )
+            try data.write(to: url, options: .atomic)
+            return url
+        } catch {
+            appLog.error(
+                "Could not save character voice evaluation: \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
+    }
+}
+
+private extension JSONEncoder {
+    static var characterVoiceEvaluation: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return encoder
+    }
+}
+#endif
 
 struct StudentNoteWriter {
     func write(surface: SurfacePage) async -> String {
@@ -3679,13 +4070,13 @@ struct StudentNoteWriter {
                 context: auditContext(for: surface, sender: sender),
                 sourceID: "student-notes"
             )
-            if !firstAudit.passed || !firstUsesSubject,
+            if firstAudit.shouldRepair || !firstUsesSubject,
                let repaired = await LocalBrainProse.write(
                     prompt: """
                     \(prompt)
 
                     REPAIR THE NOTE:
-                    \(firstAudit.passed ? "- Preserve the sender's character performance." : "- Character continuity: \(firstAudit.feedback)")
+                    \(firstAudit.shouldRepair ? "- Character continuity: \(firstAudit.feedback)" : "- Preserve the sender's character performance.")
                     \(firstUsesSubject ? "- Preserve the concrete kept-page subject." : "- The first draft dropped the required kept-page subject. Make that exact kept thing the clear reason this character wrote.")
                     Return the full note again.
                     """,
@@ -3702,12 +4093,33 @@ struct StudentNoteWriter {
                     sourceID: "student-notes"
                 )
                 let secondUsesSubject = usesRequiredSubject(second, surface: surface)
-                if secondUsesSubject && (secondAudit.passed || secondAudit.score >= firstAudit.score) {
+                let useSecond = secondUsesSubject && (
+                    !firstUsesSubject ||
+                    CharacterFidelityReviewer.prefersRepairedDraft(first: firstAudit, repaired: secondAudit)
+                )
+                await CharacterFidelityReviewer.recordDecision(
+                    sourceID: "student-notes",
+                    canon: canon,
+                    prompt: prompt,
+                    first: firstAudit,
+                    repaired: secondAudit,
+                    selected: useSecond ? .repaired : .first
+                )
+                if useSecond {
                     return second
                 }
                 if !firstUsesSubject {
                     return fallback(surface: surface)
                 }
+            } else {
+                await CharacterFidelityReviewer.recordDecision(
+                    sourceID: "student-notes",
+                    canon: canon,
+                    prompt: prompt,
+                    first: firstAudit,
+                    repaired: nil,
+                    selected: .first
+                )
             }
             return first
         }
@@ -3811,7 +4223,7 @@ struct CharacterLetterWriter {
                 context: "letter from \(sender)",
                 sourceID: "letter-page"
             )
-            if !firstAudit.passed,
+            if firstAudit.shouldRepair,
                let repaired = await LocalBrainProse.write(
                     prompt: "\(prompt)\n\nCHARACTER CONTINUITY REPAIR:\n\(firstAudit.feedback)\nReturn the full letter again.",
                     instructions: instructions,
@@ -3825,9 +4237,27 @@ struct CharacterLetterWriter {
                     context: "repaired letter from \(sender)",
                     sourceID: "letter-page"
                 )
-                if secondAudit.passed || secondAudit.score >= firstAudit.score {
+                let useSecond = CharacterFidelityReviewer.prefersRepairedDraft(first: firstAudit, repaired: secondAudit)
+                await CharacterFidelityReviewer.recordDecision(
+                    sourceID: "letter-page",
+                    canon: canon,
+                    prompt: prompt,
+                    first: firstAudit,
+                    repaired: secondAudit,
+                    selected: useSecond ? .repaired : .first
+                )
+                if useSecond {
                     return repaired
                 }
+            } else {
+                await CharacterFidelityReviewer.recordDecision(
+                    sourceID: "letter-page",
+                    canon: canon,
+                    prompt: prompt,
+                    first: firstAudit,
+                    repaired: nil,
+                    selected: .first
+                )
             }
             return response
         }
@@ -4064,7 +4494,17 @@ struct ElectiveOfferWriter {
             context: "elective quest offer from \(sender)",
             sourceID: "unwritten-elective"
         )
-        guard !firstAudit.passed else { return first }
+        guard firstAudit.shouldRepair else {
+            await CharacterFidelityReviewer.recordDecision(
+                sourceID: "unwritten-elective",
+                canon: canon,
+                prompt: prompt,
+                first: firstAudit,
+                repaired: nil,
+                selected: .first
+            )
+            return first
+        }
         if let repairedResponse = await LocalBrainProse.write(
             prompt: "\(prompt)\n\nCHARACTER CONTINUITY REPAIR:\n\(firstAudit.feedback)\nReturn the complete strict JSON object again.",
             instructions: instructions,
@@ -4078,7 +4518,16 @@ struct ElectiveOfferWriter {
                 context: "repaired elective quest offer from \(sender)",
                 sourceID: "unwritten-elective"
             )
-            if secondAudit.passed || secondAudit.score >= firstAudit.score {
+            let useSecond = CharacterFidelityReviewer.prefersRepairedDraft(first: firstAudit, repaired: secondAudit)
+            await CharacterFidelityReviewer.recordDecision(
+                sourceID: "unwritten-elective",
+                canon: canon,
+                prompt: prompt,
+                first: firstAudit,
+                repaired: secondAudit,
+                selected: useSecond ? .repaired : .first
+            )
+            if useSecond {
                 return second
             }
         }
@@ -4327,15 +4776,21 @@ struct BleedColumnWriter {
         let canon = CharacterCanonPacket.promptSection(
             for: NarrativePackRegistry.entities.filter { $0.id == "penny-blackletter" }
         )
-        let prompt = """
-        COLUMN: \(brief.title)
-        BYLINE: \(brief.byline)
+        let prompt = brief.id == "corridor-whispers"
+            ? GossipPageForm.bleedColumnPrompt(
+                title: brief.title,
+                packet: packet,
+                pennyCanon: canon
+            )
+            : """
+            COLUMN: \(brief.title)
+            BYLINE: \(brief.byline)
 
-        \(canon)
+            \(canon)
 
-        MATERIAL (write only from this; invent nothing beyond it):
-        \(packet)
-        """
+            MATERIAL (write only from this; invent nothing beyond it):
+            \(packet)
+            """
         let instructions = instructions(for: brief)
         if let response = await LocalBrainProse.write(
             prompt: prompt,
@@ -4350,7 +4805,7 @@ struct BleedColumnWriter {
                 context: "The Bleed column \(brief.title) by Penny Blackletter",
                 sourceID: "the-bleed"
             )
-            if !firstAudit.passed,
+            if firstAudit.shouldRepair,
                let repaired = await LocalBrainProse.write(
                     prompt: "\(prompt)\n\nCHARACTER CONTINUITY REPAIR:\n\(firstAudit.feedback)\nReturn the full column again.",
                     instructions: instructions,
@@ -4364,9 +4819,27 @@ struct BleedColumnWriter {
                     context: "repaired Bleed column \(brief.title) by Penny Blackletter",
                     sourceID: "the-bleed"
                 )
-                if repairedAudit.passed || repairedAudit.score >= firstAudit.score {
+                let useSecond = CharacterFidelityReviewer.prefersRepairedDraft(first: firstAudit, repaired: repairedAudit)
+                await CharacterFidelityReviewer.recordDecision(
+                    sourceID: "the-bleed",
+                    canon: canon,
+                    prompt: prompt,
+                    first: firstAudit,
+                    repaired: repairedAudit,
+                    selected: useSecond ? .repaired : .first
+                )
+                if useSecond {
                     return repaired
                 }
+            } else {
+                await CharacterFidelityReviewer.recordDecision(
+                    sourceID: "the-bleed",
+                    canon: canon,
+                    prompt: prompt,
+                    first: firstAudit,
+                    repaired: nil,
+                    selected: .first
+                )
             }
             return response
         }
@@ -4383,12 +4856,14 @@ struct BleedColumnWriter {
         case "front-page":
             return shared + """
 
-            Write the lead column: 2-3 short paragraphs reading the supplied ledger material the way a clerk reads a window page - patterns, weights, what props itself up. If the Book has named constellations or sealed wagers, treat them as Registry filings worth noting. End with one understated clerk's opinion in the margin.
+            Write Penny's signed lead column in 3-4 short paragraphs. Find one actual piece of news in the supplied archive rather than summarizing every desk. Support it with at least two specific, differently typed witnesses when available: reader words, a photo/voice form receipt, lived evidence, a literary-continuity finding, or current Academy news.
+            State what is attested, what is only an editorial reading, and any contradiction that keeps the headline honest. A semantic match is a lead, not proof. Multimodal observations may describe only the supplied objects, light, palette, composition, pace, pauses, cadence, energy, or proof kind; never infer emotion, identity, health, intent, or personality from them.
+            Let Penny behave like a reporter with a case file: concrete evidence first, interpretation second, one carefully placed opinion last. Do not list every packet section. Do not quote more than two reader-authored sentences.
             """
         case "corridor-whispers":
-            return shared + """
+            return GossipPageForm.instructions + """
 
-            Write 3-4 corridor whispers from the supplied simulation turns. Each whisper is one juicy italicized-feeling sentence or two, signed with invented initials (like -M.B.). Preserve every mechanical fact in the turns (who, which thread, Belief spent or dealt); replace only the prose. No new named characters.
+            You are setting the supplied Gossip Page source packet as The Bleed's Corridor Whispers column. Follow the shared Gossip Page requirements in the prompt exactly. Penny is the editor, not a new participant in the reported events.
             """
         case "interest-desk":
             return shared + """

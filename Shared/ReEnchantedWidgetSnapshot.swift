@@ -163,6 +163,14 @@ struct ReEnchantedWidgetBookInterior: Codable, Equatable {
     var urlPath: String
 }
 
+struct ReEnchantedWidgetQuestion: Codable, Equatable {
+    var id: String
+    var title: String
+    var prompt: String
+    var symbolName: String
+    var urlPath: String
+}
+
 struct ReEnchantedWidgetSnapshot: Codable, Equatable {
     var generatedAt: Date
     var privacyMode: ReEnchantedWidgetPrivacyMode
@@ -175,6 +183,9 @@ struct ReEnchantedWidgetSnapshot: Codable, Equatable {
     var worldEvent: ReEnchantedWidgetWorldEvent?
     var enchantments: [ReEnchantedWidgetEnchantment]
     var belief: ReEnchantedWidgetBelief?
+    /// A private-safe return question for the Lock Screen. It contains only
+    /// the Book's generic wording, never the reader's captured prose.
+    var question: ReEnchantedWidgetQuestion? = nil
     /// Private-safe evidence that the Book is in the middle of something. The
     /// widget never carries the underlying personal excerpt or hidden secret.
     var bookInterior: ReEnchantedWidgetBookInterior? = nil

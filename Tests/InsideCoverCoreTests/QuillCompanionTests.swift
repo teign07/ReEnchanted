@@ -135,6 +135,29 @@ final class QuillCompanionTests: XCTestCase {
         )
     }
 
+    func testChoosingCeremonyRestsForNinetyDaysAfterBeingSeen() throws {
+        let shownAt = date(6, hour: 20)
+        let page = try XCTUnwrap(candidates(inputs(with: hedgingPages()), now: shownAt).first)
+        let history = CuratorVarietyGovernor.recordingServed(
+            keys: page.curatorServedHistoryKeys,
+            into: [:],
+            now: shownAt
+        )
+
+        XCTAssertFalse(CuratorNoveltyPolicy.allowsAutomaticSurface(
+            page,
+            history: history,
+            preferences: .none,
+            now: shownAt.addingTimeInterval(89 * 86_400)
+        ))
+        XCTAssertTrue(CuratorNoveltyPolicy.allowsAutomaticSurface(
+            page,
+            history: history,
+            preferences: .none,
+            now: shownAt.addingTimeInterval(90 * 86_400)
+        ))
+    }
+
     func testChoosingWaitsForEnoughProse() {
         let surfaced = candidates(inputs(with: Array(hedgingPages().prefix(5))), now: date(1, hour: 20))
         XCTAssertTrue(surfaced.isEmpty)

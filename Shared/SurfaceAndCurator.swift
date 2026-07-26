@@ -337,6 +337,10 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             assets.append(contentsOf: PocketKeepsakeArchive.decode(encodedKeepsakes)
                 .flatMap { $0.mediaAssets ?? [] })
         }
+        if type == .theBleed,
+           let encodedPlates = payload.metadata[TheBleedEditionBuilder.plateAssetsMetadataKey] {
+            assets.append(contentsOf: TheBleedEditionBuilder.decodedPlateAssets(encodedPlates))
+        }
         var seenMedia = Set<String>()
         assets = assets.filter { asset in
             seenMedia.insert("\(asset.kind.rawValue):\(asset.reference)").inserted
@@ -1569,6 +1573,50 @@ enum BookSessionComposer {
     }
 }
 
+/// Decides when concrete reader-authored evidence is owed one visible return.
+/// It stores no prose and creates no engagement cadence: a debt exists only
+/// when new evidence arrived after the last earned trace, and it rests for
+/// three days between appearances.
+enum EarnedReaderTracePolicy {
+    static let minimumRestSeconds: TimeInterval = 3 * 86_400
+
+    static func owedEvidencePage(
+        day: BookDay,
+        inputs: BookSourceInputs,
+        distressActive: Bool,
+        now: Date
+    ) -> BookPage? {
+        guard !distressActive,
+              inputs.libraryReadyForReflectivePages(includingToday: day, now: now)
+        else {
+            return nil
+        }
+        let evidence = (inputs.days + [day])
+            .flatMap(\.capturedPages)
+            .filter { page in
+                page.origin == .userAuthored
+                    && page.createdAt < now
+                    && (
+                        page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil
+                            || page.livedQuestReceipt?.hasVisualProof == true
+                    )
+            }
+            .sorted { left, right in
+                if left.createdAt == right.createdAt { return left.id > right.id }
+                return left.createdAt > right.createdAt
+            }
+        guard let newest = evidence.first else { return nil }
+        guard let lastTraceAt = inputs.surfaceHistory[SurfacePage.earnedReaderTraceHistoryKey]?.lastShownAt else {
+            return newest
+        }
+        guard newest.createdAt > lastTraceAt,
+              now.timeIntervalSince(lastTraceAt) >= minimumRestSeconds else {
+            return nil
+        }
+        return newest
+    }
+}
+
 enum BookCurator {
     static func surfacedPages(for day: BookDay, now: Date = Date(), limit: Int = 3) -> [SurfacePage] {
         surfacedPages(for: day, context: .make(for: day), inputs: .empty, now: now, limit: limit)
@@ -1788,6 +1836,21 @@ enum BookCurator {
             }
         }
 
+        picked = reservingEarnedReaderTraceIfOwed(
+            in: picked,
+            candidates: candidates,
+            day: day,
+            inputs: inputs,
+            context: context,
+            preferences: preferences,
+            mood: mood,
+            now: now,
+            limit: limit,
+            intention: sessionIntention,
+            readerAliveness: inputs.readerAliveness,
+            alivenessFacets: alivenessFacets
+        )
+
         picked = picked.map { page in
             guard page.payload.metadata[BookSessionIntention.metadataID] == nil else { return page }
             return sessionIntention.applying(
@@ -1809,6 +1872,125 @@ enum BookCurator {
             receipts: inputs.bookAsideReceipts,
             now: now
         )
+    }
+
+    /// Reader-authored evidence creates one bounded editorial debt: once the
+    /// Book is mature enough to reflect, a later desk should visibly spend that
+    /// evidence instead of allowing every return Page to lose the lottery.
+    ///
+    /// The debt is not a feed cadence. It only reopens after new evidence, rests
+    /// for at least three days, yields completely to distress, and reserves at
+    /// most one ordinary Echo slot.
+    private static func reservingEarnedReaderTraceIfOwed(
+        in picked: [SurfacePage],
+        candidates: [SurfacePage],
+        day: BookDay,
+        inputs: BookSourceInputs,
+        context: CuratorContext,
+        preferences: CuratorSurfacePreferences,
+        mood: CuratorMood,
+        now: Date,
+        limit: Int,
+        intention: BookSessionIntention,
+        readerAliveness: ReaderAlivenessModel,
+        alivenessFacets: Set<String>
+    ) -> [SurfacePage] {
+        let visibleLimit = min(3, max(0, limit))
+        guard visibleLimit > 0,
+              !context.distress.isActive,
+              inputs.libraryReadyForReflectivePages(includingToday: day, now: now),
+              !picked.prefix(visibleLimit).contains(where: \.carriesEarnedReaderTrace)
+        else {
+            return picked
+        }
+
+        guard EarnedReaderTracePolicy.owedEvidencePage(
+            day: day,
+            inputs: inputs,
+            distressActive: context.distress.isActive,
+            now: now
+        ) != nil else { return picked }
+
+        let eligible = candidates.filter { page in
+            page.carriesEarnedReaderTrace
+                && preferences.allows(page)
+                && mood.allows(page)
+                && !BookMemoryGate.locks(page.type, keptPageCount: mood.keptPageCount)
+                && CuratorNoveltyPolicy.allowsAutomaticSurface(
+                    page,
+                    history: mood.surfaceHistory,
+                    preferences: preferences,
+                    now: now
+                )
+        }
+        guard let trace = weightedOrder(
+            eligible,
+            preferences: preferences,
+            mood: mood,
+            now: now,
+            intention: intention,
+            role: .echo,
+            readerAliveness: readerAliveness,
+            alivenessFacets: alivenessFacets,
+            seed: intention.seed + "|earned-reader-trace"
+        ).first else {
+            return picked
+        }
+
+        let tracePage = intention.applying(to: trace, role: .echo)
+        var result = picked
+        let visibleIndices = Array(result.indices.prefix(visibleLimit))
+        let conflicts = visibleIndices.filter {
+            !result[$0].curatorDeskExclusionKeys.isDisjoint(with: tracePage.curatorDeskExclusionKeys)
+        }
+
+        func isProtected(_ page: SurfacePage) -> Bool {
+            page.isDeskMilestone
+                || page.type == .bookOfYou
+                || page.payload.metadata["curatorPreparedArtifact"] == "true"
+                || (
+                    page.payload.metadata["bookCurationDirectiveID"] != nil
+                        && page.isReaderActionCommission
+                )
+                || page.payload.metadata["bookCampaignID"] != nil
+        }
+
+        let victim: Int?
+        if let conflict = conflicts.first {
+            victim = isProtected(result[conflict]) ? nil : conflict
+        } else if result.count < visibleLimit {
+            result.append(tracePage)
+            return result
+        } else {
+            let replaceable = visibleIndices.filter { !isProtected(result[$0]) }
+            if tracePage.isReaderFacingAsk,
+               let existingAsk = replaceable.last(where: { result[$0].isReaderFacingAsk }) {
+                victim = existingAsk
+            } else if let echo = replaceable.last(where: {
+                result[$0].payload.metadata[BookSessionIntention.metadataRole]
+                    == BookSessionRole.echo.rawValue
+            }) {
+                victim = echo
+            } else if let sameLane = replaceable.last(where: {
+                result[$0].type.deskLane == tracePage.type.deskLane
+            }) {
+                victim = sameLane
+            } else {
+                victim = replaceable.last
+            }
+        }
+
+        guard let victim else { return picked }
+        if tracePage.isReaderFacingAsk,
+           result.indices.contains(where: { index in
+               index != victim
+                   && index < visibleLimit
+                   && result[index].isReaderFacingAsk
+           }) {
+            return picked
+        }
+        result[victim] = tracePage
+        return result
     }
 
     /// The slot a guaranteed injection (sovereign shelf, evening braid) may
@@ -1917,6 +2099,7 @@ enum BookCurator {
         var compositionCount = 0
         var debutCount = 0
         var actionCommissionCount = 0
+        var readerFacingAskCount = 0
         let visibleLimit = min(3, max(0, limit))
         // One blank-page prompt per three-slot desk: the home shelf (limit 3)
         // shows at most one, while wider introspection queries still surface the
@@ -1944,6 +2127,7 @@ enum BookCurator {
             if page.type.isCompositionPrompt, compositionCount >= currentCompositionLimit { return false }
             if isDebut(page), debutCount >= currentDebutLimit { return false }
             if page.isReaderActionCommission, actionCommissionCount >= currentActionLimit { return false }
+            if isBuildingVisibleDesk, page.isReaderFacingAsk, readerFacingAskCount >= 1 { return false }
             if page.isReaderActionCommission,
                !page.isDeskMilestone,
                page.payload.metadata["firstRunStep"] == nil,
@@ -1958,6 +2142,7 @@ enum BookCurator {
             if isDebut(page) { debutCount += 1 }
             if page.type.isCompositionPrompt { compositionCount += 1 }
             if page.isReaderActionCommission { actionCommissionCount += 1 }
+            if page.isReaderFacingAsk { readerFacingAskCount += 1 }
             if let intention {
                 let selected: SurfacePage
                 if let role,
@@ -2892,6 +3077,7 @@ enum ReaderLearningAction: String, Codable, Equatable {
     case opened
     case acted
     case recognized
+    case broughtFromElsewhere
     case followedThread
     case keepsakeEarned
     case kept
@@ -2901,6 +3087,15 @@ enum ReaderLearningAction: String, Codable, Equatable {
 }
 
 struct ReaderLearningEvent: Identifiable, Codable, Equatable {
+    /// An interaction recorded only so the private momentum ledger can see
+    /// completion of the universal Keep gesture. It must not teach taste or
+    /// resolve a causal/aliveness experiment as a distinct native action.
+    static let momentumOnlyTag = "reader-learning-scope:momentum-only"
+    /// A Page-local refusal. The event may remain in the bounded interaction
+    /// log so the Page can still function, but no adaptive system may learn
+    /// taste, timing, momentum, aliveness, or causal uplift from it.
+    static let curationLearningForbiddenTag = "curation-learning-forbidden"
+
     var id: String
     var dayID: String
     var occurredAt: Date
@@ -2928,6 +3123,14 @@ struct ReaderLearningEvent: Identifiable, Codable, Equatable {
     /// Page receipt so a protected or deterministic Page can still report the
     /// outcome of an otherwise ordinary movement experiment.
     var causalMovementReceipt: CausalMovementReceipt?
+
+    var isMomentumOnly: Bool {
+        tags.contains(Self.momentumOnlyTag)
+    }
+
+    var allowsCurationLearning: Bool {
+        !tags.contains(Self.curationLearningForbiddenTag)
+    }
 
     init(
         id: String = UUID().uuidString,
@@ -2972,24 +3175,69 @@ struct ReaderLearningAffinity: Codable, Equatable {
     var dismissed: Int = 0
     var loved: Int = 0
     var missed: Int = 0
+    /// A Page's own native action was taken — a choice made, a ritual run, a
+    /// game played. Real participation, but still inside the Book.
+    var acted: Int = 0
+    /// Something the reader selected from outside the Book's candidate set.
+    /// Strong taste evidence, but not yet proof that ordinary life changed.
+    var broughtFromElsewhere: Int = 0
+    /// The reader came back to this later of their own accord. A crossing:
+    /// the Page reached past the session it was shown in.
+    var followedThread: Int = 0
+    /// Something from the reader's actual life got pressed into the Book
+    /// because of this Page. The strongest evidence the Book can hold.
+    var keepsakeEarned: Int = 0
     var lastUpdatedAt: Date?
 
+    /// Signals the taste model is willing to learn from. Crossings count here
+    /// as well as appraisals — going outside is a stronger statement about
+    /// what a reader wants than tapping a heart is.
     var meaningfulSignals: Int {
-        kept + dismissed + loved + missed
+        kept + dismissed + loved + missed + acted + broughtFromElsewhere + followedThread + keepsakeEarned
     }
 
+    /// The Book's day-to-day taste gradient.
+    ///
+    /// This deliberately reproduces the ordering the causal layer already
+    /// uses when it scores lived outcomes (`CausalCurationLedger`: keepsake
+    /// 0.75 > later return 0.65 > loved 0.45 > kept 0.12 > acted 0.08). Those
+    /// two layers used to contradict each other in writing — the causal layer
+    /// noting that a lived receipt "must outrank" a love, while this one
+    /// discarded every crossing signal and made a tapped heart the single
+    /// strongest thing a Page could earn. A Page that sent the reader out the
+    /// door and brought them back with something was worth exactly zero here.
     var rawScore: Int {
-        kept * 3 + loved * 6 - dismissed * 3 - missed * 5
+        keepsakeEarned * 10
+            + followedThread * 8
+            + loved * 6
+            + broughtFromElsewhere * 5
+            + kept * 3
+            + acted * 2
+            - dismissed * 3
+            - missed * 5
     }
 
     mutating func record(_ event: ReaderLearningEvent) {
         switch event.action {
         case .surfaced:
             surfaced += 1
-        case .opened, .acted, .recognized, .followedThread, .keepsakeEarned:
-            // Moment-to-moment telemetry describes the interaction without
-            // warming or cooling the curator's taste model.
+        case .opened, .recognized:
+            // Being shown a Page and glancing at it says nothing about whether
+            // it was worth showing.
             break
+        case .acted:
+            acted += 1
+        case .broughtFromElsewhere:
+            if event.tags.contains("prompted-capture") {
+                // Still a real choice, but the Book supplied the occasion.
+                kept += 1
+            } else {
+                broughtFromElsewhere += 1
+            }
+        case .followedThread:
+            followedThread += 1
+        case .keepsakeEarned:
+            keepsakeEarned += 1
         case .kept:
             kept += 1
         case .dismissed:
@@ -3002,11 +3250,45 @@ struct ReaderLearningAffinity: Codable, Equatable {
         lastUpdatedAt = event.occurredAt
     }
 
+    /// Positive signals that crossed beyond the session rather than merely
+    /// happening inside the Book. Reported separately so the Book can tell
+    /// "they participated here" from "this survived into their life."
+    var crossingSignals: Int {
+        followedThread + keepsakeEarned
+    }
+
+    /// Crossing evidence on its own scale, weighted the same way `rawScore`
+    /// weights it. Used for the curation budget that only real-life evidence
+    /// can spend.
+    var crossingScore: Int {
+        keepsakeEarned * 3 + followedThread * 2
+    }
+
     func curationAdjustment(scale: Int, maximum: Int) -> Int {
         guard meaningfulSignals > 0 else { return 0 }
         let confidence = min(scale, meaningfulSignals)
         let weighted = rawScore * confidence / scale
         return max(-maximum, min(maximum, weighted))
+    }
+
+    init() {}
+
+    /// Hand-written so ledgers saved before crossings were counted decode with
+    /// zeros instead of failing. (Synthesized `Decodable` ignores property
+    /// defaults and demands every key.) `ReaderLearningModel` then replays its
+    /// retained events to fill those zeros in.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        surfaced = try container.decodeIfPresent(Int.self, forKey: .surfaced) ?? 0
+        kept = try container.decodeIfPresent(Int.self, forKey: .kept) ?? 0
+        dismissed = try container.decodeIfPresent(Int.self, forKey: .dismissed) ?? 0
+        loved = try container.decodeIfPresent(Int.self, forKey: .loved) ?? 0
+        missed = try container.decodeIfPresent(Int.self, forKey: .missed) ?? 0
+        acted = try container.decodeIfPresent(Int.self, forKey: .acted) ?? 0
+        broughtFromElsewhere = try container.decodeIfPresent(Int.self, forKey: .broughtFromElsewhere) ?? 0
+        followedThread = try container.decodeIfPresent(Int.self, forKey: .followedThread) ?? 0
+        keepsakeEarned = try container.decodeIfPresent(Int.self, forKey: .keepsakeEarned) ?? 0
+        lastUpdatedAt = try container.decodeIfPresent(Date.self, forKey: .lastUpdatedAt)
     }
 }
 
@@ -3064,15 +3346,32 @@ struct ReaderMomentumMetrics: Equatable {
     var keepsakesEarned: Int
     var actionsWithinThirtySeconds: Int
     var medianOpenToActionSeconds: Double?
+    /// Captures the reader made without the Book having just put a desk in
+    /// front of them.
+    var unpromptedCaptures: Int = 0
+    /// Captures made in the wake of a freshly surfaced desk.
+    var promptedCaptures: Int = 0
 
     var openToActionRatePercent: Int {
         guard opened > 0 else { return 0 }
         return Int((Double(actionsWithinThirtySeconds) / Double(opened) * 100).rounded())
     }
+
+    /// One leading indicator of transfer into ordinary life, never the Book's
+    /// north star by itself. The long-term `ReaderReenchantmentMeasure` must
+    /// read this alongside direct state, lived proof, longitudinal change,
+    /// counter-signals, and attributable outcomes.
+    var unpromptedCaptureRatePercent: Int {
+        let total = unpromptedCaptures + promptedCaptures
+        guard total > 0 else { return 0 }
+        return Int((Double(unpromptedCaptures) / Double(total) * 100).rounded())
+    }
 }
 
 struct ReaderLearningModel: Codable, Equatable {
-    static let currentVersion = 2
+    /// 6: Page-local curation refusals became a central model boundary, and
+    /// in-Book actions stopped buying the crossing-only score premium.
+    static let currentVersion = 6
     static let maxEvents = 800
 
     var version: Int = ReaderLearningModel.currentVersion
@@ -3086,12 +3385,44 @@ struct ReaderLearningModel: Codable, Equatable {
     var dailyDigests: [ReaderLearningDailyDigest] = []
     var lastUpdatedAt: Date?
 
+    init() {}
+
+    /// Self-healing decode. A ledger written before crossings were scored is
+    /// rebuilt from its own event log on the way in, so every read path gets a
+    /// migrated model without each of them having to know about it.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        events = try container.decodeIfPresent([ReaderLearningEvent].self, forKey: .events) ?? []
+        sourceAffinities = try container.decodeIfPresent([String: ReaderLearningAffinity].self, forKey: .sourceAffinities) ?? [:]
+        typeAffinities = try container.decodeIfPresent([BookPageType: ReaderLearningAffinity].self, forKey: .typeAffinities) ?? [:]
+        tagAffinities = try container.decodeIfPresent([String: ReaderLearningAffinity].self, forKey: .tagAffinities) ?? [:]
+        contentAffinities = try container.decodeIfPresent([String: ReaderLearningAffinity].self, forKey: .contentAffinities)
+        dailyDigests = try container.decodeIfPresent([ReaderLearningDailyDigest].self, forKey: .dailyDigests) ?? []
+        lastUpdatedAt = try container.decodeIfPresent(Date.self, forKey: .lastUpdatedAt)
+
+        if version < Self.currentVersion {
+            rebuildAffinitiesFromEvents()
+            version = Self.currentVersion
+        }
+    }
+
     mutating func record(_ event: ReaderLearningEvent) {
         events.append(event)
         if events.count > Self.maxEvents {
             events = Array(events.suffix(Self.maxEvents))
         }
 
+        apply(event)
+        lastUpdatedAt = event.occurredAt
+        rebuildDailyDigest(for: event.dayID)
+    }
+
+    /// Fold one event into the affinity tables without touching the event log,
+    /// so a migration can replay history through exactly the same path a live
+    /// interaction takes.
+    private mutating func apply(_ event: ReaderLearningEvent) {
+        guard !event.isMomentumOnly, event.allowsCurationLearning else { return }
         sourceAffinities[event.sourceID, default: ReaderLearningAffinity()].record(event)
         typeAffinities[event.type, default: ReaderLearningAffinity()].record(event)
         let contentKey = event.contentKey ?? event.varietyKey
@@ -3101,8 +3432,22 @@ struct ReaderLearningModel: Codable, Equatable {
         for tag in event.tags.prefix(8) {
             tagAffinities[tag, default: ReaderLearningAffinity()].record(event)
         }
-        lastUpdatedAt = event.occurredAt
-        rebuildDailyDigest(for: event.dayID)
+    }
+
+    /// Discard the affinity tables and rebuild them from the retained event
+    /// log. Used when the scoring rules change under an existing Book — the
+    /// counters a older ledger never kept are recovered rather than left at
+    /// zero. Fidelity is bounded by `maxEvents`: crossings older than the
+    /// retained window are gone, and the Book relearns them from here.
+    mutating func rebuildAffinitiesFromEvents() {
+        sourceAffinities = [:]
+        typeAffinities = [:]
+        tagAffinities = [:]
+        contentAffinities = [:]
+        for event in events {
+            apply(event)
+        }
+        lastUpdatedAt = events.last?.occurredAt ?? lastUpdatedAt
     }
 
     func scoreAdjustment(for page: SurfacePage) -> Int {
@@ -3119,23 +3464,44 @@ struct ReaderLearningModel: Codable, Equatable {
         // the same source/type can still separate. Neither layer may overpower
         // discovery.
         let family = max(-8, min(8, source + type + tag))
-        return max(-12, min(12, family + content))
+        let taste = max(-12, min(12, family + content))
+        return max(-12, min(Self.maximumAdjustment, taste + crossingAdjustment(for: page)))
+    }
+
+    /// The ceiling on `scoreAdjustment`. The six points above the taste cap of
+    /// 12 are reachable only through `crossingAdjustment` — nothing a reader
+    /// does inside the Book can buy them.
+    static let maximumAdjustment = 18
+
+    /// A curation budget that only real-life evidence can spend.
+    ///
+    /// The taste caps saturate quickly — two loves is enough to peg a family
+    /// at the ceiling — so raising the weight of crossings inside `rawScore`
+    /// alone would get flattened before it reached the desk: a family the
+    /// reader physically went outside for would rank identically to one they
+    /// merely enjoyed looking at. This term sits outside that clamp so the
+    /// distinction survives all the way to the desk.
+    private func crossingAdjustment(for page: SurfacePage) -> Int {
+        let source = sourceAffinities[page.sourceID]?.crossingScore ?? 0
+        let type = typeAffinities[page.type]?.crossingScore ?? 0
+        return min(6, (source + type + 1) / 2)
     }
 
     func metrics(days: [BookDay] = [], now: Date = Date(), calendar: Calendar = .current) -> ReaderLearningMetrics {
-        let firstEventAt = events.map(\.occurredAt).min()
+        let learningEvents = events.filter(\.allowsCurationLearning)
+        let firstEventAt = learningEvents.map(\.occurredAt).min()
         let firstPageAt = days.flatMap(\.pages).map(\.createdAt).min()
         let firstTouch = [firstEventAt, firstPageAt].compactMap { $0 }.min()
         let tenureDays = firstTouch.map { max(1, calendar.dateComponents([.day], from: $0, to: now).day ?? 0) } ?? 0
-        let totals = events.reduce(into: [ReaderLearningAction: Int]()) { counts, event in
+        let totals = learningEvents.reduce(into: [ReaderLearningAction: Int]()) { counts, event in
             counts[event.action, default: 0] += 1
         }
         return ReaderLearningMetrics(
             tenureDays: tenureDays,
-            eventCount: events.count,
-            meaningfulEventCount: events.filter {
+            eventCount: learningEvents.count,
+            meaningfulEventCount: learningEvents.filter {
                 switch $0.action {
-                case .acted, .followedThread, .keepsakeEarned, .kept, .dismissed, .loved, .missed:
+                case .acted, .broughtFromElsewhere, .followedThread, .keepsakeEarned, .kept, .dismissed, .loved, .missed:
                     return true
                 case .surfaced, .opened, .recognized:
                     return false
@@ -3151,11 +3517,12 @@ struct ReaderLearningModel: Codable, Equatable {
     }
 
     func momentumMetrics() -> ReaderMomentumMetrics {
-        let openedEvents = events.filter { $0.action == .opened }
-        let actedEvents = events.filter { $0.action == .acted }
-        let recognized = events.filter { $0.action == .recognized }.count
-        let followed = events.filter { $0.action == .followedThread }.count
-        let keepsakes = events.filter { $0.action == .keepsakeEarned }.count
+        let learningEvents = events.filter(\.allowsCurationLearning)
+        let openedEvents = learningEvents.filter { $0.action == .opened }
+        let actedEvents = learningEvents.filter { $0.action == .acted }
+        let recognized = learningEvents.filter { $0.action == .recognized }.count
+        let followed = learningEvents.filter { $0.action == .followedThread }.count
+        let keepsakes = learningEvents.filter { $0.action == .keepsakeEarned }.count
         var responseTimes: [TimeInterval] = []
 
         for opened in openedEvents {
@@ -3175,6 +3542,37 @@ struct ReaderLearningModel: Codable, Equatable {
             median = responseTimes[responseTimes.count / 2]
         }
 
+        let surfacedEvents = learningEvents.filter { $0.action == .surfaced }
+        var unprompted = 0
+        var prompted = 0
+        for capture in learningEvents where
+            capture.action == .kept
+                || capture.action == .keepsakeEarned
+                || capture.action == .broughtFromElsewhere {
+            let wasPrompted: Bool
+            if capture.tags.contains("unprompted-capture") {
+                wasPrompted = false
+            } else if capture.tags.contains("prompted-capture") {
+                wasPrompted = true
+            } else if capture.action == .broughtFromElsewhere {
+                // The extension has the honest prompt receipt; unrelated app
+                // openings must not launder an outside discovery into a reply.
+                wasPrompted = false
+            } else {
+                wasPrompted = surfacedEvents.contains { surfaced in
+                    let sameThread = surfaced.surfaceID == capture.surfaceID
+                        || (
+                            surfaced.contentKey?.nonEmpty != nil
+                                && surfaced.contentKey?.nonEmpty == capture.contentKey?.nonEmpty
+                        )
+                    return sameThread
+                        && surfaced.occurredAt <= capture.occurredAt
+                        && capture.occurredAt.timeIntervalSince(surfaced.occurredAt) <= Self.unpromptedCaptureWindow
+                }
+            }
+            if wasPrompted { prompted += 1 } else { unprompted += 1 }
+        }
+
         return ReaderMomentumMetrics(
             opened: openedEvents.count,
             acted: actedEvents.count,
@@ -3182,9 +3580,15 @@ struct ReaderLearningModel: Codable, Equatable {
             followedThreads: followed,
             keepsakesEarned: keepsakes,
             actionsWithinThirtySeconds: responseTimes.filter { $0 <= 30 }.count,
-            medianOpenToActionSeconds: median
+            medianOpenToActionSeconds: median,
+            unpromptedCaptures: unprompted,
+            promptedCaptures: prompted
         )
     }
+
+    /// How long after the Book lays out a desk a capture still counts as
+    /// answering that desk rather than arriving on the reader's own initiative.
+    static let unpromptedCaptureWindow: TimeInterval = 3600
 
     /// Native Page interactions can record an `.acted` event without reviving
     /// the removed generic capture box. A Keep is the universal native action;
@@ -3201,6 +3605,52 @@ struct ReaderLearningModel: Codable, Equatable {
         }
     }
 
+    /// Returns the earlier deliberate encounter that makes today's opening a
+    /// genuine return. Mere serving does not begin a thread, and one thread can
+    /// earn at most one return receipt per local day.
+    func followedThreadOrigin(
+        surfaceID: String,
+        contentKey: String?,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> ReaderLearningEvent? {
+        let todayID = BookDay.id(for: now, calendar: calendar)
+        let prior = events.filter { event in
+            guard event.occurredAt < now,
+                  !calendar.isDate(event.occurredAt, inSameDayAs: now) else {
+                return false
+            }
+            let sameThread = event.surfaceID == surfaceID
+                || (
+                    contentKey?.nonEmpty != nil
+                        && event.contentKey?.nonEmpty == contentKey?.nonEmpty
+                )
+            guard sameThread else { return false }
+            switch event.action {
+            case .opened, .acted, .recognized, .broughtFromElsewhere,
+                    .followedThread, .keepsakeEarned, .kept, .loved:
+                return true
+            case .surfaced, .dismissed, .missed:
+                return false
+            }
+        }
+        guard let origin = prior.max(by: { $0.occurredAt < $1.occurredAt }) else {
+            return nil
+        }
+        let alreadyRecorded = events.contains {
+            $0.action == .followedThread
+                && $0.dayID == todayID
+                && (
+                    $0.surfaceID == surfaceID
+                        || (
+                            contentKey?.nonEmpty != nil
+                                && $0.contentKey?.nonEmpty == contentKey?.nonEmpty
+                        )
+                )
+        }
+        return alreadyRecorded ? nil : origin
+    }
+
     func insights(now: Date = Date(), limit: Int = 4) -> [ReaderLearningInsight] {
         var insights: [ReaderLearningInsight] = []
         if let warming = strongestType(warming: true) {
@@ -3208,7 +3658,14 @@ struct ReaderLearningModel: Codable, Equatable {
                 id: "warming-type-\(warming.type.rawValue)",
                 kind: .warmingType,
                 line: "\(warming.type.shortTitle) is warming in the margins.",
-                evidence: "\(warming.affinity.kept + warming.affinity.loved) positive signals, \(warming.affinity.dismissed + warming.affinity.missed) cooling signals.",
+                evidence: {
+                    let positive = warming.affinity.kept + warming.affinity.loved + warming.affinity.crossingSignals
+                    let cooling = warming.affinity.dismissed + warming.affinity.missed
+                    let crossings = warming.affinity.crossingSignals
+                    let base = "\(positive) positive signals, \(cooling) cooling signals."
+                    guard crossings > 0 else { return base }
+                    return "\(base) \(crossings) of them left the page."
+                }(),
                 strength: warming.affinity.rawScore
             ))
         }
@@ -3297,7 +3754,9 @@ struct ReaderLearningModel: Codable, Equatable {
     }
 
     private mutating func rebuildDailyDigest(for dayID: String) {
-        let dayEvents = events.filter { $0.dayID == dayID }
+        let dayEvents = events.filter {
+            $0.dayID == dayID && $0.allowsCurationLearning
+        }
         guard !dayEvents.isEmpty else { return }
         let positiveActions: Set<ReaderLearningAction> = [.kept, .loved]
         let negativeActions: Set<ReaderLearningAction> = [.dismissed, .missed]
@@ -3356,6 +3815,7 @@ struct ReaderLearningModel: Codable, Equatable {
 
     private func strongestPositiveHour() -> Int? {
         let counts = events.reduce(into: [Int: Int]()) { counts, event in
+            guard event.allowsCurationLearning else { return }
             switch event.action {
             case .kept, .loved:
                 counts[event.hour, default: 0] += 1
@@ -3423,6 +3883,9 @@ struct MomentaryActionOutcome: Equatable {
 
 /// A finite published desk. Slot keys survive cadence-rotated page ids.
 struct BookDeskRound: Equatable {
+    static let visibleCapacity = 3
+    static let huntCapacity = 9
+
     enum Resolution: Equatable { case waiting, opened, passed }
     private(set) var resolutions: [String: Resolution] = [:]
     var slotKeys: Set<String> { Set(resolutions.keys) }
@@ -3433,7 +3896,9 @@ struct BookDeskRound: Equatable {
 
     mutating func begin(with pages: [SurfacePage]) {
         var keys: [String] = []
-        for page in pages where keys.count < 3 && !keys.contains(page.deskSlotKey) { keys.append(page.deskSlotKey) }
+        for page in pages where keys.count < Self.huntCapacity && !keys.contains(page.deskSlotKey) {
+            keys.append(page.deskSlotKey)
+        }
         resolutions = Dictionary(uniqueKeysWithValues: keys.map { ($0, .waiting) })
     }
     /// Launch enrichment may deepen an untouched desk before the reader acts.
@@ -3442,6 +3907,18 @@ struct BookDeskRound: Equatable {
     mutating func reconcileUntouched(with pages: [SurfacePage]) {
         guard !isTouched else { return }
         begin(with: pages)
+    }
+    /// Opening a Page is the catch: the hidden remainder of the hunt goes back
+    /// to sleep, while the other Pages already visible may still be answered.
+    mutating func catchPage(_ page: SurfacePage, visiblePages: [SurfacePage]) {
+        guard isTracking(page) else { return }
+        let caughtKeys = Set(
+            visiblePages
+                .prefix(Self.visibleCapacity)
+                .map(\.deskSlotKey)
+        )
+        resolutions = resolutions.filter { caughtKeys.contains($0.key) }
+        resolve(page, as: .opened)
     }
     mutating func open(_ page: SurfacePage) { resolve(page, as: .opened) }
     mutating func pass(_ page: SurfacePage) { resolve(page, as: .passed) }
@@ -3650,6 +4127,12 @@ extension SurfacePage {
             "source:\(sourceID)",
             CuratorVarietyGovernor.typeKey(for: type)
         ]
+        if let recurrenceKey = curatorAutomaticRecurrenceHistoryKey {
+            keys.append(recurrenceKey)
+        }
+        if carriesEarnedReaderTrace {
+            keys.append(Self.earnedReaderTraceHistoryKey)
+        }
         if let missionID = payload.metadata["playfulMissionID"]?.nonEmpty {
             keys.append("playful-mission:\(missionID)")
         }
@@ -3661,6 +4144,17 @@ extension SurfacePage {
             uniqueKeys.append(key)
         }
         return uniqueKeys
+    }
+
+    /// A deliberately recurring Page owns a dated occurrence rather than a
+    /// one-off piece of prose. The prose may stay reassuringly familiar while
+    /// the bell, day, or newspaper edition advances. Recording this key lets a
+    /// new occurrence return without allowing the same occurrence to nag.
+    var curatorAutomaticRecurrenceHistoryKey: String? {
+        guard let slot = payload.metadata["automaticRecurrenceSlot"]?.nonEmpty else {
+            return nil
+        }
+        return "recurrence:\(sourceID):\(slot)"
     }
 
     var curatorDeskExclusionKeys: Set<String> {
@@ -3693,6 +4187,73 @@ extension SurfacePage {
         default:
             return false
         }
+    }
+
+    /// One global history key records when the visible desk last spent
+    /// reader-authored evidence. It is intentionally about the encounter, not
+    /// a particular source family: Diary quoting an old sentence and Book
+    /// Remembered returning it both satisfy the same editorial debt.
+    static var earnedReaderTraceHistoryKey: String {
+        "desk:earned-reader-trace"
+    }
+
+    /// A Page whose visible copy is grounded in something the reader actually
+    /// wrote or brought back. Profile facts and generic personalization do not
+    /// qualify; the Page must carry a concrete receipt into the encounter.
+    var carriesEarnedReaderTrace: Bool {
+        let metadata = payload.metadata
+        if metadata["earnedReaderTrace"] == "true" { return true }
+        if type == .bookRemembered {
+            return metadata["rememberedText"]?.nonEmpty != nil
+                || metadata["livedQuestReturn"] == "true"
+        }
+        if type == .diary {
+            return metadata["journalEvidencePageID"]?.nonEmpty != nil
+                && metadata["journalEvidenceExcerpt"]?.nonEmpty != nil
+        }
+        if type == .twoReadings {
+            return metadata["anchorPageID"]?.nonEmpty != nil
+                && metadata["anchorPageText"]?.nonEmpty != nil
+        }
+        guard type == .bookNotices else { return false }
+        if metadata["firstReading"] == "true"
+            || metadata["bookAsksSourcePageID"]?.nonEmpty != nil {
+            return true
+        }
+        return metadata["evidencePageIDs"]?.nonEmpty != nil
+            && (
+                metadata["tinyPatternCards"]?.nonEmpty != nil
+                    || metadata["observationKey"]?.nonEmpty != nil
+                    || metadata["connectionNarrative"] == "true"
+            )
+    }
+
+    /// The effort the reader feels in the prose, whether or not an adapter
+    /// remembered to mark a formal commission. This keeps a mission from
+    /// sharing the desk with a journal question or another imperative card.
+    var isReaderFacingAsk: Bool {
+        if isReaderActionCommission || type.isCompositionPrompt { return true }
+        let imperativeOpenings = [
+            "keep ", "write ", "find ", "choose ", "name ", "give ",
+            "replace ", "use ", "move ", "notice ", "open ", "take ",
+            "ask ", "spend ", "visit ", "let ", "look ", "pick ",
+            "stand ", "answer ", "log ", "bring ", "turn "
+        ]
+        let prompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let detail = detail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if imperativeOpenings.contains(where: prompt.hasPrefix)
+            || imperativeOpenings.contains(where: detail.hasPrefix) {
+            return true
+        }
+        let questionTypes: Set<BookPageType> = [
+            .mood,
+            .diary,
+            .souvenir,
+            .body,
+            .fuel,
+            .aboutYou
+        ]
+        return prompt.contains("?") && questionTypes.contains(type)
     }
 
     /// True when only the id differs — the card the reader sees is unchanged.
@@ -3829,8 +4390,10 @@ enum CuratorVarietyGovernor {
                 updated[key] = SurfaceHistoryRecord(lastShownAt: now, recentShowCount: 1)
             }
         }
-        // Keep the ledger small: drop anything silent for a month.
-        return updated.filter { now.timeIntervalSince($0.value.lastShownAt) < 31 * 86_400 }
+        // Keep enough memory for seasonal ceremony and interpretation rests.
+        // The ledger stores tiny counters, not Page prose; four months lets a
+        // ninety-day promise remain enforceable without growing forever.
+        return updated.filter { now.timeIntervalSince($0.value.lastShownAt) < 121 * 86_400 }
     }
 }
 
@@ -3887,14 +4450,41 @@ enum CuratorNoveltyPolicy {
         preferences: CuratorSurfacePreferences,
         now: Date
     ) -> Bool {
+        // Canonical rituals advance by their own clock. A new dated bell or
+        // edition is eligible even when its visible wording is intentionally
+        // familiar; once served, that exact occurrence stays off the desk.
+        if let recurrenceKey = page.curatorAutomaticRecurrenceHistoryKey {
+            return history[recurrenceKey] == nil
+        }
         if isNewContent(page, history: history) { return true }
+        guard let record = history[page.curatorContentNoveltyKey] else { return true }
+        // A protected milestone may win its first desk, but it does not own
+        // every later desk merely because the reader did not keep it. Rare
+        // ceremonies opt into a long resting interval; keeping them still
+        // retires them permanently through their adapter's evidence gate.
+        if let rawDays = page.payload.metadata["automaticRepeatRestDays"],
+           let restDays = Double(rawDays), restDays > 0 {
+            return now.timeIntervalSince(record.lastShownAt) >= restDays * 86_400
+        }
         if page.isDeskMilestone { return true }
         if isActiveContinuation(page) { return true }
-        guard let record = history[page.curatorContentNoveltyKey] else { return true }
         let belief = belief(for: page, preferences: preferences)
         // Familiar low-Belief content rests longer, but Belief is never an
         // eligibility veto. Even the quietest Page can eventually return.
-        let cooldownHours = 18.0 + (Double(100 - belief) * 0.12)
+        let ordinaryCooldownHours = 18.0 + (Double(100 - belief) * 0.12)
+        // Interpretive prose becomes stale much faster than a utility card.
+        // These are exact-content floors, not type-family bans: a genuinely
+        // different Notice or bond may still surface immediately.
+        let editorialFloorHours: Double
+        switch page.type {
+        case .bookNotices:
+            editorialFloorHours = 21 * 24
+        case .castBond:
+            editorialFloorHours = 30 * 24
+        default:
+            editorialFloorHours = 0
+        }
+        let cooldownHours = max(ordinaryCooldownHours, editorialFloorHours)
         return now.timeIntervalSince(record.lastShownAt) >= cooldownHours * 3600
     }
 
@@ -4071,9 +4661,10 @@ enum IntroductionCurriculum {
     }
 
     /// Families with a staged debut. Anything absent is stage 0 — including
-    /// the Book of You braid (the nightly core loop), bindery/inventory
-    /// (they self-gate on archive readiness), and the 50-keep memory trio
-    /// (BookMemoryGate governs those).
+    /// the Book of You braid (the nightly core loop), bindery/inventory, and
+    /// the memory trio (Book Remembered, Book Connections, the Margins Atlas).
+    /// Those all self-gate on having real material, and size their claims to
+    /// the evidence they hold rather than waiting on a keep count.
     static let requiredStage: [BookPageType: Int] = [
         .narrativeOS: 1, .academyClass: 1, .elective: 1, .gamePage: 1,
         .gossip: 2, .letter: 2, .facultyResearch: 2, .supportGuild: 2,

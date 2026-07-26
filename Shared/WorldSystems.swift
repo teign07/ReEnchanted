@@ -1,5 +1,154 @@
 import Foundation
 
+// MARK: - The Grey's claim on living memory
+
+enum GreyPageThreatStatus: String, Codable, Equatable {
+    case marked
+    case fading
+    case rescued
+    case erased
+}
+
+struct GreyPageThreat: Identifiable, Codable, Equatable {
+    var id: String
+    var pageID: String
+    var pageTitle: String
+    var pageExcerpt: String
+    var markedAt: Date
+    var deadline: Date?
+    var status: GreyPageThreatStatus
+    var resolvedAt: Date?
+    var rescueLine: String?
+
+    var isActive: Bool { status == .marked || status == .fading }
+}
+
+struct GreyPageThreatLedger: Codable, Equatable {
+    var threats: [GreyPageThreat] = []
+    var lastMarkedAt: Date?
+
+    static let empty = GreyPageThreatLedger()
+
+    var activeThreat: GreyPageThreat? {
+        threats.first(where: \.isActive)
+    }
+
+    var erasedPageIDs: Set<String> {
+        Set(threats.filter { $0.status == .erased }.map(\.pageID))
+    }
+}
+
+enum GreyPageThreatEngine {
+    static let sourceID = "grey-page-threat"
+    static let rescueWindow: TimeInterval = 72 * 3_600
+    static let markCooldown: TimeInterval = 7 * 86_400
+    static let minimumPageAge: TimeInterval = 2 * 86_400
+    static let minimumKeptPages = 8
+
+    /// Reconciles only the living-memory ledger. The supplied archive Pages are
+    /// evidence and candidates; this engine never mutates or deletes them.
+    @discardableResult
+    static func reconcile(
+        ledger: inout GreyPageThreatLedger,
+        pages: [BookPage],
+        mayThreaten: Bool,
+        distressActive: Bool,
+        protectedPageIDs: Set<String> = [],
+        now: Date = Date()
+    ) -> [String] {
+        guard !distressActive else { return [] }
+        var changes: [String] = []
+
+        for index in ledger.threats.indices
+        where ledger.threats[index].status == .fading {
+            guard let deadline = ledger.threats[index].deadline, now > deadline else { continue }
+            ledger.threats[index].status = .erased
+            ledger.threats[index].resolvedAt = now
+            changes.append("erased:\(ledger.threats[index].id)")
+        }
+
+        guard ledger.activeThreat == nil,
+              mayThreaten,
+              pages.count >= minimumKeptPages else {
+            return changes
+        }
+        if let lastMarkedAt = ledger.lastMarkedAt,
+           now.timeIntervalSince(lastMarkedAt) < markCooldown {
+            return changes
+        }
+
+        let previouslyClaimed = Set(ledger.threats.map(\.pageID))
+        let eligible = pages
+            .filter { now.timeIntervalSince($0.createdAt) >= minimumPageAge }
+            .filter { !protectedPageIDs.contains($0.id) }
+            .filter { !previouslyClaimed.contains($0.id) }
+            .filter {
+                $0.sourceID != sourceID
+                    && $0.type != .welcome
+                    && $0.type != .helpTips
+                    && $0.type != .rest
+            }
+            .sorted {
+                if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
+                return $0.id < $1.id
+            }
+        guard let page = eligible.first else { return changes }
+
+        let title = page.promptText.trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty ?? page.type.title
+        let excerptSource = page.archivePreviewText
+            ?? page.userInput.nonEmpty
+            ?? page.playerReply.nonEmpty
+            ?? page.promptText
+        let threat = GreyPageThreat(
+            id: "grey-page-\(page.id)",
+            pageID: page.id,
+            pageTitle: String(title.prefix(120)),
+            pageExcerpt: String(excerptSource.prefix(240)),
+            markedAt: now,
+            deadline: nil,
+            status: .marked,
+            resolvedAt: nil,
+            rescueLine: nil
+        )
+        ledger.threats.append(threat)
+        ledger.lastMarkedAt = now
+        changes.append("marked:\(threat.id)")
+        return changes
+    }
+
+    @discardableResult
+    static func activate(
+        threatID: String,
+        in ledger: inout GreyPageThreatLedger,
+        now: Date = Date()
+    ) -> GreyPageThreat? {
+        guard let index = ledger.threats.firstIndex(where: { $0.id == threatID }) else { return nil }
+        if ledger.threats[index].status == .marked {
+            ledger.threats[index].status = .fading
+            ledger.threats[index].deadline = now.addingTimeInterval(rescueWindow)
+        }
+        return ledger.threats[index]
+    }
+
+    @discardableResult
+    static func resolve(
+        threatID: String,
+        rescued: Bool,
+        line: String?,
+        in ledger: inout GreyPageThreatLedger,
+        now: Date = Date()
+    ) -> GreyPageThreat? {
+        guard let index = ledger.threats.firstIndex(where: { $0.id == threatID }),
+              ledger.threats[index].isActive else { return nil }
+        ledger.threats[index].status = rescued ? .rescued : .erased
+        ledger.threats[index].resolvedAt = now
+        ledger.threats[index].rescueLine =
+            line?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        return ledger.threats[index]
+    }
+}
+
 
 struct RadioTrack: Codable, Equatable, Identifiable {
     var id: String
@@ -5832,9 +5981,8 @@ struct FaeGift: Identifiable, Codable, Equatable {
     }
 }
 
-/// Legacy saves may contain `isCold == true` from the retired real-time lapse
-/// penalty. Decode and re-encode those gifts warm. Explicit spent/ready state is
-/// still represented by charges, activation, and binding fields.
+/// Cold is durable bargain state. Old saves that predate the field decode warm,
+/// while a debt-marked gift remains cold until its exchange is repaired.
 extension FaeGift {
     private enum CodingKeys: String, CodingKey {
         case id, faeKind, name, descriptionText, effect, isCold, acquiredAt
@@ -5848,7 +5996,7 @@ extension FaeGift {
         name = try values.decode(String.self, forKey: .name)
         descriptionText = try values.decode(String.self, forKey: .descriptionText)
         effect = try values.decode(FaeGiftEffect.self, forKey: .effect)
-        isCold = false
+        isCold = try values.decodeIfPresent(Bool.self, forKey: .isCold) ?? false
         acquiredAt = try values.decode(Date.self, forKey: .acquiredAt)
         chargesRemaining = try values.decodeIfPresent(Int.self, forKey: .chargesRemaining)
         boundSourceID = try values.decodeIfPresent(String.self, forKey: .boundSourceID)
@@ -5863,7 +6011,7 @@ extension FaeGift {
         try values.encode(name, forKey: .name)
         try values.encode(descriptionText, forKey: .descriptionText)
         try values.encode(effect, forKey: .effect)
-        try values.encode(false, forKey: .isCold)
+        try values.encode(isCold, forKey: .isCold)
         try values.encode(acquiredAt, forKey: .acquiredAt)
         try values.encodeIfPresent(chargesRemaining, forKey: .chargesRemaining)
         try values.encodeIfPresent(boundSourceID, forKey: .boundSourceID)
@@ -5873,10 +6021,10 @@ extension FaeGift {
 }
 
 enum FaeBargainStatus: String, Codable, Equatable {
-    case offered     // proposed on the desk; nothing fronted yet — only becomes real when the reader opens the page
+    case offered     // proposed on the desk; nothing fronted until explicitly accepted
     case owed        // gift fronted, payment due
     case delivered   // paid and accepted
-    case lapsed      // the exchange window passed; the Fae moved on without penalty
+    case lapsed      // gift cold and this species' market closed until repaired
 }
 
 struct FaeBargain: Identifiable, Codable, Equatable {
@@ -5974,10 +6122,10 @@ struct FaePlayerState: Codable, Equatable {
         bargains.contains { $0.faeKind == kind && $0.status == .owed }
     }
 
-    /// Kept for save/API compatibility. Time passing never closes a market;
-    /// market access can change only through an explicit story choice.
-    func marketIsClosed(for _: FaeKind) -> Bool {
-        false
+    /// An unanswered accepted bargain closes that species' market until the
+    /// original terms are answered. Other Fae keep their own doors.
+    func marketIsClosed(for kind: FaeKind) -> Bool {
+        bargains.contains { $0.faeKind == kind && $0.status == .lapsed }
     }
 
     var activeGifts: [FaeGift] { gifts.filter { $0.isActive } }
@@ -6019,7 +6167,9 @@ enum FaeEconomy {
     static let baseAttention = 2
     /// Claim is the pressure of faerie attention: strange, useful, never punishment.
     static let claimPerOffer = 1
+    static let claimPerLapse = 2
     static let claimReliefPerDelivery = 3
+    static let warmthLostOnLapse = 2
     static let watchingClaimThreshold = 25
     static let unseelieClaimThreshold = 45
     static let wildClaimThreshold = 70
@@ -6481,8 +6631,8 @@ enum FaeEconomy {
 
     /// Propose a bargain. The Fae only *hold the gift out* here — nothing is
     /// fronted, no Claim is paid, no deadline runs. The exchange becomes real
-    /// only when the reader opens the page (see `acceptBargain`). Swiping the
-    /// preview away therefore costs nothing.
+    /// only when the reader explicitly accepts it (see `acceptBargain`).
+    /// Opening or swiping the preview therefore costs nothing.
     @discardableResult
     static func offerBargain(
         into state: inout FaePlayerState,
@@ -6517,10 +6667,9 @@ enum FaeEconomy {
         return bargain
     }
 
-    /// Accept a proposed bargain when the reader opens its page: NOW the gift is
-    /// fronted, the Claim is paid, and the payment window starts. Idempotent —
-    /// re-opening an already-accepted bargain changes nothing. Returns the live
-    /// bargain (or nil if it no longer exists).
+    /// Accept a proposed bargain through its explicit consent action: NOW the
+    /// gift is fronted, the Claim is paid, and the payment window starts.
+    /// Idempotent — repeating acceptance changes nothing.
     @discardableResult
     static func acceptBargain(
         bargainID: String,
@@ -6569,22 +6718,38 @@ enum FaeEconomy {
         return expired
     }
 
-    /// Let an owed exchange leave the active desk after its window. The Fae
-    /// wanders on; the fronted gift stays warm, the temporary Claim from
-    /// accepting the exchange is released, and standing does not fall. A reader
-    /// can still answer later because they want to, never to repair an absence.
+    /// Let an owed exchange bite after its window. The fronted gift goes cold,
+    /// the relationship loses warmth, Claim grows, and the species' market is
+    /// closed by the resulting lapsed bargain. Distress pauses this transition.
     @discardableResult
-    static func sweepLapses(into state: inout FaePlayerState, now: Date = Date()) -> [String] {
+    static func sweepLapses(
+        into state: inout FaePlayerState,
+        now: Date = Date(),
+        distressActive: Bool = false
+    ) -> [String] {
+        guard !distressActive else { return [] }
         var changed: [String] = []
-        for index in state.gifts.indices where state.gifts[index].isCold {
-            state.gifts[index].isCold = false
-            changed.append("legacy-warm:\(state.gifts[index].id)")
-        }
         for index in state.bargains.indices where state.bargains[index].status == .owed {
             guard now > state.bargains[index].deadline else { continue }
+            let bargain = state.bargains[index]
             state.bargains[index].status = .lapsed
-            adjustClaim(state.bargains[index].faeKind, by: -claimPerOffer, into: &state)
-            changed.append(state.bargains[index].id)
+            if let giftIndex = state.gifts.firstIndex(where: { $0.id == bargain.giftID }) {
+                state.gifts[giftIndex].isCold = true
+            }
+            state.warmth[bargain.faeKind.rawValue] =
+                (state.warmth[bargain.faeKind.rawValue] ?? 0) - warmthLostOnLapse
+            adjustClaim(bargain.faeKind, by: claimPerLapse, into: &state)
+            appendOmen(
+                kind: bargain.faeKind,
+                title: "Cold Ink Debt",
+                text: "\(bargain.giftName) has gone cold. The old terms still know the way back.",
+                choiceID: bargain.id,
+                intensity: 2,
+                lifetimeHours: 7 * 24,
+                into: &state,
+                now: now
+            )
+            changed.append(bargain.id)
         }
         return changed
     }
@@ -6607,7 +6772,7 @@ enum FaeEconomy {
         state.bargains[index].rewardText = reward
         state.bargains[index].deliveredAt = now
 
-        // A late answer is welcome, but there was no cold gift to repair.
+        // A late answer repairs the exact exchange: gift, omen, and market door.
         let giftID = state.bargains[index].giftID
         if let giftIndex = state.gifts.firstIndex(where: { $0.id == giftID }) {
             state.gifts[giftIndex].isCold = false
@@ -6616,8 +6781,9 @@ enum FaeEconomy {
         let kind = state.bargains[index].faeKind
         let mood = mood(for: now)
         state.warmth[kind.rawValue] = (state.warmth[kind.rawValue] ?? 0) + warmthPerDelivery
-        if !wasLapsed {
-            adjustClaim(kind, by: -claimReliefPerDelivery, into: &state)
+        adjustClaim(kind, by: -claimReliefPerDelivery, into: &state)
+        if wasLapsed {
+            state.omens.removeAll { $0.sourceChoiceID == bargainID }
         }
         state.attention += attention(forReport: report, mood: mood)
     }
@@ -6777,6 +6943,7 @@ extension FaeEconomy {
     /// a calling card to spend. After-hours cards bought from the radio sponsor
     /// shelf prop the side door open for the rest of the current Book day.
     static func canEnterMarket(state: FaePlayerState, now: Date = Date()) -> Bool {
+        guard !state.marketIsClosed(for: .goblin) else { return false }
         if marketWindowIsOpen(on: now) { return true }
         if let lastMarketCardAt = state.lastMarketCardAt,
            BookDay.id(for: lastMarketCardAt) == BookDay.id(for: now) {
@@ -6882,19 +7049,19 @@ enum GoblinMarketEngine {
     static let beliefWares: [MarketWare] = [
         MarketWare(id: "belief-warm-word", title: "a warm word",
                    clerkPitch: "Whisper a kindness into the ledger and we'll see it reaches them. Costs you a little shine.",
-                   contents: "Spends Belief to give one point of Belief to a cast member you choose.",
+                   contents: "Warms a Cast Member you choose.",
                    currency: .belief, basePrice: 8, good: .warmWord, rarity: 1),
         MarketWare(id: "belief-tallow-candle", title: "a tallow candle",
                    clerkPitch: "Burns slow and unfashionable. The dark keeps its distance from honest tallow.",
-                   contents: "Spends Belief to hold Routine's grey back a shade for a day.",
+                   contents: "Holds Routine's grey back for the day.",
                    currency: .belief, basePrice: 10, good: .gift(.quieting, .goblin), rarity: 1),
         MarketWare(id: "belief-borrowed-comma", title: "a borrowed comma",
                    clerkPitch: "A small pause, lent at interest. Use it to bring a resting page back into the light.",
-                   contents: "Spends Belief to re-shelve a resting kind of page so it finds you again.",
+                   contents: "Re-shelves a resting kind of Page so it can find you again.",
                    currency: .belief, basePrice: 9, good: .gift(.reshelving, .goblin), rarity: 2),
         MarketWare(id: "belief-long-memory-ribbon", title: "a long-memory ribbon",
                    clerkPitch: "Tie it to a page and the Book won't be allowed to forget it. We checked. It won't.",
-                   contents: "Spends Belief to keep one kept page returning as Book Remembered.",
+                   contents: "Keeps one Page returning as Book Remembered.",
                    currency: .belief, basePrice: 12, good: .gift(.longMemory, .literaryElf), rarity: 3)
     ]
 
@@ -6906,7 +7073,7 @@ enum GoblinMarketEngine {
             id: "radio-sponsor-thistledown-pocket-sunshine",
             title: "Thistledown & Co. Pocket Sunshine",
             clerkPitch: "A coat-pocket sunbeam. Small print says it is not the weather, but the weather has been known to listen.",
-            contents: "Spends Belief to immediately push Routine's grey two shades back.",
+            contents: "Pushes Routine's grey back at once.",
             currency: .belief,
             basePrice: 9,
             good: .pocketSunshine,
@@ -6916,7 +7083,7 @@ enum GoblinMarketEngine {
             id: "radio-sponsor-clover-honey-humming-jar",
             title: "Clover Honey Collective Humming Jar",
             clerkPitch: "Warm afternoon, stoppered and humming. Do not shake it unless you want the shelves to remember summer.",
-            contents: "Spends Belief to gain 3 Attention and tune the radio to Fae-Fi.",
+            contents: "Catches the clerk's attention and tunes the radio to Fae-Fi.",
             currency: .belief,
             basePrice: 8,
             good: .hummingJar,
@@ -6926,7 +7093,7 @@ enum GoblinMarketEngine {
             id: "radio-sponsor-porchlight-moth-lamp",
             title: "Porchlight & Moth Lamp",
             clerkPitch: "A lamp left on for what has not come home yet. Excellent for pages with cold hands.",
-            contents: "Spends Belief to tune Mothlight Beats and open Book Remembered.",
+            contents: "Tunes Mothlight Beats and opens Book Remembered.",
             currency: .belief,
             basePrice: 12,
             good: .porchlightLamp,
@@ -6936,7 +7103,7 @@ enum GoblinMarketEngine {
             id: "radio-sponsor-remembering-bell",
             title: "The Remembering Bell",
             clerkPitch: "Ring it over a page you thought you lost. If it rings back, be polite.",
-            contents: "Spends Belief to open Book Remembered and warm the Literary Elves by two.",
+            contents: "Opens Book Remembered and warms the Literary Elves.",
             currency: .belief,
             basePrice: 10,
             good: .rememberingBell,
@@ -6946,7 +7113,7 @@ enum GoblinMarketEngine {
             id: "radio-sponsor-bramblewine-dram",
             title: "Bramblewine Dram",
             clerkPitch: "A sip for nights with teeth. The cork lists the price twice, which is almost honest.",
-            contents: "Spends Belief to gain 5 Attention, tune Thornwave, and let the grey lean one shade closer.",
+            contents: "Catches sharp attention, tunes Thornwave, and lets the grey lean a shade closer.",
             currency: .belief,
             basePrice: 11,
             good: .bramblewineDram,
@@ -6956,7 +7123,7 @@ enum GoblinMarketEngine {
             id: "radio-sponsor-melisande-after-hours-card",
             title: "Melisande's After-Hours Calling Card",
             clerkPitch: "Show it after the shutters go down. Melisande will overcharge you accurately.",
-            contents: "Spends Belief to keep the market's side door open for the rest of today and warm the Goblins by two.",
+            contents: "Keeps the market's side door open for the rest of today and warms the Goblins.",
             currency: .belief,
             basePrice: 10,
             good: .afterHoursCard,
@@ -7045,7 +7212,9 @@ enum GoblinMarketEngine {
         let packs = BookShopCatalog.listings.filter { !$0.comingSoon && !PackEntitlements.owns($0.packID, in: ownedPackIDs) }
 
         let windowLine: String
-        if newMoonOpen {
+        if fae.marketIsClosed(for: .goblin) {
+            windowLine = "Cold Ink bars the in-world stalls. Answer the lapsed Goblin bargain and the market latch will lift; the paid shelf remains separate."
+        } else if newMoonOpen {
             windowLine = "The new-moon market is in full swing — every stall is lit."
         } else if open {
             windowLine = "The window is shut, but your calling card props a side door open. A thin stall, tonight."
@@ -7447,7 +7616,18 @@ enum PactWarEngine {
         now: Date
     ) -> PactActionRecord? {
         let name = AcademyChapterRegistry.chapter(forTalismanID: talismanID)?.talismanName ?? talismanID
+        // Each decision draws from its own scrambled seed. Sharing one seed made
+        // the consolidate gate (`seed % 3 == 0`) collide with the push target
+        // (`seed % alignedCount`): whenever a push would have driven a Talisman's
+        // *first* aligned territory, consolidate intercepted it with the weaker
+        // bump instead, pinning every Talisman's flagship shelf to the slowest
+        // growth rate and leaving Sovereign effectively unreachable by simulation.
         let seed = abs("\(slot)-\(talismanID)-pact".stableHash)
+        let raidSeed = abs(seed.stableScramble)
+        let challengeSeed = abs((seed &+ 1).stableScramble)
+        let consolidateGate = abs((seed &+ 2).stableScramble)
+        let consolidateSeed = abs((seed &+ 3).stableScramble)
+        let pushSeed = abs((seed &+ 4).stableScramble)
         let aligned = PactTerritoryRegistry.all.filter { isAligned(talismanID, $0.id) }
         // Gentler than a reader's hand: the autonomous war moves, but a verdict
         // (+6) or errand (+8) outweighs any single tick action. The reader leads.
@@ -7464,7 +7644,7 @@ enum PactWarEngine {
                 return (territory.id, rivalOverall)
             }
             if !raidable.isEmpty {
-                let target = raidable[seed % raidable.count]
+                let target = raidable[raidSeed % raidable.count]
                 bump(&state, talismanID, target.0, by: pushPotential)
                 if let rival = state.controller(of: target.0), rival != talismanID {
                     bump(&state, rival, target.0, by: -2)
@@ -7482,7 +7662,7 @@ enum PactWarEngine {
                 return (gap > 0 && gap <= 8) ? territory.id : nil
             }
             if !contestable.isEmpty {
-                let target = contestable[seed % contestable.count]
+                let target = contestable[challengeSeed % contestable.count]
                 bump(&state, talismanID, target, by: max(1, pushPotential - 1))
                 if let rival = state.controller(of: target), rival != talismanID {
                     bump(&state, rival, target, by: -1)
@@ -7496,8 +7676,8 @@ enum PactWarEngine {
         let held = PactTerritoryRegistry.all.filter {
             state.controller(of: $0.id) == talismanID && state.control(talismanID, $0.id) < 70
         }
-        if !held.isEmpty, seed % 3 == 0 {
-            let target = held[seed % held.count]
+        if !held.isEmpty, consolidateGate % 3 == 0 {
+            let target = held[consolidateSeed % held.count]
             bump(&state, talismanID, target.id, by: max(1, pushPotential - 1))
             return record(talismanID, target.id, .consolidate, now,
                           "\(name) consolidates its hold on \(target.name).")
@@ -7507,7 +7687,7 @@ enum PactWarEngine {
         let pushable = (aligned.isEmpty ? PactTerritoryRegistry.all : aligned)
             .filter { state.control(talismanID, $0.id) < 70 }
         guard !pushable.isEmpty else { return nil }
-        let target = pushable[seed % pushable.count]
+        let target = pushable[pushSeed % pushable.count]
         let amount = isAligned(talismanID, target.id) ? pushPotential : max(1, pushPotential - 1)
         bump(&state, talismanID, target.id, by: amount)
         return record(talismanID, target.id, .push, now,
@@ -10394,8 +10574,21 @@ enum PeopleOfTheBook {
         "god", "ok", "okay", "internet", "youtube", "google", "netflix",
         "instagram", "tiktok", "amazon", "target", "costco", "ikea", "zoom",
         "covid", "tv", "gps", "ai", "usa", "america", "american", "english",
-        "north", "south", "east", "west", "street", "avenue", "park", "dr", "mr",
-        "mrs", "ms", "st"
+        "north", "south", "east", "west", "street", "avenue", "park", "harbor",
+        "dr", "mr", "mrs", "ms", "st"
+    ]
+
+    /// A capitalized word followed by one of these is much more likely to be
+    /// a place or institution than a person (Harbor Market, Union Station,
+    /// Congress Street). The Book may still learn a person with the same word
+    /// when the reader explicitly opens that thread; it simply must not infer
+    /// one from place-shaped prose.
+    static let placeDesignators: Set<String> = [
+        "airport", "avenue", "bakery", "beach", "bridge", "building",
+        "cafe", "church", "cinema", "college", "garden", "harbor",
+        "hospital", "hotel", "library", "market", "museum", "park",
+        "pier", "plaza", "road", "school", "square", "station",
+        "store", "street", "terminal", "theater", "theatre", "university"
     ]
 
     static func slug(for name: String) -> String {
@@ -10462,7 +10655,14 @@ enum PeopleOfTheBook {
                     }
                     // Only mid-sentence capitals count as name evidence; a
                     // sentence-opening capital proves nothing.
-                    guard index > 0, isNameShaped(word), !excluded.contains(lowered) else { continue }
+                    let nextWord = index + 1 < words.count
+                        ? words[index + 1].lowercased()
+                        : nil
+                    guard index > 0,
+                          isNameShaped(word),
+                          !excluded.contains(lowered),
+                          nextWord.map({ !placeDesignators.contains($0) }) ?? true
+                    else { continue }
                     sightings[word, default: []].append(
                         Sighting(pageID: page.id, dayID: dayID, date: page.createdAt, sentence: sentence)
                     )

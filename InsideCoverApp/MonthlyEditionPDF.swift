@@ -709,7 +709,7 @@ enum MonthlyEditionPDFWriter {
 
         var y: CGFloat = chartFrame.maxY + 26
         for constellation in constellations.prefix(6) {
-            let line = "\(constellation.displayName) \u{00B7} \(constellation.phase.title.lowercased()) \u{00B7} \(constellation.sightingCount) sightings"
+            let line = "\(constellation.displayName) \u{00B7} a recurring shape the Book has begun to recognize"
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: UIFont.serifFont(ofSize: 11, weight: .regular),
                 .foregroundColor: style.palette.coverText.withAlphaComponent(0.85)
@@ -1133,8 +1133,7 @@ enum MonthlyEditionPDFWriter {
         // Legend
         var y: CGFloat = chartFrame.maxY + 26
         for constellation in constellations.prefix(6) {
-            let phase = constellation.phase.title.lowercased()
-            let line = "\(constellation.displayName) \u{00B7} \(phase) \u{00B7} \(constellation.sightingCount) sightings"
+            let line = "\(constellation.displayName) \u{00B7} a recurring shape the Book has begun to recognize"
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: UIFont.serifFont(ofSize: 11, weight: .regular),
                 .foregroundColor: style.palette.coverText.withAlphaComponent(0.85)
@@ -2198,10 +2197,27 @@ enum BleedPDFWriter {
         }
     }
 
-    static func write(headline: String, body: String, to url: URL) throws {
+    static func write(
+        headline: String,
+        body: String,
+        mediaAssets: [BookPageMediaAsset] = [],
+        to url: URL
+    ) throws {
         let pageBounds = CGRect(x: 0, y: 0, width: 612, height: 792)
         let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
         let issue = parseIssue(headline: headline, body: body)
+        let printablePlates = mediaAssets.prefix(2).compactMap { asset -> (BookPageMediaAsset, UIImage)? in
+            let image: UIImage?
+            switch asset.kind {
+            case .bundledImage:
+                image = UIImage(named: asset.reference)
+            case .renderedImageFile:
+                image = UIImage(contentsOfFile: asset.reference)
+            case .photoLibraryAsset, .audioFile:
+                image = nil
+            }
+            return image.map { (asset, $0) }
+        }
         let ink = UIColor(red: 0.13, green: 0.105, blue: 0.075, alpha: 1)
         let brown = UIColor(red: 0.35, green: 0.22, blue: 0.12, alpha: 1)
         let redInk = UIColor(red: 0.52, green: 0.12, blue: 0.10, alpha: 1)
@@ -2222,7 +2238,9 @@ enum BleedPDFWriter {
             var pageNumber = 1
 
             func beginPage(front: Bool) -> ColumnState {
-                let topY: CGFloat = front ? 222 : 72
+                let topY: CGFloat = front
+                    ? (printablePlates.isEmpty ? 222 : 366)
+                    : 72
                 let pageColumns = columns.map {
                     CGRect(x: $0.minX, y: topY, width: $0.width, height: 734 - topY)
                 }
@@ -2237,6 +2255,12 @@ enum BleedPDFWriter {
                 )
                 if front {
                     drawBleedBanner(issue: issue, fallbackHeadline: headline, bounds: pageBounds, ink: ink, accent: brown, redInk: redInk)
+                    drawBleedPlates(
+                        printablePlates,
+                        bounds: pageBounds,
+                        ink: ink,
+                        accent: brown
+                    )
                 } else {
                     drawContinuedHeader(issue: issue, pageNumber: pageNumber, bounds: pageBounds, ink: ink, accent: brown)
                 }
@@ -2286,6 +2310,53 @@ enum BleedPDFWriter {
             if let colophon = issue.colophon {
                 drawColophon(colophon, state: &state, ink: ink, accent: brown, nextColumnOrPage: nextColumnOrPage)
             }
+        }
+    }
+
+    private static func drawBleedPlates(
+        _ plates: [(BookPageMediaAsset, UIImage)],
+        bounds: CGRect,
+        ink: UIColor,
+        accent: UIColor
+    ) {
+        guard !plates.isEmpty else { return }
+        let gutter: CGFloat = 14
+        let availableWidth: CGFloat = 448
+        let width = plates.count == 1
+            ? min(250, availableWidth)
+            : (availableWidth - gutter) / 2
+        let totalWidth = CGFloat(plates.count) * width + CGFloat(max(0, plates.count - 1)) * gutter
+        let startX = bounds.midX - totalWidth / 2
+
+        for (index, plate) in plates.enumerated() {
+            let x = startX + CGFloat(index) * (width + gutter)
+            let frame = CGRect(x: x, y: 218, width: width, height: 106)
+            guard let cg = UIGraphicsGetCurrentContext() else { continue }
+            cg.saveGState()
+            UIBezierPath(roundedRect: frame, cornerRadius: 3).addClip()
+            let image = plate.1
+            let scale = max(frame.width / image.size.width, frame.height / image.size.height)
+            let drawn = CGRect(
+                x: frame.midX - image.size.width * scale / 2,
+                y: frame.midY - image.size.height * scale / 2,
+                width: image.size.width * scale,
+                height: image.size.height * scale
+            )
+            image.draw(in: drawn)
+            cg.restoreGState()
+
+            accent.withAlphaComponent(0.46).setStroke()
+            let border = UIBezierPath(roundedRect: frame, cornerRadius: 3)
+            border.lineWidth = 0.8
+            border.stroke()
+            drawBlock(
+                plate.0.caption.nonEmpty ?? "Plate from the reader's file.",
+                font: .serifItalicFont(ofSize: 7.8),
+                color: ink.withAlphaComponent(0.72),
+                frame: CGRect(x: x, y: frame.maxY + 4, width: width, height: 30),
+                lineSpacing: 1.4,
+                alignment: .left
+            )
         }
     }
 

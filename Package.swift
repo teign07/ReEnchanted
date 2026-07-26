@@ -21,6 +21,7 @@ let package = Package(
             ],
             sources: [
                 "InsideCoverState.swift",
+                "ExternalShareInbox.swift",
                 "ReEnchantedWidgetSnapshot.swift",
                 "SentenceBuilder.swift",
                 "BookArchiveDatabase.swift",
@@ -53,7 +54,9 @@ let package = Package(
                 "AlmanacModel.swift",
                 "PressedPhotograph.swift",
                 "PlainInkExport.swift",
-                "QuillCompanion.swift"
+                "QuillCompanion.swift",
+                "BindingRevelations.swift",
+                "BookClaimTier.swift"
             ]
         ),
         .testTarget(

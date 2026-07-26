@@ -2642,12 +2642,32 @@ struct VoiceCadenceReceipt: Codable, Equatable {
 /// A public source that entered a kept Page through an explicit Book window.
 /// Keeping this as typed provenance prevents later bindings from presenting a
 /// generated summary as if it were the source itself.
+struct BookPageExternalAttachment: Codable, Equatable, Identifiable {
+    var id: String
+    var kind: String
+    var filePath: String
+    var typeIdentifier: String
+    var originalFilename: String?
+}
+
 struct BookPageExternalReference: Codable, Equatable {
     var title: String
     var sourceName: String
     var url: String
     var fetchedAt: Date?
     var provenance: String
+    /// Present for receipts written by the Share Extension. Optional fields
+    /// keep older public-reference Pages migration-safe.
+    var captureID: String?
+    var wasPromptedByBook: Bool?
+    var learningAllowed: Bool?
+    var weavingAllowed: Bool?
+    /// Durable app-group paths for non-image documents as well as the original
+    /// image files. Optional keeps pre-extension archives migration-safe.
+    var attachments: [BookPageExternalAttachment]?
+
+    var allowsLearning: Bool { learningAllowed != false }
+    var allowsWeaving: Bool { weavingAllowed != false }
 
     static func from(surface: SurfacePage) -> BookPageExternalReference? {
         let metadata = surface.payload.metadata
@@ -2662,7 +2682,12 @@ struct BookPageExternalReference: Codable, Equatable {
             sourceName: metadata["sourceName"]?.nonEmpty ?? url.host ?? "the public web",
             url: rawURL,
             fetchedAt: fetchedAt,
-            provenance: metadata["provenance"]?.nonEmpty ?? "public-reference"
+            provenance: metadata["provenance"]?.nonEmpty ?? "public-reference",
+            captureID: nil,
+            wasPromptedByBook: nil,
+            learningAllowed: nil,
+            weavingAllowed: nil,
+            attachments: nil
         )
     }
 }

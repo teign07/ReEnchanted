@@ -3358,6 +3358,17 @@ struct ReaderStatePulseTarget: Codable, Equatable {
     var happenedAt: Date
 }
 
+/// A compact, notification-safe question about one attributable attempt. It
+/// contains no reader prose; the response becomes a delayed pulse only after
+/// the reader explicitly answers.
+struct DelayedOutcomePrompt: Codable, Equatable, Identifiable {
+    var id: String
+    var title: String
+    var body: String
+    var askedAt: Date
+    var target: ReaderStatePulseTarget
+}
+
 struct ReaderStatePulseRecord: Codable, Equatable, Identifiable {
     var id: String
     var dimension: ReaderStatePulseDimension
@@ -3677,8 +3688,10 @@ enum ReaderReenchantmentMeasure {
                 || observation.kind == .followed
                 || observation.kind == .confirmedReading
                 || observation.authority == .livedReceipt
+            // Declining a Page is evidence about the Page and should shape
+            // curation strategy, but it is not evidence that ordinary life
+            // became dimmer. Explicit contradictions remain valid counters.
             let isCounter = observation.kind == .contradicted
-                || (observation.kind == .declined && observation.impact <= -25)
             guard isLived || isCounter else { continue }
             items.append(EvidenceItem(
                 id: "aliveness:\(observation.id)",
@@ -3772,13 +3785,28 @@ enum ReaderReenchantmentMeasure {
         let livedCount = items.filter(\.isLivedProof).count
         let counterCount = items.filter(\.isCounter).count
         let distinctStreams = Set(items.map(\.stream)).count
+        let recentEvidenceCutoff = now.addingTimeInterval(-30 * 86_400)
+        let recentItems = items.filter { $0.date >= recentEvidenceCutoff }
+        let recentCounterCount = recentItems.filter(\.isCounter).count
+        let recentLivedScores = recentItems.filter(\.isLivedProof).map(\.score)
+        let recentLivedAverage = recentLivedScores.isEmpty
+            ? nil
+            : recentLivedScores.reduce(0, +) / Double(recentLivedScores.count)
+        // A fall from excellent evidence to merely good evidence is not a
+        // dimming life. The negative verdict needs corroboration: either a
+        // recent counter-receipt or a recent lived/state level below neutral.
+        // This prevents sparse long-term readers from being diagnosed by the
+        // accident of which strong score landed in which seven-day window.
+        let dimmingIsCorroborated = recentCounterCount > 0
+            || (currentAverage.map { $0 < 5 } ?? false)
+            || (recentLivedAverage.map { $0 < 5 } ?? false)
 
         let direction: ReaderReenchantmentDirection
         if daily.count < 4 || livedCount < 2 || comparison == nil {
             direction = .notEnoughEvidence
         } else if comparison! >= 0.65 {
             direction = .brightening
-        } else if comparison! <= -0.65 {
+        } else if comparison! <= -0.65, dimmingIsCorroborated {
             direction = .dimming
         } else {
             direction = .holding
@@ -5078,6 +5106,26 @@ struct CausalCurationLedger: Codable, Equatable {
         prune(now: event.occurredAt)
     }
 
+    /// Forget every causal contribution made by Page events whose reader later
+    /// revoked learning permission. A Page opportunity belongs to that Page and
+    /// is removed; a session movement opportunity may be shared by other Pages,
+    /// so only this event's movement outcome is removed.
+    mutating func removeLearningEvidence(from events: [ReaderLearningEvent]) {
+        guard !events.isEmpty else { return }
+        let eventOutcomePrefixes = events.map { "learning:\($0.id)|" }
+        let pageOpportunityIDs = Set(events.compactMap { $0.causalReceipt?.id })
+        opportunities.removeAll { pageOpportunityIDs.contains($0.id) }
+        outcomes.removeAll { outcome in
+            pageOpportunityIDs.contains(outcome.opportunityID)
+                || eventOutcomePrefixes.contains(where: outcome.id.hasPrefix)
+        }
+        let timestamps =
+            opportunities.map(\.selectedAt)
+            + movementOpportunities.map(\.selectedAt)
+            + outcomes.map(\.occurredAt)
+        lastRecordedAt = timestamps.max()
+    }
+
     mutating func recordLivedOutcome(
         opportunityID: String,
         occurredAt: Date,
@@ -5401,6 +5449,9 @@ struct CausalCurationLedger: Codable, Equatable {
             return nil
         case .acted:
             kind = .participated; value = 0.08
+        case .broughtFromElsewhere:
+            // Strong autonomous taste, but not yet a lived outcome.
+            kind = .chosen; value = 0.25
         case .kept:
             kind = .chosen; value = 0.12
         case .dismissed:
@@ -5456,6 +5507,9 @@ struct ReaderAlivenessModel: Codable, Equatable {
     static let unwritten = ReaderAlivenessModel()
 
     mutating func ingest(_ event: ReaderLearningEvent) {
+        // Useful for momentum timing, but not a second expression of taste or
+        // a distinct lived outcome in the Curator's causal portrait.
+        guard !event.isMomentumOnly, event.allowsCurationLearning else { return }
         if event.causalReceipt != nil || event.causalMovementReceipt != nil {
             var ledger = causalLedger ?? .unwritten
             ledger.record(event)
@@ -5568,6 +5622,25 @@ struct ReaderAlivenessModel: Codable, Equatable {
             evidenceLine: event.evidence?.nonEmpty.map { String($0.prefix(180)) }
         )
         append(observation)
+    }
+
+    /// Apply a Page-local learning revocation to every adaptive layer that may
+    /// already have consumed those events.
+    mutating func removeLearningEvidence(from events: [ReaderLearningEvent]) {
+        guard !events.isEmpty else { return }
+        let observationIDs = Set(events.flatMap {
+            ["learning:\($0.id)", "return:\($0.id)"]
+        })
+        observations.removeAll { observationIDs.contains($0.id) }
+        if var ledger = causalLedger {
+            ledger.removeLearningEvidence(from: events)
+            causalLedger = ledger.opportunities.isEmpty
+                && ledger.movementOpportunities.isEmpty
+                && ledger.outcomes.isEmpty
+                ? nil
+                : ledger
+        }
+        lastUpdatedAt = observations.map(\.occurredAt).max()
     }
 
     /// A delayed pulse is direct reader testimony about whether a prior
@@ -5878,6 +5951,9 @@ struct ReaderAlivenessModel: Codable, Equatable {
             return (.opened, .interaction, 8)
         case .acted:
             return (.acted, .interaction, 28)
+        case .broughtFromElsewhere:
+            // Deliberately below the model's lived-impact threshold.
+            return (.chosen, .readerAuthored, 20)
         case .recognized:
             return nil
         case .followedThread:
@@ -11141,7 +11217,7 @@ enum BookInteriorVoice {
             return lines[abs(seed) % lines.count]
         }
         if let game = interior.longGame {
-            return "Long game, current phase: \(game.phase.title.lowercased()). I am trying to \(game.strategy.prefix(1).lowercased())\(game.strategy.dropFirst())"
+            return "I have been trying something behind the binding: \(game.strategy.prefix(1).lowercased())\(game.strategy.dropFirst())"
         }
         if let taste = interior.acquiredTastes.last {
             return "A recent admission about my taste: \(taste.statement) You are not required to defend it."
@@ -12059,12 +12135,12 @@ enum BookInteriorSurfaces {
             intent: .reflect,
             renderStyle: .loreLetter,
             score: 82,
-            reason: "The Book's long campaign of re-enchantment has entered a new phase.",
-            prompt: "The Long Game: \(game.phase.title)",
-            detail: game.strategy,
+            reason: "The Book has enough evidence to explain one of its quiet experiments.",
+            prompt: "The Book Has Been Trying Something",
+            detail: "A note from behind the binding",
             payload: BookPagePayload(
-                headline: game.phase.title,
-                body: "I should tell you what I am doing.\n\n\(BookLongGame.goal)\n\nPresent strategy: \(game.strategy)\n\n\(milestone?.line ?? "The campaign continues.")\n\n\(evidenceSection)\n\n\(hypothesisSection)\n\nUse is not transformation. A completed favor is not devotion. My tactics may be devious about timing and surprise. They may never be devious about your freedom, the facts, your loneliness, or what you owe me.",
+                headline: "Something I Have Been Attempting",
+                body: "I should tell you what I have been doing behind the binding.\n\n\(BookLongGame.goal)\n\nWhat I am trying now: \(game.strategy)\n\n\(milestone?.line ?? "I am still trying.")\n\n\(evidenceSection)\n\n\(hypothesisSection)\n\nUse is not transformation. A completed favor is not devotion. I may be devious about timing and surprise. I may never be devious about your freedom, the facts, your loneliness, or what you owe me.",
                 metadata: [
                     "source": "book-interior-long-game",
                     "bookLongGamePhase": game.phase.rawValue,
@@ -13617,7 +13693,9 @@ enum BraidPromptBuilder {
     /// to the reader's lived day. They stay in the archive but never become
     /// nightly narrative evidence.
     static func isBraidEligible(_ page: BookPage) -> Bool {
-        page.type != .welcome && page.type != .helpTips
+        page.type != .welcome
+            && page.type != .helpTips
+            && page.externalReference?.allowsWeaving != false
     }
 
     static func braidEligiblePages(in day: BookDay) -> [BookPage] {

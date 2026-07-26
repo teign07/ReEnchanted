@@ -57,6 +57,8 @@ struct BleedColumnBrief: Codable, Equatable {
 }
 
 enum TheBleedEditionBuilder {
+    static let plateAssetsMetadataKey = "bleedPlateAssets"
+
     /// Which edition the presses would run right now. Mornings before 13:00,
     /// evenings from 16:00. The quiet afternoon belongs to the reader.
     static func editionKind(for now: Date, calendar: Calendar = .current) -> BleedEditionKind? {
@@ -85,7 +87,30 @@ enum TheBleedEditionBuilder {
         let source = BookPageSourceRegistry.source(for: .theBleed)
         let issueNumber = inputs.bleedIssueNumber
         let interest = selectedInterest(from: inputs.selfFacts, dayID: day.id, kind: kind)
-        let briefs = columnBriefs(kind: kind, day: day, inputs: inputs, interest: interest, now: now, calendar: calendar)
+        let archive = archivePages(day: day, inputs: inputs)
+        let semanticPassages = semanticPassageLines(
+            from: archive,
+            kind: kind,
+            inputs: inputs,
+            now: now
+        )
+        let plates = selectedPlateAssets(
+            day: day,
+            inputs: inputs,
+            kind: kind,
+            now: now,
+            semanticPageIDs: semanticPassages.pageIDs
+        )
+        let briefs = columnBriefs(
+            kind: kind,
+            day: day,
+            inputs: inputs,
+            interest: interest,
+            now: now,
+            calendar: calendar,
+            semanticPassages: semanticPassages,
+            plates: plates
+        )
         let eventTags = inputs.activeWorldEvents.eventTags
         let eventLine = inputs.activeWorldEvents
             .first
@@ -110,9 +135,12 @@ enum TheBleedEditionBuilder {
                     "source": source.id,
                     "bleedEditionKind": kind.rawValue,
                     "bleedSlotID": slot,
+                    "automaticRecurrenceSlot": "announcement:\(slot)",
                     "bleedIssueNumber": "\(issueNumber)",
                     "bleedInterest": interest ?? "",
                     "bleedBriefs": encodedBriefs(briefs),
+                    plateAssetsMetadataKey: encodedPlateAssets(plates),
+                    "bleedPlatePageIDs": plates.compactMap { $0.metadata["bleedPlatePageID"] }.joined(separator: ","),
                     "worldEventIDs": inputs.activeWorldEvents.map(\.id).joined(separator: ","),
                     "worldEventTitles": inputs.activeWorldEvents.map(\.title).joined(separator: ", "),
                     "worldEventPacket": inputs.activeWorldEvents.influencePacket,
@@ -133,7 +161,9 @@ enum TheBleedEditionBuilder {
         inputs: BookSourceInputs,
         interest: String?,
         now: Date,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        semanticPassages: (lines: String, pageIDs: [String])? = nil,
+        plates: [BookPageMediaAsset]? = nil
     ) -> [BleedColumnBrief] {
         var briefs: [BleedColumnBrief] = []
 
@@ -166,11 +196,19 @@ enum TheBleedEditionBuilder {
 
         briefs.append(BleedColumnBrief(
             id: "front-page",
-            title: kind == .morning ? "The Morning Ledger" : "The Evening Ledger",
+            title: kind == .morning ? "Penny's Morning Ledger" : "Penny's Evening Ledger",
             byline: "by Penny Blackletter, Records Clerk, Department of Attestation",
             composedBody: "",
-            packet: frontPagePacket(kind: kind, day: day, inputs: inputs, now: now, calendar: calendar),
-            maxTokens: 380
+            packet: frontPagePacket(
+                kind: kind,
+                day: day,
+                inputs: inputs,
+                now: now,
+                calendar: calendar,
+                semanticPassages: semanticPassages,
+                plates: plates
+            ),
+            maxTokens: 480
         ))
 
         briefs.append(BleedColumnBrief(
@@ -255,6 +293,9 @@ enum TheBleedEditionBuilder {
         now: Date,
         calendar: Calendar = .current
     ) -> String {
+        guard inputs.calendarIntegrationEnabled else {
+            return "The Calendar Doorway is closed, so the noticeboard makes no claim about the day. A blank board without a witness is not an empty day."
+        }
         let targetDayStart: Date
         let dayWord: String
         switch kind {
@@ -285,6 +326,26 @@ enum TheBleedEditionBuilder {
             ? "A crowded board. The clerk advises guarding one unclaimed hour the way one guards a window seat."
             : "A reasonable board, by Registry standards."
         return "\(dayWord)'s hinges, as posted:\n\(lines)\n\(pressure)"
+    }
+
+    static func refreshingAlmanacBriefs(
+        _ briefs: [BleedColumnBrief],
+        kind: BleedEditionKind,
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> [BleedColumnBrief] {
+        briefs.map { brief in
+            guard brief.id == "almanac" else { return brief }
+            var refreshed = brief
+            refreshed.composedBody = almanacColumn(
+                kind: kind,
+                inputs: inputs,
+                now: now,
+                calendar: calendar
+            )
+            return refreshed
+        }
     }
 
     static func themeDeskColumn(
@@ -333,24 +394,68 @@ enum TheBleedEditionBuilder {
         day: BookDay,
         inputs: BookSourceInputs,
         now: Date? = nil,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        semanticPassages suppliedSemanticPassages: (lines: String, pageIDs: [String])? = nil,
+        plates suppliedPlates: [BookPageMediaAsset]? = nil
     ) -> String {
-        let signals = inputs.continuity.strongestSignals.prefix(4).map { "- \($0.line)" }.joined(separator: "\n")
+        let pressTime = now ?? day.date
+        let archive = archivePages(day: day, inputs: inputs)
+        let signals = inputs.continuity.strongestSignals.prefix(6).map {
+            "- [\($0.kind.rawValue), strength \($0.strength)] \($0.promptLine)"
+        }.joined(separator: "\n")
+        let sensorySignals = inputs.continuity.strongestSignals
+            .filter { $0.kind == .sensory }
+            .prefix(3)
+            .map { "- \($0.promptLine) [evidence: \($0.evidencePageIDs.joined(separator: ", "))]" }
+            .joined(separator: "\n")
         let constellations = ConstellationKeeper.namedConstellations(inputs.constellations).prefix(3)
             .map { "- \($0.displayName): \($0.latestLine)" }
             .joined(separator: "\n")
         let wagers = inputs.wagers.filter(\.isSealed).prefix(2).map { "- \($0.promptLine)" }.joined(separator: "\n")
-        let theme = themeDeskColumn(day: day, inputs: inputs, now: now ?? day.date, calendar: calendar)
+        let theme = themeDeskColumn(day: day, inputs: inputs, now: pressTime, calendar: calendar)
         let arc = inputs.currentArc.map { "Current story arc: \($0.title), phase \($0.phase.rawValue)." } ?? "No arc currently promoted."
         let eventPacket = inputs.activeWorldEvents.bleedPacket.nonEmpty ?? "No authored world event is currently changing the press room."
         let recentPages = day.capturedPages.suffix(5)
             .map { "- \($0.promptText): \($0.userInput.bookPreviewSentenceLimit(1))" }
             .joined(separator: "\n")
+        let semanticPassages = suppliedSemanticPassages ?? semanticPassageLines(
+            from: archive, kind: kind, inputs: inputs, now: pressTime
+        )
+        let multimodalWitnesses = multimodalWitnessLines(
+            from: archive,
+            preferredPageIDs: Set(semanticPassages.pageIDs)
+        )
+        let livedReceipts = livedReceiptLines(from: archive)
+        let plates = suppliedPlates ?? selectedPlateAssets(
+            day: day,
+            inputs: inputs,
+            kind: kind,
+            now: pressTime,
+            semanticPageIDs: semanticPassages.pageIDs
+        )
+        let plateLines = plates.map { plate in
+            "- [page \(plate.metadata["bleedPlatePageID"] ?? "unknown")] \(plate.caption)"
+        }.joined(separator: "\n")
         return """
         EDITION: \(kind.mastheadTitle), focused on \(kind.focusLine).
 
-        What the Book has noticed (literary observations, not verdicts):
+        WHOLE-ARCHIVE LITERARY OBSERVATIONS (readings, not verdicts):
         \(signals.nonEmpty ?? "- The margins are quiet.")
+
+        SEMANTICALLY SELECTED PASSAGES (reader-authored evidence chosen for this edition, not merely the newest pages):
+        \(semanticPassages.lines.nonEmpty ?? "- No passage cleared the evidence threshold.")
+
+        MULTIMODAL WITNESSES (local receipts; report only the supplied objects, light, composition, voice form, or proof kind):
+        \(multimodalWitnesses.nonEmpty ?? "- No cross-sense witness is on file.")
+
+        CROSS-MEDIA CONTINUITY (a finding, not a fact about the reader):
+        \(sensorySignals.nonEmpty ?? "- No mature cross-media connection is on file.")
+
+        LIVED QUEST RECEIPTS (completion evidence, not proof of permanent change):
+        \(livedReceipts.nonEmpty ?? "- No lived receipt is relevant yet.")
+
+        SELECTED ILLUSTRATION PLATES (these appear in the issue; captions must not exceed their filed provenance):
+        \(plateLines.nonEmpty ?? "- No visual plate was selected.")
 
         Named constellations the Book keeps about the reader:
         \(constellations.nonEmpty ?? "- None named yet.")
@@ -367,17 +472,146 @@ enum TheBleedEditionBuilder {
 
         The reader's own kept pages today:
         \(recentPages.nonEmpty ?? "- No pages kept yet today.")
+
+        EDITORIAL EVIDENCE LAW:
+        - Build the column around one newsworthy reading supported by at least two supplied items.
+        - Prefer an unexpected crossing between different evidence kinds over a recap.
+        - Name tensions or contrary evidence when the packet contains them.
+        - A photograph may attest objects, light, palette, and composition; it may not diagnose a person or prove an emotion.
+        - A voice receipt may attest pace, pauses, cadence, or energy only; it may not infer mood, health, or identity.
+        - A lived receipt proves that evidence returned, not that the reader was transformed.
+        - Never turn a literary observation into a clinical, causal, or permanent claim.
         """
     }
 
     static func whispersPacket(day: BookDay, inputs: BookSourceInputs, now: Date) -> String {
         let gossip = GossipSimulationBuilder.surface(for: day, inputs: inputs, now: now)
-        let packet = gossip.payload.metadata["simulationPacket"] ?? gossip.payload.body
         return """
-        Raw simulation turns from the margins (mechanics to preserve, prose to replace):
+        This column is a newspaper setting of the same source packet used by a Gossip Page.
+        Preserve its causal ledger and its finished-page social shape.
 
-        \(packet)
+        \(GossipPageForm.sourcePacket(for: gossip))
         """
+    }
+
+    private static func archivePages(day: BookDay, inputs: BookSourceInputs) -> [BookPage] {
+        let pages = (inputs.days + [day]).flatMap(\.pages)
+        return Dictionary(pages.map { ($0.id, $0) }, uniquingKeysWith: { left, right in
+            left.createdAt >= right.createdAt ? left : right
+        })
+        .values
+        .sorted { $0.createdAt < $1.createdAt }
+    }
+
+    private static func semanticPassageLines(
+        from pages: [BookPage],
+        kind: BleedEditionKind,
+        inputs: BookSourceInputs,
+        now: Date
+    ) -> (lines: String, pageIDs: [String]) {
+        var queryParts = [
+            kind.focusLine,
+            inputs.currentArc?.title
+        ].compactMap { $0 }
+        queryParts += inputs.continuity.strongestSignals.prefix(6).flatMap {
+            [$0.subjectName, $0.line] + Array($0.tags.prefix(4))
+        }
+        queryParts += inputs.clusters.sorted { $0.strength > $1.strength }.prefix(3).flatMap {
+            [$0.name, $0.line] + Array($0.motifs.prefix(4))
+        }
+        queryParts += inputs.themes.sorted { $0.strength > $1.strength }.prefix(2).flatMap {
+            [$0.name, $0.line] + Array($0.motifs.prefix(4))
+        }
+        let query = queryParts.joined(separator: ". ")
+        let scorer: StacksSemanticScoring? = inputs.semanticPassageSelectionEnabled
+            ? SemanticKeepEcho.keepTimeScorer
+            : nil
+        let selections = MeaningfulPassageSelector.rankedSelections(
+            pages: pages,
+            query: query,
+            inputs: inputs,
+            scorer: scorer,
+            limit: 4,
+            maximumAge: 365 * 86_400,
+            minimumScore: 12,
+            honorPriorUse: false,
+            diversifyPageTypes: true,
+            now: now
+        )
+        let lines = selections.map { selection in
+            let semantic = selection.semanticSimilarity.map { String(format: "%.2f", $0) } ?? "lexical"
+            return "- [page \(selection.pageID), \(selection.pageType.shortTitle), relevance \(semantic)] \"\(selection.excerpt)\""
+        }.joined(separator: "\n")
+        return (lines, selections.map(\.pageID))
+    }
+
+    private static func multimodalWitnessLines(
+        from pages: [BookPage],
+        preferredPageIDs: Set<String>
+    ) -> String {
+        let witnesses = pages
+            .filter { page in
+                guard page.origin == .userAuthored || page.origin == .imported,
+                      !EditionCurator.defaultPrivateTypes.contains(page.type) else {
+                    return false
+                }
+                let modalities = page.resolvedSensoryFolio.modalities
+                return !page.mediaAssets.isEmpty
+                    || modalities.contains("photo")
+                    || modalities.contains("voice")
+                    || page.livedQuestReceipt?.hasVisualProof == true
+            }
+            .sorted { left, right in
+                let leftPreferred = preferredPageIDs.contains(left.id)
+                let rightPreferred = preferredPageIDs.contains(right.id)
+                if leftPreferred != rightPreferred { return leftPreferred }
+                return left.createdAt > right.createdAt
+            }
+            .prefix(4)
+
+        return witnesses.map { page in
+            let folio = page.resolvedSensoryFolio
+            let modalities = folio.modalities.sorted().joined(separator: " + ").nonEmpty ?? "media"
+            let subjects = folio.values(for: .subject).prefix(4).joined(separator: ", ")
+            let visual = [
+                folio.values(for: .palette).first.map { "palette \($0)" },
+                folio.values(for: .brightness).first.map { "light \($0)" },
+                folio.values(for: .composition).first.map { "composition \($0)" }
+            ].compactMap { $0 }.joined(separator: "; ")
+            let voice = [
+                folio.values(for: .voiceCadence).first.map { "cadence \($0)" },
+                folio.values(for: .voicePause).first.map { "pauses \($0)" },
+                folio.values(for: .voiceEnergy).first.map { "energy \($0)" }
+            ].compactMap { $0 }.joined(separator: "; ")
+            let details = [
+                subjects.nonEmpty.map { "subjects \($0)" },
+                visual.nonEmpty,
+                voice.nonEmpty
+            ].compactMap { $0 }.joined(separator: "; ")
+            let excerpt = page.archivePreviewText?.bookPreviewSentenceLimit(1).nonEmpty
+                .map { " Reader words: \"\($0)\"" } ?? ""
+            return "- [page \(page.id), \(modalities)] \(details.nonEmpty ?? "Media receipt kept without descriptive observations.").\(excerpt)"
+        }.joined(separator: "\n")
+    }
+
+    private static func livedReceiptLines(from pages: [BookPage]) -> String {
+        pages.compactMap { page -> (Date, String)? in
+            guard let receipt = page.livedQuestReceipt,
+                  receipt.hasWrittenProof || receipt.hasVisualProof else { return nil }
+            let proof = [
+                receipt.hasWrittenProof ? "written" : nil,
+                receipt.hasVisualProof ? "photograph" : nil
+            ].compactMap { $0 }.joined(separator: " + ")
+            let facets = receipt.facets.prefix(4).map(\.title).joined(separator: ", ")
+            return (
+                receipt.completedAt,
+                "- \(receipt.title) [\(proof) evidence; facets: \(facets); page \(page.id)]"
+            )
+        }
+        .sorted { $0.0 > $1.0 }
+        .prefix(4)
+        .map(\.1)
+        .joined(separator: "\n")
     }
 
     static func interestPacket(interest: String, kind: BleedEditionKind) -> String {
@@ -435,6 +669,9 @@ enum TheBleedEditionBuilder {
         var metadata = announcement.payload.metadata
         metadata["bleedProse"] = body
         metadata["bleedInterestSources"] = interestSources
+        if let slot = metadata["bleedSlotID"]?.nonEmpty {
+            metadata["automaticRecurrenceSlot"] = "edition:\(slot)"
+        }
         metadata.removeValue(forKey: "placeholder")
         return SurfacePage(
             id: announcement.id,
@@ -464,9 +701,127 @@ enum TheBleedEditionBuilder {
         return briefs
     }
 
+    static func decodedPlateAssets(_ encoded: String) -> [BookPageMediaAsset] {
+        guard let data = encoded.data(using: .utf8),
+              let assets = try? JSONDecoder().decode([BookPageMediaAsset].self, from: data) else {
+            return []
+        }
+        return assets
+    }
+
     private static func encodedBriefs(_ briefs: [BleedColumnBrief]) -> String {
         guard let data = try? JSONEncoder().encode(briefs) else { return "" }
         return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    private static func encodedPlateAssets(_ assets: [BookPageMediaAsset]) -> String {
+        guard !assets.isEmpty,
+              let data = try? JSONEncoder().encode(assets) else { return "[]" }
+        return String(data: data, encoding: .utf8) ?? "[]"
+    }
+
+    private static func selectedPlateAssets(
+        day: BookDay,
+        inputs: BookSourceInputs,
+        kind: BleedEditionKind,
+        now: Date,
+        semanticPageIDs: [String]? = nil
+    ) -> [BookPageMediaAsset] {
+        let archive = archivePages(day: day, inputs: inputs)
+        let semanticRanks = Dictionary(
+            uniqueKeysWithValues: (semanticPageIDs ?? semanticPassageLines(
+                from: archive,
+                kind: kind,
+                inputs: inputs,
+                now: now
+            ).pageIDs).enumerated().map { ($0.element, 200 - $0.offset * 20) }
+        )
+        let continuityStrength = inputs.continuity.strongestSignals.reduce(into: [String: Int]()) { scores, signal in
+            for pageID in signal.evidencePageIDs {
+                scores[pageID] = max(scores[pageID] ?? 0, signal.strength)
+            }
+        }
+
+        let candidates = archive.compactMap { page -> (BookPage, BookPageMediaAsset, Int)? in
+            guard now.timeIntervalSince(page.createdAt) >= 0,
+                  now.timeIntervalSince(page.createdAt) <= 45 * 86_400,
+                  page.origin == .userAuthored
+                    || page.origin == .imported
+                    || page.type == .illustration
+                    || page.type == .illuminatedPhoto,
+                  !EditionCurator.defaultPrivateTypes.contains(page.type),
+                  page.externalReference?.allowsWeaving != false else {
+                return nil
+            }
+            let isPagewright = page.sourceID == "pagewright"
+                || page.sourceID == "plain-page"
+                || page.tags.contains("pagewright")
+                || page.tags.contains("scrapbook")
+            let isSharedVisual = page.externalReference != nil && !page.mediaAssets.isEmpty
+            guard page.type == .illuminatedPhoto
+                    || page.type == .illustration
+                    || isPagewright
+                    || isSharedVisual else {
+                return nil
+            }
+            guard let sourceAsset = page.mediaAssets.first(where: { asset in
+                guard asset.kind != .audioFile else { return false }
+                let format = asset.metadata["format"]?.lowercased() ?? ""
+                return format != "pdf" && !asset.reference.lowercased().hasSuffix(".pdf")
+            }) else {
+                return nil
+            }
+
+            let provenance: String
+            if page.type == .illuminatedPhoto {
+                provenance = "a kept illuminated photograph"
+            } else if page.type == .illustration {
+                provenance = "a kept Illustration Page"
+            } else if isPagewright {
+                provenance = "a kept Pagewright page"
+            } else {
+                provenance = "a shared visual from \(page.externalReference?.sourceName.nonEmpty ?? "another app")"
+            }
+            let captionTitle = page.promptText.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                ?? sourceAsset.caption.nonEmpty
+                ?? page.type.title
+            var metadata = sourceAsset.metadata
+            metadata["bleedPlatePageID"] = page.id
+            metadata["bleedPlateProvenance"] = provenance
+            metadata["bleedPlateOriginalSourceID"] = page.sourceID
+            metadata["bleedPlateCaption"] = "\(captionTitle) — \(provenance)."
+            let plate = BookPageMediaAsset(
+                id: "bleed-plate-\(page.id)-\(sourceAsset.id)",
+                kind: sourceAsset.kind,
+                reference: sourceAsset.reference,
+                caption: metadata["bleedPlateCaption"] ?? captionTitle,
+                sourceID: sourceAsset.sourceID.nonEmpty ?? page.sourceID,
+                metadata: metadata
+            )
+
+            let ageDays = Int(now.timeIntervalSince(page.createdAt) / 86_400)
+            var score = semanticRanks[page.id] ?? 0
+            score += continuityStrength[page.id] ?? 0
+            score += max(0, 45 - ageDays)
+            if page.type == .illuminatedPhoto { score += 24 }
+            if isPagewright { score += 18 }
+            if isSharedVisual { score += 14 }
+            return (page, plate, score)
+        }
+        .sorted { left, right in
+            if left.2 == right.2 { return left.0.createdAt > right.0.createdAt }
+            return left.2 > right.2
+        }
+
+        var selected: [BookPageMediaAsset] = []
+        var seenReferences = Set<String>()
+        for candidate in candidates where selected.count < 2 {
+            guard seenReferences.insert("\(candidate.1.kind.rawValue):\(candidate.1.reference)").inserted else {
+                continue
+            }
+            selected.append(candidate.1)
+        }
+        return selected
     }
 
     private static func themeDeskAnnouncementLine(

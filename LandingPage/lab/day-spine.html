@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReEnchanted — The Day</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   THE DAY — spine prototype
+   One continuous scroll from before dawn to after midnight.
+   The light is driven entirely by CSS scroll-driven animation:
+   registered custom properties interpolated along scroll(root block).
+   Zero JS touches colour. The pixie is the only scripted thing.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* the room around the lamp — never white, always dark, but it travels */
+@property --surround   { syntax:'<color>'; inherits:true; initial-value:#05060e }
+@property --surround-2 { syntax:'<color>'; inherits:true; initial-value:#0a0b18 }
+/* the paper — this is what actually brightens through the day */
+@property --leaf       { syntax:'<color>'; inherits:true; initial-value:#1c1e2e }
+@property --leaf-edge  { syntax:'<color>'; inherits:true; initial-value:#252838 }
+/* ink on that paper */
+@property --ink        { syntax:'<color>'; inherits:true; initial-value:#8e97b8 }
+@property --ink-soft   { syntax:'<color>'; inherits:true; initial-value:#6d7595 }
+/* the hour's own accent — what the light is doing */
+@property --spark      { syntax:'<color>'; inherits:true; initial-value:#4a5891 }
+@property --halo       { syntax:'<color>'; inherits:true; initial-value:#151a35 }
+
+:root{
+  --fell:"IM Fell English","Iowan Old Style",Georgia,serif;
+  --garam:"EB Garamond","Iowan Old Style",Georgia,serif;
+  --leafw:min(760px,88vw);
+
+  animation:daycycle 1s linear;
+  animation-timeline:scroll(root block);
+  animation-fill-mode:both;
+}
+
+/* ── the day, in eleven stops ───────────────────────────────────
+   Each stop is an hour from the plan. The paper climbs to full
+   parchment at noon, then burns down through dusk into lamplight. */
+@keyframes daycycle{
+  /* 05:00 — before the light */
+  0%  { --surround:#04050c; --surround-2:#080a16; --leaf:#161829; --leaf-edge:#1e2133;
+        --ink:#868fb0; --ink-soft:#636b8c; --spark:#4b5893; --halo:#121736 }
+  /* 06:30 — waking, cold rose */
+  9%  { --surround:#0d0a16; --surround-2:#1a1424; --leaf:#3a3040; --leaf-edge:#473b4c;
+        --ink:#d6c9d4; --ink-soft:#a596a6; --spark:#b57a86; --halo:#3a2334 }
+  /* 08:00 — the first door, gold rising */
+  18% { --surround:#140f10; --surround-2:#241a14; --leaf:#8d7f60; --leaf-edge:#9c8d6b;
+        --ink:#2f2617; --ink-soft:#57492f; --spark:#c98f3c; --halo:#5c3c17 }
+  /* 10:00 — the margin answers */
+  27% { --surround:#171009; --surround-2:#2a1f10; --leaf:#cfc09a; --leaf-edge:#dccfa9;
+        --ink:#2b2114; --ink-soft:#4d4028; --spark:#b07f2c; --halo:#6d4a17 }
+  /* 12:00 — noon, brightest. full parchment. */
+  38% { --surround:#1c1408; --surround-2:#33260f; --leaf:#f4ecd6; --leaf-edge:#fdf8e9;
+        --ink:#2b2118; --ink-soft:#5d5039; --spark:#9d7328; --halo:#8a5f1c }
+  /* 14:00 — the wireless, warm afternoon */
+  48% { --surround:#1a1108; --surround-2:#2e200d; --leaf:#eadfc2; --leaf-edge:#f5ecd6;
+        --ink:#2e2419; --ink-soft:#5f523b; --spark:#a86b2a; --halo:#7d4f18 }
+  /* 16:00 — without you. the light cools and greens. */
+  58% { --surround:#0f130f; --surround-2:#1c2419; --leaf:#cfcdae; --leaf-edge:#dcdabb;
+        --ink:#252a20; --ink-soft:#4b5142; --spark:#46756e; --halo:#2f4a3c }
+  /* 18:00 — the wager. dusk, amber and violet. */
+  68% { --surround:#140b13; --surround-2:#251427; --leaf:#b99a86; --leaf-edge:#c7a892;
+        --ink:#2a1c18; --ink-soft:#513a30; --spark:#6b3f6e; --halo:#5b2c4e }
+  /* 20:00 — lamplight. the deep pool. */
+  78% { --surround:#08070d; --surround-2:#120e14; --leaf:#6f6047; --leaf-edge:#7d6c50;
+        --ink:#f2e6cc; --ink-soft:#c3b393; --spark:#e0a850; --halo:#4a3313 }
+  /* 22:00 — your page. intimate gold. */
+  89% { --surround:#06060c; --surround-2:#0e0c14; --leaf:#4a4234; --leaf-edge:#574e3d;
+        --ink:#f6ead2; --ink-soft:#c9b995; --spark:#ffc874; --halo:#3c2a0e }
+  /* 00:00 — the Book closes. ink, with the letters still lit. */
+  100%{ --surround:#040409; --surround-2:#08080f; --leaf:#171622; --leaf-edge:#1f1e2b;
+        --ink:#b9b3cc; --ink-soft:#7e7994; --spark:#8a72c4; --halo:#1a1533 }
+}
+
+/* Firefox and anything without scroll timelines: hold a single
+   lamplight state. Nothing is gated behind the scrub. */
+@supports not (animation-timeline: scroll()){
+  :root{ animation:none;
+    --surround:#08070d; --surround-2:#120e14; --leaf:#6f6047; --leaf-edge:#7d6c50;
+    --ink:#f2e6cc; --ink-soft:#c3b393; --spark:#e0a850; --halo:#4a3313 }
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; font-family:var(--garam); font-size:19px; line-height:1.6;
+  color:var(--ink);
+  background:
+    radial-gradient(70rem 50rem at 50% 38%, var(--halo), transparent 68%),
+    linear-gradient(180deg, var(--surround), var(--surround-2) 50%, var(--surround));
+  background-attachment:fixed;
+  overflow-x:hidden;
+}
+
+/* the letter field + pixie live here */
+#field{position:fixed; inset:0; z-index:1; pointer-events:none}
+
+/* ═════════════════════ the hours rail ═════════════════════
+   The depth gauge. This is what buys back deep links and
+   skimmer tolerance that a pure single shaft would cost.   */
+.rail{
+  position:fixed; z-index:30; right:clamp(.8rem,2.4vw,2rem); top:50%;
+  transform:translateY(-50%);
+  display:flex; flex-direction:column; gap:.1rem;
+  font-family:var(--fell); font-size:.66rem; letter-spacing:.14em;
+}
+.rail a{
+  display:flex; align-items:center; gap:.55rem; justify-content:flex-end;
+  padding:.3rem 0; text-decoration:none; color:var(--ink-soft);
+  opacity:.5; transition:opacity .35s ease, color .35s ease;
+}
+.rail a .tick{width:.9rem; height:1px; background:currentColor; transition:width .35s cubic-bezier(.2,.8,.2,1)}
+.rail a .hr{width:2.6rem; text-align:left}
+.rail a .nm{
+  max-width:0; overflow:hidden; white-space:nowrap; font-style:italic;
+  letter-spacing:.02em; font-size:.78rem; text-align:right;
+  transition:max-width .45s cubic-bezier(.2,.8,.2,1);
+}
+.rail a:hover,.rail a:focus-visible{opacity:1; color:var(--spark)}
+.rail a:hover .nm,.rail a:focus-visible .nm{max-width:11rem}
+.rail a:hover .tick{width:1.8rem}
+.rail a[aria-current="true"]{opacity:1; color:var(--spark)}
+.rail a[aria-current="true"] .tick{width:2.4rem}
+
+/* ═════════════════════ the hours ═════════════════════ */
+main{position:relative; z-index:2}
+
+.hour{
+  min-height:118vh;
+  display:grid; place-items:center;
+  padding:9rem clamp(1.2rem,5vw,3rem);
+}
+.leaf{
+  width:var(--leafw);
+  padding:clamp(2.2rem,5vw,4rem) clamp(1.6rem,4.5vw,3.6rem);
+  background:linear-gradient(150deg, var(--leaf-edge), var(--leaf));
+  box-shadow:0 40px 90px -40px rgba(0,0,0,.85), 0 1px 0 rgba(255,255,255,.10) inset;
+  position:relative;
+  /* each leaf rises as it enters the scrollport */
+  animation:rise linear both;
+  animation-timeline:view();
+  animation-range:entry 5% cover 32%;
+}
+@keyframes rise{
+  from{opacity:0; transform:translateY(46px) scale(.985)}
+  to  {opacity:1; transform:none}
+}
+@supports not (animation-timeline: view()){ .leaf{animation:none; opacity:1} }
+
+/* paper tooth */
+.leaf::after{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  mix-blend-mode:overlay; opacity:.22;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4'/></filter><rect width='300' height='300' filter='url(%23f)'/></svg>");
+}
+
+.stamp{
+  font-family:var(--fell); font-size:.72rem; letter-spacing:.3em;
+  text-transform:uppercase; color:var(--ink-soft); margin:0 0 1.6rem;
+  display:flex; align-items:baseline; gap:.9rem;
+}
+.stamp::after{content:""; flex:1; height:1px; background:currentColor; opacity:.3}
+
+h2{
+  font-family:var(--fell); font-weight:400; margin:0;
+  font-size:clamp(1.9rem,4.6vw,3.3rem); line-height:1.08; color:var(--ink);
+}
+.hour p{max-width:46ch; margin:1.4rem 0 0; color:var(--ink-soft); font-size:1.06rem}
+.hour p.said{
+  font-family:var(--fell); font-style:italic; font-size:1.2rem;
+  color:var(--spark); max-width:38ch;
+}
+
+/* the opening address is the LCP — plain text, no video, no WebGL */
+.hour--open .leaf{background:none; box-shadow:none; padding-inline:0}
+.hour--open .leaf::after{display:none}
+.hour--open h2{font-size:clamp(2.4rem,6.4vw,4.6rem)}
+.reply{
+  font-family:var(--fell); font-style:italic; color:var(--spark);
+  font-size:clamp(1.5rem,3vw,2.2rem); margin:1.2rem 0 0;
+}
+
+.cue{
+  position:absolute; left:50%; bottom:3rem; transform:translateX(-50%);
+  z-index:3; font-family:var(--fell); font-style:italic; font-size:.9rem;
+  color:var(--ink-soft); opacity:.7; text-align:center;
+}
+.cue span{display:block; font-size:1.3rem; font-style:normal; margin-top:.3rem;
+  animation:drift 2.6s ease-in-out infinite}
+@keyframes drift{0%,100%{transform:translateY(0)}50%{transform:translateY(8px)}}
+
+:focus-visible{outline:2px solid var(--spark); outline-offset:4px}
+
+@media (max-width:720px){
+  .rail a .hr{display:none}
+  .rail a .nm{display:none}
+  .rail a .tick{width:.7rem}
+  .rail a[aria-current="true"] .tick{width:1.4rem}
+  .hour{min-height:100vh; padding:5rem 1.2rem}
+}
+
+/* the day is already lit, the pixie already at rest */
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  :root{animation-timeline:none;
+    --surround:#08070d; --surround-2:#120e14; --leaf:#6f6047; --leaf-edge:#7d6c50;
+    --ink:#f2e6cc; --ink-soft:#c3b393; --spark:#e0a850; --halo:#4a3313}
+  .leaf{animation:none; opacity:1; transform:none}
+  .cue span{animation:none}
+}
+</style>
+</head>
+<body>
+
+<canvas id="field" aria-hidden="true"></canvas>
+
+<nav class="rail" id="rail" aria-label="The hours"></nav>
+
+<main>
+
+  <section class="hour hour--open" id="h-0500">
+    <div class="leaf">
+      <p class="stamp">05:00 &mdash; before the light</p>
+      <h2>You know how you wish your life was full of hidden magic?</h2>
+      <p class="reply">It is.</p>
+      <p>Scroll, and a day begins. This one is yours &mdash; you'll keep some of
+         it, let the rest go, and read what it becomes.</p>
+    </div>
+    <p class="cue">the day is about to start<span aria-hidden="true">↓</span></p>
+  </section>
+
+  <section class="hour" id="h-0630">
+    <div class="leaf">
+      <p class="stamp">06:30 &mdash; waking</p>
+      <h2>The first page arrives before you ask for one.</h2>
+      <p class="said">"Fog, high 57°. The air is too still for this early — the
+         kind of quiet that is waiting for something."</p>
+      <p>Not a forecast. The weather where you actually are, translated into the
+         language the Book thinks in. No blank page, ever.</p>
+    </div>
+  </section>
+
+  <section class="hour" id="h-0800">
+    <div class="leaf">
+      <p class="stamp">08:00 &mdash; the first door</p>
+      <h2>Keep the ones that catch something real.</h2>
+      <p>Letting a page go costs nothing and is never held against you. There are
+         no streaks here, and nothing to defend. The Book runs on consent and
+         taste &mdash; you decide what becomes part of the story.</p>
+    </div>
+  </section>
+
+  <section class="hour" id="h-1000">
+    <div class="leaf">
+      <p class="stamp">10:00 &mdash; the margin answers</p>
+      <h2>Something writes back.</h2>
+      <p class="said">"You kept the fog. You keep the quiet ones — I've started
+         to notice that about you."</p>
+      <p>Twenty-two of them live in here, and they have opinions. Pippa turns up
+         first. The others take longer to trust you.</p>
+    </div>
+  </section>
+
+  <section class="hour" id="h-1200">
+    <div class="leaf">
+      <p class="stamp">12:00 &mdash; noon, brightest</p>
+      <h2>One true sentence, made vivid enough to keep.</h2>
+      <p>The hardest part of any journal is the first word. So the Book hands you
+         a scaffold that can't produce a broken sentence, and gets out of the way
+         once you're moving.</p>
+    </div>
+  </section>
+
+  <section class="hour" id="h-1400">
+    <div class="leaf">
+      <p class="stamp">14:00 &mdash; the wireless</p>
+      <h2>Dial in. Let the signal colour the day.</h2>
+      <p>Fae&#8209;Fi at eighty-eight point three on the Academy band. Mothlight
+         after dark. Thornwave, which isn't supposed to be on the dial at all.
+         Penny Blackletter keeps the records and reads the ads badly.</p>
+    </div>
+  </section>
+
+  <section class="hour" id="h-1600">
+    <div class="leaf">
+      <p class="stamp">16:00 &mdash; without you</p>
+      <h2>The hidden world keeps living while you're away.</h2>
+      <p>The Academy argues about something that has nothing to do with you. A
+         talisman changes hands. Headmistress Thorne is somewhere she shouldn't
+         be. You'll hear about it later, secondhand, the way you hear most things.</p>
+    </div>
+  </section>
+
+  <section class="hour" id="h-1800">
+    <div class="leaf">
+      <p class="stamp">18:00 &mdash; the wager</p>
+      <h2>The Book makes a claim about you, and stakes something on it.</h2>
+      <p class="said">"You'll write more tonight than you did last night. I'm
+         betting on it. If I'm wrong, I'll say so."</p>
+      <p>Honest wagers, settled with real evidence. It is allowed to be wrong,
+         and it tells you when it was.</p>
+    </div>
+  </section>
+
+  <section class="hour" id="h-2000">
+    <div class="leaf">
+      <p class="stamp">20:00 &mdash; lamplight</p>
+      <h2>Everything you kept goes into the braid.</h2>
+      <p>The fog. The sentence you wrote at noon. What you ate, where you went,
+         the choices you made inside the story. All of it, woven into one thing.</p>
+    </div>
+  </section>
+
+  <section class="hour" id="h-2200">
+    <div class="leaf">
+      <p class="stamp">22:00 &mdash; your page</p>
+      <h2>Here is the day you actually lived, told back to you.</h2>
+      <p>One story a day, gathering into monthly volumes and then a year you can
+         hold in your hands. This is one day. The app does this every day, for as
+         long as you want it to.</p>
+    </div>
+  </section>
+
+  <section class="hour" id="h-0000">
+    <div class="leaf">
+      <p class="stamp">00:00 &mdash; the Book closes</p>
+      <h2>Free. Open source. It never leaves your phone.</h2>
+      <p>No account, no cloud, nothing for us to read. The letters you touched
+         today stay lit.</p>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   The pixie, promoted from decoration to guide.
+   It descends with you, gathers drifting letters, trails sparks.
+   Colour is read from the CSS day-cycle so the field is always
+   lit by whatever hour you're standing in.
+   ═══════════════════════════════════════════════════════════════ */
+(function(){
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ── the hours rail, built from the sections themselves ── */
+  var hours = [].map.call(document.querySelectorAll('.hour'), function(s){
+    var stamp = s.querySelector('.stamp').textContent.split('—');
+    return { id:s.id, el:s, hr:stamp[0].trim(), nm:(stamp[1]||'').trim() };
+  });
+  var rail = document.getElementById('rail');
+  hours.forEach(function(h){
+    var a = document.createElement('a');
+    a.href = '#' + h.id;
+    a.innerHTML = '<span class="nm"></span><span class="hr"></span><span class="tick"></span>';
+    a.querySelector('.nm').textContent = h.nm;
+    a.querySelector('.hr').textContent = h.hr;
+    rail.appendChild(a);
+    h.link = a;
+  });
+  var io = new IntersectionObserver(function(es){
+    es.forEach(function(e){
+      if (!e.isIntersecting) return;
+      hours.forEach(function(h){ h.link.setAttribute('aria-current', String(h.el === e.target)); });
+    });
+  }, { rootMargin:'-45% 0px -45% 0px' });
+  hours.forEach(function(h){ io.observe(h.el); });
+
+  /* ── the visitor's real clock decides where the day opens ── */
+  var realHour = new Date().getHours();
+  var startAt = hours.reduce(function(best,h){
+    var hh = parseInt(h.hr,10);
+    return (hh <= realHour && hh >= parseInt(best.hr,10)) ? h : best;
+  }, hours[0]);
+  if (!location.hash && startAt !== hours[0] && !reduce){
+    // land in the hour they're actually in, then let them scroll back for the morning
+    requestAnimationFrame(function(){
+      startAt.el.scrollIntoView();
+      document.querySelector('.cue').textContent = 'you arrived mid-day — the morning is above you ↑';
+    });
+  }
+
+  /* ── the letter field ── */
+  var cv = document.getElementById('field'), ctx = cv.getContext('2d');
+  var W=0, H=0, dpr=Math.min(devicePixelRatio||1, 2);
+  var GLYPHS = 'REENCHANTEDBOOKOFYOUPAGESKEPTSTORY';
+  var letters = [], sparks = [], root = document.documentElement;
+
+  function css(v, fallback){
+    var c = getComputedStyle(root).getPropertyValue(v).trim();
+    return c || fallback;
+  }
+  function rand(a,b){ return a + Math.random()*(b-a); }
+
+  function resize(){
+    W = cv.width  = innerWidth  * dpr;
+    H = cv.height = innerHeight * dpr;
+    cv.style.width = innerWidth+'px'; cv.style.height = innerHeight+'px';
+    var target = Math.round(Math.min(46, innerWidth/26));
+    while (letters.length < target) letters.push(makeLetter());
+    letters.length = target;
+  }
+  function makeLetter(){
+    return {
+      x:rand(0,innerWidth), y:rand(0,innerHeight),
+      vx:rand(-9,9), vy:rand(-7,7),
+      size:rand(13,30), a:rand(.10,.34), flash:0, cool:0,
+      g:GLYPHS[Math.floor(Math.random()*GLYPHS.length)],
+      rot:rand(-.3,.3)
+    };
+  }
+
+  /* the guide */
+  var pixie = { x:innerWidth*.7, y:innerHeight*.5, vx:0, vy:0,
+                target:null, state:'wander', timer:2, glow:0 };
+
+  function spark(x,y,n,col){
+    if (sparks.length > 150) return;
+    for (var i=0;i<n;i++)
+      sparks.push({ x:x, y:y, vx:rand(-40,40), vy:rand(-40,40),
+                    life:rand(.5,1.3), max:1.3, col:col });
+  }
+
+  var last = performance.now();
+  function frame(now){
+    var dt = Math.min((now-last)/1000, .05); last = now;
+    var inkC = css('--ink','#cccccc'), sparkC = css('--spark','#e0a850');
+
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+
+    /* the pixie picks a letter, goes to it, gathers, wanders off */
+    pixie.timer -= dt;
+    if (pixie.timer <= 0){
+      if (pixie.state === 'wander' && letters.length){
+        pixie.target = letters[Math.floor(Math.random()*letters.length)];
+        pixie.state = 'gather'; pixie.timer = rand(2.2,4);
+      } else {
+        pixie.target = null; pixie.state = 'wander'; pixie.timer = rand(3.5,7);
+      }
+    }
+    /* it descends with you: scroll progress pulls its resting height */
+    var prog = scrollY / Math.max(1, document.body.scrollHeight - innerHeight);
+    var restY = innerHeight * (0.28 + 0.44 * ((prog*3) % 1));
+    var ax=0, ay=0;
+    if (pixie.state === 'gather' && pixie.target){
+      var dx = pixie.target.x - pixie.x, dy = pixie.target.y - pixie.y;
+      var d  = Math.hypot(dx,dy) || 1;
+      ax += dx/d*90; ay += dy/d*90;
+      pixie.glow = Math.min(1, pixie.glow + dt*1.6);
+      if (d < 34){
+        pixie.target.flash = 1;
+        if (pixie.target.cool <= 0){ spark(pixie.target.x, pixie.target.y, 5, sparkC); pixie.target.cool = .5; }
+      }
+    } else {
+      ay += (restY - pixie.y) * .5;
+      ax += Math.sin(now/1400) * 22;
+      pixie.glow = Math.max(0, pixie.glow - dt*1.1);
+    }
+    var m = 60;
+    if (pixie.x < m) ax += (m - pixie.x)*.9;
+    if (pixie.x > innerWidth - m) ax -= (pixie.x - (innerWidth-m))*.9;
+    pixie.vx = (pixie.vx + ax*dt) * .96;
+    pixie.vy = (pixie.vy + ay*dt) * .96;
+    pixie.x += pixie.vx*dt; pixie.y += pixie.vy*dt;
+    if (Math.random() < .5) spark(pixie.x, pixie.y, 1, sparkC);
+
+    /* letters drift, and spark off each other on contact */
+    for (var i=0;i<letters.length;i++){
+      var L = letters[i];
+      L.x += L.vx*dt; L.y += L.vy*dt;
+      if (L.x < -40) L.x = innerWidth+40; if (L.x > innerWidth+40) L.x = -40;
+      if (L.y < -40) L.y = innerHeight+40; if (L.y > innerHeight+40) L.y = -40;
+      L.flash = Math.max(0, L.flash - dt*1.6);
+      L.cool  = Math.max(0, L.cool  - dt);
+      for (var j=i+1;j<letters.length;j++){
+        var O = letters[j], ddx = O.x-L.x, ddy = O.y-L.y;
+        if (Math.abs(ddx) > 30 || Math.abs(ddy) > 30) continue;
+        if (Math.hypot(ddx,ddy) < 26 && L.cool <= 0){
+          L.flash = O.flash = 1; L.cool = O.cool = .7;
+          spark((L.x+O.x)/2, (L.y+O.y)/2, 4, sparkC);
+          var t=L.vx; L.vx=O.vx; O.vx=t; t=L.vy; L.vy=O.vy; O.vy=t;
+        }
+      }
+      ctx.save();
+      ctx.translate(L.x, L.y); ctx.rotate(L.rot);
+      ctx.font = L.size + 'px "IM Fell English", Georgia, serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      if (L.flash > 0){
+        ctx.globalAlpha = Math.min(1, L.a + L.flash*.75);
+        ctx.fillStyle = sparkC;
+        ctx.shadowColor = sparkC; ctx.shadowBlur = 14*L.flash;
+      } else {
+        ctx.globalAlpha = L.a; ctx.fillStyle = inkC;
+      }
+      ctx.fillText(L.g, 0, 0);
+      ctx.restore();
+    }
+
+    /* sparks */
+    for (var s=sparks.length-1; s>=0; s--){
+      var S = sparks[s];
+      S.life -= dt;
+      if (S.life <= 0){ sparks.splice(s,1); continue; }
+      S.x += S.vx*dt; S.y += S.vy*dt; S.vy += 16*dt;
+      ctx.globalAlpha = (S.life/S.max) * .8;
+      ctx.fillStyle = S.col;
+      ctx.beginPath(); ctx.arc(S.x, S.y, 1.5*(S.life/S.max)+.4, 0, 6.283); ctx.fill();
+    }
+
+    /* the guide itself */
+    ctx.globalAlpha = 1;
+    var r = 3.4 + pixie.glow*2.4;
+    var grd = ctx.createRadialGradient(pixie.x,pixie.y,0, pixie.x,pixie.y, r*7);
+    grd.addColorStop(0, sparkC); grd.addColorStop(1, 'transparent');
+    ctx.globalAlpha = .45 + pixie.glow*.35;
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(pixie.x,pixie.y, r*7, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 1; ctx.fillStyle = '#fff8e6';
+    ctx.beginPath(); ctx.arc(pixie.x,pixie.y, r, 0, 6.283); ctx.fill();
+
+    requestAnimationFrame(frame);
+  }
+
+  addEventListener('resize', resize);
+  resize();
+  if (!reduce) requestAnimationFrame(frame);
+  else { /* one static frame: letters at rest, guide settled */
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    letters.forEach(function(L){
+      ctx.save(); ctx.translate(L.x,L.y); ctx.rotate(L.rot);
+      ctx.font = L.size+'px "IM Fell English", Georgia, serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.globalAlpha=L.a; ctx.fillStyle=css('--ink','#ccc');
+      ctx.fillText(L.g,0,0); ctx.restore();
+    });
+  }
+})();
+</script>
+</body>
+</html>

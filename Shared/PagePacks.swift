@@ -1149,7 +1149,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "glow-menu",
             title: "Your Glow",
-            text: "That sparkle is your Glow — the Belief you carry. In here you can give it to people, Pages, and things you want more of, take it back from what you want less of, or spend it on Spells. Attention is the currency of this place."
+            text: "That sparkle is your Glow — the Belief you carry. You can lend it to people, Pages, and things you want the Book to hold closer, or let them quiet again. The Book will tell you when there is enough; you never need to count it."
         ),
         MarginTutorNote(
             id: "seal-body",
@@ -1174,7 +1174,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "dismiss-surface",
             title: "Letting a Page Go",
-            text: "Swiped away — the Book doesn't take it personally. Dismissed pages rest a while and may try again later. If a kind of page keeps overstaying its welcome, take Belief from it in the Glow menu."
+            text: "Swiped away — the Book doesn't take it personally. Dismissed pages rest a while and may try again later. If a kind of page keeps overstaying its welcome, let it quiet from the Glow menu."
         ),
         MarginTutorNote(
             id: "story-page",
@@ -1294,7 +1294,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "compass-run",
             title: "Compass Runs",
-            text: "A full run goes Notice, Embark, Sense, Write, Rest — constraints first, magic after. One small real adventure with a souvenir sentence at the end. Completing the loop earns 6 Belief."
+            text: "A full run goes Notice, Embark, Sense, Write, Rest — constraints first, magic after. One small real adventure with a souvenir sentence at the end. Completing the loop warms the Book's Glow."
         ),
         MarginTutorNote(
             id: "ask-the-book",
@@ -1334,7 +1334,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "scrapbook-marks",
             title: "Marks & Marginalia",
-            text: "Marks are decorations for the scrapbook page, with little locks on some of them. If a mark is open, place it freely. If it is locked, Zara's rule is simple: complete the named achievement, or spend one Belief to reveal a hint and decide whether the chase is worth it."
+            text: "Marks are decorations for the scrapbook page, with little locks on some of them. If a mark is open, place it freely. If it is locked, complete the named achievement or ask the Book for a hint and decide whether the chase is worth it."
         ),
         MarginTutorNote(
             id: "scrapbook-achievements",
@@ -1678,6 +1678,9 @@ struct PlayerVaultData: Codable, Equatable {
     var bookReadingBoundaries: [BookReadingBoundary]?
     var overnightConnectionDrafts: [OvernightConnectionDraft]?
     var nothingGreyOffset: Int?
+    /// A Page can leave the living Book while remaining intact in raw archives,
+    /// Stacks, and export.
+    var greyPageThreats: GreyPageThreatLedger?
     var openWorldEventArchive: OpenWorldEventArchive? = nil
     var chosenQuill: ChosenQuill?
     var people: PeopleLedger?

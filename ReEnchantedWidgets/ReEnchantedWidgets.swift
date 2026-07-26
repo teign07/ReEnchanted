@@ -23,6 +23,47 @@ struct ReEnchantedWidgetProvider: TimelineProvider {
     }
 }
 
+private struct QuestionWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    let entry: ReEnchantedWidgetEntry
+
+    private var question: ReEnchantedWidgetQuestion {
+        entry.snapshot.question ?? ReEnchantedWidgetQuestion(
+            id: "question-fallback",
+            title: "Did anything become real?",
+            prompt: "Bring the Book one true line when there is one.",
+            symbolName: "questionmark.bubble",
+            urlPath: "question"
+        )
+    }
+
+    @ViewBuilder
+    var body: some View {
+        switch family {
+        case .accessoryInline:
+            Label(question.title, systemImage: question.symbolName)
+                .widgetURL(deepLinkURL(question.urlPath))
+        case .accessoryCircular:
+            ZStack {
+                AccessoryWidgetBackground()
+                Image(systemName: question.symbolName)
+                    .font(.title3.weight(.bold))
+            }
+            .widgetURL(deepLinkURL(question.urlPath))
+        default:
+            VStack(alignment: .leading, spacing: 2) {
+                Label(question.title, systemImage: question.symbolName)
+                    .font(.caption.weight(.bold))
+                    .lineLimit(1)
+                Text(question.prompt)
+                    .font(.caption2)
+                    .lineLimit(2)
+            }
+            .widgetURL(deepLinkURL(question.urlPath))
+        }
+    }
+}
+
 private struct TodayWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: ReEnchantedWidgetEntry
@@ -268,7 +309,7 @@ private struct CompassHeader: View {
         HStack {
             WidgetHeader(title: "Wonder Compass", symbolName: "safari", accent: .teal)
             Spacer(minLength: 6)
-            Text(run.isStarted ? "\(run.stepIndex + 1)/\(CompassWidgetStep.steps.count)" : "Ready")
+            Text(run.isStarted ? "Underway" : "Ready")
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(ReTheme.teal)
         }
@@ -389,14 +430,10 @@ private struct CompassProgress: View {
     var isStarted: Bool
 
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(CompassWidgetStep.steps) { step in
-                Capsule()
-                    .fill(isStarted && step.id <= stepIndex ? ReTheme.teal : ReTheme.mutedInk.opacity(0.24))
-                    .frame(height: 5)
-            }
-        }
-        .accessibilityLabel("Compass step \(isStarted ? stepIndex + 1 : 0) of \(CompassWidgetStep.steps.count)")
+        Capsule()
+            .fill(isStarted ? ReTheme.teal : ReTheme.mutedInk.opacity(0.24))
+            .frame(height: 5)
+            .accessibilityLabel(isStarted ? "The Compass Run is underway" : "The Compass Run is ready")
     }
 }
 
@@ -1332,6 +1369,20 @@ private struct ReEnchantedGlowWidget: Widget {
     }
 }
 
+private struct ReEnchantedQuestionWidget: Widget {
+    let kind = "ReEnchantedQuestionWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: ReEnchantedWidgetProvider()) { entry in
+            QuestionWidgetView(entry: entry)
+                .containerBackground(.clear, for: .widget)
+        }
+        .configurationDisplayName("A Question from the Book")
+        .description("One quiet return question on the Lock Screen.")
+        .supportedFamilies([.accessoryInline, .accessoryCircular, .accessoryRectangular])
+    }
+}
+
 @main
 struct ReEnchantedWidgets: WidgetBundle {
     var body: some Widget {
@@ -1341,5 +1392,6 @@ struct ReEnchantedWidgets: WidgetBundle {
         ReEnchantedCompassWidget()
         ReEnchantedRememberedWidget()
         ReEnchantedGlowWidget()
+        ReEnchantedQuestionWidget()
     }
 }

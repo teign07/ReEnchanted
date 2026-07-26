@@ -45,6 +45,68 @@ import MLXLMHFAPI
 import MLX
 #endif
 
+/// The Book's hidden systems may keep exact scores, costs, thresholds, and
+/// clocks. Reader-facing views translate that state into felt condition and
+/// consequence so the Book reads like one living character, not a dashboard.
+///
+/// Real-world facts (prices, dates, event times, weather, and health readings)
+/// remain exact. These helpers are only for fictional simulation state.
+enum BookMechanicPresentation {
+    static func glow(_ value: Int) -> String {
+        BeliefLexicon.glowName(for: max(0, min(100, value)))
+    }
+
+    static func quantity(_ value: Int, none: String, some: String, many: String) -> String {
+        if value <= 0 { return none }
+        if value <= 2 { return some }
+        return many
+    }
+
+    static func progress(current: Int, total: Int) -> String {
+        guard total > 0, current > 0 else { return "The first marks are waiting." }
+        if current >= total { return "The binding is ready." }
+        if current * 2 < total { return "The binding has begun to gather." }
+        return "The binding is nearly holding together."
+    }
+
+    static func pressure(current: Int, limit: Int) -> String {
+        guard current > 0 else { return "The page is holding steady." }
+        if limit > 0, current >= limit { return "The story is coming apart at the edges." }
+        if limit > 0, current * 2 >= limit { return "The edges are beginning to forget themselves." }
+        return "A little static is worrying the margin."
+    }
+
+    static func faeStanding(warmth: Int, claim: Int) -> String {
+        if claim >= 60 { return "The old law is watching this relationship closely." }
+        if warmth >= 55 { return "The welcome here has grown unmistakably warm." }
+        if warmth >= 20 { return "The welcome is warming, cautiously." }
+        if claim > 0 { return "The ledger remembers unfinished old law." }
+        return "Neither side has decided what to make of the other yet."
+    }
+
+    static func pactPresence(
+        territory: PactTerritory,
+        chapter: AcademyChapter?,
+        tier: PactTier
+    ) -> String {
+        guard let chapter else { return "No Talisman has made this place its own." }
+        switch tier {
+        case .contesting:
+            return "\(chapter.talismanName) has begun leaving small signs here."
+        case .influenced:
+            return "\(chapter.talismanName) is often found in these margins."
+        case .controlled:
+            return "\(chapter.talismanName) has become part of how this place speaks."
+        case .dominated:
+            return "\(chapter.talismanName) has made this place unmistakably its own."
+        case .sovereign:
+            return "\(chapter.talismanName) moves here with the confidence of an old resident."
+        case .none:
+            return "\(territory.name) is quiet."
+        }
+    }
+}
+
 struct LabStatusCard: View {
     let report: LocalModelReport
     let storeReport: BookStore.Report
@@ -674,8 +736,8 @@ struct BeliefScoreBadge: View {
                 }
             }
         }
-        .accessibilityLabel("Belief \(tierName), \(clampedScore) out of 100")
-        .help("Belief \(clampedScore) out of 100")
+        .accessibilityLabel("The Book's Glow is \(tierName.lowercased())")
+        .help("The Book's Glow is \(tierName.lowercased())")
     }
 }
 
@@ -777,11 +839,11 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .belief:
-            return "Give or take Belief among characters."
+            return "Visit the people currently alive in the margins."
         case .spells:
             return "Open a Compass Run or Enchantment."
         case .pages:
-            return "Find open threads and tune which Pages the Book notices."
+            return "Find open threads and Pages tucked deeper in the binding."
         case .bindery:
             return "Make, share, print, and preserve kept pages."
         case .book:
@@ -1163,7 +1225,7 @@ struct GlowCommandMenu: View {
             }
             menuButton(
                 title: "The Living Almanac",
-                detail: "Open the world event door: active or archived temporary physics, phases, and fieldwork.",
+                detail: "Open the door on whatever temporary weather has entered the Book.",
                 systemImage: "calendar.badge.clock",
                 compact: compact
             ) {
@@ -1200,7 +1262,7 @@ struct GlowCommandMenu: View {
                 case .pactMap:
                     menuButton(
                         title: "The Pact Map",
-                        detail: "Watch the Talismans contest the Book's shelves and your real-world doors.",
+                        detail: "See where the Talismans have been leaving fingerprints on the Book.",
                         systemImage: "map",
                         compact: compact
                     ) {
@@ -1356,14 +1418,14 @@ struct GlowCommandMenu: View {
     private func pageBeliefSubmenu(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Picker("Page belief action", selection: $beliefMode) {
-                Text("Give Belief").tag(GlowBeliefMode.give)
-                Text("Take Belief").tag(GlowBeliefMode.take)
+                Text("Warm this Page").tag(GlowBeliefMode.give)
+                Text("Let it quiet").tag(GlowBeliefMode.take)
             }
             .pickerStyle(.segmented)
 
             menuButton(
                 title: "The BookShop",
-                detail: "The Marginalia Goblins' living market: App Store packs, Attention, Belief, and your standing with the Fae.",
+                detail: "The Marginalia Goblins' living market, where the till has opinions and the shelves remember you.",
                 systemImage: "books.vertical.fill",
                 compact: compact
             ) {
@@ -1448,8 +1510,8 @@ struct GlowCommandMenu: View {
             }
 
             Picker("Belief action", selection: $beliefMode) {
-                Text("Give Belief").tag(GlowBeliefMode.give)
-                Text("Take Belief").tag(GlowBeliefMode.take)
+                Text("Brighten").tag(GlowBeliefMode.give)
+                Text("Let rest").tag(GlowBeliefMode.take)
             }
             .pickerStyle(.segmented)
 
@@ -1461,7 +1523,7 @@ struct GlowCommandMenu: View {
                         .font(.headline.weight(.bold))
                         .foregroundStyle(BookPalette.violet)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Give Belief to a new Cast Member")
+                        Text("Invite a new Cast Member")
                             .font((compact ? Font.caption : Font.subheadline).weight(.bold))
                             .foregroundStyle(BookPalette.ink)
                         Text("State what it is, or give the Book a photo.")
@@ -1483,7 +1545,7 @@ struct GlowCommandMenu: View {
                 }
             }
             .buttonStyle(.bookPress())
-            .accessibilityLabel("Give Belief to a new Cast Member")
+            .accessibilityLabel("Invite a new Cast Member")
 
             ForEach(entities) { entity in
                 Button {
@@ -1541,36 +1603,36 @@ struct GlowCommandMenu: View {
     private func confirmationTitle(for entity: GlowEntityMenuItem) -> String {
         switch beliefMode {
         case .give:
-            return "Are you sure you want to give belief to \(entity.name)?"
+            return "Brighten \(entity.name)?"
         case .take:
-            return "Are you sure you want to take belief from \(entity.name)?"
+            return "Let \(entity.name) rest?"
         }
     }
 
     private func confirmationTitle(for page: GlowPageMenuItem) -> String {
         switch beliefMode {
         case .give:
-            return "Give belief to \(page.title)?"
+            return "Warm \(page.title)?"
         case .take:
-            return "Take belief from \(page.title)?"
+            return "Let \(page.title) quiet?"
         }
     }
 
     private func confirmationButtonTitle(for entity: GlowEntityMenuItem) -> String {
         switch beliefMode {
         case .give:
-            return "Give \(entity.name) +3 Belief"
+            return "Brighten \(entity.name)"
         case .take:
-            return "Try to Take Belief"
+            return "Let the Glow recede"
         }
     }
 
     private func confirmationButtonTitle(for page: GlowPageMenuItem) -> String {
         switch beliefMode {
         case .give:
-            return "Give \(page.title) +3 Belief"
+            return "Warm \(page.title)"
         case .take:
-            return "Take \(page.title) -3 Belief"
+            return "Let \(page.title) quiet"
         }
     }
 
@@ -2950,7 +3012,7 @@ struct PactMapSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if let boundChapterName {
-                        Text("You are Bound to \(boundChapterName). Pressing a claim invests Belief in its Talisman.")
+                        Text("You are Bound to \(boundChapterName). Its Talisman recognizes your seal when you leave it in a place.")
                             .font(.footnote)
                             .foregroundStyle(BookPalette.ink.opacity(0.6))
                             .fixedSize(horizontal: false, vertical: true)
@@ -2963,7 +3025,7 @@ struct PactMapSheet: View {
 
                     if let pendingVerdict {
                         sectionTitle("Awaiting Your Ruling")
-                        Text("Two Talismans read one of your real days differently. Rule it, and the shelf it governs shifts toward the reading you chose.")
+                        Text("Two Talismans read one of your real days differently. The Book was not there. You were.")
                             .font(.footnote)
                             .foregroundStyle(BookPalette.ink.opacity(0.6))
                             .fixedSize(horizontal: false, vertical: true)
@@ -2974,8 +3036,8 @@ struct PactMapSheet: View {
                     frontSection("The Real-World Doors", territories: PactTerritoryRegistry.integrations)
 
                     if !pactWar.log.isEmpty {
-                        sectionTitle("Recent Moves")
-                        ForEach(pactWar.log.prefix(6)) { record in
+                        sectionTitle("Recent News")
+                        ForEach(pactWar.log.prefix(3)) { record in
                             Text("• \(record.line)")
                                 .font(.caption)
                                 .foregroundStyle(BookPalette.ink.opacity(0.6))
@@ -3008,18 +3070,9 @@ struct PactMapSheet: View {
         let tier = pactWar.tier(of: territory.id)
         let isPressing = pressedTerritoryID == territory.id
         return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(territory.name)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(BookPalette.ink)
-                Spacer()
-                Text(tier.label)
-                    .font(.caption2.weight(.bold))
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background((controller == nil ? BookPalette.ink : BookPalette.lampGold).opacity(0.14), in: Capsule())
-                    .foregroundStyle(controller == nil ? BookPalette.ink.opacity(0.5) : BookPalette.lampGold)
-                    .scaleEffect(isPressing && !reduceMotion ? 1.08 : 1)
-            }
+            Text(territory.name)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(BookPalette.ink)
             Text(territory.blurb)
                 .font(.caption)
                 .foregroundStyle(BookPalette.ink.opacity(0.6))
@@ -3031,40 +3084,28 @@ struct PactMapSheet: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(BookPalette.teal)
                 }
-                Text(territoryStatusLine(territory, chapter: controllerChapter, tier: tier))
+                Text(BookMechanicPresentation.pactPresence(
+                    territory: territory,
+                    chapter: controllerChapter,
+                    tier: tier
+                ))
                     .font(.caption)
                     .foregroundStyle(BookPalette.ink.opacity(0.62))
                     .fixedSize(horizontal: false, vertical: true)
-            }
-            ForEach(AcademyChapterRegistry.chapters, id: \.id) { chapter in
-                let value = pactWar.control(chapter.talismanID, territory.id)
-                if value > 0 {
-                    HStack(spacing: 6) {
-                        Text(chapter.talismanName)
-                            .font(.caption2)
-                            .foregroundStyle(BookPalette.ink.opacity(0.7))
-                            .frame(width: 96, alignment: .leading)
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(BookPalette.ink.opacity(0.08))
-                                Capsule()
-                                    .fill((controller == chapter.talismanID ? BookPalette.lampGold : BookPalette.teal).opacity(0.5))
-                                    .frame(width: max(4, geo.size.width * CGFloat(min(100, value)) / 100))
-                            }
-                        }
-                        .frame(height: 8)
-                        Text("\(value)")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(BookPalette.ink.opacity(0.55))
-                            .frame(width: 24, alignment: .trailing)
-                    }
-                }
+            } else {
+                Text(BookMechanicPresentation.pactPresence(
+                    territory: territory,
+                    chapter: nil,
+                    tier: tier
+                ))
+                    .font(.caption.italic())
+                    .foregroundStyle(BookPalette.ink.opacity(0.56))
             }
             if boundTalismanID != nil {
                 Button {
                     pressClaim(territory.id)
                 } label: {
-                    Label(isPressing ? "Claim taking ink…" : "Press your claim", systemImage: isPressing ? "seal.fill" : "hand.point.up.left")
+                    Label(isPressing ? "The seal is taking…" : "Leave your seal here", systemImage: isPressing ? "seal.fill" : "hand.point.up.left")
                         .font(.caption.weight(.bold))
                 }
                 .buttonStyle(.bookPress())
@@ -3114,22 +3155,6 @@ struct PactMapSheet: View {
             .foregroundStyle(BookPalette.ink.opacity(0.5))
     }
 
-    private func territoryStatusLine(_ territory: PactTerritory, chapter: AcademyChapter, tier: PactTier) -> String {
-        switch tier {
-        case .contesting:
-            return "\(chapter.talismanName) has only a trace here. The territory is noticing its doctrine, but the app is not changing yet."
-        case .influenced:
-            return "\(chapter.talismanName) has a foothold. Verdicts, errands, or pressed claims can turn this into real control."
-        case .controlled:
-            return "\(chapter.talismanName) now shapes this territory: related pages surface more often and may carry its framing."
-        case .dominated:
-            return "\(chapter.talismanName) has a strong hold. This territory is being actively pulled toward \(chapter.name)'s way of reading."
-        case .sovereign:
-            return "\(chapter.talismanName) reigns here. It can act through this territory without waiting to be asked."
-        case .none:
-            return "\(territory.name) is quiet."
-        }
-    }
 }
 
 // MARK: - The People of the Book (the flyleaf)

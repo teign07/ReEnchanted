@@ -3608,6 +3608,10 @@ enum BookWhispers {
     static let identifierPrefix = "book-whisper-"
     static let promptCategoryIdentifier = "book-whisper-prompt"
     static let promptReplyActionIdentifier = "prompt-keep-reply"
+    static let outcomeCategoryIdentifier = "book-whisper-outcome"
+    static let outcomeNothingActionIdentifier = "outcome-nothing"
+    static let outcomeFlickerActionIdentifier = "outcome-flicker"
+    static let outcomeRealActionIdentifier = "outcome-real"
 
     struct RefreshContext {
         var cadence: BookWhisperCadence
@@ -3709,6 +3713,7 @@ enum BookWhispers {
         var title: String
         var body: String
         var prompt: PromptWhisper?
+        var outcome: DelayedOutcomePrompt? = nil
 
         var seatID: String { "\(dayID)|\(window.rawValue)" }
     }
@@ -3770,8 +3775,8 @@ enum BookWhispers {
         }
         if let game = bookInterior.longGame, game.phasePresentedAt == nil {
             return (
-                "The long game moved",
-                "The Book's campaign of re-enchantment has entered \(game.phase.title)."
+                "The Book has been trying something",
+                "A quiet experiment has left a new note in the margins."
             )
         }
         if let fascination = bookInterior.fascination {
@@ -3806,7 +3811,9 @@ enum BookWhispers {
         calendar: Calendar
     ) -> UNNotificationRequest {
         let content: UNMutableNotificationContent
-        if let prompt = reservation.prompt {
+        if let outcome = reservation.outcome {
+            content = outcomeContent(outcome)
+        } else if let prompt = reservation.prompt {
             content = promptContent(prompt)
         } else {
             content = UNMutableNotificationContent()
@@ -3827,6 +3834,18 @@ enum BookWhispers {
             content: content,
             trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         )
+    }
+
+    private static func outcomeContent(_ prompt: DelayedOutcomePrompt) -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        content.title = prompt.title
+        content.body = prompt.body
+        content.sound = .default
+        content.categoryIdentifier = outcomeCategoryIdentifier
+        if let data = try? JSONEncoder().encode(prompt) {
+            content.userInfo["delayedOutcomePrompt"] = data.base64EncodedString()
+        }
+        return content
     }
     #endif
 
@@ -3874,7 +3893,8 @@ enum BookWhispers {
                     fireAt: Date,
                     title: String,
                     body: String,
-                    prompt: PromptWhisper? = nil
+                    prompt: PromptWhisper? = nil,
+                    outcome: DelayedOutcomePrompt? = nil
                 ) {
                     guard fireAt > now, fireAt < horizonEnd else { return }
                     let candidate = BookInterruptionCandidate(
@@ -3897,7 +3917,8 @@ enum BookWhispers {
                         fireAt: fireAt,
                         title: title,
                         body: body,
-                        prompt: prompt
+                        prompt: prompt,
+                        outcome: outcome
                     )
                 }
 
@@ -3989,6 +4010,21 @@ enum BookWhispers {
                         title: weather.title,
                         body: weather.body,
                         prompt: weather.prompt
+                    )
+                }
+
+                for outcome in previous where outcome.kind == .outcome && outcome.fireAt > now {
+                    add(
+                        id: outcome.candidateID,
+                        dayID: outcome.dayID,
+                        window: outcome.window,
+                        kind: .outcome,
+                        isSpecific: true,
+                        priority: 95,
+                        fireAt: outcome.fireAt,
+                        title: outcome.title,
+                        body: outcome.body,
+                        outcome: outcome.outcome
                     )
                 }
 
@@ -4243,6 +4279,102 @@ enum BookWhispers {
         })
         return committed
     }
+
+    /// Reserves one already-governed interruption seat for an attributable
+    /// delayed outcome. It may replace a generic whisper, never another
+    /// specific lived-world hinge, and never creates a third daily seat.
+    static func offerDelayedOutcome(
+        _ prompt: DelayedOutcomePrompt,
+        earliest: Date,
+        now: Date = Date()
+    ) async -> Bool {
+        let cadence = BookWhisperCadence.resolved(
+            bookWhispersEnabled: UserDefaults.standard.bool(forKey: "bookWhispersEnabled"),
+            promptWhispersEnabled: UserDefaults.standard.bool(forKey: "promptWhispersEnabled")
+        )
+        guard cadence != .inside else { return false }
+
+        let calendar = Calendar.current
+        let preferredWindow: BookInterruptionWindow = cadence.allowsEvening ? .evening : .morning
+        let hour = preferredWindow == .evening ? 20 : 11
+        let minute = preferredWindow == .evening ? 15 : 0
+        var chosen: (dayID: String, fireAt: Date)?
+        for offset in 0..<4 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)) else {
+                continue
+            }
+            var components = calendar.dateComponents([.year, .month, .day], from: day)
+            components.hour = hour
+            components.minute = minute
+            guard let fireAt = calendar.date(from: components),
+                  fireAt >= earliest,
+                  fireAt > now else { continue }
+            let dayID = BookDay.id(for: fireAt, calendar: calendar)
+            let seatID = "\(dayID)|\(preferredWindow.rawValue)"
+            let current = loadReservations()
+            guard !current.contains(where: { $0.seatID == seatID && $0.fireAt <= now }),
+                  !current.contains(where: {
+                      $0.seatID == seatID && $0.fireAt > now && $0.isSpecific
+                  }) else { continue }
+            chosen = (dayID, fireAt)
+            break
+        }
+        guard let chosen else { return false }
+
+        let center = UNUserNotificationCenter.current()
+        let granted: Bool = await withCheckedContinuation { continuation in
+            center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                continuation.resume(returning: granted)
+            }
+        }
+        guard granted else { return false }
+
+        let candidate = BookInterruptionCandidate(
+            id: prompt.id,
+            dayID: chosen.dayID,
+            window: preferredWindow,
+            kind: .outcome,
+            isSpecific: true,
+            priority: 95,
+            expiresAt: chosen.fireAt
+        )
+        let reservation = SeatReservation(
+            candidateID: candidate.id,
+            identifier: seatRequestIdentifier(dayID: chosen.dayID, window: preferredWindow),
+            dayID: chosen.dayID,
+            window: preferredWindow,
+            kind: .outcome,
+            isSpecific: true,
+            fireAt: chosen.fireAt,
+            title: prompt.title,
+            body: prompt.body,
+            prompt: nil,
+            outcome: prompt
+        )
+        let request = notificationRequest(for: reservation, calendar: calendar)
+        var updated: [SeatReservation] = []
+        return refreshGeneration.supersedeIf({
+            let currentCadence = BookWhisperCadence.resolved(
+                bookWhispersEnabled: UserDefaults.standard.bool(forKey: "bookWhispersEnabled"),
+                promptWhispersEnabled: UserDefaults.standard.bool(forKey: "promptWhispersEnabled")
+            )
+            let seatID = reservation.seatID
+            let current = loadReservations()
+            guard currentCadence != .inside,
+                  !current.contains(where: { $0.seatID == seatID && $0.fireAt <= now }),
+                  !current.contains(where: {
+                      $0.seatID == seatID && $0.fireAt > now && $0.isSpecific
+                  }) else {
+                return false
+            }
+            updated = current.filter { $0.seatID != seatID }
+            updated.append(reservation)
+            return true
+        }, perform: {
+            center.add(request)
+            saveReservations(updated, now: now)
+        })
+    }
     #endif
 
     static func refreshAnchorDoorbells(enabled: Bool, anchors: [AnchorRecord], now: Date = Date()) {
@@ -4272,10 +4404,36 @@ enum BookWhispers {
             intentIdentifiers: [],
             options: []
         )
+        let outcomeCategory = UNNotificationCategory(
+            identifier: outcomeCategoryIdentifier,
+            actions: [
+                UNNotificationAction(
+                    identifier: outcomeRealActionIdentifier,
+                    title: "A real moment",
+                    options: []
+                ),
+                UNNotificationAction(
+                    identifier: outcomeFlickerActionIdentifier,
+                    title: "A flicker",
+                    options: []
+                ),
+                UNNotificationAction(
+                    identifier: outcomeNothingActionIdentifier,
+                    title: "Nothing",
+                    options: []
+                )
+            ],
+            intentIdentifiers: [],
+            options: []
+        )
         let center = UNUserNotificationCenter.current()
         center.getNotificationCategories { categories in
-            var updated = categories.filter { $0.identifier != promptCategoryIdentifier }
+            var updated = categories.filter {
+                $0.identifier != promptCategoryIdentifier
+                    && $0.identifier != outcomeCategoryIdentifier
+            }
             updated.insert(category)
+            updated.insert(outcomeCategory)
             center.setNotificationCategories(updated)
         }
     }
@@ -4303,6 +4461,53 @@ final class BookWhisperPresenter: NSObject, UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        if response.notification.request.content.categoryIdentifier == BookWhispers.outcomeCategoryIdentifier {
+            guard let prompt = Self.delayedOutcomePrompt(
+                from: response.notification.request.content.userInfo
+            ) else {
+                completionHandler()
+                return
+            }
+            if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
+                if let url = URL(string: "reenchanted://question") {
+                    _ = ReEnchantedWidgetDeepLinkStore.enqueue(url)
+                }
+                Task { @MainActor in
+                    NotificationCenter.default.post(
+                        name: .reEnchantedWidgetDeepLinkReceived,
+                        object: nil
+                    )
+                    completionHandler()
+                }
+                return
+            }
+            let outcome: (score: Int, code: String, line: String)?
+            switch response.actionIdentifier {
+            case BookWhispers.outcomeNothingActionIdentifier:
+                outcome = (0, "nothing", "Nothing came of it.")
+            case BookWhispers.outcomeFlickerActionIdentifier:
+                outcome = (5, "flicker", "There was a flicker.")
+            case BookWhispers.outcomeRealActionIdentifier:
+                outcome = (8, "real-moment", "It became a real moment.")
+            default:
+                outcome = nil
+            }
+            guard let outcome else {
+                completionHandler()
+                return
+            }
+            Task { @MainActor in
+                Self.recordDelayedOutcomeHeadlessly(
+                    prompt: prompt,
+                    score: outcome.score,
+                    code: outcome.code,
+                    line: outcome.line
+                )
+                completionHandler()
+            }
+            return
+        }
+
         guard response.notification.request.content.categoryIdentifier == BookWhispers.promptCategoryIdentifier,
               let whisper = Self.promptWhisper(from: response.notification.request.content.userInfo) else {
             completionHandler()
@@ -4334,6 +4539,46 @@ final class BookWhisperPresenter: NSObject, UNUserNotificationCenterDelegate {
             Self.keepPromptReplyHeadlessly(whisper: whisper, answer: answer)
             completionHandler()
         }
+    }
+
+    private static func delayedOutcomePrompt(
+        from userInfo: [AnyHashable: Any]
+    ) -> DelayedOutcomePrompt? {
+        guard let encoded = userInfo["delayedOutcomePrompt"] as? String,
+              let data = Data(base64Encoded: encoded) else { return nil }
+        return try? JSONDecoder().decode(DelayedOutcomePrompt.self, from: data)
+    }
+
+    @MainActor
+    private static func recordDelayedOutcomeHeadlessly(
+        prompt: DelayedOutcomePrompt,
+        score: Int,
+        code: String,
+        line: String
+    ) {
+        let now = Date()
+        let pulse = ReaderStatePulseRecord(
+            id: "reader-state-pulse-\(prompt.id)",
+            dimension: .delayedOutcome,
+            score: score,
+            answerCode: code,
+            answerLine: line,
+            note: nil,
+            askedAt: prompt.askedAt,
+            answeredAt: now,
+            dayID: BookDay.id(for: now),
+            context: nil,
+            facets: ["notification-outcome"],
+            target: prompt.target
+        )
+        let vault = PlayerVault.shared
+        var pulses = vault.data.readerStatePulses ?? .empty
+        pulses.record(pulse)
+        vault.data.readerStatePulses = pulses
+        var aliveness = vault.data.readerAliveness ?? .unwritten
+        aliveness.ingest(pulse)
+        vault.data.readerAliveness = aliveness
+        vault.save()
     }
 
     private static func promptWhisper(from userInfo: [AnyHashable: Any]) -> PromptWhisper? {
@@ -5010,11 +5255,35 @@ import EventKit
 /// The Calendar Doorway: reads today's and tomorrow's real events so the
 /// curator can feel the day's hinges. Nothing leaves the device.
 enum CalendarDoorway {
+    enum AccessState: Equatable {
+        case unavailable
+        case notDetermined
+        case authorized
+        case denied
+    }
+
     static var isAvailable: Bool {
         #if canImport(EventKit)
         return true
         #else
         return false
+        #endif
+    }
+
+    static var accessState: AccessState {
+        #if canImport(EventKit)
+        switch EKEventStore.authorizationStatus(for: .event) {
+        case .notDetermined:
+            return .notDetermined
+        case .authorized, .fullAccess:
+            return .authorized
+        case .denied, .restricted, .writeOnly:
+            return .denied
+        @unknown default:
+            return .denied
+        }
+        #else
+        return .unavailable
         #endif
     }
 

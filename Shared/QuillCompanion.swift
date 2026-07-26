@@ -593,6 +593,11 @@ struct QuillChoosingPageSourceAdapter: BookPageSourceAdapter {
                     "pageSymbol": "pencil.and.scribble",
                     "locationAsset": "LabyrinthLocationQuillquarium",
                     "milestone": "true",
+                    // If the reader neither keeps nor deliberately dismisses
+                    // the choosing, the ceremony goes dormant instead of
+                    // becoming furniture on every later desk.
+                    "automaticRepeatRestDays": "90",
+                    "noveltyKey": "choosing-\(quill.id)",
                     "tags": "\(QuillChoosing.chosenTag),quillquarium,chosen-quill"
                 ]
             )

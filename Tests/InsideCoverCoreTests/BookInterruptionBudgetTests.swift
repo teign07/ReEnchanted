@@ -76,4 +76,26 @@ final class BookInterruptionBudgetTests: XCTestCase {
     func testExternalAnchorDoorbellsAreDeliberatelyDisabled() {
         XCTAssertFalse(BookInterruptionBudget.externalAnchorNotificationsEnabled)
     }
+
+    func testDelayedOutcomeUsesTheExistingSeatAndReplacesOnlyGenericCopy() {
+        let candidates = [
+            candidate("evening-copy", .evening, kind: .braid),
+            candidate("outcome", .evening, kind: .outcome, specific: true, priority: 95)
+        ]
+        XCTAssertEqual(
+            BookInterruptionBudget.plan(candidates: candidates, cadence: .evening).winners.map(\.id),
+            ["outcome"]
+        )
+    }
+
+    func testDelayedOutcomeDoesNotDisplaceAHigherPrioritySpecificHinge() {
+        let candidates = [
+            candidate("festival", .evening, kind: .festival, specific: true, priority: 120),
+            candidate("outcome", .evening, kind: .outcome, specific: true, priority: 95)
+        ]
+        XCTAssertEqual(
+            BookInterruptionBudget.plan(candidates: candidates, cadence: .evening).winners.map(\.id),
+            ["festival"]
+        )
+    }
 }

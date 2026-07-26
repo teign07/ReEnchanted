@@ -336,6 +336,15 @@ enum MonthlyEditionBuilder {
         // only the strongest of the daily logs, and tells us what it set aside.
         let curated = EditionCurator.curate(pages, now: generatedAt)
         let boundPages = curated.pages
+        // Read over every page the month kept, not just the bound ones: a
+        // finding may well rest on the mundane logs the curator set aside, and
+        // those are exactly the days the reader cannot recall unaided.
+        let revelations = BindingRevelations.find(
+            pages: pages,
+            now: generatedAt,
+            calendar: calendar,
+            limit: 6
+        )
         var passageInputs = BookSourceInputs.empty
         passageInputs.days = monthDays
         passageInputs.continuity = continuity
@@ -366,12 +375,15 @@ enum MonthlyEditionBuilder {
             worldEventSection(from: boundPages),
             memorySpineSection(from: monthDays, generatedAt: generatedAt),
             openingSection(from: boundPages, continuity: continuity, setAsideLine: curated.setAsideLine),
+            revelationsSection(from: revelations),
             pageSection(
                 id: "daily-braids",
                 title: "Daily Braids",
                 note: "The Book of You pages that gathered the month into nightly thread.",
                 pages: boundPages.filter { $0.type == .bookOfYou },
-                limit: 31
+                // Every braid the month produced, whole. A reader who wrote
+                // twice in one night should not lose one to an off-by-a-day cap.
+                limit: 62
             ),
             privateWeatherSection,
             pageSection(
@@ -434,6 +446,7 @@ enum MonthlyEditionBuilder {
                 wagers: wagers.filter { wager in
                     wager.sealedAt <= endDate && (wager.resolvedAt.map { $0 >= startDate } ?? true)
                 },
+                revelations: revelations,
                 calendar: calendar
             ),
             sections: sections,
@@ -449,6 +462,7 @@ enum MonthlyEditionBuilder {
                 continuity: continuity,
                 constellations: constellations,
                 theme: theme,
+                revelations: revelations,
                 calendar: calendar
             ),
             passageCompass: passageCompass
@@ -899,6 +913,45 @@ enum MonthlyEditionBuilder {
         )
     }
 
+    /// What the Book noticed that the reader could not. Bound near the front,
+    /// before the pages themselves — the findings are the argument, and the
+    /// pages that follow are the evidence for it.
+    private static func revelationsSection(
+        from revelations: [BindingRevelations.Revelation]
+    ) -> MonthlyEditionSection {
+        guard !revelations.isEmpty else {
+            return MonthlyEditionSection(id: "what-i-noticed", title: "What I Noticed", note: "", items: [])
+        }
+        return MonthlyEditionSection(
+            id: "what-i-noticed",
+            title: "What I Noticed",
+            note: "Connections that only show up when a whole month is held still at once.",
+            items: revelations.map { revelation in
+                var body = revelation.body
+                if !revelation.evidence.isEmpty {
+                    let quoted = revelation.evidence
+                        .map { item in
+                            let day = item.date.formatted(.dateTime.month(.abbreviated).day())
+                            return "\(day) \u{2014} \u{201C}\(item.excerpt)\u{201D}"
+                        }
+                        .joined(separator: "\n")
+                    body += "\n\n\(quoted)"
+                }
+                return MonthlyEditionItem(
+                    id: "revelation-\(revelation.id)",
+                    kind: .continuity,
+                    title: revelation.title,
+                    body: body,
+                    date: revelation.evidence.first?.date,
+                    pageType: nil,
+                    sourceID: "binding-revelations",
+                    mediaAssets: [],
+                    tags: ["revelation", revelation.kind.rawValue]
+                )
+            }
+        )
+    }
+
     private static func pageSection(
         id: String,
         title: String,
@@ -1013,6 +1066,10 @@ enum MonthlyEditionBuilder {
     }
 
     private static func excerptForMonthlyBinding(_ text: String, pageType: BookPageType) -> String {
+        // The nightly braid is the spine of the whole book — the reader's own
+        // month, in their own words. An edition that excerpts it is showing them
+        // a summary of a summary. Every braid binds whole, however long it ran.
+        guard !bindsUnabridged(pageType) else { return text }
         let limit = monthlyExcerptLimit(for: pageType)
         guard text.count > limit else { return text }
 
@@ -1037,6 +1094,11 @@ enum MonthlyEditionBuilder {
             excerpt = chosen.joined(separator: "\n\n")
         }
         return "\(excerpt)\n\n[Excerpted for the monthly binding.]"
+    }
+
+    /// Page kinds bound in full, never excerpted.
+    private static func bindsUnabridged(_ pageType: BookPageType) -> Bool {
+        pageType == .bookOfYou
     }
 
     private static func monthlyExcerptLimit(for pageType: BookPageType) -> Int {
@@ -1081,7 +1143,36 @@ enum MonthlyEditionBuilder {
 /// The Book writes its own foreword: what it noticed, what it named, what it
 /// wagered and how those wagers went. Deterministic prose - the same month
 /// always gets the same foreword.
+/// Sentence-cases a phrase assembled lowercase ("all 47 pages" → "All 47
+/// pages") without disturbing the rest of it.
+private extension String {
+    var sentenceCased: String {
+        guard let first else { return self }
+        return String(first).uppercased() + dropFirst()
+    }
+}
+
 enum BookForewordWriter {
+
+    /// One month's stable voice-seed. The same month always reads the same way;
+    /// two different months never open with the same sentence. Derived from the
+    /// month's own shape rather than a counter, so re-binding is idempotent but
+    /// January and February cannot collide.
+    static func voiceSeed(monthTitle: String, pages: Int, dayCount: Int) -> UInt64 {
+        UInt64(bitPattern: Int64("\(monthTitle)|\(pages)|\(dayCount)".stableHash))
+    }
+
+    /// A separately-mixed seed for one beat of the piece.
+    ///
+    /// `ReflectiveProse.pick` reduces `seed &+ salt &* 7_919` modulo the pool
+    /// size, so two pools of equal length pick the *same* index for a given
+    /// seed — a month that opened on variant 2 would then take variant 2 of its
+    /// reason and variant 2 of its sign-off, and three months in six read
+    /// identically end to end. Scrambling per beat decorrelates the pools.
+    static func beatSeed(_ seed: UInt64, _ beat: Int) -> UInt64 {
+        UInt64(bitPattern: Int64((Int(bitPattern: UInt(truncatingIfNeeded: seed)) ^ (beat &* 0x27d4eb2f)).stableScramble))
+    }
+
     static func foreword(
         monthTitle: String,
         pages: [BookPage],
@@ -1089,55 +1180,103 @@ enum BookForewordWriter {
         continuity: LiteraryContinuityDigest,
         constellations: [Constellation],
         wagers: [BookWager],
+        revelations: [BindingRevelations.Revelation] = [],
         calendar: Calendar = .current
     ) -> String {
-        var paragraphs: [String] = []
-
+        let seed = voiceSeed(monthTitle: monthTitle, pages: pages.count, dayCount: dayCount)
         let pageLine = pages.count == 1 ? "one page" : "\(pages.count) pages"
         let dayLine = dayCount == 1 ? "a single day" : "\(dayCount) days"
+
+        var paragraphs: [String] = []
+
+        // 1. The arrival. A thin month is a different book from a full one, and
+        //    should not be greeted with the same sentence.
         if dayCount > 0 && dayCount < 7 {
-            paragraphs.append("This is a first binding from \(monthTitle): \(pageLine) across \(dayLine), not enough month to name the whole weather, but enough to keep what already refused to disappear. The cover is small and a little proud. I do not bind months to flatter them; I bind them because loose pages get lonely, and I do not want this one to quietly unhappen.")
+            paragraphs.append(ReflectiveProse.pick([
+                "This is a first binding from \(monthTitle): \(pageLine) across \(dayLine). Not enough month to name the whole weather, but enough to keep what already refused to disappear.",
+                "\(monthTitle) is barely a month yet \u{2014} \(pageLine) across \(dayLine). I am binding it early because small things go missing fastest, and these have already proved they would rather not.",
+                "A short chapter: \(pageLine), \(dayLine). I would rather bind a thin month than let it round down to nothing."
+            ], seed: beatSeed(seed, 11), salt: 0))
         } else {
-            paragraphs.append("This is what \(monthTitle) left in my keeping: \(pageLine) across \(dayLine), each one kept on purpose. The pages stood close together when I called them. I do not bind months to flatter them; I bind them because loose pages get lonely, and I do not want any of this to quietly unhappen.")
+            paragraphs.append(ReflectiveProse.pick([
+                "This is what \(monthTitle) left in my keeping: \(pageLine) across \(dayLine), each one kept on purpose.",
+                "\(monthTitle), bound: \(pageLine) across \(dayLine). None of it arrived here by accident \u{2014} you chose every one.",
+                "Here is \(monthTitle) with its shoes off. \(pageLine.sentenceCased) across \(dayLine), and not one of them kept itself.",
+                "\(pageLine.sentenceCased). \(dayLine.sentenceCased). That is what \(monthTitle) handed me, and I have not thrown any of it away."
+            ], seed: beatSeed(seed, 11), salt: 0))
         }
 
-        let signals = continuity.strongestSignals.prefix(3)
-        if !signals.isEmpty {
-            let lines = signals.map { signal in
-                signal.line.hasSuffix(".") ? String(signal.line.dropLast()) : signal.line
+        // 2. Why the Book binds at all. Said differently every month, because a
+        //    reason repeated verbatim stops being a reason.
+        paragraphs.append(ReflectiveProse.pick([
+            "I do not bind months to flatter them. I bind them because loose pages get lonely, and I do not want any of this to quietly unhappen.",
+            "A month that is not written down does not politely wait to be remembered. It goes. That is the entire reason for the thread and the glue.",
+            "This is not a trophy. It is a container. Unbound days leak, and I have watched too many of them do it.",
+            "Binding is the least mystical thing I do. It is just refusing to let a month become a rumour."
+        ], seed: beatSeed(seed, 17), salt: 0))
+
+        // 3. The strongest thing the Book actually found. A revelation outranks
+        //    a continuity signal here: it is the reading the reader could not
+        //    have performed on themselves.
+        if let sharpest = revelations.first {
+            paragraphs.append(ReflectiveProse.pick([
+                "Reading it back, I found something you were not in a position to see. \(sharpest.title). \(sharpest.body)",
+                "One thing surfaced that I do not think you noticed while you were living it. \(sharpest.title). \(sharpest.body)",
+                "Here is what thirty days held still long enough to show me. \(sharpest.title). \(sharpest.body)"
+            ], seed: beatSeed(seed, 23), salt: 0))
+        } else {
+            let signals = continuity.strongestSignals.prefix(3)
+            if !signals.isEmpty {
+                let lines = signals.map { signal in
+                    signal.line.hasSuffix(".") ? String(signal.line.dropLast()) : signal.line
+                }
+                let opener = ReflectiveProse.pick([
+                    "Reading it back, I noticed things I did not notice at the time.",
+                    "Some of this only became visible once it stopped moving.",
+                    "A few shapes showed up in the re-reading that were invisible in the living."
+                ], seed: beatSeed(seed, 23), salt: 0)
+                let caveat = ReflectiveProse.pick([
+                    "None of this is a verdict. It is the shape attention left behind, with its elbows on the table.",
+                    "I am not ruling on any of it. I am only reporting where the ink pooled.",
+                    "Take it as weather, not judgement."
+                ], seed: beatSeed(seed, 29), salt: 0)
+                paragraphs.append("\(opener) \(lines.joined(separator: ". ")). \(caveat)")
             }
-            paragraphs.append("Reading it back, I noticed things I did not notice at the time. \(lines.joined(separator: ". ")). None of this is a verdict. It is the shape attention left behind, with its elbows on the table.")
         }
 
+        // 4. Named threads.
         let named = ConstellationKeeper.namedConstellations(constellations)
         if !named.isEmpty {
-            let names = named.prefix(3).map(\.displayName)
-            let nameLine: String
-            switch names.count {
-            case 1:
-                nameLine = names[0]
-            case 2:
-                nameLine = "\(names[0]) and \(names[1])"
-            default:
-                nameLine = "\(names.dropLast().joined(separator: ", ")), and \(names.last ?? "")"
-            }
-            paragraphs.append("Some threads have been with us long enough that I have given them names: \(nameLine). A named constellation is a promise with a little lamp inside it. I will keep watching, which is the only kind of promise a book can make.")
+            let nameLine = list(named.prefix(3).map(\.displayName))
+            paragraphs.append(ReflectiveProse.pick([
+                "Some threads have been with us long enough that I have given them names: \(nameLine). A named constellation is a promise with a little lamp inside it.",
+                "\(nameLine) have earned names now. I do not hand those out early \u{2014} a thread has to keep showing up when nobody is asking it to.",
+                "The margins are keeping \(nameLine) lit. Naming a thing is how I admit I expect it back."
+            ], seed: beatSeed(seed, 31), salt: 0))
         }
 
+        // 5. The wager ledger — the Book's own accuracy, reported against itself.
         let opened = wagers.filter { !$0.isSealed }
         let sealed = wagers.filter(\.isSealed)
         if !opened.isEmpty {
             let right = opened.filter { $0.status == .right }.count
             let wrong = opened.count - right
-            let scoreLine: String
             if wrong == 0 {
-                scoreLine = "Every wager I opened this month came true, which made my spine sit up straighter than was dignified."
+                paragraphs.append(ReflectiveProse.pick([
+                    "Every wager I opened this month came true, which made my spine sit up straighter than was dignified.",
+                    "I guessed \(right == 1 ? "once" : "\(right) times") this month and was right every time. I am trying not to make it my whole personality."
+                ], seed: beatSeed(seed, 37), salt: 0))
             } else if right == 0 {
-                scoreLine = "Every wager I opened this month was wrong. I have written each one down anyway. Being wrong in writing is how a book learns without pretending its ink is royal."
+                paragraphs.append(ReflectiveProse.pick([
+                    "Every wager I opened this month was wrong. I have written each one down anyway. Being wrong in writing is how a book learns without pretending its ink is royal.",
+                    "I got all of them wrong. They stay in the ledger. A book that only records its hits is a book you cannot trust about anything."
+                ], seed: beatSeed(seed, 37), salt: 0))
             } else {
-                scoreLine = "Of the wagers I opened this month, \(right) came true and \(wrong) did not. I record both with the same ink, because the ink does not like favorites."
+                paragraphs.append(ReflectiveProse.pick([
+                    "Of the wagers I opened this month, \(right) came true and \(wrong) did not. I record both with the same ink, because the ink does not like favorites.",
+                    "\(right) right, \(wrong) wrong. Both halves stay. You should know how often I miss."
+                ], seed: beatSeed(seed, 37), salt: 0))
             }
-            paragraphs.append(scoreLine)
         }
         if !sealed.isEmpty {
             paragraphs.append(sealed.count == 1
@@ -1145,7 +1284,13 @@ enum BookForewordWriter {
                 : "\(sealed.count) wagers are still sealed in the margins. They are trying very hard not to peek. We will both find out.")
         }
 
-        paragraphs.append("Whatever else this month was, it was read. I put my small paper hand on it and said: stay. - The Book")
+        // 6. The sign-off.
+        paragraphs.append(ReflectiveProse.pick([
+            "Whatever else this month was, it was read. I put my small paper hand on it and said: stay. - The Book",
+            "It was a month, and it was witnessed. That is the whole of my claim. - The Book",
+            "I have read every page of this twice. Once as it arrived, once just now. - The Book",
+            "None of it is going anywhere. I have checked the thread myself. - The Book"
+        ], seed: beatSeed(seed, 41), salt: 0))
 
         return paragraphs.joined(separator: "\n\n")
     }
@@ -1161,39 +1306,80 @@ enum BookForewordWriter {
         continuity: LiteraryContinuityDigest,
         constellations: [Constellation],
         theme: BookTheme?,
+        revelations: [BindingRevelations.Revelation] = [],
         calendar: Calendar = .current
     ) -> String {
+        // Deliberately offset from the foreword's seed: the same month should
+        // not open and close on the same rhetorical move.
+        let seed = voiceSeed(monthTitle: monthTitle, pages: pages.count, dayCount: dayCount) &+ 7
         var paragraphs: [String] = []
 
         let pageLine = pages.count == 1 ? "the single page" : "all \(pages.count) pages"
-        paragraphs.append("So \(monthTitle) closes. I have read \(pageLine) back to you and to myself, and what could be kept has been kept. A month does not end so much as settle. The loud parts take off their shoes, and what was true underneath stays where I can find it again.")
+        paragraphs.append(ReflectiveProse.pick([
+            "So \(monthTitle) closes. I have read \(pageLine) back to you and to myself, and what could be kept has been kept. A month does not end so much as settle.",
+            "That is \(monthTitle). \(pageLine.sentenceCased) read back, nothing left loose. The loud parts take off their shoes and what was true underneath stays where I can find it.",
+            "\(monthTitle) is finished, which is not the same as over. I have read \(pageLine) and put them somewhere they cannot be argued out of."
+        ], seed: beatSeed(seed, 13), salt: 0))
 
-        let strongest = continuity.strongestSignals.first
-        if let strongest {
+        // The closing takes the *second* revelation where it can, so the book
+        // does not end on the note it opened with.
+        let closingFinding = revelations.dropFirst().first ?? revelations.first
+        if let closingFinding, revelations.count > 1 {
+            paragraphs.append(ReflectiveProse.pick([
+                "One more thing before I shut the cover. \(closingFinding.title). \(closingFinding.body)",
+                "I held this one back for the end. \(closingFinding.title). \(closingFinding.body)",
+                "And this, which I only saw once every page was lying flat. \(closingFinding.title). \(closingFinding.body)"
+            ], seed: beatSeed(seed, 19), salt: 0))
+        } else if let strongest = continuity.strongestSignals.first {
             let line = strongest.line.hasSuffix(".") ? String(strongest.line.dropLast()) : strongest.line
-            paragraphs.append("If this chapter leaves one thing in your hands, let it be this: \(line). I will be watching to see whether it holds, or turns, or asks for a different name. I like when a true thing knocks twice.")
+            paragraphs.append(ReflectiveProse.pick([
+                "If this chapter leaves one thing in your hands, let it be this: \(line). I will be watching to see whether it holds, or turns, or asks for a different name.",
+                "Carry this one out with you: \(line). I like when a true thing knocks twice.",
+                "The line I would keep, if I could only keep one: \(line). We will see whether it survives next month."
+            ], seed: beatSeed(seed, 19), salt: 0))
         }
 
         let named = ConstellationKeeper.namedConstellations(constellations)
         if let firstNamed = named.first {
-            paragraphs.append("\(firstNamed.displayName) is still alight in the margins, and I have left it burning on purpose. A thread I have named does not get blown out at the end of a month; it carries into the next one, holding its little breath.")
+            paragraphs.append(ReflectiveProse.pick([
+                "\(firstNamed.displayName) is still alight in the margins, and I have left it burning on purpose. A thread I have named does not get blown out at the end of a month.",
+                "I am leaving \(firstNamed.displayName) lit. It carries into next month, holding its little breath.",
+                "\(firstNamed.displayName) does not close with the chapter. Named threads keep their own hours."
+            ], seed: beatSeed(seed, 23), salt: 0))
         }
 
-        if let theme, !theme.isStable {
-            paragraphs.append("The early thread this month was \u{201C}\(theme.name)\u{201D}. I am not calling it the whole sky yet; I am only saying these words kept tapping the glass, and the glass looked back.")
-        } else if dayCount > 0 && dayCount < 7 {
-            if let theme {
-                paragraphs.append("The early thread this month was \u{201C}\(theme.name)\u{201D}. I am not calling it the whole sky yet; I am only saying these words kept tapping the glass, and the glass looked back.")
-            } else {
-                paragraphs.append("I am not calling this the whole sky yet. I am only saying these first pages kept tapping the glass, and I heard them.")
-            }
+        if let theme, !theme.isStable || (dayCount > 0 && dayCount < 7) {
+            paragraphs.append(ReflectiveProse.pick([
+                "The early thread this month was \u{201C}\(theme.name)\u{201D}. I am not calling it the whole sky yet; I am only saying these words kept tapping the glass, and the glass looked back.",
+                "\u{201C}\(theme.name)\u{201D} kept surfacing. Too early to call it the weather. Early enough to write it down."
+            ], seed: beatSeed(seed, 29), salt: 0))
         } else if let theme {
-            paragraphs.append("The theme this month was \u{201C}\(theme.name)\u{201D}, and it had the last word as often as the first. Whether you chose it or it chose you, it is bound here now, sitting very still so it cannot be unsaid.")
+            paragraphs.append(ReflectiveProse.pick([
+                "The theme this month was \u{201C}\(theme.name)\u{201D}, and it had the last word as often as the first. Whether you chose it or it chose you, it is bound here now, sitting very still so it cannot be unsaid.",
+                "\u{201C}\(theme.name)\u{201D} ran through the whole month. I have stopped asking whether you picked it."
+            ], seed: beatSeed(seed, 29), salt: 0))
+        } else if dayCount > 0 && dayCount < 7 {
+            paragraphs.append("I am not calling this the whole sky yet. I am only saying these first pages kept tapping the glass, and I heard them.")
         }
 
-        paragraphs.append("Nothing in these pages can quietly unhappen now. Turn back whenever you like. The month will be exactly where you left it, the bookmark will pretend it was not waiting, and the next page is blank on purpose. - The Book")
+        paragraphs.append(ReflectiveProse.pick([
+            "Nothing in these pages can quietly unhappen now. Turn back whenever you like. The month will be exactly where you left it, the bookmark will pretend it was not waiting, and the next page is blank on purpose. - The Book",
+            "It is all fixed here now, which is the only permanence I can offer. Come back to it. I do not move things while you are gone. - The Book",
+            "Shut it, or do not. The month keeps either way now \u{2014} that was the entire point of the thread. - The Book"
+        ], seed: beatSeed(seed, 31), salt: 0))
 
         return paragraphs.joined(separator: "\n\n")
+    }
+
+    /// "a, b, and c" — used wherever the Book reads a short list aloud.
+    private static func list(_ items: some Collection<String>) -> String {
+        let items = Array(items)
+        switch items.count {
+        case 0: return ""
+        case 1: return items[0]
+        case 2: return "\(items[0]) and \(items[1])"
+        default: return "\(items.dropLast().joined(separator: ", ")), and \(items.last ?? "")"
+        }
     }
 
     /// The grand foreword for an annual: a year read back as one arc, in the
@@ -1446,6 +1632,9 @@ struct WeeklyIssue: Codable, Equatable {
     /// Reader-authored passages selected from anywhere inside the week's
     /// eligible keeps, used to focus highlights and the binding story.
     var passageCompass: [MeaningfulPassageSelector.Selection]? = nil
+    /// What the Book noticed across the week that the reader could not see
+    /// from inside it. Empty on thin weeks — a finding needs archive behind it.
+    var revelations: [BindingRevelations.Revelation] = []
     /// Kept Pagewright/Scrapbook pages in this issue's window.
     var scrapbookCount: Int = 0
     var scrapbookTitles: [String] = []
@@ -1462,6 +1651,7 @@ struct WeeklyIssue: Codable, Equatable {
             && semanticallyEqual(lhs.pages, rhs.pages)
             && lhs.bindingStory == rhs.bindingStory
             && semanticallyEqual(lhs.passageCompass, rhs.passageCompass)
+            && lhs.revelations == rhs.revelations
             && lhs.scrapbookCount == rhs.scrapbookCount
             && lhs.scrapbookTitles == rhs.scrapbookTitles
     }
@@ -1565,6 +1755,14 @@ struct WeeklyIssue: Codable, Equatable {
             setAsideLine: curated.setAsideLine,
             pages: issuePages,
             passageCompass: passageCompass,
+            // A week is a small sample; ask for fewer findings so the issue
+            // never pads itself with the weakest one it could scrape together.
+            revelations: BindingRevelations.find(
+                pages: weekPages,
+                now: now,
+                calendar: calendar,
+                limit: 2
+            ),
             scrapbookCount: scrapbookPages.count,
             scrapbookTitles: scrapbookPages.prefix(3).map { page in
                 page.promptText.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Scrapbook Page"

@@ -445,6 +445,7 @@ struct TarotPageSourceAdapter: BookPageSourceAdapter {
                     "source": source.id,
                     "tags": "tarot,reflection,rider-waite-smith",
                     "tarotDeckVersion": TarotDeck.version,
+                    "automaticRecurrenceSlot": "\(BookDay.id(for: now)):tarot",
                     "dailyTarot": "true"
                 ]
             )

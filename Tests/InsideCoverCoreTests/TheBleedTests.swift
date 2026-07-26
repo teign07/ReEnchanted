@@ -157,6 +157,86 @@ final class TheBleedTests: XCTestCase {
         XCTAssertNotNil(TheBleedEditionBuilder.announcementSurface(for: keptDay, inputs: inputs, now: date(10, hour: 18), calendar: calendar))
     }
 
+    func testMorningEditionRecursNextDayWithoutRepeatingTheSameOccurrence() throws {
+        let firstNow = date(10, hour: 8)
+        let secondNow = date(11, hour: 8)
+        let firstDay = BookDay(id: "2026-06-10", date: date(10, hour: 0), pages: [])
+        let secondDay = BookDay(id: "2026-06-11", date: date(11, hour: 0), pages: [])
+        let inputs = BookSourceInputs.empty
+        let first = try XCTUnwrap(TheBleedEditionBuilder.announcementSurface(
+            for: firstDay,
+            inputs: inputs,
+            now: firstNow,
+            calendar: calendar
+        ))
+        let second = try XCTUnwrap(TheBleedEditionBuilder.announcementSurface(
+            for: secondDay,
+            inputs: inputs,
+            now: secondNow,
+            calendar: calendar
+        ))
+        XCTAssertEqual(first.curatorContentNoveltyKey, second.curatorContentNoveltyKey)
+        XCTAssertNotEqual(first.curatorAutomaticRecurrenceHistoryKey, second.curatorAutomaticRecurrenceHistoryKey)
+        let history = CuratorVarietyGovernor.recordingServed(
+            keys: first.curatorServedHistoryKeys,
+            into: [:],
+            now: firstNow
+        )
+
+        XCTAssertFalse(CuratorNoveltyPolicy.allowsAutomaticSurface(
+            first,
+            history: history,
+            preferences: .none,
+            now: firstNow.addingTimeInterval(3600)
+        ))
+        XCTAssertTrue(CuratorNoveltyPolicy.allowsAutomaticSurface(
+            second,
+            history: history,
+            preferences: .none,
+            now: secondNow
+        ))
+    }
+
+    func testPreparedBleedEditionGetsItsOwnStageWithinTheEditionSlot() throws {
+        let now = date(10, hour: 8)
+        let announcement = try XCTUnwrap(TheBleedEditionBuilder.announcementSurface(
+            for: day,
+            inputs: .empty,
+            now: now,
+            calendar: calendar
+        ))
+        let prepared = TheBleedEditionBuilder.preparedCopy(
+            of: announcement,
+            body: "THE PAPER",
+            interestSources: ""
+        )
+        let announcementHistory = CuratorVarietyGovernor.recordingServed(
+            keys: announcement.curatorServedHistoryKeys,
+            into: [:],
+            now: now
+        )
+
+        XCTAssertNotEqual(announcement.curatorAutomaticRecurrenceHistoryKey, prepared.curatorAutomaticRecurrenceHistoryKey)
+        XCTAssertTrue(CuratorNoveltyPolicy.allowsAutomaticSurface(
+            prepared,
+            history: announcementHistory,
+            preferences: .none,
+            now: now
+        ))
+
+        let preparedHistory = CuratorVarietyGovernor.recordingServed(
+            keys: prepared.curatorServedHistoryKeys,
+            into: announcementHistory,
+            now: now
+        )
+        XCTAssertFalse(CuratorNoveltyPolicy.allowsAutomaticSurface(
+            prepared,
+            history: preparedHistory,
+            preferences: .none,
+            now: now.addingTimeInterval(3600)
+        ))
+    }
+
     func testAlmanacUsesTodayInTheMorningAndTomorrowInTheEvening() {
         var inputs = BookSourceInputs.empty
         inputs.calendarEvents = [
@@ -170,6 +250,55 @@ final class TheBleedTests: XCTestCase {
         XCTAssertTrue(evening.contains("Ferry to town"))
         XCTAssertFalse(evening.contains("Harbor walk"))
         XCTAssertTrue(evening.hasPrefix("Tomorrow"))
+    }
+
+    func testAlmanacDoesNotMistakeAClosedDoorwayForAnEmptyDay() {
+        var inputs = BookSourceInputs.empty
+        inputs.calendarIntegrationEnabled = false
+
+        let column = TheBleedEditionBuilder.almanacColumn(
+            kind: .morning,
+            inputs: inputs,
+            now: date(10, hour: 8),
+            calendar: calendar
+        )
+
+        XCTAssertTrue(column.contains("Calendar Doorway is closed"))
+        XCTAssertTrue(column.contains("not an empty day"))
+    }
+
+    func testAlmanacBriefRefreshesAfterCalendarPermissionArrivesAtPressTime() throws {
+        var inputs = BookSourceInputs.empty
+        inputs.calendarIntegrationEnabled = false
+        let stale = TheBleedEditionBuilder.columnBriefs(
+            kind: .morning,
+            day: day,
+            inputs: inputs,
+            interest: nil,
+            now: date(10, hour: 8),
+            calendar: calendar
+        )
+        inputs.calendarIntegrationEnabled = true
+        inputs.calendarEvents = [
+            CalendarEventSignal(
+                id: "press-time-event",
+                title: "Ink inspection",
+                startsAt: date(10, hour: 11),
+                isAllDay: false
+            )
+        ]
+
+        let refreshed = TheBleedEditionBuilder.refreshingAlmanacBriefs(
+            stale,
+            kind: .morning,
+            inputs: inputs,
+            now: date(10, hour: 8),
+            calendar: calendar
+        )
+        let almanac = try XCTUnwrap(refreshed.first { $0.id == "almanac" })
+
+        XCTAssertTrue(almanac.composedBody.contains("Ink inspection"))
+        XCTAssertFalse(almanac.composedBody.contains("Doorway is closed"))
     }
 
     func testWeatherBriefCanRefreshFromPlainForecastAtPressTime() throws {
@@ -264,6 +393,205 @@ final class TheBleedTests: XCTestCase {
         XCTAssertTrue(packet.contains("Active world-event desk"))
         XCTAssertTrue(packet.contains("The Dictionary Rebellion"))
         XCTAssertTrue(packet.contains("Treat the rebellion as live campus news"))
+    }
+
+    func testPennysLedgerReceivesSemanticMultimodalAndLivedEvidence() {
+        let evidencePage = BookPage(
+            id: "harbor-photo-proof",
+            type: .elective,
+            createdAt: date(6, hour: 18),
+            promptText: "Bring back the harbor light",
+            userInput: "The brass rail held the sunset while the ferry folded its wake.",
+            tags: ["harbor", "light", "return"],
+            origin: .userAuthored,
+            mediaAssets: [
+                BookPageMediaAsset(
+                    kind: .renderedImageFile,
+                    reference: "/private/local/harbor.jpg",
+                    caption: "Harbor proof",
+                    sourceID: "elective"
+                )
+            ],
+            sensoryFolio: SensoryFolio(
+                observations: [
+                    SensoryObservation(dimension: .modality, value: "photo", confidence: 1, extractorID: "test"),
+                    SensoryObservation(dimension: .subject, value: "brass rail", confidence: 0.9, extractorID: "test"),
+                    SensoryObservation(dimension: .palette, value: "amber and blue", confidence: 0.8, extractorID: "test"),
+                    SensoryObservation(dimension: .composition, value: "wide horizon", confidence: 0.8, extractorID: "test")
+                ]
+            ),
+            livedQuestReceipt: LivedQuestReceipt(
+                kind: .elective,
+                questID: "harbor-return",
+                title: "Bring Back the Harbor Light",
+                invitation: "Find one light worth returning with.",
+                proofPrompt: "Bring back a sentence or photograph.",
+                facets: [.exactAttention, .deliberateReturn],
+                sourceTags: ["harbor", "light"],
+                hasWrittenProof: true,
+                hasVisualProof: true,
+                completedAt: date(6, hour: 18),
+                wasPromptedByBook: true
+            )
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.days = [
+            BookDay(id: "2026-06-06", date: date(6, hour: 0), pages: [evidencePage])
+        ]
+        inputs.continuity = LiteraryContinuityDigest(
+            signals: [
+                LiteraryContinuitySignal(
+                    id: "sensory-harbor-light",
+                    kind: .sensory,
+                    subjectID: "harbor-light",
+                    subjectName: "Harbor Light",
+                    line: "A photograph and a later sentence gathered around the same brass-colored return.",
+                    evidencePageIDs: [evidencePage.id],
+                    relatedEntityIDs: [],
+                    tags: ["harbor", "light", "return"],
+                    firstSeenAt: date(2, hour: 10),
+                    lastSeenAt: date(6, hour: 18),
+                    strength: 78
+                )
+            ],
+            beliefLifecycles: []
+        )
+
+        let packet = TheBleedEditionBuilder.frontPagePacket(
+            kind: .morning,
+            day: day,
+            inputs: inputs,
+            now: date(10, hour: 8),
+            calendar: calendar
+        )
+
+        XCTAssertTrue(packet.contains("SEMANTICALLY SELECTED PASSAGES"))
+        XCTAssertTrue(packet.contains(evidencePage.id))
+        XCTAssertTrue(packet.contains("MULTIMODAL WITNESSES"))
+        XCTAssertTrue(packet.contains("subjects brass rail"))
+        XCTAssertTrue(packet.contains("palette amber and blue"))
+        XCTAssertTrue(packet.contains("CROSS-MEDIA CONTINUITY"))
+        XCTAssertTrue(packet.contains("LIVED QUEST RECEIPTS"))
+        XCTAssertTrue(packet.contains("written + photograph evidence"))
+        XCTAssertTrue(packet.contains("A photograph may attest objects"))
+    }
+
+    func testCorridorWhispersUsesTheGossipPageSourcePacketAndEditorialLaw() {
+        let packet = TheBleedEditionBuilder.whispersPacket(
+            day: day,
+            inputs: .empty,
+            now: date(10, hour: 8)
+        )
+        let prompt = GossipPageForm.bleedColumnPrompt(
+            title: "Corridor Whispers",
+            packet: packet,
+            pennyCanon: "Penny canon"
+        )
+
+        XCTAssertTrue(packet.contains("same source packet used by a Gossip Page"))
+        XCTAssertTrue(packet.contains("GOSSIP PAGE MODE"))
+        XCTAssertTrue(packet.contains("SIMULATION TURNS"))
+        XCTAssertTrue(prompt.contains("Keep every actor, thread, action, visible trace, and consequence"))
+        XCTAssertTrue(prompt.contains("What changed"))
+        XCTAssertTrue(prompt.contains("Penny may add one dry editor's aside"))
+    }
+
+    func testIssueSelectsAtMostTwoRecentKeptVisualPlatesWithProvenance() throws {
+        let illuminated = BookPage(
+            id: "recent-illumination",
+            type: .illuminatedPhoto,
+            createdAt: date(8, hour: 18),
+            promptText: "The Kettle Kept Watch",
+            userInput: "Blue light stayed on the handle.",
+            sourceID: "illuminated-photo",
+            origin: .generated,
+            mediaAssets: [
+                BookPageMediaAsset(
+                    id: "illumination-image",
+                    kind: .bundledImage,
+                    reference: "TestIllumination",
+                    caption: "Original illumination",
+                    sourceID: "illuminated-photo"
+                )
+            ]
+        )
+        let pagewright = BookPage(
+            id: "recent-pagewright",
+            type: .plainPage,
+            createdAt: date(9, hour: 18),
+            promptText: "A Pagewright Weather Map",
+            userInput: "Three scraps agreed on rain.",
+            tags: ["pagewright", "scrapbook"],
+            sourceID: "plain-page",
+            origin: .userAuthored,
+            mediaAssets: [
+                BookPageMediaAsset(
+                    id: "pagewright-image",
+                    kind: .renderedImageFile,
+                    reference: "/private/local/pagewright.png",
+                    caption: "Original Pagewright caption",
+                    sourceID: "plain-page",
+                    metadata: ["format": "png"]
+                )
+            ]
+        )
+        let forbiddenShare = BookPage(
+            id: "shared-but-not-weavable",
+            type: .plainPage,
+            createdAt: date(10, hour: 7),
+            promptText: "A Shared Photograph",
+            userInput: "A photograph from elsewhere.",
+            sourceID: "external-share:example",
+            origin: .userAuthored,
+            mediaAssets: [
+                BookPageMediaAsset(
+                    id: "forbidden-image",
+                    kind: .renderedImageFile,
+                    reference: "/private/local/forbidden.png",
+                    sourceID: "external-share:example"
+                )
+            ],
+            externalReference: BookPageExternalReference(
+                title: "A Shared Photograph",
+                sourceName: "Example",
+                url: "https://example.com/post",
+                fetchedAt: date(10, hour: 7),
+                provenance: "share-extension",
+                captureID: "capture-forbidden",
+                wasPromptedByBook: false,
+                learningAllowed: true,
+                weavingAllowed: false,
+                attachments: []
+            )
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.days = [
+            BookDay(
+                id: "2026-06-visuals",
+                date: date(10, hour: 0),
+                pages: [illuminated, pagewright, forbiddenShare]
+            )
+        ]
+
+        let announcement = try XCTUnwrap(
+            TheBleedEditionBuilder.announcementSurface(
+                for: day,
+                inputs: inputs,
+                now: date(10, hour: 8),
+                calendar: calendar
+            )
+        )
+        let plates = announcement.mediaAssets
+
+        XCTAssertEqual(plates.count, 2)
+        XCTAssertTrue(plates.contains { $0.metadata["bleedPlatePageID"] == illuminated.id })
+        XCTAssertTrue(plates.contains { $0.metadata["bleedPlatePageID"] == pagewright.id })
+        XCTAssertFalse(plates.contains { $0.metadata["bleedPlatePageID"] == forbiddenShare.id })
+        XCTAssertTrue(plates.allSatisfy { $0.caption.contains("kept") })
+        XCTAssertEqual(
+            Set(announcement.payload.metadata["bleedPlatePageIDs"]?.split(separator: ",").map(String.init) ?? []),
+            Set([illuminated.id, pagewright.id])
+        )
     }
 
     func testPreparedCopyCarriesProseAndDropsPlaceholder() {

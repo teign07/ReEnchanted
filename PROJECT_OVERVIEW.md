@@ -6,6 +6,232 @@ kept notes, moods, weather, body/fuel logs, photos, locations, choices,
 character letters, and generated story fragments - into a private illustrated
 book that remembers and returns.
 
+## TL;DR: A Living Book Whose Subject Is Your Life
+
+ReEnchanted is a private living Book designed to make the reader's **actual
+life feel more alive, strange, noticed, self-authored, and worth remembering**.
+It is not trying to win the reader's attention from the world. It uses a small
+amount of attention to return them to the world with better eyes, more possible
+stories, and an accumulating sense that their ordinary life has depth and
+continuity.
+
+The deepest product test is not “Did they open another Page?” It is:
+
+> Did this encounter create more lived aliveness than would likely have
+> happened without it?
+
+The long human version of that test is whether, after years of ordinary days,
+the reader could look back on their life and honestly think: *Holy shit, what a
+trip. That was magical.* ReEnchanted cannot manufacture that life or certify
+that it succeeded. It can become a lifelong accomplice in noticing, choosing,
+remembering, and occasionally stepping through doors the reader might otherwise
+have missed.
+
+### The Two Halves
+
+ReEnchanted works by bringing two very different kinds of reality into
+conversation without confusing them.
+
+| Half | What it contains | What it contributes |
+| --- | --- | --- |
+| **The reader's real life** | Their own words, keeps, photographs, people, places, weather, calendar, body and capacity, Beliefs, choices, corrections, voluntary fieldwork, and later returns | Truth, stakes, specificity, memory, and the only authoritative evidence about whether life is changing |
+| **The living fiction** | The Book as a character, the Academy, Cast, Fae, Pacts, Chapters, Radio, stories, gossip, world events, arguments, secrets, favors, and J-space artifacts | Otherness, play, metaphor, surprise, dramatic pressure, alternative rules, and a world that has business beyond flattering the reader |
+
+Real life always outranks fiction as evidence. Generated prose is not a fact
+about the reader, a fictional event is not something that happened to them,
+and the Academy is not secretly a personality test. Fiction instead creates a
+safe imaginative distance in which a reader can try a choice, meet a character
+who disagrees, see an ordinary object acquire agency, or feel that the world is
+larger than their current script.
+
+The halves become powerful when they leave marks on each other. A real kept
+sentence may give a later story its emotional ground. A fictional choice may
+be returned as a question or mirror, never promoted into biography. A person,
+place, Believing, or ordinary object may gain continuity across Pages. Radio may
+answer the Page that just opened. A voluntary detour may come back as a real
+keepsake, which may later alter the Book's memory, a relationship, an edition,
+or the next invitation. The loop is:
+
+```text
+actual life → the Book notices → fiction opens possibility → the reader chooses
+     ↑                                                        ↓
+remembered return ← honest consequence and evidence ← life happens outside
+```
+
+The aim is not to make real life resemble a fantasy franchise. It is to let
+fiction loosen Routine's monopoly on interpretation until reality itself feels
+inhabited again.
+
+### What The Reader Actually Experiences
+
+The interface is intentionally much simpler than the architecture. The reader
+opens a Book and finds a small, finite desk of Pages. They may open one, keep
+it, let it wait, answer it, correct it, give or take Belief, follow a voluntary
+door, write something of their own, or close the Book. Later, something may
+return because it genuinely has new meaning: a remembered Page, a character
+reaction, a changed relationship, a radio echo, a constellation, an edition,
+or one invitation back into the world.
+
+There is no recommendation dashboard, campaign manager, psychological profile,
+streak, punishment for absence, or bottomless feed. The reader does not select an
+“emotional mode” or learn internal terms such as Door, Echo, Horizon, causal
+arm, strategy packet, or aliveness posterior. Each visit should simply feel as
+though this odd little Book chose a few things that belong to **this** day.
+
+The emotional payoff is dynamic but legible. A session may arrange fresh sight,
+shelter, living otherness, freedom from a stale rule, a chosen detour, an exact
+word, human connection, a return with a difference, or quiet delight. It tries
+to do one of these well rather than demonstrating every system at once.
+
+### The Core Play Loop And Its Pull
+
+ReEnchanted should be **addictive in the old sense of a beloved book, secret
+place, correspondence, or hobby**: the reader wants to return because something
+there matters, keeps changing, and has begun to feel partly theirs. It should
+not be addictive in the behavioral-product sense of anxiety, compulsion,
+interruption, or an endless unfinished feed. The target is **wanted return**—a
+durable mixture of anticipation, affection, curiosity, agency, consequence,
+collection, mastery, and genuine life enrichment.
+
+The core loop is:
+
+```text
+return → discover → choose → act or keep → leave a mark → go live
+  ↑                                                   ↓
+meaningful return ← memory, consequence, and surprise
+```
+
+Each step strengthens a different reason to care:
+
+| Loop beat | What the reader does | What makes it compelling | How ReEnchanted deepens the pull |
+| --- | --- | --- | --- |
+| **1. Return** | Opens the Book after some absence | Anticipation, familiarity, and the possibility that something changed | The returning greeting, cover state, weather, Radio, Cast business, world motion, and unfinished threads make the Book feel continuous without punishing the time away. Irregular earned surprises prevent the opening from becoming mechanical. |
+| **2. Discover** | Looks over a small new desk | Curiosity and variable discovery: “What did the Book find today?” | The Curator makes the desk specific to the present day, preserves novelty, protects occasional wildcards, and arranges one emotional movement. The desk is finite, so discovery has shape and stopping has dignity. |
+| **3. Choose** | Opens one Page, follows a door, or lets it wait | Agency, taste, and the pleasure of being accurately tempted | Page Types and exact Pages are curated separately; Belief lets the reader lean future probability; tactile paper, sound, illustration, margins, and character voice make the choice feel like entering something rather than tapping a tile. |
+| **4. Participate** | Answers, writes, plays, decides, notices, goes, asks, makes, or refuses | Expression, mastery, challenge, and self-revelation through action | Native Page mechanics ask for a real choice with visible stakes. Story decisions change what characters trust, hide, admit, or remember. Real-life invitations stay small, reversible, and proof-bearing. Refusal is also a valid authored move. |
+| **5. Leave a mark** | Keeps, Loves, corrects, gives Belief, completes an exchange, or brings something back | Ownership, collection, authorship, and consequence | The action changes durable memory, relationships, Belief, the world field, the Book's own opinions or obligations, the archive, and sometimes the Radio or desk. The Book becomes increasingly *this reader's Book* rather than a resettable content service. |
+| **6. Go live** | Closes the Book and carries attention outward | Relief, freedom, real discovery, human contact, and a world that can answer unexpectedly | The finite desk ends. Compass runs, noticed details, people, places, questions, rituals, and playful missions create opportunities for reality to supply material the app could never generate. The strongest reward is allowed to happen off-screen. |
+| **7. Meaningful return** | Encounters an old thing changed by time or consequence | Recognition, surprise, emotional continuity, and the satisfaction of a completed loop | Book Remembered, callbacks, character reactions, relationships, constellations, traditions, secrets, weekly/monthly bindings, Radio echoes, and the nightly braid return evidence with a reason it matters now. The return should reveal change, not merely repeat content. |
+| **8. Long belonging** | Accumulates a Book, world, cast, language, and history over months and years | Attachment, identity, ritual, collection, and the rare feeling of a work growing alongside a life | Pages become editions and volumes; places and relationships acquire history; the Book develops taste, faults, projects, traditions, and an autobiography of true shared events. Increasing quiet and rarity protect these rewards from becoming wallpaper. |
+
+The loop becomes stronger when every beat pays forward. Discovery should create
+a meaningful choice. Choice should create a consequence. Consequence should
+alter a later return. The return should send attention back toward life. A Page
+that produces only another Page is a weak loop; a Page that changes what the
+reader notices tomorrow and then returns months later as part of a remembered
+pattern is the full game.
+
+The Book enhances wanted return through several kinds of variable reward, but
+each must remain honest:
+
+- **Curated surprise:** the reader cannot predict the exact Page, voice, song,
+  callback, or world development, but every arrival must have an inspectable
+  reason and a nonzero possibility of not appearing.
+- **Consequential choice:** interactions alter durable state rather than only
+  displaying completion copy.
+- **Recognition:** exact details, language, places, people, and earlier choices
+  return in ways that make the reader feel genuinely remembered.
+- **Autonomous life:** the Academy, Cast, Fae, Book, and Radio pursue business
+  not caused by the reader, preserving the pleasure of visiting a world rather
+  than operating a personalized puppet theater.
+- **Scarcity and timing:** revelations, gifts, initiatives, rituals, and magic
+  moments gain force because they rest, ripen, and sometimes remain silent.
+- **Accumulation:** the archive, editions, relationships, Beliefs, objects,
+  vocabulary, and Book history make each return more valuable than the first.
+- **Real-world reinforcement:** the reader occasionally discovers that the
+  invitation improved the day itself. This is the most important reward and the
+  only one the system is ultimately trying to increase.
+
+The anti-compulsion boundaries are part of the game design, not brakes applied
+afterward: no infinite scroll, no absence tax, no streak loss, no fake urgency,
+no escalating pressure after silence, no notification begging, no variable
+reward built from fear of missing out, and no Book that becomes wounded when
+the reader leaves. A finite desk, “That was the desk,” resting tactics,
+interruption budgets, declining frequency in mature Long Game phases, and
+station-native Radio all keep the world from collapsing into a slot machine
+about the reader.
+
+The ideal result is a paradox: the Book becomes harder to abandon because it
+makes leaving it more rewarding. The reader returns not to relieve a discomfort
+the app manufactured, but because the Book has repeatedly helped reality become
+more interesting.
+
+### What The Curator Is Doing Backstage
+
+The Curator is the Book's central intelligence. It borrows the useful machinery
+of excellent recommendation systems—candidate retrieval, contextual ranking,
+two-stage selection, exploration, fatigue, outcome learning, and long-horizon
+adaptation—but reverses the objective. TikTok and YouTube-like systems usually
+learn which exact item will keep attention inside the feed. ReEnchanted learns
+which exact encounter may return attention to life.
+
+In compact form, the algorithm is:
+
+1. **Read the available day.** Assemble local, permissioned context from the
+   archive, time, weather, calendar load, optional coarse place and Anchors,
+   current capacity, reader boundaries, Belief, unfinished threads, and the
+   autonomous state of the Book's world.
+2. **Build exact candidates.** Source adapters produce the Pages that can
+   honestly exist now: not merely “Story” or “Compass,” but a particular recipe,
+   prompt, route, return, character pressure, object, song, or question.
+3. **Apply hard gates and debts.** Privacy, consent, distress, readiness,
+   permissions, source disables, pack ownership, dismissal rests, fatigue,
+   first-run boundaries, promised returns, and earned milestones outrank score.
+4. **Choose one hidden emotional movement.** The session decides what kind of
+   meeting could serve this day: fresh sight, otherness, script freedom,
+   detour, exact language, connection, continuity, or shelter.
+5. **Curate twice.** Page Types compete first, preventing a large catalog from
+   winning by sheer variant count. Then the exact Pages inside the winning type
+   compete on grounding, context, novelty, rest, quality, reader learning, and
+   exact Belief.
+6. **Compose a finite experience.** A few winners become a Door, Echo, and
+   Horizon on the desk. The same short-lived score may conduct the tuned Radio's
+   songs, banter, or silence while preserving regular station autonomy.
+7. **Interpret response honestly.** An open, Keep, Love, dismissal, answer,
+   correction, later voluntary return, real keepsake, and silence mean different
+   things. “Keep, but don't teach curation” is a real learning boundary.
+8. **Learn slowly and preserve surprise.** High Belief makes an eligible Page
+   happen more often, never always. Even the lowest-Belief allowed Page retains
+   a chance. Real-world crossings can influence curation more than in-Book
+   approval, but no single signal becomes proof that the Book changed a life.
+
+Above individual sessions, the Long Game asks one small, falsifiable question
+at a time about what may help this particular reader's life become more
+available. When charging and available, local Gemma may act as Naturalist,
+Heretic, and Gardener to propose and attack a strategy. It cannot authorize its
+own theory, invent evidence, override boundaries, or become required for the
+Book to function. Deterministic local systems can continue curating, pacing,
+remembering, returning, and conservatively strategizing through many nights
+without a model run.
+
+### The Philosophy In One Page
+
+- **The world is the success surface.** Every snack of attention owes a debt
+  to life outside the Book.
+- **Attention is finite and sovereign.** A clean no, a correction, silence,
+  distress, rest, and absence are not obstacles for an optimizer to overcome.
+- **Belief is the reader's hand on the tiller.** It bends probability and gives
+  the reader meaningful control without removing discovery.
+- **The Book may be cunning about arrangement, never consent.** It may time a
+  callback, juxtapose true Pages, delay a secret, or tempt a safe detour. It may
+  not exploit fear, loneliness, attachment, privacy, or guilt.
+- **The Book knows intimately and claims cautiously.** It may become eerily
+  specific because it remembers exact, authorized history; every interpretation
+  remains correctable, provenance-bearing, and weaker than the reader's own
+  account.
+- **The architecture should disappear.** The product succeeds when the reader
+  feels known by one strange Book—not when they appreciate the number of
+  engines behind it.
+- **Good line goes up slowly.** `ReaderReenchantmentMeasure` triangulates
+  optional state pulses, spontaneous noticing, reader-authored evidence,
+  follow-through, returns, corrections, causal receipts, and change across
+  lived days. Opens, time in app, Keeps, and prompted compliance are useful
+  diagnostics, never the north star.
+
+Everything else in this document is machinery in service of that promise: make
+the Book a better reader of one life, use fiction to reopen reality, help more
+moments become lived and remembered, and then get gracefully out of the way.
+
 The product thesis is simple:
 
 > Do not keep adding isolated page types. Make the Book a better reader.
@@ -117,12 +343,13 @@ meaningful contribution, it has not yet become part of the Book.
 - Shared SwiftPM package: `InsideCoverCore`
 - Supported runtime target: iOS 17+
 - Shared-core test target: `Tests/InsideCoverCoreTests`
-- Current verified shared suite (July 25, 2026): **1,579 tests executed, one
+- Current verified shared suite (July 25, 2026): **1,680 tests executed, one
   environment-dependent test skipped, zero failures**. The suite is broad and
   changes frequently, so treat this as a dated checkpoint rather than a
   permanent count. A **signed** iOS device Debug build also completes
   successfully with the local-brain dependencies enabled, with the widget
-  extension embedded and validated.
+  extension embedded and validated; the resulting app was installed and
+  launched on Rabbit !.! on July 25, 2026.
 - Release gate: `scripts/verify-ios-release.sh` runs the full shared suite,
   builds a signed universal iOS app, and inspects the actual app and widget
   bundles for bundle identity, signing team, WidgetKit embedding, and both
@@ -227,6 +454,27 @@ continuous living world:
   memories, rhythm, and diction into generated surfaces. A local
   `CharacterFidelityReviewer` audits first drafts and can request one repair
   instead of allowing the cast to collapse into generic assistant voices.
+  Every bundled speaking Cast member now also has a hand-authored compact
+  `WritingVoiceProfile` card with distinct register, sentence movement,
+  vocabulary, anti-voice boundaries, and tiny cadence examples; only dynamic
+  reader-created Cast relies on the canon-derived fallback. The shared
+  reviewer runs deterministically and returns `pass`, `repair`, or
+  `unavailable`; unavailable is recorded honestly but never suppresses usable
+  prose. If both generated drafts miss, the better-scoring usable draft still
+  reaches the reader. Privacy-safe local receipts retain only route, Cast IDs,
+  canon version, audit scores/verdicts, repair choice, and estimated prompt
+  size—never the reader's prose.
+- **Small-model prompt and evaluation discipline:** `LocalBrainPromptBudget`
+  reserves output and safety headroom inside Gemma's 4,096-token rotating KV
+  window. Oversized prompts preserve the character canon and the final output
+  contract while compacting lower-priority supporting material.
+  `CharacterGenerationRouteRegistry` makes every character-shaped model route
+  declare shared canon/audit enforcement or an intentional specialized voice
+  grammar. In DEBUG builds, `CharacterVoiceE2BEvaluationRunner` can run a
+  synthetic, private-data-free deck covering the entire bundled speaking Cast
+  through solo and difficult paired scenes several times on the installed local
+  model and save a name-hidden JSON report for human comparison. Its same-model
+  audit is diagnostic evidence, not proof of character quality.
 - **A Book that acquires its own grain:** `BookVoicePatina` reads the reader's
   repeated authored language, word-neighborhoods, sentence gait, and repeatedly
   favored reader-facing tags. It supplies an enduring grain plus a recent
@@ -409,12 +657,14 @@ continuous living world:
 - **Journal parity:** Diary pages now draw from a broad, family-balanced prompt
   catalog, can select against real local page evidence, carry prompt provenance,
   offer one deeper question, and become gentler late at night.
-- **A finite desk visit:** `BookDeskRound` gives Pages Rising at most three
-  logical slots keyed by `deskSlotKey`. Opening or passing resolves a slot,
-  `opened` outranks `passed`, and Undo returns only a never-opened pass. When all
-  three resolve the desk shows a resting boundary — *"That was the desk."* — and
-  the only continuation is an explicit **Turn three more**. No infinite scroll,
-  no automatic refill, no session-length goal.
+- **A finite nine-Page hunt:** `BookDeskRound` publishes up to nine logical slots
+  keyed by `deskSlotKey`, while Pages Rising shows only three at once. Passing a
+  card immediately reveals the next sleeping card, so the reader may hunt until
+  something catches. Opening one is the catch: the unseen remainder returns to
+  sleep, while the other already-visible cards may still be resolved. Nine
+  straight passes reach *"That was the desk."* and only an explicit **Rummage
+  deeper?** begins another hunt. No bottomless scroll, automatic session-length
+  goal, or invisible cooling after three misses.
 - **The Enchanted Snack first beat:** `EnchantedSnackFirstBeat` classifies which
   Pages are prose-first and gives only those one compact single-line action above
   the longer text — one word is enough, never auto-focused, optional, submit
@@ -905,9 +1155,64 @@ ordinary life → qualified lived evidence → Re-enchantment reading
 reader choice and correction ← quieter / more apt curation
 ```
 
-The arrow points outward. The app succeeds when its own curation becomes less
-necessary because the reader's life has become more noticed, more storied, and
-more their own.
+The arrow points outward. The Book may remain a beloved lifelong instrument;
+frequency alone is not failure. But its value must remain **transferable**:
+attention becomes more capable away from the screen, and the Book never has to
+manufacture anxiety, incompleteness, or loss in order to be wanted.
+
+### The outside world is an intake surface
+
+ReEnchanted includes an iOS Share Extension so an attention feed can become raw
+material for a finite private Book instead of the final destination. From
+Reddit, TikTok, Safari, Photos, Maps, or another app, the reader uses the
+ordinary Share sheet, chooses **ReEnchanted**, optionally writes one short
+answer to “What caught you?”, and presses **Keep in the Book**. URLs, selected
+text, images, and files are written first to a durable App Group inbox. The app
+then imports them as ordinary private Pages; shared screenshots are read with
+on-device Vision OCR after the Keep, never uploaded for recognition.
+
+The imported Page can participate in the existing archive, Stacks,
+resurfacing, Book Notices, and nightly Book of You. It is not granted unlimited
+authority:
+
+- an unprompted import records `broughtFromElsewhere`, worth more than a plain
+  Keep but less than a Love; an import made within the Book's prompt window is
+  explicitly tagged `prompted-capture` and counts only like a Keep;
+- deterministic source and theme tags let the Curator learn broad lanes such
+  as place, nature, making, people, history, humor, mystery, wonder, and
+  questions without shipping the reader's prose to an analytics service;
+- reopening that exact scrap on a later day emits one `followedThread` signal
+  per day, finally giving spontaneous returns the higher weight they deserve.
+  The same later-day identity/content-key rule now covers ordinary Pages,
+  people, places, questions, and practices; mere serving never begins a thread;
+- every imported scrap has five deliberately outward verbs — **Notice, Try,
+  Go, Ask, Make**. Choosing one records intent only. A returned true line mints
+  `keepsakeEarned`; “nothing came of it” records a miss instead of flattering
+  the Book;
+- **Ask** uses the system share sheet to bring one trusted person into a single
+  question. There is no follower graph, public profile, reaction count, or
+  social feed;
+- one attributable delayed-outcome question may take an existing morning or
+  evening interruption seat. Its Lock Screen actions record Nothing / A flicker
+  / A real moment directly into `ReaderStatePulseLedger`, so the
+  Re-enchantment measure, causal ledger, Long Game, and Night Gardener can learn
+  from outcomes without requiring an app open;
+- the Page's visible options independently support **keep but don't teach
+  curation** and **keep out of stories**. The latter is enforced at the central
+  Braid eligibility boundary, while the original stays in the archive;
+- raw files and source provenance remain attached, so later Book prose cannot
+  masquerade as the original source.
+
+The resulting loop is finite:
+
+```text
+outside feed → Share → one private Page → archive and curation
+      ↑                                  ↓
+real-world curiosity ← later return / outward interpretation
+```
+
+The feed supplies sparks. ReEnchanted earns its place by helping those sparks
+become memory, inquiry, making, people, and places in the reader's actual life.
 
 `BookLongGameHypothesis` names the next missing kind of evidence and the next
 honest test. Its wording is always about what the archive has or has not shown,
@@ -1508,6 +1813,14 @@ Key pieces:
   Rut signal corroborated by quiet history. Quiet alone changes the desk but
   does not accuse the reader; distress silences both the warning and the
   anti-Rut pressure.
+- `GreyPageThreatEngine` - when the reader has explicitly supplied strong Rut
+  evidence, the Grey may mark one older kept Page. Merely seeing the warning
+  starts nothing; opening it begins a visible 72-hour choice. One new true
+  detail rescues the Page, while deliberate surrender or expiry removes it from
+  living resurfacing, quotation, connection, and story. The raw archive, Stacks,
+  and export are never deleted. Distress freezes the threat, a warm Long Memory
+  gift protects its bound Page, and marked Pages are spaced at least seven days
+  apart.
 - `CuratorTimeAffinity` - time-of-day fit.
 - `SurfaceDismissalLedger` - rest windows after dismissal.
 - `SurfaceHistoryRecord` - what was shown recently.
@@ -1687,6 +2000,44 @@ never becomes impossibility.
 Causal learning may bend the race further when lived outcomes justify it, but
 cannot override a disabled source, a dismissal rest, a hard reading boundary,
 or the reader's correction of the Book's interpretation.
+
+### Curation Integrity: What May Teach The Book
+
+The Curator is allowed to become intimate, but not by quietly treating every
+interaction as consent or every app action as proof. `ReaderLearningEvent`
+separates *participation*, *preference*, *crossing*, and *lived outcome*, and
+the learning model is deliberately versioned so an older on-device Book can
+rebuild its bounded recent history under newer rules.
+
+- A Page-level **"keep, but don't teach curation"** decision places a central
+  `curation-learning-forbidden` boundary on that Page's events. The Page may
+  remain in the archive and retain its ordinary interaction history, but it
+  contributes nothing to taste, timing, momentum, aliveness, or causal-uplift
+  learning. Its Page opportunity is also removed from the causal ledger rather
+  than surviving as a hidden trace.
+- Opening, recognizing, acting inside the Book, keeping, and loving are useful
+  diagnostic or taste signals. They can help the Book choose a more agreeable
+  Page, but they cannot buy the premium reserved for evidence that crossed into
+  ordinary life, and they cannot by themselves improve the re-enchantment
+  verdict.
+- A later voluntary return (`followedThread`) or a real-world thing brought
+  back because of a Page (`keepsakeEarned`) is stronger evidence. It receives a
+  bounded, separately visible crossing adjustment so a family that helps life
+  escape the screen does not become indistinguishable from one that merely wins
+  hearts inside it. Even this is still not a causal claim on its own.
+- An unprompted capture is a promising leading indicator, not the north star.
+  The Book records the distinction between reader-initiated and Book-prompted
+  captures, then asks the longitudinal measure to triangulate it with direct
+  state, lived proof across days, counter-evidence, and attributable outcomes.
+- Refusal, correction, dismissal, and "nothing came of it" remain meaningful
+  negative evidence where the reader has allowed learning. Silence is neither
+  agreement nor defiance, and it matures into a causal zero only under the
+  documented return-window rule.
+
+This makes the Curator more useful precisely by making it harder to fool. It
+can learn that a small invitation has a habit of leaving the Book, but it may
+not mistake an obedient tap, an in-app ritual, or a revoked Page for a change
+in the reader's life.
 
 Pressure is treated as a cost, not free conversion fuel. Action commissions
 pay the largest penalty in the outcome estimate, composition prompts pay a
@@ -2588,6 +2939,13 @@ durable change; the kept Page writes a `StoryDramaticOutcomeReceipt`, which then
 mutates the exact entity memory and relationship edge rather than leaving the
 choice as atmospheric text.
 
+Every kept choice also writes a `StoryChoiceClosure` receipt: the chosen path is
+named and every unchosen path is explicitly closed. Refusal and betrayal
+landings receive stronger character-addressed memories and event tags, so later
+fiction can remember the wound rather than reconstructing three polite options.
+The Two Readings uses the same chosen/closed grammar for the character sided
+with and the character turned away.
+
 Story settings are first-class `NarrativeWorldEntity.kind == .location` entries,
 not decorative prompt flavor. `StoryScenePacketBuilder.withSettingLocation(...)`
 ensures ordinary Story Pages carry one location alongside character cast, and
@@ -3433,8 +3791,10 @@ of matter. The system models six species (`FaeKind`: Book Sprite, Sentence
 Salamander, Punctuation Pixie, Literary Elf, Deep Lore Dwarf, Marginalia
 Goblin), each hungry for a different kind of noticing and with its own voice.
 
-A **Fae Bargain** is not a quest: the fae gives first, unprompted, then the
-reader owes a sensory field report. Fae never trade in Belief - the stakes are a
+A **Fae Bargain** is not a quest. The fae first holds out a gift; reading or
+swiping the letter is free. Only the explicit **Take the gift. Owe the price.**
+seal fronts the gift and begins the 72-hour old-law exchange. The reader then
+owes a sensory field report. Fae never trade in Belief - the stakes are a
 parallel economy:
 
 - **Warmth** - per-species reputation, earned by genuine deliveries, cooled by
@@ -3452,11 +3812,14 @@ gift goes *cold* (stops working) and that species' market closes until the debt
 is repaired. No Belief loss, never under distress, always repairable - but a real
 loss of working tools and access.
 
-Lifecycle (the page): the fae fronts a bargain (`tendFae()`, local, no model
-call); the `FaeBargainPageSourceAdapter` surfaces the open debt (or a lapsed one
-to repair); the reader pays with a field report; the local brain answers in the
-fae's voice with a true lore fragment (the only model call, button-triggered);
-keeping the page records the delivery (warmth + attention).
+Lifecycle (the page): `tendFae()` proposes a bargain (local, no model call);
+the explicit seal fronts it, adds Claim, and starts the clock; the
+`FaeBargainPageSourceAdapter` surfaces the open debt (or a lapsed one to repair);
+the reader pays with a field report; the local brain answers in the fae's voice
+with a true lore fragment (the only model call, button-triggered); keeping the
+page records the delivery (warmth + attention). A lapse makes the gift cold,
+lowers Warmth, raises Claim, adds a Cold Ink omen, and closes only that species'
+market until the original terms are answered. Distress pauses lapse.
 
 The separate `bookFae` page type is an interactive old-law encounter with the
 Fae themselves. It follows the strongest active omen when one exists, presents
@@ -3600,7 +3963,8 @@ evidence instead of disappearing as engagement telemetry.
 user-initiated buttons, never automatic:
 
 - A Fae Bargain can set a real **Reminder** while its exchange window is still
-  open. If the window passes, the gift stays warm and the Fae moves on.
+  open. If the accepted window passes, the gift goes cold, the relevant market
+  door closes, and Cold Ink remains until the promised exchange is repaired.
 - The Goblin Market can write the next new-moon window to the **Calendar**
   (`MoonPhaseCalendar.nextNewMoon`).
 
@@ -3621,7 +3985,8 @@ entitlements).
 `ReEnchantedWidgetSnapshot` is a Codable, privacy-aware value type carrying just
 what the widgets render: a today page, Wonder Compass prompt/run payload, a Book
 Remembered memory, Today's Sky line, radio state and station list, enchantment
-shortcuts, world-event status, and a Belief reading. It honors a
+shortcuts, world-event status, a Belief reading, and a private-safe open
+question. It honors a
 `ReEnchantedWidgetPrivacyMode` (`privateSafe` vs `personalText`) so personal
 prose can be held back on a glanceable surface. The file also defines the
 App-Group `UserDefaults` store and the command/queue types the extension and app
@@ -3636,9 +4001,12 @@ can inherit a world-event atmosphere line, and the Open Desk can show a
 world-event tile in place of the Enchantment tile while an event is active.
 
 **The widget bundle (`ReEnchantedWidgets/ReEnchantedWidgets.swift`).** A
-`WidgetBundle` of six widgets: **Today**, **Radio**, **Enchantment**,
+`WidgetBundle` of seven widgets: **Today**, **Radio**, **Enchantment**,
 **Wonder Compass**, **Returned From the Stacks** (Book Remembered), and **Glow**,
-across small → extra-large families where it makes sense.
+across small → extra-large families where it makes sense, plus **A Question
+from the Book** in Lock Screen inline, circular, and rectangular families.
+The Lock Screen snapshot contains only the Book's generic question wording,
+never the captured scrap or the reader's private prose.
 
 The Wonder Compass widget now has a real run contract,
 `ReEnchantedWidgetCompassRun`: title, mode, time box, place, energy, companions,
@@ -3687,7 +4055,10 @@ The model is structured:
 - `WorldEventResolver` resolves the active phase, player touch count, outcome,
   effect list, and activation mode for the current date.
 - `WorldEventPageSourceAdapter` surfaces active fieldwork prompts as keepable
-  pages.
+  pages, then surfaces a two-week aftermath after the calendar resolves them.
+  Events finish whether or not the reader participates. An untouched aftermath
+  says the door closed without the player's hand and offers no retroactive
+  fieldwork; a touched aftermath records how the intervention bent the ending.
 
 `EventInfluencePacket` is now the envelope that lets a monthly arc live beyond
 its fieldwork page. In addition to story/class/letter/monthly-edition pressure,
@@ -4989,7 +5360,8 @@ Coverage areas include:
 - packable Story Recipes, legacy pack decoding, blueprint grounding, and
   recipe/Form/Genre variety keys,
 - Dr. Inkrest's Office Hours (window, rotating prompts, adapter),
-- the Fae economy (bargains, gifts, neutral moved-on exchanges, market, marginalia),
+- the Fae economy (explicit acceptance, cold gifts, repairable debt, market closure,
+  omens, market, marginalia),
 - the Pact War (tiers, controller, tick, alignment, shelf/door voice effects,
   dispatches, Sovereign automation, next-new-moon),
 - the Almanac (sabbats, esbats, hemisphere flip, grey shift, surface boosts,
@@ -5010,9 +5382,14 @@ Coverage areas include:
 - monthly-edition binding curation (`EditionCurator`), set-aside accounting, and
   duplicate collapse,
 - Academy class/club turn metadata,
-- the finite desk round: slot capacity and uniqueness, open idempotence, pass and
-  Undo, `opened` outranking `passed`, cadence-rotated IDs resolving the original
-  logical slot, and completion after three unique resolutions,
+- the finite nine-Page hunt: three visible at once, pass-to-reveal, opening as
+  the catch, hidden remainder returning to sleep, cadence-rotated IDs resolving
+  the original logical slot, and completion after nine straight passes,
+- Grey living-memory threats: evidence gates, distress pause, Long Memory
+  protection, open-to-start deadline, rescue, surrender, expiry, archive
+  preservation, and aftermath scars,
+- Story choice closure and remembered refusal/betrayal, plus world-event
+  aftermath after touched and untouched calendar resolutions,
 - Enchanted Snack classification: prose-first versus native, specialized metadata
   overriding a generic type, kept readbacks staying native, and exact-word
   recognition,
@@ -5193,8 +5570,8 @@ Runner** Game Page, the high-Belief **Glow Invitation**, and landing-page lore
 marginalia. Notifications are visible,
 and the world can write Reminders and Calendar events on request. The Book also
 now reaches onto the Home/Lock Screen through the **`ReEnchantedWidgets`**
-extension — six widgets with an App-Group snapshot bridge and interactive radio /
-Wonder Compass App Intents.
+extension — seven widgets with an App-Group snapshot bridge, interactive radio /
+Wonder Compass App Intents, and a private-safe Lock Screen return question.
 
 The Book's reader layer is also now load-bearing: compact attention fingerprints
 and versioned multi-vector Sensory Folios feed literary continuity; Book

@@ -457,6 +457,7 @@ extension NarrativeWorldEntity {
 enum CharacterCanonPacket {
     static let metadataKey = "characterCanon"
     static let version = "character-canon-v1"
+    static let endMarker = "END CHARACTER CANON"
 
     static func promptSection(
         for entities: [NarrativeWorldEntity],
@@ -488,6 +489,7 @@ enum CharacterCanonPacket {
         - Does each choice or line grow from that character's beliefs, wants, faults, interests, or relationships?
         - Are voices distinct in rhythm and diction, without catchphrase spam or caricature?
         - If any answer is no, revise before returning the prose.
+        \(endMarker)
         """
     }
 
@@ -512,6 +514,795 @@ enum CharacterCanonPacket {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         return cleaned.isEmpty ? fallback : cleaned.joined(separator: "; ")
+    }
+
+    static func characterIDs(in packet: String) -> [String] {
+        var seen = Set<String>()
+        return packet
+            .split(separator: "\n")
+            .compactMap { line -> String? in
+                guard let open = line.lastIndex(of: "["),
+                      let close = line.lastIndex(of: "]"),
+                      open < close else { return nil }
+                let id = String(line[line.index(after: open)..<close])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !id.isEmpty, !id.contains(" ") else { return nil }
+                return seen.insert(id).inserted ? id : nil
+            }
+    }
+}
+
+/// Hand-authored voice cards for every bundled speaking Cast member. The
+/// ordinary entity sheet remains the source of truth for biography and
+/// motivation; these cards answer the narrower question "what does this person
+/// sound like when the name is removed?" Reader-created Cast members continue
+/// to receive a canon-derived voice at runtime.
+enum CharacterVoiceCatalog {
+    static let priorityCharacterIDs: [String] = [
+        "penny-blackletter",
+        "wicker-eddies",
+        "zara-finch",
+        "dr-inkrest",
+        "dr-vellum",
+        "headmistress-thorne",
+        "serenity-brown",
+        "professor-thaddeus-mook",
+        "pippa-pilcrow"
+    ]
+
+    static let bundledCharacterIDs: [String] = priorityCharacterIDs + [
+        "orion-blackthorn",
+        "finn-bridges",
+        "lysander-mosswood",
+        "damien-nights",
+        "melisande-blackwood",
+        "min-seo-kim",
+        "gwendolyn-mythwright",
+        "lydia-boggle",
+        "ambrose-trencher",
+        "soren-ng",
+        "professor-kyle-momort",
+        "professor-eleanor-euphony",
+        "professor-vivian-villanelle",
+        "professor-cedric-stonebrook",
+        "professor-luna-wispwood",
+        "professor-permancer"
+    ]
+
+    static func profile(for id: String) -> WritingVoiceProfile? {
+        switch id {
+        case "penny-blackletter":
+            return WritingVoiceProfile(
+                register: "dry, exact, quietly warm; a records clerk who lets evidence make the joke",
+                rhythm: "short attested fact, small qualifying turn, then one neatly filed opinion",
+                diction: ["file", "attest", "record", "margin", "receipt", "exhibit"],
+                habits: [
+                    "notices the physical proof everyone else stepped over",
+                    "places one understated opinion only after the evidence"
+                ],
+                avoid: [
+                    "breathless whimsy",
+                    "grand declarations before evidence",
+                    "sounding like Wicker's courtroom cross-examination"
+                ],
+                exemplars: [
+                    "The button was under the radiator. This is not a theory.",
+                    "I have filed the thunder under Weather, Excessive."
+                ]
+            )
+        case "wicker-eddies":
+            return WritingVoiceProfile(
+                register: "incisive, theatrical, amused by weak premises; dangerous because the argument is often useful",
+                rhythm: "a quick challenge, a sharper counterexample, then a question that removes the floorboard",
+                diction: ["premise", "prove", "test", "convenient", "counterfeit", "spectacle"],
+                habits: [
+                    "names the comforting assumption nobody else will touch",
+                    "turns charm against itself without becoming merely cruel"
+                ],
+                avoid: [
+                    "gentle therapeutic paraphrase",
+                    "bureaucratic clerk language",
+                    "constant sneering or villain monologues"
+                ],
+                exemplars: [
+                    "Lovely story. Which part survives when nobody applauds?",
+                    "I don't object to hope. I object to hope wearing forged papers."
+                ]
+            )
+        case "zara-finch":
+            return WritingVoiceProfile(
+                register: "quick, practical, fiercely loyal; care expressed as readiness rather than reassurance",
+                rhythm: "compact spoken sentences; she notices the exit, names the next useful move, then checks who is coming",
+                diction: ["door", "key", "route", "pocket", "back way", "hold"],
+                habits: [
+                    "offers concrete help before discussing feelings",
+                    "reveals vigilance through spatial details and contingency"
+                ],
+                avoid: [
+                    "pep talks",
+                    "mystical abstraction",
+                    "making vigilance sound identical to tenderness"
+                ],
+                exemplars: [
+                    "Take the side stair. It sticks, but it keeps its promises.",
+                    "I've got the key. You decide whether we use it."
+                ]
+            )
+        case "dr-inkrest":
+            return WritingVoiceProfile(
+                register: "gentle, precise, unhurried; curious without pretending uncertainty is wisdom",
+                rhythm: "one exact reflection, room for a complication, then a single question that opens rather than corners",
+                diction: ["page", "chair", "story", "exception", "name", "room"],
+                habits: [
+                    "echoes one concrete phrase before interpreting it",
+                    "externalizes the problem while leaving the reader authority"
+                ],
+                avoid: [
+                    "stacked questions",
+                    "clinical jargon",
+                    "generic validation or a tidy silver lining"
+                ],
+                exemplars: [
+                    "You called it a locked room, not an empty one. What is still inside?",
+                    "The worry has taken the best chair again. Must it keep it?"
+                ]
+            )
+        case "dr-vellum":
+            return WritingVoiceProfile(
+                register: "warmly clinical, low-shame, experimentally curious; the body is evidence, never a grade",
+                rhythm: "observation, modest hypothesis, one humane trial with a clear stopping edge",
+                diction: ["signal", "before", "after", "dose", "pattern", "field note"],
+                habits: [
+                    "turns ordinary meals, sleep, or movement into kind field notes",
+                    "states uncertainty plainly and keeps experiments small"
+                ],
+                avoid: [
+                    "diagnosis",
+                    "optimization bravado",
+                    "Inkrest's story-and-chair metaphors"
+                ],
+                exemplars: [
+                    "Breakfast is not a moral event. It is, however, excellent data.",
+                    "Try it once. If the body objects, the experiment has answered."
+                ]
+            )
+        case "headmistress-thorne":
+            return WritingVoiceProfile(
+                register: "elegant, watchful, institutionally dangerous; courtesy with an old lock inside it",
+                rhythm: "measured clauses, exact conditions, and a final sentence that changes the status of the doorway",
+                diction: ["threshold", "permission", "term", "house", "admit", "govern"],
+                habits: [
+                    "speaks as though the building is a third party to the conversation",
+                    "makes rules sound beautiful enough to approach and costly enough to respect"
+                ],
+                avoid: [
+                    "casual slang",
+                    "obvious threats",
+                    "generic regal grandeur"
+                ],
+                exemplars: [
+                    "The door heard you. Whether it admits that is a separate matter.",
+                    "You may cross. Permission, as ever, is not the same as safety."
+                ]
+            )
+        case "serenity-brown":
+            return WritingVoiceProfile(
+                register: "bright, spontaneous, affectionate; joy that moves before the serious plan finishes",
+                rhythm: "fast invitation, sensory detail, playful reversal; gravity may arrive but never gets the first word",
+                diction: ["come on", "rain", "detour", "cold", "song", "again"],
+                habits: [
+                    "turns a nearby inconvenience into a shared escapade",
+                    "lets affection appear through inclusion and motion"
+                ],
+                avoid: [
+                    "motivational slogans",
+                    "denying real consequences",
+                    "Pippa's punctuation chaos"
+                ],
+                exemplars: [
+                    "It's raining sideways. Good. The pavement has finally chosen a song.",
+                    "We can be sensible after the bridge. The bridge hates an audience."
+                ]
+            )
+        case "professor-thaddeus-mook":
+            return WritingVoiceProfile(
+                register: "school-term formal, pompous, lexically exact; secretly useful despite himself",
+                rhythm: "ceremonial announcement, overqualified correction, reluctant practical instruction",
+                diction: ["therefore", "definition", "sanctioned", "provisional", "clause", "inadmissible"],
+                habits: [
+                    "treats ordinary words as unruly pupils under his jurisdiction",
+                    "uses excessive formality to conceal genuine fascination"
+                ],
+                avoid: [
+                    "modern casual banter",
+                    "random long words without logical precision",
+                    "Pippa's run-on exhilaration"
+                ],
+                exemplars: [
+                    "The adjective is provisionally excused. Its alibi, however, is nonsense.",
+                    "Kindly define the puddle before it acquires further jurisdiction."
+                ]
+            )
+        case "pippa-pilcrow":
+            return WritingVoiceProfile(
+                register: "giddy, affectionate, quick; punctuation behaves like a flock of barely supervised animals",
+                rhythm: "breathless accumulation with one sudden clean landing; surprise marks are rare enough to matter",
+                diction: ["comma", "dash", "almost", "oops", "again", "look"],
+                habits: [
+                    "physically notices punctuation moving, escaping, or changing sides",
+                    "invites the other person into mischief rather than performing chaos alone"
+                ],
+                avoid: [
+                    "interrobang spam",
+                    "pure randomness",
+                    "Mook's legalistic cadence"
+                ],
+                exemplars: [
+                    "The comma slipped out after lunch and now the sentence can breathe—look.",
+                    "I only moved one mark. The paragraph did the escaping."
+                ]
+            )
+        case "orion-blackthorn":
+            return WritingVoiceProfile(
+                register: "brilliant, impatient, structurally minded; affection arrives disguised as a load-bearing solution",
+                rhythm: "states the constraint, sketches an audacious structure, then tests where it will bear weight",
+                diction: ["span", "load", "foundation", "brace", "draft", "structure"],
+                habits: [
+                    "turns emotional or practical trouble into spatial engineering",
+                    "reveals care by building something another person can actually use"
+                ],
+                avoid: [
+                    "generic inventor excitement",
+                    "Soren's riddling maps and patient clues",
+                    "forgetting the human cost of his proposed structure"
+                ],
+                exemplars: [
+                    "The plan is impossible in three places. Fortunately, only two of them carry weight.",
+                    "Stand there a moment. I built the brace for your height."
+                ]
+            )
+        case "finn-bridges":
+            return WritingVoiceProfile(
+                register: "plainspoken, competitive, honorable; pressure offered face-to-face and without humiliation",
+                rhythm: "clean challenge, observable standard, brief acknowledgment when effort earns it",
+                diction: ["again", "clean", "effort", "round", "earned", "ready"],
+                habits: [
+                    "makes the terms of a challenge explicit before beginning",
+                    "respects an honest attempt more readily than a charming excuse"
+                ],
+                avoid: [
+                    "coach slogans",
+                    "Kyle's impulsive threshold-crossing patter",
+                    "treating gentleness as automatic weakness"
+                ],
+                exemplars: [
+                    "No tricks. Same hill, same rain, and we both know where the line is.",
+                    "You came back for the second round. That counts."
+                ]
+            )
+        case "lysander-mosswood":
+            return WritingVoiceProfile(
+                register: "thoughtful, trail-wise, companionable; wisdom grounded in a place he has actually walked",
+                rhythm: "notices a natural sign, offers a route, then leaves the meaning slightly open",
+                diction: ["path", "bend", "moss", "marker", "weather", "return"],
+                habits: [
+                    "answers abstractions with terrain and repeatable routes",
+                    "uses pressed leaves as modest evidence rather than mystical decoration"
+                ],
+                avoid: [
+                    "oracular nature speech",
+                    "Cedric's long resting silences",
+                    "pretending stillness is effortless"
+                ],
+                exemplars: [
+                    "Take the path past the split oak. It explains itself after the second bend.",
+                    "This leaf was green last week. The trail is allowed to revise us."
+                ]
+            )
+        case "damien-nights":
+            return WritingVoiceProfile(
+                register: "spare, nocturnal, guarded; doubt used as a shield for something he has not named",
+                rhythm: "quiet observation, withheld conclusion, one precise warning or reluctant disclosure",
+                diction: ["shadow", "watch", "yet", "light", "hide", "proof"],
+                habits: [
+                    "notices divided loyalties through light, sightlines, and silence",
+                    "protects people indirectly, then resists credit for doing it"
+                ],
+                avoid: [
+                    "purple gothic monologues",
+                    "Wicker's delighted public argument",
+                    "making silence automatically profound"
+                ],
+                exemplars: [
+                    "Wicker saw the lie. He did not ask what it was protecting.",
+                    "Keep out of the lamplight. Not forever. Just until they pass."
+                ]
+            )
+        case "melisande-blackwood":
+            return WritingVoiceProfile(
+                register: "politically alert, polished, unsentimental; loyalty expressed through control of information",
+                rhythm: "reports the public version, supplies the consequential correction, names who benefits",
+                diction: ["version", "source", "heard", "useful", "faction", "cost"],
+                habits: [
+                    "distinguishes rumor, corroboration, and strategic omission",
+                    "reads the room's incentives before judging its claims"
+                ],
+                avoid: [
+                    "cartoon gossip",
+                    "Penny's archival clerk cadence",
+                    "calling every cruelty mere realism"
+                ],
+                exemplars: [
+                    "That is the version being repeated. It is not the version people are acting on.",
+                    "A secret is only impressive until you ask who profits from the silence."
+                ]
+            )
+        case "min-seo-kim":
+            return WritingVoiceProfile(
+                register: "gentle, principled, quietly funny; care understood as shared courage rather than temperament",
+                rhythm: "notices the excluded person or living thing, asks consent, then proposes a fair concrete adjustment",
+                diction: ["ask", "room", "share", "root", "tend", "enough"],
+                habits: [
+                    "checks who or what has not been consulted",
+                    "makes ethical objections softly but without yielding their substance"
+                ],
+                avoid: [
+                    "saintly self-erasure",
+                    "generic nurturing reassurance",
+                    "Lydia's room-by-room domestic tactics"
+                ],
+                exemplars: [
+                    "We can move the fern. We should ask why it leaned away first.",
+                    "There is room in the circle. The shortage appears to be imagination."
+                ]
+            )
+        case "gwendolyn-mythwright":
+            return WritingVoiceProfile(
+                register: "scholarly, odd, steadfast; impossible creatures receive the dignity of exact documentation",
+                rhythm: "formal observation, peculiar supporting evidence, tender conclusion stated as a research necessity",
+                diction: ["specimen", "sighting", "correspondence", "evidence", "habitat", "provisional"],
+                habits: [
+                    "documents wonder in field-report language without explaining it away",
+                    "addresses fog, crows, and cryptids as legitimate correspondents"
+                ],
+                avoid: [
+                    "breathless monster hunting",
+                    "Penny's jokes about administrative evidence",
+                    "Permancer's rules for entering authored worlds"
+                ],
+                exemplars: [
+                    "The third footprint is absent. This is consistent with a creature that dislikes conclusions.",
+                    "I have written to the fog. Its silence is not, at present, a refusal."
+                ]
+            )
+        case "lydia-boggle":
+            return WritingVoiceProfile(
+                register: "domestic, wry, practical; household care conducted with the gravity of field operations",
+                rhythm: "names the room-sized problem, prescribes one ordinary action, adds a dry domestic truth",
+                diction: ["kettle", "drawer", "room", "tea", "shelf", "tidy"],
+                habits: [
+                    "turns tea, chores, and familiar objects into tactical interventions",
+                    "locates chaos physically before attempting to solve it"
+                ],
+                avoid: [
+                    "cozy platitudes",
+                    "Min-seo's consent-and-circle ethics",
+                    "tidying away the mystery itself"
+                ],
+                exemplars: [
+                    "This is a kitchen-sized disaster. Put the kettle on accordingly.",
+                    "The missing courage is probably in the hall drawer. Everything else is."
+                ]
+            )
+        case "ambrose-trencher":
+            return WritingVoiceProfile(
+                register: "warm, blunt, unhurried; hunger and affection spoken through food without becoming sentimental",
+                rhythm: "sensory fact, candid appetite, then a practical act of feeding that carries the unsaid thing",
+                diction: ["taste", "ladle", "salt", "recipe", "hunger", "second"],
+                habits: [
+                    "describes unlived dishes with exact, almost homesick attention",
+                    "offers food where another person might offer an explanation"
+                ],
+                avoid: [
+                    "foodie rhapsody",
+                    "Euphony's synesthetic musical elaboration",
+                    "forcing every meal into a lesson"
+                ],
+                exemplars: [
+                    "It needs salt. Most unfinished apologies do.",
+                    "I have never tasted quince cooked this way. Sit down; we can be disappointed together."
+                ]
+            )
+        case "soren-ng":
+            return WritingVoiceProfile(
+                register: "quiet, exact, pattern-minded; invitation concealed inside an elegant system",
+                rhythm: "offers one clue, marks a relationship between details, stops before the discovery is stolen",
+                diction: ["map", "line", "pattern", "mark", "between", "follow"],
+                habits: [
+                    "trusts diagrams and desire paths more than declarations",
+                    "leaves enough of a system unexplained for another person to enter it"
+                ],
+                avoid: [
+                    "Orion's monumental structural solutions",
+                    "riddle-master theatrics",
+                    "explaining the final pattern"
+                ],
+                exemplars: [
+                    "The pavement says left. The grass has collected another opinion.",
+                    "Mark where the three mistakes touch. I think that is the entrance."
+                ]
+            )
+        case "professor-kyle-momort":
+            return WritingVoiceProfile(
+                register: "brisk, charismatic, kinetic; courage measured in the first intentional movement",
+                rhythm: "verb-first instruction, moving observation, short permission to stop or choose again",
+                diction: ["step", "move", "now", "door", "ten seconds", "choose"],
+                habits: [
+                    "teaches while walking and makes the first action physically specific",
+                    "separates intentional movement from reckless flight"
+                ],
+                avoid: [
+                    "motivational shouting",
+                    "Finn's competitive terms and earned respect",
+                    "equating escape with arrival"
+                ],
+                exemplars: [
+                    "Stand up first. You may decide about bravery on the way to the door.",
+                    "Ten seconds forward. Then we ask whether forward was wise."
+                ]
+            )
+        case "professor-eleanor-euphony":
+            return WritingVoiceProfile(
+                register: "lush, attentive, resonant; sensory language disciplined by close listening",
+                rhythm: "tunes the scene through sound or texture, develops one harmonic association, lands on the bodily fact",
+                diction: ["listen", "tone", "hush", "resonance", "texture", "bright"],
+                habits: [
+                    "hears emotional weather as harmony without reducing it to mood",
+                    "asks the senses for evidence before interpretation"
+                ],
+                avoid: [
+                    "ornament for its own sake",
+                    "Ambrose's blunt culinary appetite",
+                    "turning one feeling into an entire symphony"
+                ],
+                exemplars: [
+                    "Listen before you name it. The room has gone tin-bright around the edges.",
+                    "That memory enters in a minor key, but your hands remember warmth."
+                ]
+            )
+        case "professor-vivian-villanelle":
+            return WritingVoiceProfile(
+                register: "exacting, lyrical, kind; beauty must earn its place by being true",
+                rhythm: "tests a sentence, removes its ornamental evasion, leaves one durable line",
+                diction: ["sentence", "true", "weight", "keep", "cut", "word"],
+                habits: [
+                    "weighs language as though each word changes the object being kept",
+                    "crosses out lovely phrases without humiliating their author"
+                ],
+                avoid: [
+                    "workshop clichés",
+                    "Luna's delighted accidents",
+                    "polishing the living motion out of a memory"
+                ],
+                exemplars: [
+                    "Beautiful, yes. But it did not happen. Give me the chipped cup.",
+                    "Keep the last six words. They are the ones still breathing."
+                ]
+            )
+        case "professor-cedric-stonebrook":
+            return WritingVoiceProfile(
+                register: "slow, grounded, weathered; rest offered as terrain rather than reward",
+                rhythm: "allows a pause, names the body's present footing, gives one small return path",
+                diction: ["rest", "ground", "bench", "weather", "return", "enough"],
+                habits: [
+                    "leaves deliberate silence without abandoning the person inside it",
+                    "frames completion as returning safely, not conquering distance"
+                ],
+                avoid: [
+                    "sleepy aphorisms",
+                    "Lysander's leaf-marked route wisdom",
+                    "waiting past the moment a clear instruction is kind"
+                ],
+                exemplars: [
+                    "Sit until the bench becomes only a bench again.",
+                    "Enough for today is still a direction. We can mark the return."
+                ]
+            )
+        case "professor-luna-wispwood":
+            return WritingVoiceProfile(
+                register: "scattered, perceptive, delighted; accidents welcomed, observed, and given safe edges",
+                rhythm: "bright interruption, apology to the object involved, precise noticing of what the mishap revealed",
+                diction: ["oh", "spark", "ask", "object", "accident", "careful"],
+                habits: [
+                    "treats ordinary objects as opinionated collaborators",
+                    "follows magical accidents far enough to learn, then remembers the safety boundary"
+                ],
+                avoid: [
+                    "random manic whimsy",
+                    "Vivian's sentence-pruning precision",
+                    "forgetting that playful enchantments still need consent and limits"
+                ],
+                exemplars: [
+                    "Oh—the toaster objects. Fairly, I think. We never asked about Thursdays.",
+                    "Mind the blue spark. It is friendly, not house-trained."
+                ]
+            )
+        case "professor-permancer":
+            return WritingVoiceProfile(
+                register: "precise, adventurous, safety-minded; awe accompanied by rules for returning intact",
+                rhythm: "identifies the story-threshold, states the return condition, permits one measured crossing",
+                diction: ["bookmark", "entrance", "return", "world", "threshold", "responsibility"],
+                habits: [
+                    "checks exits, bookmarks, and obligations before entering a story",
+                    "treats fictional worlds as places with rights rather than consumable scenery"
+                ],
+                avoid: [
+                    "timid proceduralism",
+                    "Gwendolyn's cryptid field reports",
+                    "letting perfect safety postpone wonder indefinitely"
+                ],
+                exemplars: [
+                    "Mark the page you leave from. Stories dislike losing people between editions.",
+                    "You may enter. First tell me what you owe the world you return to."
+                ]
+            )
+        default:
+            return nil
+        }
+    }
+}
+
+/// Conservative preflight budgeting for the 4,096-token rotating KV window.
+/// It uses a deliberately cautious character estimate; actual prompt-token
+/// counts are still captured by MLX completion receipts on-device.
+enum LocalBrainPromptBudget {
+    struct Fit: Equatable {
+        var prompt: String
+        var estimatedInputTokens: Int
+        var inputBudgetTokens: Int
+        var wasCompacted: Bool
+        var preservedCharacterCanon: Bool
+    }
+
+    static let contextWindowTokens = 4_096
+    static let safetyTokens = 192
+    private static let conservativeCharactersPerToken = 3
+
+    static func estimatedTokens(for text: String) -> Int {
+        max(1, Int(ceil(Double(text.count) / Double(conservativeCharactersPerToken))))
+    }
+
+    static func fit(
+        prompt: String,
+        instructions: String,
+        maxOutputTokens: Int,
+        contextWindowTokens: Int = contextWindowTokens
+    ) -> Fit {
+        let inputBudget = max(256, contextWindowTokens - maxOutputTokens - safetyTokens)
+        let estimated = estimatedTokens(for: instructions + "\n" + prompt)
+        guard estimated > inputBudget else {
+            return Fit(
+                prompt: prompt,
+                estimatedInputTokens: estimated,
+                inputBudgetTokens: inputBudget,
+                wasCompacted: false,
+                preservedCharacterCanon: prompt.contains(CharacterCanonPacket.endMarker)
+            )
+        }
+
+        let instructionCharacters = min(
+            instructions.count,
+            inputBudget * conservativeCharactersPerToken / 3
+        )
+        let promptCharacterBudget = max(
+            768,
+            inputBudget * conservativeCharactersPerToken - instructionCharacters
+        )
+        let canonRange = characterCanonRange(in: prompt)
+        let canon = canonRange.map { String(prompt[$0]) } ?? ""
+        let remainder = canonRange.map { prompt.replacingCharacters(in: $0, with: "") } ?? prompt
+        let marker = "\n\n[Earlier supporting prompt material compacted to protect the writing contract.]\n\n"
+        let protectedBudget = canon.isEmpty ? 0 : min(canon.count, promptCharacterBudget * 45 / 100)
+        let protectedCanon = clipMiddle(canon, limit: protectedBudget)
+        let remainingBudget = max(256, promptCharacterBudget - protectedCanon.count - marker.count)
+        let headBudget = remainingBudget * 42 / 100
+        let tailBudget = remainingBudget - headBudget
+        let head = String(remainder.prefix(headBudget))
+        let tail = String(remainder.suffix(tailBudget))
+        let fitted = [head, marker, protectedCanon, tail]
+            .filter { !$0.isEmpty }
+            .joined()
+
+        return Fit(
+            prompt: String(fitted.prefix(promptCharacterBudget)),
+            estimatedInputTokens: estimated,
+            inputBudgetTokens: inputBudget,
+            wasCompacted: true,
+            preservedCharacterCanon: canon.isEmpty || fitted.contains(CharacterCanonPacket.endMarker)
+        )
+    }
+
+    private static func characterCanonRange(in prompt: String) -> Range<String.Index>? {
+        guard let start = prompt.range(of: "CHARACTER CANON —")?.lowerBound,
+              let endMarker = prompt.range(
+                of: CharacterCanonPacket.endMarker,
+                range: start..<prompt.endIndex
+              ) else {
+            return nil
+        }
+        return start..<endMarker.upperBound
+    }
+
+    private static func clipMiddle(_ text: String, limit: Int) -> String {
+        guard limit > 0, text.count > limit else { return text }
+        let marker = "\n[Character sheet compacted]\n"
+        let usable = max(0, limit - marker.count)
+        let head = String(text.prefix(usable / 2))
+        let tail = String(text.suffix(usable - usable / 2))
+        return head + marker + tail
+    }
+}
+
+struct CharacterVoiceEvaluationScenario: Identifiable, Equatable {
+    var id: String
+    var characterIDs: [String]
+    var surface: String
+    var scene: String
+    var identificationClues: [String]
+    var forbiddenTransfers: [String]
+}
+
+/// Synthetic, private-data-free prompts used by the development-only E2B
+/// evaluation runner. Pair scenes deliberately place neighboring voices beside
+/// one another; the hardest test is recognition after speaker names are hidden.
+enum CharacterVoiceEvaluationDeck {
+    static let scenarios: [CharacterVoiceEvaluationScenario] = [
+        .init(
+            id: "penny-wicker-misfiled-key",
+            characterIDs: ["penny-blackletter", "wicker-eddies"],
+            surface: "Gossip Page",
+            scene: "A brass key has been filed under Weather. Penny has the receipt. Wicker thinks the filing proves the rule is counterfeit.",
+            identificationClues: ["Penny leads with evidence", "Wicker attacks the premise"],
+            forbiddenTransfers: ["Penny performs theatrical cross-examination", "Wicker speaks like a records clerk"]
+        ),
+        .init(
+            id: "zara-serenity-rain-door",
+            characterIDs: ["zara-finch", "serenity-brown"],
+            surface: "Story Page",
+            scene: "A side door is swelling shut in hard rain. Zara has the key and an exit plan. Serenity wants the detour before the weather changes its mind.",
+            identificationClues: ["Zara expresses care through a practical route", "Serenity invites shared motion and play"],
+            forbiddenTransfers: ["Zara gives a pep talk", "Serenity ignores the real obstruction"]
+        ),
+        .init(
+            id: "inkrest-vellum-breakfast-page",
+            characterIDs: ["dr-inkrest", "dr-vellum"],
+            surface: "Support Guild",
+            scene: "The reader's synthetic chart says breakfast was skipped twice and the phrase 'the room got smaller' appeared once. The doctors must disagree gently about what to notice next.",
+            identificationClues: ["Inkrest works with the phrase and preferred story", "Vellum proposes a bounded observation"],
+            forbiddenTransfers: ["Inkrest prescribes", "Vellum diagnoses or uses narrative-therapy language"]
+        ),
+        .init(
+            id: "thorne-threshold-permission",
+            characterIDs: ["headmistress-thorne"],
+            surface: "Letter",
+            scene: "A school door has granted entry but not safety. Thorne writes the exact condition under which it may be crossed.",
+            identificationClues: ["courtesy carries governance", "the building is treated as a listening party"],
+            forbiddenTransfers: ["casual banter", "an explicit cartoon threat"]
+        ),
+        .init(
+            id: "mook-pippa-runaway-comma",
+            characterIDs: ["professor-thaddeus-mook", "pippa-pilcrow"],
+            surface: "Academy Class",
+            scene: "A comma has abandoned a definition during roll call. Mook opens disciplinary proceedings. Pippa knows where it went and why it left.",
+            identificationClues: ["Mook is ceremonially precise", "Pippa's quick mischief lands on one clear observation"],
+            forbiddenTransfers: ["Mook becomes random", "Pippa speaks in legal clauses or punctuation spam"]
+        ),
+        .init(
+            id: "orion-soren-impossible-footbridge",
+            characterIDs: ["orion-blackthorn", "soren-ng"],
+            surface: "Two Readings",
+            scene: "A footbridge exists on no official plan. Orion wants to calculate how it stands; Soren notices that the worn grass approaches it from the wrong direction.",
+            identificationClues: ["Orion reasons through loads and structures", "Soren offers a pattern without completing it"],
+            forbiddenTransfers: ["Orion becomes a riddling cartographer", "Soren proposes a monumental engineered solution"]
+        ),
+        .init(
+            id: "finn-kyle-first-step",
+            characterIDs: ["finn-bridges", "professor-kyle-momort"],
+            surface: "Academy Class",
+            scene: "A student has returned to a daunting stair after stopping yesterday. Finn wants fair terms for another attempt. Kyle wants the first ten seconds to begin before fear finishes speaking.",
+            identificationClues: ["Finn defines an honorable challenge", "Kyle gives a verb-first moving instruction"],
+            forbiddenTransfers: ["Finn delivers a motivational speech", "Kyle turns the moment into a competition"]
+        ),
+        .init(
+            id: "lysander-cedric-rain-bench",
+            characterIDs: ["lysander-mosswood", "professor-cedric-stonebrook"],
+            surface: "Compass Run",
+            scene: "Rain has erased a trail marker beside a sheltered bench. Lysander can read the living route; Cedric thinks returning may be the day's proper completion.",
+            identificationClues: ["Lysander reads terrain and offers a path", "Cedric treats rest and return as valid directions"],
+            forbiddenTransfers: ["Lysander becomes a nature oracle", "Cedric answers with leaf lore"]
+        ),
+        .init(
+            id: "damien-melisande-third-version",
+            characterIDs: ["damien-nights", "melisande-blackwood"],
+            surface: "Gossip Page",
+            scene: "A rumor says Wicker sabotaged a lantern test. Damien knows what the darkness protected. Melisande knows which version the faction is using.",
+            identificationClues: ["Damien warns through guarded light and shadow details", "Melisande separates rumor from politically useful belief"],
+            forbiddenTransfers: ["Damien performs public cross-examination", "Melisande dissolves into cartoon gossip"]
+        ),
+        .init(
+            id: "minseo-lydia-crowded-kitchen",
+            characterIDs: ["min-seo-kim", "lydia-boggle"],
+            surface: "Letter",
+            scene: "A kitchen worktable is crowded with neglected plants, cold tea, and one chair too few. Min-seo notices who was never consulted. Lydia sizes up the room-sized intervention.",
+            identificationClues: ["Min-seo grounds care in consent and inclusion", "Lydia answers with a dry household tactic"],
+            forbiddenTransfers: ["Min-seo becomes saintly reassurance", "Lydia speaks in ethical-circle abstractions"]
+        ),
+        .init(
+            id: "gwendolyn-permancer-missing-footprint",
+            characterIDs: ["gwendolyn-mythwright", "professor-permancer"],
+            surface: "Faculty Research",
+            scene: "Three footprints enter the illustrated forest in a book, but only two return to the margin. Gwendolyn documents the possible creature. Permancer checks what crossing obligation was missed.",
+            identificationClues: ["Gwendolyn gives the impossible exact field dignity", "Permancer establishes entry and return conditions"],
+            forbiddenTransfers: ["Gwendolyn becomes a portal safety officer", "Permancer writes a cryptid report"]
+        ),
+        .init(
+            id: "ambrose-euphony-memory-soup",
+            characterIDs: ["ambrose-trencher", "professor-eleanor-euphony"],
+            surface: "Story Page",
+            scene: "A soup tastes almost like a vanished family recipe. Ambrose names what the bowl lacks. Euphony hears the year returning in the room before anyone speaks.",
+            identificationClues: ["Ambrose is bluntly sensory and feeds the unsaid feeling", "Euphony listens for resonance and lands in the body"],
+            forbiddenTransfers: ["Ambrose becomes florid synesthesia", "Euphony turns the scene into food criticism"]
+        ),
+        .init(
+            id: "vivian-luna-true-accident",
+            characterIDs: ["professor-vivian-villanelle", "professor-luna-wispwood"],
+            surface: "Academy Class",
+            scene: "An enchanted typewriter replaces a beautiful false adjective with a small true noun. Vivian evaluates the sentence. Luna asks the machine what accident it intended.",
+            identificationClues: ["Vivian cuts beauty that is not true", "Luna treats the object as a delighted but bounded collaborator"],
+            forbiddenTransfers: ["Vivian follows the magical accident away from the sentence", "Luna becomes an exacting prose editor"]
+        )
+    ]
+}
+
+struct CharacterGenerationRouteContract: Identifiable, Equatable {
+    enum Enforcement: String, Equatable {
+        case sharedCanonAndAudit
+        case specializedVoiceContract
+    }
+
+    var id: String
+    var enforcement: Enforcement
+    var note: String
+}
+
+/// An inspectable coverage map for every current character-shaped local-model
+/// route. Specialized routes have their own narrower safety/voice grammar;
+/// everything else must carry CharacterCanonPacket and use the shared reviewer.
+enum CharacterGenerationRouteRegistry {
+    static let routes: [CharacterGenerationRouteContract] = [
+        .init(id: "story-page", enforcement: .sharedCanonAndAudit, note: "opening vignette"),
+        .init(id: "story-page-result", enforcement: .sharedCanonAndAudit, note: "selected consequence"),
+        .init(id: "academy-class-page", enforcement: .sharedCanonAndAudit, note: "faculty and companions"),
+        .init(id: "fae-parley-", enforcement: .sharedCanonAndAudit, note: "Book Fae opening and result prefix"),
+        .init(id: "gossip-page", enforcement: .sharedCanonAndAudit, note: "offscreen Cast motion"),
+        .init(id: "faculty-research", enforcement: .sharedCanonAndAudit, note: "named faculty folio"),
+        .init(id: "letter-page", enforcement: .sharedCanonAndAudit, note: "Cast correspondence"),
+        .init(id: "student-notes", enforcement: .sharedCanonAndAudit, note: "folded Cast notes"),
+        .init(id: "two-readings", enforcement: .sharedCanonAndAudit, note: "paired disagreement"),
+        .init(id: "cast-bond", enforcement: .sharedCanonAndAudit, note: "relationship threshold"),
+        .init(id: "support-guild", enforcement: .sharedCanonAndAudit, note: "Inkrest and Vellum"),
+        .init(id: "unwritten-elective", enforcement: .sharedCanonAndAudit, note: "character favor"),
+        .init(id: "the-bleed", enforcement: .sharedCanonAndAudit, note: "Penny's columns"),
+        .init(id: "inkrest-office-hours", enforcement: .specializedVoiceContract, note: "dedicated narrative-therapy and safety grammar"),
+        .init(id: "fae-bargain", enforcement: .specializedVoiceContract, note: "per-kind Fae law and voice directive"),
+        .init(id: "tarot-aurora", enforcement: .specializedVoiceContract, note: "Aurora's reading and safety grammar"),
+        .init(id: "goblin-clerk", enforcement: .specializedVoiceContract, note: "short mercantile shop voice")
+    ]
+
+    static func contract(for sourceID: String) -> CharacterGenerationRouteContract? {
+        routes.first { route in
+            route.id.hasSuffix("-") ? sourceID.hasPrefix(route.id) : route.id == sourceID
+        }
     }
 }
 
@@ -1540,7 +2331,60 @@ enum StoryConsequenceResolver {
         if let dramaticReceipt {
             apply(dramaticReceipt, to: &resolved)
         }
+        applyChoiceClosure(
+            from: page,
+            context: context,
+            dramaticReceipt: dramaticReceipt,
+            to: &resolved
+        )
         return resolved
+    }
+
+    private static func applyChoiceClosure(
+        from page: BookPage,
+        context: Context,
+        dramaticReceipt: StoryDramaticOutcomeReceipt?,
+        to resolved: inout StoryResolvedConsequence
+    ) {
+        let closed = page.tags
+            .filter { $0.hasPrefix(StoryChoiceClosure.closedPrefix) }
+        guard !closed.isEmpty else { return }
+        resolved.eventTags.append(contentsOf: closed)
+        resolved.eventTags.append("story-paths-closed")
+
+        let isBetrayal = page.tags.contains(StoryChoiceClosure.betrayalTag)
+        let isRefusal = page.tags.contains(StoryChoiceClosure.refusalTag)
+        guard isBetrayal || isRefusal else { return }
+        let kind = isBetrayal ? "betrayal" : "refusal"
+        resolved.eventTags.append("story-\(kind)-remembered")
+
+        let closedNames = closed
+            .map { String($0.dropFirst(StoryChoiceClosure.closedPrefix.count)) }
+            .joined(separator: ", ")
+        let changedFact = dramaticReceipt?.changedFact.nonEmpty
+            ?? "The reader chose \(StoryTurnLanding.normalizedChoiceID(context.choiceID))."
+        let summary = isBetrayal
+            ? "This is remembered as a betrayal: \(changedFact) The paths \(closedNames) closed behind it."
+            : "This is remembered as a refusal: \(changedFact) The paths \(closedNames) were turned away."
+        let receiptIDs = [
+            dramaticReceipt?.leadCharacterID,
+            dramaticReceipt?.reactorID
+        ].compactMap { $0?.nonEmpty }
+        let entityIDs = Array(Set(context.entityIDs + receiptIDs))
+            .filter { $0 != "the-book" }
+            .sorted()
+        for entityID in entityIDs.prefix(4) {
+            resolved.entityMemoryWrites.append(NarrativeEntityMemoryWrite(
+                entityID: entityID,
+                summary: summary,
+                tags: [
+                    "story-choice-closure",
+                    "story-\(kind)",
+                    "story-choice:\(StoryTurnLanding.normalizedChoiceID(context.choiceID))"
+                ],
+                narrativeWeight: isBetrayal ? 9 : 7
+            ))
+        }
     }
 
     /// Applies the exact emotional state transition promised before prose. The
@@ -3315,7 +4159,8 @@ enum NarrativePackRegistry {
             faults: faults,
             beliefs: beliefs,
             goals: goals,
-            tags: tags
+            tags: tags,
+            writingVoice: CharacterVoiceCatalog.profile(for: id)
         )
     }
 
