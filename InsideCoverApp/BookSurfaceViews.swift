@@ -3068,11 +3068,33 @@ struct SwipeDismissSurfaceCard: View {
             : "Tap to open. Use the small right-edge tab or close button to let this page pass."
         )
         .onAppear {
-            guard animatesArrival, !reduceMotion else { return }
-            DispatchQueue.main.async {
-                withAnimation(BookMotion.deal(delay: arrivalDelay, reduceMotion: false)) {
-                    hasArrived = true
-                }
+            synchronizeArrival()
+        }
+        .onChange(of: animatesArrival) { _, _ in
+            synchronizeArrival()
+        }
+        .onChange(of: reduceMotion) { _, _ in
+            synchronizeArrival()
+        }
+    }
+
+    /// A queued Page can already be mounted when it becomes the next visible
+    /// card. `onAppear` will not run again in that case, so the arrival flag
+    /// itself must start the reveal or the placeholder can remain forever.
+    private func synchronizeArrival() {
+        guard animatesArrival, !reduceMotion else {
+            hasArrived = true
+            return
+        }
+
+        hasArrived = false
+        DispatchQueue.main.async {
+            guard animatesArrival, !reduceMotion else {
+                hasArrived = true
+                return
+            }
+            withAnimation(BookMotion.deal(delay: arrivalDelay, reduceMotion: false)) {
+                hasArrived = true
             }
         }
     }

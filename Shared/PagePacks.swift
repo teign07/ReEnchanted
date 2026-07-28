@@ -1455,6 +1455,7 @@ struct ReEnchantedSaveFile: Codable {
     var storyRituals: [String: Int]? = nil
     var storySettingAffinities: [String: Int]? = nil
     var storySceneBiases: [String: Int]? = nil
+    var storyConsequenceLedger: StoryConsequenceLedger? = nil
     var bookNoticeEvidence: Int? = nil
     var magicMoment: MagicMomentState? = nil
     var bookObservations: [BookObservationRecord]? = nil
@@ -1672,6 +1673,7 @@ struct PlayerVaultData: Codable, Equatable {
     var storyRituals: [String: Int]?
     var storySettingAffinities: [String: Int]?
     var storySceneBiases: [String: Int]?
+    var storyConsequenceLedger: StoryConsequenceLedger?
     var bookNoticeEvidence: Int?
     var magicMoment: MagicMomentState?
     var bookObservations: [BookObservationRecord]?

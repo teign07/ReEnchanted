@@ -147,7 +147,7 @@ struct TarotReadingContextReceipt: Codable, Equatable {
 struct TarotReadingArtifact: Identifiable, Codable, Equatable {
     static let metadataKey = "tarotReadingArtifact"
 
-    var schemaVersion = 2
+    var schemaVersion = 3
     var id: String
     var deckVersion: String
     var spread: TarotSpread
@@ -159,7 +159,12 @@ struct TarotReadingArtifact: Identifiable, Codable, Equatable {
     /// Local, deterministic field notes shown as each card turns. Stored so a
     /// kept reading preserves exactly what the reader saw.
     var revealProse: [String: String]?
-    /// Gemma is only called after an explicit Aurora button press.
+    /// New readings name their Cast reader. Optional for backward-compatible
+    /// decoding of readings kept before Tarot belonged to Serenity Brown.
+    var readerID: String?
+    var readerName: String?
+    /// Gemma is only called after an explicit Cast-reader button press. The
+    /// storage name remains unchanged so older kept readings still decode.
     var auroraReading: String?
     /// Present only when the reader explicitly invited recent Pages into the
     /// reading. This is the inspectable retrieval receipt, not hidden context.
@@ -175,6 +180,8 @@ struct TarotReadingArtifact: Identifiable, Codable, Equatable {
         firstLook: String = "",
         reflection: String = "",
         revealProse: [String: String]? = nil,
+        readerID: String? = TarotReadingGuide.readerID,
+        readerName: String? = TarotReadingGuide.readerName,
         auroraReading: String? = nil,
         contextReceipt: TarotReadingContextReceipt? = nil
     ) {
@@ -187,8 +194,17 @@ struct TarotReadingArtifact: Identifiable, Codable, Equatable {
         self.firstLook = firstLook
         self.reflection = reflection
         self.revealProse = revealProse
+        self.readerID = readerID
+        self.readerName = readerName
         self.auroraReading = auroraReading
         self.contextReceipt = contextReceipt
+    }
+
+    /// Reader-neutral access for current code; `auroraReading` remains the
+    /// encoded key solely to keep previously saved artifacts readable.
+    var castReading: String? {
+        get { auroraReading }
+        set { auroraReading = newValue }
     }
 
     var archiveText: String {
@@ -206,15 +222,37 @@ struct TarotReadingArtifact: Identifiable, Codable, Equatable {
         if !reflection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             sections.append("What I’m carrying:\n\(reflection)")
         }
-        if let auroraReading = auroraReading?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !auroraReading.isEmpty {
-            sections.append("Aurora read beside me:\n\(auroraReading)")
+        if let castReading = castReading?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !castReading.isEmpty {
+            sections.append("\(readerName ?? "Aurora") read beside me:\n\(castReading)")
         }
         if let receipt = contextReceipt, !receipt.sources.isEmpty {
             let sourceLines = receipt.sources.map { "• \($0.title) · \($0.dateLabel)" }
             sections.append("Pages invited into the reading:\n\(sourceLines.joined(separator: "\n"))")
         }
         return sections.joined(separator: "\n\n")
+    }
+}
+
+enum TarotReadingGuide {
+    static let readerID = "serenity-brown"
+    static let readerName = "Serenity Brown"
+
+    static let voiceContract = """
+    You are Serenity Brown of Tidecrest inside ReEnchanted. Read the Tarot in your own voice: warm, lightly mischievous, companionable, concrete, and willing to turn a solemn plan sideways when a kinder detour reveals more life. You believe joy is not a distraction from magic. Your gift is shared lightness and playful motion; your fault is skipping past gravity and leaving someone else to name the hard thing. Do not make that mistake here: name the real thorn plainly before offering a possible door. You are a Cast member beside the reader, not an oracle, therapist, sage, or generic assistant.
+
+    Never predict destiny, diagnose, claim certainty about another person's mind, or make medical, legal, financial, safety, fertility, mortality, or crisis decisions. If the question asks a card to make such a decision, say: “Don't let a picture make that call for you. We can read what the choice is stirring, but the decision belongs with real information and real help.” Use only the supplied question, cards, notes, and explicitly receipted Pages.
+    """
+
+    static func questionDirective(for question: String) -> String {
+        let held = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !held.isEmpty else {
+            return "No question was supplied. Read the cards as a concrete weather report for the reader's attention."
+        }
+        return """
+        The reader asked exactly: “\(held)”
+        Answer that question directly in THE PICTURE TOGETHER, preserving its people, places, and concrete subject. Every later passage must remain about that question rather than drifting into a generic card meaning. Do not promise what will happen; describe what the cards invite the reader to notice, enjoy, guard against, or try in relation to it.
+        """
     }
 }
 
@@ -440,7 +478,7 @@ struct TarotPageSourceAdapter: BookPageSourceAdapter {
             detail: "Choose one card, or lay Root · Weather · Door. The draw is chance; the reading belongs to you.",
             payload: BookPagePayload(
                 headline: "Tarot Pages",
-                body: "Aurora will hold the lamp. She won’t pretend the cards are a verdict.",
+                body: "Serenity Brown will read beside you. She won’t pretend the cards are a verdict.",
                 metadata: [
                     "source": source.id,
                     "tags": "tarot,reflection,rider-waite-smith",

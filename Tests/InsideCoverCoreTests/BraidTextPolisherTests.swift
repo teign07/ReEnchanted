@@ -2,6 +2,45 @@ import XCTest
 @testable import InsideCoverCore
 
 final class BraidTextPolisherTests: XCTestCase {
+    /// A well-formed braid must survive the polisher intact. The absence
+    /// vocabulary includes ordinary prepositions ("without", "near", "alone"),
+    /// and second-person past tense — which the braid prompt mandates — opens
+    /// most sentences with "You" or "It". Together those once deleted the day's
+    /// actual turn out of healthy prose and left non-sequitur fragments behind.
+    func testPolisherLeavesWellFormedBraidIntact() {
+        let braid = """
+        The Coat That Would Not Dry
+
+        You woke before the alarm and the rain had already started without you. The kettle sulked on the back burner, taking its time, and you stood at the window with your hands flat on the cold sill.
+
+        Marguerite called near noon and you let it ring twice before answering. She wanted to know whether you were coming Sunday.
+
+        You took the bins out without a jacket and got wet for eleven seconds, which was the most decisive thing you did all day. It went sideways under the streetlight and you laughed at nothing, alone, in the dark.
+
+        You touched the shoulder, found it cold, and left it hanging rather than move it near the heat where it would have dried by morning.
+
+        The Book kept the page: a coat left wet on purpose, and a Sunday not yet refused.
+        """
+
+        let polished = BraidTextPolisher.polishedBookOfYou(braid)
+
+        XCTAssertEqual(polished, braid, "The polisher deleted a sentence from a clean braid.")
+    }
+
+    func testPolisherKeepsOrdinaryPrepositionsAcrossSentences() {
+        let braid = """
+        You sat near the window without turning the lamp on.
+
+        The chair stood near the door and the coat hung without company beside it.
+
+        The Book kept the page: two quiet things left where they were.
+        """
+
+        let polished = BraidTextPolisher.polishedBookOfYou(braid)
+
+        XCTAssertTrue(polished.contains("The chair stood near the door and the coat hung without company beside it."))
+    }
+
     func testPolisherRemovesRepeatedSentenceIdeasBeyondKnownMotifs() {
         let braid = """
         The glass caught condensation by the lamp. The coffee stood beside it.

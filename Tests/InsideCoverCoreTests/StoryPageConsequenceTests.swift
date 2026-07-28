@@ -33,6 +33,174 @@ final class StoryPageConsequenceTests: XCTestCase {
         XCTAssertEqual(pack.bundles.first?.atoms.last?.value, "still-decodes")
     }
 
+    func testEveryEnabledStoryRecipeHasUniversalCompilerContinuity() {
+        XCTAssertFalse(StoryFormRegistry.recipes.isEmpty)
+        for recipe in StoryFormRegistry.recipes {
+            let page = storyPage(
+                input: "Chosen path: Slice of Life",
+                tags: [
+                    "narrative-os",
+                    "story-recipe:\(recipe.id)",
+                    "choice:sliceoflife",
+                    "entity:zara-finch",
+                    "entity:damien-nights",
+                    "entity:location-great-hall"
+                ]
+            )
+
+            let consequence = StoryConsequenceResolver.resolvedConsequence(
+                forChoiceID: "sliceoflife",
+                page: page,
+                bundles: []
+            )
+
+            XCTAssertTrue(
+                consequence.bundleIDs.contains("recipe-continuity:\(recipe.id)"),
+                "\(recipe.id) did not enter the consequence compiler"
+            )
+            XCTAssertEqual(consequence.ritualLedgerDeltas["story-recipe-turn:\(recipe.id)"], 1)
+            XCTAssertEqual(
+                consequence.ritualLedgerDeltas["story-pair:damien-nights--zara-finch:encounters"],
+                1
+            )
+            XCTAssertEqual(consequence.settingAffinityDeltas["location-great-hall"], 1)
+        }
+    }
+
+    func testConsequenceConditionCanTargetExactRecipeWithoutProseGuessing() {
+        let page = storyPage(
+            input: "No recipe keywords are required here. Chosen path: Progress Arc",
+            tags: ["story-recipe:rivals-tether", "choice:progressarc"]
+        )
+        let matching = StoryConsequenceCondition(recipeIDs: ["rivals-tether"])
+        let other = StoryConsequenceCondition(recipeIDs: ["shared-quiet"])
+
+        XCTAssertTrue(matching.matches(page: page, choiceID: "progressarc"))
+        XCTAssertFalse(other.matches(page: page, choiceID: "progressarc"))
+    }
+
+    func testConsequencePackValidationRejectsBrokenKnownAtomsButKeepsUnknownAtomsForwardCompatible() throws {
+        let data = Data("""
+        {
+          "id": "broken-pack",
+          "displayName": "Broken Pack",
+          "version": 1,
+          "author": "Reader",
+          "availability": "userImported",
+          "bundles": [
+            {
+              "id": "broken",
+              "label": "Broken",
+              "when": { "recipeIDs": ["known-recipe"] },
+              "atoms": [
+                { "type": "futureRecipeBoost", "recipeID": "missing-recipe", "amount": 2 },
+                { "type": "relationshipTieDelta" },
+                { "type": "futureAtomFromANewerBook", "amount": 1 }
+              ]
+            }
+          ]
+        }
+        """.utf8)
+        let pack = try JSONDecoder().decode(StoryConsequencePack.self, from: data)
+
+        let report = StoryConsequencePackValidator.validate(
+            pack,
+            knownRecipeIDs: ["known-recipe"]
+        )
+
+        XCTAssertFalse(report.isUsable)
+        XCTAssertTrue(report.errors.contains { $0.message.contains("unknown Story Recipe missing-recipe") })
+        XCTAssertTrue(report.errors.contains { $0.message.contains("must change warmth") })
+        XCTAssertTrue(report.warnings.contains { $0.message.contains("futureAtomFromANewerBook") })
+    }
+
+    func testBundledConsequencePackPassesStrictValidation() throws {
+        let pack = try XCTUnwrap(StoryConsequenceRegistry.bundledPacks.first)
+        let report = StoryConsequencePackValidator.validate(pack)
+
+        XCTAssertTrue(
+            report.isUsable,
+            report.errors.map { "\($0.path): \($0.message)" }.joined(separator: " | ")
+        )
+    }
+
+    func testDramaticDisagreementCompilesPairHistoryAndFuturePressure() throws {
+        let effect = StoryDramaticChoiceEffect(
+            choiceID: "surprise",
+            role: .surprise,
+            requiredReactorID: "damien-nights",
+            requiredReactorName: "Damien Nights",
+            requiredReaction: "admits the disagreement protects an old fear",
+            readerChoiceEffect: "The hidden loyalty becomes discussable.",
+            changedFact: "Damien admits that the argument was protecting Zara.",
+            memorySummary: "Damien remembers admitting why he argued with Zara.",
+            warmthDelta: 0,
+            tensionDelta: 2,
+            familiarityDelta: 1
+        )
+        let contract = StoryDramaticContract(
+            recipeID: "rivals-tether",
+            leadCharacterID: "zara-finch",
+            leadCharacterName: "Zara Finch",
+            leadCharacterWant: "an honest answer",
+            leadCharacterWorry: "the answer will harden the quarrel",
+            leadCharacterBlindSpot: "she mistakes caution for contempt",
+            otherCharacterID: "damien-nights",
+            otherCharacterName: "Damien Nights",
+            otherCharacterPressure: "he is protecting an old promise",
+            relationshipID: "zara-damien",
+            relationshipQuestion: "Can they disagree without becoming strangers?",
+            stakes: "Silence lets suspicion become their working truth.",
+            choiceEffects: [effect]
+        )
+        let receipt = StoryDramaticOutcomeReceipt(
+            contract: contract,
+            effect: effect,
+            turnKind: .relationshipShift
+        )
+        let receiptTag = try XCTUnwrap(receipt.encodedTag)
+        let page = storyPage(
+            input: "Chosen path: Something Surprising",
+            tags: [
+                "story-recipe:rivals-tether",
+                "choice:surprise",
+                "entity:zara-finch",
+                "entity:damien-nights",
+                receiptTag
+            ] + StoryChoiceClosure.tags(
+                chosenChoiceID: "surprise",
+                availableChoiceIDs: ["slice-of-life", "progress-arc", "surprise"],
+                chosenText: "Betray the promise."
+            )
+        )
+
+        let consequence = StoryConsequenceResolver.resolvedConsequence(
+            forChoiceID: "surprise",
+            page: page,
+            bundles: []
+        )
+
+        XCTAssertEqual(consequence.ritualLedgerDeltas["story-pair:damien-nights--zara-finch:encounters"], 1)
+        XCTAssertEqual(consequence.ritualLedgerDeltas["story-pair:damien-nights--zara-finch:tension"], 2)
+        XCTAssertEqual(consequence.ritualLedgerDeltas["story-pair:damien-nights--zara-finch:ruptures"], 2)
+        XCTAssertGreaterThanOrEqual(consequence.futureRecipeBoosts["concrete-disagreement"] ?? 0, 1)
+        XCTAssertGreaterThanOrEqual(consequence.futureRecipeBoosts["rivals-tether"] ?? 0, 3)
+        XCTAssertTrue(consequence.entityMemoryWrites.contains { $0.entityID == "damien-nights" })
+        XCTAssertTrue(consequence.entityMemoryWrites.contains { $0.entityID == "zara-finch" })
+    }
+
+    func testDynamicRelationshipTensionCanUnlockRivalryRecipes() throws {
+        let characters = NarrativePackRegistry.entities.filter { $0.kind == .character }
+        let first = try XCTUnwrap(characters.first)
+        let second = try XCTUnwrap(characters.dropFirst().first)
+        let pair = NarrativeGraphData.relationshipPairKey(first.id, second.id)
+
+        XCTAssertTrue(StoryFormRegistry.hasRivalryEdge(
+            among: [first, second],
+            relationshipField: [pair: RelationshipTie(warmth: 0, tension: 2, familiarity: 2)]
+        ))
+    }
+
     func testRepairRestStoryChoiceCreatesChangedTextureConsequences() {
         let page = storyPage(
             input: """
@@ -91,7 +259,7 @@ final class StoryPageConsequenceTests: XCTestCase {
 
         XCTAssertEqual(choiceEvent?.effect.beliefDelta, 2)
         XCTAssertTrue(choiceEvent?.tags.contains("motif:threshold") == true)
-        XCTAssertTrue(choiceEvent?.tags.contains("recipe-boost:small-mystery") == true)
+        XCTAssertTrue(choiceEvent?.tags.contains("recipe-boost:small-discovery") == true)
         XCTAssertTrue((choiceEvent?.effect.entityMemoryWrites ?? []).contains { write in
             write.entityID == "penny-blackletter" &&
             write.summary.contains("sideways detail")
@@ -339,6 +507,267 @@ final class StoryPageConsequenceTests: XCTestCase {
 
         XCTAssertEqual(pick.form.id, "nocturne")
         XCTAssertEqual(pick.genre.id, "gentle-horror")
+    }
+
+    func testConsequenceLedgerRecordsEachCompiledChoiceOnceAndRoundTrips() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let page = BookPage(
+            id: "story-causal-receipt",
+            type: .narrativeOS,
+            createdAt: now,
+            promptText: "The Story Page is stirring.",
+            userInput: "Chosen path: Something Surprising",
+            tags: [
+                "story-recipe:rivals-tether",
+                "entity:zara-finch",
+                "entity:damien-nights",
+                "entity:location-great-hall"
+            ]
+        )
+        let consequence = StoryResolvedConsequence(
+            choiceID: "surprise",
+            bundleIDs: ["universal-story-continuity"],
+            relationshipTieDeltas: [
+                StoryRelationshipTieDelta(
+                    entityIDs: ["zara-finch", "damien-nights"],
+                    warmth: 0,
+                    tension: 2,
+                    familiarity: 1
+                )
+            ],
+            eventTags: ["story-refusal-remembered"],
+            chapterTalismanDeltas: ["chapter-candle": 1],
+            worldEventTouches: ["dictionary-rebellion"],
+            radioBanterHooks: ["old-promise"],
+            monthlyEditionLines: ["The old promise acquired a witness."]
+        )
+        var ledger = StoryConsequenceLedger.empty
+
+        let inserted = ledger.record(page: page, consequences: [consequence])
+        let duplicate = ledger.record(page: page, consequences: [consequence])
+
+        let receipt = try XCTUnwrap(inserted.first)
+        XCTAssertTrue(duplicate.isEmpty)
+        XCTAssertEqual(ledger.receipts.count, 1)
+        XCTAssertEqual(receipt.recipeID, "rivals-tether")
+        XCTAssertEqual(receipt.characterIDs, ["zara-finch", "damien-nights"])
+        XCTAssertEqual(receipt.settingIDs, ["location-great-hall"])
+        XCTAssertEqual(receipt.tensionDelta, 2)
+        XCTAssertEqual(receipt.significance, .rupture)
+        XCTAssertEqual(receipt.chapterTalismanDeltas["chapter-candle"], 1)
+        XCTAssertEqual(receipt.worldEventTouches, ["dictionary-rebellion"])
+
+        let decoded = try JSONDecoder().decode(
+            StoryConsequenceLedger.self,
+            from: JSONEncoder().encode(ledger)
+        )
+        XCTAssertEqual(decoded, ledger)
+    }
+
+    func testAccumulatedFictionalPressureShapesLongGameAndOpensQuestionAtThreshold() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let first = moonshotReceipt(
+            id: "first-friction",
+            createdAt: now.addingTimeInterval(-86_400),
+            tension: 2,
+            significance: .turn
+        )
+        let second = moonshotReceipt(
+            id: "second-friction",
+            createdAt: now,
+            tension: 2,
+            significance: .turn
+        )
+        let ledger = StoryConsequenceLedger(receipts: [first, second])
+
+        XCTAssertGreaterThan(
+            ledger.longGameBoost(
+                recipeID: "rivals-tether",
+                preferredTags: ["rivalry"],
+                now: now
+            ),
+            0
+        )
+        XCTAssertGreaterThan(
+            ledger.longGameBoost(
+                recipeID: "shared-quiet",
+                preferredTags: ["care"],
+                now: now
+            ),
+            0
+        )
+        XCTAssertEqual(ledger.contestedQuestionSeed(from: [second])?.id, second.id)
+    }
+
+    func testCompiledFactCanBecomeMultiCharacterDisagreementWithoutBeingRewritten() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let receipt = moonshotReceipt(
+            id: "academy-argument",
+            createdAt: now,
+            tension: 3,
+            significance: .rupture
+        )
+
+        let question = try XCTUnwrap(ContestedQuestionEngine.opening(
+            consequence: receipt,
+            entities: NarrativePackRegistry.entities,
+            existing: [],
+            now: now
+        ))
+
+        XCTAssertGreaterThanOrEqual(question.positions.count, ContestedQuestion.minimumPositions)
+        XCTAssertTrue(question.positions.allSatisfy { $0.groundedInIDs == [receipt.id] })
+        XCTAssertEqual(question.aboutMovementIDs, [receipt.id])
+        XCTAssertTrue(question.question.contains(receipt.changedFact!))
+        XCTAssertTrue(question.bookPosition.lowercased().contains("guess"))
+    }
+
+    func testRadioCanVoiceARecentConsequenceInItsOwnStationGrammar() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let receipt = moonshotReceipt(
+            id: "radio-echo",
+            createdAt: now,
+            tension: 3,
+            significance: .rupture
+        )
+        let station = RadioStation(
+            id: "thornwave",
+            title: "Thornwave",
+            frequency: 91.3,
+            subtitle: "test",
+            hostEntityID: nil,
+            packID: nil,
+            unlockRule: "test",
+            moodTags: [],
+            signalLine: "test",
+            tracks: [],
+            interludeTitles: [],
+            effects: [],
+            banters: []
+        )
+        let state = RadioPlaybackState(
+            activeStationID: station.id,
+            startedAt: now,
+            lastTunedAt: now
+        )
+        let context = RadioWorldContext(
+            pageContext: RadioPageContext(storyConsequenceEchoes: [receipt])
+        )
+
+        let banter = try XCTUnwrap(RadioStationRegistry.nextBanter(
+            station: station,
+            state: state,
+            context: context,
+            now: now
+        ))
+
+        XCTAssertEqual(banter.id, "consequence-banter:\(receipt.id):thornwave")
+        XCTAssertEqual(banter.category, .gossip)
+        XCTAssertTrue(banter.caption.contains("Wicker"))
+        XCTAssertTrue(banter.caption.contains(receipt.changedFact!))
+    }
+
+    func testMonthlyAndAnnualBindingsRememberCompiledStoryTurns() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let consequenceDate = calendar.date(
+            from: DateComponents(year: 2026, month: 6, day: 12, hour: 18)
+        )!
+        let now = calendar.date(
+            from: DateComponents(year: 2026, month: 7, day: 12, hour: 12)
+        )!
+        let receipt = moonshotReceipt(
+            id: "edition-turn",
+            createdAt: consequenceDate,
+            tension: 3,
+            significance: .rupture
+        )
+
+        let monthly = MonthlyEditionBuilder.previousMonth(
+            from: [],
+            storyConsequences: [receipt],
+            now: now,
+            calendar: calendar
+        )
+        let annual = MonthlyEditionBuilder.annual(
+            2026,
+            from: [],
+            storyConsequences: [receipt],
+            now: now,
+            calendar: calendar
+        )
+
+        let monthlySection = try XCTUnwrap(
+            monthly.sections.first { $0.id == "fictional-consequences" }
+        )
+        XCTAssertEqual(monthlySection.items.first?.body, receipt.changedFact)
+        XCTAssertEqual(monthlySection.items.first?.sourceID, "fictional-consequence-compiler")
+        XCTAssertTrue(
+            annual.chapters.contains {
+                $0.sections.first(where: { $0.id == "fictional-consequences" })?.items.isEmpty == false
+            }
+        )
+    }
+
+    func testExplicitCompilerRelayCountsAsExactWorldEventTouch() throws {
+        let savedOwned = PackEntitlements.ownedPackIDs
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
+        PackEntitlements.ownedPackIDs.insert("dictionary-rebellion")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(
+            from: DateComponents(year: 2026, month: 9, day: 10, hour: 12)
+        )!
+        let receipt = moonshotReceipt(
+            id: "rebellion-touch",
+            createdAt: now,
+            tension: 2,
+            significance: .turn
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.storyConsequenceLedger = StoryConsequenceLedger(receipts: [receipt])
+
+        let event = try XCTUnwrap(
+            WorldEventResolver.activeEvents(
+                now: now,
+                inputs: inputs,
+                calendar: calendar
+            ).first { $0.id == "dictionary-rebellion" }
+        )
+
+        XCTAssertEqual(event.playerTouchCount, 1)
+        XCTAssertEqual(event.playerTouchCounts?[WorldEventTouchKind.storyChoiceMade.rawValue], 1)
+    }
+
+    private func moonshotReceipt(
+        id: String,
+        createdAt: Date,
+        tension: Int,
+        significance: StoryConsequenceSignificance
+    ) -> StoryConsequenceReceipt {
+        StoryConsequenceReceipt(
+            id: id,
+            sourcePageID: "page-\(id)",
+            sourcePageType: .narrativeOS,
+            createdAt: createdAt,
+            recipeID: "rivals-tether",
+            choiceID: "surprise",
+            bundleIDs: ["dramatic-outcome-v1"],
+            characterIDs: ["zara-finch", "damien-nights"],
+            settingIDs: ["location-great-hall"],
+            relationshipID: "zara-damien",
+            changedFact: "Damien admitted the quarrel was protecting Zara.",
+            memorySummary: "The Academy remembers what Damien admitted.",
+            eventTags: ["story-betrayal-remembered"],
+            radioHooks: ["old-promise"],
+            monthlyEditionLines: [],
+            worldEventTouches: ["dictionary-rebellion"],
+            chapterTalismanDeltas: ["chapter-candle": 1],
+            warmthDelta: 0,
+            tensionDelta: tension,
+            familiarityDelta: 1,
+            significance: significance
+        )
     }
 
     private func storyPage(input: String, tags: [String]) -> BookPage {

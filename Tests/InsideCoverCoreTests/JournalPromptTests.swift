@@ -99,6 +99,7 @@ final class JournalPromptTests: XCTestCase {
         XCTAssertEqual(surface?.payload.metadata["journalSemanticallyAware"], "true")
         XCTAssertNotNil(surface?.payload.metadata["journalPromptID"])
         XCTAssertNotNil(surface?.payload.metadata["journalDeeperQuestion"])
+        XCTAssertNotNil(surface?.payload.metadata["journalResponseInvitation"])
         XCTAssertEqual(surface?.payload.metadata["journalSelector"], "context-lexical")
         XCTAssertEqual(surface?.score, 70)
         XCTAssertGreaterThan(CuratorTimeAffinity.boost(for: .diary, at: now), 0)

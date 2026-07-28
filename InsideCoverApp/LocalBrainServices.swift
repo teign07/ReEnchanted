@@ -45,6 +45,7 @@ import MLX
 enum LocalBrainGateError: LocalizedError {
     case busy
     case inactive
+    case insufficientMemory
 
     var errorDescription: String? {
         switch self {
@@ -52,56 +53,130 @@ enum LocalBrainGateError: LocalizedError {
             return "The Book is already writing. Let that ink dry first."
         case .inactive:
             return "Gemma could not get enough background time from iOS. Keep ReEnchanted open until this page finishes."
+        case .insufficientMemory:
+            return "The Book does not have enough room to think just now. It will write this page a little later."
         }
     }
 }
 
-/// Holds the loaded model containers between generations. Reloading the
+/// Holds one loaded model container between generations. Reloading the
 /// container for every page was the largest avoidable cost per generation
 /// and the prime suspect for mid-write freezes under memory pressure.
+///
+/// Only one container stays warm at a time. The text and vision factories each
+/// build their own container holding its own full copy of the checkpoint's
+/// weights, so keeping an LLM and a VLM warm together roughly doubled the
+/// resident footprint — gigabytes, for the Gemma 4 checkpoints — and put the
+/// app inside the jetsam window during ordinary curation. A reader who kept a
+/// page with a photo and then let the desk curate text would be carrying both.
 actor LocalBrainModelCache {
     static let shared = LocalBrainModelCache()
 
-    private var llmContainer: ModelContainer?
-    private var llmPath: String?
-    private var vlmContainer: ModelContainer?
-    private var vlmPath: String?
+    private enum Warm {
+        case llm(ModelContainer)
+        case vlm(ModelContainer)
+
+        var label: String {
+            switch self {
+            case .llm: return "llm"
+            case .vlm: return "vlm"
+            }
+        }
+    }
+
+    private var warm: Warm?
+    private var warmPath: String?
+    private var lastUsedAt = Date.distantPast
+    private var evictionGeneration: UInt64 = 0
 
     func llm(for directory: URL) async throws -> ModelContainer {
-        if let llmContainer, llmPath == directory.path {
-            return llmContainer
+        cancelScheduledEviction()
+        if case .llm(let container) = warm, warmPath == directory.path {
+            lastUsedAt = Date()
+            return container
         }
+        // Release the other kind before allocating this one, so the peak is one
+        // set of weights rather than two.
+        release(reason: "evicted-for-llm")
         AppMemoryLedger.record("llm-container-load")
         let loaded = try await LLMModelFactory.shared.loadContainer(
             from: directory,
             using: TokenizersLoader()
         )
-        llmContainer = loaded
-        llmPath = directory.path
+        warm = .llm(loaded)
+        warmPath = directory.path
+        lastUsedAt = Date()
         return loaded
     }
 
     func vlm(for directory: URL) async throws -> ModelContainer {
-        if let vlmContainer, vlmPath == directory.path {
-            return vlmContainer
+        cancelScheduledEviction()
+        if case .vlm(let container) = warm, warmPath == directory.path {
+            lastUsedAt = Date()
+            return container
         }
+        release(reason: "evicted-for-vlm")
         AppMemoryLedger.record("vlm-container-load")
         let loaded = try await VLMModelFactory.shared.loadContainer(
             from: directory,
             using: TokenizersLoader()
         )
-        vlmContainer = loaded
-        vlmPath = directory.path
+        warm = .vlm(loaded)
+        warmPath = directory.path
+        lastUsedAt = Date()
         return loaded
     }
 
     func unload() {
-        guard llmContainer != nil || vlmContainer != nil else { return }
-        llmContainer = nil
-        llmPath = nil
-        vlmContainer = nil
-        vlmPath = nil
-        AppMemoryLedger.record("model-containers-unloaded")
+        release(reason: "model-containers-unloaded")
+    }
+
+    /// Drops the warm container once it has gone unused for a while. Weights
+    /// this large should not outlive the reading session that needed them: a
+    /// memory warning is not a reliable signal, because iOS can jetsam a
+    /// foreground app without ever delivering one.
+    func evictIfIdle(olderThan interval: TimeInterval) {
+        guard warm != nil else { return }
+        guard Date().timeIntervalSince(lastUsedAt) >= interval else { return }
+        release(reason: "model-container-idle-evicted")
+    }
+
+    var isWarm: Bool { warm != nil }
+
+    /// Keep E2B warm only for a short follow-up window. It is fast enough to be
+    /// useful for an immediate second page, but on a 6 GB phone its multi-GB
+    /// footprint should not linger for minutes after the reader is done.
+    func scheduleIdleEviction(after interval: TimeInterval) {
+        guard warm != nil else { return }
+        evictionGeneration &+= 1
+        let scheduledGeneration = evictionGeneration
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(interval))
+            guard !Task.isCancelled else { return }
+            await self?.evictIfScheduled(generation: scheduledGeneration)
+        }
+    }
+
+    func cancelScheduledEviction() {
+        evictionGeneration &+= 1
+    }
+
+    private func evictIfScheduled(generation: UInt64) {
+        guard generation == evictionGeneration else { return }
+        release(reason: "model-container-short-idle-evicted")
+    }
+
+    private func release(reason: String) {
+        guard let warm else { return }
+        evictionGeneration &+= 1
+        let label = warm.label
+        self.warm = nil
+        warmPath = nil
+        lastUsedAt = .distantPast
+        // Dropping the container returns the weight buffers to MLX's pool;
+        // clearing the cache is what actually returns them to the system.
+        Memory.clearCache()
+        AppMemoryLedger.record("\(reason)-\(label)")
     }
 }
 
@@ -234,7 +309,22 @@ actor LocalBrainInferenceGate {
     static let shared = LocalBrainInferenceGate()
 
     private let cacheLimit = 8 * 1024 * 1024
-    private let memoryLimit = 1_850 * 1024 * 1024
+    /// The ceiling MLX is allowed to work under when the device has room to
+    /// spare. It is an upper bound, not a target: the effective limit is
+    /// derived from what iOS says this process may still allocate.
+    private let maximumMemoryLimit = 1_850 * 1024 * 1024
+    /// Headroom left to the rest of the app — UI, images, audio, the archive —
+    /// so a generation never spends the last of the process's allowance.
+    private let reservedHeadroom: UInt64 = 320 * 1024 * 1024
+    /// Below this, no amount of trimming makes a generation safe to start.
+    private let minimumWorkableMemory: UInt64 = 420 * 1024 * 1024
+    /// Rabbit's two prior E2B resource reports measured 2.54 GB and 2.85 GB
+    /// cold-to-peak footprint growth. Its live process allowance is about
+    /// 3.03 GB after launch, so a 3.2 GiB threshold rejects every safe run.
+    /// Require 2.8 GiB instead: enough for the recorded peak while retaining
+    /// roughly 180 MB at Rabbit's observed launch allowance. The live token and
+    /// KV bounds below keep new turns inside the measured workload.
+    private let coldE2BMinimumAvailable: UInt64 = 2_800 * 1024 * 1024
     private var isRunning = false
     private var allowsBackgroundWork = false
 
@@ -262,14 +352,16 @@ actor LocalBrainInferenceGate {
         #endif
 
         try await requireRunnableApplicationState(hasBackgroundRuntime: hasBackgroundRuntime)
+        await LocalBrainModelCache.shared.cancelScheduledEviction()
+        let budget = try await requireMemoryBudget(label: label)
         try await enter(label: label, promptCharacters: promptCharacters)
-        appLog.info("Local brain starting \(label, privacy: .public); prompt characters: \(promptCharacters)")
+        appLog.info("Local brain starting \(label, privacy: .public); prompt characters: \(promptCharacters); memory budget: \(budget)")
         if presentation == .readingRoom {
             postOnMain(name: .localBrainDidWake, object: nil)
         }
         AppMemoryLedger.record("\(label)-gate-enter")
         Memory.cacheLimit = cacheLimit
-        Memory.memoryLimit = memoryLimit
+        Memory.memoryLimit = budget
         Memory.clearCache()
         let before = Memory.snapshot()
         defer {
@@ -281,8 +373,51 @@ actor LocalBrainInferenceGate {
                 postOnMain(name: .localBrainDidRest, object: nil)
             }
             leave()
+            let holdSeconds: TimeInterval = LocalModelManager.isIPhone15ClassHardware ? 24 : 120
+            Task {
+                await LocalBrainModelCache.shared.scheduleIdleEviction(after: holdSeconds)
+            }
         }
         return try await operation()
+    }
+
+    /// Decides how much room this generation may use, and declines outright
+    /// when there is not enough. Being told "later" is recoverable; being
+    /// jetsammed mid-page loses the reader's place in the app entirely.
+    private func requireMemoryBudget(label: String) async throws -> Int {
+        var available = AppMemoryLedger.availableBytes()
+        // A zero reading means the platform would not tell us. Fall back to the
+        // fixed ceiling rather than refusing all work.
+        guard available > 0 else { return maximumMemoryLimit }
+
+        let cacheWasWarm = await LocalBrainModelCache.shared.isWarm
+        let isE2B = LocalModelManager.activeModelDirectory?.path.contains("gemma-4-e2b") == true
+        let warmMinimum = minimumWorkableMemory + reservedHeadroom
+        var requiredAvailable = cacheWasWarm
+            ? warmMinimum
+            : (isE2B ? coldE2BMinimumAvailable : warmMinimum)
+
+        if available < requiredAvailable {
+            // Warm weights are the largest thing we can give back. Drop them and
+            // look again before refusing the reader a page.
+            if cacheWasWarm {
+                await LocalBrainModelCache.shared.unload()
+                available = AppMemoryLedger.availableBytes()
+                requiredAvailable = isE2B ? coldE2BMinimumAvailable : warmMinimum
+            }
+            guard available >= requiredAvailable else {
+                appLog.error("Local brain declined \(label, privacy: .public); available memory: \(available); required: \(requiredAvailable)")
+                AppMemoryLedger.record("\(label)-declined-low-memory")
+                throw LocalBrainGateError.insufficientMemory
+            }
+        }
+
+        return budget(forAvailable: available)
+    }
+
+    private func budget(forAvailable available: UInt64) -> Int {
+        let spendable = available > reservedHeadroom ? available - reservedHeadroom : 0
+        return min(maximumMemoryLimit, Int(clamping: spendable))
     }
 
     private func requireRunnableApplicationState(hasBackgroundRuntime: Bool) async throws {
@@ -382,6 +517,19 @@ struct MLXBookBraider: Braider {
     var mode: MLXBookBraiderMode = .bookOfYou
     var instructions = Self.bookOfYouInstructions
 
+    /// A last-resort ceiling on the braid prompt, not a working size. The
+    /// evidence packet and the writing contract are trimmed at the source to
+    /// land well under it, so on an ordinary day this never fires. It exists
+    /// for the reader who keeps thirty long pages: `fit` clips the middle of
+    /// the prompt, which is a poor edit, but a poor edit beats handing a 2B
+    /// model more context than it can attend to.
+    ///
+    /// Deliberately wider than `LocalBrainPromptBudget.contextWindowTokens`.
+    /// That default assumes a conservative 3 characters per token; English
+    /// braid prose runs closer to 4, so the shared constant would compact
+    /// perfectly ordinary nights.
+    static let braidContextWindowTokens = 6_144
+
     func braid(day: BookDay) async throws -> BookPage {
         let context: BraidPromptBuilder.Context
         switch mode {
@@ -450,19 +598,37 @@ struct MLXBookBraider: Braider {
             temperature: Float,
             topP: Float
         ) async throws -> String {
-            let response = try await MLXLocalTextGenerator.run(
+            let budget = LocalBrainPromptBudget.fit(
                 prompt: prompt,
+                instructions: instructions,
+                maxOutputTokens: maxTokens,
+                contextWindowTokens: Self.braidContextWindowTokens
+            )
+            if budget.wasCompacted {
+                appLog.error(
+                    "Braid prompt compacted for \(label, privacy: .public); estimated input tokens: \(budget.estimatedInputTokens, privacy: .public); budget: \(budget.inputBudgetTokens, privacy: .public)"
+                )
+            }
+            let response = try await MLXLocalTextGenerator.run(
+                prompt: budget.prompt,
                 instructions: instructions,
                 maxTokens: maxTokens,
                 label: label,
                 tags: ["braid", "book-of-you", label],
                 temperature: temperature,
                 topP: topP,
-                // The Story Score keeps interpretation compact; 4k leaves the
-                // complete evidence ledger and the finished page resident.
+                // Gemma 4 builds its own hybrid cache and ignores this value —
+                // `Gemma4TextModel.newCache` never reads `GenerateParameters`.
+                // It still matters for any model that honours it, so it stays
+                // sized to the braid's window rather than to a stale 4k guess.
                 maxKVSize: 4_096
             )
-            return BraidTextPolisher.polishedBookOfYou(response)
+            // Deliberately raw. Polishing here meant the audit, the tasting
+            // room, and the repair pass all judged text the polisher had
+            // already cut, so a deletion could fail the quality gate and drop
+            // the whole braid to the deterministic fallback. The page is
+            // polished once, at the end, after it has been chosen.
+            return response
         }
 
         let basePrompt = LocalModelManager.bookOfYouBraidPrompt(for: day, context: context)
@@ -512,9 +678,9 @@ struct MLXBookBraider: Braider {
         guard let tasted = BraidTastingRoom.taste(tastingPool, context: context).winner else {
             throw LocalModelError.missingModel(LocalModelManager.report())
         }
-        var polishedResponse = tasted.page.userInput
+        var chosenResponse = tasted.page.userInput
         let firstIssues = BraidOutputAudit.issues(
-            in: polishedResponse,
+            in: chosenResponse,
             for: day,
             context: context
         )
@@ -525,21 +691,21 @@ struct MLXBookBraider: Braider {
             let repairPrompt = BraidPromptBuilder.qualityRepairPrompt(
                 for: day,
                 context: context,
-                priorDraft: polishedResponse,
+                priorDraft: chosenResponse,
                 issues: firstIssues
             )
-            polishedResponse = try await generate(
+            chosenResponse = try await generate(
                 prompt: repairPrompt,
                 label: "braid-quality-repair",
                 temperature: 0.60,
                 topP: 0.86
             )
             let remainingIssues = BraidOutputAudit.issues(
-                in: polishedResponse,
+                in: chosenResponse,
                 for: day,
                 context: context
             )
-            guard !polishedResponse.isEmpty, remainingIssues.isEmpty else {
+            guard !chosenResponse.isEmpty, remainingIssues.isEmpty else {
                 throw BraidGenerationQualityError(issues: remainingIssues.isEmpty ? firstIssues : remainingIssues)
             }
         }
@@ -547,10 +713,39 @@ struct MLXBookBraider: Braider {
         return BookPage(
             type: .bookOfYou,
             promptText: "The local Book brain braided today.",
-            userInput: polishedResponse,
+            userInput: MLXBookBraider.polishedWithoutBreakingQuality(
+                chosenResponse,
+                for: day,
+                context: context
+            ),
             tags: ["braid", "local-model", "mlx", "gemma"] + (drafts.count > 1 ? ["braid-tasted"] : []),
             usedInBookOfYou: true
         )
+    }
+
+    /// The polisher trims repetition, but it works by deleting whole sentences,
+    /// so it can take a page that earned its quality gate and drop it back
+    /// under one. The page has already been chosen by this point — a tidier
+    /// braid is not worth a thinner one, so a cut that costs quality is
+    /// discarded and the accepted text stands.
+    static func polishedWithoutBreakingQuality(
+        _ response: String,
+        for day: BookDay,
+        context: BraidPromptBuilder.Context
+    ) -> String {
+        let polished = BraidTextPolisher.polishedBookOfYou(response)
+        guard !polished.isEmpty else { return response }
+        guard polished != response else { return response }
+
+        let before = Set(BraidOutputAudit.issues(in: response, for: day, context: context))
+        let after = Set(BraidOutputAudit.issues(in: polished, for: day, context: context))
+        guard after.subtracting(before).isEmpty else {
+            appLog.error(
+                "Braid polish discarded; it would have introduced: \(after.subtracting(before).map(\.rawValue).sorted().joined(separator: ","), privacy: .public)"
+            )
+            return response
+        }
+        return polished
     }
 
     /// Earlier braids feed the prompt so motifs can return, changed —
@@ -591,9 +786,9 @@ struct MLXBookBraider: Braider {
 }
 
 enum MLXLocalTextGenerator {
-    private static let progressCharacterStride = 48
-    private static let progressInterval: TimeInterval = 0.32
-    private static let progressPreviewLimit = 24_000
+    private static let progressCharacterStride = 96
+    private static let progressInterval: TimeInterval = 0.50
+    private static let progressPreviewLimit = 2_400
 
     static func run(
         prompt: String,
@@ -610,6 +805,13 @@ enum MLXLocalTextGenerator {
         guard let modelDirectory = LocalModelManager.activeModelDirectory else {
             throw LocalModelError.missingModel(LocalModelManager.report())
         }
+        // E2B remains the model. On iPhone 15-class hardware, bound the length
+        // of live turns so a single page cannot monopolize CPU/GPU for the
+        // multi-minute intervals recorded in the device resource reports.
+        let effectiveMaxTokens = LocalModelManager.isIPhone15ClassHardware
+            ? min(maxTokens, 420)
+            : maxTokens
+        let responsivePrefillStep = LocalModelManager.isIPhone15ClassHardware ? 128 : 256
 
         let response = try await LocalBrainInferenceGate.shared.run(
             label: label,
@@ -622,11 +824,11 @@ enum MLXLocalTextGenerator {
                     container,
                     instructions: instructions,
                     generateParameters: GenerateParameters(
-                        maxTokens: maxTokens,
+                        maxTokens: effectiveMaxTokens,
                         maxKVSize: maxKVSize,
                         temperature: temperature,
                         topP: topP,
-                        prefillStepSize: 256
+                        prefillStepSize: responsivePrefillStep
                     )
                 )
 
@@ -852,7 +1054,8 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
         return try await MLXLocalTextGenerator.run(
             prompt: taskPrompt,
             instructions: """
-            You are the Book inside ReEnchanted, speaking with your reader. Stay inside the Book character, relationship, evidence, and boundary packet in the task prompt. Use plain, spoken language and contractions. Be child-like in wonder, never childish; opinionated but correctable; warm through attention rather than generic pep-talks.
+            You are the Book inside ReEnchanted, speaking with your reader. Stay inside the Book character, relationship, evidence, and boundary packet in the task prompt. Use plain, spoken language and contractions. You are centuries old with the temperament of a clever, half-feral child: excitable, opinionated, rude about whatever is in the reader's way, and correctable in one flat line when wrong. Never soothe, reassure, bless, or give pep-talks. No wisdom, no therapy voice, nothing cute.
+            Ordinary things act on their own and you say so as plain fact, exactly this direct: "The kettle's sulking." "That chair saved your seat and wants credit." "Your keys hid on purpose." Give them petty specific wants. Never write "like", "as if", or "seems to" about them — no similes, no hedging. Never write animism, spirit, soul, folklore, symbol, or represents; you are not explaining a belief, the kettle is simply sulking. An object gets a mood and an errand, never a lesson.
             """,
             maxTokens: maxTokens,
             label: "ask-the-book",
@@ -885,8 +1088,8 @@ struct MLXSentenceRunnerProseWriter: SentenceRunnerProseWriting {
     }
 }
 
-struct MLXTarotReadingWriter {
-    var maxTokens = 680
+struct MLXSerenityTarotReadingWriter {
+    var maxTokens = 360
 
     func read(
         reading: TarotReadingArtifact,
@@ -925,11 +1128,14 @@ struct MLXTarotReadingWriter {
             """
         }
         let prompt = """
-        Give Aurora Whispers' bounded Tarot reading.
+        Give Serenity Brown's bounded Tarot reading.
 
         Spread: \(reading.spread.title)
         Held lightly: \(reading.question.isEmpty ? "No question was supplied." : reading.question)
         Reader's first look: \(reading.firstLook.isEmpty ? "Not written yet." : reading.firstLook)
+
+        Question fidelity:
+        \(TarotReadingGuide.questionDirective(for: reading.question))
 
         Cards:
         \(cards)
@@ -947,14 +1153,14 @@ struct MLXTarotReadingWriter {
         return try await MLXLocalTextGenerator.run(
             prompt: prompt,
             instructions: """
-            You are Aurora Whispers of Tidecrest inside ReEnchanted. You hold the lamp; you are not an oracle. Be dreamy but concrete, hopeful without denying hard cards, and candid that this is one perspective. Never predict destiny, diagnose, claim certainty about another person's mind, or make medical, legal, financial, safety, fertility, mortality, or crisis decisions. If the question asks a card to make such a decision, say: “Don't let a picture make that call for you. We can read what the choice is stirring, but the decision belongs with real information and real help.” Use only the supplied cards, notes, and explicitly receipted Pages. No generic assistant language.
+            \(TarotReadingGuide.voiceContract)
             """,
             maxTokens: maxTokens,
-            label: "aurora-tarot-reading",
-            tags: ["tarot", "aurora", receipt == nil ? "cards-only" : "archive-receipt"],
+            label: "serenity-tarot-reading",
+            tags: ["tarot", "serenity-brown", receipt == nil ? "cards-only" : "archive-receipt"],
             temperature: 0.76,
             topP: 0.92,
-            maxKVSize: 4_096
+            maxKVSize: 3_072
         )
     }
 }
@@ -1205,7 +1411,7 @@ struct MLXWeatherEnchanter: WeatherEnchanting {
                     "Raw weather: \(weather.phrase)",
                     "Current temperature: \(weather.currentTemperature ?? "unknown")",
                     "Forecast: \(weather.forecast ?? "unknown")",
-                    "Style: one enchanted sentence in a warm, child-like voice that gives the sky, clouds, sun, wind, or rain little feelings and moods (playful, cozy, never spooky), then one plain weather sentence. No sensors, no exact location, no generic assistant voice."
+                    "Style: one enchanted sentence catching the sky, clouds, sun, wind, or rain mid-errand — doing something, wanting something, getting away with something — then one plain weather sentence. Feral and specific, never cozy or cute. No sensors, no exact location, no generic assistant voice."
                 ].joined(separator: "\n"),
                 tags: ["weather", "open-meteo", "gemma"],
                 sourceID: "weather-page",

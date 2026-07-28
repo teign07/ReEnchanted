@@ -43,6 +43,8 @@ final class TarotTests: XCTestCase {
         let decoded = try JSONDecoder().decode(TarotReadingArtifact.self, from: data)
 
         XCTAssertEqual(decoded, reading)
+        XCTAssertEqual(decoded.readerID, "serenity-brown")
+        XCTAssertEqual(decoded.readerName, "Serenity Brown")
         XCTAssertTrue(decoded.archiveText.contains("The yellow sky."))
         XCTAssertFalse(decoded.revealProse?.values.first?.isEmpty ?? true)
     }
@@ -87,9 +89,23 @@ final class TarotTests: XCTestCase {
         let decoded = try decoder.decode(TarotReadingArtifact.self, from: Data(json.utf8))
 
         XCTAssertEqual(decoded.id, "old-reading")
+        XCTAssertNil(decoded.readerID)
+        XCTAssertNil(decoded.readerName)
         XCTAssertNil(decoded.auroraReading)
         XCTAssertNil(decoded.contextReceipt)
         XCTAssertNil(decoded.revealProse)
+    }
+
+    func testSerenityReadingContractKeepsHerVoiceAndTheExactQuestion() {
+        let question = "What will Jasper Beach hold for Amanda and I today?"
+        let directive = TarotReadingGuide.questionDirective(for: question)
+
+        XCTAssertEqual(TarotReadingGuide.readerID, "serenity-brown")
+        XCTAssertTrue(TarotReadingGuide.voiceContract.contains("joy is not a distraction"))
+        XCTAssertTrue(TarotReadingGuide.voiceContract.contains("name the real thorn plainly"))
+        XCTAssertTrue(directive.contains(question))
+        XCTAssertTrue(directive.contains("Every later passage must remain about that question"))
+        XCTAssertTrue(directive.contains("people, places, and concrete subject"))
     }
 
     func testSourceWaitsForARealArchiveAndOffersOneReadingEachCalendarDay() {

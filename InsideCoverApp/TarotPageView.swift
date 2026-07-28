@@ -5,12 +5,12 @@ struct TarotPageView: View {
     let isReadOnly: Bool
     let localBrainIsReady: Bool
     let isLocalBrainWorking: Bool
-    let onRequestAuroraReading: (TarotReadingArtifact, Bool) async -> TarotReadingArtifact
+    let onRequestSerenityReading: (TarotReadingArtifact, Bool) async -> TarotReadingArtifact
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var heldQuestion = ""
     @State private var revealedCount = 0
-    @State private var isAskingAurora = false
+    @State private var isAskingSerenity = false
     @State private var readingMessage = ""
     @State private var showContextReceipt = false
 
@@ -37,19 +37,40 @@ struct TarotPageView: View {
                 revealedCount = newReading.cards.count
             }
         }
+        // The app's surrounding chrome lives in Dark Mode, but Tarot is an
+        // ink-on-parchment ceremony. Give the whole ceremony an opaque paper
+        // field so unboxed headings and prompts never become dark-on-dark, and
+        // let native controls resolve their insertion point and placeholder as
+        // light-surface controls instead of inheriting the app-wide night mode.
+        .padding(18)
+        .foregroundStyle(BookPalette.ink)
+        .tint(BookPalette.violet)
+        .background(
+            BookPalette.page,
+            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(BookPalette.ink.opacity(0.18), lineWidth: 1)
+        }
+        .environment(\.colorScheme, .light)
         .accessibilityElement(children: .contain)
     }
 
     private var hostNote: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "sparkles")
-                .font(.headline)
-                .foregroundStyle(BookPalette.lampGold)
+            Image("LabyrinthCharacterSerenityBrown")
+                .resizable()
+                .scaledToFill()
                 .frame(width: 30, height: 30)
-                .background(BookPalette.violet.opacity(0.14), in: Circle())
+                .clipShape(Circle())
+                .overlay {
+                    Circle().stroke(BookPalette.violet.opacity(0.28), lineWidth: 1)
+                }
+                .accessibilityLabel("Serenity Brown")
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("AURORA HOLDS THE LAMP")
+                Text("SERENITY READS BESIDE YOU")
                     .font(.caption2.weight(.black))
                     .tracking(1.1)
                     .foregroundStyle(BookPalette.ink)
@@ -80,6 +101,7 @@ struct TarotPageView: View {
                     .foregroundStyle(BookPalette.ink)
                 TextField("A question, situation, or nothing at all", text: $heldQuestion, axis: .vertical)
                     .textFieldStyle(.plain)
+                    .foregroundStyle(BookPalette.ink)
                     .padding(13)
                     .background(BookPalette.paper.opacity(0.74), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay {
@@ -162,7 +184,7 @@ struct TarotPageView: View {
             }
 
             if revealedCount == artifact.cards.count {
-                auroraReadingSection(artifact)
+                serenityReadingSection(artifact)
                 readerNotes
 
                 if !isReadOnly {
@@ -260,13 +282,13 @@ struct TarotPageView: View {
     }
 
     @ViewBuilder
-    private func auroraReadingSection(_ artifact: TarotReadingArtifact) -> some View {
+    private func serenityReadingSection(_ artifact: TarotReadingArtifact) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let prose = artifact.auroraReading?.trimmingCharacters(in: .whitespacesAndNewlines),
+            if let prose = artifact.castReading?.trimmingCharacters(in: .whitespacesAndNewlines),
                !prose.isEmpty {
                 HStack(spacing: 8) {
                     Image(systemName: "moon.stars.fill")
-                    Text("AURORA READ BESIDE YOU")
+                    Text("SERENITY BROWN READ BESIDE YOU")
                         .font(.caption.weight(.black))
                         .tracking(1)
                 }
@@ -283,7 +305,7 @@ struct TarotPageView: View {
                         }
                     } label: {
                         Label(
-                            showContextReceipt ? "Hide what Aurora read" : "See what Aurora read",
+                            showContextReceipt ? "Hide what Serenity read" : "See what Serenity read",
                             systemImage: "point.3.connected.trianglepath.dotted"
                         )
                         .font(.caption.weight(.semibold))
@@ -296,28 +318,28 @@ struct TarotPageView: View {
                     }
                 }
             } else if !isReadOnly {
-                Text("Aurora can read only the cards, or—with your say-so—read beside a few recent Pages the Stacks finds connected.")
+                Text("Serenity can read only the cards, or—with your say-so—read beside a few recent Pages the Stacks finds connected.")
                     .font(.subheadline)
                     .foregroundStyle(BookPalette.ink.opacity(0.72))
 
                 Button {
-                    requestAuroraReading(includeArchive: false)
+                    requestSerenityReading(includeArchive: false)
                 } label: {
-                    auroraButtonLabel("Let Aurora read the cards", symbol: "moon.stars")
+                    serenityButtonLabel("Let Serenity read the cards", symbol: "map")
                 }
                 .buttonStyle(.plain)
-                .disabled(isAskingAurora || isLocalBrainWorking || !localBrainIsReady)
+                .disabled(isAskingSerenity || isLocalBrainWorking || !localBrainIsReady)
 
                 Button {
-                    requestAuroraReading(includeArchive: true)
+                    requestSerenityReading(includeArchive: true)
                 } label: {
-                    auroraButtonLabel("Read beside my recent Pages", symbol: "point.3.connected.trianglepath.dotted")
+                    serenityButtonLabel("Read beside my recent Pages", symbol: "point.3.connected.trianglepath.dotted")
                 }
                 .buttonStyle(.plain)
-                .disabled(isAskingAurora || isLocalBrainWorking || !localBrainIsReady)
+                .disabled(isAskingSerenity || isLocalBrainWorking || !localBrainIsReady)
 
                 if !localBrainIsReady {
-                    Text("Aurora needs the Book’s private mind installed for a full reading. The card notes above stay local and work without it.")
+                    Text("Serenity needs the Book’s private mind installed for a full reading. The card notes above stay local and work without it.")
                         .font(.caption)
                         .foregroundStyle(BookPalette.ink.opacity(0.64))
                 } else if !readingMessage.isEmpty {
@@ -335,9 +357,9 @@ struct TarotPageView: View {
         }
     }
 
-    private func auroraButtonLabel(_ title: String, symbol: String) -> some View {
+    private func serenityButtonLabel(_ title: String, symbol: String) -> some View {
         HStack(spacing: 10) {
-            if isAskingAurora {
+            if isAskingSerenity {
                 ProgressView()
                     .tint(BookPalette.paper)
             } else {
@@ -430,6 +452,7 @@ struct TarotPageView: View {
                 TextField(placeholder, text: text, axis: .vertical)
                     .lineLimit(2...6)
                     .textFieldStyle(.plain)
+                    .foregroundStyle(BookPalette.ink)
                     .padding(13)
                     .background(BookPalette.paper.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay {
@@ -485,21 +508,21 @@ struct TarotPageView: View {
         BookFeedback.play(.openPage)
     }
 
-    private func requestAuroraReading(includeArchive: Bool) {
-        guard let current = reading, !isAskingAurora else { return }
-        isAskingAurora = true
+    private func requestSerenityReading(includeArchive: Bool) {
+        guard let current = reading, !isAskingSerenity else { return }
+        isAskingSerenity = true
         readingMessage = includeArchive
             ? "The Stacks are finding the Pages that answer this spread…"
-            : "Aurora is looking at the cards together…"
+            : "Serenity is looking at the cards together…"
         Task {
-            let result = await onRequestAuroraReading(current, includeArchive)
+            let result = await onRequestSerenityReading(current, includeArchive)
             await MainActor.run {
                 reading = result
-                isAskingAurora = false
-                readingMessage = result.auroraReading?.isEmpty == false
+                isAskingSerenity = false
+                readingMessage = result.castReading?.isEmpty == false
                     ? ""
-                    : "Aurora couldn’t finish the reading. The cards and your notes are still here."
-                BookFeedback.play(result.auroraReading?.isEmpty == false ? .openPage : .error)
+                    : "Serenity couldn’t finish the reading. The cards and your notes are still here."
+                BookFeedback.play(result.castReading?.isEmpty == false ? .openPage : .error)
             }
         }
     }

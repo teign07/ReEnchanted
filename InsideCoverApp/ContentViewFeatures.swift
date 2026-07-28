@@ -1136,12 +1136,10 @@ extension ContentView {
         }
     }
 
+    /// Read straight from the vault rather than decoding the JSON string that
+    /// `electiveLedgerData` encodes from that same array on every access.
     var electives: [UnwrittenElective] {
-        guard let data = electiveLedgerData.data(using: .utf8),
-              let decoded = try? JSONDecoder().decode([UnwrittenElective].self, from: data) else {
-            return []
-        }
-        return decoded
+        vault.data.electives
     }
 
     // MARK: - The Book's inner life
@@ -1165,13 +1163,15 @@ extension ContentView {
         let beforeAliveness = aliveness
         aliveness.reconcile(longGame: updated.longGame, days: days, now: now)
         guard updated != base || aliveness != beforeAliveness || reconciledMoment != vault.data.magicMoment else { return }
-        if updated != base {
-            vault.data.bookInterior = updated
+        vault.mutate { draft in
+            if updated != base {
+                draft.bookInterior = updated
+            }
+            if aliveness != beforeAliveness {
+                draft.readerAliveness = aliveness
+            }
+            draft.magicMoment = reconciledMoment
         }
-        if aliveness != beforeAliveness {
-            vault.data.readerAliveness = aliveness
-        }
-        vault.data.magicMoment = reconciledMoment
         vault.save()
     }
 
@@ -1253,15 +1253,16 @@ extension ContentView {
 
         saveElectives(list)
         statusMessage = elective.bookFavorID == nil
-            ? "\(elective.characterName)'s note is resting. Nothing is owed."
-            : "The favor is resting. The Book will not make your no mean anything else."
+            ? "\(elective.characterName)'s note is back in the drawer. Nobody's keeping score."
+            : "Favor's shelved. A no is just a no here."
     }
 
     func refreshBookWhispers(cadence: BookWhisperCadence? = nil) {
+        let inputs = sourceInputs
         BookWhispers.refreshAll(context: .init(
             cadence: cadence ?? bookWhisperCadence,
             day: today,
-            inputs: sourceInputs,
+            inputs: inputs,
             electives: electives,
             people: vault.data.people ?? PeopleLedger(),
             calendarEvents: calendarEvents,
@@ -1269,7 +1270,7 @@ extension ContentView {
             whisperSovereign: whisperSovereign,
             eventWhisper: worldEventWhisperToday,
             festivalWhisper: festivalWhisperToday,
-            bookInterior: sourceInputs.bookInterior
+            bookInterior: inputs.bookInterior
         ))
     }
 
@@ -1696,6 +1697,7 @@ extension ContentView {
             storyRituals: vault.data.storyRituals,
             storySettingAffinities: vault.data.storySettingAffinities,
             storySceneBiases: vault.data.storySceneBiases,
+            storyConsequenceLedger: vault.data.storyConsequenceLedger,
             bookNoticeEvidence: vault.data.bookNoticeEvidence,
             magicMoment: vault.data.magicMoment,
             bookObservations: vault.data.bookObservations,
@@ -2122,6 +2124,7 @@ extension ContentView {
                 constellations: vault.data.constellations ?? [],
                 wagers: vault.data.wagers ?? [],
                 themes: vault.data.themes ?? [],
+                storyConsequences: vault.data.storyConsequenceLedger?.receipts ?? [],
                 readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
                 startDate: monthStart,
                 endDate: end,
@@ -2143,6 +2146,7 @@ extension ContentView {
                 constellations: vault.data.constellations ?? [],
                 wagers: vault.data.wagers ?? [],
                 themes: vault.data.themes ?? [],
+                storyConsequences: vault.data.storyConsequenceLedger?.receipts ?? [],
                 readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
                 now: now,
                 includePrivateWeatherSummary: includePrivateWeatherInMonthlyBinding,
@@ -3073,6 +3077,11 @@ extension ContentView {
                 }
                 vault.data.storySceneBiases = merged
             }
+            if let importedLedger = save.storyConsequenceLedger {
+                var merged = vault.data.storyConsequenceLedger ?? .empty
+                merged.merge(importedLedger.receipts)
+                vault.data.storyConsequenceLedger = merged
+            }
             if let importedEvidence = save.bookNoticeEvidence {
                 vault.data.bookNoticeEvidence = max(vault.data.bookNoticeEvidence ?? 0, importedEvidence)
             }
@@ -3339,7 +3348,7 @@ extension ContentView {
         }
         let day0 = days[dayIndex]
         guard !DistressSignals.evaluate(day: today).isActive else {
-            return "Not tonight. The Book is keeping the day gently and left the page as it is."
+            return "Not tonight. The page stays exactly as it is and the Book goes back to what it was doing."
         }
         let inputs = sourceInputs
         let context = LocalModelManager.braidContext(
@@ -5370,7 +5379,7 @@ struct BookwideMarginaliaAchievement {
         ),
         achievement(
             "chosen-quill", "Chosen in Return",
-            "You did not merely choose an instrument. One of them chose back.",
+            "You chose an instrument. One of them chose back.",
             "Complete the Pen Choosing and keep your chosen quill.",
             .chosenQuill,
             ["illumination_inkwell", "illumination_script_strip"],
@@ -5617,7 +5626,7 @@ private struct PagewrightMarginaliaAchievement {
             case .visualScrap:
                 return context.hasVisualScrap ? "visual scrap gathered" : "visual scrap still needed"
             case .exportedDraft:
-                return context.hasExport ? "artifact made" : "PDF or PNG still needed"
+                return context.hasExport ? "PDF or PNG made" : "PDF or PNG still needed"
             case .namedDraft:
                 return context.hasCustomTitle ? "page named" : "a true title still needed"
             case .editedPullQuote:
@@ -8824,7 +8833,7 @@ struct PagewrightSheet: View {
         case .polaroidScatter: return "The visible evidence."
         case .letterHome: return "For the person who would understand why this mattered."
         case .fieldNotes: return "Observed, compared, kept."
-        case .weeklyShrine: return "A week can be small and still be holy."
+        case .weeklyShrine: return "A small week, set out where you can see it."
         case .softChaos: return "No need to make it neater than it was."
         }
     }
@@ -9277,7 +9286,7 @@ enum PagewrightText {
 
     static func baseText(for page: BookPage) -> String {
         page.pagewrightDefaultScrapText
-            ?? (page.pagewrightVisualMediaAssets.isEmpty ? "A kept page." : "A kept page with \(page.pagewrightVisualMediaAssets.count) visual artifact\(page.pagewrightVisualMediaAssets.count == 1 ? "" : "s").")
+            ?? (page.pagewrightVisualMediaAssets.isEmpty ? "A kept page." : "A kept page with \(page.pagewrightVisualMediaAssets.count) picture\(page.pagewrightVisualMediaAssets.count == 1 ? "" : "s").")
     }
 
     static func clipped(_ base: String, limit: Int) -> String {

@@ -169,7 +169,7 @@ final class EarnedReaderTracePolicyTests: XCTestCase {
             trace.payload.metadata[BookSessionIntention.metadataRole],
             BookSessionRole.echo.rawValue
         )
-        XCTAssertTrue(trace.payload.body.contains("Nothing is required."))
+        XCTAssertTrue(trace.payload.body.contains("I'm not asking for anything"))
         XCTAssertLessThanOrEqual(desk.filter(\.isReaderFacingAsk).count, 1)
     }
 }

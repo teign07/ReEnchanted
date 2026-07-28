@@ -3662,6 +3662,34 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(resolution.replacementIDByRetiringID.isEmpty)
     }
 
+    func testRetiredDeskResolutionPreservesDeepQueuedDesk() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood),
+            deskCard(id: "desk-weather-s01", type: .weather),
+            deskCard(id: "desk-diary-s01", type: .diary),
+            deskCard(id: "desk-souvenir-s01", type: .souvenir),
+            deskCard(id: "desk-calendar-s01", type: .calendar),
+            deskCard(id: "desk-location-s01", type: .location),
+            deskCard(id: "desk-anchor-s01", type: .anchor)
+        ]
+        let replacement = deskCard(id: "desk-tarot-s01", type: .tarot)
+
+        let resolution = BookCurator.resolvingRetiredDeskSlots(
+            previous: shown,
+            retiringIDs: [shown[0].id],
+            rebuilt: [replacement],
+            additionallyBlockedKeys: shown[0].curatorDeskExclusionKeys,
+            limit: BookDeskRound.reserveCapacity
+        )
+
+        XCTAssertEqual(resolution.pages.count, BookDeskRound.reserveCapacity)
+        XCTAssertEqual(resolution.pages.first?.id, replacement.id)
+        XCTAssertEqual(Array(resolution.pages.dropFirst()).map(\.id), Array(shown.dropFirst()).map(\.id))
+        XCTAssertTrue(resolution.replacesAll([shown[0].id]))
+    }
+
     func testReaderRefreshReplacesTheWholeDeskAtOnce() {
         let shown = [
             deskCard(id: "desk-quip-s01", type: .quip),

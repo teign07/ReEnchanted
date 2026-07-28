@@ -100,15 +100,17 @@ narrative retaliation.
 ### What The Reader Actually Experiences
 
 The interface is intentionally much simpler than the architecture. The reader
-opens a Book and finds a small, finite desk of Pages. They may open one, keep
-it, let it wait, answer it, correct it, give or take Belief, follow a voluntary
-door, write something of their own, or close the Book. Later, something may
+opens a Book and finds a small desk window with three Pages rising at a time
+and an inexhaustible curated reserve behind them. They may open one, keep it,
+let it wait, answer it, correct it, give or take Belief, follow a voluntary
+door, write something of their own, keep swiping until something catches, or
+close the Book. Later, something may
 return because it genuinely has new meaning: a remembered Page, a character
 reaction, a changed relationship, a radio echo, a constellation, an edition,
 or one invitation back into the world.
 
 There is no recommendation dashboard, campaign manager, psychological profile,
-streak, punishment for absence, or bottomless feed. The reader does not select an
+streak, punishment for absence, or empty-state ending. The reader does not select an
 “emotional mode” or learn internal terms such as Door, Echo, Horizon, causal
 arm, strategy packet, or aliveness posterior. Each visit should simply feel as
 though this odd little Book chose a few things that belong to **this** day.
@@ -123,8 +125,8 @@ to do one of these well rather than demonstrating every system at once.
 ReEnchanted should be **addictive in the old sense of a beloved book, secret
 place, correspondence, or hobby**: the reader wants to return because something
 there matters, keeps changing, and has begun to feel partly theirs. It should
-not be addictive in the behavioral-product sense of anxiety, compulsion,
-interruption, or an endless unfinished feed. The target is **wanted return**—a
+not be addictive in the behavioral-product sense of anxiety, compulsion, or
+interruption. The target is **wanted return**—a
 durable mixture of anticipation, affection, curiosity, agency, consequence,
 collection, mastery, and genuine life enrichment.
 
@@ -141,11 +143,11 @@ Each step strengthens a different reason to care:
 | Loop beat | What the reader does | What makes it compelling | How ReEnchanted deepens the pull |
 | --- | --- | --- | --- |
 | **1. Return** | Opens the Book after some absence | Anticipation, familiarity, and the possibility that something changed | The returning greeting, cover state, weather, Radio, Cast business, world motion, and unfinished threads make the Book feel continuous without punishing the time away. Irregular earned surprises prevent the opening from becoming mechanical. |
-| **2. Discover** | Looks over a small new desk | Curiosity and variable discovery: “What did the Book find today?” | The Curator makes the desk specific to the present day, preserves novelty, protects occasional wildcards, and arranges one emotional movement. The desk is finite, so discovery has shape and stopping has dignity. |
+| **2. Discover** | Looks over a small new desk | Curiosity and variable discovery: “What did the Book find today?” | The Curator makes the desk specific to the present day, preserves novelty, protects occasional wildcards, and arranges one emotional movement. Only three Pages rise at once, while a deeper pre-curated reserve keeps the hunt alive for as long as the reader wants it. |
 | **3. Choose** | Opens one Page, follows a door, or lets it wait | Agency, taste, and the pleasure of being accurately tempted | Page Types and exact Pages are curated separately; Belief lets the reader lean future probability; tactile paper, sound, illustration, margins, and character voice make the choice feel like entering something rather than tapping a tile. |
 | **4. Participate** | Answers, writes, plays, decides, notices, goes, asks, makes, or refuses | Expression, mastery, challenge, and self-revelation through action | Native Page mechanics ask for a real choice with visible stakes. Story decisions change what characters trust, hide, admit, or remember. Real-life invitations stay small, reversible, and proof-bearing. Refusal is also a valid authored move. |
 | **5. Leave a mark** | Keeps, Loves, corrects, gives Belief, completes an exchange, or brings something back | Ownership, collection, authorship, and consequence | The action changes durable memory, relationships, Belief, the world field, the Book's own opinions or obligations, the archive, and sometimes the Radio or desk. The Book becomes increasingly *this reader's Book* rather than a resettable content service. |
-| **6. Go live** | Closes the Book and carries attention outward | Relief, freedom, real discovery, human contact, and a world that can answer unexpectedly | The finite desk ends. Compass runs, noticed details, people, places, questions, rituals, and playful missions create opportunities for reality to supply material the app could never generate. The strongest reward is allowed to happen off-screen. |
+| **6. Go live** | Closes the Book and carries attention outward | Relief, freedom, real discovery, human contact, and a world that can answer unexpectedly | The feed does not decide when the session is over; the reader does. Compass runs, noticed details, people, places, questions, rituals, and playful missions create opportunities for reality to supply material the app could never generate. The strongest reward is allowed to happen off-screen. |
 | **7. Meaningful return** | Encounters an old thing changed by time or consequence | Recognition, surprise, emotional continuity, and the satisfaction of a completed loop | Book Remembered, callbacks, character reactions, relationships, constellations, traditions, secrets, weekly/monthly bindings, Radio echoes, and the nightly braid return evidence with a reason it matters now. The return should reveal change, not merely repeat content. |
 | **8. Long belonging** | Accumulates a Book, world, cast, language, and history over months and years | Attachment, identity, ritual, collection, and the rare feeling of a work growing alongside a life | Pages become editions and volumes; places and relationships acquire history; the Book develops taste, faults, projects, traditions, and an autobiography of true shared events. Increasing quiet and rarity protect these rewards from becoming wallpaper. |
 
@@ -178,13 +180,13 @@ each must remain honest:
   only one the system is ultimately trying to increase.
 
 The anti-compulsion boundaries are part of the game design, not brakes applied
-afterward: no infinite scroll, no absence tax, no streak loss, no fake urgency,
-no escalating pressure after silence, no notification begging, no variable
-reward built from fear of missing out, and no Book that becomes wounded when
-the reader leaves. A finite desk, “That was the desk,” resting tactics,
-interruption budgets, declining frequency in mature Long Game phases, and
-station-native Radio all keep the world from collapsing into a slot machine
-about the reader.
+afterward: no absence tax, no streak loss, no fake urgency, no escalating
+pressure after silence, no notification begging, no variable reward built from
+fear of missing out, and no Book that becomes wounded when the reader leaves.
+Three visible Pages, stable card positions, exact-Page rest, interruption
+budgets, declining frequency in mature Long Game phases, and station-native
+Radio keep an inexhaustible play surface from collapsing into a slot machine
+about the reader. The feed may continue forever; pressure does not.
 
 The ideal result is a paradox: the Book becomes harder to abandon because it
 makes leaving it more rewarding. The reader returns not to relieve a discomfort
@@ -692,14 +694,19 @@ continuous living world:
 - **Journal parity:** Diary pages now draw from a broad, family-balanced prompt
   catalog, can select against real local page evidence, carry prompt provenance,
   offer one deeper question, and become gentler late at night.
-- **A finite nine-Page hunt:** `BookDeskRound` publishes up to nine logical slots
-  keyed by `deskSlotKey`, while Pages Rising shows only three at once. Passing a
-  card immediately reveals the next sleeping card, so the reader may hunt until
-  something catches. Opening one is the catch: the unseen remainder returns to
-  sleep, while the other already-visible cards may still be resolved. Nine
-  straight passes reach *"That was the desk."* and only an explicit **Rummage
-  deeper?** begins another hunt. No bottomless scroll, automatic session-length
-  goal, or invisible cooling after three misses.
+- **An inexhaustible curated desk:** `BookDeskRound` maintains nine logical
+  reserve slots keyed by `deskSlotKey`, while Pages Rising shows only three at
+  once. Opening one no longer discards the unseen reserve. Keeping or passing a
+  card replaces that exact slot from a 27-card prepared experimental score:
+  the visible Door / Echo / Horizon, a next act for Keep, a different next act
+  for dismissal, and adaptive reserve behind both. Context-stale acts are never
+  published. The bench replenishes locally in the background, and an authored
+  rotating evergreen play cupboard deeper than the tracked reserve is the
+  last-resort fallback if every ordinary candidate is temporarily unavailable. The cupboard mints a
+  fresh local occurrence as the dismissal ledger advances, so it cannot itself
+  run dry. One swipe rests the exact Page, not its entire type
+  or source. There is no *"That was the desk"* boundary: if the reader keeps
+  swiping, another Page always rises.
 - **The Enchanted Snack first beat:** `EnchantedSnackFirstBeat` classifies which
   Pages are prose-first and gives only those one compact single-line action above
   the longer text — one word is enough, never auto-focused, optional, submit
@@ -1701,6 +1708,217 @@ actual details. Every eligible exact Page retains a nonzero ordinary path unless
 a hard gate removes it; high Belief makes a Page more likely, never compulsory,
 and low Belief never makes it impossible.
 
+### The Page Capability Contract: What This Exact Page Can Honestly Do
+
+Page Type is too coarse to conduct a life. A Wonder Compass quotation, a
+one-sentence noticing practice, a full Compass run, and a field mission are all
+`wonderCompass`, but they do not ask for the same time, energy, movement,
+openness, or real-world conditions. The Curator therefore gives every concrete
+`SurfacePage` a private, versioned `PageCapabilityContract` before it can become
+part of the experimental score.
+
+The contract describes:
+
+| Capability | What it lets the Curator know |
+| --- | --- |
+| supported movements and session roles | Which re-enchantment movement and Door / Echo / Horizon job this exact Page can serve well |
+| emotional functions | Whether its likely work is to soothe, help notice, create wonder, play, connect, express, remember, or act |
+| effort and estimated minutes | Whether this is a glance, a small participation, or an involved undertaking, and whether it fits the available window |
+| reach, mobility, and cost | Whether it stays inside the Book, reaches into the nearby world, or needs planning; whether it assumes movement or optional spending |
+| reader ask and pressure cost | How much participation or vulnerability it requests, so the desk and causal experiment do not stack demands |
+| proof modes | What honest evidence it could yield: a response, observation, photograph, voice, place, or person—not a claim that the result already happened |
+| requirements | The rare prerequisites without which the Page would be false or unusable: live weather, coarse place, a nearby place or Anchor, an open calendar window, or a current capacity reading that does not contradict the demand |
+
+Only genuine requirements are eligibility gates. Everything else is a **soft
+probability pressure**. A low-capacity pulse can make a one-minute glance much
+more likely than a 25-minute expedition, but the expedition retains a nonzero
+path if it is still possible. Explicit “keep wonder indoors,” mobility, time,
+and spending boundaries exert stronger pressure. Distress favors low-pressure
+soothing Pages. Belief remains a separate reader-controlled influence and can
+never overrule a missing prerequisite, consent boundary, source disable, care
+gate, or safety rule.
+
+This is migration-safe. Existing adapters automatically receive conservative
+capabilities inferred from their actual Page metadata, copy shape, intent, and
+legacy action markers; they do not vanish while the catalog is being authored.
+Adapters can then replace that inference with precise contracts one family at
+a time. Authored coverage now includes the principal shapes the Curator must
+distinguish most precisely:
+
+| Page family | Exact-Page distinctions now visible to the Curator |
+| --- | --- |
+| Wonder Compass | A selected passage is a one-minute inside-the-Book glance; North, East, South, West, and Center carry distinct effort, reach, pressure, and proof; a full run is planned fieldwork; and a playful mission is nearby-world action with observable proof. |
+| Story | Lane, recipe, and mechanic distinguish quick playful fiction from a more involved scene while keeping fictional participation separate from evidence that life outside the Book changed. |
+| Diary | Prompt family distinguishes wonder, authorship, listening, moment, memory, and late-night shelter, including their different emotional work and vulnerability pressure. |
+| Radio | Ordinary tuning is a nearly pressureless glance; a dedication may also serve connection or remembrance without pretending that listening is fieldwork. |
+| Book Jump | Starting, advancing, stabilizing, and returning from a fictional jump carry different participation and pressure while remaining inside the Book. |
+| Electives and the Flyleaf | A quest offer is planned-world action; the Flyleaf itself is only a low-pressure glance at threads the reader already chose. |
+| Enchantment, Wicker Dares, Pact Errands, and Anchors | These Pages declare their actual nearby-world reach, action pressure, possible evidence, and—in the case of a live Anchor—the genuine proximity prerequisite. The dormant Location adapter is already authored for its eventual activation without silently turning the source on. |
+
+Thus exact Pages inside one type now compete as genuinely different
+possibilities, not interchangeable pieces of prose. The distinction is also
+epistemic: a Story choice can be emotionally consequential fiction, while a
+Wicker Dare can create an observable lived event; neither is allowed to borrow
+the other's proof.
+
+The selected contract is stamped into private Page metadata together with a
+deterministic signature. Candidate diagnostics report whether its requirements
+were met and the multiplier its capabilities contributed. Causal receipts use
+the exact contract's pressure cost, and prepared Keep / dismissal branches read
+its emotional and pressure profile. Pages injected by earned obligations,
+rituals, or sovereign systems still pass capability requirements and are
+stamped before publication. None of these terms appear in the interface. The
+reader merely feels that the Book asked for the right-sized thing at the right
+moment.
+
+### The Universal Lived-Encounter Contract: What May Count As Life
+
+Capability says what a Page **can ask**. The versioned
+`LivedEncounterContract` says what the Book may honestly conclude afterward.
+Every exact Page selected by the Curator receives one, including Pages that
+never leave the interface. This makes the real-life / fiction boundary a
+universal law rather than a convention remembered by a few quest adapters.
+
+Each contract resolves the Page into one of four crossings:
+
+| Mode | Honest meaning |
+| --- | --- |
+| `contained` | The experience completes inside the Book. A Story choice, game, or Diary answer may matter, but is not evidence that ordinary life changed. |
+| `witness` | The Page can direct attention toward a real condition without asking the reader to perform or report anything. The Book may have offered a lens; it may not claim a lived result. |
+| `invitation` | The Page gently offers an outward action and names which kinds of returned evidence it may recognize. |
+| `commission` | The Page explicitly asks for outward action, spends the Curator's scarce action budget, and names the same evidence boundary. |
+
+The contract carries a stable encounter identity, the exact invitation, the
+return prompt, allowed proof modes, the Long Game facets the encounter might
+practice, the source capability signature, and the earliest time at which a
+follow-up could be honest. That time is a lower bound, not a promise to
+interrupt: the later Attention Governor may wait longer or remain silent.
+
+The crucial distinction is **authorization versus evidence**. An invitation or
+commission can authorize a lived receipt, but cannot create one. Opening,
+keeping, dismissing, proximity, a generated description, a decorative image,
+or an in-Book response never proves an encounter happened. The reader must
+return an allowed form: their own specific observation/place/person
+attestation, an explicitly captured proof photograph, or an explicitly kept
+proof voice recording. A response-only Page cannot launder interface activity
+into lived evidence. A Page with no returned evidence creates no receipt at
+all.
+
+Existing quest families continue to decode through the migration-safe
+`LivedQuestReceipt` container. The new `.livedEncounter` kind lets any outward
+Page—not only a Playful Mission, Wicker Dare, Compass run, Academy practice,
+Pact errand, Fae exchange, Working, campaign, or elective—use that same bridge.
+The receipt preserves the exact contract signature and returned evidence
+modes, then flows through the existing archive, Book Remembered, Long Game,
+Bleed, and longitudinal measurement paths. Voice-only evidence now counts
+without pretending it was written or visual. Old receipts decode without the
+new optional fields.
+
+Thus the Book may arrange a possible alive moment, notice that the reader
+brought something real back, and learn cautiously from the result. It may never
+award itself the moment merely because its Page was consumed.
+
+### The Curator Observatory: One Inspectable Causal Chain
+
+The Curator is intentionally invisible to the reader, but it must not be
+invisible to its builders. `CuratorObservatory` is the private, local audit
+surface that answers one complete question:
+
+> What did the Book believe might help, what exact Page did it actually show,
+> what evidence came back from life, and what—if anything—changed in the model?
+
+It is a **projection of the real system**, not a parallel analytics pipeline.
+`BookCurator.candidatePool` now exposes the exact privacy-filtered opportunity
+set production curation ranks. The Observatory joins that set to the existing
+`CuratorCandidateTrace`, committed Page metadata, `PageCapabilityContract`,
+`LivedEncounterContract`, prepared-score role and branch, causal assignment
+receipt, `CausalCurationLedger`, `ReaderReenchantmentMeasure`, and active Night
+Gardener / Long Game strategy.
+
+| Observatory layer | What can be inspected |
+| --- | --- |
+| Opportunity set | Total and eligible candidates, hard-gate/rest reasons, Page Type, source, lane, score, Belief and capability multipliers, novelty, and intended role |
+| Committed exposure | The exact Page that reached the visible desk, its movement, Door / Echo / Horizon role, prepared act and branch, lived-encounter mode, pressure/capability signature, causal opportunity ID, assignment probability, and eligible-alternative count |
+| Returned outcome | Whether the opportunity is still awaiting evidence, produced only in-Book interaction, earned qualified lived support, produced counter-evidence, or has honest mixed evidence |
+| Model effect | Treatment/control counts, estimated uplift and conservative bounds, exact-context use, and the multiplier production ranking actually applied |
+| Long horizon | Current Re-enchantment direction and confidence, measured days, lived proofs, counter-signals, causal outcomes, evidence-stream count, and the active strategy's ID, status, tactic, movement, evidence count, and packet signature |
+
+The outcome states enforce the Book's evidence hierarchy. **Opened**, **chosen**,
+and similar events remain `interactionOnly`: useful for continuity and
+experience direction, but never lived success. A qualified decline or
+contradiction becomes `counterEvidence`. Qualified real-world support becomes
+`livedSupport`. If both happened, the Observatory says `mixed` rather than
+discarding whichever fact is inconvenient. An exposed Page with no causal
+receipt is `notCausal`; a real assignment with no qualified return remains
+`awaitingEvidence`.
+
+The snapshot is deliberately bounded and prose-free. It keeps at most 96
+candidate rows and 12 committed exposures while retaining full aggregate
+counts. It contains identifiers, enums, dates, counts, non-reversible context
+hashes, contract signatures, probabilities, and bounded effects—never Page
+copy, reader prose, raw state-poll answers, coordinates, place names, Calendar
+titles, or media. It is rebuilt on demand inside the existing local Lab Panel;
+it is not persisted, exported, or presented to the reader as a scorecard.
+
+The Observatory therefore improves rigor without changing the product's
+attention direction. The user still encounters a strange little Book and a few
+timely Pages. The machinery exists so the builders can catch false eligibility,
+unearned causal claims, buried counter-evidence, accidental pressure, stale
+strategies, and models that say they learned something without the comparison
+needed to know it.
+
+### The Prepared Experimental Score: Endless Without Becoming Random
+
+The endless desk is not an endless sequence of unrelated recommendations. One
+Curator pass prepares a **score of experimental acts** around the current
+`BookSessionIntention`. Act zero is the visible Door / Echo / Horizon trio. Act
+one is the Book's best prepared continuation if the reader Keeps or acts. Act
+two is the gentler, lower-pressure answer to a clean dismissal. Later acts are
+adaptive reserve. Branching changes role, pressure, and dramatic function while
+remaining inside the next honest high-ranked frontier; it cannot smuggle an
+otherwise weak Page past the whole Curator bench.
+
+Each prepared Page carries only private coordination metadata: experiment ID,
+act number, branch, session role, intention, and a bounded context fingerprint.
+That fingerprint summarizes the curation-relevant situation—time band, weather,
+calendar load, optional place class, reader-state bands, and similar local
+facets—rather than storing raw prose, coordinates, or calendar titles. A Page is
+publishable only while both its intention and fingerprint are current. If the
+day materially changes, the old reserve is stale and a lightweight local pass
+authors the next score.
+
+Keeping, acting, or dismissing one Page therefore does not trigger a visible
+wait. `preparedReplacementOrder` selects the matching in-memory branch and
+fills the exact vacated slot atomically. When the fresh same-intention reserve
+falls below its low-water mark, the app composes a deeper bench off the main
+actor and merges it without changing the three Pages already on the desk. The
+interface remains a single effortless swipe even though the Book is responding
+to the meaning of that swipe.
+
+A swipe is navigation before it is judgment. The first dismissal of a score's
+Door sleeps that exact Page and immediately selects the prepared gentler
+`afterDismissal` act: “not this doorway” does not mean “not this possibility.”
+It is recorded for continuity but explicitly forbidden from teaching taste,
+Belief, aliveness, or causal success. If the reader then dismisses a **second
+distinct Door from the same score**, the complete score rests for the ordinary
+90-minute dismissal window and the lightweight Curator composes another
+movement. Repeated refusals still do not become durable dislike; only explicit
+reader controls, Belief changes, corrections, or stronger later evidence earn
+that authority.
+
+While a score sleeps, every Page already prepared under its intention remains
+ineligible, even if it would be the fastest replacement. If no different
+movement is immediately honest, the evergreen play cupboard keeps the desk
+alive, but those Pages are marked neutral: they carry no causal receipt and are
+forbidden from teaching taste or claiming that the sleeping experiment worked.
+
+Prepared causal receipts are **dormant assignments**, not impressions. Merely
+sitting in the hidden bench teaches nothing. A receipt becomes a real curation
+opportunity only when that exact Page reaches the visible desk and the normal
+`.surfaced` event is recorded. This lets the Book prepare quickly without
+manufacturing exposure, success, or causal evidence from work the reader never
+saw.
+
 The engine also has an explicit division of labor. Deterministic policy handles
 availability, constraints, curation, receipts, pacing, and a conservative
 Night Gardener understudy. A fresh local Gemma Council may supply a stronger
@@ -1708,6 +1926,90 @@ strategic interpretation only when it clears the same evidence validator; it
 does not get to bypass the Curator or make the Book dependent on a nightly model
 run. Generated prose is expression at the edge of this system, not the system's
 memory, authority, or proof.
+
+### The Live Opportunity Interrupt Planner: Let Reality Amend The Score
+
+A prepared score should normally remain stable, but reality sometimes produces
+a short-lived opening that could not exist when the score was composed. The
+`BookLiveOpportunityPlanner` lets the **existing** `BookSessionDirector` amend
+its intention in those rare moments. It does not create another feed, director,
+campaign system, or notification channel. It asks one narrow question: *Did the
+reader's present circumstances change enough that one exact, already-authored
+Page is unusually honest and timely now?*
+
+The Director stores a bounded origin snapshot with each intention and compares
+it with the current snapshot whenever the existing local Curator rebuilds. The
+snapshot contains only curation facts: a nearby Anchor identifier, whether a
+nearby-place possibility exists, coarse place class, salient weather tags,
+calendar occupancy and minutes to the next event, a coarse capacity band, and
+whether shelter is active. It contains no coordinates, route history, calendar
+titles, raw pulse answers, or reader prose. This layer therefore gains no reason
+to poll GPS continuously; it consumes the app's existing battery-conscious
+context refreshes and can act only on information the reader has already
+permitted.
+
+`BookContextWakePlanner` now supplies the missing orchestration while the Book
+is active. It chooses the next real boundary rather than running a generic
+polling loop: an approaching Calendar hinge, an event beginning or ending, a
+reader-state pulse expiring, the current session intention expiring, midnight,
+or the next sensor reading allowed by `RealWorldContextRefreshPolicy`. All but
+the last are cheap local Curator rebuilds. Only a sensor wake may ask Core
+Location for one fix, and it still waits for an idle desk, rechecks consent and
+freshness after waking, reuses a recent system-owned fix where possible, and
+obeys the fifteen-minute failure backoff. A long foreground reading session can
+therefore receive a second genuinely due context reading; the old one-per-active
+session latch no longer leaves the Book stale indefinitely.
+
+This clock is foreground-honest. If iOS suspends the app, it makes no promise to
+wake at an exact minute; foreground return immediately reloads Calendar state,
+re-evaluates the adaptive budget, and lets expired hinges fall away. Background
+notifications remain a separate scarce contract and are never minted merely
+because the local context clock noticed something.
+
+The first supported transitions are deliberately concrete:
+
+| Live hinge | What actually changed | What an eligible exact Page must be able to do |
+| --- | --- | --- |
+| Shelter needed | Distress appeared or stated capacity fell into the lowest band | Soothe with low effort and low pressure; the old score yields instead of insisting |
+| Nearby Anchor arrived | A specific Outer Stacks Anchor newly entered reach | Use that Anchor or declare the genuine nearby-Anchor requirement |
+| Weather turned | A salient perceivable feature such as storm, rain, snow, fog, wind, bright sky, heat, or cold appeared | Read live weather, today's sky, or an exact weather-grounded noticing possibility |
+| Place opened | Nearby-world possibility became available or the coarse place context changed | Honestly use a nearby place, Anchor, or nearby-world reach |
+| Calendar window opened | A busy or nearly closed interval became a genuinely open patch | Offer one finite undertaking that fits with margin before the next event |
+| Capacity opened | A low-capacity state became a wide-capacity one | Offer a larger involved or planned possibility that was previously ill-timed |
+
+This is an **exact-Page nomination**, not a Page-Type boost. The planner first
+reuses all ordinary Curator eligibility checks—permissions, source gates,
+readiness, hard boundaries, distress, requirements, and pressure—then chooses
+one fitting `SurfacePage` by capability, authored specificity, proof potential,
+pressure, and Belief. Belief changes probability only among eligible Pages. It
+cannot make an impossible expedition fit a short calendar window or let a Page
+without the required place signal pretend it knows where the reader is.
+
+Every nomination is short-lived: roughly thirty minutes for shelter, forty-five
+for a passing Anchor, seventy-five for weather, ninety for a place or calendar
+opening, and two hours for newly available capacity. A revelation is never
+interrupted. A strategic Long Game intervention is also sovereign. One live
+opportunity may replace another only when the new hinge has strictly higher
+priority, so a sudden need for shelter can silence an outing but a pleasant
+weather turn cannot displace an active Anchor encounter.
+
+If the three-Page desk is wholly untouched, the nominated Page may rise to its
+front immediately while preserving First Door ceremony, earned milestones,
+Book of You promises, and the one-action/one-ask pressure limits. Once the reader
+has touched the desk, its positions do not reshuffle under their hand. The new
+Page instead waits at the front of the already-prepared bench and takes the next
+natural vacancy. If every visible Page is protected, even timeliness waits. The
+reader experiences only that the Book happened to find the right Page while the
+moment was still alive.
+
+An interrupt is not evidence that anything worked. Because its exact Page was
+inserted deterministically rather than drawn from the randomized candidate
+race, any causal-curation receipt acquired during ordinary ranking is stripped
+before publication. Only what the reader later does, says, keeps, corrects, or
+brings back can become normal preference, memory, or lived-outcome evidence.
+The planner creates no extra notification entitlement: any future external
+summons must still compete for the fixed morning/evening
+`BookInterruptionBudget`, while live Anchors remain in-app by default.
 
 ### The Experience Conductor: One Session Beyond The Desk
 
@@ -1836,6 +2138,11 @@ Key pieces:
   probability behind ordinary Curator choices, then estimates whether a
   movement or Page source produced more qualified aliveness than its eligible
   alternatives did for this reader.
+- `CuratorObservatory` - projects the production candidate set, exact visible
+  Pages, capability and lived-encounter contracts, causal receipts and effects,
+  counter-evidence, North Star reading, and active strategy into one bounded,
+  local, prose-free audit. It is an internal truth surface, not a reader
+  dashboard or a second learning system.
 - `CuratorVarietyGovernor` - source fatigue, disabled sources, probabilistic
   Belief influence, and source preference effects.
 - `RutInterventionPolicy` - assumes ordinary life begins with some Routine
@@ -1903,6 +2210,14 @@ weather, or changeable weather can shorten that to thirty–forty-five minutes.
 Rapid app switching never wakes location again, and failed attempts back off for
 fifteen minutes instead of retrying in a loop or going stale for six hours.
 
+An active `BookContextWakePlanner` schedules the next reconsideration from exact
+boundaries instead of polling. Calendar edges, expiring state pulses, session
+expiry, and midnight refresh only the local prepared score; sensor freshness is
+the sole wake allowed to reach the one-shot location reader. The scheduler
+restarts when Calendar or persisted context timing changes and cancels when the
+Book leaves the foreground. It does not claim that iOS will deliver an exact
+background wake.
+
 The policy remains event-driven rather than continuous tracking. A recent
 system-owned Core Location fix can satisfy the reading without waking GPS, and
 one accepted coordinate is reused for weather, coarse locality, nearby-place
@@ -1941,6 +2256,41 @@ minutes,” or “free by default” strongly favor Pages that honestly fit and 
 against mismatched invitations. Lighter taste answers—sound, color, jokes,
 strange facts, weather, a beautiful place—only nudge the desk, preserving
 exploration and surprise. Arbitrary free text is not silently psychologized.
+
+**Causal cold start is an explicit evidence hierarchy, not a personality
+quiz.** The First Door's answers about where Routine gets in, where the reader
+feels most alive, and what genuinely feels magical now enter
+`ReaderDeclaredCurationProfile` as soft, revisable priors. They can tip early
+Page-Type and exact-Page races toward making, outside life, people, movement,
+learning, solitude, service, story, weather, charged places, coincidences,
+details, laughter, imagination, or love. They cannot count as proof that any of
+those interventions worked. Access, cost, movement, leaving-home, and other
+reader-stated boundaries remain stronger than taste; current state expires like
+weather; opening, keeping, or dismissing is weak interaction evidence; delayed
+lived outcomes and repeated qualified receipts are the evidence that can
+eventually make the Curator evidence-led.
+
+During this opening period, `SelfKnowledgePackRegistry` no longer advances only
+by catalog priority. It values unanswered curation questions by whether the
+answer could change a real choice under the present coarse weather, place,
+Calendar, capacity, and First Door context. A reader who named wild weather
+while a storm is present may therefore be asked what weather makes them more
+themselves; someone who named outside movement may be asked how the Book should
+treat leaving home or physical invitations. At most one such
+Curator-learning question may be answered per lived day. It still competes as
+an optional About You Page, and the original pre-onboarding Rut conversation
+continues in authored order. The private `CuratorObservatory` reports whether
+the system is unseeded, seeded, testing, or evidence-led; it keeps onboarding
+priors, boundaries, live-state dimensions, missing high-value questions, and
+qualified causal outcomes visibly separate.
+
+Weather can also become a shared occasion rather than a data point. When the
+actual context contains a storm, thunder, snow, or fog, matching Weather, Sky,
+Compass, Enchantment, Radio, Souvenir, and place-aware Pages receive a bounded
+lift. If the reader already named wild weather or a matching favorite weather,
+the exact fit becomes stronger. The Book may come to the window and celebrate
+what is happening without making ordinary clear weather deficient, claiming
+that snow is the first of the year without history, or gating unrelated Pages.
 
 When a fresh one-shot location falls outside every reader-named place, the Book
 may occasionally raise a consentful You Page: **A Familiar Place?** The reader
@@ -3065,6 +3415,128 @@ first local-model draft misses the contract, `MLXStoryPageWriter` retries once
 with the failed requirements and keeps the better-scoring usable draft; deterministic
 recipe fallbacks remain available when neither response parses.
 
+#### The Fictional Consequence Compiler
+
+The Story Recipe is the dramatic author; the **Fictional Consequence Compiler**
+is the continuity transaction beneath it. It does not decide what scene should
+happen next and it does not write prose. When the reader keeps a selected Story
+turn, it takes the fixed recipe identity, chosen path, dramatic outcome receipt,
+closed alternatives, cast, thread, and setting and compiles them into bounded
+state changes the rest of the Book can read.
+
+That separation is important:
+
+- the **Recipe and dramatic contract** decide who wants what, what they are
+  wrong or frightened about, who must react, and what becomes true;
+- the **Compiler** verifies the authored consequence, records the transaction,
+  and applies relationship, memory, story-pressure, ritual, setting, Grey, Fae,
+  Belief, motif, and event changes;
+- the **story field, Curator, cast systems, Gossip, Letters, Radio, editions,
+  world events, and later generators** decide when and how those facts return.
+
+Every enabled Story Recipe now has a universal compiler floor. The kept Page's
+`story-recipe:<id>` identity creates a `recipe-continuity:<id>` consequence even
+when no bespoke prose/tag bundle matches. Each turn increments a durable
+`story-recipe-turn:<id>` register; scenes with two characters increment a
+pair-specific encounter register; scenes in a known Labyrinth location increase
+that setting's affinity. A recipe can therefore never produce beautiful prose
+and then vanish merely because an optional consequence pack omitted it.
+
+The exact dramatic receipt adds the human consequence. Both sides can acquire
+addressed memories; their pairwise warmth, tension, and familiarity move; the
+relationship and involved entities gain narrative weight; and the changed fact
+becomes an event tag. Increased tension leans future selection toward Concrete
+Disagreement. Repair or new warmth leans toward Shared Quiet. An explicit
+refusal or betrayal writes higher-weight memories, adds a pair rupture register,
+changes the actual relationship tie, and leans toward The Rival's Tether. These
+are pressures, not immediate sequels: cooldowns, context, Belief, Curator
+fitness, exploration, and the rest of the world still decide whether the return
+happens tomorrow, in six weeks, or not at all.
+
+This is the substrate for multi-character disagreements and month-scale
+buildups. The compiler does not store a predetermined season of plot. It stores
+small irreducible facts: Zara conceded this inch; Damien now carries two more
+points of tension; this pair has met four times and ruptured once; the Great Hall
+has become familiar; a promise remains open. Dynamic relationship tension now
+counts when rivalry-gated recipes are tested, so a rivalry can be **made by
+play**, not only shipped in the bundled canon. Later scenes, letters, Two
+Readings, Gossip, world pressures, and continuity packets can read the same
+relationship field and memories from different character viewpoints. The
+result can be disagreement, alliance, avoidance, reconciliation, a confidence,
+or a climax without any subsystem inventing a second history.
+
+`StoryConsequenceCondition.recipeIDs` also lets packs target an exact recipe
+rather than hoping generated prose contains the right keyword. The
+`StoryConsequencePackValidator` checks pack and bundle identity, duplicate IDs,
+empty or global conditions, missing atoms, required atom fields, bounded
+amounts, zero-effect relationship changes, and references to nonexistent Story
+Recipes. Unknown future atom types remain warning-only so a newer pack still
+decodes on an older Book, but malformed atoms that this build claims to
+understand keep the pack out of the active compiler. Two old `small-mystery`
+boosts that named a Form instead of a Story Recipe now correctly target
+`small-discovery`.
+
+#### The consequence nervous system
+
+The compiler's relay outputs now have a durable cross-app delivery path. Every
+resolved Story choice is reduced to an immutable
+`StoryConsequenceReceipt`: source Page, recipe and choice, applied bundles,
+characters, setting, relationship, changed fact, memory, event tags, exact
+downstream relays, relationship deltas, and a `trace` / `turn` / `rupture`
+significance. The receipt ID is derived from Page + choice + consequence
+position. Reapplying the same kept Page therefore cannot pay a talisman twice,
+touch an event twice, or produce a second version of history.
+
+`StoryConsequenceLedger` is the Book's compact causal index. It travels in the
+encrypted player vault and in explicit export/import, merges by immutable
+receipt ID, and exposes only purpose-bounded views. It retains at most 512
+active receipts so selection stays cheap; the archived Page and its narrative
+events remain the lifelong source of truth. This is **one fact with many
+readers**, not five subsystems each copying and gradually changing the story:
+
+- **the story field** still receives the immediate relationship, memory,
+  ritual, setting, Grey, Fae, Belief, motif, and recipe-pressure transaction;
+- **the Curator and Story Recipe selector** receive up to a year of accumulated
+  causal pressure. Repeated tension raises Concrete Disagreement and The
+  Rival's Tether; unresolved pressure can also raise Shared Quiet, so the system
+  is able to seek repair instead of escalating forever; familiarity can make
+  entrusting scenes more plausible;
+- **Radio** receives significant, recent receipts for fourteen days and turns
+  them into a station-voiced news or gossip break. Thornwave lets Wicker
+  indiscreetly announce it; Fae-Fi offers a bright correction; Mothlight speaks
+  from the late shelves. Stable IDs enter the existing banter-history bag, so
+  the same consequence does not chatter on every song. These are local text
+  captions until an authored or locally rendered audio asset exists;
+- **monthly and annual bindings** receive receipts inside their exact date
+  windows and bind meaningful turns under **What The Story Changed**. The
+  edition records consequence, not every tap;
+- **world events** count a receipt only when an authored `worldEventTouch`
+  names that exact event. Fiction cannot vaguely claim to have affected every
+  crisis;
+- **Chapter talismans** receive only explicit `chapterTalismanDelta` values,
+  and only from newly inserted receipts, preserving one-choice/one-payment;
+- **Contested Questions** can open from a rupture immediately or from repeated
+  pairwise tension crossing a threshold. At least three characters may then
+  disagree about what the event meant. Every position cites the same receipt,
+  the originating changed fact is immutable, and the Book labels its own
+  preferred reading as a guess.
+
+This is the months-long fiction engine. No season is prewritten and no model
+must run overnight. One quarrel may disappear. Repeated friction becomes
+selection pressure; a later Story turn may harden it or repair it; a witness
+may turn it into Academy culture; Radio may gossip about it; the month binds
+what actually changed. Gemma can later dramatize those accumulated facts, but
+the causal progress, expiry, deduplication, scheduling pressure, disagreement,
+and delivery all work deterministically without Gemma.
+
+The guardrails are structural. The ledger relays authored fictional facts, not
+raw reader prose or inferred private mood. Radio echoes expire. Long-game
+pressure expires from active scheduling after a year. Only explicit typed atoms
+may touch events or talismans. A receiving system may interpret a receipt in
+its own voice, but it may not rewrite the changed fact. The moonshot is not
+maximum cross-promotion; it is a world that develops consequences slowly enough
+to feel remembered and coherently enough to feel alive.
+
 Related pieces:
 
 - `StoryRecipe`, `StoryRecipeTurnTemplate`, `StoryRecipeSceneMode`
@@ -3077,6 +3549,15 @@ Related pieces:
 - `MLXStoryPageWriter`
 - `MLXStoryPageResultWriter`
 - `NarrativeEventResolver`
+- `StoryConsequencePack`, `StoryConsequenceBundle`,
+  `StoryConsequenceCondition`, `StoryConsequenceAtom`
+- `StoryConsequencePackValidator`
+- `StoryConsequenceResolver`, `StoryConsequenceApplicator`
+- `StoryDramaticOutcomeReceipt`, `StoryChoiceClosure`
+- `StoryConsequenceReceipt`, `StoryConsequenceLedger`
+- `ContestedQuestionEngine.opening(consequence:...)`
+- `RadioPageContext.storyConsequenceEchoes`
+- `MonthlyEditionBuilder`'s `fictional-consequences` section
 
 Keeping or continuing story pages can record choice events and move the
 narrative field.
@@ -5417,9 +5898,15 @@ Coverage areas include:
 - monthly-edition binding curation (`EditionCurator`), set-aside accounting, and
   duplicate collapse,
 - Academy class/club turn metadata,
-- the finite nine-Page hunt: three visible at once, pass-to-reveal, opening as
-  the catch, hidden remainder returning to sleep, cadence-rotated IDs resolving
-  the original logical slot, and completion after nine straight passes,
+- the inexhaustible desk window: three visible at once, nine tracked reserve
+  slots, a 27-card prepared experimental score, Keep / dismissal / adaptive
+  branch acts, context-fresh instant replacement of the exact logical slot,
+  first-Door sleep-and-branch, second-distinct-Door score sleep, sleeping-score
+  non-resurrection, background low-water replenishment, dormant
+  causal assignments that activate only on visibility, opening without
+  discarding the reserve, cadence-rotated IDs resolving the original slot,
+  exact-Page dismissal rest, and causally neutral evergreen fallback Pages when
+  the ordinary candidate set is empty,
 - Grey living-memory threats: evidence gates, distress pause, Long Memory
   protection, open-to-start deadline, rescue, surrender, expiry, archive
   preservation, and aftermath scars,

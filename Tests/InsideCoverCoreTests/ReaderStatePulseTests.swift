@@ -32,6 +32,27 @@ final class ReaderStatePulseTests: XCTestCase {
         XCTAssertEqual(state.composite, 8)
     }
 
+    func testContextClockCanWakeAtTheNextPulseExpirationWithoutPolling() {
+        var ledger = ReaderStatePulseLedger.empty
+        ledger.record(pulse(
+            id: "capacity",
+            dimension: .capacity,
+            score: 4,
+            at: now.addingTimeInterval(-2 * 3600)
+        ))
+        ledger.record(pulse(
+            id: "wonder",
+            dimension: .wonder,
+            score: 7,
+            at: now.addingTimeInterval(-4 * 3600)
+        ))
+
+        XCTAssertEqual(
+            ledger.nextCurationExpiration(after: now),
+            now.addingTimeInterval(10 * 3600)
+        )
+    }
+
     func testAboutYouOffersAtMostOnePulsePerDayAndDoesNotDescribeItAsProfile() throws {
         let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
         var inputs = BookSourceInputs.empty

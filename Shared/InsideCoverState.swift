@@ -644,28 +644,28 @@ enum BraidTextPolisher {
         }
     }
 
+    /// Motif keys exist for one narrow job: catching a model that says "lonely
+    /// without Morgan" three times in four paragraphs. They are scoped to a
+    /// named person on purpose. The absence vocabulary below contains ordinary
+    /// prepositions — "near", "without", "presence" — and a braid written in
+    /// the mandated second-person past tense opens most of its sentences with
+    /// "You", "It", or "The". An unnamed key therefore matches plain, healthy
+    /// prose and deletes the reader's actual day: the first sentence to use any
+    /// of these words claims the key, and every later sentence containing one
+    /// is dropped. Repetition the Book cannot tie to a name is left to
+    /// `isRepeatedIdea`, which measures the whole sentence instead of a word.
     private static func motifKeys(in sentence: String) -> Set<String> {
-        let words = Set(significantWords(in: sentence))
-        var keys = Set<String>()
         let names = properNames(in: sentence)
+        guard !names.isEmpty else { return [] }
 
         let absenceWords: Set<String> = [
             "lonely", "alone", "missing", "missed", "absence", "absent",
             "without", "lacked", "lacking", "near", "presence"
         ]
-        if !words.isDisjoint(with: absenceWords) {
-            if names.isEmpty {
-                keys.insert("absence")
-            } else {
-                names.forEach { keys.insert("absence:\($0)") }
-            }
-        }
+        let words = Set(significantWords(in: sentence))
+        guard !words.isDisjoint(with: absenceWords) else { return [] }
 
-        if words.contains("silence") && !words.isDisjoint(with: absenceWords) {
-            keys.insert("lonely-silence")
-        }
-
-        return keys
+        return Set(names.map { "absence:\($0)" })
     }
 
     private static func significantWords(in sentence: String) -> [String] {
@@ -679,9 +679,15 @@ enum BraidTextPolisher {
             .filter { !$0.isEmpty && !stopWords.contains($0) }
     }
 
+    /// A sentence's first word is capitalized by grammar, not by being a name.
+    /// Counting it turned every opening word into a false proper name, which
+    /// scoped a motif key to the wrong thing and let two sentences that merely
+    /// began alike collide.
     private static func properNames(in sentence: String) -> Set<String> {
         let ignored: Set<String> = ["The", "Book", "You", "It"]
         return sentence.components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .dropFirst()
             .compactMap { word -> String? in
                 guard let first = word.unicodeScalars.first,
                       CharacterSet.uppercaseLetters.contains(first),

@@ -199,7 +199,7 @@ struct AlmanacSheet: View {
 
     private func threadReflectionText(_ progress: ThreadOfTheMonth.Progress) -> String {
         let pageWord = progress.keptPages == 1 ? "Page" : "Pages"
-        return "\(progress.keptPages) kept \(pageWord). The Almanac binds what arrived and asks nothing of the rest."
+        return "\(progress.keptPages) kept \(pageWord). The Almanac keeps whatever showed up. The rest can answer for itself."
     }
 
     private var weekdaySymbols: [String] {

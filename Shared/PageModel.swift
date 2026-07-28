@@ -2000,6 +2000,10 @@ struct HiddenMagicFinding: Codable, Equatable {
 /// Long Game one typed object to read without turning every kept Page into a
 /// quest completion.
 enum LivedQuestKind: String, Codable, CaseIterable, Equatable {
+    /// Compatibility case for an outward Page that is not one of the older
+    /// named quest families. The containing receipt type keeps its historical
+    /// name so existing private archives remain source- and migration-safe.
+    case livedEncounter
     case playfulMission
     case wickerDare
     case wonderCompass
@@ -2012,6 +2016,7 @@ enum LivedQuestKind: String, Codable, CaseIterable, Equatable {
 
     var title: String {
         switch self {
+        case .livedEncounter: return "Lived Encounter"
         case .playfulMission: return "Playful Mission"
         case .wickerDare: return "Wicker Dare"
         case .wonderCompass: return "Wonder Compass"
@@ -2072,6 +2077,23 @@ struct LivedQuestReceipt: Codable, Equatable {
     var hasVisualProof: Bool
     var completedAt: Date
     var wasPromptedByBook: Bool
+    /// New universal contracts preserve the exact evidence shapes that were
+    /// returned. Optional fields keep version-one private archives decodable.
+    var evidenceModes: [PageCapabilityProofMode]? = nil
+    var encounterContractSignature: String? = nil
+    var followUpDueAt: Date? = nil
+
+    var resolvedEvidenceModes: [PageCapabilityProofMode] {
+        if let evidenceModes { return evidenceModes }
+        var modes: [PageCapabilityProofMode] = []
+        if hasWrittenProof { modes.append(.observation) }
+        if hasVisualProof { modes.append(.photograph) }
+        return modes
+    }
+
+    var hasAnyProof: Bool {
+        hasWrittenProof || hasVisualProof || !resolvedEvidenceModes.isEmpty
+    }
 
     static func from(
         surface: SurfacePage,
@@ -2080,6 +2102,12 @@ struct LivedQuestReceipt: Codable, Equatable {
         completedAt: Date
     ) -> LivedQuestReceipt? {
         let metadata = surface.payload.metadata
+        let contract = surface.livedEncounterContract
+        let trimmedInput = readerInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let contractEvidence = contract.acceptedEvidenceModes(
+            readerInput: readerInput,
+            mediaAssets: mediaAssets
+        )
         let resolved: (kind: LivedQuestKind, id: String)?
 
         if let id = metadata["playfulMissionID"]?.nonEmpty {
@@ -2105,6 +2133,8 @@ struct LivedQuestReceipt: Codable, Equatable {
             resolved = (.bookCampaign, id)
         } else if let id = metadata["electiveID"]?.nonEmpty {
             resolved = (.elective, id)
+        } else if contract.mayMintLivedReceipt, !contractEvidence.isEmpty {
+            resolved = (.livedEncounter, contract.encounterID)
         } else {
             resolved = nil
         }
@@ -2122,6 +2152,7 @@ struct LivedQuestReceipt: Codable, Equatable {
             ?? metadata["wickerDareTitle"]?.nonEmpty
             ?? metadata["electiveTitle"]?.nonEmpty
             ?? metadata["academyActivityTitle"]?.nonEmpty
+            ?? (resolved.kind == .livedEncounter ? surface.payload.headline.nonEmpty : nil)
             ?? surface.payload.headline.nonEmpty
             ?? resolved.kind.title
         let invitation = metadata["missionPrompt"]?.nonEmpty
@@ -2131,6 +2162,7 @@ struct LivedQuestReceipt: Codable, Equatable {
             ?? metadata["academyActivityInvitation"]?.nonEmpty
             ?? metadata["terms"]?.nonEmpty
             ?? metadata["bookCampaignIntendedEffect"]?.nonEmpty
+            ?? (resolved.kind == .livedEncounter ? contract.invitation.nonEmpty : nil)
             ?? surface.payload.body.nonEmpty
             ?? surface.prompt
         let proofPrompt = metadata["souvenirPrompt"]?.nonEmpty
@@ -2138,13 +2170,15 @@ struct LivedQuestReceipt: Codable, Equatable {
             ?? metadata["electivePractice"]?.nonEmpty
             ?? metadata["proofPrompt"]?.nonEmpty
             ?? metadata["terms"]?.nonEmpty
+            ?? (resolved.kind == .livedEncounter ? contract.returnPrompt.nonEmpty : nil)
             ?? "Bring back one exact thing."
         let facetSignals = normalizedTags(
             nil,
             additional: [title, invitation, proofPrompt] + sourceTags.map(Optional.some)
         )
-        let facets = facets(for: facetSignals, kind: resolved.kind)
-        let trimmedInput = readerInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let facets = resolved.kind == .livedEncounter && !contract.facets.isEmpty
+            ? contract.facets
+            : facets(for: facetSignals, kind: resolved.kind)
         let hasVisualProof = mediaAssets.contains { asset in
             switch asset.kind {
             case .bundledImage, .renderedImageFile, .photoLibraryAsset:
@@ -2152,6 +2186,24 @@ struct LivedQuestReceipt: Codable, Equatable {
             case .audioFile:
                 return false
             }
+        }
+        var evidenceModes = contractEvidence
+        if resolved.kind != .livedEncounter {
+            if !trimmedInput.isEmpty,
+               !evidenceModes.contains(where: { [.observation, .place, .person].contains($0) }) {
+                evidenceModes.append(.observation)
+            }
+            if hasVisualProof, !evidenceModes.contains(.photograph) {
+                evidenceModes.append(.photograph)
+            }
+            if mediaAssets.contains(where: { $0.kind == .audioFile }),
+               !evidenceModes.contains(.voice) {
+                evidenceModes.append(.voice)
+            }
+        }
+        evidenceModes.sort { $0.rawValue < $1.rawValue }
+        let followUpDueAt = contract.earliestFollowUpHours.map {
+            completedAt.addingTimeInterval(Double($0) * 3_600)
         }
 
         return LivedQuestReceipt(
@@ -2165,7 +2217,10 @@ struct LivedQuestReceipt: Codable, Equatable {
             hasWrittenProof: !trimmedInput.isEmpty,
             hasVisualProof: hasVisualProof,
             completedAt: completedAt,
-            wasPromptedByBook: true
+            wasPromptedByBook: true,
+            evidenceModes: evidenceModes,
+            encounterContractSignature: contract.signature,
+            followUpDueAt: followUpDueAt
         )
     }
 

@@ -1295,7 +1295,7 @@ enum CharacterGenerationRouteRegistry {
         .init(id: "the-bleed", enforcement: .sharedCanonAndAudit, note: "Penny's columns"),
         .init(id: "inkrest-office-hours", enforcement: .specializedVoiceContract, note: "dedicated narrative-therapy and safety grammar"),
         .init(id: "fae-bargain", enforcement: .specializedVoiceContract, note: "per-kind Fae law and voice directive"),
-        .init(id: "tarot-aurora", enforcement: .specializedVoiceContract, note: "Aurora's reading and safety grammar"),
+        .init(id: "tarot-serenity", enforcement: .specializedVoiceContract, note: "Serenity Brown's reading, voice, and safety grammar"),
         .init(id: "goblin-clerk", enforcement: .specializedVoiceContract, note: "short mercantile shop voice")
     ]
 
@@ -1749,6 +1749,10 @@ struct StoryConsequenceWorldSnapshot: Equatable {
 struct StoryConsequenceCondition: Codable, Equatable {
     var choiceRoles: [String]? = nil
     var pageTypes: [BookPageType]? = nil
+    /// Exact Story Recipe identities. This is deliberately separate from
+    /// prose/tag matching: a recipe's causal contract must not depend on the
+    /// model happening to use a keyword.
+    var recipeIDs: [String]? = nil
     var tagsAny: [String]? = nil
     var tagsAll: [String]? = nil
     var textContainsAny: [String]? = nil
@@ -1772,6 +1776,12 @@ struct StoryConsequenceCondition: Codable, Equatable {
         }
         if let pageTypes, !pageTypes.isEmpty, !pageTypes.contains(page.type) {
             return false
+        }
+        if let recipeIDs, !recipeIDs.isEmpty {
+            let pageRecipeIDs = Set(page.tags.compactMap(Self.recipeID(from:)))
+            if Set(recipeIDs.map(Self.key)).isDisjoint(with: pageRecipeIDs) {
+                return false
+            }
         }
         if let tagsAny, !tagsAny.isEmpty,
            !tagsAny.map(Self.key).contains(where: { tags.contains($0) }) {
@@ -1802,6 +1812,26 @@ struct StoryConsequenceCondition: Codable, Equatable {
             return false
         }
         return true
+    }
+
+    var isConstrained: Bool {
+        choiceRoles?.isEmpty == false ||
+            pageTypes?.isEmpty == false ||
+            recipeIDs?.isEmpty == false ||
+            tagsAny?.isEmpty == false ||
+            tagsAll?.isEmpty == false ||
+            textContainsAny?.isEmpty == false ||
+            textContainsAll?.isEmpty == false ||
+            ritualCountsAtLeast?.isEmpty == false ||
+            ritualCountsBelow?.isEmpty == false
+    }
+
+    static func recipeID(from tag: String) -> String? {
+        let normalized = key(tag)
+        let prefix = "story-recipe:"
+        guard normalized.hasPrefix(prefix) else { return nil }
+        let id = String(normalized.dropFirst(prefix.count))
+        return id.isEmpty ? nil : id
     }
 
     static func key(_ value: String) -> String {
@@ -1841,6 +1871,150 @@ struct StoryConsequenceAtom: Codable, Equatable {
     var entityID: String?
     var faeKind: String?
     var template: String?
+}
+
+struct StoryConsequenceValidationIssue: Equatable {
+    enum Severity: String, Equatable {
+        case warning
+        case error
+    }
+
+    var severity: Severity
+    var path: String
+    var message: String
+}
+
+struct StoryConsequenceValidationReport: Equatable {
+    var issues: [StoryConsequenceValidationIssue] = []
+
+    var errors: [StoryConsequenceValidationIssue] {
+        issues.filter { $0.severity == .error }
+    }
+
+    var warnings: [StoryConsequenceValidationIssue] {
+        issues.filter { $0.severity == .warning }
+    }
+
+    var isUsable: Bool { errors.isEmpty }
+}
+
+/// Static authoring checks for consequence packs. Unknown atoms remain a
+/// warning so a newer pack still decodes on an older Book, but malformed atoms
+/// that this build claims to support never enter the active compiler.
+enum StoryConsequencePackValidator {
+    static let supportedAtomTypes: Set<String> = [
+        "beliefDelta", "entityBeliefDelta", "entityWeightDelta",
+        "threadWeightDelta", "relationshipWeightDelta",
+        "relationshipTieDelta", "entityMemory", "pageTag", "motif",
+        "futureRecipeBoost", "bookNoticeEvidenceDelta", "faeWarmthDelta",
+        "faeAttentionDelta", "nothingGreyDelta", "chapterTalismanDelta",
+        "worldEventTouch", "radioBanterHook", "monthlyEditionLine",
+        "ritualLedgerDelta", "ritualRegisterAppend",
+        "settingAffinityDelta", "sceneBiasDelta"
+    ]
+
+    static func validate(
+        _ pack: StoryConsequencePack,
+        knownRecipeIDs: Set<String> = Set(StoryFormRegistry.recipes.map(\.id))
+    ) -> StoryConsequenceValidationReport {
+        var report = StoryConsequenceValidationReport()
+        let knownRecipeIDs = Set(knownRecipeIDs.map(StoryConsequenceCondition.key))
+        func issue(
+            _ severity: StoryConsequenceValidationIssue.Severity,
+            _ path: String,
+            _ message: String
+        ) {
+            report.issues.append(StoryConsequenceValidationIssue(
+                severity: severity,
+                path: path,
+                message: message
+            ))
+        }
+
+        if pack.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            issue(.error, "pack.id", "A consequence pack needs an id.")
+        }
+        if pack.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            issue(.error, "pack.displayName", "A consequence pack needs a display name.")
+        }
+        if pack.version < 1 {
+            issue(.error, "pack.version", "A consequence pack version must be at least 1.")
+        }
+
+        var bundleIDs = Set<String>()
+        for (bundleIndex, bundle) in pack.bundles.enumerated() {
+            let path = "bundles[\(bundleIndex)]"
+            let bundleID = bundle.id.trimmingCharacters(in: .whitespacesAndNewlines)
+            if bundleID.isEmpty {
+                issue(.error, "\(path).id", "A consequence bundle needs an id.")
+            } else if !bundleIDs.insert(bundleID).inserted {
+                issue(.error, "\(path).id", "Duplicate consequence bundle id \(bundleID).")
+            }
+            if bundle.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                issue(.error, "\(path).label", "A consequence bundle needs a label.")
+            }
+            if !bundle.when.isConstrained {
+                issue(.error, "\(path).when", "A consequence bundle must name at least one condition.")
+            }
+            if bundle.atoms.isEmpty {
+                issue(.error, "\(path).atoms", "A consequence bundle must contain at least one atom.")
+            }
+
+            for recipeID in bundle.when.recipeIDs ?? [] {
+                let normalized = StoryConsequenceCondition.key(recipeID)
+                if normalized.isEmpty || !knownRecipeIDs.contains(normalized) {
+                    issue(.error, "\(path).when.recipeIDs", "Unknown Story Recipe \(recipeID).")
+                }
+            }
+
+            for (atomIndex, atom) in bundle.atoms.enumerated() {
+                let atomPath = "\(path).atoms[\(atomIndex)]"
+                guard supportedAtomTypes.contains(atom.type) else {
+                    issue(.warning, "\(atomPath).type", "Atom \(atom.type) is not implemented by this build and will be ignored.")
+                    continue
+                }
+                if let amount = atom.amount, abs(amount) > 99 {
+                    issue(.error, "\(atomPath).amount", "Atom amounts must stay within -99...99.")
+                }
+                switch atom.type {
+                case "pageTag", "motif", "radioBanterHook", "monthlyEditionLine":
+                    if atom.value?.nonEmpty == nil {
+                        issue(.error, atomPath, "\(atom.type) requires a nonempty value.")
+                    }
+                case "worldEventTouch":
+                    if atom.value?.nonEmpty == nil && atom.target?.nonEmpty == nil {
+                        issue(.error, atomPath, "worldEventTouch requires a value or target.")
+                    }
+                case "chapterTalismanDelta":
+                    if atom.target?.nonEmpty == nil {
+                        issue(.error, atomPath, "chapterTalismanDelta requires a target.")
+                    }
+                case "futureRecipeBoost":
+                    guard let target = atom.recipeID?.nonEmpty ?? atom.value?.nonEmpty else {
+                        issue(.error, atomPath, "futureRecipeBoost requires a recipeID.")
+                        continue
+                    }
+                    if !knownRecipeIDs.contains(StoryConsequenceCondition.key(target)) {
+                        issue(.error, atomPath, "futureRecipeBoost names unknown Story Recipe \(target).")
+                    }
+                case "relationshipTieDelta":
+                    if (atom.warmth ?? 0) == 0 &&
+                        (atom.tension ?? 0) == 0 &&
+                        (atom.familiarity ?? 0) == 0 {
+                        issue(.error, atomPath, "relationshipTieDelta must change warmth, tension, or familiarity.")
+                    }
+                case "ritualLedgerDelta", "ritualRegisterAppend",
+                     "settingAffinityDelta", "sceneBiasDelta":
+                    if atom.value?.nonEmpty == nil && atom.target?.nonEmpty == nil {
+                        issue(.error, atomPath, "\(atom.type) requires a value or target.")
+                    }
+                default:
+                    break
+                }
+            }
+        }
+        return report
+    }
 }
 
 struct StoryRelationshipTieDelta: Codable, Equatable {
@@ -1930,6 +2104,266 @@ struct StoryResolvedConsequence: Equatable {
     }
 }
 
+enum StoryConsequenceSignificance: Int, Codable, Equatable, Comparable {
+    case trace = 1
+    case turn = 2
+    case rupture = 3
+
+    static func < (lhs: StoryConsequenceSignificance, rhs: StoryConsequenceSignificance) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
+/// The immutable causal receipt shared by the rest of the Book. Mutable world
+/// state remains compact in its dedicated ledgers; this receipt says why that
+/// state changed and carries bounded relay payloads to other existing systems.
+struct StoryConsequenceReceipt: Codable, Equatable, Identifiable {
+    var id: String
+    var sourcePageID: String
+    var sourcePageType: BookPageType
+    var createdAt: Date
+    var recipeID: String?
+    var choiceID: String
+    var bundleIDs: [String]
+    var characterIDs: [String]
+    var settingIDs: [String]
+    var relationshipID: String?
+    var changedFact: String?
+    var memorySummary: String?
+    var eventTags: [String]
+    var radioHooks: [String]
+    var monthlyEditionLines: [String]
+    var worldEventTouches: [String]
+    var chapterTalismanDeltas: [String: Int]
+    var warmthDelta: Int
+    var tensionDelta: Int
+    var familiarityDelta: Int
+    var significance: StoryConsequenceSignificance
+
+    var isRelationshipPressure: Bool {
+        characterIDs.count >= 2 &&
+            (tensionDelta > 0 || eventTags.contains("story-refusal-remembered") ||
+                eventTags.contains("story-betrayal-remembered"))
+    }
+
+    var isRepair: Bool {
+        characterIDs.count >= 2 && (warmthDelta > 0 || tensionDelta < 0)
+    }
+
+    var radioEchoLine: String? {
+        let line = changedFact?.nonEmpty ?? memorySummary?.nonEmpty
+        guard let line else { return nil }
+        return String(line.prefix(220))
+    }
+
+    var editionLines: [String] {
+        if !monthlyEditionLines.isEmpty {
+            return monthlyEditionLines
+        }
+        guard significance >= .turn, let changedFact = changedFact?.nonEmpty else {
+            return []
+        }
+        return [changedFact]
+    }
+}
+
+/// A bounded active index over immutable kept Pages and narrative events. The
+/// archive remains the lifelong source of truth; this ledger keeps recent and
+/// still-causally-useful receipts cheap for Radio, editions, world events, and
+/// long-game scheduling.
+struct StoryConsequenceLedger: Codable, Equatable {
+    static let maximumReceipts = 512
+    static let radioEchoLifetime: TimeInterval = 14 * 86_400
+    static let longGameLifetime: TimeInterval = 365 * 86_400
+
+    var receipts: [StoryConsequenceReceipt] = []
+
+    static let empty = StoryConsequenceLedger()
+
+    @discardableResult
+    mutating func record(
+        page: BookPage,
+        consequences: [StoryResolvedConsequence]
+    ) -> [StoryConsequenceReceipt] {
+        let dramaticReceipts = StoryDramaticOutcomeReceipt.receipts(in: page.tags)
+        var usedDramaticReceipts: [String: Int] = [:]
+        var inserted: [StoryConsequenceReceipt] = []
+        let existingIDs = Set(receipts.map(\.id))
+
+        for (offset, consequence) in consequences.enumerated() {
+            let choiceID = StoryTurnLanding.normalizedChoiceID(consequence.choiceID)
+            let matching = dramaticReceipts.filter {
+                StoryTurnLanding.normalizedChoiceID($0.choiceID) == choiceID
+            }
+            let used = usedDramaticReceipts[choiceID, default: 0]
+            let dramatic = matching.isEmpty ? nil : matching[min(used, matching.count - 1)]
+            usedDramaticReceipts[choiceID] = used + 1
+            let id = "story-consequence:\(page.id):\(choiceID):\(offset)"
+            guard !existingIDs.contains(id) else { continue }
+
+            let pageEntityIDs = page.tags.compactMap { tag -> String? in
+                let prefix = "entity:"
+                guard tag.hasPrefix(prefix) else { return nil }
+                return String(tag.dropFirst(prefix.count))
+            }
+            let receiptCharacters = [
+                dramatic?.leadCharacterID,
+                dramatic?.otherCharacterID,
+                dramatic?.reactorID
+            ].compactMap { $0?.nonEmpty }
+            let characterIDs = unique(
+                receiptCharacters.isEmpty
+                    ? pageEntityIDs.filter { entityID in
+                        entityID != "the-book" &&
+                            NarrativePackRegistry.entities.first(where: { $0.id == entityID })?.kind != .location
+                    }
+                    : receiptCharacters
+            )
+            let settingIDs = unique(pageEntityIDs.filter { entityID in
+                NarrativePackRegistry.entities.first(where: { $0.id == entityID })?.kind == .location
+            })
+            let tieWarmth = consequence.relationshipTieDeltas.reduce(0) { $0 + $1.warmth }
+            let tieTension = consequence.relationshipTieDeltas.reduce(0) { $0 + $1.tension }
+            let tieFamiliarity = consequence.relationshipTieDeltas.reduce(0) { $0 + $1.familiarity }
+            let isRupture = consequence.eventTags.contains("story-betrayal-remembered") ||
+                consequence.eventTags.contains("story-refusal-remembered")
+            let hasDurableTurn = dramatic != nil ||
+                !consequence.worldEventTouches.isEmpty ||
+                !consequence.chapterTalismanDeltas.isEmpty ||
+                abs(tieWarmth) + abs(tieTension) + abs(tieFamiliarity) >= 2
+            let significance: StoryConsequenceSignificance = isRupture
+                ? .rupture
+                : hasDurableTurn ? .turn : .trace
+            let recipeID = dramatic?.recipeID.nonEmpty ??
+                consequence.eventTags.compactMap(StoryConsequenceCondition.recipeID(from:)).first ??
+                page.tags.compactMap(StoryConsequenceCondition.recipeID(from:)).first
+            var radioHooks = consequence.radioBanterHooks
+            radioHooks.append(contentsOf: [
+                recipeID.map { "story-recipe:\($0)" },
+                tieTension > 0 ? "story-tension" : nil,
+                tieTension < 0 || tieWarmth > 0 ? "story-repair" : nil,
+                isRupture ? "story-rupture" : nil
+            ].compactMap { $0 })
+
+            let receipt = StoryConsequenceReceipt(
+                id: id,
+                sourcePageID: page.id,
+                sourcePageType: page.type,
+                createdAt: page.createdAt,
+                recipeID: recipeID,
+                choiceID: choiceID,
+                bundleIDs: unique(consequence.bundleIDs),
+                characterIDs: characterIDs,
+                settingIDs: settingIDs,
+                relationshipID: dramatic?.relationshipID.nonEmpty ??
+                    consequence.relationshipWeightDeltas.keys.sorted().first,
+                changedFact: dramatic?.changedFact.nonEmpty,
+                memorySummary: dramatic?.memorySummary.nonEmpty ?? consequence.textureLine,
+                eventTags: unique(consequence.eventTags),
+                radioHooks: unique(radioHooks),
+                monthlyEditionLines: unique(consequence.monthlyEditionLines),
+                worldEventTouches: unique(consequence.worldEventTouches),
+                chapterTalismanDeltas: consequence.chapterTalismanDeltas,
+                warmthDelta: tieWarmth,
+                tensionDelta: tieTension,
+                familiarityDelta: tieFamiliarity,
+                significance: significance
+            )
+            receipts.append(receipt)
+            inserted.append(receipt)
+        }
+        normalize()
+        return inserted
+    }
+
+    mutating func merge(_ incoming: [StoryConsequenceReceipt]) {
+        var byID = Dictionary(uniqueKeysWithValues: receipts.map { ($0.id, $0) })
+        for receipt in incoming {
+            if byID[receipt.id] == nil {
+                byID[receipt.id] = receipt
+            }
+        }
+        receipts = Array(byID.values)
+        normalize()
+    }
+
+    func radioEchoes(now: Date = Date()) -> [StoryConsequenceReceipt] {
+        receipts.filter {
+            $0.significance >= .turn &&
+                $0.createdAt <= now &&
+                now.timeIntervalSince($0.createdAt) <= Self.radioEchoLifetime &&
+                $0.radioEchoLine != nil
+        }
+        .sorted { ($0.significance.rawValue, $0.createdAt) > ($1.significance.rawValue, $1.createdAt) }
+    }
+
+    func receipts(from start: Date, through end: Date) -> [StoryConsequenceReceipt] {
+        receipts.filter { $0.createdAt >= start && $0.createdAt <= end }
+            .sorted { $0.createdAt < $1.createdAt }
+    }
+
+    func longGameBoost(
+        recipeID: String,
+        preferredTags: [String],
+        now: Date = Date()
+    ) -> Int {
+        let active = receipts.filter {
+            $0.createdAt <= now &&
+                now.timeIntervalSince($0.createdAt) <= Self.longGameLifetime
+        }
+        let pressure = active.reduce(0) { total, receipt in
+            total + max(0, receipt.tensionDelta) +
+                (receipt.significance == .rupture ? 2 : 0)
+        }
+        let repairNeed = active.contains(where: \.isRelationshipPressure)
+        let familiarity = active.reduce(0) { $0 + max(0, $1.familiarityDelta) }
+        let tags = Set(preferredTags.map(StoryConsequenceCondition.key))
+        var boost = 0
+        if recipeID == "rivals-tether" || tags.contains("rivalry") || tags.contains("clash") {
+            boost += min(10, pressure)
+        }
+        if recipeID == "concrete-disagreement" || tags.contains("tension") {
+            boost += min(8, pressure / 2)
+        }
+        if repairNeed && (recipeID == "shared-quiet" || tags.contains("quiet") || tags.contains("care")) {
+            boost += min(7, max(1, pressure / 2))
+        }
+        if recipeID == "the-entrusting" {
+            boost += min(6, familiarity / 3)
+        }
+        return min(12, boost)
+    }
+
+    func contestedQuestionSeed(from newlyInserted: [StoryConsequenceReceipt]) -> StoryConsequenceReceipt? {
+        let candidates = newlyInserted.filter { $0.characterIDs.count >= 2 && $0.isRelationshipPressure }
+        if let rupture = candidates.first(where: { $0.significance == .rupture }) {
+            return rupture
+        }
+        return candidates.first { candidate in
+            let pair = Set(candidate.characterIDs.prefix(2))
+            let accumulated = receipts.filter {
+                pair.isSubset(of: Set($0.characterIDs)) && $0.isRelationshipPressure
+            }.reduce(0) { $0 + max(0, $1.tensionDelta) }
+            return accumulated >= 4
+        }
+    }
+
+    private mutating func normalize() {
+        var seen = Set<String>()
+        receipts = receipts
+            .sorted { $0.createdAt < $1.createdAt }
+            .filter { seen.insert($0.id).inserted }
+        if receipts.count > Self.maximumReceipts {
+            receipts.removeFirst(receipts.count - Self.maximumReceipts)
+        }
+    }
+
+    private func unique(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        return values.filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+}
+
 enum StoryConsequenceRegistry {
     static let userPackFileSuffix = ".storyconsequences.json"
 
@@ -1974,7 +2408,7 @@ enum StoryConsequenceRegistry {
                        atom("entityBeliefDelta", target: "penny-blackletter", amount: 1),
                        atom("threadWeightDelta", target: "margin-glass-letters", amount: 1),
                        atom("motif", value: "threshold"),
-                       atom("futureRecipeBoost", amount: 1, recipeID: "small-mystery"),
+                       atom("futureRecipeBoost", amount: 1, recipeID: "small-discovery"),
                        atom("pageTag", value: "side-door-opened")
                    ],
                    memory: "{{leadName}} remembers that the reader let the sideways detail matter."),
@@ -2115,7 +2549,7 @@ enum StoryConsequenceRegistry {
                 atoms: [
                     atom("pageTag", value: "secret-protected"),
                     atom("motif", value: "quiet"),
-                    atom("futureRecipeBoost", amount: 2, recipeID: "small-mystery"),
+                    atom("futureRecipeBoost", amount: 2, recipeID: "small-discovery"),
                     atom("relationshipWeightDelta", target: "book-authors-reader", amount: 1)
                 ],
                 memoryTemplate: "{{leadName}} remembers that the reader protected a secret instead of spending it."
@@ -2218,7 +2652,13 @@ enum StoryConsequenceRegistry {
     }
 
     static func enabledPacks() -> [StoryConsequencePack] {
-        bundledPacks.filter { $0.availability != .locked || PackEntitlements.isUnlocked($0.id) } + userPacks()
+        let entitled = bundledPacks.filter {
+            $0.availability != .locked || PackEntitlements.isUnlocked($0.id)
+        } + userPacks()
+        let knownRecipeIDs = Set(StoryFormRegistry.recipes.map(\.id))
+        return entitled.filter {
+            StoryConsequencePackValidator.validate($0, knownRecipeIDs: knownRecipeIDs).isUsable
+        }
     }
 
     static var bundles: [StoryConsequenceBundle] {
@@ -2313,6 +2753,12 @@ enum StoryConsequenceResolver {
     ) -> StoryResolvedConsequence {
         var resolved = StoryResolvedConsequence(choiceID: choiceID)
         let context = Context(page: page, choiceID: choiceID)
+        applyRecipeContinuity(
+            recipeIDs: Set(context.recipeIDs + [dramaticReceipt?.recipeID].compactMap { $0?.nonEmpty }),
+            context: context,
+            dramaticReceipt: dramaticReceipt,
+            to: &resolved
+        )
         for bundle in bundles where bundle.when.matches(page: page, choiceID: choiceID, world: world) {
             resolved.bundleIDs.append(bundle.id)
             for atom in bundle.atoms {
@@ -2329,7 +2775,7 @@ enum StoryConsequenceResolver {
             }
         }
         if let dramaticReceipt {
-            apply(dramaticReceipt, to: &resolved)
+            apply(dramaticReceipt, context: context, to: &resolved)
         }
         applyChoiceClosure(
             from: page,
@@ -2338,6 +2784,42 @@ enum StoryConsequenceResolver {
             to: &resolved
         )
         return resolved
+    }
+
+    /// Universal compiler floor for every Story Recipe, including imported and
+    /// legacy recipes with no bespoke consequence bundle. A kept turn always
+    /// becomes a durable register, a cast encounter, and a place affinity.
+    /// Bespoke packs may add meaning; they are never required for history to
+    /// exist.
+    private static func applyRecipeContinuity(
+        recipeIDs: Set<String>,
+        context: Context,
+        dramaticReceipt: StoryDramaticOutcomeReceipt?,
+        to resolved: inout StoryResolvedConsequence
+    ) {
+        for rawRecipeID in recipeIDs.sorted() {
+            let recipeID = StoryConsequenceCondition.key(rawRecipeID)
+            guard !recipeID.isEmpty else { continue }
+            resolved.bundleIDs.append("recipe-continuity:\(recipeID)")
+            resolved.eventTags.append(contentsOf: [
+                "story-consequence-compiled",
+                "story-recipe:\(recipeID)"
+            ])
+            resolved.ritualLedgerDeltas["story-recipe-turn:\(recipeID)", default: 0] += 1
+        }
+
+        let receiptCastIDs = Array(Set([
+            dramaticReceipt?.leadCharacterID,
+            dramaticReceipt?.otherCharacterID
+        ].compactMap { $0?.nonEmpty })).sorted()
+        let castIDs = receiptCastIDs.count >= 2 ? receiptCastIDs : context.characterEntityIDs
+        if castIDs.count >= 2 {
+            let pair = arcPairKey(castIDs[0], castIDs[1])
+            resolved.ritualLedgerDeltas["story-pair:\(pair):encounters", default: 0] += 1
+        }
+        for settingID in context.settingEntityIDs.prefix(2) {
+            resolved.settingAffinityDeltas[settingID, default: 0] += 1
+        }
     }
 
     private static func applyChoiceClosure(
@@ -2385,13 +2867,34 @@ enum StoryConsequenceResolver {
                 narrativeWeight: isBetrayal ? 9 : 7
             ))
         }
+
+        let pair = Array(Set([
+            dramaticReceipt?.leadCharacterID,
+            dramaticReceipt?.otherCharacterID
+        ].compactMap { $0?.nonEmpty })).sorted()
+        if pair.count >= 2 {
+            resolved.relationshipTieDeltas.append(StoryRelationshipTieDelta(
+                entityIDs: pair,
+                warmth: isBetrayal ? -1 : 0,
+                tension: isBetrayal ? 2 : 1,
+                familiarity: 1
+            ))
+            let pairKey = arcPairKey(pair[0], pair[1])
+            resolved.ritualLedgerDeltas["story-pair:\(pairKey):ruptures", default: 0] += isBetrayal ? 2 : 1
+            resolved.futureRecipeBoosts["rivals-tether", default: 0] += isBetrayal ? 3 : 2
+            resolved.eventTags.append("recipe-boost:rivals-tether")
+        }
     }
 
     /// Applies the exact emotional state transition promised before prose. The
     /// pack-authored consequence system still adds motifs and arc movement;
     /// this receipt is the non-negotiable character/relationship truth beneath
     /// those broader effects.
-    private static func apply(_ receipt: StoryDramaticOutcomeReceipt, to resolved: inout StoryResolvedConsequence) {
+    private static func apply(
+        _ receipt: StoryDramaticOutcomeReceipt,
+        context: Context,
+        to resolved: inout StoryResolvedConsequence
+    ) {
         resolved.bundleIDs.append("dramatic-outcome-v\(receipt.version)")
         for entityID in Set([receipt.leadCharacterID, receipt.reactorID]) where !entityID.isEmpty && entityID != "the-book" {
             resolved.entityWeightDeltas[entityID, default: 0] += 1
@@ -2407,6 +2910,20 @@ enum StoryConsequenceResolver {
                 tension: receipt.tensionDelta,
                 familiarity: receipt.familiarityDelta
             ))
+            let pairKey = arcPairKey(pair[0], pair[1])
+            if receipt.tensionDelta > 0 {
+                resolved.ritualLedgerDeltas["story-pair:\(pairKey):tension", default: 0] += receipt.tensionDelta
+                resolved.futureRecipeBoosts["concrete-disagreement", default: 0] += 1
+                resolved.eventTags.append("recipe-boost:concrete-disagreement")
+            }
+            if receipt.tensionDelta < 0 || receipt.warmthDelta > 0 {
+                resolved.ritualLedgerDeltas["story-pair:\(pairKey):repair", default: 0] += max(
+                    1,
+                    max(-receipt.tensionDelta, receipt.warmthDelta)
+                )
+                resolved.futureRecipeBoosts["shared-quiet", default: 0] += 1
+                resolved.eventTags.append("recipe-boost:shared-quiet")
+            }
         }
         if !receipt.reactorID.isEmpty, receipt.reactorID != "the-book", !receipt.memorySummary.isEmpty {
             resolved.entityMemoryWrites.append(NarrativeEntityMemoryWrite(
@@ -2421,6 +2938,22 @@ enum StoryConsequenceResolver {
                 narrativeWeight: 7
             ))
         }
+        if !receipt.leadCharacterID.isEmpty,
+           receipt.leadCharacterID != "the-book",
+           receipt.leadCharacterID != receipt.reactorID,
+           !receipt.changedFact.isEmpty {
+            resolved.entityMemoryWrites.append(NarrativeEntityMemoryWrite(
+                entityID: receipt.leadCharacterID,
+                summary: "\(receipt.leadCharacterName) remembers this became true: \(receipt.changedFact)",
+                tags: [
+                    "story-dramatic-outcome",
+                    "story-role:lead",
+                    "story-recipe:\(receipt.recipeID)",
+                    "story-choice:\(StoryTurnLanding.normalizedChoiceID(receipt.choiceID))"
+                ],
+                narrativeWeight: 6
+            ))
+        }
         resolved.eventTags.append(contentsOf: [
             "story-character-reacted",
             "story-relationship-changed",
@@ -2428,6 +2961,14 @@ enum StoryConsequenceResolver {
             "story-turn:\(receipt.turnKind.rawValue)",
             "story-recipe:\(receipt.recipeID)"
         ])
+    }
+
+    private static func arcPairKey(_ first: String, _ second: String) -> String {
+        [first, second]
+            .map(StoryConsequenceCondition.key)
+            .filter { !$0.isEmpty }
+            .sorted()
+            .joined(separator: "--")
     }
 
     static func resolvedConsequence(for choice: StorySceneChoice, packet: StoryScenePacket) -> StoryResolvedConsequence {
@@ -2588,6 +3129,17 @@ enum StoryConsequenceResolver {
         var tags: [String] { page.tags.map { $0.lowercased() } }
         var entityIDs: [String] { ids(prefix: "entity:") }
         var threadIDs: [String] { ids(prefix: "thread:") }
+        var recipeIDs: [String] { page.tags.compactMap(StoryConsequenceCondition.recipeID(from:)) }
+        var settingEntityIDs: [String] {
+            entityIDs.filter { id in
+                NarrativePackRegistry.entities.first(where: { $0.id == id })?.kind == .location
+            }
+        }
+        var characterEntityIDs: [String] {
+            entityIDs.filter { id in
+                NarrativePackRegistry.entities.first(where: { $0.id == id })?.kind == .character
+            }
+        }
         var leadEntityID: String? { entityIDs.first }
         var activeThreadID: String? { threadIDs.first }
 
@@ -2612,8 +3164,14 @@ enum StoryConsequenceResolver {
                 switch token {
                 case "{{sceneEntities}}":
                     ids.append(contentsOf: entityIDs)
-                case "{{leadEntity}}", "{{settingEntity}}":
+                case "{{leadEntity}}":
                     if let leadEntityID { ids.append(leadEntityID) }
+                case "{{settingEntity}}":
+                    if let settingEntityID = settingEntityIDs.first {
+                        ids.append(settingEntityID)
+                    } else if let leadEntityID {
+                        ids.append(leadEntityID)
+                    }
                 case "{{activeThread}}":
                     if let activeThreadID { ids.append(activeThreadID) }
                 case "{{reader}}":

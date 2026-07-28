@@ -2093,7 +2093,8 @@ struct CapturePageSheet: View {
                 TarotReadingArtifact.metadataKey: encoded,
                 "tarotSpread": tarotReading.spread.rawValue,
                 "tarotDeckVersion": tarotReading.deckVersion,
-                "tarotAuroraReading": tarotReading.auroraReading?.isEmpty == false ? "true" : "false",
+                "tarotCastReading": tarotReading.castReading?.isEmpty == false ? "true" : "false",
+                "tarotReaderID": tarotReading.readerID ?? "legacy-aurora",
                 "tarotContextSourceCount": "\(tarotReading.contextReceipt?.sources.count ?? 0)",
                 "tarotContextEdgeCount": "\(tarotReading.contextReceipt?.edges.count ?? 0)",
                 "tarotRetrievalMode": tarotReading.contextReceipt?.retrievalMode ?? "cards-only"
@@ -3218,7 +3219,7 @@ struct CapturePageSheet: View {
                 Text("SHADOW WONDER")
                     .font(.caption2.weight(.black))
                     .tracking(1.2)
-                Text("Mono no aware — the worn edge, witnessed.")
+                Text("The worn side of the day, kept anyway.")
                     .font(.caption2)
                     .opacity(0.85)
             }
@@ -3236,6 +3237,89 @@ struct CapturePageSheet: View {
         .accessibilityLabel("Shadow Wonder variant")
     }
 
+    private var journalAuthorName: String {
+        surface.payload.metadata["journalAuthorName"]?.nonEmpty ?? "The Book"
+    }
+
+    private var journalResponseTitle: String {
+        guard surface.type == .diary else { return "Margin note" }
+        return surface.payload.metadata["journalAuthorID"] == "penny-blackletter"
+            ? "Penny's case file"
+            : "Your answer"
+    }
+
+    private var journalResponsePlaceholder: String? {
+        guard surface.type == .diary else { return nil }
+        return surface.payload.metadata["placeholder"]?.nonEmpty
+            ?? "Write one true thing, if one arrives."
+    }
+
+    private var journalAuthorLead: String? {
+        if let lead = surface.payload.metadata["journalAuthorLead"]?.nonEmpty {
+            return lead
+        }
+        let firstParagraph = surface.payload.body
+            .components(separatedBy: "\n\n")
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return firstParagraph?.nonEmpty == surface.prompt.nonEmpty ? nil : firstParagraph?.nonEmpty
+    }
+
+    @ViewBuilder
+    private var journalPageOpening: some View {
+        let authorID = surface.payload.metadata["journalAuthorID"]?.nonEmpty ?? "the-book"
+        let authorLead = journalAuthorLead
+        let invitation = surface.payload.metadata["journalResponseInvitation"]?.nonEmpty
+            ?? (authorID == "penny-blackletter"
+                ? "No grand conclusion is required. One honest piece of evidence will do; Penny has brought a very small folder."
+                : "Write one true thing, if one arrives. A sentence is enough; the Book will not grade it.")
+
+        VStack(alignment: .leading, spacing: 12) {
+            Text(surface.payload.headline)
+                .font(.system(.title, design: .serif, weight: .semibold))
+                .foregroundStyle(openPagePrimaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(authorID == "the-book"
+                ? "The Book set aside one private question from the shape of the day."
+                : "A private question, filed by \(journalAuthorName).")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(openPageSecondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let authorLead {
+                Text(authorLead)
+                    .font(.system(.body, design: .serif).italic())
+                    .foregroundStyle(openPageSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(authorID == "penny-blackletter" ? "PENNY'S QUESTION" : "THE QUESTION")
+                    .font(.caption2.weight(.black))
+                    .tracking(1)
+                    .foregroundStyle(BookPalette.teal)
+
+                Text(surface.prompt)
+                    .font(.system(.title3, design: .serif, weight: .semibold))
+                    .foregroundStyle(openPagePrimaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(invitation)
+                    .font(.callout)
+                    .foregroundStyle(openPageSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(BookPalette.paper.opacity(0.72), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(BookPalette.teal.opacity(0.24), lineWidth: 1)
+            }
+        }
+    }
+
     private var pageSheetContent: some View {
         VStack(alignment: .leading, spacing: 18) {
             Label(pageSheetTitle, systemImage: pageSheetSymbolName)
@@ -3248,17 +3332,21 @@ struct CapturePageSheet: View {
 
             characterPortraitHeader
 
-            Text(surface.prompt)
-                .font(.system(.title, design: .serif, weight: .semibold))
-                .foregroundStyle(openPagePrimaryText)
-                .shadow(color: BookPalette.lampGold.opacity(0.14), radius: 6, x: 0, y: 2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if !isStandalonePlayfulMissionPage {
-                Text(surface.detail)
-                    .font(.body)
-                    .foregroundStyle(openPageSecondaryText)
+            if surface.type == .diary {
+                journalPageOpening
+            } else {
+                Text(surface.prompt)
+                    .font(.system(.title, design: .serif, weight: .semibold))
+                    .foregroundStyle(openPagePrimaryText)
+                    .shadow(color: BookPalette.lampGold.opacity(0.14), radius: 6, x: 0, y: 2)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if !isStandalonePlayfulMissionPage {
+                    Text(surface.detail)
+                        .font(.body)
+                        .foregroundStyle(openPageSecondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             if let actedMargin = surface.payload.metadata["bookActedMargin"]?.nonEmpty {
@@ -3489,7 +3577,7 @@ struct CapturePageSheet: View {
                     isReadOnly: isKeptReadbackPage,
                     localBrainIsReady: localBrainIsReady,
                     isLocalBrainWorking: isLocalBrainWorking,
-                    onRequestAuroraReading: onRequestTarotReading
+                    onRequestSerenityReading: onRequestTarotReading
                 )
             }
 
@@ -3499,7 +3587,11 @@ struct CapturePageSheet: View {
             }
 
             if showsGenericMarginNoteEditor {
-                marginNoteEditor(minHeight: isPreparedPage ? 92 : (surface.type == .souvenir ? 120 : 150))
+                marginNoteEditor(
+                    minHeight: isPreparedPage ? 92 : (surface.type == .souvenir ? 120 : 150),
+                    title: journalResponseTitle,
+                    placeholder: journalResponsePlaceholder
+                )
             } else if isBookJumpActivePage {
                 // Every open beat can carry a line — a souvenir to bring home, or
                 // a real detail to steady the page — so the fork controls have it.
@@ -6787,7 +6879,7 @@ struct CapturePageSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Label(
-                "Keep the Page and the choosing would stand. Let it wait and \(name) would return patiently to the school.",
+                "Keep the Page and the choosing would stand. Let it wait and \(name) would go back to the school and sulk about it.",
                 systemImage: "book.closed.fill"
             )
             .font(.caption.weight(.semibold))
@@ -7712,7 +7804,7 @@ struct CapturePageSheet: View {
                 BreathingMinuteView(
                     accent: BookPalette.teal,
                     reduceMotion: reduceMotion,
-                    completionNote: "If a single true line arrived in the quiet, you can keep it below. If not, that's rest too."
+                    completionNote: "If a line turned up in the quiet, keep it below. If not, you got a minute back."
                 )
             }
 
@@ -9607,7 +9699,7 @@ struct CapturePageSheet: View {
             LivingTextEditor(
                 title: title,
                 placeholder: placeholder ?? (surface.type == .rest
-                    ? "One true line, if one arrived in the quiet. Or leave it blank — that's rest too."
+                    ? "One true line, if one turned up. Or leave it blank and we'll both pretend that was the plan."
                     : "Add one true thing the Book should keep."),
                 text: $text,
                 minHeight: minHeight,
@@ -10865,7 +10957,7 @@ struct CapturePageSheet: View {
                 BookFeedback.play(.sourceRefresh)
                 Task { await saveIlluminatedArtifactToPhotos() }
             } label: {
-                Label(isSavingIlluminatedArtifact ? "Saving..." : "Save artifact", systemImage: "square.and.arrow.down")
+                Label(isSavingIlluminatedArtifact ? "Saving..." : "Save plate", systemImage: "square.and.arrow.down")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
@@ -10873,7 +10965,7 @@ struct CapturePageSheet: View {
 
             if let artifactURL = illuminatedArtifactURL {
                 ShareLink(item: artifactURL) {
-                    Label("Share artifact", systemImage: "square.and.arrow.up")
+                    Label("Share plate", systemImage: "square.and.arrow.up")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -10925,7 +11017,7 @@ struct CapturePageSheet: View {
                     isCastingEnchantment ? "camera-enchantment" : "camera-illumination",
                     quip: isCastingEnchantment
                         ? "The Enchantment is reading the photo and writing its text."
-                        : "Penny is compositing the photograph into one illuminated artifact."
+                        : "Penny is pressing the photograph into one illuminated plate."
                 )
             }
 
@@ -11707,7 +11799,7 @@ struct CapturePageSheet: View {
         renderedIlluminatedPageURL = renderedURL
         if renderedURL == nil {
             BookFeedback.play(.error)
-            illuminationMessage = "The artifact did not finish drying. Try preparing it again."
+            illuminationMessage = "The plate did not finish drying. Try preparing it again."
         } else if force {
             BookFeedback.play(.braidComplete)
         }
@@ -11803,7 +11895,7 @@ struct CapturePageSheet: View {
         await prepareIlluminatedArtifactIfNeeded()
         guard let artifactURL = illuminatedArtifactURL else {
             BookFeedback.play(.error)
-            illuminationMessage = "The artifact is not ready to save yet."
+            illuminationMessage = "The plate is not ready to save yet."
             return
         }
 
@@ -11813,13 +11905,13 @@ struct CapturePageSheet: View {
                 PHAssetCreationRequest.creationRequestForAssetFromImage(atFileURL: artifactURL)
             }
             BookFeedback.play(.keepPage)
-            illuminationMessage = "The artifact is tucked into Photos."
+            illuminationMessage = "The plate is tucked into Photos."
         } catch {
             BookFeedback.play(.error)
-            illuminationMessage = "Photos would not take the artifact yet. Check photo permissions, then try again."
+            illuminationMessage = "Photos would not take the plate yet. Check photo permissions, then try again."
         }
         #else
-        illuminationMessage = "This build cannot save to Photos, but the artifact is prepared."
+        illuminationMessage = "This build cannot save to Photos, but the plate is prepared."
         #endif
     }
 

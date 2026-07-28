@@ -66,13 +66,14 @@ final class BraidPromptContextTests: XCTestCase {
 
         let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
 
-        XCTAssertTrue(prompt.contains("child-like wonder, never childish"))
-        XCTAssertTrue(prompt.contains("Be conversational and use contractions"))
-        XCTAssertTrue(prompt.contains("Treat ordinary things as alive"))
-        XCTAssertTrue(prompt.contains("don't lecture, moralize, give generic wisdom"))
+        XCTAssertTrue(prompt.contains("half-feral child, never cute"))
+        XCTAssertTrue(prompt.contains("Short sentences, contractions"))
+        XCTAssertTrue(prompt.contains("at least one ordinary thing must act on its own"))
+        XCTAssertTrue(prompt.contains("The kettle's sulking."))
+        XCTAssertTrue(prompt.contains("Never soothe, reassure, bless, lecture, moralize, give wisdom"))
         XCTAssertFalse(prompt.contains("wise underneath"))
-        XCTAssertTrue(prompt.contains("Most objects stay ordinary"))
-        XCTAssertTrue(prompt.contains("selective magic is stronger"))
+        XCTAssertTrue(prompt.contains("exactly one object gets that agency"))
+        XCTAssertTrue(prompt.contains("One live thing hits harder than a parade"))
     }
 
     func testBookOfYouBraidCarriesThisReadersPatinaWithoutReplacingBookCanon() {
@@ -382,6 +383,70 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertFalse(evidence.contains("The Labyrinth explains"))
         XCTAssertFalse(evidence.contains("setup margin note"))
         XCTAssertTrue(evidence.contains("I should have gone to the lake"))
+    }
+
+    /// The packet's character budget has to bind on exactly the days that
+    /// threaten the prompt: heavy ones. A per-page floor stacked on top of the
+    /// total used to win past roughly fifteen pages, so a busy day spent far
+    /// more than its budget and the ceiling meant nothing where it mattered.
+    func testEvidencePacketBudgetBindsOnAHeavyDay() {
+        let body = String(
+            repeating: "The rain kept tapping the window while the kettle sulked on the back burner. ",
+            count: 8
+        )
+        let day = BookDay(
+            id: "2026-07-14",
+            date: date("2026-07-14T20:00:00Z"),
+            pages: (0 ..< 25).map { index in
+                BookPage(
+                    type: .diary,
+                    createdAt: date("2026-07-14T08:00:00Z").addingTimeInterval(Double(index) * 1800),
+                    promptText: "What did the day hand you at this hour?",
+                    userInput: body,
+                    tags: ["kept", "rain"],
+                    origin: .userAuthored
+                )
+            }
+        )
+
+        let tight = BraidPromptBuilder.evidenceLines(for: day, totalCharacterBudget: 3_600)
+            .joined(separator: "\n\n")
+        let generous = BraidPromptBuilder.evidenceLines(for: day, totalCharacterBudget: 7_200)
+            .joined(separator: "\n\n")
+
+        XCTAssertEqual(tight.components(separatedBy: "\n\n").count, 25, "Every kept page keeps a slot.")
+        XCTAssertLessThan(
+            tight.count,
+            generous.count,
+            "A smaller packet budget must produce a smaller packet."
+        )
+        XCTAssertLessThan(tight.count, 6_000, "A 25-page day must not spend 8,000 characters again.")
+    }
+
+    /// Empty fields cost as much as full ones once every page carries nine
+    /// labels, and "Reader reply: none" tells the Book nothing.
+    func testEvidenceLinesOmitAbsentFieldsButKeepPresentOnes() {
+        let day = BookDay(
+            id: "2026-07-14",
+            date: date("2026-07-14T20:00:00Z"),
+            pages: [
+                BookPage(
+                    type: .diary,
+                    createdAt: date("2026-07-14T08:00:00Z"),
+                    promptText: "What did the day hand you?",
+                    userInput: "The coat by the door stayed dark at the shoulders all morning.",
+                    origin: .userAuthored
+                )
+            ]
+        )
+
+        let evidence = BraidPromptBuilder.evidenceLines(for: day).joined(separator: "\n")
+
+        XCTAssertFalse(evidence.contains("Reader reply:"))
+        XCTAssertFalse(evidence.contains("Visual evidence:"))
+        XCTAssertFalse(evidence.contains("Tags:"))
+        XCTAssertTrue(evidence.contains("Kept text: The coat by the door"))
+        XCTAssertTrue(evidence.contains("Shelf: lived"))
     }
 
     func testFallbackExcerptRetreatsToAWholeWordBoundary() {

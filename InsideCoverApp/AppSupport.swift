@@ -2477,9 +2477,23 @@ private struct FocusedTextInputVisibilityModifier: ViewModifier {
 enum AppMemoryLedger {
     static func record(_ checkpoint: String) {
         let resident = residentBytes()
-        let message = "Memory checkpoint \(checkpoint); resident: \(resident)"
+        let available = availableBytes()
+        let message = "Memory checkpoint \(checkpoint); resident: \(resident); available: \(available)"
         appLog.info("\(message, privacy: .public)")
         print(message)
+    }
+
+    /// How many bytes this process may still allocate before iOS terminates it.
+    /// Unlike a memory warning, this is readable *before* the app is in
+    /// trouble, so the local brain can decline work it cannot afford instead of
+    /// being killed partway through a page.
+    static func availableBytes() -> UInt64 {
+        #if canImport(UIKit)
+        let available = os_proc_available_memory()
+        return available > 0 ? UInt64(available) : 0
+        #else
+        return 0
+        #endif
     }
 
     private static func residentBytes() -> UInt64 {
@@ -3762,7 +3776,7 @@ enum BookWhispers {
         if let promise = bookInterior.promise, promise.status == .keeping {
             return (
                 "The ribbon kept its place",
-                "The Book is still holding an unfinished promise. Nothing is required tonight."
+                "There's an unfinished promise still on the shelf. Not tonight's problem."
             )
         }
         if let opinion = bookInterior.opinion,
@@ -4094,7 +4108,7 @@ enum BookWhispers {
                         : "An optional favor rests in the flyleaf"
                     let body = elective.bookFavorID == nil
                         ? "\(elective.characterName) is still hoping for “\(elective.title)”. Sentence, photo, or GPS proof completes it."
-                        : "\(elective.title) is still there if it would add something to your day. Nothing is owed."
+                        : "\(elective.title) is still there if you want it. I'm not going to nag."
                     add(
                         id: "favor-\(elective.id)",
                         dayID: BookDay.id(for: fire, calendar: calendar),
@@ -5309,6 +5323,23 @@ final class PlayerVault {
         }
         data = Self.migrateFromLegacyLedgers()
         persistImmediately(data)
+    }
+
+    /// Applies several field changes as a single observable mutation.
+    ///
+    /// `data` is one observable property, so *any* assignment through it —
+    /// `vault.data.readerLearning = …` — invalidates every view that reads any
+    /// part of the vault. A run of consecutive field writes therefore rebuilt
+    /// the whole desk once per field. Compute the new values first, then apply
+    /// them here in one pass.
+    ///
+    /// Do not nest calls, and do not read `vault.data` inside the closure
+    /// expecting to see the changes being made: the draft is only published
+    /// when the closure returns.
+    func mutate(_ change: (inout PlayerVaultData) -> Void) {
+        var draft = data
+        change(&draft)
+        data = draft
     }
 
     func save() {

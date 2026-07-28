@@ -135,6 +135,84 @@ enum ContestedQuestionEngine {
         )
     }
 
+    /// Opens a multi-party reading from a compiled fictional consequence. The
+    /// receipt is the shared fact; characters may disagree only about what it
+    /// meant. This lets a pairwise Story turn become Academy-wide culture
+    /// without allowing any observer to rewrite the originating scene.
+    static func opening(
+        consequence: StoryConsequenceReceipt,
+        entities: [NarrativeWorldEntity],
+        existing: [ContestedQuestion],
+        now: Date
+    ) -> ContestedQuestion? {
+        guard existing.filter(\.isLive).count < ContestedQuestion.maximumOpen,
+              consequence.characterIDs.count >= 2,
+              consequence.isRelationshipPressure,
+              let changedFact = consequence.changedFact?.nonEmpty else {
+            return nil
+        }
+        let byID = Dictionary(uniqueKeysWithValues: entities.map { ($0.id, $0) })
+        let principalIDs = Array(consequence.characterIDs.prefix(2))
+        guard let first = byID[principalIDs[0]], let second = byID[principalIDs[1]] else {
+            return nil
+        }
+        let witnesses = DisagreementEngine.eligible(from: entities)
+            .filter { !Set(principalIDs).contains($0.id) }
+            .sorted { left, right in
+                let leftScore = abs("\(consequence.id)|\(left.id)|witness".stableHash)
+                let rightScore = abs("\(consequence.id)|\(right.id)|witness".stableHash)
+                if leftScore == rightScore { return left.id < right.id }
+                return leftScore < rightScore
+            }
+            .prefix(max(1, ContestedQuestion.minimumPositions - 2))
+        let participants = [first, second] + Array(witnesses)
+        guard participants.count >= ContestedQuestion.minimumPositions else { return nil }
+
+        let positions = participants.enumerated().map { index, entity in
+            let silence = silenceReason(
+                for: entity,
+                seed: consequence.id,
+                isSubject: index < 2
+            )
+            let claim: String
+            if silence != .none {
+                claim = withheld(for: entity, reason: silence)
+            } else if index == 0 {
+                claim = "\(entity.name) says the fact must be taken at face value: \(changedFact)"
+            } else if index == 1 {
+                claim = "\(entity.name) says the fact is true, but its meaning has been badly misread."
+            } else {
+                claim = reading(for: entity, seed: consequence.id)
+            }
+            return ContestedPosition(
+                id: "position-\(consequence.id)-\(entity.id)",
+                holderID: entity.id,
+                holderName: entity.name,
+                claim: claim,
+                groundedInIDs: [consequence.id],
+                confidence: 45 + abs("\(consequence.id)|\(entity.id)|confidence".stableHash) % 45,
+                silence: silence,
+                formedAt: now
+            )
+        }
+        let speaking = positions.filter(\.isSpeaking)
+        let fact = String(changedFact.prefix(150))
+        return ContestedQuestion(
+            id: "contested-\(consequence.id)",
+            question: "What did it mean when \(fact)?",
+            aboutMovementIDs: [consequence.id],
+            placeID: consequence.settingIDs.first,
+            positions: positions,
+            bookPosition: "The Book provisionally suspects \(speaking.first?.holderName ?? first.name) has the nearest reading. It is explicitly a guess.",
+            bookBackedHolderID: speaking.first?.holderID,
+            status: .open,
+            openedAt: now,
+            lastMovedAt: now,
+            embarrassedHolderID: nil,
+            contradictingEvidence: nil
+        )
+    }
+
     /// Physical evidence turns up and does not agree with whoever the Book
     /// backed. The question does not resolve — it acquires an embarrassment.
     static func complicating(

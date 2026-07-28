@@ -350,7 +350,7 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertTrue(evolved.longGame?.evidence.isEmpty == true)
         XCTAssertTrue(evolved.longGame?.milestones.isEmpty == false)
         XCTAssertTrue(answer?.contains("Holy shit, what a trip") == true)
-        XCTAssertTrue(answer?.contains("will not be cunning about your consent") == true)
+        XCTAssertTrue(answer?.contains("won't be cunning about your consent") == true)
     }
 
     func testUnpromptedPlainPagesEstrangeTheFamiliarAcrossLivedDays() {
@@ -1540,7 +1540,7 @@ final class BookInteriorTests: XCTestCase {
                 now: now
             ).first { $0.payload.metadata["bookProjectID"] == project.id }
         )
-        XCTAssertTrue(projectSurface.payload.body.contains("You have not been assigned anything"))
+        XCTAssertTrue(projectSurface.payload.body.contains("You haven't been assigned anything"))
     }
 
     func testPendingQuirkActInterferesWithOneOrdinaryPageAndBecomesDurableHistory() throws {
@@ -2356,7 +2356,7 @@ final class BookInteriorTests: XCTestCase {
         let yearsLater = aYearLater.addingTimeInterval(731 * 86_400)
         state = BookInteriorEngine.reconciled(state, inputs: .empty, now: yearsLater, calendar: calendar)
         XCTAssertEqual(state.secretLegacies.first?.stage, .inheritance)
-        XCTAssertTrue(state.secretLegacies.first?.line.contains("kind of Book I became") == true)
+        XCTAssertTrue(state.secretLegacies.first?.line.contains("how I'm bound now") == true)
     }
 
     func testRareCharacteristicSurpriseDeliversAValidatedCrossHistoryReframe() throws {

@@ -60,13 +60,15 @@ final class RadioBanterTests: XCTestCase {
         }
     }
 
-    func testMothlightCatalogIncludesInTheStory() throws {
+    func testMothlightCatalogIncludesBundledTracks() throws {
         let station = try XCTUnwrap(RadioStationRegistry.station(id: "mothlight-beats"))
         let track = try XCTUnwrap(station.tracks.first { $0.id == "mothlight-in-the-story" })
         let noticingTextFlowers = try XCTUnwrap(station.tracks.first { $0.id == "mothlight-noticing-text-flowers" })
         let talesEnd = try XCTUnwrap(station.tracks.first { $0.id == "mothlight-tales-end" })
         let bookJumping = try XCTUnwrap(station.tracks.first { $0.id == "mothlight-book-jumping" })
         let porchlightFading = try XCTUnwrap(station.tracks.first { $0.id == "mothlight-porchlight-fading" })
+        let astonishing = try XCTUnwrap(station.tracks.first { $0.id == "mothlight-astonishing" })
+        let longerRoad = try XCTUnwrap(station.tracks.first { $0.id == "mothlight-the-longer-road" })
 
         XCTAssertEqual(track.title, "In the Story")
         XCTAssertEqual(track.assetName, "RadioMothlightInTheStory")
@@ -83,6 +85,12 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertEqual(porchlightFading.title, "Porchlight, Fading")
         XCTAssertEqual(porchlightFading.assetName, "RadioMothlightPorchlightFading")
         XCTAssertEqual(porchlightFading.durationSeconds, 120)
+        XCTAssertEqual(astonishing.title, "Astonishing")
+        XCTAssertEqual(astonishing.assetName, "RadioMothlightAstonishing")
+        XCTAssertEqual(astonishing.durationSeconds, 352)
+        XCTAssertEqual(longerRoad.title, "The Longer Road")
+        XCTAssertEqual(longerRoad.assetName, "RadioMothlightTheLongerRoad")
+        XCTAssertEqual(longerRoad.durationSeconds, 234)
 
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
@@ -91,6 +99,8 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioMothlightTalesEnd.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioMothlightBookJumping.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioMothlightPorchlightFading.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioMothlightAstonishing.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioMothlightTheLongerRoad.m4a").path))
     }
 
     func testMothlightIncludesImportedEuphonyBanterBatch() throws {

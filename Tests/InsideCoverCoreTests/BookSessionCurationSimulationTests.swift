@@ -105,6 +105,243 @@ final class BookSessionCurationSimulationTests: XCTestCase {
         }
     }
 
+    func testDeepBenchIsComposedAsConditionalThreeRoleActsWithDormantReceipts() {
+        let candidates = [
+            page(.weather, intent: .capture),
+            page(.wonderCompass, intent: .capture),
+            page(.bookRemembered, intent: .resurface),
+            page(.bookNotices, intent: .reflect),
+            page(.letter, intent: .reflect),
+            page(.narrativeOS, intent: .simulate),
+            page(.lore, intent: .importReference),
+            page(.wordNegotiation, intent: .reflect),
+            page(.rest, intent: .rest),
+            page(.quotes, intent: .importReference),
+            page(.body, intent: .capture),
+            page(.quip, intent: .importReference),
+            page(.location, intent: .capture),
+            page(.note, intent: .reflect),
+            page(.gossip, intent: .reflect)
+        ]
+        var mood = CuratorMood.neutral
+        mood.keptPageCount = 100
+        let intention = sessionIntention(movement: .freshSight, seed: "prepared-score")
+        let score = BookCurator.rankedPages(
+            from: candidates,
+            limit: 12,
+            mood: mood,
+            now: now,
+            intention: intention,
+            selectionSeed: intention.seed,
+            alivenessFacets: ["time:evening", "weather:rain"]
+        ).map(\.page)
+
+        XCTAssertGreaterThanOrEqual(score.count, 9)
+        XCTAssertEqual(Set(score.prefix(3).compactMap(\.preparedExperimentRole)), Set(BookSessionRole.allCases))
+        XCTAssertEqual(Set(score.dropFirst(3).prefix(3).compactMap(\.preparedExperimentRole)), Set(BookSessionRole.allCases))
+        XCTAssertEqual(Set(score.dropFirst(6).prefix(3).compactMap(\.preparedExperimentRole)), Set(BookSessionRole.allCases))
+        XCTAssertTrue(score.prefix(3).allSatisfy { $0.preparedExperimentBranch == .current })
+        XCTAssertTrue(score.dropFirst(3).prefix(3).allSatisfy { $0.preparedExperimentBranch == .afterKeep })
+        XCTAssertTrue(score.dropFirst(6).prefix(3).allSatisfy { $0.preparedExperimentBranch == .afterDismissal })
+        XCTAssertTrue(score.allSatisfy { $0.preparedExperimentIntentionID == intention.id })
+        XCTAssertGreaterThanOrEqual(
+            score.dropFirst(3).filter { CausalCurationReceipt.read(from: $0) != nil }.count,
+            4,
+            "Prepared randomized choices should carry dormant receipts; a deterministic last slot must not invent one."
+        )
+    }
+
+    func testPreparedReplacementAnswersKeepAndDismissalWithDifferentBranches() {
+        let intention = sessionIntention(movement: .freshSight, seed: "branch-order")
+        let contextKey = "ctx-branch"
+        let departing = BookPreparedExperimentScore.preparing(
+            intention.applying(to: page(.weather, intent: .capture), role: .door),
+            intention: intention,
+            role: .door,
+            actIndex: 0,
+            contextKey: contextKey,
+            now: now
+        )
+        let afterKeep = BookPreparedExperimentScore.preparing(
+            intention.applying(to: page(.souvenir, intent: .capture), role: .door),
+            intention: intention,
+            role: .door,
+            actIndex: 1,
+            contextKey: contextKey,
+            now: now
+        )
+        let afterDismissal = BookPreparedExperimentScore.preparing(
+            intention.applying(to: page(.rest, intent: .rest), role: .door),
+            intention: intention,
+            role: .door,
+            actIndex: 2,
+            contextKey: contextKey,
+            now: now
+        )
+        let candidates = [afterDismissal, afterKeep]
+
+        XCTAssertEqual(BookCurator.preparedReplacementOrder(
+            candidates: candidates,
+            departing: departing,
+            outcome: .kept,
+            contextKey: contextKey,
+            now: now,
+            sleepsExperiment: false
+        ).first?.id, afterKeep.id)
+        XCTAssertEqual(BookCurator.preparedReplacementOrder(
+            candidates: candidates,
+            departing: departing,
+            outcome: .dismissed,
+            contextKey: contextKey,
+            now: now,
+            sleepsExperiment: false
+        ).first?.id, afterDismissal.id)
+    }
+
+    func testFirstDoorDismissalBranchesButSecondDistinctDoorSleepsTheScore() {
+        let intention = sessionIntention(movement: .freshSight, seed: "door-sleep")
+        let firstDoor = intention.applying(
+            to: page(.weather, intent: .capture, sourceID: "first-door"),
+            role: .door
+        )
+        let secondDoor = intention.applying(
+            to: page(.rest, intent: .rest, sourceID: "second-door"),
+            role: .door
+        )
+        var learning = ReaderLearningModel()
+
+        XCTAssertFalse(BookPreparedExperimentDismissalPolicy.sleepsExperiment(
+            afterDismissing: firstDoor,
+            learning: learning
+        ))
+        learning.record(ReaderLearningEvent(
+            id: "first-door-pass",
+            dayID: intention.dayID,
+            occurredAt: now,
+            action: .dismissed,
+            surfaceID: firstDoor.id,
+            sourceID: firstDoor.sourceID,
+            type: firstDoor.type,
+            varietyKey: firstDoor.varietyKey,
+            hour: 18,
+            tags: firstDoor.readerLearningTags + [ReaderLearningEvent.curationLearningForbiddenTag]
+        ))
+
+        XCTAssertFalse(BookPreparedExperimentDismissalPolicy.sleepsExperiment(
+            afterDismissing: firstDoor,
+            learning: learning
+        ), "Undoing and passing the same Door again is not a second distinct refusal.")
+        XCTAssertTrue(BookPreparedExperimentDismissalPolicy.sleepsExperiment(
+            afterDismissing: secondDoor,
+            learning: learning
+        ))
+        XCTAssertTrue(learning.sourceAffinities.isEmpty)
+        XCTAssertTrue(learning.typeAffinities.isEmpty)
+    }
+
+    func testSleepingScoreMakesDirectorChooseAnotherMovementInTheSameTimeBand() {
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+        let candidates = [
+            page(.weather, intent: .capture),
+            page(.wonderCompass, intent: .capture),
+            page(.bookRemembered, intent: .resurface),
+            page(.letter, intent: .reflect),
+            page(.narrativeOS, intent: .simulate),
+            page(.lore, intent: .importReference)
+        ]
+        let first = BookSessionDirector.intention(
+            for: day,
+            inputs: .empty,
+            candidates: candidates,
+            preferences: .none,
+            distressActive: false,
+            now: now
+        )
+        let second = BookSessionDirector.intention(
+            for: day,
+            inputs: .empty,
+            candidates: candidates,
+            preferences: CuratorSurfacePreferences(dismissedSurfaceIDs: [first.restKey]),
+            distressActive: false,
+            now: now
+        )
+
+        XCTAssertNotEqual(second.id, first.id)
+        XCTAssertNotEqual(second.movement, first.movement)
+    }
+
+    func testExhaustingEveryDirectedMovementFallsBackToShelterNotARepeatedScore() {
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+        let candidates = [
+            page(.weather, intent: .capture),
+            page(.wonderCompass, intent: .capture),
+            page(.bookRemembered, intent: .resurface),
+            page(.letter, intent: .reflect),
+            page(.narrativeOS, intent: .simulate),
+            page(.lore, intent: .importReference)
+        ]
+        var sleepingKeys = Set<String>()
+        var directedIDs = Set<String>()
+        var finalMovement: BookReenchantmentMovement?
+
+        for _ in 0...BookReenchantmentMovement.allCases.count {
+            let intention = BookSessionDirector.intention(
+                for: day,
+                inputs: .empty,
+                candidates: candidates,
+                preferences: CuratorSurfacePreferences(dismissedSurfaceIDs: sleepingKeys),
+                distressActive: false,
+                now: now
+            )
+            finalMovement = intention.movement
+            if intention.movement == .shelter { break }
+            XCTAssertTrue(directedIDs.insert(intention.id).inserted)
+            sleepingKeys.insert(intention.restKey)
+        }
+
+        XCTAssertEqual(finalMovement, .shelter)
+    }
+
+    func testSleepingScoreCannotResurrectFromItsPreparedReserve() {
+        let rejected = sessionIntention(movement: .freshSight, seed: "sleeping")
+        let next = sessionIntention(movement: .livingWorld, seed: "next")
+        let contextKey = "ctx-new-door"
+        let departing = BookPreparedExperimentScore.preparing(
+            rejected.applying(to: page(.weather, intent: .capture), role: .door),
+            intention: rejected,
+            role: .door,
+            actIndex: 0,
+            contextKey: contextKey,
+            now: now
+        )
+        let staleOldDoor = BookPreparedExperimentScore.preparing(
+            rejected.applying(to: page(.souvenir, intent: .capture), role: .door),
+            intention: rejected,
+            role: .door,
+            actIndex: 2,
+            contextKey: contextKey,
+            now: now
+        )
+        let newDoor = BookPreparedExperimentScore.preparing(
+            next.applying(to: page(.location, intent: .capture), role: .door),
+            intention: next,
+            role: .door,
+            actIndex: 0,
+            contextKey: contextKey,
+            now: now
+        )
+        let ordered = BookCurator.preparedReplacementOrder(
+            candidates: [staleOldDoor, newDoor],
+            departing: departing,
+            outcome: .dismissed,
+            contextKey: contextKey,
+            now: now,
+            sleepsExperiment: true
+        )
+
+        XCTAssertEqual(ordered.map(\.id), [newDoor.id])
+    }
+
     func testDisabledAndDismissedSourcesRemainAbsoluteAcrossSeeds() {
         let forbidden = page(.weather, intent: .capture, sourceID: "forbidden-weather")
         let allowed = page(.souvenir, intent: .capture, sourceID: "allowed-souvenir")

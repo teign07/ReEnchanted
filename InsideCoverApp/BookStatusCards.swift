@@ -557,7 +557,7 @@ struct StoryFieldStatusCard: View {
             return "The next Story Page has enough weight to open."
         }
         if surface != nil {
-            return "The next Story Page is gathering around this exact packet."
+            return "The Book has chosen what the next Story Page will be about."
         }
         return "The Book has not laid a Story Page in the margin yet."
     }
@@ -2411,7 +2411,7 @@ struct LocalBrainWorkingStatusCard: View {
                 }
             }
 
-            GhostInkText(text: text, reduceMotion: reduceMotion)
+            GhostInkText(text: text)
                 .font(.system(.callout, design: .serif))
                 .lineSpacing(3)
                 .foregroundStyle(BookPalette.ink.opacity(0.82))
@@ -2610,64 +2610,12 @@ struct LocalBrainPreviewStartObserver: View {
 
 private struct GhostInkText: View {
     let text: String
-    let reduceMotion: Bool
-
-    @State private var visibleText = ""
-    @State private var visibleCharacterCount = 0
 
     var body: some View {
-        Text(visibleText)
-            .task(id: text) {
-                await reveal(text)
-            }
-            .onAppear {
-                if reduceMotion {
-                    visibleText = text
-                    visibleCharacterCount = text.count
-                }
-            }
-    }
-
-    @MainActor
-    private func reveal(_ target: String) async {
-        guard !reduceMotion else {
-            visibleText = target
-            visibleCharacterCount = target.count
-            return
-        }
-
-        if target.isEmpty {
-            visibleText = ""
-            visibleCharacterCount = 0
-            return
-        }
-
-        guard target.hasPrefix(visibleText), visibleCharacterCount <= target.count else {
-            visibleText = target
-            visibleCharacterCount = target.count
-            return
-        }
-
-        let targetCount = target.count
-        guard visibleCharacterCount < targetCount else {
-            visibleText = target
-            visibleCharacterCount = targetCount
-            return
-        }
-
-        let remaining = targetCount - visibleCharacterCount
-        let step = max(1, min(12, remaining / 18 + 1))
-
-        while visibleCharacterCount < targetCount && !Task.isCancelled {
-            visibleCharacterCount = min(targetCount, visibleCharacterCount + step)
-            visibleText = String(target.prefix(visibleCharacterCount))
-            try? await Task.sleep(for: .milliseconds(24))
-        }
-
-        if !Task.isCancelled {
-            visibleText = target
-            visibleCharacterCount = targetCount
-        }
+        // The model already streams. Re-typing the full accumulated preview at
+        // 24 ms intervals multiplied each model update into dozens of text
+        // layouts on MainActor, which was visible as sticky scrolling.
+        Text(text)
     }
 }
 
@@ -2733,7 +2681,7 @@ struct BreathingMinuteView: View {
                         Text(leadLine(remaining: remaining, breathIn: breathIn))
                             .font(.callout.weight(.semibold))
                             .fixedSize(horizontal: false, vertical: true)
-                        Text(remaining == 0 ? "Stay, read, or close the reset." : "\(remaining) seconds — optional, never a requirement.")
+                        Text(remaining == 0 ? "Stay, read, or close the reset." : "\(remaining) seconds. Walk off whenever you like.")
                             .font(.caption2.monospacedDigit())
                             .foregroundStyle(BookPalette.ink.opacity(0.56))
                     }

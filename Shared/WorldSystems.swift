@@ -384,6 +384,9 @@ struct RadioPageContext: Equatable {
     var recentTags: Set<String>
     var lastKeptPageType: BookPageType?
     var weatherTags: Set<String>
+    /// Recent significant fictional facts. These are generated locally from
+    /// signed consequence receipts, never from reader prose or inferred mood.
+    var storyConsequenceEchoes: [StoryConsequenceReceipt]
 
     init(
         keptToday: Int = 0,
@@ -391,7 +394,8 @@ struct RadioPageContext: Equatable {
         recentSourceIDs: Set<String> = [],
         recentTags: Set<String> = [],
         lastKeptPageType: BookPageType? = nil,
-        weatherTags: Set<String> = []
+        weatherTags: Set<String> = [],
+        storyConsequenceEchoes: [StoryConsequenceReceipt] = []
     ) {
         self.keptToday = keptToday
         self.recentPageTypeCounts = recentPageTypeCounts
@@ -399,6 +403,7 @@ struct RadioPageContext: Equatable {
         self.recentTags = Set(recentTags.map(Self.normalize))
         self.lastKeptPageType = lastKeptPageType
         self.weatherTags = Set(weatherTags.map(Self.normalize))
+        self.storyConsequenceEchoes = storyConsequenceEchoes
     }
 
     var recentKeptCount: Int {
@@ -873,6 +878,16 @@ enum RadioStationRegistry {
                 "a rectangle of sun crossing a table",
                 "Give the next ten minutes one concrete chapter detail."
             ),
+            "mothlight-astonishing": meaning(
+                ["ordinary wonder", "bittersweet presence"],
+                "dust turning gold in a window",
+                "Look at one ordinary thing as if it will not be here forever."
+            ),
+            "mothlight-the-longer-road": meaning(
+                ["slow attention", "ordinary wonder"],
+                "lamplight finding puddles on the longer way home",
+                "Take the longer road when you can, and notice one thing it gives back."
+            ),
             "thornwave-bramble-bass": meaning(
                 ["boundaries", "contained energy"],
                 "a hedge holding the noise of the street",
@@ -1087,14 +1102,14 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-intro-folktronica", category: .transition,
                     assetName: "DJ_faefi_transition_folktronica_intro",
-                    caption: "Coming up — \"Folktronica.\" A bird wrote the hook. The bird has filed a complaint. I have filed the complaint. We're all very busy here.",
+                    caption: "Coming up — \"Folktronica.\" A bird wrote the hook. The bird has filed a complaint. I've filed the complaint. We're all very busy here.",
                     conditions: nil, weight: nil,
                     trackID: "fae-fi-folktronica", placement: .intro
                 ),
                 RadioBanter(
                     id: "faefi-outro-mossygroove", category: .transition,
                     assetName: "DJ_faefi_transition_mossygroove_outro",
-                    caption: "You just heard \"Mossy Groove.\" A patch of clover is dancing and will not stop, and I have, regrettably, transcribed all of it.",
+                    caption: "You just heard \"Mossy Groove.\" A patch of clover is dancing and will not stop, and I've, regrettably, transcribed all of it.",
                     conditions: nil, weight: nil,
                     trackID: "fae-fi-mossy-groove", placement: .outro
                 ),
@@ -1107,7 +1122,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-sponsor-cloverhoney", category: .sponsor,
                     assetName: "DJ_faefi_sponsor_02",
-                    caption: "Today's brightness is brought to you by the Clover Honey Collective. Their slogan arrived far too polished, so I rewrote it: the afternoon's only as warm as you bothered to taste. Ask at the Goblin Market for the jar that hums. It does hum. I have the recording.",
+                    caption: "Today's brightness is brought to you by the Clover Honey Collective. Their slogan arrived far too polished, so I rewrote it: the afternoon's only as warm as you bothered to taste. Ask at the Goblin Market for the jar that hums. It does hum. I've the recording.",
                     conditions: RadioBanter.Conditions(timeOfDay: ["dawn", "day"]), weight: nil
                 ),
                 RadioBanter(
@@ -1515,7 +1530,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-psa-moons-showers", category: .news,
                     assetName: "DJ_faefi_psa_moons_showers_01",
-                    caption: "Also on the calendar, for the record: the moons and the falling stars. Every Full Moon is a Luminous Gathering - classes cancelled after sunset, everyone out reading by moonlight. Every New Moon, the Quiet Hours: candles only, the words holding their breath. And twice a year the ceiling goes clear for the meteors - the Perseids in August, the Falling Letters; the Geminids in December, the Winter Stars, when hot chocolate turns up in your hands unasked. I have not determined who delivers it. The investigation remains open.",
+                    caption: "Also on the calendar, for the record: the moons and the falling stars. Every Full Moon is a Luminous Gathering - classes cancelled after sunset, everyone out reading by moonlight. Every New Moon, the Quiet Hours: candles only, the words holding their breath. And twice a year the ceiling goes clear for the meteors - the Perseids in August, the Falling Letters; the Geminids in December, the Winter Stars, when hot chocolate turns up in your hands unasked. I haven't determined who delivers it. The investigation remains open.",
                     conditions: nil,
                     weight: nil
                 )
@@ -1603,6 +1618,22 @@ enum RadioStationRegistry {
                     assetName: "RadioMothlightAfternoonChapters",
                     durationSeconds: 152,
                     moodTags: ["wistful", "memory"]
+                ),
+                RadioTrack(
+                    id: "mothlight-astonishing",
+                    title: "Astonishing",
+                    artist: "Mothlight Beats",
+                    assetName: "RadioMothlightAstonishing",
+                    durationSeconds: 352,
+                    moodTags: ["wistful", "memory", "ordinary", "wonder"]
+                ),
+                RadioTrack(
+                    id: "mothlight-the-longer-road",
+                    title: "The Longer Road",
+                    artist: "Mothlight Beats",
+                    assetName: "RadioMothlightTheLongerRoad",
+                    durationSeconds: 234,
+                    moodTags: ["wistful", "memory", "ordinary", "wonder"]
                 )
             ],
             interludeTitles: [
@@ -2134,7 +2165,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-gossip-unwritten", category: .gossip,
                     assetName: "DJ_thornwave_gossip_02",
-                    caption: "Rumor under the bassline. There's a chapter in this building nobody can jump into — yours, the Unwritten one. Everybody wants a look. They'd test it, pick it apart, like I would. Don't let us. Write it yourself first.",
+                    caption: "Rumor under the bassline. There's a chapter in this building nobody can jump into — yours, the Unwritten one. Everybody wants a look. They'd test it, pick it apart, like I'd. Don't let us. Write it yourself first.",
                     conditions: nil,
                     weight: 2
                 ),
@@ -2955,7 +2986,7 @@ enum RadioStationRegistry {
     ) -> Bool {
         guard songsSinceLastBanter > 0,
               let station = station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs),
-              !station.resolvedBanters.isEmpty else {
+              !station.resolvedBanters.isEmpty || !context.pageContext.storyConsequenceEchoes.isEmpty else {
             return false
         }
         if songsSinceLastBanter >= 2 { return true }
@@ -3012,7 +3043,11 @@ enum RadioStationRegistry {
         upcomingTrackID: String? = nil,
         now: Date = Date()
     ) -> RadioBanter? {
-        let all = station.resolvedBanters
+        let all = station.resolvedBanters + consequenceBanters(
+            station: station,
+            receipts: context.pageContext.storyConsequenceEchoes,
+            now: now
+        )
         guard !all.isEmpty else { return nil }
 
         // Eligible = world conditions satisfied AND (for song-bound transitions)
@@ -3049,6 +3084,47 @@ enum RadioStationRegistry {
                 weight: banterCurationWeight(right, state: state, context: context, now: now)
             )
         }
+    }
+
+    private static func consequenceBanters(
+        station: RadioStation,
+        receipts: [StoryConsequenceReceipt],
+        now: Date
+    ) -> [RadioBanter] {
+        receipts
+            .filter {
+                $0.significance >= .turn &&
+                    $0.createdAt <= now &&
+                    now.timeIntervalSince($0.createdAt) <= StoryConsequenceLedger.radioEchoLifetime &&
+                    $0.radioEchoLine != nil
+            }
+            .sorted {
+                if $0.significance == $1.significance { return $0.createdAt > $1.createdAt }
+                return $0.significance > $1.significance
+            }
+            .prefix(4)
+            .compactMap { receipt in
+                guard let line = receipt.radioEchoLine else { return nil }
+                let caption: String
+                switch station.id {
+                case "thornwave":
+                    caption = "Wicker has been asked not to announce this, which is why he is announcing it: \(line)"
+                case "fae-fi":
+                    caption = "A bright little correction from the Stacks: \(line)"
+                case "mothlight-beats":
+                    caption = "From the late shelves, where consequences keep their own hours: \(line)"
+                default:
+                    caption = "A note has crossed the Academy wire: \(line)"
+                }
+                return RadioBanter(
+                    id: "consequence-banter:\(receipt.id):\(station.id)",
+                    category: receipt.significance == .rupture ? .gossip : .news,
+                    assetName: nil,
+                    caption: String(caption.prefix(320)),
+                    conditions: nil,
+                    weight: receipt.significance == .rupture ? 8 : 5
+                )
+            }
     }
 
     private static func banterCurationWeight(
@@ -4647,7 +4723,7 @@ struct ChapterBindingCeremony: Equatable {
             return ChapterBindingCeremony(
                 arrivalLine: "The seal takes heat first: red ink, a desk under lamplight, the fierce clean pressure of a door waiting for your hand.",
                 sealLine: "The Ember Seal marks the page with a bright, impatient edge.",
-                oathLine: "I will not wait outside my own life for permission.",
+                oathLine: "I won't wait outside my own life for permission.",
                 invitationLine: "First Emberheart work: choose one small door today and cross it on purpose.",
                 aftermathLine: "After this, authored doors and brave revisions can tug harder at the margins."
             )
@@ -9027,7 +9103,7 @@ enum BookGreetingComposer {
     static let openers: [String] = [
         "Hello, {name} — I'm so glad you're back.",
         "Welcome back, {name}.",
-        "There you are, {name}. The Book kept your place.",
+        "There you are, {name}. I kept your place. It took no effort at all.",
         "{name}. The ink kept its place for you.",
         "Back again, {name}? Good.",
         "Oh — {name}. Right on time."
@@ -9067,7 +9143,7 @@ enum BookGreetingComposer {
             lines.append("You have already taught the Book how to look for small bright things.")
         }
         if context.quietDays >= 2 {
-            lines.append("Even a quiet stretch is still a thread. The Book kept your place.")
+            lines.append("You were gone a while. The shelf survived it. Barely.")
         }
 
         lines.append(contentsOf: [
@@ -9242,6 +9318,22 @@ enum BeliefEconomyPolicy {
     static let generationKindKey = "beliefGenerationKind"
     static let generationCostKey = "beliefGenerationCost"
 
+    /// What the Book says the first time the reader turns Belief into fiction.
+    ///
+    /// The economy was correct and invisible. A new Book opens at 30 Belief —
+    /// enough for six Story Pages — so the law that matters most (the Book
+    /// cannot dream without something lived to dream from) was unlearnable in
+    /// exactly the week that sets a reader's expectations. Lowering the opening
+    /// balance would fix the lesson by making the first week poorer, which is
+    /// the wrong trade. Naming the law at the moment it first applies costs the
+    /// reader nothing and teaches it in one sentence.
+    static func generationSpendLine(for kind: BeliefGenerationKind, isFirstSpend: Bool) -> String {
+        guard isFirstSpend else {
+            return "A little Belief moved into the \(kind.title)."
+        }
+        return "A little Belief moved into the \(kind.title). Belief only ever comes from your own noticing — the Book cannot dream without something lived to dream from."
+    }
+
     static func generationKind(for surface: SurfacePage) -> BeliefGenerationKind? {
         let metadata = surface.payload.metadata
         guard metadata[generationPaidKey] != "true" else { return nil }
@@ -9260,6 +9352,49 @@ enum BeliefEconomyPolicy {
         default:
             return nil
         }
+    }
+
+    /// The hard top of the reader's gauge. Belief is a level, not a purse.
+    static let readerCeiling = 100
+
+    /// Above this the reader's own gauge is lit enough. Further noticing is not
+    /// discarded — it starts warming the world instead.
+    static let readerOverflowFloor = BeliefEconomyEngine.readerSoftCeiling
+
+    /// How a minted point of Belief is divided between the reader's gauge and
+    /// the world.
+    ///
+    /// A capped gauge used to mean that a reader who lives hard simply stops
+    /// earning: every keep past 100 was silently discarded, so the incentive to
+    /// keep noticing flattened exactly for the readers doing the most living.
+    /// That is the opposite of what "reality mints" is for. Now the overflow
+    /// goes somewhere it still matters — the kind of Page that earned it
+    /// brightens — so attention is never spent into nothing.
+    struct BeliefMint: Equatable {
+        /// Points the reader's own gauge takes.
+        var toReader: Int
+        /// Points that could not fit, routed outward to the Page's source Glow.
+        var overflow: Int
+
+        var isOverflowing: Bool { overflow > 0 }
+    }
+
+    /// `requested` may be negative — a spend is applied whole and never
+    /// overflows. Only positive mints are subject to the ceiling.
+    static func mint(_ requested: Int, readerBelief: Int) -> BeliefMint {
+        guard requested > 0 else {
+            return BeliefMint(toReader: requested, overflow: 0)
+        }
+        let headroom = max(0, readerCeiling - readerBelief)
+        guard readerBelief >= readerOverflowFloor else {
+            let toReader = min(requested, headroom)
+            return BeliefMint(toReader: toReader, overflow: requested - toReader)
+        }
+        // A well-lit reader keeps a share and sends the rest outward. At a
+        // single point this rounds to zero for the reader on purpose: past the
+        // soft ceiling, small noticings warm the world rather than the wallet.
+        let kept = min(headroom, requested / 2)
+        return BeliefMint(toReader: kept, overflow: requested - kept)
     }
 
     /// Belief comes from attending to actuality: keeping an outward observation,
@@ -9754,16 +9889,16 @@ enum KeepMarginalia {
             accentHex: "7A3025",
             glyph: "\u{00A7}",
             plainLines: [
-                "Adequate. I have filed it before it could misbehave.",
+                "Adequate. I've filed it before it could misbehave.",
                 "One true sentence, properly shelved. The Registry thanks you.",
                 "I corrected nothing. Do not let it go to your head.",
                 "Filed under: better than expected. A provisional category.",
                 "I corrected this twice before admitting it was right the first time. The red ink stays. As a warning. To me.",
                 "This page meets the minimum standard for being undeniable. Irritating, but useful.",
-                "I have placed this in the ledger under Evidence, subcategory: stop smirking."
+                "I've placed this in the ledger under Evidence, subcategory: stop smirking."
             ],
             wordLines: [
-                "\u{201C}{word}\u{201D} is used correctly. I am noting my surprise in red.",
+                "\u{201C}{word}\u{201D} is used correctly. I'm noting my surprise in red.",
                 "\u{201C}{word}\u{201D} — 1743 would have approved. As, grudgingly, do I.",
                 "The term \u{201C}{word}\u{201D} has been admitted on probation.",
                 "\u{201C}{word}\u{201D} is doing legal work here. Unexpectedly competent."
@@ -9800,7 +9935,7 @@ enum KeepMarginalia {
             plainLines: [
                 "The lamp was on for this one. It sat down easily.",
                 "A page that reads you back, kept anyway. Well done.",
-                "I have set two chairs by this page. It may want company later.",
+                "I've set two chairs by this page. It may want company later.",
                 "Noted without diagnosis. The chapter stays yours to revise.",
                 "I set out chairs for a harder page than this one. Glad to be wrong. The lamp stays on.",
                 "This page did not need fixing. It needed a witness. I can do that.",
@@ -9866,15 +10001,15 @@ enum KeepMarginalia {
             plainLines: [
                 "Stamped, cross-referenced, and taken completely seriously.",
                 "A wonder with evidence behind it. You need not be lonely about it now.",
-                "I have a folder for this. I have a folder for everything.",
+                "I've got a folder for this. I've got a folder for everything.",
                 "The improbable appreciates proper paperwork. So do I.",
                 "This went in the wrong folder briefly. There is now a folder for my wrong folders.",
                 "Verified: one unlikely thing, behaving exactly like itself.",
-                "I have taken this seriously in triplicate. The third copy is for morale."
+                "I've taken this seriously in triplicate. The third copy is for morale."
             ],
             wordLines: [
                 "\u{201C}{word}\u{201D} has been entered in the register of verified wonders.",
-                "I am writing a letter to \u{201C}{word}\u{201D}. I expect a reply.",
+                "I'm writing a letter to \u{201C}{word}\u{201D}. I expect a reply.",
                 "\u{201C}{word}\u{201D} requires a new appendix. Excellent news.",
                 "The evidence around \u{201C}{word}\u{201D} is peculiar and therefore promising."
             ]
@@ -9949,7 +10084,7 @@ enum KeepMarginalia {
         castSlug: "professor-thaddeus-mook",
         castName: "Professor Mook",
         assetName: "LabyrinthCharacterMook",
-        line: "A second page, filed correctly and on time. I am noting the beginning of a pattern.",
+        line: "A second page, filed correctly and on time. I'm noting the beginning of a pattern.",
         rejoinderName: "Pippa Pilcrow",
         rejoinderAsset: "LabyrinthCharacterPilcrow",
         rejoinderLine: "Ignore the stamp — he underlined your good word twice when he thought no one was looking."
@@ -9961,7 +10096,7 @@ enum KeepMarginalia {
     /// duet beat, and it lives outside the eligibility/keep-count accounting.
     static let floorLines = [
         "Kept. Short and true is still true.",
-        "A small page, safely shelved. The Book asks nothing more of it.",
+        "A small page, shelved. It's done its bit.",
         "Even a few words hold their shape here. Kept.",
         "The Book took it exactly as it was. Nothing has to be longer to be kept."
     ]

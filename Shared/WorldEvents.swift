@@ -744,7 +744,7 @@ enum WorldEventResolver {
             pagesByID[page.id] = page
         }
         let eventTag = "event:\(event.id)"
-        return pagesByID.values
+        var touches = pagesByID.values
             .filter { page in
                 page.createdAt >= interval.start
                     && page.createdAt < interval.end
@@ -753,6 +753,15 @@ enum WorldEventResolver {
             .map { page in
                 WorldEventTouch(kind: touchKind(for: page, event: event), pageID: page.id)
             }
+        let normalizedEventID = StoryConsequenceCondition.key(event.id)
+        for receipt in inputs.storyConsequenceLedger.receipts where
+            receipt.createdAt >= interval.start &&
+            receipt.createdAt < interval.end &&
+            receipt.worldEventTouches.map(StoryConsequenceCondition.key).contains(normalizedEventID) {
+            touches.append(WorldEventTouch(kind: .storyChoiceMade, pageID: receipt.sourcePageID))
+        }
+        var seenPageIDs = Set<String>()
+        return touches.filter { seenPageIDs.insert($0.pageID).inserted }
     }
 
     private static func touchKind(for page: BookPage, event: WorldEvent) -> WorldEventTouchKind {

@@ -209,6 +209,19 @@ struct SelfKnowledgePack: Identifiable, Codable, Equatable {
     var questions: [AboutYouQuestion]
 }
 
+/// Only the coarse facts needed to decide whether one optional You Page would
+/// materially improve the Curator's next choices. This is not a reader model
+/// and contains no prose, coordinates, Calendar titles, or raw sensor values.
+struct CausalColdStartQuestionContext: Equatable {
+    var hasWeatherContext = false
+    var hasPlaceContext = false
+    var hasCalendarContext = false
+    var hasCurrentState = false
+    var qualifiedOutcomeCount = 0
+
+    static let neutral = CausalColdStartQuestionContext()
+}
+
 enum SelfKnowledgePackRegistry {
     static let corePackID = "core-self-knowledge"
     /// You Pages are voluntary conversation, so the ceiling can be generous
@@ -253,7 +266,33 @@ enum SelfKnowledgePackRegistry {
         enabledPacks.first { $0.id == packID }?.displayName ?? "the shelf"
     }
 
-    static func nextQuestion(knownFacts: [SelfFact], day: BookDay, now: Date) -> AboutYouQuestion? {
+    static let causalColdStartQuestionOrder: [String] = [
+        "wonder-entry",
+        "time-budget",
+        "leaving-home",
+        "movement-access",
+        "social-energy",
+        "best-time",
+        "energy-window",
+        "sensory-door",
+        "desired-surprise",
+        "money-boundary",
+        "favorite-weather",
+        "favorite-kind-of-place",
+        "transition-hard"
+    ]
+    static let causalColdStartQuestionIDs = Set(causalColdStartQuestionOrder)
+
+    static func isCausalColdStartQuestion(_ questionID: String) -> Bool {
+        causalColdStartQuestionIDs.contains(questionID)
+    }
+
+    static func nextQuestion(
+        knownFacts: [SelfFact],
+        day: BookDay,
+        now: Date,
+        coldStart: CausalColdStartQuestionContext = .neutral
+    ) -> AboutYouQuestion? {
         let answered = Set(knownFacts.map(\.questionID))
         let answeredInterestCount = knownFacts.filter { $0.questionID.hasPrefix("interest-") }.count
         let knowsReaderName = knownFacts.contains { fact in
@@ -284,11 +323,117 @@ enum SelfKnowledgePackRegistry {
 
         let slot = SurfaceCadence.slotID(for: now, hours: 12)
         let seed = abs("\(day.id)-about-you-\(slot)".stableHash)
+
+        // During causal cold start, ask the question most likely to change an
+        // actual curation decision instead of simply walking the catalog in
+        // authored order. These answers remain declared priors; only later
+        // qualified lived outcomes count as causal evidence.
+        let knownCurationAnswers = answered.intersection(causalColdStartQuestionIDs).count
+        let hasFirstDoorContext = knowsReaderName || knownFacts.contains {
+            $0.questionID.hasPrefix("onboarding-") || $0.tags.contains("onboarding")
+        }
+        let isStillLearningTheOperatingEnvelope =
+            hasFirstDoorContext
+                && (knownCurationAnswers < 6 || coldStart.qualifiedOutcomeCount < 3)
+        let directedQuestions = available.filter {
+            causalColdStartQuestionIDs.contains($0.id)
+        }
+        if isStillLearningTheOperatingEnvelope,
+           let directed = directedQuestions.max(by: { left, right in
+                coldStartQuestionValue(
+                    left,
+                    facts: knownFacts,
+                    context: coldStart,
+                    seed: seed
+                ) < coldStartQuestionValue(
+                    right,
+                    facts: knownFacts,
+                    context: coldStart,
+                    seed: seed
+                )
+            }) {
+            return directed
+        }
+
         return available.sorted { left, right in
             let leftScore = left.priority * 1000 + abs((seed ^ left.id.stableHash ^ left.packID.stableHash) % 997)
             let rightScore = right.priority * 1000 + abs((seed ^ right.id.stableHash ^ right.packID.stableHash) % 997)
             return leftScore > rightScore
         }.first
+    }
+
+    private static func coldStartQuestionValue(
+        _ question: AboutYouQuestion,
+        facts: [SelfFact],
+        context: CausalColdStartQuestionContext,
+        seed: Int
+    ) -> Int {
+        let base: [String: Int] = [
+            "wonder-entry": 980,
+            "time-budget": 950,
+            "leaving-home": 930,
+            "movement-access": 910,
+            "social-energy": 820,
+            "best-time": 800,
+            "energy-window": 790,
+            "sensory-door": 760,
+            "desired-surprise": 750,
+            "money-boundary": 730,
+            "favorite-weather": 700,
+            "favorite-kind-of-place": 680,
+            "transition-hard": 660
+        ]
+        var value = base[question.id] ?? 0
+        let answers = Dictionary(
+            facts
+                .filter { $0.usePermission != .doNotUse }
+                .map { ($0.questionID, $0.answer.lowercased()) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        let alive = answers["onboarding-most-alive"] ?? ""
+        let magic = answers["onboarding-magic-source"] ?? ""
+        let rut = answers["onboarding-rut-strongest"] ?? ""
+
+        if question.id == "favorite-weather",
+           context.hasWeatherContext || magic.contains("weather") {
+            value += 420
+        }
+        if question.id == "favorite-kind-of-place",
+           context.hasPlaceContext || alive.contains("outside") || magic.contains("place") {
+            value += 360
+        }
+        if question.id == "leaving-home",
+           context.hasPlaceContext || alive.contains("outside") || alive.contains("movement") {
+            value += 380
+        }
+        if question.id == "movement-access",
+           alive.contains("movement") || alive.contains("outside") {
+            value += 350
+        }
+        if question.id == "social-energy",
+           alive.contains("people") || alive.contains("helping") || magic.contains("people") || magic.contains("laugh") {
+            value += 390
+        }
+        if ["best-time", "energy-window", "time-budget", "transition-hard"].contains(question.id),
+           context.hasCalendarContext || rut.contains("work") || rut.contains("later") {
+            value += 280
+        }
+        if question.id == "time-budget", context.hasCurrentState {
+            value += 180
+        }
+        if question.id == "sensory-door",
+           magic.contains("music") || magic.contains("detail") {
+            value += 240
+        }
+        if question.id == "wonder-entry",
+           magic.contains("not sure") || magic.isEmpty {
+            value += 300
+        }
+
+        // Stable variety only breaks genuine ties; authored/question value
+        // remains legible in tests and in the Curator Observatory.
+        value += abs((seed ^ question.id.stableHash) % 31)
+        return value
     }
 
     static func translation(for question: AboutYouQuestion, answer: String) -> String {
@@ -743,7 +888,7 @@ enum QuipPackRegistry {
         quip("shadow-dusk", "Dusk is the day's threshold, neither in nor out — which is exactly why the fae prefer it.", "Shadow Wonder", ["shadow-wonder", "night", "dusk", "liminal", "fae"], weight: 3),
         quip("shadow-iron", "Folklore hung iron at the door to mind the edges of a home. You already do it; you just call it a key.", "Shadow Wonder", ["shadow-wonder", "folklore", "protection", "threshold"], weight: 3),
         quip("shadow-free-thing", "The goblin's only question, and the wisest one in the market: and what does this actually cost me?", "Shadow Wonder", ["shadow-wonder", "goblin", "bargain", "unseelie"], weight: 3),
-        quip("shadow-name", "Name the dread exactly and it stops being weather. A thing with edges is a thing you can walk around.", "Shadow Wonder", ["shadow-wonder", "true-names", "grief", "naming"], weight: 3),
+        quip("shadow-name", "Folklore says a true name gives you power over a thing. Mostly it just gives the thing edges, which is enough to walk around.", "Shadow Wonder", ["shadow-wonder", "true-names", "grief", "naming"], weight: 3),
         quip("shadow-compost", "A compost heap is just grief doing its slow, useful work: nothing wasted, only changed.", "Shadow Wonder", ["shadow-wonder", "decay", "grief", "memory"], weight: 3),
         quip("shadow-empty-chair", "An empty chair keeps the shape of who sat there. That's not haunting. That's memory holding the door.", "Shadow Wonder", ["shadow-wonder", "grief", "absence", "memory"], weight: 3),
         quip("shadow-headmistress", "Watch which staircases lie when the Headmistress walks them. No, don't write that down. Penny didn't say it and neither did I.", "Shadow Wonder", ["shadow-wonder", "unseelie", "thorne", "duskthorn", "secret"], weight: 3),

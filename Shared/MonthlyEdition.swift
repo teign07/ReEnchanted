@@ -159,6 +159,7 @@ enum MonthlyEditionBuilder {
         constellations: [Constellation] = [],
         wagers: [BookWager] = [],
         themes: [BookTheme] = [],
+        storyConsequences: [StoryConsequenceReceipt] = [],
         readerName: String = "friend",
         now: Date = Date(),
         calendar: Calendar = .current,
@@ -177,6 +178,7 @@ enum MonthlyEditionBuilder {
             constellations: constellations,
             wagers: wagers,
             themes: themes,
+            storyConsequences: storyConsequences,
             readerName: readerName,
             startDate: start,
             endDate: end,
@@ -202,6 +204,7 @@ enum MonthlyEditionBuilder {
         constellations: [Constellation] = [],
         wagers: [BookWager] = [],
         themes: [BookTheme] = [],
+        storyConsequences: [StoryConsequenceReceipt] = [],
         readerName: String = "friend",
         now: Date = Date(),
         calendar: Calendar = .current
@@ -225,6 +228,7 @@ enum MonthlyEditionBuilder {
                 constellations: constellations,
                 wagers: wagers,
                 themes: themes,
+                storyConsequences: storyConsequences,
                 readerName: readerName,
                 startDate: monthStart,
                 endDate: monthEnd,
@@ -296,6 +300,7 @@ enum MonthlyEditionBuilder {
         constellations: [Constellation] = [],
         wagers: [BookWager] = [],
         themes: [BookTheme] = [],
+        storyConsequences: [StoryConsequenceReceipt] = [],
         readerName: String = "friend",
         startDate: Date,
         endDate: Date,
@@ -374,6 +379,11 @@ enum MonthlyEditionBuilder {
             themeSection(theme, pages: boundPages),
             worldEventSection(from: boundPages),
             memorySpineSection(from: monthDays, generatedAt: generatedAt),
+            fictionalConsequenceSection(
+                from: storyConsequences.filter {
+                    $0.createdAt >= startDate && $0.createdAt <= endDate
+                }
+            ),
             openingSection(from: boundPages, continuity: continuity, setAsideLine: curated.setAsideLine),
             revelationsSection(from: revelations),
             pageSection(
@@ -466,6 +476,58 @@ enum MonthlyEditionBuilder {
                 calendar: calendar
             ),
             passageCompass: passageCompass
+        )
+    }
+
+    private static func fictionalConsequenceSection(
+        from receipts: [StoryConsequenceReceipt]
+    ) -> MonthlyEditionSection {
+        let meaningful = receipts
+            .filter { !$0.editionLines.isEmpty }
+            .sorted { left, right in
+                if left.significance == right.significance {
+                    return left.createdAt > right.createdAt
+                }
+                return left.significance > right.significance
+            }
+            .prefix(12)
+            .sorted { $0.createdAt < $1.createdAt }
+        guard !meaningful.isEmpty else {
+            return MonthlyEditionSection(
+                id: "fictional-consequences",
+                title: "What The Story Changed",
+                note: "",
+                items: []
+            )
+        }
+        let entityNames = Dictionary(uniqueKeysWithValues: NarrativePackRegistry.entities.map { ($0.id, $0.name) })
+        let items = meaningful.map { receipt in
+            let names = receipt.characterIDs.prefix(3).map { entityNames[$0] ?? $0 }
+            let title: String
+            if receipt.significance == .rupture {
+                title = names.isEmpty ? "A Road Closed" : "\(names.joined(separator: " & ")): A Road Closed"
+            } else if receipt.isRepair {
+                title = names.isEmpty ? "A Relationship Turned" : "\(names.joined(separator: " & ")): A Relationship Turned"
+            } else {
+                title = names.isEmpty ? "The Story Changed" : names.joined(separator: " & ")
+            }
+            return MonthlyEditionItem(
+                id: "edition-\(receipt.id)",
+                kind: .continuity,
+                title: title,
+                body: receipt.editionLines.joined(separator: "\n"),
+                date: receipt.createdAt,
+                pageType: receipt.sourcePageType,
+                sourceID: "fictional-consequence-compiler",
+                mediaAssets: [],
+                tags: ["monthly-edition", "fictional-consequence"] + receipt.eventTags
+            )
+        }
+        return MonthlyEditionSection(
+            id: "fictional-consequences",
+            title: "What The Story Changed",
+            note: "Consequences that survived their original scene and became part of the Book's history.",
+            items: items
         )
     }
 
@@ -1194,25 +1256,25 @@ enum BookForewordWriter {
         if dayCount > 0 && dayCount < 7 {
             paragraphs.append(ReflectiveProse.pick([
                 "This is a first binding from \(monthTitle): \(pageLine) across \(dayLine). Not enough month to name the whole weather, but enough to keep what already refused to disappear.",
-                "\(monthTitle) is barely a month yet \u{2014} \(pageLine) across \(dayLine). I am binding it early because small things go missing fastest, and these have already proved they would rather not.",
-                "A short chapter: \(pageLine), \(dayLine). I would rather bind a thin month than let it round down to nothing."
+                "\(monthTitle) is barely a month yet \u{2014} \(pageLine) across \(dayLine). I'm binding it early because small things go missing fastest, and these have already proved they'd rather not.",
+                "A short chapter: \(pageLine), \(dayLine). I'd rather bind a thin month than let it round down to nothing."
             ], seed: beatSeed(seed, 11), salt: 0))
         } else {
             paragraphs.append(ReflectiveProse.pick([
                 "This is what \(monthTitle) left in my keeping: \(pageLine) across \(dayLine), each one kept on purpose.",
                 "\(monthTitle), bound: \(pageLine) across \(dayLine). None of it arrived here by accident \u{2014} you chose every one.",
                 "Here is \(monthTitle) with its shoes off. \(pageLine.sentenceCased) across \(dayLine), and not one of them kept itself.",
-                "\(pageLine.sentenceCased). \(dayLine.sentenceCased). That is what \(monthTitle) handed me, and I have not thrown any of it away."
+                "\(pageLine.sentenceCased). \(dayLine.sentenceCased). That's what \(monthTitle) handed me, and I haven't thrown any of it away."
             ], seed: beatSeed(seed, 11), salt: 0))
         }
 
         // 2. Why the Book binds at all. Said differently every month, because a
         //    reason repeated verbatim stops being a reason.
         paragraphs.append(ReflectiveProse.pick([
-            "I do not bind months to flatter them. I bind them because loose pages get lonely, and I do not want any of this to quietly unhappen.",
-            "A month that is not written down does not politely wait to be remembered. It goes. That is the entire reason for the thread and the glue.",
-            "This is not a trophy. It is a container. Unbound days leak, and I have watched too many of them do it.",
-            "Binding is the least mystical thing I do. It is just refusing to let a month become a rumour."
+            "I don't bind months to flatter them. I bind them because loose pages get lonely, and I don't want any of this to quietly unhappen.",
+            "A month that isn't written down doesn't politely wait to be remembered. It goes. That's the entire reason for the thread and the glue.",
+            "This isn't a trophy. It's a container. Unbound days leak, and I've watched too many of them do it.",
+            "Binding is the least mystical thing I do. It's just refusing to let a month become a rumour."
         ], seed: beatSeed(seed, 17), salt: 0))
 
         // 3. The strongest thing the Book actually found. A revelation outranks
@@ -1221,7 +1283,7 @@ enum BookForewordWriter {
         if let sharpest = revelations.first {
             paragraphs.append(ReflectiveProse.pick([
                 "Reading it back, I found something you were not in a position to see. \(sharpest.title). \(sharpest.body)",
-                "One thing surfaced that I do not think you noticed while you were living it. \(sharpest.title). \(sharpest.body)",
+                "One thing surfaced that I don't think you noticed while you were living it. \(sharpest.title). \(sharpest.body)",
                 "Here is what thirty days held still long enough to show me. \(sharpest.title). \(sharpest.body)"
             ], seed: beatSeed(seed, 23), salt: 0))
         } else {
@@ -1231,14 +1293,14 @@ enum BookForewordWriter {
                     signal.line.hasSuffix(".") ? String(signal.line.dropLast()) : signal.line
                 }
                 let opener = ReflectiveProse.pick([
-                    "Reading it back, I noticed things I did not notice at the time.",
+                    "Reading it back, I noticed things I didn't notice at the time.",
                     "Some of this only became visible once it stopped moving.",
                     "A few shapes showed up in the re-reading that were invisible in the living."
                 ], seed: beatSeed(seed, 23), salt: 0)
                 let caveat = ReflectiveProse.pick([
-                    "None of this is a verdict. It is the shape attention left behind, with its elbows on the table.",
-                    "I am not ruling on any of it. I am only reporting where the ink pooled.",
-                    "Take it as weather, not judgement."
+                    "None of this is a verdict. It's the shape attention left behind, with its elbows on the table.",
+                    "I'm not ruling on any of it. I'm only reporting where the ink pooled.",
+                    "It's weather, not a verdict. Argue with it if you like."
                 ], seed: beatSeed(seed, 29), salt: 0)
                 paragraphs.append("\(opener) \(lines.joined(separator: ". ")). \(caveat)")
             }
@@ -1249,8 +1311,8 @@ enum BookForewordWriter {
         if !named.isEmpty {
             let nameLine = list(named.prefix(3).map(\.displayName))
             paragraphs.append(ReflectiveProse.pick([
-                "Some threads have been with us long enough that I have given them names: \(nameLine). A named constellation is a promise with a little lamp inside it.",
-                "\(nameLine) have earned names now. I do not hand those out early \u{2014} a thread has to keep showing up when nobody is asking it to.",
+                "Some threads have been with us long enough that I've given them names: \(nameLine). A named constellation is a promise with a little lamp inside it.",
+                "\(nameLine) have earned names now. I don't hand those out early \u{2014} a thread has to keep showing up when nobody is asking it to.",
                 "The margins are keeping \(nameLine) lit. Naming a thing is how I admit I expect it back."
             ], seed: beatSeed(seed, 31), salt: 0))
         }
@@ -1264,32 +1326,32 @@ enum BookForewordWriter {
             if wrong == 0 {
                 paragraphs.append(ReflectiveProse.pick([
                     "Every wager I opened this month came true, which made my spine sit up straighter than was dignified.",
-                    "I guessed \(right == 1 ? "once" : "\(right) times") this month and was right every time. I am trying not to make it my whole personality."
+                    "I guessed \(right == 1 ? "once" : "\(right) times") this month and was right every time. I'm trying not to make it my whole personality."
                 ], seed: beatSeed(seed, 37), salt: 0))
             } else if right == 0 {
                 paragraphs.append(ReflectiveProse.pick([
-                    "Every wager I opened this month was wrong. I have written each one down anyway. Being wrong in writing is how a book learns without pretending its ink is royal.",
-                    "I got all of them wrong. They stay in the ledger. A book that only records its hits is a book you cannot trust about anything."
+                    "Every wager I opened this month was wrong. I've written each one down anyway. Being wrong in writing is how a book learns without pretending its ink is royal.",
+                    "I got all of them wrong. They stay in the ledger. A book that only records its hits is a book you can't trust about anything."
                 ], seed: beatSeed(seed, 37), salt: 0))
             } else {
                 paragraphs.append(ReflectiveProse.pick([
-                    "Of the wagers I opened this month, \(right) came true and \(wrong) did not. I record both with the same ink, because the ink does not like favorites.",
+                    "Of the wagers I opened this month, \(right) came true and \(wrong) did not. I record both with the same ink, because the ink doesn't like favorites.",
                     "\(right) right, \(wrong) wrong. Both halves stay. You should know how often I miss."
                 ], seed: beatSeed(seed, 37), salt: 0))
             }
         }
         if !sealed.isEmpty {
             paragraphs.append(sealed.count == 1
-                ? "One wager is still sealed in the margins. It is trying very hard not to peek. We will both find out."
+                ? "One wager is still sealed in the margins. It's trying very hard not to peek. We will both find out."
                 : "\(sealed.count) wagers are still sealed in the margins. They are trying very hard not to peek. We will both find out.")
         }
 
         // 6. The sign-off.
         paragraphs.append(ReflectiveProse.pick([
-            "Whatever else this month was, it was read. I put my small paper hand on it and said: stay. - The Book",
-            "It was a month, and it was witnessed. That is the whole of my claim. - The Book",
-            "I have read every page of this twice. Once as it arrived, once just now. - The Book",
-            "None of it is going anywhere. I have checked the thread myself. - The Book"
+            "Whatever else this month was, it got read. I put a hand flat on it and told it to stay. It stayed. - The Book",
+            "It was a month and I caught it. That's the whole of my claim, and I'm pleased with it. - The Book",
+            "I've read every page of this twice. Once as it arrived, once just now. - The Book",
+            "None of it is going anywhere. I've checked the thread myself. - The Book"
         ], seed: beatSeed(seed, 41), salt: 0))
 
         return paragraphs.joined(separator: "\n\n")
@@ -1316,9 +1378,9 @@ enum BookForewordWriter {
 
         let pageLine = pages.count == 1 ? "the single page" : "all \(pages.count) pages"
         paragraphs.append(ReflectiveProse.pick([
-            "So \(monthTitle) closes. I have read \(pageLine) back to you and to myself, and what could be kept has been kept. A month does not end so much as settle.",
-            "That is \(monthTitle). \(pageLine.sentenceCased) read back, nothing left loose. The loud parts take off their shoes and what was true underneath stays where I can find it.",
-            "\(monthTitle) is finished, which is not the same as over. I have read \(pageLine) and put them somewhere they cannot be argued out of."
+            "So \(monthTitle) closes. I've read \(pageLine) back to you and to myself, and what could be kept has been kept. A month doesn't end so much as settle.",
+            "That's \(monthTitle). \(pageLine.sentenceCased) read back, nothing left loose. The loud parts take off their shoes and what was true underneath stays where I can find it.",
+            "\(monthTitle) is finished, which isn't the same as over. I've read \(pageLine) and put them somewhere they can't be argued out of."
         ], seed: beatSeed(seed, 13), salt: 0))
 
         // The closing takes the *second* revelation where it can, so the book
@@ -1335,37 +1397,37 @@ enum BookForewordWriter {
             paragraphs.append(ReflectiveProse.pick([
                 "If this chapter leaves one thing in your hands, let it be this: \(line). I will be watching to see whether it holds, or turns, or asks for a different name.",
                 "Carry this one out with you: \(line). I like when a true thing knocks twice.",
-                "The line I would keep, if I could only keep one: \(line). We will see whether it survives next month."
+                "The line I'd keep, if I could only keep one: \(line). We will see whether it survives next month."
             ], seed: beatSeed(seed, 19), salt: 0))
         }
 
         let named = ConstellationKeeper.namedConstellations(constellations)
         if let firstNamed = named.first {
             paragraphs.append(ReflectiveProse.pick([
-                "\(firstNamed.displayName) is still alight in the margins, and I have left it burning on purpose. A thread I have named does not get blown out at the end of a month.",
-                "I am leaving \(firstNamed.displayName) lit. It carries into next month, holding its little breath.",
-                "\(firstNamed.displayName) does not close with the chapter. Named threads keep their own hours."
+                "\(firstNamed.displayName) is still alight in the margins, and I've left it burning on purpose. A thread I've named doesn't get blown out at the end of a month.",
+                "I'm leaving \(firstNamed.displayName) lit. It carries into next month, holding its little breath.",
+                "\(firstNamed.displayName) doesn't close with the chapter. Named threads keep their own hours."
             ], seed: beatSeed(seed, 23), salt: 0))
         }
 
         if let theme, !theme.isStable || (dayCount > 0 && dayCount < 7) {
             paragraphs.append(ReflectiveProse.pick([
-                "The early thread this month was \u{201C}\(theme.name)\u{201D}. I am not calling it the whole sky yet; I am only saying these words kept tapping the glass, and the glass looked back.",
+                "The early thread this month was \u{201C}\(theme.name)\u{201D}. I'm not calling it the whole sky yet; I'm only saying these words kept tapping the glass, and the glass looked back.",
                 "\u{201C}\(theme.name)\u{201D} kept surfacing. Too early to call it the weather. Early enough to write it down."
             ], seed: beatSeed(seed, 29), salt: 0))
         } else if let theme {
             paragraphs.append(ReflectiveProse.pick([
-                "The theme this month was \u{201C}\(theme.name)\u{201D}, and it had the last word as often as the first. Whether you chose it or it chose you, it is bound here now, sitting very still so it cannot be unsaid.",
-                "\u{201C}\(theme.name)\u{201D} ran through the whole month. I have stopped asking whether you picked it."
+                "The theme this month was \u{201C}\(theme.name)\u{201D}, and it had the last word as often as the first. Whether you chose it or it chose you, it is bound here now, sitting very still so it can't be unsaid.",
+                "\u{201C}\(theme.name)\u{201D} ran through the whole month. I've stopped asking whether you picked it."
             ], seed: beatSeed(seed, 29), salt: 0))
         } else if dayCount > 0 && dayCount < 7 {
-            paragraphs.append("I am not calling this the whole sky yet. I am only saying these first pages kept tapping the glass, and I heard them.")
+            paragraphs.append("I'm not calling this the whole sky yet. I'm only saying these first pages kept tapping the glass, and I heard them.")
         }
 
         paragraphs.append(ReflectiveProse.pick([
-            "Nothing in these pages can quietly unhappen now. Turn back whenever you like. The month will be exactly where you left it, the bookmark will pretend it was not waiting, and the next page is blank on purpose. - The Book",
-            "It is all fixed here now, which is the only permanence I can offer. Come back to it. I do not move things while you are gone. - The Book",
-            "Shut it, or do not. The month keeps either way now \u{2014} that was the entire point of the thread. - The Book"
+            "Nothing in these pages can quietly unhappen now. Turn back whenever you like. The month will be exactly where you left it, the bookmark will pretend it wasn't waiting, and the next page is blank on purpose. - The Book",
+            "It's all fixed here now, which is the only permanence I can offer. Come back to it. I don't move things while you're gone. - The Book",
+            "Shut it, or don't. The month keeps either way now \u{2014} that was the entire point of the thread. - The Book"
         ], seed: beatSeed(seed, 31), salt: 0))
 
         return paragraphs.joined(separator: "\n\n")
@@ -1420,7 +1482,7 @@ enum BookForewordWriter {
             let lines = signals.map { signal in
                 signal.line.hasSuffix(".") ? String(signal.line.dropLast()) : signal.line
             }
-            paragraphs.append("Across all twelve windows, some things kept returning until I could no longer call them coincidence. \(lines.joined(separator: ". ")). That is what a year is, finally: the patterns that survived it and came back with damp shoes.")
+            paragraphs.append("Across all twelve windows, some things kept returning until I could no longer call them coincidence. \(lines.joined(separator: ". ")). That's what a year is, finally: the patterns that survived it and came back with damp shoes.")
         }
 
         let named = ConstellationKeeper.namedConstellations(constellations)
@@ -1441,16 +1503,16 @@ enum BookForewordWriter {
             let wrong = resolved.count - right
             let scoreLine: String
             if wrong == 0 {
-                scoreLine = "Every wager I opened and resolved this year came true. I am keeping the record anyway; a book that only remembers being right is not to be trusted, and my spine knows it."
+                scoreLine = "Every wager I opened and resolved this year came true. I'm keeping the record anyway; a book that only remembers being right isn't to be trusted, and my spine knows it."
             } else if right == 0 {
-                scoreLine = "Every resolved wager this year went against me. I have bound each one in full. Being wrong, written down, is how I learned to read you better, even when the ink made a face."
+                scoreLine = "Every resolved wager this year went against me. I've bound each one in full. Being wrong, written down, is how I learned to read you better, even when the ink made a face."
             } else {
                 scoreLine = "Of the wagers resolved this year, \(right) came true and \(wrong) did not. Both are set in the same ink, because both were honest and the ink can carry two baskets."
             }
             paragraphs.append(scoreLine)
         }
 
-        paragraphs.append("Whatever else \(year) was, it was read — all the way to the end, and then once more, slowly, to make this. I was not always certain I understood it. I kept turning the pages anyway. - The Book")
+        paragraphs.append("Whatever else \(year) was, it was read — all the way to the end, and then once more, slowly, to make this. I wasn't always certain I understood it. I kept turning the pages anyway. - The Book")
         return paragraphs.joined(separator: "\n\n")
     }
 
@@ -1988,7 +2050,7 @@ struct WeeklyIssueShareCard: Codable, Equatable {
         }
         let open = [
             "Issue No. \(issueNumber + 1) is already gathering.",
-            "Next week arrives blank, which is another word for promising.",
+            "Next week has not been written on yet.",
             "The next seven pages are still uncut."
         ]
         return open[ConstellationKeeper.stableIndex(for: "weekly-tease-\(issueNumber)", count: open.count)]

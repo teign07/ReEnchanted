@@ -10,7 +10,7 @@ final class BookDeskRoundTests: XCTestCase {
         var round = BookDeskRound()
         let pages = (0..<12).map { page("p-\($0)") }
         round.begin(with: [page("a"), page("a", .diary, id: "rotated")] + pages)
-        XCTAssertEqual(round.resolutions.count, BookDeskRound.huntCapacity)
+        XCTAssertEqual(round.resolutions.count, BookDeskRound.reserveCapacity)
     }
 
     func testOpenIsIdempotentAndOutranksPass() {
@@ -26,30 +26,31 @@ final class BookDeskRoundTests: XCTestCase {
         XCTAssertEqual(round.resolutions[original.deskSlotKey], .waiting)
     }
 
-    func testNineStraightPassesCompleteHuntAndOutsidePageIsIgnored() {
+    func testEveryPassedSlotCanBeReplacedWithoutEndingTheDesk() {
         var round = BookDeskRound()
-        let pages = (0..<BookDeskRound.huntCapacity).map { page("p-\($0)") }
+        var pages = (0..<BookDeskRound.reserveCapacity).map { page("p-\($0)") }
         round.begin(with: pages)
         round.open(page("outside"))
-        for page in pages.dropLast() { round.pass(page) }
-        XCTAssertFalse(round.isComplete)
-        round.pass(pages.last!)
-        XCTAssertTrue(round.isComplete)
+        for index in pages.indices {
+            let outgoing = pages[index]
+            let replacement = page("reserve-\(index)")
+            round.pass(outgoing)
+            pages[index] = replacement
+            round.reconcilePublished(with: pages)
+            XCTAssertEqual(round.resolutions[replacement.deskSlotKey], .waiting)
+            XCTAssertEqual(round.resolutions.count, BookDeskRound.reserveCapacity)
+        }
     }
 
-    func testOpeningCatchesVisibleTrioAndReturnsHiddenPagesToSleep() {
+    func testOpeningKeepsTheWholeReserveAvailable() {
         var round = BookDeskRound()
-        let pages = (0..<BookDeskRound.huntCapacity).map { page("p-\($0)") }
+        let pages = (0..<BookDeskRound.reserveCapacity).map { page("p-\($0)") }
         round.begin(with: pages)
-        round.catchPage(pages[1], visiblePages: Array(pages.prefix(BookDeskRound.visibleCapacity)))
+        round.openKeepingReserve(pages[1])
 
-        XCTAssertEqual(round.slotKeys, Set(pages.prefix(3).map(\.deskSlotKey)))
+        XCTAssertEqual(round.slotKeys, Set(pages.map(\.deskSlotKey)))
         XCTAssertEqual(round.resolutions[pages[1].deskSlotKey], .opened)
-        XCTAssertFalse(round.isComplete)
-
-        round.pass(pages[0])
-        round.pass(pages[2])
-        XCTAssertTrue(round.isComplete)
+        XCTAssertEqual(round.resolutions[pages.last!.deskSlotKey], .waiting)
     }
 
     func testUntouchedEnrichmentRekeysRoundToVisiblePages() {
@@ -68,5 +69,87 @@ final class BookDeskRoundTests: XCTestCase {
         round.reconcileUntouched(with: [page("magic"), page("b"), page("c")])
         XCTAssertEqual(round.slotKeys, Set(pages.map(\.deskSlotKey)))
         XCTAssertEqual(round.resolutions[pages[0].deskSlotKey], .opened)
+    }
+
+    func testFallbackPublicationPreservesAnswersAndTracksReplacement() {
+        var round = BookDeskRound()
+        let original = [page("a"), page("b"), page("c")]
+        round.begin(with: original)
+        round.pass(original[0])
+        round.open(original[1])
+
+        let replacement = page("replacement")
+        round.reconcilePublished(with: [replacement, original[1], original[2]])
+
+        XCTAssertEqual(round.resolutions[replacement.deskSlotKey], .waiting)
+        XCTAssertEqual(round.resolutions[original[1].deskSlotKey], .opened)
+        XCTAssertNil(round.resolutions[original[0].deskSlotKey])
+    }
+
+    func testShortPublicationCanDropOutgoingSlotWithoutLeavingItTracked() {
+        var round = BookDeskRound()
+        let pages = (0..<BookDeskRound.reserveCapacity).map { page("p-\($0)") }
+        round.begin(with: pages)
+        round.pass(pages[0])
+
+        let survivors = Array(pages.dropFirst())
+        round.reconcilePublished(with: survivors)
+
+        XCTAssertFalse(round.isTracking(pages[0]))
+        XCTAssertEqual(round.slotKeys, Set(survivors.map(\.deskSlotKey)))
+        XCTAssertEqual(round.resolutions.count, BookDeskRound.reserveCapacity - 1)
+    }
+
+    func testEvergreenPlayReserveCanFillEveryTrackedSlot() {
+        let pages = BookEvergreenPlayReserve.pages(
+            now: Date(timeIntervalSince1970: 1_750_000_000)
+        )
+
+        XCTAssertGreaterThan(pages.count, BookDeskRound.reserveCapacity)
+        XCTAssertEqual(Set(pages.map(\.deskSlotKey)).count, pages.count)
+        XCTAssertTrue(pages.allSatisfy { $0.payload.metadata["evergreenPlayReserve"] == "true" })
+        XCTAssertTrue(pages.allSatisfy { $0.payload.metadata["curationLearning"] == "forbidden" })
+        XCTAssertTrue(pages.allSatisfy { CausalCurationReceipt.read(from: $0) == nil })
+        XCTAssertFalse(pages.contains(where: \.isReaderActionCommission))
+    }
+
+    func testEvergreenPlayReserveMintsAnotherLocalOccurrenceWhenTheLedgerAdvances() {
+        let now = Date(timeIntervalSince1970: 1_750_000_000)
+        let first = BookEvergreenPlayReserve.pages(now: now, generation: 4)
+        let next = BookEvergreenPlayReserve.pages(now: now, generation: 5)
+
+        XCTAssertEqual(first.map(\.type), next.map(\.type))
+        XCTAssertTrue(Set(first.map(\.id)).isDisjoint(with: Set(next.map(\.id))))
+        XCTAssertTrue(Set(first.map(\.curatorContentNoveltyKey)).isDisjoint(
+            with: Set(next.map(\.curatorContentNoveltyKey))
+        ))
+    }
+
+    func testEvergreenPlayReserveCanReplaceAFullReserveSlot() {
+        let now = Date(timeIntervalSince1970: 1_750_000_000)
+        let previous = Array(
+            BookEvergreenPlayReserve.pages(now: now, generation: 4)
+                .prefix(BookDeskRound.reserveCapacity)
+        )
+        let outgoing = previous[0]
+        let resolution = BookCurator.resolvingRetiredDeskSlots(
+            previous: previous,
+            retiringIDs: [outgoing.id],
+            rebuilt: BookEvergreenPlayReserve.pages(now: now, generation: 5),
+            additionallyBlockedKeys: outgoing.curatorDeskExclusionKeys,
+            limit: BookDeskRound.reserveCapacity
+        )
+
+        XCTAssertTrue(resolution.replacesAll([outgoing.id]))
+        XCTAssertEqual(resolution.pages.count, BookDeskRound.reserveCapacity)
+        XCTAssertFalse(resolution.pages.contains(where: { $0.id == outgoing.id }))
+    }
+
+    func testSwipeRestKeysDoNotDisableAWholeTypeOrSource() {
+        let surface = page("journal-source", .diary, id: "one-journal-question")
+
+        XCTAssertTrue(surface.curatorDismissalRestKeys.contains(surface.id))
+        XCTAssertFalse(surface.curatorDismissalRestKeys.contains("source:\(surface.sourceID)"))
+        XCTAssertFalse(surface.curatorDismissalRestKeys.contains(CuratorVarietyGovernor.typeKey(for: surface.type)))
     }
 }

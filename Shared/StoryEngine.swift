@@ -2717,7 +2717,13 @@ enum StoryScenePacketBuilder {
             if requirements.contains(.souvenirDoor) && grounding.kind != .souvenirDoor { return false }
             if requirements.contains(.nothingPressure) && !hasNothingPressure { return false }
             if requirements.contains(.activeWorldEvent) && inputs.activeWorldEvents.isEmpty { return false }
-            if requirements.contains(.rivalryEdge) && !StoryFormRegistry.hasRivalryEdge(among: entities) { return false }
+            if requirements.contains(.rivalryEdge) &&
+                !StoryFormRegistry.hasRivalryEdge(
+                    among: entities,
+                    relationshipField: inputs.relationshipField
+                ) {
+                return false
+            }
             if requirements.contains(.deepBond) && StoryFormRegistry.deepBondConfidant(among: entities, memories: inputs.narrative?.entityMemories ?? []) == nil { return false }
             if requirements.contains(.outwardWake) && !StoryFormRegistry.hasRecentOutwardKeep(days: inputs.days + [day], now: now) { return false }
             if requirements.contains(.chosenQuill) && inputs.chosenQuill == nil { return false }
@@ -2740,6 +2746,11 @@ enum StoryScenePacketBuilder {
             func score(_ item: (packID: String, recipe: StoryRecipe)) -> Int {
                 let affinity = tags.intersection(Set(item.recipe.preferredTags)).count * 4
                 let consequenceBoost = min(max(inputs.storyRecipeBoosts[item.recipe.id] ?? 0, 0), 12)
+                let longGameBoost = inputs.storyConsequenceLedger.longGameBoost(
+                    recipeID: item.recipe.id,
+                    preferredTags: item.recipe.preferredTags,
+                    now: now
+                )
                 let souvenirDoorBoost = item.recipe.requirements.contains(.souvenirDoor) && grounding.kind == .souvenirDoor ? 24 : 0
                 let sceneBias = storyBiasScore(
                     inputs.storySceneBiases,
@@ -2752,8 +2763,22 @@ enum StoryScenePacketBuilder {
                 let recency = inputs.surfaceHistory["recipe:\(item.recipe.id)"].map { record in
                     now.timeIntervalSince(record.lastShownAt) < 72 * 3600 ? 8 : 0
                 } ?? 0
-                return item.recipe.baseWeight + affinity + consequenceBoost + souvenirDoorBoost + sceneBias - recency
-                    + abs("\(day.id)-\(slot)-\(item.recipe.id)-recipe".stableHash % 5)
+                // What the reader has actually done with this recipe and this
+                // lane. `consequenceBoost` above is the story's own memory of
+                // itself; this is the reader's, and it is the only term here
+                // that knows whether a vignette ever sent them outside.
+                let readerLearned = inputs.readerLearning.storyRecipeAffinity(
+                    recipeID: item.recipe.id,
+                    lane: item.recipe.isWorldLed ? "world-led" : "grounded"
+                )
+                // Deterministic exploration, seeded by the day and slot so the
+                // same afternoon always offers the same shelf. Its width closes
+                // as the reader answers for a recipe, so the Book stops rolling
+                // dice about questions it already has evidence on.
+                let explorationWidth = inputs.readerLearning.storyExplorationWidth(recipeID: item.recipe.id)
+                let exploration = abs("\(day.id)-\(slot)-\(item.recipe.id)-recipe".stableHash % explorationWidth)
+                return item.recipe.baseWeight + affinity + consequenceBoost + longGameBoost + souvenirDoorBoost + sceneBias - recency
+                    + readerLearned + exploration
             }
             return score(left) < score(right)
         }
@@ -7820,7 +7845,7 @@ enum StoryFormRegistry {
         recipe("unshelved-expedition", "Expedition to the Unshelved", weight: 15, requirements: [.character], mode: .action,
             premise: "{{lead}} has a hand-drawn map that stops mattering halfway and a plan to reach the Unshelved tonight — the far shelf where books wait that no one has written yet — with the reader as second lantern.",
             beats: ["Set out: the route is physical (a ladder, a gap, a cold draft) and one rule of the Stacks must be obeyed or ducked before the halfway mark.", "After the chosen response, the expedition reaches something real — a find, a toll, or a closed door with tomorrow's handhold — and comes home changed."],
-            turn: turn(.smallDecision, want: "to reach the Unshelved and come back with proof", obstacle: "the Stacks quietly rearrange for travelers who look too confident", statement: "By the end, the expedition has won a find, paid a toll, or mapped a new handhold — and the way back is not the way in.", slice: "The expedition pauses somewhere no one has ever paused, and that is enough.", progress: "The proof carried back gives {{thread}} one new rung.", surprise: "Something in the Unshelved was expecting visitors, and had set out tea."),
+            turn: turn(.smallDecision, want: "to reach the Unshelved and come back with proof", obstacle: "the Stacks quietly rearrange for travelers who look too confident", statement: "By the end, the expedition has won a find, paid a toll, or mapped a new handhold — and the way back is not the way in.", slice: "The expedition stops halfway and eats, on a shelf where no one has ever eaten.", progress: "The proof carried back gives {{thread}} one new rung.", surprise: "Something in the Unshelved was expecting visitors, and had set out tea."),
             tags: ["world-led", "adventure", "mission", "energy", "night"], forms: ["threshold-crossing", "quiet-epic"], genres: ["serial-adventure", "tiny-heist"],
             grounding: "The real-day detail is atmosphere only — the hour, the weather at the high windows. Never quote, discuss, or build the plot from the reader's pages or day.",
             tone: "Expedition energy at library scale: torchlit, competent, a little giddy. Danger is real but courteous.",
@@ -8070,10 +8095,21 @@ enum StoryFormRegistry {
 
     /// True when any relationship edge between the available entities carries
     /// real tension — the fuel for rivalry-driven clash recipes.
-    static func hasRivalryEdge(among entities: [NarrativeWorldEntity]) -> Bool {
+    static func hasRivalryEdge(
+        among entities: [NarrativeWorldEntity],
+        relationshipField: [String: RelationshipTie] = [:]
+    ) -> Bool {
         let ids = Set(entities.map(\.id))
-        return NarrativePackRegistry.relationships.contains { edge in
+        if NarrativePackRegistry.relationships.contains(where: { edge in
             edge.tension >= 2 && ids.contains(edge.sourceEntityID) && ids.contains(edge.targetEntityID)
+        }) {
+            return true
+        }
+        return relationshipField.contains { pairKey, tie in
+            let pair = pairKey.split(separator: "|").map(String.init)
+            return pair.count == 2 &&
+                pair.allSatisfy(ids.contains) &&
+                tie.tension >= 2
         }
     }
 

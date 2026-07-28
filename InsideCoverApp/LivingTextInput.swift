@@ -597,6 +597,7 @@ struct LivingTextEditor: View {
         HStack(spacing: 8) {
             TextField(placeholder, text: $customChipText)
                 .font(.caption)
+                .foregroundStyle(BookPalette.ink)
                 .textInputAutocapitalization(.never)
                 .submitLabel(.done)
                 .onSubmit(onUse)

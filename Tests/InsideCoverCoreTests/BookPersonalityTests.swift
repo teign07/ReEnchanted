@@ -59,7 +59,7 @@ final class BookPersonalityTests: XCTestCase {
         let line = BookRelationshipVoice.openingLine(for: relationship)
 
         XCTAssertEqual(relationship.stance, .protective)
-        XCTAssertTrue(line?.contains("will not make a story out of that") == true)
+        XCTAssertTrue(line?.contains("refuse to make that interesting") == true)
         XCTAssertFalse(line?.lowercased().contains("missed me") == true)
     }
 

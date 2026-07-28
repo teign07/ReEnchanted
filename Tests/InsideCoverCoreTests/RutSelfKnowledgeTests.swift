@@ -188,7 +188,20 @@ final class RutSelfKnowledgeTests: XCTestCase {
         XCTAssertEqual(next.id, "interest-01")
 
         var inputs = BookSourceInputs.empty
-        inputs.selfFacts = [name]
+        inputs.selfFacts = [name] + (0..<6).map { index in
+            SelfFact(
+                id: "onboarding-extra-\(index)",
+                questionID: "onboarding-extra-\(index)",
+                question: "First Door detail",
+                answer: "Answer \(index)",
+                bookTranslation: "Answer \(index)",
+                sensitivity: .delight,
+                usePermission: .privateContext,
+                tags: ["onboarding"],
+                createdAt: now,
+                updatedAt: now
+            )
+        }
         let pages = AboutYouPageSourceAdapter().candidates(
             for: day,
             context: CuratorContext.make(for: day),
@@ -198,6 +211,109 @@ final class RutSelfKnowledgeTests: XCTestCase {
         let interestPage = try XCTUnwrap(pages.first { $0.payload.metadata["questionID"] == "interest-01" })
         XCTAssertEqual(interestPage.score, 91)
         XCTAssertTrue(interestPage.reason.contains("The Bleed"))
+    }
+
+    func testColdStartQuestionTargetsTheContextualUncertaintyThatWouldChangeCuration() throws {
+        let now = Date(timeIntervalSince1970: 1_783_484_800)
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+        let interest = try XCTUnwrap(SelfKnowledgePackRegistry.question(id: "interest-01"))
+        let facts = [
+            SelfFact(
+                id: "onboarding-name",
+                questionID: "onboarding-name",
+                question: "What should the Book call you?",
+                answer: "Avery",
+                bookTranslation: "Avery",
+                sensitivity: .identity,
+                usePermission: .privateContext,
+                tags: ["name", "onboarding"],
+                createdAt: now.addingTimeInterval(-7_200),
+                updatedAt: now.addingTimeInterval(-7_200)
+            ),
+            SelfFact(
+                id: "onboarding-magic",
+                questionID: "onboarding-magic-source",
+                question: "What actually feels like magic?",
+                answer: "Wild weather",
+                bookTranslation: "Begin with wild weather sometimes.",
+                sensitivity: .delight,
+                usePermission: .privateContext,
+                tags: ["onboarding", "curation-signal"],
+                createdAt: now.addingTimeInterval(-7_100),
+                updatedAt: now.addingTimeInterval(-7_100)
+            ),
+            selfFact(
+                for: interest,
+                answer: "Old maps",
+                now: now.addingTimeInterval(-7_000)
+            )
+        ]
+
+        let next = try XCTUnwrap(SelfKnowledgePackRegistry.nextQuestion(
+            knownFacts: facts,
+            day: day,
+            now: now,
+            coldStart: CausalColdStartQuestionContext(hasWeatherContext: true)
+        ))
+
+        XCTAssertEqual(next.id, "favorite-weather")
+        XCTAssertTrue(SelfKnowledgePackRegistry.isCausalColdStartQuestion(next.id))
+    }
+
+    func testAboutYouMarksColdStartQuestionsAndLimitsThemToOnePerLivedDay() throws {
+        let now = Date(timeIntervalSince1970: 1_783_484_800)
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+        let name = SelfFact(
+            id: "name",
+            questionID: "onboarding-name",
+            question: "Name",
+            answer: "Avery",
+            bookTranslation: "Avery",
+            sensitivity: .identity,
+            usePermission: .privateContext,
+            tags: ["name", "onboarding"],
+            createdAt: now.addingTimeInterval(-8_000),
+            updatedAt: now.addingTimeInterval(-8_000)
+        )
+        let interestQuestion = try XCTUnwrap(SelfKnowledgePackRegistry.question(id: "interest-01"))
+        let interest = selfFact(
+            for: interestQuestion,
+            answer: "Old maps",
+            now: now.addingTimeInterval(-7_000)
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = [name, interest]
+
+        let pages = AboutYouPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+        let directed = try XCTUnwrap(pages.first {
+            $0.payload.metadata["causalColdStartQuestion"] == "true"
+        })
+        XCTAssertEqual(directed.score, 77)
+        XCTAssertTrue(directed.reason.contains("change which real door"))
+
+        let answeredQuestion = try XCTUnwrap(
+            SelfKnowledgePackRegistry.question(
+                id: directed.payload.metadata["questionID"] ?? ""
+            )
+        )
+        inputs.selfFacts.append(
+            selfFact(for: answeredQuestion, answer: "Ten minutes", now: now)
+        )
+        let sameDay = AboutYouPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now.addingTimeInterval(2 * 3_600)
+        )
+
+        XCTAssertFalse(sameDay.contains {
+            $0.payload.metadata["causalColdStartQuestion"] == "true"
+        })
     }
 
     func testEarnedLabelNeedsRecognitionAndReceipts() throws {

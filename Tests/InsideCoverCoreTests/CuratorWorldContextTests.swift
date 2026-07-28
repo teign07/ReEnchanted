@@ -99,6 +99,76 @@ final class CuratorWorldContextTests: XCTestCase {
         ))
     }
 
+    func testNextSensorWakeUsesFreshnessAndFailedAttemptBackoff() {
+        let settled = RealWorldContextRefreshPolicy.nextAutomaticRefreshAt(
+            trigger: .curation,
+            signals: RealWorldContextRefreshSignals(),
+            lastSuccessfulRefreshAt: now,
+            lastAttemptAt: now,
+            now: now
+        )
+        XCTAssertEqual(settled, now.addingTimeInterval(90 * 60))
+
+        let backedOff = RealWorldContextRefreshPolicy.nextAutomaticRefreshAt(
+            trigger: .curation,
+            signals: RealWorldContextRefreshSignals(weatherIsMissingOrChangeable: true),
+            lastSuccessfulRefreshAt: nil,
+            lastAttemptAt: now.addingTimeInterval(-5 * 60),
+            now: now
+        )
+        XCTAssertEqual(backedOff, now.addingTimeInterval(10 * 60))
+    }
+
+    func testCalendarEndingWakesCheaplyBeforeTheNextSensorReading() throws {
+        let event = CalendarEventSignal(
+            id: "quiet-meeting",
+            title: "A title the planner must not inspect",
+            startsAt: now.addingTimeInterval(-20 * 60),
+            endsAt: now.addingTimeInterval(5 * 60),
+            isAllDay: false
+        )
+        let wake = try XCTUnwrap(BookContextWakePlanner.nextWake(
+            now: now,
+            sensorRefreshAt: now.addingTimeInterval(40 * 60),
+            calendarEvents: [event],
+            readerStateExpiresAt: nil,
+            sessionExpiresAt: nil
+        ))
+
+        XCTAssertEqual(wake.kind, .calendarEnds)
+        XCTAssertEqual(wake.at, event.endsAt?.addingTimeInterval(1))
+        XCTAssertFalse(wake.requiresSensorRefresh)
+    }
+
+    func testSensorWakeWinsWhenNoEarlierTemporalHingeExists() throws {
+        let due = now.addingTimeInterval(35 * 60)
+        let wake = try XCTUnwrap(BookContextWakePlanner.nextWake(
+            now: now,
+            sensorRefreshAt: due,
+            calendarEvents: [],
+            readerStateExpiresAt: nil,
+            sessionExpiresAt: now.addingTimeInterval(2 * 3600)
+        ))
+
+        XCTAssertEqual(wake.kind, .sensorRefresh)
+        XCTAssertEqual(wake.at, due)
+        XCTAssertTrue(wake.requiresSensorRefresh)
+    }
+
+    func testAlreadyExpiredSessionRequestsAnImmediateCheapRebuild() throws {
+        let wake = try XCTUnwrap(BookContextWakePlanner.nextWake(
+            now: now,
+            sensorRefreshAt: now.addingTimeInterval(45 * 60),
+            calendarEvents: [],
+            readerStateExpiresAt: nil,
+            sessionExpiresAt: now.addingTimeInterval(-10 * 60)
+        ))
+
+        XCTAssertEqual(wake.kind, .sessionExpires)
+        XCTAssertEqual(wake.at, now.addingTimeInterval(1))
+        XCTAssertFalse(wake.requiresSensorRefresh)
+    }
+
     func testWeatherContextFavorsWeatherAndMatchingExactPage() {
         var inputs = BookSourceInputs.empty
         inputs.weather = WeatherSourceSignal(phrase: "Current: steady rain, 57F", source: "test")
@@ -116,6 +186,27 @@ final class CuratorWorldContextTests: XCTestCase {
         XCTAssertGreaterThan(
             CuratorWorldContextAffinity.boost(for: generic, mood: mood),
             CuratorWorldContextAffinity.boost(for: lore, mood: mood)
+        )
+    }
+
+    func testStormSnowAndFogBecomeSharedWeatherOccasions() {
+        var inputs = BookSourceInputs.empty
+        inputs.weather = WeatherSourceSignal(
+            phrase: "Thunderstorm with dense fog after dark",
+            source: "test"
+        )
+        let mood = CuratorMood.make(inputs: inputs, now: now)
+        let storm = page(id: "storm", type: .weather, tags: "weather,storm,fog")
+        let generic = page(id: "generic-weather", type: .weather, tags: "weather,clear")
+        let unrelated = page(id: "unrelated", type: .lore, tags: "academy")
+
+        XCTAssertGreaterThan(
+            CuratorWorldContextAffinity.boost(for: storm, mood: mood),
+            CuratorWorldContextAffinity.boost(for: generic, mood: mood)
+        )
+        XCTAssertGreaterThan(
+            CuratorWorldContextAffinity.boost(for: generic, mood: mood),
+            CuratorWorldContextAffinity.boost(for: unrelated, mood: mood)
         )
     }
 
@@ -225,6 +316,38 @@ final class CuratorWorldContextTests: XCTestCase {
         XCTAssertGreaterThan(CuratorSelfKnowledgeAffinity.boost(for: radio, mood: mood), 0)
         XCTAssertEqual(CuratorSelfKnowledgeAffinity.boost(for: diary, mood: mood), 0)
         XCTAssertTrue(mood.allows(diary))
+    }
+
+    func testFirstDoorLifeAnswersBecomeSoftCurationPriors() {
+        var inputs = BookSourceInputs.empty
+        inputs.weather = WeatherSourceSignal(
+            phrase: "A thunderstorm is crossing town",
+            source: "test"
+        )
+        inputs.selfFacts = [
+            fact(questionID: "onboarding-rut-strongest", answer: "I'm tired before I begin"),
+            fact(questionID: "onboarding-most-alive", answer: "Outside somewhere"),
+            fact(questionID: "onboarding-magic-source", answer: "Wild weather")
+        ]
+        let mood = CuratorMood.make(inputs: inputs, now: now)
+        let stormDoor = page(
+            id: "storm-door",
+            type: .weather,
+            tags: "weather,storm,outward"
+        )
+        let heavyStory = page(
+            id: "heavy-story",
+            type: .facultyResearch,
+            tags: "research,indoors"
+        )
+
+        XCTAssertEqual(mood.declaredCuration.onboardingRutContext, "i'm tired before i begin")
+        XCTAssertEqual(mood.declaredCuration.onboardingAliveContext, "outside somewhere")
+        XCTAssertEqual(mood.declaredCuration.onboardingMagicSource, "wild weather")
+        XCTAssertGreaterThan(
+            CuratorSelfKnowledgeAffinity.boost(for: stormDoor, mood: mood),
+            CuratorSelfKnowledgeAffinity.boost(for: heavyStory, mood: mood) + 12
+        )
     }
 
     private func page(id: String, type: BookPageType, tags: String) -> SurfacePage {

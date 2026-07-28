@@ -31,6 +31,7 @@
 		010000000000000000000022 /* TarotPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000011A /* TarotPageView.swift */; };
 		020000000000000000000200 /* PageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000100 /* PageModel.swift */; };
 		020000000000000000000212 /* BookInterruptionBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000112 /* BookInterruptionBudget.swift */; };
+		B00C70000000000000000213 /* BookToday.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00C70000000000000000113 /* BookToday.swift */; };
 		02000000000000000000021A /* BookWorkings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000011A /* BookWorkings.swift */; };
 		020000000000000000000213 /* CastUndertakings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000113 /* CastUndertakings.swift */; };
 		020000000000000000000214 /* WorldPressure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000114 /* WorldPressure.swift */; };
@@ -150,6 +151,7 @@
 		010000000000000000000201 /* InsideCoverApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InsideCoverApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		020000000000000000000100 /* PageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageModel.swift; sourceTree = "<group>"; };
 		020000000000000000000112 /* BookInterruptionBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookInterruptionBudget.swift; sourceTree = "<group>"; };
+		B00C70000000000000000113 /* BookToday.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookToday.swift; sourceTree = "<group>"; };
 		02000000000000000000011A /* BookWorkings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookWorkings.swift; sourceTree = "<group>"; };
 		020000000000000000000113 /* CastUndertakings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CastUndertakings.swift; sourceTree = "<group>"; };
 		020000000000000000000114 /* WorldPressure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldPressure.swift; sourceTree = "<group>"; };
@@ -294,6 +296,7 @@
 				030000000000000000000108 /* PlainInkExport.swift */,
 				020000000000000000000100 /* PageModel.swift */,
 				020000000000000000000112 /* BookInterruptionBudget.swift */,
+				B00C70000000000000000113 /* BookToday.swift */,
 				02000000000000000000011A /* BookWorkings.swift */,
 				020000000000000000000113 /* CastUndertakings.swift */,
 				020000000000000000000114 /* WorldPressure.swift */,
@@ -555,6 +558,7 @@
 				030000000000000000000200 /* StacksSearch.swift in Sources */,
 				020000000000000000000200 /* PageModel.swift in Sources */,
 				020000000000000000000212 /* BookInterruptionBudget.swift in Sources */,
+				B00C70000000000000000213 /* BookToday.swift in Sources */,
 				02000000000000000000021A /* BookWorkings.swift in Sources */,
 				020000000000000000000213 /* CastUndertakings.swift in Sources */,
 				020000000000000000000214 /* WorldPressure.swift in Sources */,
